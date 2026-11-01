@@ -2,7 +2,7 @@ import type { SchemaField } from '@/shared/api/schema';
 import { SUGGEST_REFUSAL_TEXT, suggestReason } from '@/shared/api/suggestable';
 import { FUNCTIONAL_TAG, tagCode } from '@/shared/api/tags';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 type SuggestFields = Pick<SchemaField, 'type' | 'computed' | 'locked' | 'tags'>;
 
@@ -40,5 +40,5 @@ export function SuggestFlag({ field, onChange }: {
  * снятый флажок не был бы виден, пока карточку не раскрыли.
  */
 export function SuggestOffBadge({ field }: { field: SuggestFields }) {
-  return suggestReason(field) === 'manual' ? <StatusBadge tone="quiet">без подсказки</StatusBadge> : null;
+  return suggestReason(field) === 'manual' ? <StatusText tone="quiet">без подсказки</StatusText> : null;
 }

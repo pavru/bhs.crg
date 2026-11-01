@@ -36,7 +36,9 @@
     "cancel": {},
     "change_circle": {},
     "check": {},
-    "check_circle": {},
+    "check_circle": {
+      "fill": true
+    },
     "checklist": {},
     "chevron_left": {},
     "chevron_right": {},
@@ -67,7 +69,8 @@
     "edit_note": {},
     "equal": {},
     "error": {
-      "export": "ErrorIcon"
+      "export": "ErrorIcon",
+      "fill": true
     },
     "feedback": {},
     "file_copy": {},
@@ -84,7 +87,8 @@
     "group": {},
     "help": {},
     "history": {
-      "export": "HistoryIcon"
+      "export": "HistoryIcon",
+      "fill": true
     },
     "home": {},
     "image": {
@@ -152,12 +156,16 @@
     "route": {
       "export": "RouteIcon"
     },
-    "save": {},
+    "save": {
+      "fill": true
+    },
     "scan_delete": {},
     "schedule": {},
     "search": {},
     "search_check": {},
-    "search_off": {},
+    "search_off": {
+      "fill": true
+    },
     "sell": {},
     "send": {},
     "settings": {},
@@ -188,7 +196,9 @@
     "visibility": {},
     "visibility_off": {},
     "wand_stars": {},
-    "warning": {},
+    "warning": {
+      "fill": true
+    },
     "widgets": {},
     "zoom_in": {}
   }

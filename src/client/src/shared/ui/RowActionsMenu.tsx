@@ -3,6 +3,7 @@ import { IconButton } from './Button';
 import { Icon } from './Icon';
 import { ChevronRight, MoreVert } from './icons';
 import type { ReactNode } from 'react';
+import { CountText } from './CountText';
 import { MENU_ITEM, MENU_ITEM_OFF, MENU_SURFACE } from './menuClasses';
 
 export interface RowAction {
@@ -11,7 +12,7 @@ export interface RowAction {
   icon?: ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
-  /** Правый бейдж — напр. количество активных условий фильтра. */
+  /** Число справа (`CountText`) — напр. количество активных условий фильтра. */
   badge?: string;
   /** Подсветить как активное (настройка задана). */
   active?: boolean;
@@ -30,7 +31,7 @@ function Row({ action }: { action: RowAction }) {
     <>
       {action.icon && <span className={off || (action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant')}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && <span className={`ml-auto text-label-small tabular-nums ${off || 'text-on-surface-variant'}`}>{action.badge}</span>}
+      {action.badge && <CountText disabled={action.disabled} className="ml-auto">{action.badge}</CountText>}
     </>
   );
 }

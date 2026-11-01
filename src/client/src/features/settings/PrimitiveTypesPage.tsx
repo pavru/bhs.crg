@@ -44,7 +44,7 @@ import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { constraintsOf } from './primitiveConstraints';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
@@ -416,10 +416,10 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-body-small text-on-surface-variant">Тэги модуля:</span>
                 {unknownAllowed.map(code => (
-                  <StatusBadge key={code} tone="quiet"
+                  <StatusText key={code} tone="quiet"
                     title="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
                     {code}
-                  </StatusBadge>
+                  </StatusText>
                 ))}
               </div>
             )}
@@ -552,7 +552,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
             {t.preview && <span className="text-body-small truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
         </span>
-        <StatusBadge>{t.chip}</StatusBadge>
+        <StatusText>{t.chip}</StatusText>
       </button>
     );
   };

@@ -16,7 +16,7 @@ import { ScopeGroupList } from './ScopeGroupList';
 import { useIsArchivedRef } from './archivedRefIds';
 import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { DocumentStatusBadge } from './DocumentStatusBadge';
+import { DocumentStatusText } from './DocumentStatusText';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -445,7 +445,7 @@ function RefPickerModalBody({
                         {hint}
                       </span>
                     )}
-                    <DocumentStatusBadge status={inst.status} />
+                    <DocumentStatusText status={inst.status} />
                   </button>
                 );
               })}

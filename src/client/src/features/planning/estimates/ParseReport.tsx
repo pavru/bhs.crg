@@ -5,6 +5,7 @@ import { costHidden } from '@/shared/api/planningEstimates';
 import type { EstimateImport, SkippedPosition, UnparsedPosition } from '@/shared/api/planningImports';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { formatCount, formatMoney } from '@/shared/format/format';
+import { LinearProgress } from '@/shared/ui/LinearProgress';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { countOf, importVerdict, reasonGroups, targetLabel } from './importReport';
 
@@ -49,9 +50,7 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
       {report.parsed !== null && report.inFile !== null && (
         <div className="space-y-1.5">
           <p className="font-medium text-on-surface">Разобрано {formatCount(report.parsed)} из {countOf(report.inFile, 'позиции', 'позиций', 'позиций')}</p>
-          <div className="h-1.5 rounded-full bg-surface-container overflow-hidden" aria-hidden>
-            <div className="h-full bg-primary" style={{ width: `${report.inFile > 0 ? (report.parsed / report.inFile) * 100 : 0}%` }} />
-          </div>
+          <LinearProgress value={report.inFile > 0 ? report.parsed / report.inFile : 0} label="Разобрано позиций" />
           {summary && (
             <p className="text-body-small text-on-surface-variant">
               {countOf(summary.chapters.length, 'раздел', 'раздела', 'разделов')} · в редакцию войдёт {countOf(summary.rows, 'строка', 'строки', 'строк')}

@@ -11,7 +11,7 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { SearchInput } from '@/shared/ui/SearchInput';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -50,7 +50,7 @@ const ISSUE_TEXT: Record<Exclude<MatchIssue, null>, string> = {
 };
 
 function Issue({ issue }: { issue: MatchIssue }) {
-  return issue ? <StatusBadge tone="warning">{ISSUE_TEXT[issue]}</StatusBadge> : null;
+  return issue ? <StatusText tone="warning">{ISSUE_TEXT[issue]}</StatusText> : null;
 }
 
 /** Правка списка: право и широкий экран — как у смет (на телефоне сметы только читают). */

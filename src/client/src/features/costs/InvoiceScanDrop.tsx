@@ -6,6 +6,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import {
   batchTitle, dismissBatch, repeatsTitle, repeatWords, retryable, shownRepeats, stopBatch, uploadLine, type ScanBatch,
 } from './scanBatch';
+import { LinearProgress } from '@/shared/ui/LinearProgress';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
@@ -105,9 +106,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         {done && <IconButton label="Закрыть" onClick={dismissBatch} icon={Close} />}
       </div>
       {!done && (
-        <div className="h-1 rounded-xs bg-surface-container overflow-hidden" aria-hidden>
-          <div className="h-full bg-primary transition-[width]" style={{ width: `${(batch.settled / batch.total) * 100}%` }} />
-        </div>
+        <LinearProgress value={batch.settled / batch.total} label="Ход пакета сканов" />
       )}
       {/* Пакет не хранится нигде, кроме этой вкладки: уйти с неё до конца — оставить файлы неотправленными. */}
       {!done && <p className="text-on-surface-variant">Не закрывайте вкладку до конца загрузки.</p>}

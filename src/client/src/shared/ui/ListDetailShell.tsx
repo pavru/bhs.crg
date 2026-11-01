@@ -5,7 +5,8 @@ import { ArrowBack, ChevronRight } from './icons';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
-import { StatusBadge } from './StatusBadge';
+import { CountText } from './CountText';
+import { StatusText } from './StatusText';
 import { useCoversPrimaryFab } from './primaryFabContext';
 
 
@@ -101,7 +102,7 @@ export function NavSection({ label }: { label: string }) {
 /**
  * Пилюля левой навигации scope-страницы (issue #210, ось видимости). Два рода (аффорданс кодирует scope):
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
- * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
+ * без `chevron` — ресурс/контент уровня (меняет detail на месте): число у подписи (`CountText`), подсветка при active.
  */
 export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle, note }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
@@ -136,14 +137,16 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
       <span className={`shrink-0 ${highlight ? 'text-on-primary-container' : 'text-on-surface-variant'}`}>{icon}</span>
       <span className="flex-1 truncate text-body-medium">{label}</span>
       {progress != null && (
-        <StatusBadge count tone={progress === 100 ? 'success' : 'neutral'} title={progressTitle ?? `Готовность по плану: ${progress}%`}>
+        <StatusText tone={progress === 100 ? 'success' : 'neutral'} title={progressTitle ?? `Готовность по плану: ${progress}%`} className="tabular-nums">
           {progress}%
-        </StatusBadge>
+        </StatusText>
       )}
       {alert != null && alert > 0 && (
-        <StatusBadge count tone={alertDanger ? 'danger' : 'warning'} title={`Требует разбора: ${alert}`}>
+        // Пометка с числом, а не badge: у badge один цвет — красный, а красный здесь зарезервирован за
+        // арифметикой (`alertDanger`); знак тона различает «разобрать» и «расхождение» и без цвета.
+        <StatusText tone={alertDanger ? 'error' : 'warning'} title={`Требует разбора: ${alert}`} className="tabular-nums">
           {alert > 99 ? '99+' : alert}
-        </StatusBadge>
+        </StatusText>
       )}
       {chevron ? (
         <>
@@ -151,11 +154,10 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
           <Icon icon={ChevronRight} size={18} className="shrink-0 text-on-surface-variant" />
         </>
       ) : note ? (
-        <StatusBadge>{note}</StatusBadge>
+        <StatusText>{note}</StatusText>
       ) : (
         count != null && count > 0 && (
-          // На выделенной строке (заливка primary-container) бренд слился бы с фоном — счётчик там тихий.
-          <StatusBadge count tone={highlight ? 'neutral' : 'brand'}>{count}</StatusBadge>
+          <CountText onContainer={highlight}>{count}</CountText>
         )
       )}
     </button>

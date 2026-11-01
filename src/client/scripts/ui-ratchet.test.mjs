@@ -99,7 +99,7 @@ describe('храповик интерфейса: счёт', () => {
     ].join(' '))).toEqual({});
   });
 
-  /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusBadge, IconButton, Tabs. */
+  /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusText, IconButton, Tabs. */
   it('свой чип: нажимаемая пилюля или aria-pressed', () => {
     expect(countViolations([
       '<button className={`px-2 py-1 rounded-full ${on ? "bg-primary-container" : ""}`}>Только новые</button>',
@@ -119,7 +119,7 @@ describe('храповик интерфейса: счёт', () => {
       '<span className="w-2 h-2 rounded-full bg-primary" /> <div className="h-1.5 rounded-full bg-surface-container" />',
       '<div className="absolute inset-0 rounded-full bg-surface-container" />',
       '<span className="px-2 rounded-full hover:bg-surface-container">наведи</span>',
-      '<Chip selected>Все</Chip> <StatusBadge tone="success">Оплачен</StatusBadge> <Button>Сохранить</Button>',
+      '<Chip selected>Все</Chip> <StatusText tone="success">Оплачен</StatusText> <Button>Сохранить</Button>',
     ].join(' '))).toEqual({});
   });
 

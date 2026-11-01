@@ -177,11 +177,11 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
 
   const single = data.length === 1 ? data[0] : null;
   return (
-    <Frame title={single ? `Сопоставление полей — ${single.title}` : 'Сопоставление полей'}>
-      {failed && (
+    <Frame title={single ? `Сопоставление полей — ${single.title}` : 'Сопоставление полей'}
+      notice={failed && (
         <RereadFailedNotice what="Сопоставление полей не перечиталось"
           error={failed.error} retrying={failed.retrying} onRetry={failed.retry} />
-      )}
+      )}>
       <p className="text-body-small text-on-surface-variant max-w-2xl">
         Модуль берёт эти сведения из справочников. Здесь назначается, какой тип служит справочником и какое
         его поле за что отвечает. То же самое видно в редакторе типа — тэгом типа и тэгом поля.
@@ -219,12 +219,16 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
   );
 }
 
-function Frame({ title, children }: { title: string; children: React.ReactNode }) {
+/** `notice` — banner области ([UI-73]): во всю ширину над полями страницы, а не внутри них. */
+function Frame({ title, notice, children }: { title: string; notice?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="px-6 py-4 max-w-5xl space-y-5">
-      <PageHeader title={title} />
-      {children}
-    </div>
+    <>
+      {notice}
+      <div className="px-6 py-4 max-w-5xl space-y-5">
+        <PageHeader title={title} />
+        {children}
+      </div>
+    </>
   );
 }
 

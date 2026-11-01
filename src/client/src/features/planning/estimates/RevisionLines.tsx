@@ -9,7 +9,7 @@ import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { SearchInput } from '@/shared/ui/SearchInput';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
@@ -150,10 +150,10 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
   // «Запомнено» — и у строки, и у её материала: иначе строка из очереди «Запомнено» стояла бы без пометки.
   const remembered = row.marks.find(m => m.code === 'remembered')
     ?? row.materials.flatMap(m => m.marks).find(m => m.code === 'remembered');
-  const rememberedBadge = remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>;
+  const rememberedBadge = remembered && <StatusText tone="quiet" title={remembered.text}>запомнено</StatusText>;
   if (row.kind === 'material') return (
     <div className="flex flex-col items-start gap-0.5">
-      <StatusBadge tone="quiet" title="Позиция-материал ЛСР: вида работы не требует, в план не входит">материал</StatusBadge>
+      <StatusText tone="quiet" title="Позиция-материал ЛСР: вида работы не требует, в план не входит">материал</StatusText>
       {rememberedBadge}
     </div>
   );
@@ -180,9 +180,9 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
         </span>
       )}
       {marks.map(m => (
-        <StatusBadge key={m.code} tone={m.code === 'unmatched' || m.code === 'unit-changed' ? 'warning' : 'neutral'} title={m.text}>
+        <StatusText key={m.code} tone={m.code === 'unmatched' || m.code === 'unit-changed' ? 'warning' : 'neutral'} title={m.text}>
           {MARK_LABEL[m.code] ?? m.text}
-        </StatusBadge>
+        </StatusText>
       ))}
       {rememberedBadge}
     </div>
@@ -240,10 +240,10 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
         {filtering ? `${formatCount(shown)} из ${formatCount(section.rows)} строк` : `${formatCount(section.rows)} строк`}
       </span>
       {section.unmatched > 0
-        ? <StatusBadge tone="warning">не сопоставлено: {formatCount(section.unmatched)}</StatusBadge>
-        : <StatusBadge tone="success">всё сопоставлено</StatusBadge>}
+        ? <StatusText tone="warning">не сопоставлено: {formatCount(section.unmatched)}</StatusText>
+        : <StatusText tone="success">всё сопоставлено</StatusText>}
       {section.materialsUnmatched > 0 && (
-        <StatusBadge tone="neutral">без номенклатуры: {formatCount(section.materialsUnmatched)}</StatusBadge>
+        <StatusText tone="neutral">без номенклатуры: {formatCount(section.materialsUnmatched)}</StatusText>
       )}
       {onMatch && (
         <Button variant="text" className="ml-auto" onClick={onMatch}>

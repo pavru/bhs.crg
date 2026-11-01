@@ -63,18 +63,23 @@ async function open() {
 }
 
 describe('кнопка активности', () => {
-  it('без задач — колокольчик, число новых — на brand', () => {
+  /** Видимое число badge ([UI-74]): то, что скрыто от диктора, — его имя называет `aria-label` кнопки. */
+  const shownCount = (button: HTMLElement) =>
+    within(button).getAllByText('2').find(el => el.getAttribute('aria-hidden') === 'true')!.parentElement!;
+
+  it('без задач — колокольчик, число новых — badge error и без ошибки', () => {
     items = [note('1'), note('2'), note('3', 'Info', true)];
     const button = shown();
     expect(button.getAttribute('aria-label')).toBe('Уведомления — новых уведомлений: 2');
-    expect(within(button).getByText('2').className).toContain('bg-primary');
+    expect(shownCount(button).className).toContain('bg-error');
+    expect(shownCount(button).className).toContain('text-on-error');
   });
 
-  it('новая ошибка красит число и названа в имени', () => {
+  it('новая ошибка — тот же badge, а ошибку называет имя', () => {
     items = [note('1'), note('2', 'Error')];
     const button = shown();
     expect(button.getAttribute('aria-label')).toBe('Уведомления — новых уведомлений: 2, среди них ошибка');
-    expect(within(button).getByText('2').className).toContain('bg-error');
+    expect(shownCount(button).className).toContain('bg-error');
   });
 
   it('с задачей — пилюля, имя называет и задачу, и уведомления', () => {

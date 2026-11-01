@@ -9,7 +9,7 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { SearchInput } from '@/shared/ui/SearchInput';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate } from '@/shared/format/format';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
@@ -151,7 +151,7 @@ const COLUMNS: DataGridColumn<Line>[] = [
     cell: l => {
       const r = latestRevision(est(l));
       return r && r.unmatched > 0
-        ? <StatusBadge tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(r.unmatched)}</StatusBadge>
+        ? <StatusText tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(r.unmatched)}</StatusText>
         : <span className="text-on-surface-variant">—</span>;
     },
   },

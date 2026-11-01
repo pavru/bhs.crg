@@ -41,7 +41,7 @@ import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart 
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { CorrectionBar } from './CorrectionBar';
 import { CorrectionHistory } from './CorrectionHistory';
 import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
@@ -561,7 +561,7 @@ const LABELS: Record<string, string> = {
 
 function StateChip({ text }: { text: string }) {
   if (!text) return null;
-  return <StatusBadge>{text}</StatusBadge>;
+  return <StatusText>{text}</StatusText>;
 }
 
 /** Скан из реквизитов — значение файлового поля общего контракта. */

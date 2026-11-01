@@ -19,7 +19,7 @@ import {
 import { DecisionDialog } from '@/features/reconciliations/DecisionDialog';
 import { ObservationReviewDialog } from '@/features/reconciliations/ObservationReviewDialog';
 import { Chip } from '@/shared/ui/Chip';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 /**
  * Проблемы комплекта (issue #452) — дом подсистемы сверки в иерархии.
@@ -53,9 +53,9 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
   return (
     <div className={`px-3 py-2 border-b border-outline-variant text-body-medium ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
-        <StatusBadge tone={f.status === 'Match' ? 'quiet' : open ? 'danger' : 'neutral'}>
+        <StatusText tone={f.status === 'Match' ? 'quiet' : open ? 'error' : 'neutral'}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
-        </StatusBadge>
+        </StatusText>
         <span className="flex-1 truncate text-on-surface" title={f.label}>{f.label}</span>
         <span className="tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
@@ -173,9 +173,9 @@ function ObservationCard({ o, documentNames, onReview }: {
   return (
     <div className={`px-3 py-2 border border-outline-variant rounded-md ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
-        <StatusBadge tone={o.severity === 'Error' ? 'warning' : 'neutral'} className="mt-0.5">
+        <StatusText tone={o.severity === 'Error' ? 'warning' : 'neutral'} className="mt-0.5">
           {SEVERITY_LABELS[o.severity]}
-        </StatusBadge>
+        </StatusText>
         <div className="min-w-0 flex-1">
           <div className="text-body-medium text-on-surface">{o.title}</div>
           {o.detail && <p className="text-body-small text-on-surface-variant mt-0.5 line-clamp-2">{o.detail}</p>}

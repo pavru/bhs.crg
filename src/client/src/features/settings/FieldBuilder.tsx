@@ -22,7 +22,7 @@ import { moveItem } from '@/shared/utils/moveItem';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { FIELD_CLS } from '@/shared/filter/fieldClass';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
@@ -212,7 +212,7 @@ export function FieldCard({
           <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
           {chips.length > 2 && <span className="text-label-small text-on-surface-variant shrink-0">+{chips.length - 2}</span>}
-          <StatusBadge>{fieldTypeSummary(field, reg)}</StatusBadge>
+          <StatusText>{fieldTypeSummary(field, reg)}</StatusText>
           {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         </button>
       </div>
@@ -416,10 +416,10 @@ export function FieldCard({
           <span className="text-body-small text-on-surface-variant shrink-0 w-28 mt-1">Тэги модуля:</span>
           <div className="flex flex-wrap gap-1.5">
             {unknownTags.map(code => (
-              <StatusBadge key={code} tone="quiet" icon={LockIcon}
+              <StatusText key={code} tone="quiet" icon={LockIcon}
                 title="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
                 {code}
-              </StatusBadge>
+              </StatusText>
             ))}
           </div>
         </div>

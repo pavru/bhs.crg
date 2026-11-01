@@ -220,6 +220,18 @@ body {
   .md-progress-arc { animation: none; stroke-dasharray: calc(var(--md-progress-c) * 0.3) var(--md-progress-c); }
 }
 
+/* Линейный индикатор хода без доли (shared/ui/LinearProgress, [UI-74]): отрезок в 2/5 дорожки бежит слева
+   направо и уходит за край. При prefers-reduced-motion — втрое медленнее, но не стоит ([UI-65]): стоящий
+   отрезок читался бы долей. */
+@keyframes md-linear {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+.md-linear { animation: md-linear 1.8s var(--md-sys-motion-easing-standard) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .md-linear { animation-duration: 5.4s !important; animation-iteration-count: infinite !important; }
+}
+
 /* Кнопка выхода диалога, показанная после клика мимо или Esc (issue #1235): кольцо на ~600 мс,
    без движения — проходит и при prefers-reduced-motion. Вне слоёв, чтобы не спорить с утилитами. */
 [data-modal-hint] {

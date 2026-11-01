@@ -97,9 +97,11 @@
   - ожидающий успех старше 15 с не показывается, ошибка — показывается;
   - двойной вызов — одно уведомление;
   - у отказа без `traceId` нет «Сообщить»; при своём действии «Сообщить» нет.
-- [ ] 1.3 Место: рабочий стол — у ведущего края содержимого, отступ — CSS-переменной от `AppShell`;
+- [x] 1.3 Место: рабочий стол — у ведущего края содержимого, отступ — CSS-переменной от `AppShell`;
   телефон — по центру над навигацией (`--snackbar-lift`), ширина ≤ 560 px [UI-71]. Проверка — живой
   прогон набора `shared-ui` на 375 px: snackbar не перекрывает нижнюю навигацию.
+  Сделано 01.11.2026: проверки `snackbar-field-right-of-rail-on-desktop` и
+  `snackbar-field-above-bottom-nav-on-phone` набора `shared-ui` зелёные в CI #1718 (коммит 5158d50e).
 - [x] 1.4 Одно действие — одно уведомление: пары склеены в вызывающем коде — `InvoiceLinesTable`
   («запомнено» и «забыто»), `InvoiceFileImage`, `SetProblemsPanel`, `ReconciliationsPage` [UI-71].
   Проверка — тесты этих мест ждут одно уведомление; `rg` по соседним вызовам `toast.` в одном обработчике
@@ -126,17 +128,19 @@
   место: «Провести» неактивна только на время запроса, «Сохранить» — когда сохранять нечего; причины с
   действием там нет. Слой с действием держит своё `FocusScope` (прямая зависимость
   `@radix-ui/react-focus-scope` 1.1.10, та же копия, что у окна).
-- [ ] 1.7 Живые прогоны, читающие уведомления и подсказки, — по роли и тексту; ожидания «два тоста
+- [x] 1.7 Живые прогоны, читающие уведомления и подсказки, — по роли и тексту; ожидания «два тоста
   сразу» переписаны на очередь; список «после какого действия ждём» по шести файлам; у
   `invoice-lines-smoke` — метка Viewport Radix сохранена. Проверка — каждое ожидание названо в PR, весь
   список зелёный.
+  Сделано 01.11.2026: ожидания названы в описании #1718; у `invoice-lines-smoke` таймаут `said()` — 15 с
+  (уведомление может ждать в очереди). Весь список живых прогонов зелёный в CI #1718 (коммит 5158d50e).
 - [x] 1.8 `docs/UI.md`: строки «Уведомление» и «Подсказка» таблицы контролов; таблица «snackbar /
   banner / текст под полем / окно»; правило «одно действие — одно уведомление» [UI-71] [UI-72]. Проверка —
   ревью; у подсказки нет рамки, `text-label-small` и `shadow-elevation-2`.
 
 ## 2. PR 2 — banner, пометка, badge, progress
 
-- [ ] 2.1 `Banner`: тона `error`, `warning`, `info`, `success`; знак `on-<тон>-container` в круге
+- [x] 2.1 `Banner`: тона `error`, `warning`, `info`, `success`; знак `on-<тон>-container` в круге
   `<тон>-container`; до двух text-действий; на узком экране — под текстом; разделитель снизу [UI-73].
   Проверка — vitest:
   - без действий нет пустой полосы;
@@ -146,32 +150,50 @@
   `npm run ui:ratchet` — `container-text` не растёт.
 - [ ] 2.2 `RereadFailedNotice` переведён на `Banner` [UI-73]. Проверка — его тесты и живой прогон, где он
   показывается (`invoices`), зелёные.
-- [ ] 2.3 Правило `notice-plaque` своим модулем по образцу `ui-ratchet-pills.mjs`, по синтаксическому
+- [x] 2.3 Правило `notice-plaque` своим модулем по образцу `ui-ratchet-pills.mjs`, по синтаксическому
   дереву, `everywhere: true`: `div`/`p`/`section` с заливкой `*-container`, рамкой и скруглением; не
   срабатывает с `text-label-*`, `/N` у заливки и `border-dashed`; ветки `*-subtle` нет. Уровень — по замеру
   после 2.2 (ожидается около 38) [UI-73]. Проверка — `ui-ratchet.test.mjs`:
   - фикстура `div` с `bg-warning-container border rounded-md` красная;
   - `span` с `bg-error-container border rounded-full text-label-small` — зелёная;
   - `Banner` — зелёная.
-- [ ] 2.4 `StatusText` вместо `StatusBadge`: `label-medium`, цвет роли, знак у `success`, `warning`,
+  Сделано 01.11.2026: модуль `ui-ratchet-plaque.mjs`; уровень — 32 в 25 файлах (прототип разбора давал 39:
+  пилюли с `text-label-*` и пунктир правило пропускает, `RereadFailedNotice` переведён).
+- [x] 2.4 `StatusText` вместо `StatusBadge`: `label-medium`, цвет роли, знак у `success`, `warning`,
   `error`, «·» между соседними; `bordered` и `count` удалены, замены у `bordered` нет [UI-74]. Кодмод:
   имя — по синтаксическому дереву, тона `brand` → `primary` и `danger` → `error` — по диагностикам `tsc`
   после смены `StatusTone`. В отчёте проверки связок три `warning` — свои знаки (`search_off`, `history`,
   `save`). Подсказка отказа правила `badge` называет `StatusText` и `CountText`. Проверка:
   - vitest — у `error` есть знак, у `neutral` знака нет;
   - `rg "StatusBadge" src/client/src` — пусто (55 мест в 28 файлах до перевода).
-- [ ] 2.5 `Badge` (small и large, «999+», только `error`) на знаке центра активности, вкладке, пункте
+  Сделано 01.11.2026: имя — по коду, тона — по диагностикам `tsc` (`PendingImports`, `BindingCheckReport`,
+  `DocumentStatus*` и др.). Знак — 18 px: шкала [UI-60] 16 не знает, число в дельте поправлено.
+  `DocumentStatusBadge` переименован в `DocumentStatusText` — иначе проверка `rg` его ловит. Залитые варианты
+  `check_circle`, `warning`, `error`, `search_off`, `history`, `save` добавлены в набор значков.
+- [x] 2.5 `Badge` (small и large, «999+», только `error`) на знаке центра активности, вкладке, пункте
   навигации; `CountText` — число у подписи кнопки, вкладки, строки (7 мест `StatusBadge count`) [UI-74]
   [UI-45]. Ручные счётчики переведены по месту — на знаке badge, у подписи `CountText`:
   `ActivityCenter.Count` (и для непрочитанных без ошибки — `error`), `BrokenCountBadge`,
   `ValueIssueBadge`, `VariantPicker`, `SourcesExpander`. `Chip count` и проценты не трогаются. Проверка:
   - vitest — `999+` при 1200, доступное имя с точным числом; `CountText` без заливки;
   - `ActivityCenter.test.tsx` переписан без классов `bg-danger` и `primary` у счётчика.
-- [ ] 2.6 `LinearProgress` с долей и без, классическая (без зазора и точки). `InvoiceScanDrop` и
+  Сделано 01.11.2026, по месту:
+  - на знаке и пункте навигации — `Badge`: центр активности, вкладки «Реквизиты» (битые ссылки) и
+    «Источники» (устарели; свой счётчик тоже), пункт раздела реквизитов;
+  - у подписи — `CountText`: кнопки обработки, «Замечания», `NavItem count`, число в меню строки
+    (`RowActionsMenu`, ряд `SourcesExpander`);
+  - «требует разбора: N» у подписи (битые ссылки, расхождения, `NavItem alert`) — пометка `StatusText` с
+    числом, тон по смыслу: голое число не скажет, что есть что чинить, а красный badge нарушил бы
+    «красный — за арифметикой» (`alertDanger`);
+  - проценты (`PlanProgressBadge`, `NavItem progress`) — текст пометки;
+  - `VariantPicker`: в списке — `StatusText` «задан»; точка на сегменте остаётся — badge красный, а
+    «задан» не ошибка и не непрочитанное.
+- [x] 2.6 `LinearProgress` с долей и без, классическая (без зазора и точки). `InvoiceScanDrop` и
   `ParseReport` переведены [UI-74]. Проверка:
   - vitest — `role="progressbar"`, `aria-valuenow` только с долей;
   - `rg "h-full bg-primary" src/client/src/features` — пусто (сегодня два места).
-- [ ] 2.7 `docs/UI.md`:
+  Сделано 01.11.2026: бег без доли — класс `md-linear` в `index.css`, при «меньше движения» медленнее.
+- [x] 2.7 `docs/UI.md`:
   - строка «Пометка состояния» — `StatusText`;
   - строка «Счётчик» — `CountText` и `Badge`, решение 01.11.2026 вместо 22.10.2026;
   - новые строки `Banner`, `Badge`, `LinearProgress`;
@@ -180,6 +202,7 @@
 
   Перечень правил в `CLAUDE.md` и `AGENTS.md` — одним коммитом [UI-73] [UI-74]. Проверка —
   `dotnet test … --filter AgentRulesCopy` зелёный.
+  Сделано 01.11.2026.
 - [ ] 2.8 `/design-sync` (D12): превью `StatusBadge` → `StatusText`, README дизайн-системы — snackbar,
   подсказки, banner. Проверка — README и превью.
 

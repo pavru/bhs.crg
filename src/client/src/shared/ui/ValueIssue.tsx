@@ -1,6 +1,6 @@
 import { Icon } from './Icon';
 import { Warning } from './icons';
-import { Tooltip } from './Tooltip';
+import { StatusText } from './StatusText';
 
 /**
  * Расхождение значения с объявленным типом — у поля формы (issue #644).
@@ -19,17 +19,12 @@ export function ValueIssueHint({ messages, compact }: { messages: string[] | und
   );
 }
 
-/** Свод-бейдж расхождений внутри составного поля или раздела — по образцу счётчика битых ссылок. */
-export function ValueIssueBadge({ count, className = '' }: { count: number; className?: string }) {
+/**
+ * Свод расхождений внутри составного поля или раздела — у подписи поля: пометка `warning` с числом
+ * ([UI-74]), а не своя пилюля. Пометка, а не `CountText`: число без знака и тона не сказало бы, что внутри
+ * есть что поправить; не `Badge` — его красный здесь соврал бы, расхождение не ошибка.
+ */
+export function ValueIssueCount({ count, className = '' }: { count: number; className?: string }) {
   if (count <= 0) return null;
-  // Подложка токеном -subtle, а не заливкой цветом текста: в тёмной теме --color-warning сам светлый,
-  // и белые цифры на нём не читались бы.
-  return (
-    <Tooltip content={`Значений не по типу: ${count}`}>
-      <span
-        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-container text-on-warning-container border border-outline-variant text-label-small font-semibold leading-none ${className}`}>
-        {count}
-      </span>
-    </Tooltip>
-  );
+  return <StatusText tone="warning" title={`Значений не по типу: ${count}`} className={`tabular-nums ${className}`}>{count}</StatusText>;
 }

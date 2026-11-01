@@ -7,7 +7,7 @@ import { useListDataSetBindings } from '@/shared/api/datasets';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, compositeFieldHasTag } from '@/shared/api/schema';
-import { BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate, DocumentStatusBadge } from '../fields';
+import { BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate, DocumentStatusText } from '../fields';
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
@@ -15,12 +15,13 @@ import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { containsRef } from './brokenRefs';
-import { BrokenCountBadge } from './BrokenCountBadge';
+import { BrokenCount } from './BrokenCount';
 import { RequisitesTab } from './RequisitesTab';
 import { GenerationTab } from './GenerationTab';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useGuardedLeave, useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
+import { Badge } from '@/shared/ui/Badge';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
@@ -206,7 +207,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onSelect={c => baseControlRef.current?.select(c)}
               onClear={() => baseControlRef.current?.clear()} />
           )}
-          <DocumentStatusBadge status={instance.status} />
+          <DocumentStatusText status={instance.status} />
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
               здесь нет: их связь с документом слабее, чем выглядит. */}
           <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />
@@ -233,13 +234,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               ? `${ruCount(staleSourceCount, 'источник устарел', 'источника устарели', 'источников устарели')}: данные от прежнего файла. Откройте, чтобы перераспознать.`
               : undefined,
             badge: <>
-              {key === 'requisites' && <BrokenCountBadge count={brokenTabCount} className="align-middle" />}
+              {key === 'requisites' && <BrokenCount nav count={brokenTabCount} className="align-middle" />}
               {/* Счётчик — в доступном имени вкладки, а не только в title: тот виден лишь мышью. */}
               {key === 'sources' && staleSourceCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                  bg-warning-container text-on-warning-container text-label-small font-medium tabular-nums">
-                  <span className="sr-only">устарели: </span>{staleSourceCount}
-                </span>
+                <Badge count={staleSourceCount} label={`устарели: ${staleSourceCount}`} className="align-middle" />
               )}
               {key === tab && dirty && <Tooltip content="Есть несохранённые изменения"><span className="text-warning">•</span></Tooltip>}
             </>,

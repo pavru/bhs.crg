@@ -1,6 +1,6 @@
 import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { StatusText } from '@/shared/ui/StatusText';
 /**
  * Выбор одного варианта union-поля — вынесен из ComplexFields (issue #747).
  *
@@ -36,13 +36,7 @@ export function VariantPicker({ options, active, onSelect, label, layout = 'auto
       <RadioGroup aria-label={label} value={active} onChange={onSelect} confirm={confirm}
         items={options.map(o => ({
           value: o.key, label: o.label,
-          trailing: o.filled && (
-            <Tooltip content="Значение задано">
-              <span className="text-label-small text-primary flex items-center gap-1 shrink-0 ml-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> задан
-              </span>
-            </Tooltip>
-          ),
+          trailing: o.filled && <StatusText tone="primary" title="Значение задано" className="ml-2">задан</StatusText>,
         }))} />
     );
   }
@@ -52,6 +46,8 @@ export function VariantPicker({ options, active, onSelect, label, layout = 'auto
     <SegmentedButton aria-label={label} value={active} onChange={onSelect}
       items={options.map(o => ({
         value: o.key, label: o.label,
+        // Точка «задан» — не badge MD3: у того один цвет, красный, и он сказал бы «непрочитанное» ([UI-74]).
+        // Подписи «задан» в сегменте места нет; в списке она есть — там пометка `StatusText`.
         badge: o.filled && <span aria-hidden className="w-1.5 h-1.5 rounded-full shrink-0 bg-primary" />,
       }))} />
   );

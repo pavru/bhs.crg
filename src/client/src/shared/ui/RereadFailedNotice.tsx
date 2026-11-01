@@ -1,6 +1,5 @@
-import { Icon } from './Icon';
-import { Refresh, Warning } from './icons';
-import { Button } from './Button';
+import { Banner } from './Banner';
+import { Refresh } from './icons';
 import { apiError } from '@/shared/utils/apiError';
 
 /**
@@ -19,6 +18,9 @@ import { apiError } from '@/shared/utils/apiError';
  * <p>⚠️ О сохранении полоса МОЛЧИТ (ревью PR #1300): её видит и тот, кто сохранить не может, — читатель
  * без права правки, проведённая накладная, счёт закрытого периода. Действие называет только сама
  * форма, своей кнопкой, там, где оно есть.</p>
+ *
+ * <p>Вид — `Banner` ([UI-73]): состояние области, пока оно длится. Срочный (`alert`): полоса встаёт
+ * сразу с текстом, и без этого диктор о прежнем состоянии промолчал бы.</p>
  */
 export function RereadFailedNotice({ what, error, retrying, onRetry }: {
   /** «Счёт не перечитался» / «Накладная не перечиталась». */
@@ -28,16 +30,10 @@ export function RereadFailedNotice({ what, error, retrying, onRetry }: {
   onRetry: () => void;
 }) {
   return (
-    <div role="alert" data-testid="reread-failed" className="shrink-0 flex items-start gap-2 border-b
-      border-outline-variant bg-warning-container px-5 py-2 text-body-small text-on-warning-container">
-      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-      <p className="flex-1">
-        {what}: {apiError(error, 'сервер не ответил')}. На экране — прежнее состояние: его могли тем
-        временем изменить. Набранное не пропало.
-      </p>
-      <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={retrying} onClick={onRetry}>
-        Повторить
-      </Button>
-    </div>
+    <Banner tone="warning" urgent data-testid="reread-failed"
+      actions={[{ label: 'Повторить', icon: Refresh, loading: retrying, onClick: onRetry }]}>
+      {what}: {apiError(error, 'сервер не ответил')}. На экране — прежнее состояние: его могли тем
+      временем изменить. Набранное не пропало.
+    </Banner>
   );
 }

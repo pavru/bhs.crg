@@ -5,6 +5,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip, isSegmentRow } from './ui-ratchet-pills.mjs';
+import { isNoticePlaque } from './ui-ratchet-plaque.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { inputRules } from './ui-ratchet-inputs.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
@@ -122,7 +123,17 @@ export const RULES = [
     // Своя пометка состояния (#1416): пилюля без нажатия — span или div с rounded-full и фоном или рамкой.
     // Круги заданного размера (аватар, точка, спиннер, полоса загрузки) — не пометки: у них w-/h-/size-.
     count: text => countElements(text, isBadge),
-    instead: 'пометка состояния — StatusBadge (shared/ui/StatusBadge): tone по смыслу — neutral, brand, success, warning, danger, quiet; bordered на заливке (docs/UI.md, «Язык формы»)',
+    instead: 'пометка состояния — StatusText (shared/ui/StatusText): текст роли со знаком, tone по смыслу — neutral, primary, success, warning, error, quiet; icon — свой знак, когда смыслы одного тона рядом; число у подписи — CountText (shared/ui/CountText), на знаке и вкладке — Badge (shared/ui/Badge) (docs/UI.md, «Язык формы»)',
+  },
+  {
+    id: 'notice-plaque',
+    // Плашка-сообщение руками ([UI-73], sharedui-md3-12): div, p или section с заливкой контейнера роли,
+    // рамкой и скруглением — у каждого экрана своя. Пометка-пилюля (span, text-label-*), подложка с
+    // прозрачностью и пунктирное место для перетаскивания — не плашки. Весь src/: в shared/ui плашка была
+    // своя (RereadFailedNotice). Переводятся в 17 — уровень только опускается.
+    count: text => countElements(text, isNoticePlaque),
+    everywhere: true,
+    instead: 'сообщение области — Banner (shared/ui/Banner: tone — error, warning, info, success; actions — до двух text-действий), во всю ширину в начале страницы, панели или окна; про одно поле — текст под полем (TextField hint, error); результат действия — snackbar (docs/UI.md, «что сказать — чем»)',
   },
   // Кнопки — icon-button, button-size, dense-scope, split-button (ui-ratchet-buttons.mjs).
   ...buttonRules(countElements),
