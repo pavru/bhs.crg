@@ -170,9 +170,14 @@
   `outline-variant` без подложки; выбор без подписи — три вида по месту; `Checkbox` 18 в круге 40,
   `RadioGroup` (`useRadioGroup`, `confirm`), `Switch` MD3 без знака на ручке; правила `native-radio` — 2
   и `raw-field` — текущий; снимки до и после — артефакт DjCc7zGazHiKznKFAQEJYF; `/design-sync` 01.11.2026.
-- [ ] 3.3 `sharedui-md3-12-feedback` (2) — `Snackbar` вместо `Toast`, `Tooltip` plain и rich, `Banner`,
+- [x] 3.3 `sharedui-md3-12-feedback` (2) — `Snackbar` вместо `Toast`, `Tooltip` plain и rich, `Banner`,
   `StatusText` вместо `StatusBadge`, `Badge`, `LinearProgress`, правило `notice-plaque`
   [UI-71]…[UI-74]. Решение В9. Проверка — change заархивирован.
+  Слит #1717 (d2dc0672), #1718 (86d5e788) и #1719 (e9ba794a), заархивирован 01.11.2026: В9 = А, В16 = А
+  (макеты fbeaec15) — snackbar `inverse-surface` с очередью по одному, ошибка без цвета тона; подсказка
+  plain и `RichTooltip`; `Banner` (срочный — `alert`); пометка `StatusText` без пилюли; число у подписи —
+  новый `CountText`, на знаке — `Badge`; `LinearProgress` классическая; правило `notice-plaque` — 32;
+  снимки до и после — артефакт SAEFG9d4ZGfW69XBF7vd32; `/design-sync` 01.11.2026.
 - [ ] 3.4 `sharedui-md3-13-containers` (2) — `Modal`/`ConfirmDialog` по basic dialog, общий `Menu`,
   `Card`, `Divider`, `SideSheet`, `BottomSheet`, правило `hand-card` [UI-75]…[UI-77]. Решение В8.
   Проверка — change заархивирован.
