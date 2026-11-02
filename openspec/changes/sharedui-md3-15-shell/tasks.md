@@ -79,14 +79,14 @@
   многоточием; `MICRO_HEADING` — `title-small` без прописных (уже) [UI-79]. Проверка — новый vitest
   `panelLink`: `h-12`, `text-label-large`, у выбранного `bg-secondary-container`; `workspaces-checks` (внутри
   `settings-smoke`) зелёный
-  - Сделано: `SectionPanel` без `border-l`, заголовок `text-title-medium`; полоса прокрутки тонкая и кнопка «Скрыть панель» в поле (`-mr-2`) — иначе «Администрирование» (157 px) переносилось посреди слова рядом с полосой (headless-браузер прогонов полос не рисует, замер — в браузере приложения); `panelLink(isActive)` — `h-12 px-4 text-label-large`, `muted` снят; `MICRO_HEADING` — `px-4` под отступ пункта.
+  - Сделано: `SectionPanel` без `border-l`, заголовок `text-title-medium`; полоса прокрутки тонкая и кнопка «Скрыть панель» в поле (`-mr-2`) — иначе «Администрирование» (157 px) переносилось посреди слова рядом с полосой; длиннее — перенос по слогам (`hyphens-auto`). Браузер прогонов полос не рисует — `rail-checks` меряет слово против места за вычетом тонкой полосы; `panelLink(isActive)` — `h-12 px-4 text-label-large`, `muted` снят; `MICRO_HEADING` — `px-4` под отступ пункта.
 - [x] 1.3 `AppShell`: полоса 64 — top app bar на `surface-container-low`, прозрачная, без черты; обёртка
   рабочей области `md:rounded-tl-lg overflow-clip bg-surface` вокруг области с FAB вместе с `OutsideBanner`
   и `EmailConfirmBanner` (без `transform`, `header` — прямой потомок `main`); поиск-дверь — search bar
   `h-14`, `surface-container-high`, знак 24, `body-large`, `px-4`, не шире 720; комментарий про «рейл 88»
   [UI-79]. Проверка — `rail-checks`: высота шапки 64, у обёртки угол 16, у шапки и рейла нет черты
   (`getComputedStyle`); снимок оболочки в обеих темах в описании PR
-  - Сделано: обёртка `data-testid="work-area"`; поиск — `h-14 px-4 gap-4 max-w-180 bg-surface-container-high`, знак 24, `body-large`; телефонные размеры (44) — до PR 2. Проверка `shell-is-md3-top-app-bar-and-work-area` в `rail-checks`; порог высоты шапки на 390 px — 65.
+  - Сделано: обёртка `data-testid="work-area"`; поиск — `h-14 px-4 gap-4 max-w-180 bg-surface-container-high`, знак 24, `body-large`; телефон до PR 2 — прежний: полоса `h-12 md:h-16`, поиск 44 (ревью #1738: полоса 64 с элементами 44 — промежуточный вид, которого никто не выбирал). Проверка `shell-is-md3-top-app-bar-and-work-area` в `rail-checks`; порог высоты шапки на 390 px — прежние 49, поднимется в 2.3.
 - [x] 1.4 `PageHeader` — `title-large` без `font-semibold` [UI-79]. Проверка — `primitives.test.tsx`,
   `describe('PageHeader')`: класс `text-title-large`, нет `font-semibold`
   - Сделано: `text-title-large` у обоих `h1`.
@@ -102,7 +102,7 @@
   `Modal`, `SideSheet`, `BottomSheet`), форма full, `surface-container-high`, без рамки; очистка —
   `IconButton` XS [UI-79]. Проверка — vitest: 56 на странице, 40 внутри `Modal`; `invoices-smoke`: поиск в
   списке работает
-  - Сделано: `InLayerContext` (`layerPlace.ts`) ставят `Modal`, `SideSheet` (оба вида и окно-лист), `BottomSheet`; проп `rounded` снят. Очистка — `IconButton` в месте `ICON_BUTTON_XS`: `SearchInput.tsx` вписан в исключения `dense-scope` (скрипт, его тест, `buttonClasses.ts`, `docs/UI.md`) — это кнопка внутри поля.
+  - Сделано: `InLayerContext` (`layerPlace.ts`) ставит общая граница слоя `LayerBoundary` (вместе со сбросом `FieldDensityContext`) — в `Modal`, `SideSheet` (оба вида и окно-лист), `BottomSheet`; в слое поле — `surface-container-highest`: окно само `surface-container-high`, и поле того же тона без рамки не видно (ревью #1738); отступ текста справа — под кнопку очистки при касании (40); проп `rounded` снят. Очистка — `IconButton` в месте `ICON_BUTTON_XS`: `SearchInput.tsx` вписан в исключения `dense-scope` (скрипт, его тест, `buttonClasses.ts`, `docs/UI.md`) — это кнопка внутри поля.
 - [x] 1.7 Живые проверки оболочки поправлены тем же PR: `rail-checks` (329 → 320, высота шапки 64, угол и
   черта) и `workspaces-checks` — внутри `settings-smoke`, `invoice-layout-checks` — внутри `invoices-smoke`,
   `favorites-checks` (`main > header`); весь `npm run -s test:e2e:ci` зелёный. Проверка — описание PR

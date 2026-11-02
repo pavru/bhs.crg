@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { SectionRail } from './SectionRail';
 import { panelLink } from './panelLink';
 import { SearchInput } from './SearchInput';
-import { InLayerContext } from './layerPlace';
+import { LayerBoundary } from './LayerBoundary';
 import { ListDetailShell } from './ListDetailShell';
 import { dockedPlace, PALETTE_SURFACE } from './paletteDock';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
@@ -86,9 +86,11 @@ describe('SearchInput — search bar', () => {
     expect(field().className).not.toMatch(/\bborder\b/);
   });
 
-  it('в окне и листе — плотное 40', () => {
-    render(<InLayerContext.Provider value><SearchInput value="" onChange={() => {}} /></InLayerContext.Provider>);
+  it('в окне и листе — плотное 40, тоном выше поверхности окна', () => {
+    render(<LayerBoundary><SearchInput value="" onChange={() => {}} /></LayerBoundary>);
     expect(field().className).toMatch(/\bh-10\b/);
+    // Окно — `surface-container-high`: поле того же тона без рамки было бы не видно.
+    expect(field().className).toContain('bg-surface-container-highest');
   });
 
   it('очистка — кнопкой-иконкой', () => {
@@ -104,18 +106,18 @@ describe('CommandPalette — docked search view', () => {
     ({ getBoundingClientRect: () => ({ left, top, width }) }) as HTMLElement;
 
   it('встаёт на место строки поиска, не уже 560', () => {
-    expect(dockedPlace(anchor(400, 4, 720), 1366)).toEqual({ left: 400, top: 4, width: 720 });
-    expect(dockedPlace(anchor(400, 4, 300), 1366)).toEqual({ left: 400, top: 4, width: 560 });
+    expect(dockedPlace(anchor(400, 4, 720), 1366, true)).toEqual({ left: 400, top: 4, width: 720 });
+    expect(dockedPlace(anchor(400, 4, 300), 1366, true)).toEqual({ left: 400, top: 4, width: 560 });
   });
 
   it('не выходит за край окна', () => {
-    expect(dockedPlace(anchor(700, 4, 300), 1024)).toEqual({ left: 1024 - 560 - 16, top: 4, width: 560 });
+    expect(dockedPlace(anchor(700, 4, 300), 1024, true)).toEqual({ left: 1024 - 560 - 16, top: 4, width: 560 });
   });
 
   it('дверь ужата до значка, её нет или окно уже 768 — по центру', () => {
-    expect(dockedPlace(anchor(400, 4, 56), 1366)).toBeNull();
-    expect(dockedPlace(null, 1366)).toBeNull();
-    expect(dockedPlace(anchor(0, 4, 400), 700)).toBeNull();
+    expect(dockedPlace(anchor(400, 4, 56), 1366, true)).toBeNull();
+    expect(dockedPlace(null, 1366, true)).toBeNull();
+    expect(dockedPlace(anchor(0, 4, 400), 700, false)).toBeNull();
   });
 
   it('своя поверхность — surface-container-high уровня 3, не слой меню', () => {

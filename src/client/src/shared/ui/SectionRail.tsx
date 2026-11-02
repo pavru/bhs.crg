@@ -117,11 +117,12 @@ export function SectionPanel({ def, groups, outside, onHide }: {
       className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface-container-low overflow-y-auto [scrollbar-width:thin]">
       <div className="flex items-start pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
-          <h2 className="text-title-medium text-on-surface break-words">{def.title}</h2>
+          <h2 className="text-title-medium text-on-surface break-words hyphens-auto">{def.title}</h2>
           <p className="text-body-small text-on-surface-variant">{def.hint}</p>
         </div>
         {/* Кнопка заходит в поле подпанели (`-mr-2`): знак 24 в ней и так с полями, а заголовку
-            «Администрирование» (157 px) нужно место рядом с полосой прокрутки. */}
+            «Администрирование» (157 px) нужно место рядом с полосой прокрутки. Не поместится длиннее —
+            перенос по слогам с дефисом (`hyphens-auto`, документ на ru), а не разрыв посреди слова. */}
         <IconButton label="Скрыть панель раздела" onClick={onHide} className="-mr-2"
           aria-expanded aria-controls={PANEL_ID} icon={LeftPanelClose} />
       </div>

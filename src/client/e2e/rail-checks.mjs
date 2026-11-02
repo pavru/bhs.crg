@@ -30,9 +30,18 @@ export async function railChecks(page, check) {
       const title = (await panel(page).getByRole('heading', { level: 2 }).innerText()).trim();
       if (title !== 'Администрирование') throw new Error(`у «Системы» подпанель «${title}»`);
       // Самый длинный заголовок раздела — в одну строку: пункты 48 делают подпанель выше экрана, и
-      // полоса прокрутки отнимает ширину у заголовка (sharedui-md3-15).
-      const titleHeight = await panel(page).getByRole('heading', { level: 2 }).evaluate(h => h.getBoundingClientRect().height);
-      if (titleHeight > 25) throw new Error(`заголовок «${title}» перенесён: высота ${titleHeight}px`);
+      // полоса прокрутки отнимает ширину у заголовка (sharedui-md3-15). Браузер прогонов полос не рисует
+      // (Playwright прячет их), поэтому место меряется за вычетом тонкой полосы, если её не видно: иначе
+      // проверка не упала бы ровно на том, ради чего заведена.
+      const fit = await panel(page).getByRole('heading', { level: 2 }).evaluate(h => {
+        const nav = h.closest('nav');
+        const bar = nav.offsetWidth - nav.clientWidth;
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.font = getComputedStyle(h).font;
+        return { word: ctx.measureText(h.textContent).width, room: h.getBoundingClientRect().width - (bar > 0 ? 0 : 10) };
+      });
+      if (fit.word > fit.room)
+        throw new Error(`заголовок «${title}» (${Math.round(fit.word)}px) не умещается рядом с полосой прокрутки: места ${Math.round(fit.room)}px`);
       for (const group of ['Документы', 'Люди и доступ', 'Наблюдение', 'Общее'])
         if (!(await panel(page).getByRole('heading', { level: 3, name: group }).count()))
           throw new Error(`в «Администрировании» нет группы «${group}»`);
@@ -67,9 +76,10 @@ export async function railChecks(page, check) {
 
     await check('rail-labels-fit-one-line', async () => {
       // Самая длинная подпись раздела — в одну строку без обрезки: рейл 80, а не 88.
+      // Подпись — строчный span без переноса: перенос видно по высоте, вылет за рейл — по ширине.
       const bad = await page.locator('#app-rail-nav a > span:last-child').evaluateAll(spans => spans
         .filter(s => s.getBoundingClientRect().height > parseFloat(getComputedStyle(s).lineHeight) + 1
-          || s.scrollWidth > s.clientWidth || s.getBoundingClientRect().width > 80)
+          || s.getBoundingClientRect().width > 80)
         .map(s => s.textContent));
       if (bad.length) throw new Error(`подпись не умещается в рейл 80: ${bad.join(', ')}`);
     });
@@ -180,9 +190,8 @@ async function narrowChecks(page, check) {
     await check('narrow-screen-bottom-nav-reaches-every-section', async () => {
       if (await page.getByTestId('rail').isVisible()) throw new Error('на 390 px панель осталась у края');
       // Шапка — одной строкой и на телефоне (#1432): пустая вторая строка под ней была бы лишней.
-      // Высота — top app bar MD3, 64 (sharedui-md3-15).
       const header = await page.locator('main > header').boundingBox();
-      if (!header || header.height > 65) throw new Error(`шапка на 390 px высотой ${header?.height}px — не в одну строку`);
+      if (!header || header.height > 49) throw new Error(`шапка на 390 px высотой ${header?.height}px — не в одну строку`);
       // Гамбургера нет: разделы — внизу (#1434).
       if (await page.getByRole('button', { name: 'Меню', exact: true }).count()) throw new Error('в шапке остался гамбургер');
       // Те же рабочие разделы, что в рейле рабочего стола: копия, разошедшаяся с рейлом, прятала бы разделы.

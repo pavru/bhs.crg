@@ -5,8 +5,7 @@ import { BOTTOM_SHEET_SURFACE, DIALOG_SCRIM, SHEET_TITLE } from './dialogSurface
 import { useHistoryLayer } from './historyLayers';
 import { Close } from './icons';
 import { focusFromLayer } from './layerFocus';
-import { FieldDensityContext } from './fieldBox';
-import { InLayerContext } from './layerPlace';
+import { LayerBoundary } from './LayerBoundary';
 
 /**
  * Лист снизу — bottom sheet MD3 ([UI-77], sharedui-md3-13): у нижнего края во всю ширину, верх 28,
@@ -38,14 +37,12 @@ export function BottomSheet({ open, onClose, title, label, closeLabel = 'Зак�
   return (
     <Dialog.Root open={open} onOpenChange={o => { if (!o) onClose(); }}>
       {/* Лист — новое место: размер поля клетки сквозь портал сюда не идёт (как у `Modal`). */}
-      <FieldDensityContext.Provider value={null}>
-      <InLayerContext.Provider value>
+      <LayerBoundary>
       <Dialog.Portal>
         <Dialog.Overlay className={DIALOG_SCRIM} />
         <SheetContent title={title} label={label ?? title ?? ''} closeLabel={closeLabel} onClose={onClose}>{children}</SheetContent>
       </Dialog.Portal>
-      </InLayerContext.Provider>
-      </FieldDensityContext.Provider>
+      </LayerBoundary>
     </Dialog.Root>
   );
 }

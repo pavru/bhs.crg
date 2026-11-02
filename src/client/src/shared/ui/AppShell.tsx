@@ -144,8 +144,8 @@ function Shell() {
             ([UI-68]); у поиска — видимые 44 (`max-md:h-11`): его `overflow-hidden` срезал бы ::after.
             На рабочем столе — top app bar MD3 (sharedui-md3-15): 64, прозрачная, на поверхности рейла,
             без черты; от содержимого её отделяет цвет и угол рабочей области. На телефоне полоса и
-            содержимое — одна поверхность. */}
-        <header className="h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
+            содержимое — одна поверхность, высота пока прежняя 48: полоса 64 с элементами 48 — PR 2. */}
+        <header className="h-12 md:h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
