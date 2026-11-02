@@ -171,24 +171,36 @@
 
 ## 2б. PR 2б: карточки, разделитель, листы
 
-- [ ] 2б.1 `Card` (outlined / filled / elevated, слоты шапки, тела, действий, кликабельный вид) и
+- [x] 2б.1 `Card` (outlined / filled / elevated, слоты шапки, тела, действий, кликабельный вид) и
   `Divider` (`inset`, `decorative`) [UI-77]. Проверка — vitest: вид по `variant`, наведение у
   кликабельной, `separator` у `Divider` и его отсутствие у `decorative`
-- [ ] 2б.2 `SideSheet` standard и modal и `BottomSheet` (ручка, жест, scrim, `90dvh`); modal — «Назад»
+  Сделано 02.11.2026: `shared/ui/Card.tsx` (шапка 56 с `title`, `icon`, `menu`; `actions`; кликабельная — `to` под охраной
+  ухода или `onClick`, без вложенных целей) и `Divider.tsx`; тесты — `Card.test.tsx`.
+- [x] 2б.2 `SideSheet` standard и modal и `BottomSheet` (ручка, жест, scrim, `90dvh`); modal — «Назад»
   закрывает через `historyLayers`; уже 768 modal → bottom sheet, standard → лист во весь экран со своим
   слоем истории [UI-77]. Проверка — vitest: Esc и «Назад» закрывают, фокус возвращается к якорю; жест
   вниз за половину высоты закрывает, `pointercancel` — нет
-- [ ] 2б.3 `RowPanel` таблиц — первый потребитель standard side sheet; «Строка: …» и «Закрыть строку»
+  Сделано 02.11.2026: `SideSheet.tsx` и `BottomSheet.tsx`; тесты — `SideSheet.test.tsx` (8): Esc и «Назад» с возвратом
+  фокуса к якорю, жест дальше половины закрывает, раньше и `pointercancel` — нет, ручка без жеста закрывает.
+- [x] 2б.3 `RowPanel` таблиц — первый потребитель standard side sheet; «Строка: …» и «Закрыть строку»
   сохранены [UI-77]. Проверка — живой прогон `table-view-smoke`: строка открывается в панели, таблица
   сдвинута, scrim нет; на 375 px «Назад» закрывает панель
-- [ ] 2б.4 Правило `hand-card` — своим модулем рядом с `ui-ratchet-plaque.mjs`, подсчёт элементов
+  Сделано 02.11.2026: `RowPanel` — `SideSheet variant="standard"`, ширина 400; проверки панели вынесены в
+  `e2e/table-row-panel.mjs` (`table-view-smoke` у порога размера), новая `row-panel-on-phone-closes-with-back`.
+- [x] 2б.4 Правило `hand-card` — своим модулем рядом с `ui-ratchet-plaque.mjs`, подсчёт элементов
   (блочные теги), фикстуры в `ui-ratchet-cards.test.mjs`, уровень по файлам в `ui-baseline.json`;
   перечень правил в `CLAUDE.md` и `AGENTS.md` — одним коммитом [UI-77]. Проверка — фикстура с карточкой
   руками краснит правило, фикстура с полем — нет; `AgentRulesCopyTests` зелёный
-- [ ] 2б.5 Живые прогоны, проверяющие панель строки, поправлены тем же PR; весь `npm run -s test:e2e:ci`
+  Сделано 02.11.2026: `scripts/ui-ratchet-cards.mjs` и `ui-ratchet-cards.test.mjs`; правило `notice-plaque` переехало в
+  свой модуль — так `ui-ratchet-lib.mjs` остался ниже порога. Уровень — 67 мест в 49 файлах.
+- [x] 2б.5 Живые прогоны, проверяющие панель строки, поправлены тем же PR; весь `npm run -s test:e2e:ci`
   зелёный. Проверка — описание PR
-- [ ] 2б.6 `docs/UI.md`: «Форма и возвышение» — уровни у листа и карточки; новые абзацы «Листы» и
+  Сделано 02.11.2026: проверки панели строки поправлены и вынесены в `e2e/table-row-panel.mjs`; весь список CI на
+  стенде — 21 из 21, `table-view` на итоговом коде — 26 из 26. Снимки — https://claude.ai/artifact/S5gB3CeoT32U7fWuSKuZUs
+- [x] 2б.6 `docs/UI.md`: «Форма и возвышение» — уровни у листа и карточки; новые абзацы «Листы» и
   «Карточки» [UI-77]. Проверка — ревью PR
+  Сделано 02.11.2026: строки `Card`, `Divider`, `SideSheet` / `BottomSheet` в таблице компонентов, абзац уровней в
+  «Форма и возвышение», разделы «Листы» и «Карточки», правило в «Кто сторожит».
 - [ ] 2б.7 `/design-sync` после слияния PR 2б: в дизайн-системе «BHS.CRG UI» есть `Menu`, `Card`,
   `Divider`, `SideSheet`, `BottomSheet`, у `Modal` — новый вид и full-screen dialog (D12). Проверка —
   превью компонентов в дизайн-системе

@@ -1,6 +1,4 @@
-import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
-import { Close } from '@/shared/ui/icons';
 import { DataGridValue } from '@/shared/ui/DataGrid';
 import { columnUnavailable } from '@/shared/ui/dataGridStates';
 import { useTable } from '@/shared/api/tables';
@@ -8,7 +6,7 @@ import type { FilterNode } from '@/shared/api/types';
 import { apiError } from '@/shared/utils/apiError';
 import { cellText } from './tableCells';
 import { RowBreakdown } from './RowBreakdown';
-import { IconButton } from '@/shared/ui/Button';
+import { SideSheet } from '@/shared/ui/SideSheet';
 
 /**
  * Строка таблицы в боковой панели (ТЗ CORE-33: «строка открывается в боковой панели»; задача G1e,
@@ -34,54 +32,44 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
   onClose: () => void;
 }) {
   const row = useTable(address, { filter, row: rowKey, limit: 1 });
-  const close = useRef<HTMLButtonElement>(null);
-
-  // Фокус — в панель: Esc закрывает её с клавиатуры, и читалка экрана узнаёт, что панель открылась.
-  useEffect(() => { close.current?.focus(); }, [rowKey]);
 
   const data = row.data && !row.isPlaceholderData ? row.data : null;
   const values = data?.rows[0];
 
+  // Standard side sheet ([UI-77]): таблица сдвинута, затемнения нет; фокус — на крестик при каждой новой
+  // строке, на телефоне — во весь экран, и «Назад» закрывает панель, а не таблицу.
   return (
-    <aside aria-label={`Строка: ${grain}`}
-      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
-      className="w-[360px] shrink-0 border-l border-outline-variant bg-surface flex flex-col min-h-0">
-      <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-outline-variant">
-        <h2 className="flex-1 text-body-medium font-medium text-on-surface">Строка: {grain}</h2>
-        {link && values && <Link to={link.to} className="text-body-small text-primary underline hover:text-on-surface">{link.label}</Link>}
-        <IconButton label="Закрыть строку" ref={close} onClick={onClose} icon={Close} />
-      </header>
-
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
-        {row.isError ? (
-          <p role="alert" className="text-body-medium text-error">{apiError(row.error, 'Строка не открылась')}</p>
-        ) : !data ? (
-          <p className="text-body-medium text-on-surface-variant">Строка загружается…</p>
-        ) : !values ? (
-          // Три причины, и какая из них — отсюда не узнать; назвать одну значило бы угадать.
-          <p className="text-body-medium text-on-surface-variant">
-            Под этим отбором такой строки нет: её удалили, изменили так, что она перестала подходить под
-            отбор, либо отбор сменился.
-          </p>
-        ) : (
-          <>
-          {/* Расшифровка — первой: полей в панели два десятка, и под ними она ушла бы за прокрутку. */}
-          {data.breakdown && <RowBreakdown breakdown={data.breakdown} grain={grain} />}
-          <dl className="space-y-2.5">
-            {data.columns.map(c => (
-              <div key={c.key}>
-                <dt className="text-body-small text-on-surface-variant">{c.note ? `${c.label} (${c.note})` : c.label}</dt>
-                <dd className="text-body-medium text-on-surface break-words min-h-5">
-                  <DataGridValue row={values}
-                    column={{ key: c.key, label: c.label, unavailable: columnUnavailable(c.unavailable) }}
-                    renderValue={v => cellText(v, c.kind)} />
-                </dd>
-              </div>
-            ))}
-          </dl>
-          </>
-        )}
-      </div>
-    </aside>
+    <SideSheet variant="standard" open onClose={onClose} title={`Строка: ${grain}`} label={`Строка: ${grain}`}
+      closeLabel="Закрыть строку" focusKey={rowKey}
+      actions={link && values && <Link to={link.to} className="px-2 text-body-small text-primary underline hover:text-on-surface">{link.label}</Link>}>
+      {row.isError ? (
+        <p role="alert" className="text-body-medium text-error">{apiError(row.error, 'Строка не открылась')}</p>
+      ) : !data ? (
+        <p className="text-body-medium text-on-surface-variant">Строка загружается…</p>
+      ) : !values ? (
+        // Три причины, и какая из них — отсюда не узнать; назвать одну значило бы угадать.
+        <p className="text-body-medium text-on-surface-variant">
+          Под этим отбором такой строки нет: её удалили, изменили так, что она перестала подходить под
+          отбор, либо отбор сменился.
+        </p>
+      ) : (
+        <>
+        {/* Расшифровка — первой: полей в панели два десятка, и под ними она ушла бы за прокрутку. */}
+        {data.breakdown && <RowBreakdown breakdown={data.breakdown} grain={grain} />}
+        <dl className="space-y-2.5">
+          {data.columns.map(c => (
+            <div key={c.key}>
+              <dt className="text-body-small text-on-surface-variant">{c.note ? `${c.label} (${c.note})` : c.label}</dt>
+              <dd className="text-body-medium text-on-surface break-words min-h-5">
+                <DataGridValue row={values}
+                  column={{ key: c.key, label: c.label, unavailable: columnUnavailable(c.unavailable) }}
+                  renderValue={v => cellText(v, c.kind)} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+        </>
+      )}
+    </SideSheet>
   );
 }

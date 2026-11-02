@@ -5,7 +5,8 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip, isSegmentRow } from './ui-ratchet-pills.mjs';
-import { isNoticePlaque } from './ui-ratchet-plaque.mjs';
+import { cardRules } from './ui-ratchet-cards.mjs';
+import { plaqueRules } from './ui-ratchet-plaque.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { inputRules } from './ui-ratchet-inputs.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
@@ -125,16 +126,9 @@ export const RULES = [
     count: text => countElements(text, isBadge),
     instead: 'пометка состояния — StatusText (shared/ui/StatusText): текст роли со знаком, tone по смыслу — neutral, primary, success, warning, error, quiet; icon — свой знак, когда смыслы одного тона рядом; число у подписи — CountText (shared/ui/CountText), на знаке и вкладке — Badge (shared/ui/Badge) (docs/UI.md, «Язык формы»)',
   },
-  {
-    id: 'notice-plaque',
-    // Плашка-сообщение руками ([UI-73], sharedui-md3-12): div, p или section с заливкой контейнера роли,
-    // рамкой и скруглением — у каждого экрана своя. Пометка-пилюля (span, text-label-*), подложка с
-    // прозрачностью и пунктирное место для перетаскивания — не плашки. Весь src/: в shared/ui плашка была
-    // своя (RereadFailedNotice). Переводятся в 17 — уровень только опускается.
-    count: text => countElements(text, isNoticePlaque),
-    everywhere: true,
-    instead: 'сообщение области — Banner (shared/ui/Banner: tone — error, warning, info, success; actions — до двух text-действий), во всю ширину в начале страницы, панели или окна; про одно поле — текст под полем (TextField hint, error); результат действия — snackbar (docs/UI.md, «что сказать — чем»)',
-  },
+  // Плашка-сообщение — notice-plaque (ui-ratchet-plaque.mjs), карточка руками — hand-card (ui-ratchet-cards.mjs).
+  ...plaqueRules(countElements),
+  ...cardRules(countElements),
   // Кнопки — icon-button, button-size, dense-scope, split-button (ui-ratchet-buttons.mjs).
   ...buttonRules(countElements),
   {

@@ -63,6 +63,7 @@ import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
 import { bridgeCopiesTheScreen } from './table-bridge.mjs';
+import { rowPanelHoldsAllColumns, rowPanelOnPhoneClosesWithBack } from './table-row-panel.mjs';
 
 const TABLE = `${BASE}/tables/costs.invoices`;
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || PASSWORD;
@@ -474,25 +475,15 @@ try {
 
   // ── Строка в боковой панели и закреплённая колонка ────────────────────────────────────────────
 
-  await check('строка открывается в панели со ВСЕМИ колонками и переживает перезагрузку', async () => {
-    await open(page, { filter: seeded, columns: 'Номер,Дата', sort: 'Номер:asc' });
-    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета в двух колонках');
-
-    await dataRows(page).first().click();
-    const panel = page.getByRole('complementary', { name: 'Строка: счёт' });
-    await panel.waitFor({ timeout: 5000 });
-    // В таблице две колонки, а в панели — все: назначение там есть, хотя колонкой оно не показано.
-    await panel.getByText(TABLE_SEED.purpose).waitFor({ timeout: 5000 });
-    await panel.getByText('ИТОГ-01', { exact: true }).waitFor();
-    if (!page.url().includes('row=')) throw new Error('открытая строка в адрес не попала');
-
-    await page.reload({ waitUntil: 'networkidle' });
-    await panel.getByText('ИТОГ-01', { exact: true }).waitFor({ timeout: 8000 });
-
-    await panel.getByRole('button', { name: 'Закрыть строку' }).click();
-    await panel.waitFor({ state: 'detached', timeout: 5000 });
-    if (page.url().includes('row=')) throw new Error('панель закрыта, а строка осталась в адресе');
-  });
+  // Таблица в двух колонках — посеянные счета по номеру; панель строки читают на столе и на телефоне.
+  const twoColumns = { filter: seeded, columns: 'Номер,Дата', sort: 'Номер:asc' };
+  const panelArgs = {
+    value: 'ИТОГ-01', purpose: TABLE_SEED.purpose, open: () => open(page, twoColumns), url: TABLE + hash(twoColumns),
+    rows: what => rowsBecome(page, TABLE_SEED.count, what), firstRow: () => dataRows(page).first(),
+  };
+  await check('строка открывается в панели со ВСЕМИ колонками и переживает перезагрузку', () => rowPanelHoldsAllColumns(page, panelArgs));
+  await check('row-panel-on-phone-closes-with-back: на 375 px панель строки во весь экран, «Назад» закрывает её, а не таблицу',
+    () => rowPanelOnPhoneClosesWithBack(page, panelArgs));
 
   await check('закреплённая колонка остаётся на месте при прокрутке вбок', async () => {
     await open(page, { filter: seeded, pin: '1' });
