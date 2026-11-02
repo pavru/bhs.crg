@@ -34,22 +34,36 @@ describe('Card', () => {
     expect(screen.getByRole('button', { name: 'Открыть' })).toBeTruthy();
   });
 
-  it('обычная карточка — без слоя состояния; кликабельная — слой и возвышение под курсором', () => {
+  it('обычная карточка — без цели; кликабельная — цель поверх карточки со слоем, возвышение и кольцо у карточки', () => {
     const onClick = vi.fn();
     render(<MemoryRouter>
       <Card data-testid="plain" title="Стройка">тело</Card>
-      <Card data-testid="btn" title="Стройка" onClick={onClick}>тело</Card>
+      <Card data-testid="btn" title="Участок" onClick={onClick}>тело</Card>
       <Card data-testid="link" variant="elevated" title="Смета" to="/estimates/1">тело</Card>
     </MemoryRouter>);
-    expect(classes(screen.getByTestId('plain'))).not.toContain('state-layer');
-    const btn = screen.getByTestId('btn');
-    expect(btn.tagName).toBe('BUTTON');
-    expect(classes(btn)).toEqual(expect.arrayContaining(['state-layer', 'hover:shadow-elevation-1']));
+    expect(screen.getByTestId('plain').querySelector('button, a')).toBeNull();
+
+    const card = screen.getByTestId('btn');
+    expect(classes(card)).toEqual(expect.arrayContaining(['hover:shadow-elevation-1', 'has-[:focus-visible]:focus-ring-mark']));
+    // Заголовок — не внутри кнопки: читалка видит его заголовком, а кнопку зовёт по нему.
+    const btn = screen.getByRole('button', { name: 'Участок' });
+    expect(btn.contains(screen.getByRole('heading', { name: 'Участок' }))).toBe(false);
+    expect(classes(btn)).toEqual(expect.arrayContaining(['absolute', 'inset-0', 'state-layer']));
     fireEvent.click(btn);
     expect(onClick).toHaveBeenCalledTimes(1);
-    const link = screen.getByTestId('link');
+
+    const link = screen.getByRole('link', { name: 'Смета' });
     expect(link.getAttribute('href')).toBe('/estimates/1');
-    expect(classes(link)).toContain('hover:shadow-elevation-2');
+    expect(classes(screen.getByTestId('link'))).toContain('hover:shadow-elevation-2');
+  });
+
+  it('пустое тело — null, false, несработавшее условие — отступа не рисует', () => {
+    render(<>
+      <Card data-testid="empty" title="Итоги">{null}{false}</Card>
+      <Card data-testid="full" title="Итоги">тело</Card>
+    </>);
+    expect(screen.getByTestId('empty').children).toHaveLength(1);
+    expect(screen.getByTestId('full').children).toHaveLength(2);
   });
 });
 

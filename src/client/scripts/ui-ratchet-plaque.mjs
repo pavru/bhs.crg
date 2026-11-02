@@ -7,13 +7,14 @@
 // вернувшиеся ловит `legacy-class`.
 const CONTAINER_FILL = /(?<![\w:/-])bg-(?:error|warning|success|primary|secondary|tertiary)-container(?![\w/-])/;
 // Рамка — с шириной: `border`, `border-2`, `border-b`, `border-x-2`. Один цвет (`border-warning`) рамки в
-// Tailwind v4 не рисует — ширина у элемента 0, и плашкой его это не делает.
-const OUTLINE = /(?<![\w:/-])border(?:-[xytrblse])?(?:-(?:[1-9]\d*|\[[^\]\s]+\]))?(?![\w[/-])/;
-const ROUNDED = /(?<![\w:-])rounded(?!-none\b)(?:-|(?=[\s'"`}]))/;
+// Tailwind v4 не рисует — ширина у элемента 0, и плашкой его это не делает. Рамку, скругление и пунктир
+// берёт и правило `hand-card` (ui-ratchet-cards.mjs).
+export const OUTLINE = /(?<![\w:/-])border(?:-[xytrblse])?(?:-(?:[1-9]\d*|\[[^\]\s]+\]))?(?![\w[/-])/;
+export const ROUNDED = /(?<![\w:-])rounded(?!-none\b)(?:-|(?=[\s'"`}]))/;
 // Не плашка: подпись-пометка (`text-label-*` — пилюля, территория `badge`) и пунктир — место для
 // перетаскивания, а не сообщение.
 const LABEL_TEXT = /(?<![\w:-])text-label-/;
-const DASHED = /(?<![\w:-])border-dashed\b/;
+export const DASHED = /(?<![\w:-])border-dashed\b/;
 const BLOCKS = new Set(['div', 'p', 'section']);
 
 /**

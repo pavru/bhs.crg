@@ -3,14 +3,12 @@
 // граница «карточка или плашка» своя, а lib и его тест стоят у порога размера. Элемент — из `countElements`
 // (ui-ratchet-lib.mjs, передаётся в `cardRules`).
 
+import { DASHED, OUTLINE, ROUNDED } from './ui-ratchet-plaque.mjs';
+
 // Фон поверхности основным видом: без модификатора (hover:bg-… — наведение, а не карточка) и без
 // прозрачности (`/N` — подложка, а не поверхность). `bg-surface-variant` и `bg-surface-tint` — не контейнер.
 const SURFACE_FILL = /(?<![\w:/-])bg-surface(?:-container(?:-(?:lowest|low|high|highest))?)?(?![\w/-])/;
-// Рамка — с шириной, как у `notice-plaque`: один цвет (`border-outline`) рамки в Tailwind v4 не рисует.
-const OUTLINE = /(?<![\w:/-])border(?:-[xytrblse])?(?:-(?:[1-9]\d*|\[[^\]\s]+\]))?(?![\w[/-])/;
-const ROUNDED = /(?<![\w:-])rounded(?!-none\b)(?:-|(?=[\s'"`}]))/;
-// Пунктир — место для перетаскивания, а не карточка.
-const DASHED = /(?<![\w:-])border-dashed\b/;
+// Рамка с шириной, скругление и пунктир (место для перетаскивания, а не карточка) — те же, что у `notice-plaque`.
 // Блочные теги: поле (`input`, `textarea`), кнопка и пометка (`span`) карточкой не бывают, а слой Radix —
 // компонент (`Popover.Content`), и `countElements` его не видит вовсе.
 const BLOCKS = new Set(['div', 'section', 'article', 'p', 'dl']);

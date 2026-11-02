@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { BottomSheet } from './BottomSheet';
 import { SideSheet } from './SideSheet';
@@ -30,8 +30,8 @@ afterEach(() => {
   window.matchMedia = realMatchMedia;
 });
 
-/** Кнопка-якорь и лист, который она открывает. */
-function Host({ variant, bottom = false }: { variant?: 'standard' | 'modal'; bottom?: boolean }) {
+/** Кнопка-якорь и лист, который она открывает; `inner` — что лежит в листе рядом с полями. */
+function Host({ variant, bottom = false, inner }: { variant?: 'standard' | 'modal'; bottom?: boolean; inner?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   return (
@@ -39,7 +39,7 @@ function Host({ variant, bottom = false }: { variant?: 'standard' | 'modal'; bot
       <button type="button" onClick={() => setOpen(true)}>Открыть</button>
       {bottom
         ? <BottomSheet open={open} onClose={close} title="Состояние счёта"><p>факты</p></BottomSheet>
-        : <SideSheet variant={variant!} open={open} onClose={close} title="Строка: счёт" closeLabel="Закрыть строку"><p>поля</p></SideSheet>}
+        : <SideSheet variant={variant!} open={open} onClose={close} title="Строка: счёт" closeLabel="Закрыть строку"><p>поля</p>{inner}</SideSheet>}
     </div>
   );
 }
@@ -68,17 +68,31 @@ describe('SideSheet standard', () => {
     expect(document.activeElement).toBe(anchor);
   });
 
-  it('уже 768 — во весь экран, и «Назад» закрывает лист, а не страницу', async () => {
+  it('Esc, уже обработанный внутри (меню, поле), панель не закрывает', () => {
+    mockWidth(true);
+    render(<Host variant="standard" inner={<input aria-label="поиск" onKeyDown={e => { if (e.key === 'Escape') e.preventDefault(); }} />} />);
+    open();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'поиск' }), { key: 'Escape' });
+    expect(screen.getByRole('complementary')).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'поиск' }), { key: 'Escape', isComposing: true });
+    expect(screen.getByRole('complementary')).toBeTruthy();
+  });
+
+  it('уже 768 — во весь экран окном: страница под ним скрыта, «Назад» закрывает лист, а не страницу', async () => {
     mockWidth(false);
     render(<Host variant="standard" />);
     const anchor = open();
     await settle();
-    expect(screen.getByRole('complementary').className).toContain('fixed inset-0');
+    const sheet = screen.getByRole('dialog', { name: 'Строка: счёт' });
+    expect(sheet.className).toContain('fixed inset-0');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Закрыть строку' }));
+    // Якорь — на странице под листом: для читалки его нет.
+    expect(screen.queryByRole('button', { name: 'Открыть' })).toBeNull();
     expect((window.history.state as { depth?: number }).depth).toBe(1);
 
     window.history.back();
     await settle();
-    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(anchor);
   });
 });
@@ -154,11 +168,35 @@ describe('BottomSheet: жест', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
-  it('ручка — кнопка «Закрыть»: нажатие без жеста закрывает лист', async () => {
-    render(<Host bottom />);
-    open();
-    fireEvent.click(handle());
-    await settle();
-    expect(screen.queryByRole('dialog')).toBeNull();
+  it('ручка — кнопка «Закрыть»: касание без жеста закрывает лист и указатель не захватывает', async () => {
+    const capture = vi.fn();
+    HTMLElement.prototype.setPointerCapture = capture;
+    try {
+      render(<Host bottom />);
+      open();
+      // Захват с нажатия увёл бы щелчок с ручки на шапку — в браузере, не в jsdom: сверяем, что захвата нет.
+      fireEvent.pointerDown(handle(), { pointerId: 1, button: 0, clientY: 100 });
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientY: 102 });
+      fireEvent.pointerUp(handle(), { pointerId: 1, clientY: 102 });
+      expect(capture).not.toHaveBeenCalled();
+      fireEvent.click(handle());
+      await settle();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
+    }
+  });
+
+  it('жест захватывает указатель, когда начался, — дальше половины тянут и за пределами шапки', () => {
+    const capture = vi.fn();
+    HTMLElement.prototype.setPointerCapture = capture;
+    try {
+      render(<Host bottom />);
+      open();
+      pull(150);
+      expect(capture).toHaveBeenCalledTimes(1);
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
+    }
   });
 });

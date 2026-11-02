@@ -16,17 +16,19 @@ import { focusFromLayer } from './layerFocus';
  * закрыт; отпустили раньше или жест отменён (`pointercancel`) — лист возвращается на место, без анимации
  * при `prefers-reduced-motion`. Ручка — кнопка «Закрыть» для читалки и клавиатуры.</p>
  */
-export interface SheetProps {
+export interface SheetBase {
   open: boolean;
   onClose: () => void;
-  /** Заголовок шапки; с ним у шапки крестик. Без него лист называет `label`. */
-  title?: string;
-  /** Имя листа для читалки, когда заголовка нет. */
-  label?: string;
   /** Подпись крестика. */
   closeLabel?: string;
   children: ReactNode;
 }
+
+/**
+ * Без имени лист не бывает: `title` — заголовок шапки с крестиком, без него имя листа для читалки —
+ * `label`, и тогда он обязателен.
+ */
+export type SheetProps = SheetBase & ({ title: string; label?: string } | { title?: undefined; label: string });
 
 export function BottomSheet({ open, onClose, title, label, closeLabel = 'Закрыть', children }: SheetProps) {
   // Системная «Назад» закрывает лист, а не страницу под ним (issue #1418).
@@ -35,13 +37,15 @@ export function BottomSheet({ open, onClose, title, label, closeLabel = 'Зак�
     <Dialog.Root open={open} onOpenChange={o => { if (!o) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className={DIALOG_SCRIM} />
-        <SheetContent title={title} label={label} closeLabel={closeLabel} onClose={onClose}>{children}</SheetContent>
+        <SheetContent title={title} label={label ?? title ?? ''} closeLabel={closeLabel} onClose={onClose}>{children}</SheetContent>
       </Dialog.Portal>
     </Dialog.Root>
   );
 }
 
-function SheetContent({ title, label, closeLabel, onClose, children }: Omit<SheetProps, 'open'> & { closeLabel: string }) {
+function SheetContent({ title, label, closeLabel, onClose, children }: Omit<SheetBase, 'open' | 'closeLabel'> & {
+  title?: string; label: string; closeLabel: string;
+}) {
   // Открывший лист — тот, на ком фокус в миг открытия: содержимое монтируется вместе с листом.
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
   const sheet = useRef<HTMLDivElement>(null);
@@ -94,16 +98,20 @@ function useDragToClose(sheet: RefObject<HTMLDivElement | null>, onClose: () => 
     onPointerDown(e: PointerEvent<HTMLDivElement>) {
       // Крестик шапки — своя цель, не начало жеста.
       if (e.button !== 0 || (e.target as Element).closest('button:not([data-sheet-handle])')) return;
-      e.currentTarget.setPointerCapture?.(e.pointerId);
       drag.current = { id: e.pointerId, y: e.clientY };
       dragged.current = false;
       setSettling(false);
     },
-    onPointerMove(e: PointerEvent) {
+    onPointerMove(e: PointerEvent<HTMLDivElement>) {
       const d = drag.current;
       if (!d || d.id !== e.pointerId) return;
       const dy = Math.max(0, e.clientY - d.y);
-      if (dy > SLOP) dragged.current = true;
+      // Указатель захватываем, только когда начался жест: захват с нажатия уводит щелчок с ручки на шапку,
+      // и касание ручки лист не закрывало бы.
+      if (dy > SLOP && !dragged.current) {
+        dragged.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      }
       setOffset(dy);
     },
     onPointerUp(e: PointerEvent) {

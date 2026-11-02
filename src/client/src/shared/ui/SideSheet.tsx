@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
-import { BottomSheet, type SheetProps } from './BottomSheet';
+import { BottomSheet, type SheetBase } from './BottomSheet';
 import { IconButton } from './Button';
 import { DIALOG_SCRIM, SHEET_TITLE } from './dialogSurface';
 import { useHistoryLayer } from './historyLayers';
@@ -15,21 +15,23 @@ import { focusFromLayer } from './layerFocus';
  * <ul>
  *   <li><b>standard</b> стоит в раскладке рядом с содержимым и сдвигает его — затемнения нет. Экран ставит её
  *   последней в flex-ряд, только пока она открыта. Esc из панели закрывает её. Уже 768 — лист во весь экран
- *   поверх содержимого, крестик у ведущего края, и «Назад» закрывает его своим слоем истории.</li>
+ *   поверх содержимого, крестик у ведущего края, и «Назад» закрывает его своим слоем истории. Страницу он
+ *   закрывает целиком, а потому он окно (Radix Dialog без затемнения): страница под ним не в Tab и не в
+ *   читалке.</li>
  *   <li><b>modal</b> лежит над содержимым: затемнение, `surface-container-low`, уровень 1, ведущие углы 16;
  *   фокус, Esc и «Назад» — как у окна. Уже 768 — `BottomSheet` с тем же содержимым.</li>
  * </ul>
  *
  * <p>Смена ширины перемонтирует содержимое — набранное в листе при повороте экрана теряется (design 2б).</p>
  */
-export interface SideSheetProps extends Omit<SheetProps, 'title'> {
+export type SideSheetProps = SheetBase & {
   variant: 'standard' | 'modal';
-  title: ReactNode;
   /** Действия шапки — между заголовком и крестиком. */
   actions?: ReactNode;
   /** Standard: сменился — фокус снова на крестик (панель показала другую запись). */
   focusKey?: unknown;
-}
+  // Заголовок не строкой именем листа не служит — тогда имя для читалки (`label`) обязательно.
+} & ({ title: string; label?: string } | { title: Exclude<ReactNode, string>; label: string });
 
 export function SideSheet(props: SideSheetProps) {
   if (props.variant === 'modal') return <ModalSideSheet {...props} />;
@@ -38,12 +40,10 @@ export function SideSheet(props: SideSheetProps) {
 
 function ModalSideSheet({ open, onClose, title, label, closeLabel = 'Закрыть', actions, children }: SideSheetProps) {
   const narrow = useMedia(NARROW);
-  // Шапка BottomSheet — строка заголовка; ReactNode в заголовке листа снизу — только как имя.
-  if (narrow) return (
-    <BottomSheet open={open} onClose={onClose} title={typeof title === 'string' ? title : label} label={label} closeLabel={closeLabel}>
-      {children}
-    </BottomSheet>
-  );
+  // Шапка BottomSheet — строка заголовка; заголовок не строкой лист снизу не показывает и зовётся `label`.
+  if (narrow) return typeof title === 'string'
+    ? <BottomSheet open={open} onClose={onClose} title={title} label={label} closeLabel={closeLabel}>{children}</BottomSheet>
+    : <BottomSheet open={open} onClose={onClose} label={label ?? ''} closeLabel={closeLabel}>{children}</BottomSheet>;
   return <ModalSideDialog open={open} onClose={onClose} title={title} closeLabel={closeLabel} actions={actions}>{children}</ModalSideDialog>;
 }
 
@@ -95,15 +95,36 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
   }, [opener]);
 
   const closeButton = <IconButton label={closeLabel} ref={close} icon={Close} onClick={onClose} />;
+  const body = <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div>;
+  if (narrow) return (
+    // Во весь экран — окно без затемнения: Esc, ловушку фокуса и страницу вне Tab и читалки даёт Radix.
+    <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Content aria-describedby={undefined} aria-label={label} data-modal-state="free"
+          className="fixed inset-0 z-40 flex flex-col bg-surface focus:outline-none"
+          // Содержимое портала монтируется позже эффекта выше — первый фокус на крестик ставим здесь.
+          onOpenAutoFocus={e => { e.preventDefault(); if (close.current) focusFromLayer(close.current); }}
+          // Фокус к открывшему возвращает эффект выше — один владелец на оба вида.
+          onCloseAutoFocus={e => e.preventDefault()}>
+          <SheetHeader lead={closeButton} actions={actions}
+            title={<Dialog.Title className={`truncate ${SHEET_TITLE}`}>{title}</Dialog.Title>} />
+          {body}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
   return (
     <aside aria-label={label ?? (typeof title === 'string' ? title : undefined)}
-      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
-      className={narrow
-        ? 'fixed inset-0 z-40 flex flex-col bg-surface'
-        : 'w-100 shrink-0 flex flex-col min-h-0 border-l border-outline-variant bg-surface'}>
-      <SheetHeader lead={narrow ? closeButton : undefined} close={narrow ? undefined : closeButton} actions={actions}
-        title={<h2 className={`truncate ${SHEET_TITLE}`}>{title}</h2>} />
-      <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div>
+      onKeyDown={e => {
+        // Esc — свой: не поднятый порталом из слоя (меню, список), не обработанный полем или меню внутри и не
+        // конец набора IME.
+        if (e.key !== 'Escape' || e.defaultPrevented || e.nativeEvent.isComposing || !e.currentTarget.contains(e.target as Node)) return;
+        e.stopPropagation();
+        onClose();
+      }}
+      className="w-100 shrink-0 flex flex-col min-h-0 border-l border-outline-variant bg-surface">
+      <SheetHeader close={closeButton} actions={actions} title={<h2 className={`truncate ${SHEET_TITLE}`}>{title}</h2>} />
+      {body}
     </aside>
   );
 }
