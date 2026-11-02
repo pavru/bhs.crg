@@ -2,7 +2,7 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { ICON_BUTTON_XS } from './buttonClasses';
 import { Icon } from './Icon';
 import { ErrorIcon } from './icons';
-import { FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
+import { cellLine, FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
 import { Tooltip } from './Tooltip';
 
 // Ширина метки в покое (`raise="auto"`) — до текста: левый край 0.75rem и правый отступ текста из `fieldBox`
@@ -32,10 +32,11 @@ const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placehold
  *   имя выбранного. Фокус в этом режиме приходит пропом `focused`: он живёт на составном контроле,
  *   а не на единственном input, и поймать его селектором нельзя.
  *
- * Размеров два ([UI-69], sharedui-md3-11): `density="form"` — поле формы 56 с подписью в вырезе, `dense` —
+ * Размеров три ([UI-69], sharedui-md3-11): `density="form"` — поле формы 56 с подписью в вырезе, `dense` —
  * плотное поле 40 без выреза: строка настроек, шапка колонки с вводом. Имя плотного поля — та же подпись,
- * только для диктора (`sr-only`): видимое имя ему дают шапка колонки или строка. Высоту, отступы и роль
- * текста контрол берёт из `fieldBox` — у пяти полей на оболочке они одни.
+ * только для диктора (`sr-only`): видимое имя ему дают шапка колонки или строка. `cell` ([UI-78],
+ * sharedui-md3-14) — поле в клетке сетки правки: как плотное, но без рамки — черта только у фокуса и ошибки
+ * (`cellLine`), а подписи нет и для диктора — имя клетке даёт `aria-label` самого контрола. Высоту, отступы и роль текста контрол берёт из `fieldBox` — у пяти полей на оболочке они одни.
  *
  * КОНВЕНЦИЯ РАЗМЕЩЕНИЯ. Всплывшая метка выходит ЗА верхнюю границу поля примерно на 8px (она
  * `-translate-y-1/2` от `top-0`, а рамка-fieldset поднята на 5px), и в поток эти пиксели не входят:
@@ -49,7 +50,7 @@ const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placehold
  */
 /**
  * Знак ошибки поля ([UI-69]): ошибка видна не только цветом. У поля формы — 24, текст ошибки стоит под
- * полем; у плотного — 20 с подсказкой, потому что места под полем нет. Для диктора знак скрыт: текст
+ * полем; у плотного и клетки — 20 с подсказкой, потому что места под полем нет. Для диктора знак скрыт: текст
  * ошибки он читает через `aria-describedby` поля.
  *
  * Ставит его оболочка. Контролу, у которого хвост свой (календарь даты), оболочку открывают `markInside`:
@@ -57,13 +58,14 @@ const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placehold
  * бывает. Тем же компонентом рисует свой знак ошибка набранного у сегментов без оболочки (`SegmentProblemMark`).
  */
 export function FieldErrorMark({ density = 'form', message }: { density?: FieldDensity; message?: string | null }) {
+  const small = density !== 'form';
   const mark = (
     <span data-field-error-mark aria-hidden
-      className={`flex shrink-0 items-center text-error ${density === 'dense' ? 'pointer-events-auto' : ''}`}>
-      <Icon icon={ErrorIcon} size={density === 'dense' ? 20 : 24} />
+      className={`flex shrink-0 items-center text-error ${small ? 'pointer-events-auto' : ''}`}>
+      <Icon icon={ErrorIcon} size={small ? 20 : 24} />
     </span>
   );
-  return density === 'dense' && message ? <Tooltip content={message}>{mark}</Tooltip> : mark;
+  return small && message ? <Tooltip content={message}>{mark}</Tooltip> : mark;
 }
 
 export interface OutlinedFieldProps {
@@ -98,7 +100,7 @@ export interface OutlinedFieldProps {
    * недоступно».
    */
   readOnly?: boolean;
-  /** Поле формы (56, подпись в вырезе) или плотное (40, без выреза) — см. `fieldBox`. */
+  /** Поле формы (56, подпись в вырезе), плотное (40, без выреза) или клетки (40, без рамки) — см. `fieldBox`. */
   density?: FieldDensity;
   /**
    * Правый адорнмент (например «глаз» пароля). Хвост — место XS ([UI-68], sharedui-md3-10): кнопка-иконка
@@ -118,7 +120,9 @@ export function OutlinedField({
   readOnly, density = 'form', trailing, markInside, containerClassName = '', children,
 }: OutlinedFieldProps) {
   const bad = !!error || invalid;
-  const dense = density === 'dense';
+  // Подпись в вырезе есть только у поля формы; у плотного и клетки она для диктора, а под полем места нет.
+  const dense = density !== 'form';
+  const cell = density === 'cell';
   // У плотного поля метки в вырезе нет вовсе — механики всплывания ему не нужно.
   const auto = raise === 'auto' && !dense;
   const markHere = bad && !markInside;
@@ -132,7 +136,7 @@ export function OutlinedField({
       : focused ? 'border-primary' : rest;
   const borderWidth = auto ? 'peer-focus:border-2' : focused ? 'border-2' : '';
   // Наведение — обводка `on-surface` (MD3). Не у фокуса, ошибки, отключённого и поля для чтения: им своя.
-  const hover = bad || readOnly || focused ? ''
+  const hover = bad || readOnly || focused || cell ? ''
     : '[&:hover:not(:focus-within):not(:has(:disabled))>fieldset]:border-on-surface';
   // Вырез раскрывает legend, а он ВНУТРИ fieldset — соседом input'у он не приходится, поэтому
   // peer-варианты вешаем на fieldset и целим вложенный legend через [&>legend].
@@ -174,21 +178,23 @@ export function OutlinedField({
 
   return (
     <div className={containerClassName}>
-      <div className={`relative ${hover}`} style={markStyle}>
+      <div className={`relative ${hover} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
         <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет. */}
-        <fieldset aria-hidden
+        {!cell && <fieldset aria-hidden
           className={`pointer-events-none absolute inset-x-0 bottom-0 ${dense ? 'top-0' : 'top-[-5px]'} m-0 rounded-xs border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
           {!dense && (
             <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-body-small invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
               <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
             </legend>
           )}
-        </fieldset>
-        {htmlFor
-          ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{label}</label>
-          : <span id={labelId} className={labelClass}>{label}</span>}
+        </fieldset>}
+        {/* У клетки подписи нет вовсе: имя несёт сам контрол (`aria-label`) — текстом в клетке подпись вошла бы
+            в текст строки, в копирование и в сверку строк. */}
+        {cell ? null
+          : htmlFor ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{label}</label>
+            : <span id={labelId} className={labelClass}>{label}</span>}
         {/* Слот хвоста: знак ошибки, за ним адорнмент. Сам слот щелчков не ловит — под ним поле, а хвост
             получает их сам (`contents` не даёт обёртке своего прямоугольника). Стоит по первой строке, а не
             по середине рамки: у поля в одну строку это одно и то же, а у многострочного (`TextAreaField`)

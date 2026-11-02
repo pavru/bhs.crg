@@ -9,6 +9,7 @@ import { cardRules } from './ui-ratchet-cards.mjs';
 import { plaqueRules } from './ui-ratchet-plaque.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { inputRules } from './ui-ratchet-inputs.mjs';
+import { cellRules } from './ui-ratchet-cells.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
@@ -100,8 +101,9 @@ export const RULES = [
     count: countNativeCheckboxes,
     instead: 'флажок — Checkbox (shared/ui/Checkbox): label и description — подпись и пояснение, размер один (18 px, и в строках таблиц), indeterminate — «выбраны не все»; внутри своей разметки строки — Checkbox без label в обёртке <label> или с aria-label (docs/UI.md, таблица контролов)',
   },
-  // Поля и выбор — native-radio, raw-field (ui-ratchet-inputs.mjs).
+  // Поля и выбор — native-radio, raw-field (ui-ratchet-inputs.mjs); поле в клетке EditGrid — cell-field (ui-ratchet-cells.mjs).
   ...inputRules(countElements),
+  ...cellRules(),
   {
     id: 'chip',
     // Свой чип (#1416): нажимаемая пилюля — rounded-full или rounded-sm с полями по бокам (px-…) или aria-pressed у

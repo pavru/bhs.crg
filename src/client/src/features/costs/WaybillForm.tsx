@@ -34,9 +34,6 @@ import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 import { StatusText } from '@/shared/ui/StatusText';
 
-const cell = 'w-full rounded-xs border border-outline-variant bg-surface px-1.5 py-1 text-body-small text-on-surface outline-none '
-  + 'focus:border-primary placeholder:text-on-surface-variant disabled:bg-surface-container disabled:text-on-surface-variant';
-
 /**
  * Форма расходной накладной (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
  *
@@ -412,16 +409,16 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
               {
                 key: 'sourceText', label: 'Наименование в накладной',
                 cell: (line, index) => (
-                  <input className={cell} value={line.sourceText} disabled={locked}
-                    aria-label={`Наименование в накладной, строка ${index + 1}`}
+                  <TextField value={line.sourceText} disabled={locked}
+                    label={`Наименование в накладной, строка ${index + 1}`}
                     onChange={e => editLine(line.key, { sourceText: e.target.value })} />
                 ),
               },
               {
                 key: 'unit', label: 'Ед.', width: 'w-20',
                 cell: (line, index) => (
-                  <input className={cell} value={line.unit} disabled={locked}
-                    aria-label={`Единица, строка ${index + 1}`}
+                  <TextField value={line.unit} disabled={locked}
+                    label={`Единица, строка ${index + 1}`}
                     onChange={e => editLine(line.key, { unit: e.target.value })} />
                 ),
               },
@@ -437,8 +434,8 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
                 // Примечание строки на виду (решение владельца 26.10.2026, D10): исправление правит только видимое.
                 key: 'note', label: 'Примечание',
                 cell: (line, index) => (
-                  <input className={cell} value={line.note} disabled={locked}
-                    aria-label={`Примечание, строка ${index + 1}`}
+                  <TextField value={line.note} disabled={locked}
+                    label={`Примечание, строка ${index + 1}`}
                     onChange={e => editLine(line.key, { note: e.target.value })} />
                 ),
               },

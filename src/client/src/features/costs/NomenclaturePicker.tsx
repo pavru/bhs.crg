@@ -22,6 +22,7 @@ import { CandidatesBlock, PickerOption, type PickerCurrent } from './PickerRows'
 import { plateMeta, type PickerLine } from './pickerLine';
 import { usePickerSelection } from './pickerSelection';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { cellLine, useFieldDensity } from '@/shared/ui/fieldBox';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -81,15 +82,19 @@ export function NomenclaturePicker({
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // В клетке сетки правки — вид поля клетки ([UI-78]): без рамки, черта у фокуса, у потерянной позиции —
+  // черта ошибки. Вне сетки (окно сопоставлений) — прежняя кнопка в рамке.
+  const cell = useFieldDensity(undefined, 'dense') === 'cell';
+  const tone = lost ? 'text-error' : chosen ? 'text-on-surface' : 'text-warning';
+  const look = cell ? `h-10 px-2 text-body-medium outline-none ${cellLine({ bad: lost })}`
+    : `px-2 py-1 text-body-small rounded-xs border ${lost ? 'border-error/30' : 'border-outline-variant'}`;
 
   return (
     <>
       <div className="flex items-center gap-1">
         <Tooltip content={archived && !lost ? ARCHIVED_HINT : undefined}>
           <button type="button" onClick={() => setOpen(true)}
-            className={`min-w-0 flex-1 text-left text-body-small px-2 py-1 rounded-xs border truncate
-              ${lost ? 'border-error/30 text-error'
-                : chosen ? 'border-outline-variant text-on-surface' : 'border-outline-variant text-warning'}`}>
+            className={`min-w-0 flex-1 text-left truncate ${look} ${tone}`}>
             {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
                 но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
             {lost ? lostText ?? LOST.position

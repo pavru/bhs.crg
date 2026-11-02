@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
 
 /**
@@ -84,13 +84,15 @@ type NoBelow = { error?: never; hint?: never; containerClassName?: never };
  * - `variant="chip"` — отбор в шапке страницы или панели: чип с меню. Требует `emptyItem` («все»): чип
  *   выбран, когда значение не пусто. Выбор без нейтрального значения — не отбор и не чип.
  * - `density="dense"` — строка настроек в окне или панели, шапка колонки с вводом: плотное поле 40 с рамкой.
+ * - `density="cell"` — клетка сетки правки ([UI-78]): 40 без рамки, черта у фокуса и открытого списка. С
+ *   подписью в теле `EditGrid` этот размер поле берёт само.
  * - `variant="inline"` — внутри фразы, названное отступление: без рамки и фона, высоту и цвет даёт место.
  */
 export type SelectProps = SelectBase & (
   | (Below & { label: string; variant?: never; density?: FieldDensity })
   | (NoBelow & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
   | (NoBelow & { label?: never; variant: 'inline'; density?: never; invalid?: never })
-  | (NoBelow & { label?: never; variant?: never; density: 'dense'; 'aria-label': string })
+  | (NoBelow & { label?: never; variant?: never; density: 'dense' | 'cell'; 'aria-label': string })
 );
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
@@ -129,7 +131,7 @@ const EMPTY = '\u0000∅';
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '', variant, emptyItem,
-  label, invalid, error, hint, containerClassName = '', density = 'form', stayOpenOn, onOpenChange, children, ...aria
+  label, invalid, error, hint, containerClassName = '', density: own, stayOpenOn, onOpenChange, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
@@ -142,6 +144,7 @@ export function Select({
   // во всю ширину, как прежний триггер: иначе во flex-строке поле сжималось бы до выбранного текста.
   const framed = variant === undefined;
   const bare = label === undefined;
+  const density = useFieldDensity(own, 'form');
 
   // У поля (с подписью или плотного) `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
   // `<select required>` (1×1 px, `aria-hidden`), и внутри `<form>` браузер молча отказывается
@@ -167,8 +170,8 @@ export function Select({
         </RS.Trigger>
       ) : <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${bare ? '' : className}`
         : `${INLINE} ${className}`}
-        aria-label={framed ? undefined : aria['aria-label']}
-        aria-labelledby={framed ? labelId : undefined}
+        aria-label={!framed ? aria['aria-label'] : density === 'cell' ? label ?? aria['aria-label'] : undefined}
+        aria-labelledby={framed && density !== 'cell' ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
         aria-describedby={framed ? fieldDescribedBy(hintId, error || hint) : undefined}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
@@ -195,7 +198,7 @@ export function Select({
   // время, что человек выбирает значение.
   return (
     <OutlinedField label={label ?? aria['aria-label'] ?? ''} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      raise="always" focused={focused || open} labelId={labelId} density={bare ? 'dense' : density} containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
+      raise="always" focused={focused || open} labelId={labelId} density={density} containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
       trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>

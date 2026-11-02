@@ -1,4 +1,5 @@
 import { NumberInput } from '@/shared/ui/NumberInput';
+import { TextField } from '@/shared/ui/TextField';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { LOST } from './lostReferences';
 import type { LineDraft } from './invoiceLines';
@@ -18,11 +19,11 @@ export function LockedPosition({ draft }: { draft: LineDraft }) {
 }
 
 /**
- * Клетка — своим полем, а не общим `TextField`: тот рисует подпись над полем, а в таблице подпись стоит
- * в шапке колонки, и повторять её двенадцать раз значит потерять таблицу.
+ * Клетка — поле клетки ([UI-78]): размер `cell` ему отдаёт тело `EditGrid` — без рамки и подписи над полем
+ * (подпись стоит в шапке колонки, и повторять её двенадцать раз значит потерять таблицу).
  *
- * <p>Подпись при этом есть — невидимая (`aria-label`): без неё поле не имеет имени ни для чтения с
- * экрана, ни для живого прогона, который ищет клетку по имени.</p>
+ * <p>Подпись при этом есть — для диктора: без неё поле не имеет имени ни для чтения с экрана, ни для
+ * живого прогона, который ищет клетку по имени.</p>
  *
  * <p>⚠️ Подсказка в пустом числовом поле — это ПОСЧИТАННОЕ значение («48,50»), а не пример. Так видно,
  * что сумму можно не набирать: её досчитают по количеству и цене. Набранное значение подсказку
@@ -39,10 +40,5 @@ export function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
 }) {
   if (numeric)
     return <NumberInput value={value} label={label} placeholder={placeholder} onChange={onChange} />;
-  return (
-    <input value={value} aria-label={label} placeholder={placeholder}
-      onChange={e => onChange(e.target.value)} onBlur={onBlur}
-      className="w-full rounded-xs border border-outline-variant bg-surface px-1.5 py-1 text-body-small text-on-surface
-        outline-none focus:border-primary placeholder:text-on-surface-variant" />
-  );
+  return <TextField value={value} label={label} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} />;
 }

@@ -1,3 +1,7 @@
+import { useId, useState } from 'react';
+import { OutlinedField } from './OutlinedField';
+import { fieldBox, useFieldDensity } from './fieldBox';
+
 /**
  * Поле ввода числа в строке таблицы: сумма, количество, процент (задача N2 этапа 2, issue #1103;
  * ТЗ COST-7.2).
@@ -13,11 +17,12 @@
  * <p>Единица стоит ВНУТРИ поля и не входит в значение: её не выделить и не стереть, и вставка
  * из Excel не принесёт вторую.</p>
  *
- * <p><b>Вид — плотное поле клетки</b> ([UI-69], sharedui-md3-11): 40 px, текст `body-medium`, без рамки —
- * подчёркивание, у фокуса 2 px `primary`, единица суффиксом. Своей рамки у поля нет: в сетке рамку
- * рисуют линии строк, и рамка поля была бы рамкой в рамке.</p>
+ * <p><b>Вид — по месту</b> ([UI-69], [UI-78]): в клетке сетки правки — поле клетки (`density="cell"`, его
+ * отдаёт тело `EditGrid`): без рамки и черты в покое, у фокуса черта 2 px `primary`. Вне сетки — плотное поле
+ * 40 с рамкой: шапка колонки с вводом (процент объекта в матрице разноски, В5), строка формы. Рамку и черту
+ * рисует общая оболочка `OutlinedField`, текст — `body-medium`, единица — суффиксом.</p>
  */
-export function NumberInput({ value, onChange, label, unit, placeholder, disabled, className = 'w-full' }: {
+export function NumberInput({ value, onChange, label, unit, placeholder, disabled, density: own, className = 'w-full' }: {
   value: string;
   onChange: (value: string) => void;
   /** Имя поля для читалки экрана: в строке таблицы подписи над полем нет. */
@@ -26,29 +31,30 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
   unit?: string | null;
   placeholder?: string;
   disabled?: boolean;
+  /** Плотное поле с рамкой или клетка; не задан — размер места (в теле `EditGrid` — клетка), иначе плотное. */
+  density?: 'dense' | 'cell';
   className?: string;
 }) {
-  // Обёртка — `label`: щелчок по единице ставит курсор в поле, как и щелчок по самому полю.
+  const density = useFieldDensity(own, 'dense');
+  const [focused, setFocused] = useState(false);
+  const labelId = useId();
+  // Обёртка — `label`: щелчок по единице ставит курсор в поле, как и щелчок по самому полю. В клетке имя —
+  // `aria-label` поля, а подписи оболочки нет: текстом она вошла бы в текст строки. Вне сетки — подпись
+  // оболочки для диктора, и поле ссылается на неё.
+  const cell = density === 'cell';
   return (
-    <label className={`${WRAP} ${className}`}>
-      <input value={value} aria-label={label} placeholder={placeholder} disabled={disabled}
-        inputMode="decimal" onChange={e => onChange(e.target.value)} className={INPUT} />
-      {unit && <span className="shrink-0 text-body-medium text-on-surface-variant" aria-hidden="true">{unit}</span>}
-    </label>
+    <OutlinedField label={label} labelId={labelId} raise="always" density={density} focused={focused}
+      containerClassName={className}>
+      <label className={`flex items-center gap-1 cursor-text has-[:disabled]:cursor-default ${fieldBox(density)}`}>
+        <input value={value} aria-label={cell ? label : undefined} aria-labelledby={cell ? undefined : labelId}
+          placeholder={placeholder} disabled={disabled}
+          inputMode="decimal" onChange={e => onChange(e.target.value)} className={INPUT}
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
+        {unit && <span className="shrink-0 text-body-medium text-on-surface-variant" aria-hidden="true">{unit}</span>}
+      </label>
+    </OutlinedField>
   );
 }
-
-/**
- * Подчёркивание — псевдоэлемент обёртки, а не нижняя граница: граница 2 px у фокуса сдвигала бы текст
- * на пиксель. Состояние поля обёртка узнаёт через `focus-within` и `has-[:disabled]`.
- *
- * Наведение исключает фокус и отключённое в самом селекторе, как у рамки `OutlinedField`: `hover:` идёт в
- * собранном CSS позже `focus-within:` при равном весе, и наведённое поле в фокусе теряло бы `primary`.
- */
-const WRAP = 'relative flex h-10 items-center gap-1 px-2 cursor-text '
-  + "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-outline after:content-[''] "
-  + '[&:hover:not(:focus-within):not(:has(:disabled))]:after:bg-on-surface focus-within:after:h-0.5 focus-within:after:bg-primary '
-  + 'has-[:disabled]:cursor-default has-[:disabled]:after:bg-on-surface/38';
 
 const INPUT = 'min-w-0 flex-1 bg-transparent text-right text-body-medium tabular-nums text-on-surface outline-none '
   + 'placeholder:text-on-surface-variant disabled-content';

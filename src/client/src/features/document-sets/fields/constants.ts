@@ -95,9 +95,6 @@ export function defaultColWidth(f: SchemaField) {
  */
 export const ROW_DRAG_MIME = 'application/x-crg-array-row';
 
-export const CELL_INPUT =
-  'w-full h-full px-1.5 bg-transparent border-none outline-none text-body-small text-on-surface tabular-nums focus:bg-primary-container';
-
 export function tryPrettyJson(val: unknown): string {
   try { return JSON.stringify(val, null, 2); } catch { return '{}'; }
 }

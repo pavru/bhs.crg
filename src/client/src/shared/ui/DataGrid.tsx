@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type RefObject, type DragEvent, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { ArrowDownward, ArrowOutward, ArrowUpward, Close, LinkOff, VisibilityOff } from './icons';
@@ -6,6 +6,7 @@ import {
   dtCard, dtDensity, dtDensityCompact, dtLine, dtNum, dtPinnedCell, dtRow, dtRowTone, dtSection, dtTable,
   dtTd, dtTdCompact, dtTh, dtThCompact,
 } from './dataTable';
+import { markScrolled, useStickyPadding } from './dataTableScroll';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
@@ -401,38 +402,6 @@ export function DataGrid<Row extends object>({
       </table>
     </div>
   );
-}
-
-/**
- * Тело прокручено под шапку — шапка получает surface-container (`group-data-[scrolled]/dt`). Атрибутом
- * прямо на обёртке, а не состоянием: перерисовывать всю сетку на каждый кадр прокрутки незачем.
- */
-function markScrolled(event: UIEvent<HTMLDivElement>) {
-  const element = event.currentTarget;
-  element.toggleAttribute('data-scrolled', element.scrollTop > 0);
-}
-
-/**
- * Отступы прокрутки обёртки под липкие шапку и итог: строка, прокрученная в поле зрения (фокус клавишей,
- * `scrollIntoView` открытой), не встаёт под них. Меряем, а не считаем из `--dt-head` / `--dt-row`: шапка
- * бывает в два этажа, итог — в две строки. Стилем на обёртку, как и отступы закреплённых колонок.
- */
-function useStickyPadding(table: RefObject<HTMLTableElement | null>, layout: string) {
-  useLayoutEffect(() => {
-    const element = table.current;
-    const scroller = element?.parentElement;
-    if (!element || !scroller) return;
-    const parts = [element.tHead, element.tFoot].filter(part => part !== null);
-    const measure = () => {
-      scroller.style.setProperty('scroll-padding-top', `${element.tHead?.offsetHeight ?? 0}px`);
-      scroller.style.setProperty('scroll-padding-bottom', `${element.tFoot?.offsetHeight ?? 0}px`);
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    parts.forEach(part => observer.observe(part));
-    return () => observer.disconnect();
-  }, [table, layout]);
 }
 
 /** Щелчок, которым закончили выделять текст в строке, — не «открыть строку». */

@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type Reac
 import * as Popover from '@radix-ui/react-popover';
 import { composeRefs } from '@radix-ui/react-compose-refs';
 import { TextField, type TextFieldProps } from './TextField';
+import { useFieldDensity } from './fieldBox';
 import { matchStart, type SuggestItem } from './suggestMatch';
 import type { SuggestFeed } from './suggestFeeds';
 import { LAYER_SURFACE } from './menuClasses';
@@ -12,17 +13,18 @@ export interface SuggestFieldBaseProps
   value: string;
   onChange: (value: string) => void;
   /**
-   * Ячейка сетки: без рамки и подписи в вырезе (клетку рисует сетка), `label` — `aria-label`; ↓ при
-   * закрытом списке остаётся сетке, если не задан `arrowOpens`.
+   * Голое поле без оболочки: без рамки и подписи в вырезе, `label` — `aria-label`, вид — классом экрана; ↓ при
+   * закрытом списке не открывает список, если не задан `arrowOpens`. Клетке сетки правки он не нужен: там
+   * поле размера `cell` ([UI-78]) — его отдаёт тело `EditGrid` или `density="cell"`.
    */
   compact?: boolean;
   /**
-   * ↓ при закрытом списке открывает его. По умолчанию — вне сетки (`!compact`): в клетке стрелка — переход
+   * ↓ при закрытом списке открывает его. По умолчанию — вне сетки (не `compact` и не клетка): в клетке стрелка — переход
    * по строкам. Голое поле ФОРМЫ (`compact` без сетки вокруг) передаёт `true` — ведёт себя как поле с
    * подписью рядом, а не как клетка.
    */
   arrowOpens?: boolean;
-  /** Подсказка в пустом поле — только у клетки (`compact`): у поля формы вместо неё подпись в вырезе. */
+  /** Подсказка в пустом поле — у голого поля и клетки: у поля формы вместо неё подпись в вырезе. */
   placeholder?: string;
   /**
    * Пункт принят — Enter или щелчком, уже после `onChange` с его значением. Нужен полю, где выбор пункта
@@ -45,7 +47,7 @@ export function PlainField({
   return compact
     ? <input {...cellProps(rest)} ref={ref} aria-label={label} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)} />
-    : <TextField {...rest} ref={ref} label={label} value={value} onChange={e => onChange(e.target.value)} />;
+    : <TextField {...rest} ref={ref} label={label} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} />;
 }
 
 /**
@@ -54,9 +56,11 @@ export function PlainField({
  * `SuggestField`.
  */
 export function SuggestBox({
-  value, onChange, onAccept, feed, compact = false, arrowOpens = !compact, placeholder, label, onKeyDown, onBlur, className = '',
+  value, onChange, onAccept, feed, compact = false, arrowOpens: ownArrow, placeholder, label, onKeyDown, onBlur, className = '',
   ref, ...rest
 }: SuggestFieldBaseProps & { feed: SuggestFeed }) {
+  const cell = useFieldDensity(rest.density, 'form') === 'cell';
+  const arrowOpens = ownArrow ?? !(compact || cell);
   const listId = `${useId()}-list`;
   const input = useRef<HTMLInputElement>(null);
   const { view } = feed;
@@ -165,7 +169,8 @@ export function SuggestBox({
         {compact
           ? <input {...cellProps(rest)} {...combobox} ref={composeRefs(input, ref)} aria-label={label} placeholder={placeholder}
               className={className} />
-          : <TextField {...rest} {...combobox} ref={composeRefs(input, ref)} label={label} className={className}>{announce}</TextField>}
+          : <TextField {...rest} {...combobox} ref={composeRefs(input, ref)} label={label} placeholder={placeholder}
+              className={className}>{announce}</TextField>}
       </Popover.Anchor>
       {compact && announce}
       <Popover.Portal>

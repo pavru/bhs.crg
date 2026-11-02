@@ -37,11 +37,9 @@
   },
   "raw-field": {
     "features/costs/ArticlesDialog.tsx": 2,
-    "features/costs/InvoiceLineCells.tsx": 1,
     "features/costs/InvoiceLinesPaste.tsx": 1,
     "features/costs/InvoicePlaceField.tsx": 1,
     "features/costs/SupplierTermsDialog.tsx": 1,
-    "features/costs/WaybillForm.tsx": 3,
     "features/datasets/ComputedColumnsDialog.tsx": 2,
     "features/datasets/PdfGroupingEditor.tsx": 2,
     "features/datasets/ProcessingTemplatesDialog.tsx": 4,
@@ -82,6 +80,7 @@
     "features/templates/UserLibPathDialog.tsx": 1,
     "shared/siteFilter/FavoritesPicker.tsx": 1
   },
+  "cell-field": {},
   "chip": {},
   "segmented": {},
   "badge": {

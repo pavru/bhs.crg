@@ -8,7 +8,7 @@ import { ICON_BUTTON_XS } from './buttonClasses';
 import { Calendar } from './Calendar';
 import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
-import { FieldMarkContext } from './fieldBox';
+import { cellLine, FieldMarkContext } from './fieldBox';
 import { SegmentProblemMark } from './SegmentProblemMark';
 import { useSegmentField } from './useSegmentField';
 import { nextTabStop, tabStops } from './tabStops';
@@ -55,10 +55,12 @@ interface DateInputProps {
   className?: string;
   /**
    * Поле без оболочки со своей рамкой (issue #1464) — плотное поле 40 ([UI-69]), как `Select
-   * density="dense"`: строка настроек, отбор, диапазон дат. Других высот нет. Не задан — рамку рисует
-   * оболочка (`DateField`) или ячейка (`compact`).
+   * density="dense"`: строка настроек, отбор, диапазон дат. `cell` — клетка сетки правки ([UI-78]): 40 без
+   * рамки, черта у фокуса и открытого календаря, значок календаря — как у `compact`. Других высот нет. Не
+   * задан — рамку рисует оболочка (`DateField`). Размера места (`FieldDensityContext`) поле не берёт: без
+   * `density` оно живёт и внутри оболочки, и та в сетке рисовала бы вторую черту.
    */
-  density?: 'dense';
+  density?: 'dense' | 'cell';
   /**
    * Без крестика в поле (как было у `size="sm"`): в отборе значение снимает крестик его чипа, и второй
    * в поле — лишняя остановка Tab и 32 px в узкой колонке. «Очистить» в календаре остаётся.
@@ -104,8 +106,9 @@ interface DateInputProps {
   compact?: boolean;
 }
 
-export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
+export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact: ownCompact = false,
   density, noClear = false, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
+  const compact = ownCompact || density === 'cell';
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -145,7 +148,8 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Рамка плотного поля (issue #1464, [UI-69]) — как у оболочки: обводка 2 px, пока фокус внутри или
   // открыт календарь. Второй пиксель — кольцом внутрь, чтобы обводка не сдвигала цифры.
   const accent = markInvalid ? 'border-error inset-ring-error' : 'border-primary inset-ring-primary';
-  const frame = !density ? '' : [
+  const frame = density === 'cell' ? `${CELL} ${cellLine({ focused: pickerOpen, bad: markInvalid })}`
+    : !density ? '' : [
     FRAME, 'rounded-xs border transition-colors ease-standard',
     // Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, рамка on-surface 12 %, а не прозрачность.
     // Только для чтения — обводка outline-variant без подложки, как у оболочки.
@@ -285,6 +289,8 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 const COMPACT_TRIGGER = '-mr-1.5';
 /** Высота, отступы и роль текста плотного поля ([UI-69]); справа место держит кнопка календаря. */
 const FRAME = 'h-10 pl-3 pr-1 text-body-medium';
+/** Клетка ([UI-78]): та же высота, отступ клетки `px-2`; рамки нет — черту даёт `cellLine`. */
+const CELL = 'h-10 pl-2 pr-1 text-body-medium text-on-surface';
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
  * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе
