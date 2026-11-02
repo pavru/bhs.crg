@@ -41,6 +41,13 @@
 //      Там же: несохранённая правка счёта не пропадает от щелчка по пункту «Счета» (он ведёт на
 //      адрес без счёта) и от «Назад» браузера — форма спрашивает; и у строки, которой под отбором нет, ссылки в панели нет.
 //
+// И плотность таблицы данных ([UI-78], sharedui-md3-14-data, вариант А):
+//
+//  12. table-density-by-place — на странице шапка 56 и строка не ниже 48; открытая строка —
+//      secondary-container, и закреплённая клетка того же фона, а слой наведения строки виден и на ней.
+//      Ломается: вписать высоту числом в клетку мимо переменной обёртки; дать закреплённой клетке свою
+//      подложку — она закроет слой состояния, и наведение на закреплённых колонках пропадёт.
+//
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
 // же функцией: в CI посев идёт до перезапуска приложения, когда типа счёта ещё нет, и счетов не сеет.
@@ -506,6 +513,54 @@ try {
     const second = (await headers(page).nth(1).boundingBox()).x;
     if (second >= before.head + (await first.boundingBox()).width)
       throw new Error('вторая колонка не ушла под закреплённую — прокрутки не было');
+  });
+
+  // Плотность и фон строки ([UI-78], вариант А): числа меряются в браузере, потому что задают их переменные
+  // CSS — класс в разметке есть и тогда, когда переменная не дошла до клетки.
+  await check('table-density-by-place: шапка 56, строка не ниже 48; закреплённая клетка открытой строки — фона строки и со слоем наведения', async () => {
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await open(page, { filter: seeded, pin: '1' });
+    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета');
+    const head = (await headers(page).first().boundingBox()).height;
+    if (Math.round(head) !== 56) throw new Error(`шапка таблицы на странице ${head} px, а не 56`);
+    const heights = await dataRows(page).evaluateAll(rows => rows.map(r => r.getBoundingClientRect().height));
+    if (heights.some(h => h < 47.5)) throw new Error(`строка ниже 48: ${heights.join(', ')}`);
+    if (!heights.some(h => Math.round(h) === 48)) throw new Error(`ни одной строки в 48 — высота не от переменной: ${heights.join(', ')}`);
+
+    // Открываем строку щелчком по второй клетке: в первой стоит ссылка на счёт.
+    const row = dataRows(page).first();
+    await row.locator('td').nth(1).click();
+    await page.getByRole('complementary', { name: 'Строка: счёт' }).waitFor({ timeout: 5000 });
+    const roleColor = await page.evaluate(() => {
+      const probe = document.body.appendChild(document.createElement('div'));
+      probe.style.backgroundColor = 'var(--color-secondary-container)';
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    const look = () => row.evaluate(r => {
+      const cell = r.querySelector('td');
+      return {
+        row: getComputedStyle(r).backgroundColor, cell: getComputedStyle(cell).backgroundColor,
+        rowLayer: getComputedStyle(r).backgroundImage, cellLayer: getComputedStyle(cell).backgroundImage,
+        sticky: getComputedStyle(cell).position,
+      };
+    });
+    const opened = await look();
+    if (opened.sticky !== 'sticky') throw new Error('первая клетка не закреплена — проверять фон закреплённой не на чем');
+    if (opened.row !== roleColor) throw new Error(`открытая строка ${opened.row}, а не secondary-container ${roleColor}`);
+    if (opened.cell !== opened.row) throw new Error(`закреплённая клетка открытой строки ${opened.cell}, строка — ${opened.row}`);
+
+    // Наведение — слоем состояния строки, и он же на закреплённой клетке (а не только на прокручиваемой части).
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(400);
+    const rest = await look();
+    await row.locator('td').first().hover({ position: { x: 40, y: 10 } });
+    await page.waitForTimeout(400);
+    const hovered = await look();
+    if (hovered.rowLayer === rest.rowLayer) throw new Error('у строки под курсором слоя состояния нет');
+    if (hovered.cellLayer !== hovered.rowLayer)
+      throw new Error(`слой наведения на закреплённой клетке «${hovered.cellLayer}», у строки — «${hovered.rowLayer}»`);
   });
 
   // ── 6. Готовое представление «Реестр счетов» ──────────────────────────────────────────────────

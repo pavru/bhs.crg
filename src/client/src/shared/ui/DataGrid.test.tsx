@@ -50,12 +50,75 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     expect(screen.getByRole('columnheader', { name: 'Имя' }).className).toContain('w-36');
   });
 
-  it('тон строки — заливкой; у открытой строки её перекрывает подсветка открытия', () => {
+  it('тон строки — заливкой; у открытой строки её перекрывает фон открытой (secondary-container)', () => {
     grid([{ key: 'name', label: 'Имя' }], { tone: () => 'warning', rowOpen: p => p.id === '2' });
     const [, anna, boris] = screen.getAllByRole('row');
-    expect(anna.className).toContain('bg-warning-container');
-    expect(boris.className).not.toContain('bg-warning-container');
-    expect(boris.className).toContain('bg-primary-container');
+    expect(anna.className).toContain('[--dt-row-bg:var(--color-warning-container)]');
+    expect(anna.className).toContain('[--dt-row-fg:var(--color-on-warning-container)]');
+    expect(boris.className).not.toContain('warning-container');
+    expect(boris.className).toContain('[--dt-row-bg:var(--color-secondary-container)]');
+    expect(boris.className).toContain('[--dt-row-fg:var(--color-on-secondary-container)]');
+    // Прежняя подсветка открытой строки — primary-container — ушла (вариант А).
+    expect(boris.className).not.toContain('primary-container');
+  });
+
+  it('клетка цвет текста не задаёт — он у строки, иначе открытая не стала бы on-secondary-container', () => {
+    grid([{ key: 'name', label: 'Имя' }], { rowOpen: () => true });
+    const [, anna] = screen.getAllByRole('row');
+    expect(anna.className).toContain('text-(--dt-row-fg)');
+    expect(anna.querySelector('td')!.className).not.toContain('text-on-surface');
+  });
+
+  it('плотность — переменными на обёртке с прокруткой: страница 56 / 48, compact 48 / 40', () => {
+    grid([{ key: 'name', label: 'Имя' }]);
+    const page = screen.getByRole('table').parentElement!;
+    expect(page.className).toContain('[--dt-head:56px]');
+    expect(page.className).toContain('[--dt-row:48px]');
+    expect(page.className).toContain('scroll-pt-(--dt-head)');
+    cleanup();
+    grid([{ key: 'name', label: 'Имя' }], { density: 'compact' });
+    const dialog = screen.getByRole('table').parentElement!;
+    expect(dialog.className).toContain('[--dt-head:48px]');
+    expect(dialog.className).toContain('[--dt-row:40px]');
+    expect(dialog.className).not.toContain('56px');
+    // Высота — от переменной: у клетки минимум строки, у шапки — её высота; чисел в клетках нет.
+    expect(screen.getByRole('columnheader', { name: 'Имя' }).className).toContain('h-(--dt-head)');
+    expect(screen.getAllByRole('row')[1].querySelector('td')!.className).toContain('h-(--dt-row)');
+  });
+
+  it('шапка без своей заливки: фон контейнера, над прокрученным телом — surface-container; подпись title-small', () => {
+    grid([{ key: 'name', label: 'Имя' }]);
+    const head = screen.getByRole('columnheader', { name: 'Имя' });
+    expect(head.className).toContain('bg-(--dt-bg)');
+    expect(head.className).toContain('group-data-[scrolled]/dt:bg-surface-container');
+    expect(head.className).toContain('text-title-small');
+    expect(head.className).not.toMatch(/(^|\s)bg-surface-container(\s|$)/);
+    const scroller = screen.getByRole('table').parentElement!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    expect(scroller.hasAttribute('data-scrolled')).toBe(true);
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    expect(scroller.hasAttribute('data-scrolled')).toBe(false);
+  });
+
+  it('итог — surface-container без черты над ним, подпись label-large', () => {
+    grid([{ key: 'name', label: 'Имя' }], { footer: () => 'Итого' });
+    const total = screen.getByText('Итого');
+    expect(total.className).toContain('bg-surface-container');
+    expect(total.className).toContain('text-label-large');
+    expect(total.className).not.toContain('border-t');
+  });
+
+  it('прижатая к верху строка держит однострочный текст на линии строки, а не у верхней черты', () => {
+    grid([{ key: 'name', label: 'Имя' }, { key: 'note', label: 'Заметка', wrap: true }]);
+    const name = screen.getAllByRole('row')[1].querySelector('td')!;
+    expect(name.firstElementChild!.className).toContain('min-h-[calc(var(--dt-row)-9px)]');
+    expect(name.firstElementChild!.className).toContain('items-center');
+    cleanup();
+    // Без переноса клетки по центру сами — лишней обёртки нет.
+    grid([{ key: 'name', label: 'Имя' }]);
+    expect(screen.getAllByRole('row')[1].querySelector('td')!.firstElementChild).toBeNull();
   });
 
   it('шапка рисует своё, а имя колонки остаётся подписью', () => {
@@ -98,6 +161,17 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
     expect(group.className).toContain('sticky');
     expect(group.style.left).toBe('var(--pin-0, 0px)');
     expect(screen.getByRole('columnheader', { name: 'Имя' }).style.top).toBe('var(--dt-head)');
+    vi.unstubAllGlobals();
+  });
+
+  it('закреплённая клетка — фон строки и её слой состояния, а не своя подложка', () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    grid([{ key: 'name', label: 'Имя' }, { key: 'note', label: 'Заметка' }], { pinned: 1, rowOpen: () => true });
+    const [pinned, free] = screen.getAllByRole('row')[1].querySelectorAll('td');
+    expect(pinned.className).toContain('bg-(--dt-row-bg)');
+    expect(pinned.className).toContain('[background-image:inherit]');
+    expect(pinned.className).not.toMatch(/bg-(surface|primary-container|secondary-container)\b/);
+    expect(free.className).not.toContain('bg-(--dt-row-bg)');
     vi.unstubAllGlobals();
   });
 

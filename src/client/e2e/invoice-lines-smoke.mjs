@@ -198,6 +198,18 @@ try {
       'Труба гофрированная 20 мм\tм\t50\t12,00\t600,00',
     ].join('\n'));
 
+    // Сверка вставки — таблица в окне: плотность compact по D7 ([UI-78]) — шапка 48, строка 40. Меряется в
+    // браузере: высоты задают переменные CSS, и класс в разметке есть и тогда, когда переменная до клетки не дошла.
+    const pasted = page.getByRole('dialog').locator('table');
+    await pasted.locator('tbody tr').nth(1).waitFor({ timeout: 5000 });
+    const size = await pasted.evaluate(t => ({
+      head: t.querySelector('thead th').getBoundingClientRect().height,
+      rows: [...t.querySelectorAll('tbody tr')].map(r => r.getBoundingClientRect().height),
+    }));
+    if (Math.round(size.head) !== 48) throw new Error(`шапка таблицы в окне ${size.head} px, а не 48`);
+    if (size.rows.some(h => h < 39.5) || Math.round(size.rows[0]) !== 40)
+      throw new Error(`строки таблицы в окне ${size.rows.join(', ')} px, ожидалось 40`);
+
     // Число в кнопке — это и есть утверждение «шапка в счёт не пойдёт»: строк три, добавятся две.
     await page.getByRole('button', { name: 'Добавить строк: 2' }).click();
     await saveLines();

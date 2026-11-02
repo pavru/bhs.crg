@@ -207,12 +207,14 @@ describe('EditGrid (#1354)', () => {
     expect(screen.getByRole('columnheader', { name: 'Имя' }).style.width).toBe('120px');
   });
 
-  it('выбранная строка подсвечена', () => {
+  it('выбранная строка подсвечена фоном открытой строки — secondary-container, как в DataGrid', () => {
     const rows = [line('А'), line('Б')];
     render(<EditGrid rows={rows} rowKey={r => r.key} selected={r => r.name === 'Б'}
       columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
     const [, a, b] = screen.getAllByRole('row');
-    expect(a.className).not.toContain('bg-primary-container');
-    expect(b.className).toContain('bg-primary-container');
+    expect(a.className).not.toContain('secondary-container');
+    expect(b.className).toContain('[--dt-row-bg:var(--color-secondary-container)]');
+    expect(b.className).not.toContain('primary-container]');
+    expect(b.className).not.toContain('bg-primary-container');
   });
 });

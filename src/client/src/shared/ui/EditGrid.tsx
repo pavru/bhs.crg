@@ -2,7 +2,9 @@ import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type Keybo
 import { Icon } from './Icon';
 import { Add, Delete } from './icons';
 import { Button, IconButton } from './Button';
-import { dtCard, dtNum, dtRow, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact } from './dataTable';
+import {
+  dtCard, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact,
+} from './dataTable';
 import type { DataGridDrag } from './DataGrid';
 import { Tooltip } from './Tooltip';
 
@@ -222,7 +224,7 @@ export function EditGrid<Row>({
                 : '';
               return (
                 <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
-                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''} ${dropMark}`}
+                  className={`${dtRow} ${chosen ? dtRowTone.open : dtRowTone.plain} ${dropMark}`}
                   data-dragging={drag?.dragging === i || undefined}
                   {...(drag ? {
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
@@ -234,8 +236,8 @@ export function EditGrid<Row>({
                     return (
                       <Cell key={c.key} data-cell data-r={i} data-c={ci} scope={c.rowHeader ? 'row' : undefined}
                         style={pinStyle(c, 5)}
-                        className={`${td} text-on-surface ${c.rowHeader ? 'text-left font-normal' : ''} `
-                          + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? (chosen ? 'bg-primary-container' : 'bg-surface') : ''}`}>
+                        className={`${td} ${c.rowHeader ? 'text-left font-normal' : ''} `
+                          + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? dtPinnedCell : ''}`}>
                         {c.cell(row, i)}
                       </Cell>
                     );

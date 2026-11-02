@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { ArrowDownward, ArrowOutward, ArrowUpward, Close, LinkOff, VisibilityOff } from './icons';
 import {
-  dtCard, dtTable, dtTh, dtTd, dtRow, dtNum, dtTableCompact, dtThCompact, dtTdCompact,
+  dtCard, dtDensity, dtDensityCompact, dtLine, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTable, dtTd,
+  dtTdCompact, dtTh, dtThCompact,
 } from './dataTable';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
@@ -144,7 +145,7 @@ export function DataGrid<Row extends object>({
   /** Своя рамка-карточка; false — сетка внутри чужой карточки (иначе рамка в рамке). */
   framed?: boolean;
   className?: string;
-  /** `compact` — в диалоге и боковой панели: мельче текст, ниже шапка, теснее клетки. */
+  /** `compact` — в окне и боковом листе: шапка 48 и строка не ниже 40 вместо 56 / 48, теснее клетки. */
   density?: 'regular' | 'compact';
   /** По чему отсортировано — стрелкой в шапке; при нескольких ключах рядом стоит их порядок. */
   sort?: DataGridSort[];
@@ -213,7 +214,7 @@ export function DataGrid<Row extends object>({
     : undefined);
 
   // Двухэтажная шапка: колонки с группой стоят на втором этаже, и он липнет под первым, а не на
-  // него — иначе при прокрутке подписи полей уходили бы под имена групп. Высоту этажа таблица держит
+  // него — иначе при прокрутке подписи полей уходили бы под имена групп. Высоту этажа обёртка держит
   // переменной `--dt-head` (dataTable): число задано там один раз.
   const grouped = columns.some(c => c.group);
   const lower: CSSProperties = { top: 'var(--dt-head)' };
@@ -260,8 +261,10 @@ export function DataGrid<Row extends object>({
   };
 
   return (
-    <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
-      <table ref={table} className={`${compact ? dtTableCompact : dtTable} ${fixed ? 'table-fixed' : ''}`}>
+    // Итог прибит к низу — отступ прокрутки снизу под него, как сверху под шапку.
+    <div className={`${framed ? dtCard : 'overflow-auto'} ${compact ? dtDensityCompact : dtDensity} ${footer ? 'scroll-pb-(--dt-row)' : ''} ${className}`}
+      onScroll={markScrolled}>
+      <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}>
         <thead>
           <tr>
             {columns.map((c, i) => {
@@ -323,7 +326,7 @@ export function DataGrid<Row extends object>({
             // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
               <tr key={key}
-                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer focus-ring-inset' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''} ${dropMark}`}
+                className={`group/row ${dtRow} ${open ? dtRowTone.open : marked ? dtRowTone.warning : dtRowTone.plain} ${onRowOpen ? 'cursor-pointer focus-ring-inset' : ''} ${strong ? 'font-medium' : ''} ${dropMark}`}
                 data-dragging={drag?.dragging === i || undefined}
                 {...(drag ? {
                   onDragOver: (e: DragEvent) => drag.onOver(e, i),
@@ -342,13 +345,8 @@ export function DataGrid<Row extends object>({
                 } : {})}>
                 {columns.map((c, ci) => {
                   const Cell = c.rowHeader ? 'th' : 'td';
-                  return (
-                    <Cell key={c.key} style={pinStyle(ci, 5)} scope={c.rowHeader ? 'row' : undefined}
-                      // Щелчок в клетке с действиями — это действие, а не «открыть строку».
-                      onClick={c.interactive ? e => e.stopPropagation() : undefined}
-                      className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-on-surface `
-                        + `${c.rowHeader ? 'text-left [font-weight:inherit]' : ''} ${c.align === 'right' ? dtNum : ''} `
-                        + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-primary-container' : marked ? 'bg-warning-container' : 'bg-surface') : ''}`}>
+                  const content = (
+                    <>
                       {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
                           перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
                       {ci === 0 && link && (
@@ -364,6 +362,18 @@ export function DataGrid<Row extends object>({
                         <DataGridValue row={row as Record<string, unknown>} column={c}
                           renderValue={renderValue ? v => renderValue(v, c) : undefined} />
                       )}
+                    </>
+                  );
+                  // Цвет текста клетка не задаёт: он у строки (`--dt-row-fg`), иначе открытая строка не
+                  // стала бы on-secondary-container.
+                  return (
+                    <Cell key={c.key} style={pinStyle(ci, 5)} scope={c.rowHeader ? 'row' : undefined}
+                      // Щелчок в клетке с действиями — это действие, а не «открыть строку».
+                      onClick={c.interactive ? e => e.stopPropagation() : undefined}
+                      className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} `
+                        + `${c.rowHeader ? 'text-left [font-weight:inherit]' : ''} ${c.align === 'right' ? dtNum : ''} `
+                        + `${pin(ci)} ${ci < pinCount ? dtPinnedCell : ''}`}>
+                      {top ? <div className={dtLine}><div className="min-w-0 flex-1">{content}</div></div> : content}
                     </Cell>
                   );
                 })}
@@ -378,8 +388,9 @@ export function DataGrid<Row extends object>({
                 const Cell = c.rowHeader ? 'th' : 'td';
                 return (
                   <Cell key={c.key} style={pinStyle(i, 30)} scope={c.rowHeader ? 'row' : undefined}
-                    className={`sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-body-small text-on-surface-variant `
-                      + `whitespace-nowrap align-top ${c.rowHeader ? 'text-left font-medium' : ''} ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
+                    // Итог — на surface-container без черты над ним (вариант А, 02.11.2026), высотой со строку.
+                    className={`sticky bottom-0 z-10 bg-surface-container h-(--dt-row) ${compact ? 'px-2' : 'px-3'} py-1 text-label-large text-on-surface `
+                      + `whitespace-nowrap align-middle ${c.rowHeader ? 'text-left' : ''} ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
                     {footer(c)}
                   </Cell>
                 );
@@ -390,6 +401,15 @@ export function DataGrid<Row extends object>({
       </table>
     </div>
   );
+}
+
+/**
+ * Тело прокручено под шапку — шапка получает surface-container (`group-data-[scrolled]/dt`). Атрибутом
+ * прямо на обёртке, а не состоянием: перерисовывать всю сетку на каждый кадр прокрутки незачем.
+ */
+function markScrolled(event: UIEvent<HTMLDivElement>) {
+  const element = event.currentTarget;
+  element.toggleAttribute('data-scrolled', element.scrollTop > 0);
 }
 
 /** Щелчок, которым закончили выделять текст в строке, — не «открыть строку». */

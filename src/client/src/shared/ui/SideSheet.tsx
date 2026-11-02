@@ -67,7 +67,7 @@ function ModalSideContent({ title, closeLabel, onClose, actions, children }: {
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
   return (
     <Dialog.Content aria-describedby={undefined} data-modal-state="free"
-      className="fixed inset-y-0 right-0 z-50 w-full max-w-100 flex flex-col rounded-l-lg bg-surface-container-low shadow-elevation-1 focus:outline-none"
+      className="fixed inset-y-0 right-0 z-50 w-full max-w-100 flex flex-col rounded-l-lg bg-surface-container-low [--dt-bg:var(--color-surface-container-low)] shadow-elevation-1 focus:outline-none"
       onCloseAutoFocus={e => {
         if (!opener?.isConnected || opener === document.body) return;
         e.preventDefault();

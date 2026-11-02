@@ -11,8 +11,11 @@
  */
 export const DIALOG_SCRIM = 'fixed inset-0 z-50 bg-scrim/32';
 
-/** Поверхность окна: `surface-container-high`, радиус 28, уровень 3. */
-export const DIALOG_SURFACE = 'rounded-xl bg-surface-container-high shadow-elevation-3';
+/**
+ * Поверхность окна: `surface-container-high`, радиус 28, уровень 3. Тот же фон — фону таблицы данных в окне
+ * (`--dt-bg`, [UI-78]): шапка таблицы без рамки — цвета окна, а не светлой полосой.
+ */
+export const DIALOG_SURFACE = 'rounded-xl bg-surface-container-high [--dt-bg:var(--color-surface-container-high)] shadow-elevation-3';
 
 /** Заголовок окна. */
 export const DIALOG_TITLE = 'text-headline-small text-on-surface';
