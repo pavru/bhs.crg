@@ -201,19 +201,24 @@
   «Карточки» [UI-77]. Проверка — ревью PR
   Сделано 02.11.2026: строки `Card`, `Divider`, `SideSheet` / `BottomSheet` в таблице компонентов, абзац уровней в
   «Форма и возвышение», разделы «Листы» и «Карточки», правило в «Кто сторожит».
-- [ ] 2б.7 `/design-sync` после слияния PR 2б: в дизайн-системе «BHS.CRG UI» есть `Menu`, `Card`,
+- [x] 2б.7 `/design-sync` после слияния PR 2б: в дизайн-системе «BHS.CRG UI» есть `Menu`, `Card`,
   `Divider`, `SideSheet`, `BottomSheet`, у `Modal` — новый вид и full-screen dialog (D12). Проверка —
   превью компонентов в дизайн-системе
+  Сделано 02.11.2026 владельцем после слияния #1725 (f9b8ae77).
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `hand-card` — с
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `hand-card` — с
   уровнем, не выше заведённого
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
+  3.1–3.4 сверены 02.11.2026 на master bcffc497: tsc без ошибок, vitest 3444 зелёных, линт 0, интерфейс без
+  роста, `hand-card` — 67 (заведённый уровень), AgentRulesCopy и FileSizeRatchet зелёные.
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
   — зелёный (копия правил в `AGENTS.md`)
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный; `Modal.tsx`, `ui-ratchet-lib.mjs` и `ui-ratchet.test.mjs` не перешли 500
-- [ ] 3.5 В описании каждого PR — макет, выбранный вариант (А) и ссылка; снимки 5–7 ключевых экранов до
+- [x] 3.5 В описании каждого PR — макет, выбранный вариант (А) и ссылка; снимки 5–7 ключевых экранов до
   и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2); весь `npm run -s test:e2e:ci` зелёный (5.1)
-- [ ] 3.6 Каждый из четырёх PR — с меткой `version:minor`
+  Сделано: #1722–#1725 — ссылка на макеты 2ca30933, вариант А и снимки артефактом в каждом; e2e 21/21 перед
+  каждым слиянием.
+- [x] 3.6 Каждый из четырёх PR — с меткой `version:minor` (#1722–#1725 — проверено 02.11.2026)
