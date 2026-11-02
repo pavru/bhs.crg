@@ -94,20 +94,26 @@
   `shared/ui`; тесты экранов зелёные
 - [x] 2.5 Правило храповика `cell-field` (поле в клетке `EditGrid` без `density="cell"`) своим модулем, с
   тестом; уровень — 0 к концу PR; `raw-field` не вырос. Проверка — `npm run ui:ratchet`, тест правила
-- [ ] 2.6 Живые прогоны: положительные проверки — строка `EditGrid` не ниже 48 и одна черта у поля в фокусе
+- [x] 2.6 Живые прогоны: положительные проверки — строка `EditGrid` не ниже 48 и одна черта у поля в фокусе
   (`invoice-lines-smoke`), строка `sheet` 40 (`fields-smoke`); `allocation-matrix-smoke` зелёный; весь
   `npm run -s test:e2e:ci` зелёный. Проверка — описание PR
+  Зелёный в CI на 14e2278e (PR #1730); попутно — `.first()` у уведомления в `invoice-payment-smoke` (копия
+  Radix Toast для диктора давала строгому локатору два элемента).
 - [x] 2.7 Уровень `fixed-width` перепроверен: ширины колонок действий под кнопки, уровень не вырос.
   Проверка — `npm run ui:ratchet`
-- [ ] 2.8 `/design-sync` после слияния PR 2: `DataGrid` и `EditGrid` в дизайн-системе — новый вид (D12).
+- [x] 2.8 `/design-sync` после слияния PR 2: `DataGrid` и `EditGrid` в дизайн-системе — новый вид (D12).
   Проверка — превью компонентов
+  Сделан владельцем 03.11.2026.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
-- [ ] 3.4 В описании каждого PR — макет, выбранный вариант (А) и ссылка; снимки 5–7 ключевых экранов до и
+- [x] 3.4 В описании каждого PR — макет, выбранный вариант (А) и ссылка; снимки 5–7 ключевых экранов до и
   после в обеих темах на 1366×768 и 375 px (зонтик, 5.2); весь `npm run -s test:e2e:ci` зелёный (5.1)
-- [ ] 3.5 PR с меткой `version:minor`
+  3.1–3.3 — обязательные проверки CI #1729 и #1730. Снимки — артефакт ATBjRG4ceGkiovwn55JJkz (шесть экранов,
+  d169bf57 против ceec05d0), ссылка и макет — в описаниях обоих PR. Строки счёта сняты только на 1366 в окне
+  высотой 1600: на 768 у формы счёта прокручиваемая часть — 32 px (не из этого change, разбор — отдельной задачей).
+- [x] 3.5 PR с меткой `version:minor`

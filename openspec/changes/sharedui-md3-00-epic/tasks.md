@@ -197,7 +197,7 @@
   `Divider`, standard и modal `SideSheet`, `BottomSheet`; правило `hand-card` — 67; снимки до и после —
   артефакты 4VTB1kGSs3v25N9RdD4dbn, MbrYZJYrHKnt17XNo5bZ7w, C4V19AVrBsTcDFyX9f8zCB, S5gB3CeoT32U7fWuSKuZUs;
   `/design-sync` 02.11.2026.
-- [ ] 3.5 `sharedui-md3-14-data` (2) — `DataGrid` (шапка 56/48, строки 48/40, выбор
+- [x] 3.5 `sharedui-md3-14-data` (2) — `DataGrid` (шапка 56/48, строки 48/40, выбор
   `secondary-container`), `EditGrid` (48/40, поле без рамки), списки [UI-78]. Решение В5. Проверка —
   change заархивирован.
   Раздел 0 закрыт 02.11.2026: выбор владельца — вариант А «Data table буквально» (макеты 2d7f81d4) —
@@ -206,6 +206,11 @@
   вместо класса клетки, правило `cell-field`), высота окон с таблицей не меняется. **Списки вынесены** из 14:
   строкам list-detail нужен отдельный ребёнок с общим `ListItem` (вид — по А: прямоугольник, две строки 64);
   `panelLink` и `PageList` — за 15. Переключатель плотности в представлении — не сейчас.
+  Слит #1729 (ed9798ac) и #1730 (ceec05d0), заархивирован 03.11.2026: `DataGrid` по шкале D7 (переменные
+  `--dt-head` / `--dt-row` на обёртке с прокруткой, `--dt-bg`, закреплённые клетки тоном строки); третий размер
+  поля `density="cell"` — без рамки и черты в покое, черта `primary` 2 px у фокуса; размер клетки даёт контекстом
+  только тело `EditGrid` — шапка, итог и слои его не получают; лист — строка 40, фокус чертой; правило `cell-field`
+  — 0; снимки до и после — артефакт ATBjRG4ceGkiovwn55JJkz; `/design-sync` 03.11.2026.
 - [ ] 3.6 `sharedui-md3-15-shell` (2) — рейл 80 со значком 24, подпанель как drawer, шапка — top app
   bar и search bar, `PageHeader` title-large, `BottomNav`, палитра — search view [UI-79]. Проверка —
   change заархивирован.
