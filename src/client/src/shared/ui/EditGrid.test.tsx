@@ -244,6 +244,20 @@ describe('EditGrid (#1354)', () => {
     const remove = screen.getByRole('columnheader', { name: 'Удалить' });
     expect(remove.className).toContain('w-12');
     expect(remove.className).not.toContain('w-8');
+    // Кнопка — по центру строки линией клетки, как поля: `align-middle` поверх `align-top` клетки не действует.
+    const button = screen.getByRole('button', { name: 'Удалить строку 1' });
+    expect(button.closest('td')!.className).not.toContain('align-middle');
+    expect(button.parentElement!.parentElement!.className).toContain('items-center');
+  });
+
+  it('сетка в клетке другой сетки: размер места получает только тело, шапка — нет', () => {
+    const inner = <EditGrid label="Внутренняя" rows={[line('Б')]} rowKey={r => r.key} columns={[{
+      key: 'name', label: 'Имя', header: <TextField label="Шапка внутренней" />,
+      cell: (l, i) => <TextField label={`Внутри, строка ${i + 1}`} value={l.name} onChange={() => {}} />,
+    }]} />;
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key} columns={[{ key: 'name', label: 'Имя', cell: () => inner }]} />);
+    expect(screen.getByLabelText('Шапка внутренней').closest('th')!.querySelector('fieldset')).not.toBeNull();
+    expect(screen.getByLabelText('Внутри, строка 1').closest('td')!.querySelector('fieldset')).toBeNull();
   });
 
   it('итог — surface-container без черты над ним', () => {

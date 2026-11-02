@@ -138,6 +138,9 @@ export function OutlinedField({
   // Наведение — обводка `on-surface` (MD3). Не у фокуса, ошибки, отключённого и поля для чтения: им своя.
   const hover = bad || readOnly || focused || cell ? ''
     : '[&:hover:not(:focus-within):not(:has(:disabled))>fieldset]:border-on-surface';
+  // Отключённое — рамка on-surface 12 % ([UI-64]), как у плотной даты; текст гасит `disabled-content` контрола.
+  // Селектором по контролу, а не пропом: `disabled` оболочке не передают, он живёт на самом поле.
+  const disabledFrame = '[&:has(:disabled)>fieldset]:border-on-surface/12';
   // Вырез раскрывает legend, а он ВНУТРИ fieldset — соседом input'у он не приходится, поэтому
   // peer-варианты вешаем на fieldset и целим вложенный legend через [&>legend].
   const legendWidth = auto ? 'max-w-[0.01px]' : 'max-w-full';
@@ -178,7 +181,7 @@ export function OutlinedField({
 
   return (
     <div className={containerClassName}>
-      <div className={`relative ${hover} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
+      <div className={`relative ${hover} ${disabledFrame} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
         <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет. */}

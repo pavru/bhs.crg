@@ -289,7 +289,10 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 const COMPACT_TRIGGER = '-mr-1.5';
 /** Высота, отступы и роль текста плотного поля ([UI-69]); справа место держит кнопка календаря. */
 const FRAME = 'h-10 pl-3 pr-1 text-body-medium';
-/** Клетка ([UI-78]): та же высота, отступ клетки `px-2`; рамки нет — черту даёт `cellLine`. */
+/**
+ * Клетка ([UI-78]): та же высота, отступ клетки `pl-2`; рамки нет — черту даёт `cellLine`. Не `fieldBox('cell')`,
+ * как и `FRAME` не `fieldBox('dense')`: справа место держит кнопка календаря (`pr-1`), а не отступ текста.
+ */
 const CELL = 'h-10 pl-2 pr-1 text-body-medium text-on-surface';
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в

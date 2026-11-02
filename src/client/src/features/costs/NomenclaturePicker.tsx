@@ -22,7 +22,7 @@ import { CandidatesBlock, PickerOption, type PickerCurrent } from './PickerRows'
 import { plateMeta, type PickerLine } from './pickerLine';
 import { usePickerSelection } from './pickerSelection';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { cellLine, useFieldDensity } from '@/shared/ui/fieldBox';
+import { cellLine, fieldBox, useFieldDensity } from '@/shared/ui/fieldBox';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -86,7 +86,7 @@ export function NomenclaturePicker({
   // черта ошибки. Вне сетки (окно сопоставлений) — прежняя кнопка в рамке.
   const cell = useFieldDensity(undefined, 'dense') === 'cell';
   const tone = lost ? 'text-error' : chosen ? 'text-on-surface' : 'text-warning';
-  const look = cell ? `h-10 px-2 text-body-medium outline-none ${cellLine({ bad: lost })}`
+  const look = cell ? `${fieldBox('cell')} outline-none ${cellLine({ bad: lost })}`
     : `px-2 py-1 text-body-small rounded-xs border ${lost ? 'border-error/30' : 'border-outline-variant'}`;
 
   return (

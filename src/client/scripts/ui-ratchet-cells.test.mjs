@@ -43,6 +43,26 @@ describe('храповик интерфейса: cell-field', () => {
     expect(cells('targets.map((t): EditGridColumn<Row> => ({ key: t.key, label: t.name, cell: r => <Select density="dense" aria-label="А" value="" onValueChange={f} /> }))')).toBe(1);
   });
 
+  it('поле формы со своей оболочкой в клетке — нарушение', () => {
+    expect(cells(grid('<DateField label="Дата" value="" onChange={f} />'))).toBe(1);
+    expect(cells(grid('<TextAreaField label="Текст" value="" onChange={f} />'))).toBe(1);
+  });
+
+  it('компонент клетки из того же файла правило смотрит; окно в нём — нет', () => {
+    const wrap = body => `function Amount({ r }) { return ${body}; }\n${grid('<Amount r={r} />')}`;
+    expect(cells(wrap('<input className="border" value={r.a} />'))).toBe(1);
+    expect(cells(wrap('<TextField label="А" value={r.a} onChange={f} />'))).toBe(0);
+    expect(cells(wrap('<><button /><Modal open title="Т"><DateField label="Дата" value="" onChange={f} /></Modal></>'))).toBe(0);
+  });
+
+  it('компонент клетки из модуля features правило читает с диска', () => {
+    // Строки счёта: Cell и NumberInput — поля размера места, нарушений нет; имя чужого модуля резолвится.
+    const text = `import { Cell } from './InvoiceLineCells';\n${grid('<Cell value="" label="А" onChange={f} />')}`;
+    expect(countViolations(text, { dir: 'features', file: 'features/costs/X.tsx' })['cell-field'] ?? 0).toBe(0);
+    // Модуль shared/ правило не читает: вид своих полей держат они сами.
+    expect(cells(`import { Checkbox } from '@/shared/ui/Checkbox';\n${grid('<Checkbox checked={r.on} />')}`)).toBe(0);
+  });
+
   it('колонки DataGrid правило не смотрит', () => {
     expect(cells(`<DataGrid rows={rows} rowKey={r => r.id} columns={[{ key: 'a', label: 'А', cell: r => <input value={r.a} /> }]} />`)).toBe(0);
     expect(cells(`const columns: DataGridColumn<Row>[] = [{ key: 'a', label: 'А', cell: r => <input value={r.a} /> }];`)).toBe(0);

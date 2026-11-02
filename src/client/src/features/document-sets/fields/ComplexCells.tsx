@@ -19,7 +19,7 @@ import { SuggestField } from '@/shared/ui/SuggestField';
 import { useSuggestSource } from './suggestContext';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { cellLine } from '@/shared/ui/fieldBox';
+import { cellLine, fieldBox } from '@/shared/ui/fieldBox';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -39,7 +39,7 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
     <div className="flex items-center w-full h-full">
       {/* Вид поля клетки листа ([UI-78]): фокус — чертой `primary` под клеткой, а не заливкой. */}
       <button type="button" onClick={() => setPickerOpen(true)}
-        className={`flex-1 min-w-0 h-10 flex items-center gap-1 px-2 outline-none ${cellLine()}`}>
+        className={`flex-1 min-w-0 flex items-center gap-1 ${fieldBox('cell')} outline-none ${cellLine()}`}>
         {ref
           ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
           : <span className="text-on-surface-variant">—</span>

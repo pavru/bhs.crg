@@ -5,6 +5,7 @@ import { DateInput } from './DateInput';
 import { Select, SelectItem } from './Select';
 import { TextField } from './TextField';
 import { FieldDensityContext } from './fieldBox';
+import { Modal } from './Modal';
 
 vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
   ...(await importOriginal<typeof import('@/shared/hooks/useLocale')>()),
@@ -103,5 +104,25 @@ describe('поле клетки: DateInput', () => {
     expect(classes(group)).toEqual(expect.arrayContaining(['after:bg-transparent', 'focus-within:after:bg-primary']));
     expect(screen.getByRole('button', { name: 'Открыть календарь' }).className).toContain('opacity-0');
     expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeNull();
+  });
+});
+
+describe('размер места не выходит за клетку', () => {
+  it('окно, открытое из клетки, рисует поля формы: размер клетки сквозь портал не идёт', () => {
+    render(
+      <FieldDensityContext.Provider value="cell">
+        <Modal open onOpenChange={() => {}} title="Новая позиция">
+          <TextField label="Наименование" />
+        </Modal>
+      </FieldDensityContext.Provider>,
+    );
+    const input = screen.getByLabelText('Наименование');
+    expect(input.getAttribute('aria-label')).toBeNull();
+    expect(input.closest('.relative')!.querySelector('fieldset')).not.toBeNull();
+  });
+
+  it('отключённое поле с рамкой — рамка on-surface 12 % ([UI-64])', () => {
+    render(<TextField label="Коэффициент" density="dense" disabled />);
+    expect(classes(shell(screen.getByLabelText('Коэффициент')))).toContain('[&:has(:disabled)>fieldset]:border-on-surface/12');
   });
 });

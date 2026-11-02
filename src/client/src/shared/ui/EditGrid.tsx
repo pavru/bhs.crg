@@ -204,6 +204,9 @@ export function EditGrid<Row>({
     <div className="space-y-2">
       <div className={`${framed ? dtCard : 'overflow-auto'} ${sheet ? dtDensityCompact : dtDensity} ${className}`}
         onScroll={markScrolled}>
+        {/* Размер места — только телу. Шапка и итог его не берут, даже когда сетка стоит в клетке другой сетки
+            или в окне, открытом из клетки: поле в шапке колонки — плотное с рамкой (В5). */}
+        <FieldDensityContext.Provider value={null}>
         <table ref={table} aria-label={label} onKeyDown={onKeyDown}
           className={`${dtTable} ${sized ? dtTableSized : ''} ${minWidth}`}>
           <thead>
@@ -225,7 +228,7 @@ export function EditGrid<Row>({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={span} className={`${td} px-2 text-center align-middle text-on-surface-variant`}>{empty}</td>
+                <td colSpan={span} className={`${td} px-2 text-center text-on-surface-variant`}>{line(empty)}</td>
               </tr>
             ) : rows.map((row, i) => {
               const chosen = selected?.(row, i) ?? false;
@@ -257,12 +260,14 @@ export function EditGrid<Row>({
                     );
                   })}
                   {removable && (
-                    <td className={`${td} text-center align-middle`}>
-                      <RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
+                    <td className={`${td} text-center`}>
+                      {/* По центру строки — линией, как остальные клетки: `align-middle` поверх `align-top` клетки
+                          не действует (в собранном CSS `align-top` идёт позже). */}
+                      {line(<RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
                         onClick={() => {
                           pendingFocus.current = { kind: 'removed', index: i };
                           onRemove(row, i);
-                        }} />
+                        }} />)}
                     </td>
                   )}
                 </tr>
@@ -283,6 +288,7 @@ export function EditGrid<Row>({
             </tfoot>
           )}
         </table>
+        </FieldDensityContext.Provider>
       </div>
       {add && (
         <Button ref={addButton} variant="outlined" icon={<Icon icon={Add} size={18} />}
