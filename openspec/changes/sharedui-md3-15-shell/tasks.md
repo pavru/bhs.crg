@@ -53,43 +53,77 @@
   - (В) Заголовок в полосе — полоса 64 с заголовком и действиями страницы, поиск 48 шириной 360,
     переключатель пространства в подпанели, список list-detail — часть рамки, угол у подробностей —
     https://claude.ai/design/p/70788b18-6b3a-4350-88de-caa087ec88ff?file=%D0%92+-+%D0%97%D0%B0%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%BE%D0%BA+%D0%B2+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%B5.html
-- [ ] 0.4 Выбор владельца записан в зонтик с датой; перенесён `/opsx:update sharedui-md3-15-shell` —
+- [x] 0.4 Выбор владельца записан в зонтик с датой; перенесён `/opsx:update sharedui-md3-15-shell` —
   высоты шапки и поиска, сценарии [UI-79]; высоты ниже MD3 — в отступления D8. Проверка —
   `openspec validate sharedui-md3-15-shell --strict`
+  Сделано 03.11.2026. Выбор владельца — **А «MD3 буквально» целиком** (рабочий стол и телефон);
+  `SearchInput` — 56 на странице везде (как в proposal), 40 в окне и листе; PR — два. Отступлений D8 нет.
+  Без вопроса, по разбору: «вне пространства» различает раскрываемая группа, а не цвет и вес; длинная подпись
+  подпанели — многоточием. Перенесено: [UI-79] — полоса 64, поиск 56 не шире 720, угол только от `md`, фон
+  подпанели и заголовок раздела, новое требование «Столбец списка list-detail», палитра на месте строки и
+  порог 768, поиск в окне 40, цели касания со ссылками шапки; Context в design.md сверен заново, Decisions и
+  Risks — по разбору и выбору; задачи 1.1–2.4 привязаны к настоящим тестам, добавлены 1.9 (столбец списка)
+  и 1.10 (база храповика). `openspec validate --strict` — зелёный. Записано в зонтике (3.6).
 
 ## 1. PR 1: рабочий стол
 
-- [ ] 1.1 `SectionRail`: ширина 80, `surface-container-low`, знак 24, индикатор 56×32
-  `secondary-container`, знак с заливкой у выбранного, подпись `label-medium` [UI-79]. Проверка —
-  `railSections.test.ts` зелёный; `rail-checks`: ширина 80, длинная подпись без переноса
-- [ ] 1.2 Подпанель: `panelLink` — пункт 48 full, выбранный `secondary-container`, `label-large`,
-  наведение — слой состояния; `MICRO_HEADING` — `title-small` без прописных [UI-79]. Проверка — vitest
-  `PageList`/`WorkspaceNav`; `workspaces-checks` зелёный
-- [ ] 1.3 `AppShell`: полоса — top app bar на `surface-container-low` без черты, рабочая область `surface`
-  с углом 16; поиск-дверь — search bar по выбору 0.4 [UI-79]. Проверка — vitest `phoneShell.test.tsx` для
-  рабочего стола; снимок оболочки в обеих темах в описании PR
-- [ ] 1.4 `PageHeader` — `title-large` [UI-79]. Проверка — vitest (класс роли) или `pages-smoke`
-- [ ] 1.5 `CommandPalette` — docked search view, поле 56, `surface-container-high` радиус 28, без размытия
-  [UI-79]. Проверка — `CommandPalette.test.tsx`, `paletteGuard.test.tsx` зелёные; `keyboard-smoke`: Esc
-  и «Назад» закрывают палитру
-- [ ] 1.6 `SearchInput` — search bar 56 на странице, 40 в окне и листе, без рамки [UI-79]. Проверка —
-  vitest: высота по месту; `invoices-smoke`: поиск в списке работает
-- [ ] 1.7 Живые прогоны, проверяющие размеры оболочки (`rail-checks`, `workspaces-checks`,
-  `invoice-layout-checks`), поправлены тем же PR; весь `npm run -s test:e2e:ci` зелёный. Проверка —
-  описание PR
-- [ ] 1.8 `docs/UI.md` «Оболочка: рейл разделов и подпанель» — рейл 80, пункты 48, роли [UI-79].
-  Проверка — ревью PR
+- [ ] 1.1 `SectionRail`: ширина 80, `surface-container-low` без черты у `aside`, знак 24 (`wide` у
+  `SectionPill` уходит), индикатор 56×32 `secondary-container`, знак с заливкой у выбранного, подпись
+  `label-medium` одним весом [UI-79]. Проверка — новый vitest рейла: `w-20`, знак 24, `filled` у
+  выбранного; `railSections.test.ts` зелёный; `rail-checks` (внутри `settings-smoke`): ширина 80, рейл с
+  подпанелью 320, самая длинная подпись в одну строку без обрезки — новая проверка
+- [ ] 1.2 Подпанель: `SectionPanel` — `surface-container-low` без черты, заголовок раздела `title-medium`;
+  `panelLink` — `h-12 px-4 text-label-large`, форма full, выбранный `secondary-container`, наведение — слой
+  состояния, параметр `muted` уходит (чужие различает раскрываемая группа `WorkspaceNav`); длинная подпись —
+  многоточием; `MICRO_HEADING` — `title-small` без прописных (уже) [UI-79]. Проверка — новый vitest
+  `panelLink`: `h-12`, `text-label-large`, у выбранного `bg-secondary-container`; `workspaces-checks` (внутри
+  `settings-smoke`) зелёный
+- [ ] 1.3 `AppShell`: полоса 64 — top app bar на `surface-container-low`, прозрачная, без черты; обёртка
+  рабочей области `md:rounded-tl-lg overflow-clip bg-surface` вокруг области с FAB вместе с `OutsideBanner`
+  и `EmailConfirmBanner` (без `transform`, `header` — прямой потомок `main`); поиск-дверь — search bar
+  `h-14`, `surface-container-high`, знак 24, `body-large`, `px-4`, не шире 720; комментарий про «рейл 88»
+  [UI-79]. Проверка — `rail-checks`: высота шапки 64, у обёртки угол 16, у шапки и рейла нет черты
+  (`getComputedStyle`); снимок оболочки в обеих темах в описании PR
+- [ ] 1.4 `PageHeader` — `title-large` без `font-semibold` [UI-79]. Проверка — `primitives.test.tsx`,
+  `describe('PageHeader')`: класс `text-title-large`, нет `font-semibold`
+- [ ] 1.5 `CommandPalette` — docked search view на месте строки поиска: якорь — прямоугольник
+  `header-search` через ref из `AppShell`, левый край — её, ширина — большее из её ширины и 560, у двери,
+  ужатой до значка, — откат на центр; поле 56, знак 24 `on-surface`; своя поверхность
+  `surface-container-high` уровня 3 вместо `LAYER_SURFACE` (`menuClasses.ts`); без размытия;
+  `useHistoryLayer`, `data-modal-state`, имя поля и роль — прежние [UI-79]. Проверка — новый vitest: нет
+  `backdropFilter`, класс поверхности; `CommandPalette.test.tsx`, `paletteGuard.test.tsx` зелёные;
+  `keyboard-smoke`: Esc и «Назад» закрывают палитру
+- [ ] 1.6 `SearchInput` — search bar 56 на странице везде, плотное поле 40 в окне и листе (контекст слоя от
+  `Modal`, `SideSheet`, `BottomSheet`), форма full, `surface-container-high`, без рамки; очистка —
+  `IconButton` XS [UI-79]. Проверка — vitest: 56 на странице, 40 внутри `Modal`; `invoices-smoke`: поиск в
+  списке работает
+- [ ] 1.7 Живые проверки оболочки поправлены тем же PR: `rail-checks` (329 → 320, высота шапки 64, угол и
+  черта) и `workspaces-checks` — внутри `settings-smoke`, `invoice-layout-checks` — внутри `invoices-smoke`,
+  `favorites-checks` (`main > header`); весь `npm run -s test:e2e:ci` зелёный. Проверка — описание PR
+- [ ] 1.8 `docs/UI.md` «Оболочка: рейл разделов и подпанель» — рейл 80 (число 88 снято), пункты 48,
+  полоса 64, поиск 56, рабочая область с углом 16, столбец списка, роли [UI-79]. Проверка — ревью PR
+- [ ] 1.9 Столбец списка list-detail — `surface` с чертой `outline-variant` у замыкающего края вместо
+  `surface-container-low`: `ListDetailShell.tsx`, `features/templates/UserLibPanel.tsx` [UI-79]. Проверка —
+  vitest `ListDetailShell`: класс столбца; снимок list-detail в описании PR
+- [ ] 1.10 Храповик интерфейса опустился — база тем же PR: `legacy-type` (`PageHeader`, `SectionRail`),
+  `icon-button` (`SearchInput`). Проверка — `npm run ui:ratchet` без просьбы опустить уровень
 
 ## 2. PR 2: телефон
 
-- [ ] 2.1 `BottomNav` — navigation bar 80, индикатор 64×32, знак 24 с заливкой у выбранного,
-  `label-medium` [UI-79]. Проверка — vitest `phoneShell.test.tsx`
-- [ ] 2.2 `PrimaryFab` — extended FAB 56, радиус 16, `primary-container`, возвышение 3 [UI-79]. Проверка —
-  `invoices-smoke` на 390 px: FAB над нижней навигацией, не перекрывает последнюю строку списка
-- [ ] 2.3 Заголовок-кнопка на телефоне: слой состояния, открытое меню — `secondary-container`; палитра
-  на телефоне — во весь экран со стрелкой «Назад» [UI-79]. Проверка — `rail-checks` на 375 px
-- [ ] 2.4 Цели касания оболочки — 48: `phoneLayout.ts`, `phoneChrome.ts`, правило `docs/UI.md` (44 → 48)
-  и `rail-checks` — тем же PR [UI-79]. Проверка — `rail-checks` на 375 и 390 px зелёный с новым числом
+- [ ] 2.1 `BottomNav` — navigation bar 80 на `surface-container` без черты (`border-t` уходит), подпись
+  `label-medium` одним весом; индикатор 64×32 и знак 24 с заливкой — уже [UI-79]. Проверка — vitest
+  `phoneShell.test.tsx`: класс поверхности, нет `border-t`; база `legacy-type` у `BottomNav` опущена
+- [ ] 2.2 `PrimaryFab` — extended FAB 56, радиус 16, `primary-container`, возвышение 3 — уже так, кода нет
+  [UI-79]. Проверка — `invoices-smoke` на 390 px: FAB над нижней навигацией, не перекрывает последнюю строку
+  списка
+- [ ] 2.3 Полоса телефона по макету А: 64 — знак экземпляра 48 (ссылка), search bar 56, аватар 48;
+  заголовок-кнопка — строкой ниже, цель 48 (`min-h-11` уходит), слой состояния и `secondary-container` у
+  открытого меню — уже; палитра в окне меньше 768 px — во весь экран со стрелкой «Назад» [UI-79]. Проверка —
+  `rail-checks` на 375 px; vitest палитры на узком экране
+- [ ] 2.4 Цели касания оболочки — 48 (правило [UI-68]): поиск в шапке и `PhoneBrand` дотянуты с 44;
+  `rail-checks` — порог 48 и селектор `main > header a`; `docs/UI.md` — отступление 44 снято;
+  `phoneLayout.ts` не меняется (80 и 72 уже MD3) [UI-79]. Проверка — `rail-checks` на 375 и 390 px зелёный с
+  новым числом
 - [ ] 2.5 Весь `npm run -s test:e2e:ci` зелёный (правка оболочки — весь список). Проверка — описание PR
 - [ ] 2.6 `/design-sync` после слияния PR 2: `SectionRail`, `BottomNav`, `PrimaryFab`, `PageHeader`,
   `SearchInput` — новый вид в дизайн-системе (D12). Проверка — превью компонентов
@@ -97,7 +131,8 @@
 ## 3. Верификация
 
 - [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; опустившиеся
+  уровни записаны в базу тем же PR
 - [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
 - [ ] 3.4 В описании каждого PR — макет, выбранный вариант и ссылка; снимки 5–7 ключевых экранов до и
