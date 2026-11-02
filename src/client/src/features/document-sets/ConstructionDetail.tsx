@@ -112,8 +112,8 @@ export function ConstructionDetail() {
       {canEdit && <>
         <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
-          { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
-          { key: 'delete', label: 'Удалить стройку', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+          { key: 'rename', label: 'Переименовать', icon: Edit, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
+          { key: 'delete', label: 'Удалить стройку', icon: Delete, danger: true, onSelect: () => setDeleteConfirm(true) },
         ]} />
       </>}
     </>

@@ -2,11 +2,11 @@
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Popover from '@radix-ui/react-popover';
 import { Button, IconButton } from './Button';
 import { Close } from './icons';
 import { Modal } from './Modal';
+import { Menu, MenuItem } from './Menu';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -83,11 +83,9 @@ describe('Tooltip', () => {
         </Tooltip>
         <Popover.Portal><Popover.Content>Список</Popover.Content></Popover.Portal>
       </Popover.Root>
-      <DropdownMenu.Root>
-        <Tooltip content="Основа: акт">
-          <DropdownMenu.Trigger asChild disabled><button type="button">Основа</button></DropdownMenu.Trigger>
-        </Tooltip>
-      </DropdownMenu.Root>
+      <Menu disabled tooltip="Основа: акт" trigger={<button type="button">Основа</button>}>
+        <MenuItem>Заменить</MenuItem>
+      </Menu>
     </>);
     expect(screen.getByRole('button', { name: 'Колокол' }).getAttribute('data-state')).toBe('open');
     expect((screen.getByRole('button', { name: 'Основа' }) as HTMLButtonElement).disabled).toBe(true);
@@ -197,6 +195,28 @@ describe('Button и IconButton', () => {
     for (let i = 0; i < 2; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(opener);
+    expect(tip()).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('фокус, который меню вернуло кнопке после Esc, подсказку кнопки не открывает', async () => {
+    render(
+      <Menu tooltip="Другие варианты сохранения" tooltipName trigger={<button type="button">▾</button>}>
+        <MenuItem>Сохранить как…</MenuItem>
+      </Menu>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Другие варианты сохранения' });
+    await act(async () => { trigger.focus(); fireEvent.keyDown(trigger, { key: 'Enter' }); });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    // Фокус, возвращённый с клавиатуры, Chrome считает видимым — как в тесте окна выше.
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, sel: string) {
+      return sel === ':focus-visible' ? true : matches.call(this, sel);
+    });
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    for (let i = 0; i < 2; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
     expect(tip()).toBeNull();
     vi.restoreAllMocks();
   });

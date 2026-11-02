@@ -212,17 +212,17 @@ export function QualityDocsPage() {
 
   const actions: RowAction[] = current ? [
     ...(current.scanBlobPath
-      ? [{ key: 'scan', label: 'Открыть скан', icon: <Icon icon={Description} size={18} />,
+      ? [{ key: 'scan', label: 'Открыть скан', icon: Description,
         onSelect: () => void openAttachment(current.scanBlobPath!) }]
       : []),
-    { key: 'edit', label: 'Редактировать', icon: <Icon icon={Edit} size={18} />, onSelect: () => setEditDoc(current) },
+    { key: 'edit', label: 'Редактировать', icon: Edit, onSelect: () => setEditDoc(current) },
     // «Разорвать все» — пунктом меню, а не кнопкой (issue #556): действие редкое и опасное, под руку
     // попадаться не должно.
     ...((linksByDoc.get(current.id)?.length ?? 0) > 0
       ? [{ key: 'unlink-all', label: `Разорвать все связки (${linksByDoc.get(current.id)!.length})`,
-        icon: <Icon icon={LinkOff} size={18} />, danger: true, onSelect: () => setBreakAll(current) }]
+        icon: LinkOff, danger: true, onSelect: () => setBreakAll(current) }]
       : []),
-    { key: 'delete', label: 'Удалить документ', icon: <Icon icon={Delete} size={18} />, danger: true,
+    { key: 'delete', label: 'Удалить документ', icon: Delete, danger: true,
       onSelect: () => setDeleteTarget(current) },
   ] : [];
 

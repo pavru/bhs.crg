@@ -14,6 +14,7 @@ import { useSegmentField } from './useSegmentField';
 import { nextTabStop, tabStops } from './tabStops';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
+import { LAYER_SURFACE } from './menuClasses';
 
 interface DateInputProps {
   /**
@@ -265,7 +266,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
-          className="z-50 rounded-lg bg-surface border border-outline-variant focus:outline-none shadow-elevation-2">
+          className={`z-50 rounded-lg focus:outline-none ${LAYER_SURFACE}`}>
           <Calendar value={calendarValue} precision={precision}
             onSelect={pick} onClose={() => setPickerOpen(false)}
             min={min} max={max} range={range}

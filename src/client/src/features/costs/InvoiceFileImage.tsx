@@ -17,6 +17,7 @@ import { LayoutChooser } from './LayoutChooser';
 import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Вид для чтения файла счёта (issue #1270): Excel и Word рядом с формой стоят не сами, а PDF,
@@ -175,7 +176,7 @@ function CaveatPhrase({ about }: { about: string }) {
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
-          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-md border border-outline-variant bg-surface p-3 text-body-small text-on-surface shadow-elevation-2">
+          className={`z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-md p-3 text-body-small text-on-surface ${LAYER_SURFACE}`}>
           {about}
         </Popover.Content>
       </Popover.Portal>

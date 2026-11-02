@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Menu, MenuCheckboxItem, MenuNote } from '@/shared/ui/Menu';
 import { Icon } from '@/shared/ui/Icon';
-import { Check, KeyboardArrowDown } from '@/shared/ui/icons';
+import { KeyboardArrowDown } from '@/shared/ui/icons';
 import { useRoles } from '@/shared/api/roles';
 import type { RoleRef } from '@/shared/api/users';
 import { toggleRole, sameRoles } from './rolePickerDraft';
@@ -53,46 +53,30 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
   }
 
   return (
-    <DropdownMenu.Root onOpenChange={open => { if (!open) close(); }}>
-      <DropdownMenu.Trigger asChild disabled={disabled}>
-        <button type="button" aria-label={ariaLabel}
-          className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-sm border
-            border-outline bg-surface text-body-medium text-left transition-colors
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-            data-[state=open]:ring-2 data-[state=open]:ring-primary
-            disabled-outlined disabled:pointer-events-none
-            ${chosen.length > 0 ? 'text-on-surface' : 'text-on-surface-variant'} ${className}`}>
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden="true" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-          {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
-          {roles.length === 0 && (
-            <div className="px-3 py-2 text-body-small text-on-surface-variant">
-              {isLoading ? 'Роли загружаются…' : 'Список ролей не загрузился — обновите страницу.'}
-            </div>
-          )}
-          {roles.map(r => (
-            // onSelect гасим: меню закрывается по выбору пункта, а здесь выбирают НЕСКОЛЬКО —
-            // закрытие после первой галки заставляло бы открывать его заново на каждую роль.
-            <DropdownMenu.CheckboxItem key={r.name} checked={chosen.includes(r.name)}
-              onSelect={e => e.preventDefault()} onCheckedChange={() => setDraft(toggleRole(chosen, r.name))}
-              className="flex items-start gap-2 px-3 py-1.5 text-body-medium cursor-pointer select-none outline-none
-                state-layer">
-              <span className="w-4 shrink-0 pt-0.5 text-primary">
-                {chosen.includes(r.name) && <Icon icon={Check} size={18} />}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-on-surface">{r.title}</span>
-                {r.summary && <span className="block text-body-small text-on-surface-variant">{r.summary}</span>}
-              </span>
-            </DropdownMenu.CheckboxItem>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <Menu width="min-w-64" maxHeight="20rem" disabled={disabled} onOpenChange={open => { if (!open) close(); }} trigger={
+      <button type="button" aria-label={ariaLabel}
+        className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-sm border
+          border-outline bg-surface text-body-medium text-left transition-colors
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+          data-[state=open]:ring-2 data-[state=open]:ring-primary
+          disabled-outlined disabled:pointer-events-none
+          ${chosen.length > 0 ? 'text-on-surface' : 'text-on-surface-variant'} ${className}`}>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden="true" />
+      </button>
+    }>
+      {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
+      {roles.length === 0 && (
+        <MenuNote>{isLoading ? 'Роли загружаются…' : 'Список ролей не загрузился — обновите страницу.'}</MenuNote>
+      )}
+      {roles.map(r => (
+        // onSelect гасим: меню закрывается по выбору пункта, а здесь выбирают НЕСКОЛЬКО —
+        // закрытие после первой галки заставляло бы открывать его заново на каждую роль.
+        <MenuCheckboxItem key={r.name} checked={chosen.includes(r.name)} description={r.summary || undefined}
+          onSelect={e => e.preventDefault()} onCheckedChange={() => setDraft(toggleRole(chosen, r.name))}>
+          {r.title}
+        </MenuCheckboxItem>
+      ))}
+    </Menu>
   );
 }

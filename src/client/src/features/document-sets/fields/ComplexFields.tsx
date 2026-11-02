@@ -493,7 +493,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
                 отдельной задачей, у него свой selection-state. */}
             {canExtract && (
-              <ModalAction lead icon={<Icon icon={Share} size={18} />}
+              <ModalAction lead icon={Share}
                 // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
                 // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
                 // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
@@ -759,7 +759,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
                 (issue #663): ряд и так несёт три действия. */}
             {canExtract && (
-              <ModalAction lead icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
+              <ModalAction lead icon={Share} disabled={isEmpty}
                 title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
                 onClick={() => setExtractOpen(true)}>
                 Вынести в общие данные…
@@ -818,7 +818,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               В футерах модалок тот же случай выражен как disabled — там кнопка не одна. */}
           {canExtract && !isEmpty && (
             <RowActionsMenu ariaLabel="Действия составного поля" actions={[{
-              key: 'extract', label: 'Вынести в общие данные…', icon: <Icon icon={Share} size={18} />,
+              key: 'extract', label: 'Вынести в общие данные…', icon: Share,
               onSelect: () => setExtractOpen(true),
             }]} />
           )}

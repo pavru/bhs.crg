@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { LinkOff } from '@/shared/ui/icons';
 import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { SourceBindingTrigger } from './SourceBindingTrigger';
@@ -143,7 +142,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
       <Modal open={open} onOpenChange={onOpenChange} title={`Привязка «${field.title}» к источнику`} wide
         footer={<>
           {isBound && (
-            <ModalAction danger lead onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
+            <ModalAction danger lead onClick={unbind} disabled={busy} icon={LinkOff}>
               Отвязать
             </ModalAction>
           )}

@@ -1,10 +1,10 @@
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BASE, HEIGHT, LABEL, padding, variantClass } from './buttonClasses';
 import { CircularProgress } from './CircularProgress';
 import { Icon } from './Icon';
 import { KeyboardArrowDown } from './icons';
-import { MENU_ITEM, MENU_ITEM_OFF, MENU_SURFACE } from './menuClasses';
+import type { IconDef } from './icons/types';
+import { Menu, MenuItem } from './Menu';
 import { Tooltip } from './Tooltip';
 import { focusFromLayer } from './layerFocus';
 
@@ -13,7 +13,8 @@ export interface SplitButtonItem {
   label: string;
   /** Вторая строка пункта — что выбор сделает. */
   description?: string;
-  icon?: ReactNode;
+  /** Знак пункта — символ: размер ставит меню. */
+  icon?: IconDef;
   onSelect: () => void;
   disabled?: boolean;
 }
@@ -44,7 +45,6 @@ const MORPH = '[--_also-transition:border-radius]';
 // Цель касания половин — только по вертикали: зазор 2 px, и расширение вбок отняло бы у соседней
 // половины её видимый край ([UI-68]).
 const TOUCH = 'touch-target [--_touch-inset:-4px_0]';
-const itemCls = `flex items-start gap-2 px-3 py-2 ${MENU_ITEM}`;
 
 /**
  * Split-кнопка M3 Expressive ([UI-83]): основная часть делает действие одним нажатием, стрелка
@@ -83,44 +83,29 @@ export function SplitButton({
         </button>
       </Tooltip>
       {items.length > 0 && (
-        <DropdownMenu.Root>
-          <Tooltip name content={menuLabel}>
-            <DropdownMenu.Trigger asChild disabled={off}>
-              <button ref={arrow} type="button"
-                className={`group ${look} ${HEIGHT} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
-                <Icon icon={KeyboardArrowDown} size={20}
-                  className="transition-transform duration-(--md-sys-motion-duration-short3) ease-standard group-data-[state=open]:rotate-180" />
-              </button>
-            </DropdownMenu.Trigger>
-          </Tooltip>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content align="end" sideOffset={4} className={`z-50 min-w-44 max-w-80 ${MENU_SURFACE}`}
-              onCloseAutoFocus={e => {
-                const item = chosen.current;
-                if (!item) return;
-                chosen.current = null;
-                e.preventDefault();
-                if (arrow.current) focusFromLayer(arrow.current);
-                item.onSelect();
-              }}>
-              {items.map(item => {
-                const dim = item.disabled ? MENU_ITEM_OFF : '';
-                return (
-                  <DropdownMenu.Item key={item.key} className={itemCls} disabled={item.disabled}
-                    onSelect={() => { chosen.current = item; }}>
-                    {item.icon && <span className={`shrink-0 mt-0.5 ${dim || 'text-on-surface-variant'}`}>{item.icon}</span>}
-                    <span>
-                      <span className={`block text-body-medium ${dim || 'text-on-surface'}`}>{item.label}</span>
-                      {item.description && (
-                        <span className={`block text-body-small ${dim || 'text-on-surface-variant'}`}>{item.description}</span>
-                      )}
-                    </span>
-                  </DropdownMenu.Item>
-                );
-              })}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+        <Menu align="end" tooltip={menuLabel} tooltipName disabled={off}
+          trigger={
+            <button ref={arrow} type="button"
+              className={`group ${look} ${HEIGHT} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
+              <Icon icon={KeyboardArrowDown} size={20}
+                className="transition-transform duration-(--md-sys-motion-duration-short3) ease-standard group-data-[state=open]:rotate-180" />
+            </button>
+          }
+          onCloseAutoFocus={e => {
+            const item = chosen.current;
+            if (!item) return;
+            chosen.current = null;
+            e.preventDefault();
+            if (arrow.current) focusFromLayer(arrow.current);
+            item.onSelect();
+          }}>
+          {items.map(item => (
+            <MenuItem key={item.key} icon={item.icon} description={item.description} disabled={item.disabled}
+              onSelect={() => { chosen.current = item; }}>
+              {item.label}
+            </MenuItem>
+          ))}
+        </Menu>
       )}
     </div>
   );

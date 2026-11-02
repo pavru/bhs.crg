@@ -133,26 +133,41 @@
 
 ## 2а. PR 2а: меню и поверхность слоя
 
-- [ ] 2а.1 `shared/ui/Menu` (`Menu`, `MenuItem`, `MenuCheckboxItem`, `MenuRadioItem`, `MenuSub`,
+- [x] 2а.1 `shared/ui/Menu` (`Menu`, `MenuItem`, `MenuCheckboxItem`, `MenuRadioItem`, `MenuSub`,
   `MenuGroup`, `MenuSeparator`, `MenuLabel`, `dense`): `surface-container`, радиус 4, возвышение 2, без
   рамки; пункт 48 / 40, знак 24, галочка у отмеченного; `useHistoryLayer` внутри [UI-76]. Проверка —
   vitest `Menu.test.tsx`: роли поверхности, высота пункта по `dense`, клавиатура Radix (стрелки, Esc)
-- [ ] 2а.2 На `Menu` переведены все 13 файлов со слоем Radix и подменю: `RowActionsMenu`, `SectionMenu`
+  Сделано 02.11.2026: `shared/ui/Menu.tsx` и `Menu.test.tsx` (7 тестов). Сверх перечня — `MenuRadioGroup`,
+  `MenuNote` (пустое меню словами), пункт-ссылка `to` с охраной ухода, `maxHeight`, подсказка триггера `tooltip`.
+- [x] 2а.2 На `Menu` переведены все 13 файлов со слоем Radix и подменю: `RowActionsMenu`, `SectionMenu`
   (галочка у текущей), `AccountMenu` (тема — три `MenuRadioItem`), `WorkspaceSwitcher`, `SplitButton`,
   слой меню масштаба `ViewerToolbar`, `BaseInstanceChip`, `EstimateCard`, `InheritedFieldsPanel`,
   `RolePicker`, `ExportMenu`, `EditorPanel`, `PdfGroupingEditor`; `RowAction.icon` — знак, а не элемент;
   «⋮» full-screen dialog — на `Menu` [UI-76]. Проверка — `scripts/menu-layer.test.mjs`: импорт
   `@radix-ui/react-dropdown-menu` только в `Menu.tsx`; существующие тесты меню зелёные
-- [ ] 2а.3 Общая поверхность слоя (`menuClasses.ts`) — у `Menu`, списка `Select` и 13 поповеров
+  Сделано 02.11.2026: все 13 файлов и «⋮» шапки окна; `RowAction.icon`, `ModalAction icon` и `SplitButtonItem.icon` —
+  символ (`IconDef`), у `RowAction` — `loading`, `active` снят (число и точка на триггере остались). Сторож —
+  `scripts/menu-layer.test.mjs`, с самопроверкой.
+- [x] 2а.3 Общая поверхность слоя (`menuClasses.ts`) — у `Menu`, списка `Select` и 13 поповеров
   [UI-76]. Проверка — у слоёв поповеров и списка нет своих классов фона, рамки и тени: только общая
   константа
-- [ ] 2а.4 Меню и список у края окна в тёмной теме различимы без рамки [UI-76]. Проверка — живой
+  Сделано 02.11.2026: `LAYER_SURFACE` (`surface-container`, уровень 2, без рамки) у `Menu`, `Select`, `SuggestBox` и
+  13 поповеров; тот же `menu-layer.test.mjs` краснит слой со своими фоном, рамкой или тенью.
+- [x] 2а.4 Меню и список у края окна в тёмной теме различимы без рамки [UI-76]. Проверка — живой
   прогон `shared-ui-smoke` с `data-theme=dark`: список свисает за окно; снимок в описании PR
-- [ ] 2а.5 Живые прогоны, проверяющие меню (`rail-checks`, `workspaces-checks`, `keyboard-smoke`,
+  Сделано 02.11.2026: `layer-over-window-dark-without-border` в `shared-ui-smoke` — список шага сопоставления
+  вставки свисает за нижний край окна; рамки нет, фон — другой контейнер, тень уровня 2. Снимки —
+  https://claude.ai/artifact/C4V19AVrBsTcDFyX9f8zCB
+- [x] 2а.5 Живые прогоны, проверяющие меню (`rail-checks`, `workspaces-checks`, `keyboard-smoke`,
   `table-saved-views-smoke`), поправлены тем же PR; весь `npm run -s test:e2e:ci` зелёный. Проверка —
   описание PR
-- [ ] 2а.6 `docs/UI.md`: «Слои над окном» — вид слоя ролями без рамки, абзац «Рамка обязательна»
+  Сделано 02.11.2026: правок прогонов меню не понадобилось — роли пунктов (`menuitem`, `menuitemradio`) и метки
+  (`section-menu`, `workspace-option`) сохранены. Весь `npm run -s test:e2e:ci` на стенде как в CI — 21 из 21 одним прогоном
+- [x] 2а.6 `docs/UI.md`: «Слои над окном» — вид слоя ролями без рамки, абзац «Рамка обязательна»
   переписан; «Форма и возвышение» — уровни у окна и меню [UI-76]. Проверка — ревью PR
+  Сделано 02.11.2026: «Форма и возвышение» — окно `surface-container-high` уровень 3 против слоя `surface-container`
+  уровень 2; «Слои над окном» — вид слоя без рамки, абзац «Рамка обязательна» переписан; новый раздел «Меню»,
+  строка `Menu` в таблице компонентов, сторож в «Кто сторожит».
 
 ## 2б. PR 2б: карточки, разделитель, листы
 

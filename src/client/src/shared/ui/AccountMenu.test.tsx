@@ -144,7 +144,7 @@ describe('меню профиля', () => {
       ['Профиль и пароль', 'Сообщить о проблеме', 'Администрирование', 'Выйти']);
     const item = screen.getByRole('menuitem', { name: 'Администрирование' });
     // Черта отделяет пункт от личных.
-    expect(item.parentElement?.previousElementSibling?.getAttribute('role')).toBe('separator');
+    expect(item.previousElementSibling?.getAttribute('role')).toBe('separator');
     fireEvent.click(item);
     expect(screen.getByLabelText('адрес').textContent).toBe('/users');
   });

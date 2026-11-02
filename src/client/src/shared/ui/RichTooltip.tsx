@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type FocusEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { BASE, HEIGHT, LABEL, padding, variantClass } from './buttonClasses';
 import { focusFromLayer } from './layerFocus';
+import { LAYER_SURFACE } from './menuClasses';
 import { TooltipLayer, type TooltipSide } from './TooltipLayer';
 import { PLAIN_TOOLTIP, useTooltipTrigger } from './tooltipTrigger';
 
@@ -135,7 +136,7 @@ export function RichTooltip({ title, text, actions = [], children, name = false,
             if (!inLayer(e.relatedTarget) && e.relatedTarget !== anchor.current) close();
           } : undefined}
           onKeyDown={interactive ? onLayerKeyDown : undefined}
-          className={plain ? PLAIN_TOOLTIP : `max-w-80 rounded-md bg-surface-container shadow-elevation-2 px-4 pt-3 ${interactive ? 'pb-1' : 'pb-3'}`}>
+          className={plain ? PLAIN_TOOLTIP : `max-w-80 rounded-md ${LAYER_SURFACE} px-4 pt-3 ${interactive ? 'pb-1' : 'pb-3'}`}>
           {title && <p id={titleId} className="text-title-small text-on-surface">{title}</p>}
           {plain ? text : <p className={`text-body-medium text-on-surface-variant whitespace-pre-line ${title ? 'mt-1' : ''}`}>{text}</p>}
           {interactive && (

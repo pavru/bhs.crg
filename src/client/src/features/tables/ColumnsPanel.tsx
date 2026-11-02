@@ -13,6 +13,7 @@ import {
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Выбор колонок таблицы (ТЗ CORE-33; задача G1e, issue #1092): какие показаны и в каком порядке,
@@ -63,7 +64,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={6} aria-label="Колонки и итоги"
-          className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-md bg-surface border border-outline-variant p-3 focus:outline-none shadow-elevation-2">
+          className={`z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-md p-3 focus:outline-none ${LAYER_SURFACE}`}>
           <ul className="space-y-0.5">
             {order.map((key, i) => {
               const place = shown.indexOf(key);

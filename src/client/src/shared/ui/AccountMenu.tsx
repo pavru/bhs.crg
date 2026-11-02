@@ -1,8 +1,5 @@
-import { useState } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Link, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { ownerItem, type RailSection } from '@/shared/ui/railSections';
-import { Icon } from './Icon';
 import { Feedback, Logout, Person } from './icons';
 import { formatDateTime } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -11,13 +8,11 @@ import { useAppVersion, type AppVersion } from '@/shared/api/version';
 import { useUpdateStatus } from '@/shared/api/updates';
 import { useTheme } from '@/shared/ui/themeContext';
 import { Avatar } from '@/shared/ui/Avatar';
-import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard';
+import { useGuardedLeave } from '@/shared/ui/NavigationGuard';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
-import { useHistoryLayer } from './historyLayers';
-
-const item = 'flex items-center gap-3.5 h-11 px-3 rounded-lg text-body-medium text-on-surface cursor-pointer select-none outline-none state-layer';
+import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from './Menu';
 
 /**
  * Меню профиля в шапке (issue #1430) — только то, что касается самого человека: кто он, профиль и
@@ -27,7 +22,8 @@ const item = 'flex items-center gap-3.5 h-11 px-3 rounded-lg text-body-medium te
  * Пароль меняется только в профиле: своего окна смены пароля у оболочки больше нет — два входа в одно
  * и то же действие с разных мест расходятся.
  *
- * Клавиатура — у Radix: стрелки по пунктам, Esc закрывает и возвращает фокус на аватар. Подсказки
+ * Клавиатура — у Radix: стрелки по пунктам, Esc закрывает и возвращает фокус на аватар. Тема — три
+ * варианта с галочкой у выбранного ([UI-76]), а не ряд сегментов: меню — пункты, а не панель. Подсказки
  * у аватара нет: имя уже в его `aria-label`, а подсказка, открытая возвращённым фокусом, забирала бы
  * себе следующий Esc.
  *
@@ -41,7 +37,6 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   const { data: account } = useAccount();
   const { theme, setTheme } = useTheme();
   const bugReport = useBugReportDialog();
-  const guardedClick = useGuardedNavClick();
   const guardedLeave = useGuardedLeave();
   const name = user?.displayName || user?.email || '';
   // Роли — подпись с сервера целиком, вместе с названиями (issue #951); их может быть несколько
@@ -61,96 +56,67 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   const here = pathname.startsWith('/profile');
   const inAdmin = !!admin && !!ownerItem(pathname, admin.groups.flatMap(g => g.items));
   const adminIcon = admin?.def.icon;
-  // «Назад» на телефоне закрывает меню, а не страницу (issue #1418).
-  const [open, setOpen] = useState(false);
-  useHistoryLayer(open, () => { setOpen(false); return true; });
 
   return (
-    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
-      <DropdownMenu.Trigger asChild>
-        {/* На телефоне — поле вокруг аватара: видимые 44 px, а не 36 (#1434); при касании цель 48 —
-            `touch-target` на 2 px наружу ([UI-68]). */}
-        <button type="button" data-testid="account-menu"
-          aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-          className={'relative shrink-0 rounded-full max-md:p-1 touch-target [--_touch-inset:-2px] focus-ringdata-[state=open]:ring-2 data-[state=open]:ring-primary ' +
-            (here || inAdmin ? 'ring-2 ring-primary' : '')}>
-          <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-body-medium" />
-          {newer && <span data-testid="update-dot" aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={8}
-          className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-lg border border-outline-variant bg-surface overflow-hidden focus:outline-none shadow-elevation-2">
-          <div className="flex items-center gap-3.5 px-5 pt-5 pb-3">
-            <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-body-large" />
-            <div className="min-w-0">
-              <div className="text-body-large font-medium text-on-surface truncate">{name}</div>
-              {roles && <div className="text-body-small text-on-surface-variant truncate">{roles}</div>}
-              {user?.displayName && <div className="text-body-small text-on-surface-variant truncate">{user.email}</div>}
-            </div>
-          </div>
+    <Menu align="end" sideOffset={8} width="w-80" trigger={
+      // На телефоне — поле вокруг аватара: видимые 44 px, а не 36 (#1434); при касании цель 48 —
+      // `touch-target` на 2 px наружу ([UI-68]).
+      <button type="button" data-testid="account-menu"
+        aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
+        className={'relative shrink-0 rounded-full max-md:p-1 touch-target [--_touch-inset:-2px] focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
+          (here || inAdmin ? 'ring-2 ring-primary' : '')}>
+        <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-body-medium" />
+        {newer && <span data-testid="update-dot" aria-hidden="true"
+          className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
+      </button>
+    }>
+      <div className="flex items-center gap-3 px-3 pt-2 pb-3">
+        <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-10 h-10 text-body-large" />
+        <div className="min-w-0">
+          <div className="text-body-large text-on-surface truncate">{name}</div>
+          {roles && <div className="text-body-small text-on-surface-variant truncate">{roles}</div>}
+          {user?.displayName && <div className="text-body-small text-on-surface-variant truncate">{user.email}</div>}
+        </div>
+      </div>
 
-          <div className="px-2 pb-2">
-            <DropdownMenu.Item asChild className={item + (here ? ' bg-secondary-container text-on-secondary-container' : '')}>
-              <Link to="/profile" onClick={guardedClick('/profile')} aria-current={here ? 'page' : undefined}>
-                <Icon icon={Person} size={20} className="text-on-surface-variant shrink-0" />Профиль и пароль
-              </Link>
-            </DropdownMenu.Item>
+      <MenuItem icon={Person} to="/profile" current={here}>Профиль и пароль</MenuItem>
 
-            {/* Подписи словами (#1430): значок монитора сам по себе «как в системе» не читается.
-                Пояснение к «Авто» — строкой, а не подсказкой: подсказка, открытая фокусом с клавиатуры,
-                забрала бы себе первый Esc, и меню не закрылось бы.
-                Выбор меню не закрывает — новая тема видна сразу, и её можно сменить ещё раз. */}
-            <DropdownMenu.Group className="px-3 pt-2 pb-2.5">
-              <div className="flex items-baseline gap-2 pb-1.5 text-body-small">
-                <DropdownMenu.Label className="flex-1 font-medium text-on-surface-variant">Оформление</DropdownMenu.Label>
-                <span className="text-on-surface-variant">{autoHint}</span>
-              </div>
-              <DropdownMenu.RadioGroup value={theme} onValueChange={v => setTheme(v as typeof theme)}
-                className="flex rounded-full border border-outline overflow-hidden">
-                {THEME_OPTIONS.map(({ value, icon, label }, i) => (
-                  <DropdownMenu.RadioItem key={value} value={value} onSelect={e => e.preventDefault()}
-                    className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-body-small cursor-pointer select-none outline-none state-layer ' +
-                      (i > 0 ? 'border-l border-outline ' : '') +
-                      (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant')}>
-                    <Icon icon={icon} size={18} className="shrink-0" />{label}
-                  </DropdownMenu.RadioItem>
-                ))}
-              </DropdownMenu.RadioGroup>
-            </DropdownMenu.Group>
+      {/* Подписи словами (#1430): значок монитора сам по себе «как в системе» не читается.
+          Пояснение к «Авто» — строкой, а не подсказкой: подсказка, открытая фокусом с клавиатуры,
+          забрала бы себе первый Esc, и меню не закрылось бы.
+          Выбор меню не закрывает — новая тема видна сразу, и её можно сменить ещё раз. */}
+      <MenuSeparator />
+      <MenuLabel className="flex items-baseline gap-2">
+        <span className="flex-1">Оформление</span>
+        <span className="text-body-small">{autoHint}</span>
+      </MenuLabel>
+      <MenuRadioGroup value={theme} onValueChange={v => setTheme(v as typeof theme)}>
+        {THEME_OPTIONS.map(({ value, icon, label }) => (
+          <MenuRadioItem key={value} value={value} icon={icon} onSelect={e => e.preventDefault()}>
+            {label}
+          </MenuRadioItem>
+        ))}
+      </MenuRadioGroup>
+      <MenuSeparator />
 
-            {/* Постоянная дверь к форме сообщения (issue #834): она нужна и тогда, когда ошибка НЕ
-                показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
-            <DropdownMenu.Item className={item} onSelect={() => bugReport.open({ origin: 'account' })}>
-              <Icon icon={Feedback} size={20} className="text-on-surface-variant shrink-0" />Сообщить о проблеме
-            </DropdownMenu.Item>
-          </div>
+      {/* Постоянная дверь к форме сообщения (issue #834): она нужна и тогда, когда ошибка НЕ
+          показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
+      <MenuItem icon={Feedback} onSelect={() => bugReport.open({ origin: 'account' })}>Сообщить о проблеме</MenuItem>
 
-          {admin && adminIcon && (
-            <>
-              <DropdownMenu.Separator className="h-px bg-outline-variant" />
-              <div className="p-2">
-                <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-secondary-container text-on-secondary-container' : '')}>
-                  <Link to={admin.home} onClick={guardedClick(admin.home)} data-testid="account-admin">
-                    <Icon icon={adminIcon} size={20} className="text-on-surface-variant shrink-0" />{admin.def.title}
-                  </Link>
-                </DropdownMenu.Item>
-              </div>
-            </>
-          )}
+      {admin && adminIcon && (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={adminIcon} to={admin.home} current={inAdmin} data-testid="account-admin">
+            {admin.def.title}
+          </MenuItem>
+        </>
+      )}
 
-          <DropdownMenu.Separator className="h-px bg-outline-variant" />
-          <div className="p-2">
-            <DropdownMenu.Item className={item} onSelect={() => guardedLeave(logout)}>
-              <Icon icon={Logout} size={20} className="text-on-surface-variant shrink-0" />Выйти
-            </DropdownMenu.Item>
-          </div>
+      <MenuSeparator />
+      <MenuItem icon={Logout} onSelect={() => guardedLeave(logout)}>Выйти</MenuItem>
 
-          {version && <VersionLine version={version} newer={newer} />}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+      {version && <VersionLine version={version} newer={newer} />}
+    </Menu>
   );
 }
 
@@ -177,7 +143,7 @@ function VersionLine({ version: data, newer }: {
   ].filter(Boolean).join(' · ');
   return (
     <Tooltip content={title}>
-      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-label-small text-on-surface-variant truncate">
+      <div data-testid="app-version" className="px-3 pt-2 pb-1 text-label-small text-on-surface-variant truncate">
         Версия {data.version}{data.commit ? ` · ${data.commit}` : ''}
         {newer && <span className="text-primary"> · доступна {newer}</span>}
       </div>

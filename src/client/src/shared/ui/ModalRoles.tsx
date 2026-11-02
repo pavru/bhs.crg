@@ -1,6 +1,8 @@
 import { createContext, useContext, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, type ButtonProps, type ButtonVariant } from './Button';
+import { Icon } from './Icon';
+import type { IconDef } from './icons/types';
 import { ModalBarContext, useModalControl } from './modalControl';
 
 /**
@@ -60,7 +62,8 @@ interface ModalActionProps {
   danger?: boolean;
   disabled?: boolean;
   loading?: boolean;
-  icon?: ReactNode;
+  /** Знак — символ: на столе кнопка рисует его 18, во весь экран пункт «⋮» — 24. */
+  icon?: IconDef;
   variant?: Exclude<ButtonVariant, 'filled'>;
   /** Подсказка кнопки; у погашенной во весь экран — строкой под пунктом «⋮», почему нельзя. */
   title?: string;
@@ -84,14 +87,12 @@ export function ModalAction({ children, onClick, danger = false, disabled = fals
     if (setAction && layer) setAction(id, {
       layer, label: children, danger, disabled: off, loading, icon, hint, run: () => run.current(),
     });
-    // Знак — разметка, новая на каждой отрисовке: пункт перерисуется с ним при любой другой перемене.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setAction, layer, id, children, danger, off, loading, hint]);
+  }, [setAction, layer, id, children, danger, off, loading, icon, hint]);
   // Снимается только с уходом кнопки: снятие на каждой правке переставило бы пункт в конец меню.
   useLayoutEffect(() => () => setAction?.(id, null), [setAction, id]);
   if (bar) return null;
   return (
-    <Button variant={variant} danger={danger} disabled={disabled || busy} loading={loading} icon={icon} title={title}
+    <Button variant={variant} danger={danger} disabled={disabled || busy} loading={loading} icon={icon && <Icon icon={icon} size={18} />} title={title}
       data-lead={lead ? '' : undefined} onClick={onClick}>
       {children}
     </Button>

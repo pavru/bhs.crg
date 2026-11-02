@@ -7,7 +7,6 @@
  * (`./ComplexCells`); на редакторы полей не ссылается, поэтому цикла здесь нет.</p>
  */
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { ContentPaste, Delete, DragIndicator } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { ModalAction, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
@@ -253,11 +252,11 @@ function ArrayTableModalBody({
         {selected.size > 0 ? (
           <>
             <ModalNote>Выбрано: {selected.size}</ModalNote>
-            <ModalAction danger lead icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</ModalAction>
+            <ModalAction danger lead icon={Delete} onClick={deleteSelected}>Удалить выбранные</ModalAction>
             <ModalAction lead onClick={() => setSelected(new Set())}>Сбросить</ModalAction>
           </>
         ) : (
-          <ModalAction lead icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</ModalAction>
+          <ModalAction lead icon={ContentPaste} onClick={handlePasteClick}>Вставить из Excel</ModalAction>
         )}
         <ModalExit />
         <ModalPrimary onClick={handleSave}>Применить</ModalPrimary>

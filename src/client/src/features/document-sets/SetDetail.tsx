@@ -232,8 +232,8 @@ export function SetDetail() {
         </>
       )}
       <RowActionsMenu ariaLabel="Действия комплекта" actions={[
-        { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
-        { key: 'delete', label: 'Удалить комплект', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteSetConfirm(true) },
+        { key: 'rename', label: 'Переименовать', icon: Edit, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
+        { key: 'delete', label: 'Удалить комплект', icon: Delete, danger: true, onSelect: () => setDeleteSetConfirm(true) },
       ]} />
     </>
   );
@@ -300,16 +300,16 @@ export function SetDetail() {
       } },
     { key: 'actions', label: '', width: 'w-10', align: 'right', interactive: true,
       cell: inst => (
-        <RowActionsMenu ariaLabel="Действия документа" actions={[
-          { key: 'dup', label: 'Дублировать', icon: <Icon icon={ContentCopy} size={18} />,
+        <RowActionsMenu dense ariaLabel="Действия документа" actions={[
+          { key: 'dup', label: 'Дублировать', icon: ContentCopy,
             disabled: duplicateMutation.isPending,
             onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
               { onError: e => toast.apiError(e, 'Не удалось дублировать документ') }) },
-          { key: 'copy', label: 'Скопировать в комплект', icon: <Icon icon={FolderCopy} size={18} />,
+          { key: 'copy', label: 'Скопировать в комплект', icon: FolderCopy,
             onSelect: () => setCopyInstance(inst) },
-          { key: 'move', label: 'Перенести в комплект', icon: <Icon icon={DriveFileMove} size={18} />,
+          { key: 'move', label: 'Перенести в комплект', icon: DriveFileMove,
             onSelect: () => setMoveInstance(inst) },
-          { key: 'del', label: 'Удалить документ', icon: <Icon icon={Delete} size={18} />, danger: true,
+          { key: 'del', label: 'Удалить документ', icon: Delete, danger: true,
             disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
         ]} />
       ) },

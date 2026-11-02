@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { Add } from '@/shared/ui/icons';
 import { useCan } from '@/shared/api/access';
 import {
@@ -302,7 +301,7 @@ function Footer({ canCreate, onNew, hint, children }: {
 }) {
   return (
     <ModalButtons className="border-t border-outline-variant pt-3">
-      {canCreate && <ModalAction lead icon={<Icon icon={Add} size={18} />} onClick={onNew}>Новый вид работы</ModalAction>}
+      {canCreate && <ModalAction lead icon={Add} onClick={onNew}>Новый вид работы</ModalAction>}
       {hint && <ModalNote>{hint}</ModalNote>}
       <ModalExit />
       {children}

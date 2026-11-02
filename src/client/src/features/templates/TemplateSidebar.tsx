@@ -284,9 +284,9 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                       </button>
                       <div className="pr-1 opacity-0 group-hover/ver:opacity-100 focus-within:opacity-100 transition-all shrink-0">
                         <RowActionsMenu ariaLabel={`Действия версии v${t.version}`} actions={[
-                          { key: 'open', label: 'Открыть', icon: <Icon icon={OpenInNew} size={18} />, onSelect: () => onSelect(t) },
+                          { key: 'open', label: 'Открыть', icon: OpenInNew, onSelect: () => onSelect(t) },
                           {
-                            key: 'delete', label: 'Удалить версию…', danger: true, icon: <Icon icon={Delete} size={18} />,
+                            key: 'delete', label: 'Удалить версию…', danger: true, icon: Delete,
                             disabled: deleteBlocked,
                             badge: used > 0 ? `${used} докум.` : undefined,
                             onSelect: () => onDelete(t),

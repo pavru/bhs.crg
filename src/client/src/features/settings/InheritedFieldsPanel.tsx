@@ -4,9 +4,9 @@
  * Выделено из `DocumentTypesPage.tsx` (issue #1031). Самый нижний слой страницы: о редакторах,
  * которые его зовут, не знает.
  */
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator } from '@/shared/ui/Menu';
 import { Icon } from '@/shared/ui/Icon';
-import { Check, RestartAlt, VisibilityOff } from '@/shared/ui/icons';
+import { RestartAlt, VisibilityOff } from '@/shared/ui/icons';
 import { Switch } from '@/shared/ui/Switch';
 import type { DocumentType, EnumTypeDef } from '@/shared/api/types';
 import { type SchemaField } from '@/shared/api/schema';
@@ -97,37 +97,23 @@ function RequiredChip({ field, override, onOverride, onReset }: {
   const effective = overridden ? override!.required! : field.required;
   const parentLabel = field.required ? 'обяз.' : 'опц.';
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        {/* Выбор из меню — `Chip menu` ([UI-42]): переопределённое отмечено цветом выбранного чипа. */}
-        <Chip menu selected={overridden}>
-          {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
-        </Chip>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[210px] rounded-lg border border-outline-variant bg-surface p-1 text-body-medium text-on-surface shadow-elevation-2">
-          <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
-          <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
-          <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>
-          {overridden && (
-            <>
-              <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <ReqItem onSelect={onReset}><Icon icon={RestartAlt} size={18} className="text-on-surface-variant" /> Сбросить переопределение</ReqItem>
-            </>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-function ReqItem({ children, onSelect, active }: { children: React.ReactNode; onSelect: () => void; active?: boolean }) {
-  return (
-    <DropdownMenu.Item onSelect={onSelect}
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer outline-none state-layer">
-      <Icon icon={Check} size={18} className={active ? 'text-primary' : 'invisible'} />
-      <span className="flex-1">{children}</span>
-    </DropdownMenu.Item>
+    <Menu dense trigger={
+      // Выбор из меню — `Chip menu` ([UI-42]): переопределённое отмечено цветом выбранного чипа.
+      <Chip menu selected={overridden}>
+        {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
+      </Chip>
+    }>
+      <MenuRadioGroup value={!overridden ? 'parent' : effective ? 'required' : 'optional'}>
+        <MenuRadioItem value="parent" onSelect={onReset}>Как у родителя ({parentLabel})</MenuRadioItem>
+        <MenuRadioItem value="required" onSelect={() => onOverride(true)}>Обязательное</MenuRadioItem>
+        <MenuRadioItem value="optional" onSelect={() => onOverride(false)}>Опциональное</MenuRadioItem>
+      </MenuRadioGroup>
+      {overridden && (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={RestartAlt} onSelect={onReset}>Сбросить переопределение</MenuItem>
+        </>
+      )}
+    </Menu>
   );
 }

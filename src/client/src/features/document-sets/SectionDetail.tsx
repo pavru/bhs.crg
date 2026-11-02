@@ -127,8 +127,8 @@ export function SectionDetail() {
       {canAddSet && <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
       {canEdit && (
         <RowActionsMenu ariaLabel="Действия раздела" actions={[
-          { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
-          { key: 'delete', label: 'Удалить раздел', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+          { key: 'rename', label: 'Переименовать', icon: Edit, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
+          { key: 'delete', label: 'Удалить раздел', icon: Delete, danger: true, onSelect: () => setDeleteConfirm(true) },
         ]} />
       )}
     </>

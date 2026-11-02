@@ -6,6 +6,7 @@ import type { LineDraft } from './invoiceLines';
 import { byWord, lineKey, matchTrouble, usable, type MatchOffer, type MemoryFate } from './supplierMatches';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
 import { IconButton } from '@/shared/ui/Button';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Пометка у позиции строки счёта (задача C3, issue #1079, ТЗ COST-7.1): «запомнено» у подставленной,
@@ -145,7 +146,7 @@ function Explained({ label, warning = false, children }: { label: string; warnin
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[340px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
+          className={`z-50 w-[340px] max-w-[90vw] rounded-md p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none ${LAYER_SURFACE}`}>
           {children}
         </Popover.Content>
       </Popover.Portal>

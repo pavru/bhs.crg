@@ -181,7 +181,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
           </ModalNote>
           {preview ? (
             <>
-              <ModalAction icon={<Icon icon={Close} size={18} />} onClick={() => reset(view)}>Отменить предпросмотр</ModalAction>
+              <ModalAction icon={Close} onClick={() => reset(view)}>Отменить предпросмотр</ModalAction>
               <ModalPrimary icon={<Icon icon={Check} size={18} />} loading={replace.isPending} onClick={save}>
                 Применить
               </ModalPrimary>

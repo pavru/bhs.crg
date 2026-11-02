@@ -158,22 +158,22 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
 
   const badge = (n: number) => (n > 0 ? String(n) : undefined);
   const actions: RowAction[] = [
-    { key: 'filter', label: 'Фильтрация строк', icon: <Icon icon={FilterAlt} size={18} />, onSelect: () => openProcessing('filter'), active: filterCount > 0, badge: badge(filterCount) },
-    { key: 'transform', label: 'Вычисляемые колонки', icon: <Icon icon={FunctionIcon} size={18} />, onSelect: () => openProcessing('transforms'), active: transformCount > 0, badge: badge(transformCount) },
-    { key: 'sort', label: 'Сортировка строк', icon: <Icon icon={SwapVert} size={18} />, onSelect: () => openProcessing('sort'), active: sortCount > 0, badge: badge(sortCount) },
-    { key: 'apply-tpl', label: 'Применить шаблон', icon: <Icon icon={SpaceDashboard} size={18} />, disabled: templates.length === 0 || applyTemplateMutation.isPending,
+    { key: 'filter', label: 'Фильтрация строк', icon: FilterAlt, onSelect: () => openProcessing('filter'), badge: badge(filterCount) },
+    { key: 'transform', label: 'Вычисляемые колонки', icon: FunctionIcon, onSelect: () => openProcessing('transforms'), badge: badge(transformCount) },
+    { key: 'sort', label: 'Сортировка строк', icon: SwapVert, onSelect: () => openProcessing('sort'), badge: badge(sortCount) },
+    { key: 'apply-tpl', label: 'Применить шаблон', icon: SpaceDashboard, disabled: templates.length === 0 || applyTemplateMutation.isPending,
       submenu: templates.map(t => ({ key: t.id, label: t.name, onSelect: () => applyTemplate(t.id) })) },
-    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <Icon icon={BookmarkAdd} size={18} />, onSelect: () => openProcessing('template') },
-    { key: 'export', label: 'Экспорт', icon: <Icon icon={Download} size={18} />, submenu: [
+    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: BookmarkAdd, onSelect: () => openProcessing('template') },
+    { key: 'export', label: 'Экспорт', icon: Download, submenu: [
       { key: 'export-xlsx', label: 'XLSX', onSelect: () => runExport('xlsx') },
       { key: 'export-xls', label: 'XLS', onSelect: () => runExport('xls') },
       { key: 'export-csv', label: 'CSV', onSelect: () => runExport('csv') },
     ] },
-    { key: 'rename', label: 'Переименовать…', icon: <Icon icon={Title} size={18} />, onSelect: () => setRenaming(true) },
-    { key: 'duplicate', label: 'Создать копию…', icon: <Icon icon={ContentCopy} size={18} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
-    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Icon icon={Widgets} size={18} />, onSelect: () => setMaterializing(src) },
-    ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Icon icon={Edit} size={18} />, onSelect: () => onEdit(src) }] : []),
-    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+    { key: 'rename', label: 'Переименовать…', icon: Title, onSelect: () => setRenaming(true) },
+    { key: 'duplicate', label: 'Создать копию…', icon: ContentCopy, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
+    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: Widgets, onSelect: () => setMaterializing(src) },
+    ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: Edit, onSelect: () => onEdit(src) }] : []),
+    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: Delete, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
 
   return (

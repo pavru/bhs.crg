@@ -18,6 +18,7 @@ import {
 } from './savedViews';
 import { wholeTableHash, type TableView, type ViewChange } from './tableViewState';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /** Право заводить и править общие представления (сервер проверяет его сам — здесь только показ). */
 const SHARE = 'core.views.share';
@@ -158,7 +159,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             </Tooltip>
             <Popover.Portal>
               <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
-                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-md bg-surface border border-outline-variant p-2 focus:outline-none shadow-elevation-2">
+                className={`z-40 w-80 max-h-[70vh] overflow-auto rounded-md p-2 focus:outline-none ${LAYER_SURFACE}`}>
                 <ul>
                   {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
                   {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}

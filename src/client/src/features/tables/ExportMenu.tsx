@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Menu, MenuItem } from '@/shared/ui/Menu';
 import { Download } from '@/shared/ui/icons';
 import { exportTable, type TableColumn, type TableExportBody } from '@/shared/api/tables';
 import { formatCount } from '@/shared/format/format';
@@ -7,10 +7,6 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { TableDataSetDialog } from './TableDataSetDialog';
 import { Chip } from '@/shared/ui/Chip';
-
-const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none ' +
-  'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
  * Кнопка-меню «Выгрузить» (ТЗ CORE-33; задача G3b, issue #1096): «В XLSX» и «Сделать источником
@@ -47,31 +43,23 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
   };
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        {/* В ряду чипов отбора — `Chip menu` ([UI-42], #1416), как «Колонки» рядом. */}
+    <>
+      <Menu align="end" sideOffset={6} trigger={
+        // В ряду чипов отбора — `Chip menu` ([UI-42], #1416), как «Колонки» рядом.
         <Chip menu disabled={busy} icon={Download}>{busy ? 'Выгружается…' : 'Выгрузить'}</Chip>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={6}
-          className="z-50 min-w-[14rem] rounded-md bg-surface border border-outline-variant py-1 focus:outline-none shadow-elevation-2">
-          {canXlsx && (
-            <DropdownMenu.Item className={itemCls} disabled={busy} onSelect={() => void xlsx()}>
-              В XLSX · {formatCount(count)} {ruPlural(count, 'строка', 'строки', 'строк')}
-            </DropdownMenu.Item>
-          )}
-          {dataset && (
-            <DropdownMenu.Item className={itemCls} onSelect={() => setBridging(true)}>
-              Сделать источником данных…
-            </DropdownMenu.Item>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
+      }>
+        {canXlsx && (
+          <MenuItem disabled={busy} onSelect={() => void xlsx()}>
+            В XLSX · {formatCount(count)} {ruPlural(count, 'строка', 'строки', 'строк')}
+          </MenuItem>
+        )}
+        {dataset && <MenuItem onSelect={() => setBridging(true)}>Сделать источником данных…</MenuItem>}
+      </Menu>
       {bridging && dataset && (
         <TableDataSetDialog address={address} initialName={dataset.name} body={body} columns={dataset.columns}
           all={dataset.all}
           onClose={() => setBridging(false)} />
       )}
-    </DropdownMenu.Root>
+    </>
   );
 }
