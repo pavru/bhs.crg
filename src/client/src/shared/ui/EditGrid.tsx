@@ -3,7 +3,7 @@ import { Icon } from './Icon';
 import { Add, Delete } from './icons';
 import { Button, IconButton } from './Button';
 import {
-  dtCard, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact,
+  dtCard, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThEdit,
 } from './dataTable';
 import type { DataGridDrag } from './DataGrid';
 import { Tooltip } from './Tooltip';
@@ -180,7 +180,7 @@ export function EditGrid<Row>({
 
   const sized = columns.some(c => c.size !== undefined);
   const td = sheet ? dtTdSheet : dtTdEdit;
-  const th = (extra = '') => `${dtThCompact} ${sheet ? 'border-r' : ''} ${extra}`;
+  const th = (extra = '') => `${dtThEdit} ${sheet ? 'border-r' : ''} ${extra}`;
   // Закреплённая клетка липнет к своему краю и лежит НАД соседями: слой задан стилем, а не классом —
   // у шапки уже есть свой класс слоя, и два класса на одно свойство спорили бы порядком в CSS.
   const pinClass = (c: EditGridColumn<Row>) => (c.pin === 'start' ? 'sticky border-r'

@@ -159,8 +159,18 @@ body {
 @utility drop-mark-after { box-shadow: inset 0 -2px 0 0 var(--color-primary); }
 
 /* Фон контейнера таблицы данных ([UI-78], shared/ui/dataTable.ts): по нему рисуются липкая шапка без
-   своей заливки и строки. Здесь — страница; карточка таблицы, окно и лист задают свой. */
-:root { --dt-bg: var(--color-surface); }
+   своей заливки и закреплённые клетки. Его задаёт сама поверхность — класс фона роли surface ставит и
+   переменную, — а не каждый контейнер руками: окно, лист, карточка любого вида, страница. Слоем base:
+   явное `[--dt-bg:…]` на элементе (слой utilities) старше. Фон с вариантом (`md:bg-surface`) сюда не
+   попадает — такой контейнер называет `--dt-bg` сам. */
+@layer base {
+  :root, .bg-surface { --dt-bg: var(--color-surface); }
+  .bg-surface-container-lowest { --dt-bg: var(--color-surface-container-lowest); }
+  .bg-surface-container-low { --dt-bg: var(--color-surface-container-low); }
+  .bg-surface-container { --dt-bg: var(--color-surface-container); }
+  .bg-surface-container-high { --dt-bg: var(--color-surface-container-high); }
+  .bg-surface-container-highest { --dt-bg: var(--color-surface-container-highest); }
+}
 
 /* ── Движение ([UI-65], docs/UI.md «Движение») ─────────────────────────────────
    Глобального перехода на всех узлах нет: он анимировал тысячи клеток таблиц при смене темы и спорил

@@ -207,6 +207,14 @@ describe('EditGrid (#1354)', () => {
     expect(screen.getByRole('columnheader', { name: 'Имя' }).style.width).toBe('120px');
   });
 
+  it('шапка до PR 2 — подпись label-medium: ширины колонок в пикселях заданы под мелкую', () => {
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'name', label: 'Имя', size: 120, cell: r => r.name }]} />);
+    const head = screen.getByRole('columnheader', { name: 'Имя' });
+    expect(head.className).toContain('text-label-medium');
+    expect(head.className).not.toContain('text-title-small');
+  });
+
   it('выбранная строка подсвечена фоном открытой строки — secondary-container, как в DataGrid', () => {
     const rows = [line('А'), line('Б')];
     render(<EditGrid rows={rows} rowKey={r => r.key} selected={r => r.name === 'Б'}
@@ -214,7 +222,7 @@ describe('EditGrid (#1354)', () => {
     const [, a, b] = screen.getAllByRole('row');
     expect(a.className).not.toContain('secondary-container');
     expect(b.className).toContain('[--dt-row-bg:var(--color-secondary-container)]');
-    expect(b.className).not.toContain('primary-container]');
+    expect(b.className).not.toContain('--color-primary-container');
     expect(b.className).not.toContain('bg-primary-container');
   });
 });

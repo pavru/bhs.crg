@@ -62,6 +62,14 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     expect(boris.className).not.toContain('primary-container');
   });
 
+  it('обычная строка без фона — под ней видна поверхность, на которой стоит таблица', () => {
+    grid([{ key: 'name', label: 'Имя' }]);
+    const [, anna] = screen.getAllByRole('row');
+    expect(anna.className).toContain('[--dt-row-bg:initial]');
+    expect(anna.className).toContain('bg-[color:var(--dt-row-bg,transparent)]');
+    expect(anna.className).not.toContain('--dt-row-bg:var(--dt-bg)');
+  });
+
   it('клетка цвет текста не задаёт — он у строки, иначе открытая не стала бы on-secondary-container', () => {
     grid([{ key: 'name', label: 'Имя' }], { rowOpen: () => true });
     const [, anna] = screen.getAllByRole('row');
@@ -74,7 +82,6 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     const page = screen.getByRole('table').parentElement!;
     expect(page.className).toContain('[--dt-head:56px]');
     expect(page.className).toContain('[--dt-row:48px]');
-    expect(page.className).toContain('scroll-pt-(--dt-head)');
     cleanup();
     grid([{ key: 'name', label: 'Имя' }], { density: 'compact' });
     const dialog = screen.getByRole('table').parentElement!;
@@ -84,6 +91,18 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     // Высота — от переменной: у клетки минимум строки, у шапки — её высота; чисел в клетках нет.
     expect(screen.getByRole('columnheader', { name: 'Имя' }).className).toContain('h-(--dt-head)');
     expect(screen.getAllByRole('row')[1].querySelector('td')!.className).toContain('h-(--dt-row)');
+  });
+
+  it('отступы прокрутки — по высоте шапки и итога: двухэтажная шапка и итог в две строки не закрывают строку', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.tagName === 'THEAD' ? 112 : this.tagName === 'TFOOT' ? 60 : 0;
+    });
+    grid([{ key: 'name', label: 'Имя', group: { key: 'person', label: 'Человек' } }, { key: 'note', label: 'Заметка' }],
+      { footer: () => 'Итого' });
+    const scroller = screen.getByRole('table').parentElement!;
+    expect(scroller.style.scrollPaddingTop).toBe('112px');
+    expect(scroller.style.scrollPaddingBottom).toBe('60px');
+    vi.restoreAllMocks();
   });
 
   it('шапка без своей заливки: фон контейнера, над прокрученным телом — surface-container; подпись title-small', () => {
@@ -113,7 +132,7 @@ describe('DataGrid: клетка по строке (#1354)', () => {
   it('прижатая к верху строка держит однострочный текст на линии строки, а не у верхней черты', () => {
     grid([{ key: 'name', label: 'Имя' }, { key: 'note', label: 'Заметка', wrap: true }]);
     const name = screen.getAllByRole('row')[1].querySelector('td')!;
-    expect(name.firstElementChild!.className).toContain('min-h-[calc(var(--dt-row)-9px)]');
+    expect(name.firstElementChild!.className).toContain('min-h-[calc(var(--dt-row)-2*var(--spacing)-1px)]');
     expect(name.firstElementChild!.className).toContain('items-center');
     cleanup();
     // Без переноса клетки по центру сами — лишней обёртки нет.
@@ -168,10 +187,10 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     grid([{ key: 'name', label: 'Имя' }, { key: 'note', label: 'Заметка' }], { pinned: 1, rowOpen: () => true });
     const [pinned, free] = screen.getAllByRole('row')[1].querySelectorAll('td');
-    expect(pinned.className).toContain('bg-(--dt-row-bg)');
+    expect(pinned.className).toContain('bg-[color:var(--dt-row-bg,var(--dt-bg))]');
     expect(pinned.className).toContain('[background-image:inherit]');
     expect(pinned.className).not.toMatch(/bg-(surface|primary-container|secondary-container)\b/);
-    expect(free.className).not.toContain('bg-(--dt-row-bg)');
+    expect(free.className).not.toContain('--dt-row-bg');
     vi.unstubAllGlobals();
   });
 
@@ -191,6 +210,8 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
     const heading = screen.getByText('Первые');
     expect(heading.getAttribute('scope')).toBe('rowgroup');
     expect(heading.getAttribute('colspan')).toBe('2');
+    // Подпись над группой, а не строка данных: высоты строки не держит.
+    expect(heading.className).not.toContain('h-(--dt-row)');
     expect(screen.queryByText('Анна')).toBeNull();
   });
 

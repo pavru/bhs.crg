@@ -1,10 +1,10 @@
-import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type RefObject, type DragEvent, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { ArrowDownward, ArrowOutward, ArrowUpward, Close, LinkOff, VisibilityOff } from './icons';
 import {
-  dtCard, dtDensity, dtDensityCompact, dtLine, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTable, dtTd,
-  dtTdCompact, dtTh, dtThCompact,
+  dtCard, dtDensity, dtDensityCompact, dtLine, dtNum, dtPinnedCell, dtRow, dtRowTone, dtSection, dtTable,
+  dtTd, dtTdCompact, dtTh, dtThCompact,
 } from './dataTable';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
@@ -201,6 +201,8 @@ export function DataGrid<Row extends object>({
   const empty = shown.length === 0 ? DATA_GRID_STATES[state ?? 'no-data'] : null;
   const pinCount = Math.min(Math.max(pinned, 0), columns.length);
   const table = usePinOffsets(pinCount, columns.map(c => c.key).join('|'));
+  const grouped = columns.some(c => c.group);
+  useStickyPadding(table, `${grouped}|${footer !== undefined}`);
   const compact = density === 'compact';
   const th = compact ? dtThCompact : dtTh;
   const td = compact ? dtTdCompact : dtTd;
@@ -216,7 +218,6 @@ export function DataGrid<Row extends object>({
   // Двухэтажная шапка: колонки с группой стоят на втором этаже, и он липнет под первым, а не на
   // него — иначе при прокрутке подписи полей уходили бы под имена групп. Высоту этажа обёртка держит
   // переменной `--dt-head` (dataTable): число задано там один раз.
-  const grouped = columns.some(c => c.group);
   const lower: CSSProperties = { top: 'var(--dt-head)' };
 
   const head = (c: DataGridColumn<Row>, i: number, extra?: { rowSpan?: number; style?: CSSProperties }) => {
@@ -261,8 +262,7 @@ export function DataGrid<Row extends object>({
   };
 
   return (
-    // Итог прибит к низу — отступ прокрутки снизу под него, как сверху под шапку.
-    <div className={`${framed ? dtCard : 'overflow-auto'} ${compact ? dtDensityCompact : dtDensity} ${footer ? 'scroll-pb-(--dt-row)' : ''} ${className}`}
+    <div className={`${framed ? dtCard : 'overflow-auto'} ${compact ? dtDensityCompact : dtDensity} ${className}`}
       onScroll={markScrolled}>
       <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}>
         <thead>
@@ -305,7 +305,7 @@ export function DataGrid<Row extends object>({
               return (
                 <tr key={key}>
                   <th scope="rowgroup" colSpan={Math.max(columns.length, 1)}
-                    className={`${td} pt-3 text-left text-body-small font-medium text-on-surface-variant`}>
+                    className={`${dtSection} ${compact ? 'px-2' : 'px-3'}`}>
                     {heading}
                   </th>
                 </tr>
@@ -410,6 +410,29 @@ export function DataGrid<Row extends object>({
 function markScrolled(event: UIEvent<HTMLDivElement>) {
   const element = event.currentTarget;
   element.toggleAttribute('data-scrolled', element.scrollTop > 0);
+}
+
+/**
+ * Отступы прокрутки обёртки под липкие шапку и итог: строка, прокрученная в поле зрения (фокус клавишей,
+ * `scrollIntoView` открытой), не встаёт под них. Меряем, а не считаем из `--dt-head` / `--dt-row`: шапка
+ * бывает в два этажа, итог — в две строки. Стилем на обёртку, как и отступы закреплённых колонок.
+ */
+function useStickyPadding(table: RefObject<HTMLTableElement | null>, layout: string) {
+  useLayoutEffect(() => {
+    const element = table.current;
+    const scroller = element?.parentElement;
+    if (!element || !scroller) return;
+    const parts = [element.tHead, element.tFoot].filter(part => part !== null);
+    const measure = () => {
+      scroller.style.setProperty('scroll-padding-top', `${element.tHead?.offsetHeight ?? 0}px`);
+      scroller.style.setProperty('scroll-padding-bottom', `${element.tFoot?.offsetHeight ?? 0}px`);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    parts.forEach(part => observer.observe(part));
+    return () => observer.disconnect();
+  }, [table, layout]);
 }
 
 /** Щелчок, которым закончили выделять текст в строке, — не «открыть строку». */
