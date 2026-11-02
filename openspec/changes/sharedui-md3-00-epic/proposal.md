@@ -48,10 +48,12 @@ Fluent:
     - `sharedui-md3-12-feedback` — snackbar, подсказки plain и rich, banner, пометка состояния, badge,
       progress;
     - `sharedui-md3-13-containers` — окна, меню, card, divider, side sheet, bottom sheet;
-    - `sharedui-md3-14-data` — таблица данных, сетка правки, списки;
+    - `sharedui-md3-14-data` — таблица данных, сетка правки;
     - `sharedui-md3-15-shell` — рейл, подпанель, шапка и поиск, заголовок страницы, нижняя
       навигация, палитра;
     - `sharedui-md3-16-surfaces` — просмотрщик PDF, календарь, редактор Monaco;
+    - `sharedui-md3-18-lists` — строки списков list-detail, общий `ListItem` (вынесен из 14 решением
+      владельца 02.11.2026);
   - экраны, вид меняется:
     - `sharedui-md3-17-screens` — самоделки экранов: плашки → banner, карточки → `Card`, остатки
       шкал, по разделам;
