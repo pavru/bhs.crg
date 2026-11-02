@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, type CSSProperties } from 'react';
+﻿import { useState, useEffect, useRef, type CSSProperties, type Ref } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useAccess } from '@/shared/api/access';
@@ -37,7 +37,7 @@ import { IconButton } from './Button';
  * настройка человека, как тема: лежит на сервере и едет за ним на другую машину, а зеркало в браузере
  * даёт первый кадр без прыжка ширины.
  *
- * Пока человек не выбирал, решает ширина окна (`auto`): ниже ~1200 px рейл 88 и подпанель 240
+ * Пока человек не выбирал, решает ширина окна (`auto`): ниже ~1200 px рейл 80 и подпанель 240
  * оставили бы странице меньше 900 px. `auto` на сервер не уходит — отправляет только нажатие.
  */
 const RAIL_KEY = 'rail';
@@ -88,6 +88,8 @@ function Shell() {
   // поэтому место — переменными на корне документа, и ставит их одно место, которое знает и рейл, и
   // строку, и кнопку.
   const railRef = useRef<HTMLElement>(null);
+  // Палитра встаёт на место строки поиска (docked search view MD3) — ей нужен её прямоугольник.
+  const searchRef = useRef<HTMLButtonElement>(null);
   useSnackbarPlace(railRef, snackbarLift({ bottomNav: bottomNav.length > 0, fab: !!fab }));
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
@@ -121,7 +123,7 @@ function Shell() {
     <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-surface-container-low">
       {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
       <aside ref={railRef} data-testid="rail" data-panel={panelShown || undefined}
-        className="shrink-0 hidden md:flex border-r border-outline-variant">
+        className="shrink-0 hidden md:flex">
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
           onShowPanel={() => setRail('expanded')} />
         {panelShown && (
@@ -129,7 +131,7 @@ function Shell() {
         )}
       </aside>
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} anchorRef={searchRef} />
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Content */}
@@ -139,21 +141,30 @@ function Shell() {
             отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском.
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
             меню заголовка страницы. Цель касания — 48 px утилитой `touch-target` под pointer: coarse
-            ([UI-68]); у поиска — видимые 44 (`max-md:h-11`): его `overflow-hidden` срезал бы ::after. */}
-        <header className="h-12 shrink-0 border-b border-outline-variant bg-surface flex items-center gap-1 px-2 md:px-4">
+            ([UI-68]); у поиска — видимые 44 (`max-md:h-11`): его `overflow-hidden` срезал бы ::after.
+            На рабочем столе — top app bar MD3 (sharedui-md3-15): 64, прозрачная, на поверхности рейла,
+            без черты; от содержимого её отделяет цвет и угол рабочей области. На телефоне полоса и
+            содержимое — одна поверхность, высота пока прежняя 48: полоса 64 с элементами 48 — PR 2. */}
+        <header className="h-12 md:h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
           {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
               обёртки: при одном модуле его нет, и обёртка пустой строкой ложилась бы под шапку. */}
           <WorkspaceSwitcher />
-          <SearchButton onOpen={() => setPaletteOpen(true)} />
+          <SearchButton ref={searchRef} onOpen={() => setPaletteOpen(true)} />
           <ActivityCenter />
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
               справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
           <IconButton label="Справка и горячие клавиши" className="max-md:hidden" onClick={() => setHelpOpen(true)} icon={Help} />
           <span className="pl-1"><AccountMenu admin={admin} /></span>
         </header>
+        {/* Рабочая область — своя поверхность `surface` со скруглённым ведущим верхним углом 16 (на
+            рабочем столе). Обёртка — вокруг прокрутки, а не внутри неё: иначе угол уезжал бы с
+            прокруткой, а обёртка стала бы контейнером прокрутки для липких элементов страницы. Без
+            `transform`, `contain` и `will-change` — иначе поедет `fixed` внутри. Плашки оболочки лежат
+            в ней. `header` — прямой потомок `main`: на этом держатся живые проверки. */}
+        <div data-testid="work-area" className="flex-1 min-h-0 flex flex-col bg-surface md:rounded-tl-lg overflow-clip">
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
         {/* Плавающая кнопка стоит над содержимым, а не в нём: прокрутка списка её не уносит. Пока
@@ -169,6 +180,7 @@ function Shell() {
             </SectionMenuContext.Provider>
           </div>
           {fab && <PrimaryFab action={fab} busy={fabState.isBusy(fab.id)} />}
+        </div>
         </div>
         <BottomNav sections={bottomNav} active={active} />
       </main>
@@ -194,10 +206,11 @@ function PhoneBrand() {
 
 /**
  * Поиск в шапке (issue #1430) — видимая дверь к палитре Ctrl K: клавишу знает только тот, кто её уже
- * нашёл. Занимает свободное место строки, но не шире 640 px — дальше строка поиска читается как
- * разделитель, а не поле. Что палитра ищет — #1433.
+ * нашёл. По образцу MD3 search bar: 56, форма full, `surface-container-high`. Занимает свободное место
+ * строки, но не шире 720 px — дальше строка поиска читается как разделитель, а не поле. Что палитра
+ * ищет — #1433.
  */
-function SearchButton({ onOpen }: { onOpen: () => void }) {
+function SearchButton({ onOpen, ref }: { onOpen: () => void; ref: Ref<HTMLButtonElement> }) {
   // На Mac палитру зовут ⌘K (слушатель принимает и Ctrl, и ⌘), и подсказка называет ту клавишу,
   // которой там пользуются.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -206,9 +219,9 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
       {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала
           обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
-      <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
-        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-body-medium text-on-surface-variant state-layer focus-ring">
-        <Icon icon={Search} size={18} className="shrink-0" />
+      <button ref={ref} type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
+        className="@container flex-1 min-w-14 max-md:min-w-11 max-w-180 flex items-center gap-4 max-md:gap-2.5 h-14 max-md:h-11 px-4 max-md:px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-high text-body-large text-on-surface-variant state-layer focus-ring">
+        <Icon icon={Search} size={24} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
         <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-label-small text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
       </button>

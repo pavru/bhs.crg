@@ -42,6 +42,19 @@ const search = () => screen.getByRole('textbox', { name: 'Поиск и дейс
 function type(text: string) { fireEvent.change(search(), { target: { value: text } }); }
 const address = () => screen.getByLabelText('адрес').textContent;
 
+/** Вид — search view MD3 (sharedui-md3-15). */
+describe('CommandPalette — вид', () => {
+  it('scrim без размытия, поверхность surface-container-high', () => {
+    shown(reader);
+    const dialog = screen.getByRole('dialog', { name: 'Поиск и действия', hidden: true });
+    expect(dialog.className).toContain('bg-surface-container-high');
+    expect(dialog.className).toContain('rounded-xl');
+    const scrim = document.querySelector<HTMLElement>('[class*="bg-scrim"]')!;
+    expect(scrim).toBeTruthy();
+    expect(scrim.style.backdropFilter).toBe('');
+  });
+});
+
 /** Командная палитра — один вход в «сделать» и «перейти» (issue #1433). */
 describe('командная палитра', () => {
   it('действие ведёт на экран, который его исполнит', () => {

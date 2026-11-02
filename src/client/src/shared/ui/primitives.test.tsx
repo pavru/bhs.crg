@@ -237,4 +237,11 @@ describe('PageHeader', () => {
     expect(screen.getByText('Все стройки компании')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Новая стройка' })).toBeTruthy();
   });
+
+  it('заголовок набран title-large — 22/28 весом 400 (sharedui-md3-15)', () => {
+    render(<PageHeader title="Реестр счетов" />);
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Реестр счетов' });
+    expect(h1.className).toContain('text-title-large');
+    expect(h1.className).not.toContain('font-semibold');
+  });
 });

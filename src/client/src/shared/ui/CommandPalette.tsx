@@ -1,7 +1,8 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Icon } from './Icon';
 import { DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search, type IconDef } from './icons';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { dockedPlace, PALETTE_SURFACE } from './paletteDock';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
@@ -12,7 +13,6 @@ import { useGuardedIntent, useGuardedLeave, useGuardedNavigate } from './Navigat
 import { useHistoryLayer } from './historyLayers';
 import { useWorkspace } from './workspaceContext';
 import { Chip } from './Chip';
-import { LAYER_SURFACE } from './menuClasses';
 import { availableActions, intentHref } from './paletteActions';
 import { highlight, matches, queryWords, ranked } from './paletteSearch';
 
@@ -50,11 +50,32 @@ const ACTIONS = 'Действия';
  * <p>Тело монтируется по открытию (issue #858): строка поиска и выделение заводятся заново, и
  * эффект «закрылось — очисти запрос» не нужен.</p>
  */
-export function CommandPalette(props: { open: boolean; onOpenChange: (o: boolean) => void }) {
+type PaletteProps = {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  /** Строка поиска в шапке: палитра встаёт на её место. Без неё — по центру под полосой. */
+  anchorRef?: RefObject<HTMLElement | null>;
+};
+
+export function CommandPalette(props: PaletteProps) {
   return props.open ? <CommandPaletteBody {...props} /> : null;
 }
 
-function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function useDockedPlace(anchorRef: PaletteProps['anchorRef']) {
+  const [place, setPlace] = useState<CSSProperties | null>(null);
+  // Место меряется до первого кадра (layout-эффект), и заново — когда окно сменило размер: строка
+  // поиска переехала или ужалась, палитра идёт за ней.
+  useLayoutEffect(() => {
+    const measure = () => setPlace(dockedPlace(anchorRef?.current, window.innerWidth));
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [anchorRef]);
+  return place;
+}
+
+function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
+  const place = useDockedPlace(anchorRef);
   // «Назад» на телефоне закрывает палитру, а не страницу под ней (issue #1418).
   useHistoryLayer(true, () => { onOpenChange(false); return true; });
   // Палитра — второй вход в те же разделы, что и рейл, и уходить обязана тем же путём — через
@@ -130,15 +151,17 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
+        {/* Scrim без размытия — по MD3: размытый фон читался как «страница сломалась». */}
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" />
         <Dialog.Content
-          data-modal-state="transient"
-          aria-describedby={undefined}
-          className={`fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl focus:outline-none ${LAYER_SURFACE}`}
+          data-modal-state="transient" data-docked={place ? 'true' : undefined}
+          aria-describedby={undefined} style={place ?? undefined}
+          className={`fixed z-50 overflow-hidden rounded-xl text-on-surface focus:outline-none ${PALETTE_SURFACE} ${
+            place ? '' : 'left-1/2 top-16 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2'}`}
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
-          <div className="flex items-center gap-3 border-b border-outline-variant pl-5 pr-4">
-            <Icon icon={Search} size={18} aria-hidden className="shrink-0 text-primary" />
+          <div className="flex items-center gap-4 border-b border-outline-variant pl-4 pr-4">
+            <Icon icon={Search} size={24} aria-hidden className="shrink-0 text-on-surface" />
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               onChange={e => { setQuery(e.target.value); setActive(0); }}

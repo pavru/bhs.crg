@@ -270,7 +270,7 @@ export function UserLibPanel() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="w-72 shrink-0 border-r border-outline-variant flex flex-col bg-surface-container-low">
+      <aside className="w-72 shrink-0 border-r border-outline-variant flex flex-col bg-surface">
         <UserLibFileList
           files={files} selected={active} dirty={dirty} errors={errors} warnings={warnings}
           onSelect={setSelected}

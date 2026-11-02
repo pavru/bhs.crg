@@ -48,15 +48,16 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
     return (
       <Link key={section.def.id} to={section.home} onClick={guardedSection(section)}
         aria-current={on ? 'true' : undefined}
-        className="group flex flex-col items-center gap-1 w-20 pb-2 text-body-small select-none focus-visible:outline-none">
+        className="group flex flex-col items-center gap-1 w-20 pb-2 text-label-medium select-none focus-visible:outline-none">
         <SectionPill icon={icon} on={on} />
-        <span className={on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}>{section.def.label}</span>
+        {/* Одним весом и цветом (MD3 navigation rail): выбранный отличает индикатор и заливка знака. */}
+        <span className="whitespace-nowrap text-on-surface-variant">{section.def.label}</span>
       </Link>
     );
   };
 
   return (
-    <div className="w-[88px] shrink-0 flex flex-col items-center pb-3 bg-surface overflow-y-auto">
+    <div className="w-20 shrink-0 flex flex-col items-center pb-3 bg-surface-container-low overflow-y-auto">
       {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. Название видно под
           логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
@@ -82,7 +83,8 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
 
 /**
  * Значок раздела в плашке — один на рейл и нижнюю навигацию телефона (#1434): выбранный раздел
- * выглядит одинаково, где бы человек его ни увидел. `wide` — плашка нижней строки, шире под палец.
+ * выглядит одинаково, где бы человек его ни увидел. Знак — 24 в обоих (MD3); `wide` — индикатор нижней
+ * строки, 64 вместо 56 рейла.
  */
 export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
   return (
@@ -90,7 +92,7 @@ export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['
     <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full ` +
       'state-layer state-layer-group group-focus-visible:focus-ring-mark ' +
       (on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
-      <Icon icon={icon} size={wide ? 24 : 20} filled={on} />
+      <Icon icon={icon} size={24} filled={on} />
     </span>
   );
 }
@@ -109,14 +111,19 @@ export function SectionPanel({ def, groups, outside, onHide }: {
   onHide: () => void;
 }) {
   return (
+    // Полоса прокрутки — тонкая: «Администрирование» с пунктами 48 выше экрана 768, и обычная полоса
+    // (15 px) отняла бы ширину у заголовка раздела — он переносился бы посреди слова.
     <nav id={PANEL_ID} data-testid="section-panel" aria-label={def.title}
-      className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface border-l border-outline-variant overflow-y-auto">
-      <div className="flex items-start gap-1 pl-3 pb-3">
+      className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface-container-low overflow-y-auto [scrollbar-width:thin]">
+      <div className="flex items-start pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
-          <h2 className="text-body-large font-semibold text-on-surface break-words">{def.title}</h2>
+          <h2 className="text-title-medium text-on-surface break-words hyphens-auto">{def.title}</h2>
           <p className="text-body-small text-on-surface-variant">{def.hint}</p>
         </div>
-        <IconButton label="Скрыть панель раздела" onClick={onHide}
+        {/* Кнопка заходит в поле подпанели (`-mr-2`): знак 24 в ней и так с полями, а заголовку
+            «Администрирование» (157 px) нужно место рядом с полосой прокрутки. Не поместится длиннее —
+            перенос по слогам с дефисом (`hyphens-auto`, документ на ru), а не разрыв посреди слова. */}
+        <IconButton label="Скрыть панель раздела" onClick={onHide} className="-mr-2"
           aria-expanded aria-controls={PANEL_ID} icon={LeftPanelClose} />
       </div>
       <PageList groups={groups} />

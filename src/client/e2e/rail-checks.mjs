@@ -29,12 +29,59 @@ export async function railChecks(page, check) {
         throw new Error(`подпанель не показана по умолчанию на ${page.viewportSize()?.width}px`);
       const title = (await panel(page).getByRole('heading', { level: 2 }).innerText()).trim();
       if (title !== 'Администрирование') throw new Error(`у «Системы» подпанель «${title}»`);
+      // Самый длинный заголовок раздела — в одну строку: пункты 48 делают подпанель выше экрана, и
+      // полоса прокрутки отнимает ширину у заголовка (sharedui-md3-15). Браузер прогонов полос не рисует
+      // (Playwright прячет их), поэтому место меряется за вычетом тонкой полосы, если её не видно: иначе
+      // проверка не упала бы ровно на том, ради чего заведена.
+      const fit = await panel(page).getByRole('heading', { level: 2 }).evaluate(h => {
+        const nav = h.closest('nav');
+        const bar = nav.offsetWidth - nav.clientWidth;
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.font = getComputedStyle(h).font;
+        return { word: ctx.measureText(h.textContent).width, room: h.getBoundingClientRect().width - (bar > 0 ? 0 : 10) };
+      });
+      if (fit.word > fit.room)
+        throw new Error(`заголовок «${title}» (${Math.round(fit.word)}px) не умещается рядом с полосой прокрутки: места ${Math.round(fit.room)}px`);
       for (const group of ['Документы', 'Люди и доступ', 'Наблюдение', 'Общее'])
         if (!(await panel(page).getByRole('heading', { level: 3, name: group }).count()))
           throw new Error(`в «Администрировании» нет группы «${group}»`);
       const width = await page.getByTestId('rail').evaluate(el => el.getBoundingClientRect().width);
-      // Рейл 88 + подпанель 240 + черта.
-      if (Math.abs(width - 329) > 2) throw new Error(`рейл с подпанелью шириной ${width}px, ждали 329`);
+      // Рейл 80 + подпанель 240, без черты (sharedui-md3-15).
+      if (Math.abs(width - 320) > 2) throw new Error(`рейл с подпанелью шириной ${width}px, ждали 320`);
+    });
+
+    await check('shell-is-md3-top-app-bar-and-work-area', async () => {
+      // Top app bar 64 на поверхности рамки, рабочая область — своя поверхность с углом 16, черт нет
+      // ни у шапки, ни у рейла: их отделяет цвет и угол (sharedui-md3-15, [UI-79]).
+      const look = await page.evaluate(() => {
+        const css = sel => getComputedStyle(document.querySelector(sel));
+        const header = document.querySelector('main > header');
+        const search = document.querySelector('[data-testid=header-search]').getBoundingClientRect();
+        return {
+          header: header.getBoundingClientRect().height,
+          headerBorder: css('main > header').borderBottomWidth,
+          railBorder: css('[data-testid=rail]').borderRightWidth,
+          panelBorder: css('[data-testid=section-panel]').borderLeftWidth,
+          corner: css('[data-testid=work-area]').borderTopLeftRadius,
+          search: { height: search.height, width: search.width },
+        };
+      });
+      if (Math.abs(look.header - 64) > 1) throw new Error(`шапка высотой ${look.header}px, ждали 64`);
+      for (const [name, w] of [['шапки', look.headerBorder], ['рейла', look.railBorder], ['подпанели', look.panelBorder]])
+        if (w !== '0px') throw new Error(`у ${name} черта ${w}`);
+      if (look.corner !== '16px') throw new Error(`у рабочей области угол ${look.corner}, ждали 16px`);
+      if (Math.abs(look.search.height - 56) > 1 || look.search.width > 721)
+        throw new Error(`строка поиска ${Math.round(look.search.width)}×${look.search.height}, ждали 56 и не шире 720`);
+    });
+
+    await check('rail-labels-fit-one-line', async () => {
+      // Самая длинная подпись раздела — в одну строку без обрезки: рейл 80, а не 88.
+      // Подпись — строчный span без переноса: перенос видно по высоте, вылет за рейл — по ширине.
+      const bad = await page.locator('#app-rail-nav a > span:last-child').evaluateAll(spans => spans
+        .filter(s => s.getBoundingClientRect().height > parseFloat(getComputedStyle(s).lineHeight) + 1
+          || s.getBoundingClientRect().width > 80)
+        .map(s => s.textContent));
+      if (bad.length) throw new Error(`подпись не умещается в рейл 80: ${bad.join(', ')}`);
     });
 
     await check('section-panel-hides-and-lives-on-server', async () => {

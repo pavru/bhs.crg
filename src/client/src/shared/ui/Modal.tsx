@@ -16,7 +16,7 @@ import { useScrollEdges } from './useScrollEdges';
 import { useWindowSteps } from './windowSteps';
 
 import { FOOTER_ROW } from './ModalRoles';
-import { FieldDensityContext } from './fieldBox';
+import { LayerBoundary } from './LayerBoundary';
 
 export { ModalAction, ModalButtons, ModalNote, ModalPrimary } from './ModalRoles';
 
@@ -281,10 +281,9 @@ function ModalBody({
   const actions = footer ?? (acknowledge || flushBody || headerless || bodyExits > 0 ? undefined : <ModalExit>Закрыть</ModalExit>);
   const shownTitle = top?.title ?? title;
 
-  // Окно — новое место: размер поля клетки (`FieldDensityContext`) сюда не идёт. Контекст React проходит
-  // сквозь портал, и окно, открытое из клетки сетки правки, рисовало бы свои поля полями клетки.
+  // Окно — новое место (`LayerBoundary`): размер поля клетки сюда не идёт, поиск списка — плотный.
   return (
-    <FieldDensityContext.Provider value={null}>
+    <LayerBoundary>
     <Dialog.Portal>
         <Dialog.Overlay
           className={DIALOG_SCRIM}
@@ -423,6 +422,6 @@ function ModalBody({
           </ModalControlContext.Provider>
         </Dialog.Content>
     </Dialog.Portal>
-    </FieldDensityContext.Provider>
+    </LayerBoundary>
   );
 }

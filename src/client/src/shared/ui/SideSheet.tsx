@@ -7,7 +7,7 @@ import { DIALOG_SCRIM, SHEET_TITLE } from './dialogSurface';
 import { useHistoryLayer } from './historyLayers';
 import { Close } from './icons';
 import { focusFromLayer } from './layerFocus';
-import { FieldDensityContext } from './fieldBox';
+import { LayerBoundary } from './LayerBoundary';
 
 /**
  * Боковая панель — side sheet MD3 ([UI-77], sharedui-md3-13), шириной 400, заголовок `title-large`, крестик у
@@ -55,12 +55,12 @@ function ModalSideDialog({ open, onClose, title, closeLabel, actions, children }
   return (
     <Dialog.Root open={open} onOpenChange={o => { if (!o) onClose(); }}>
       {/* Лист — новое место: размер поля клетки сквозь портал сюда не идёт (как у `Modal`). */}
-      <FieldDensityContext.Provider value={null}>
+      <LayerBoundary>
       <Dialog.Portal>
         <Dialog.Overlay className={DIALOG_SCRIM} />
         <ModalSideContent title={title} closeLabel={closeLabel} onClose={onClose} actions={actions}>{children}</ModalSideContent>
       </Dialog.Portal>
-      </FieldDensityContext.Provider>
+      </LayerBoundary>
     </Dialog.Root>
   );
 }
@@ -104,7 +104,7 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
     // Во весь экран — окно без затемнения: Esc, ловушку фокуса и страницу вне Tab и читалки даёт Radix.
     <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>
       {/* Лист — новое место: размер поля клетки сквозь портал сюда не идёт (как у `Modal`). */}
-      <FieldDensityContext.Provider value={null}>
+      <LayerBoundary>
       <Dialog.Portal>
         <Dialog.Content aria-describedby={undefined} aria-label={label} data-modal-state="free"
           className="fixed inset-0 z-40 flex flex-col bg-surface focus:outline-none"
@@ -117,7 +117,7 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
           {body}
         </Dialog.Content>
       </Dialog.Portal>
-      </FieldDensityContext.Provider>
+      </LayerBoundary>
     </Dialog.Root>
   );
   return (
@@ -131,7 +131,8 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
       }}
       className="w-100 shrink-0 flex flex-col min-h-0 border-l border-outline-variant bg-surface">
       <SheetHeader close={closeButton} actions={actions} title={<h2 className={`truncate ${SHEET_TITLE}`}>{title}</h2>} />
-      {body}
+      {/* Лист рядом со страницей — тоже слой: портала нет, но место своё. */}
+      <LayerBoundary>{body}</LayerBoundary>
     </aside>
   );
 }

@@ -67,46 +67,56 @@
 
 ## 1. PR 1: рабочий стол
 
-- [ ] 1.1 `SectionRail`: ширина 80, `surface-container-low` без черты у `aside`, знак 24 (`wide` у
+- [x] 1.1 `SectionRail`: ширина 80, `surface-container-low` без черты у `aside`, знак 24 (`wide` у
   `SectionPill` уходит), индикатор 56×32 `secondary-container`, знак с заливкой у выбранного, подпись
   `label-medium` одним весом [UI-79]. Проверка — новый vitest рейла: `w-20`, знак 24, `filled` у
   выбранного; `railSections.test.ts` зелёный; `rail-checks` (внутри `settings-smoke`): ширина 80, рейл с
   подпанелью 320, самая длинная подпись в одну строку без обрезки — новая проверка
-- [ ] 1.2 Подпанель: `SectionPanel` — `surface-container-low` без черты, заголовок раздела `title-medium`;
+  - Сделано: `w-20 bg-surface-container-low`, знак 24, подпись `text-label-medium whitespace-nowrap` одним цветом. `wide` у `SectionPill` остался, но задаёт только ширину индикатора: у navigation bar он 64×32 ([UI-79]), у рейла 56×32; знак 24 у обоих. Проверки — `shellLook.test.tsx`, `rail-checks` (320, `rail-labels-fit-one-line`).
+- [x] 1.2 Подпанель: `SectionPanel` — `surface-container-low` без черты, заголовок раздела `title-medium`;
   `panelLink` — `h-12 px-4 text-label-large`, форма full, выбранный `secondary-container`, наведение — слой
   состояния, параметр `muted` уходит (чужие различает раскрываемая группа `WorkspaceNav`); длинная подпись —
   многоточием; `MICRO_HEADING` — `title-small` без прописных (уже) [UI-79]. Проверка — новый vitest
   `panelLink`: `h-12`, `text-label-large`, у выбранного `bg-secondary-container`; `workspaces-checks` (внутри
   `settings-smoke`) зелёный
-- [ ] 1.3 `AppShell`: полоса 64 — top app bar на `surface-container-low`, прозрачная, без черты; обёртка
+  - Сделано: `SectionPanel` без `border-l`, заголовок `text-title-medium`; полоса прокрутки тонкая и кнопка «Скрыть панель» в поле (`-mr-2`) — иначе «Администрирование» (157 px) переносилось посреди слова рядом с полосой; длиннее — перенос по слогам (`hyphens-auto`). Браузер прогонов полос не рисует — `rail-checks` меряет слово против места за вычетом тонкой полосы; `panelLink(isActive)` — `h-12 px-4 text-label-large`, `muted` снят; `MICRO_HEADING` — `px-4` под отступ пункта.
+- [x] 1.3 `AppShell`: полоса 64 — top app bar на `surface-container-low`, прозрачная, без черты; обёртка
   рабочей области `md:rounded-tl-lg overflow-clip bg-surface` вокруг области с FAB вместе с `OutsideBanner`
   и `EmailConfirmBanner` (без `transform`, `header` — прямой потомок `main`); поиск-дверь — search bar
   `h-14`, `surface-container-high`, знак 24, `body-large`, `px-4`, не шире 720; комментарий про «рейл 88»
   [UI-79]. Проверка — `rail-checks`: высота шапки 64, у обёртки угол 16, у шапки и рейла нет черты
   (`getComputedStyle`); снимок оболочки в обеих темах в описании PR
-- [ ] 1.4 `PageHeader` — `title-large` без `font-semibold` [UI-79]. Проверка — `primitives.test.tsx`,
+  - Сделано: обёртка `data-testid="work-area"`; поиск — `h-14 px-4 gap-4 max-w-180 bg-surface-container-high`, знак 24, `body-large`; телефон до PR 2 — прежний: полоса `h-12 md:h-16`, поиск 44 (ревью #1738: полоса 64 с элементами 44 — промежуточный вид, которого никто не выбирал). Проверка `shell-is-md3-top-app-bar-and-work-area` в `rail-checks`; порог высоты шапки на 390 px — прежние 49, поднимется в 2.3.
+- [x] 1.4 `PageHeader` — `title-large` без `font-semibold` [UI-79]. Проверка — `primitives.test.tsx`,
   `describe('PageHeader')`: класс `text-title-large`, нет `font-semibold`
-- [ ] 1.5 `CommandPalette` — docked search view на месте строки поиска: якорь — прямоугольник
+  - Сделано: `text-title-large` у обоих `h1`.
+- [x] 1.5 `CommandPalette` — docked search view на месте строки поиска: якорь — прямоугольник
   `header-search` через ref из `AppShell`, левый край — её, ширина — большее из её ширины и 560, у двери,
   ужатой до значка, — откат на центр; поле 56, знак 24 `on-surface`; своя поверхность
   `surface-container-high` уровня 3 вместо `LAYER_SURFACE` (`menuClasses.ts`); без размытия;
   `useHistoryLayer`, `data-modal-state`, имя поля и роль — прежние [UI-79]. Проверка — новый vitest: нет
   `backdropFilter`, класс поверхности; `CommandPalette.test.tsx`, `paletteGuard.test.tsx` зелёные;
   `keyboard-smoke`: Esc и «Назад» закрывают палитру
-- [ ] 1.6 `SearchInput` — search bar 56 на странице везде, плотное поле 40 в окне и листе (контекст слоя от
+  - Сделано: место — `paletteDock.ts` (`dockedPlace`, `PALETTE_SURFACE`), меряется layout-эффектом и на `resize`; дверь уже 240 или окно уже 768 — центр. Замер на 1366×768: поле палитры совпало со строкой поиска (577/4, 628).
+- [x] 1.6 `SearchInput` — search bar 56 на странице везде, плотное поле 40 в окне и листе (контекст слоя от
   `Modal`, `SideSheet`, `BottomSheet`), форма full, `surface-container-high`, без рамки; очистка —
   `IconButton` XS [UI-79]. Проверка — vitest: 56 на странице, 40 внутри `Modal`; `invoices-smoke`: поиск в
   списке работает
-- [ ] 1.7 Живые проверки оболочки поправлены тем же PR: `rail-checks` (329 → 320, высота шапки 64, угол и
+  - Сделано: `InLayerContext` (`layerPlace.ts`) ставит общая граница слоя `LayerBoundary` (вместе со сбросом `FieldDensityContext`) — в `Modal`, `SideSheet` (оба вида и окно-лист), `BottomSheet`; в слое поле — `surface-container-highest`: окно само `surface-container-high`, и поле того же тона без рамки не видно (ревью #1738); отступ текста справа — под кнопку очистки при касании (40); проп `rounded` снят. Очистка — `IconButton` в месте `ICON_BUTTON_XS`: `SearchInput.tsx` вписан в исключения `dense-scope` (скрипт, его тест, `buttonClasses.ts`, `docs/UI.md`) — это кнопка внутри поля.
+- [x] 1.7 Живые проверки оболочки поправлены тем же PR: `rail-checks` (329 → 320, высота шапки 64, угол и
   черта) и `workspaces-checks` — внутри `settings-smoke`, `invoice-layout-checks` — внутри `invoices-smoke`,
   `favorites-checks` (`main > header`); весь `npm run -s test:e2e:ci` зелёный. Проверка — описание PR
-- [ ] 1.8 `docs/UI.md` «Оболочка: рейл разделов и подпанель» — рейл 80 (число 88 снято), пункты 48,
+  - Сделано 03.11.2026: весь `npm run -s test:e2e:ci` на своём стенде (API 5058, клиент 4175, база `bhs_crg_e2e15`) — 21/21, 3 пропуска PDF как в CI; после правки подпанели `settings` и `keyboard` повторены — зелёные. `rail-checks`: 320, `shell-is-md3-top-app-bar-and-work-area`, `rail-labels-fit-one-line`, заголовок подпанели в одну строку; `workspaces-checks`, `invoice-layout-checks`, `favorites-checks` правок не потребовали.
+- [x] 1.8 `docs/UI.md` «Оболочка: рейл разделов и подпанель» — рейл 80 (число 88 снято), пункты 48,
   полоса 64, поиск 56, рабочая область с углом 16, столбец списка, роли [UI-79]. Проверка — ревью PR
-- [ ] 1.9 Столбец списка list-detail — `surface` с чертой `outline-variant` у замыкающего края вместо
+  - Сделано: абзац «Вид — роли MD3» в «Оболочка: рейл разделов и подпанель», 88 → 80, 640 → 720.
+- [x] 1.9 Столбец списка list-detail — `surface` с чертой `outline-variant` у замыкающего края вместо
   `surface-container-low`: `ListDetailShell.tsx`, `features/templates/UserLibPanel.tsx` [UI-79]. Проверка —
   vitest `ListDetailShell`: класс столбца; снимок list-detail в описании PR
-- [ ] 1.10 Храповик интерфейса опустился — база тем же PR: `legacy-type` (`PageHeader`, `SectionRail`),
+  - Сделано: `ListDetailShell` и `UserLibPanel` — `bg-surface`; проверка — `shellLook.test.tsx`.
+- [x] 1.10 Храповик интерфейса опустился — база тем же PR: `legacy-type` (`PageHeader`, `SectionRail`),
   `icon-button` (`SearchInput`). Проверка — `npm run ui:ratchet` без просьбы опустить уровень
+  - Сделано: `ui-baseline.json` опущен — `icon-button` `SearchInput` 1 → 0, `legacy-type` `PageHeader` 4 → 0, `SectionRail` 3 → 1 (остался `font-semibold` у названия экземпляра — знак бренда, не роль).
 
 ## 2. PR 2: телефон
 

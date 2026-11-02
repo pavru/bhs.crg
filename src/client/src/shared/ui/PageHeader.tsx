@@ -52,7 +52,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
   // звучит названием страницы.
   const hint = useId();
   const heading = section && plain ? (<>
-    <h1 className="text-xl font-semibold text-on-surface min-w-0">
+    <h1 className="text-title-large text-on-surface min-w-0">
       <SectionMenu value={section}>
         <button type="button" data-testid="section-menu-trigger" aria-describedby={hint}
           className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 touch-target [--_touch-inset:-2px] -ml-2 px-2 rounded-lg text-left state-layer focus-ring data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container">
@@ -65,7 +65,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
     <span id={hint} className="sr-only">Другие страницы раздела «{section.def.title}»</span>
   </>) : (
     <Tooltip content={plain ? title : undefined}>
-      <h1 className={`text-xl font-semibold text-on-surface min-w-0 ${plain ? 'truncate' : ''}`}>
+      <h1 className={`text-title-large text-on-surface min-w-0 ${plain ? 'truncate' : ''}`}>
         {title}
       </h1>
     </Tooltip>
