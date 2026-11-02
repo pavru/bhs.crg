@@ -187,9 +187,16 @@
   plain и `RichTooltip`; `Banner` (срочный — `alert`); пометка `StatusText` без пилюли; число у подписи —
   новый `CountText`, на знаке — `Badge`; `LinearProgress` классическая; правило `notice-plaque` — 32;
   снимки до и после — артефакт SAEFG9d4ZGfW69XBF7vd32; `/design-sync` 01.11.2026.
-- [ ] 3.4 `sharedui-md3-13-containers` (2) — `Modal`/`ConfirmDialog` по basic dialog, общий `Menu`,
+- [x] 3.4 `sharedui-md3-13-containers` (2) — `Modal`/`ConfirmDialog` по basic dialog, общий `Menu`,
   `Card`, `Divider`, `SideSheet`, `BottomSheet`, правило `hand-card` [UI-75]…[UI-77]. Решение В8.
   Проверка — change заархивирован.
+  Слит #1722 (66547260), #1723 (5ea6bd02), #1724 (98953c78) и #1725 (f9b8ae77), заархивирован 02.11.2026:
+  В8 = А «MD3 буквально» (макеты 2ca30933) — у окна нет крестика, выход — кнопкой подвала с ролью
+  (`ModalExit` / `ModalPrimary` / `ModalAction` / `ModalNote`), окно во весь экран и любое окно уже 768 —
+  full-screen dialog с действием в шапке; общий `Menu` и слой `surface-container` без рамки; `Card`,
+  `Divider`, standard и modal `SideSheet`, `BottomSheet`; правило `hand-card` — 67; снимки до и после —
+  артефакты 4VTB1kGSs3v25N9RdD4dbn, MbrYZJYrHKnt17XNo5bZ7w, C4V19AVrBsTcDFyX9f8zCB, S5gB3CeoT32U7fWuSKuZUs;
+  `/design-sync` 02.11.2026.
 - [ ] 3.5 `sharedui-md3-14-data` (2) — `DataGrid` (шапка 56/48, строки 48/40, выбор
   `secondary-container`), `EditGrid` (48/40, поле без рамки), списки [UI-78]. Решение В5. Проверка —
   change заархивирован.
