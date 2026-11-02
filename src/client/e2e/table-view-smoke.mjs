@@ -41,6 +41,13 @@
 //      Там же: несохранённая правка счёта не пропадает от щелчка по пункту «Счета» (он ведёт на
 //      адрес без счёта) и от «Назад» браузера — форма спрашивает; и у строки, которой под отбором нет, ссылки в панели нет.
 //
+// И плотность таблицы данных ([UI-78], sharedui-md3-14-data, вариант А):
+//
+//  12. table-density-by-place — на странице шапка 56 и строка не ниже 48; открытая строка —
+//      secondary-container, и закреплённая клетка того же фона, а слой наведения строки виден и на ней.
+//      Ломается: вписать высоту числом в клетку мимо переменной обёртки; дать закреплённой клетке свою
+//      подложку — она закроет слой состояния, и наведение на закреплённых колонках пропадёт.
+//
 // ⚠️ ДАННЫЕ — ТЕ ЖЕ, ЧТО СЕЕТ ПОСЕВ (e2e/seed-invoices.mjs, `TABLE_SEED`): счетов для итога нарочно
 // больше страницы, и человек «модуль есть, счетов нет» заведён там же. Счета прогон досеивает САМ, той
 // же функцией: в CI посев идёт до перезапуска приложения, когда типа счёта ещё нет, и счетов не сеет.
@@ -64,6 +71,7 @@ import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
 import { bridgeCopiesTheScreen } from './table-bridge.mjs';
 import { rowPanelHoldsAllColumns, rowPanelOnPhoneClosesWithBack } from './table-row-panel.mjs';
+import { densityByPlace, pinnedColumnStaysOnScroll } from './table-layout.mjs';
 
 const TABLE = `${BASE}/tables/costs.invoices`;
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || PASSWORD;
@@ -485,28 +493,17 @@ try {
   await check('row-panel-on-phone-closes-with-back: на 375 px панель строки во весь экран, «Назад» закрывает её, а не таблицу',
     () => rowPanelOnPhoneClosesWithBack(page, panelArgs));
 
-  await check('закреплённая колонка остаётся на месте при прокрутке вбок', async () => {
-    await open(page, { filter: seeded, pin: '1' });
-    await rowsBecome(page, TABLE_SEED.count, 'посеянные счета');
-    await page.setViewportSize({ width: 900, height: 1000 });
-
-    // И шапка, и клетка строки: шапка липкая сама по себе (она держится у верхнего края), и
-    // закрепление, сломанное в строках, по одной шапке осталось бы незамеченным.
-    const first = headers(page).first();
-    const cell = dataRows(page).first().locator('td').first();
-    const before = { head: (await first.boundingBox()).x, cell: (await cell.boundingBox()).x };
-    const moved = await page.locator('table').evaluate(t => {
-      t.parentElement.scrollLeft = 400;
-      return t.parentElement.scrollLeft;
-    });
-    if (moved < 100) throw new Error('таблица вбок не прокручивается — проверять закрепление не на чем');
-    const after = { head: (await first.boundingBox()).x, cell: (await cell.boundingBox()).x };
-    if (Math.abs(after.head - before.head) > 1) throw new Error(`закреплённый заголовок уехал на ${before.head - after.head} px`);
-    if (Math.abs(after.cell - before.cell) > 1) throw new Error(`закреплённая клетка уехала на ${before.cell - after.cell} px`);
-    const second = (await headers(page).nth(1).boundingBox()).x;
-    if (second >= before.head + (await first.boundingBox()).width)
-      throw new Error('вторая колонка не ушла под закреплённую — прокрутки не было');
-  });
+  // Раскладка: закреплённая колонка и плотность ([UI-78]) — в table-layout.mjs.
+  const layoutArgs = {
+    openPinned: async () => {
+      await open(page, { filter: seeded, pin: '1' });
+      await rowsBecome(page, TABLE_SEED.count, 'посеянные счета');
+    },
+    heads: () => headers(page), rows: () => dataRows(page),
+  };
+  await check('закреплённая колонка остаётся на месте при прокрутке вбок', () => pinnedColumnStaysOnScroll(page, layoutArgs));
+  await check('table-density-by-place: шапка 56, строка не ниже 48; закреплённая клетка открытой строки — фона строки и со слоем наведения',
+    () => densityByPlace(page, layoutArgs));
 
   // ── 6. Готовое представление «Реестр счетов» ──────────────────────────────────────────────────
 

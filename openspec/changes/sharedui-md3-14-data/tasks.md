@@ -58,12 +58,12 @@
 
 ## 1. PR 1: таблица данных
 
-- [ ] 1.1 `dataTable.ts`: переменные `--dt-head` / `--dt-row` на обёртке с прокруткой — 56/48 и 48/40
+- [x] 1.1 `dataTable.ts`: переменные `--dt-head` / `--dt-row` на обёртке с прокруткой — 56/48 и 48/40
   (`compact`), `scroll-pt-(--dt-head)`; клетка — `h-(--dt-row)` как минимум и `py-1`, внутренняя линия
   `min-h-[calc(var(--dt-row)-8px)] flex items-center` для колонок, прижатых к верху; шапка — фон `--dt-bg`,
   у прокрученного тела `surface-container`, подпись `title-small` `on-surface`; `dtCard` — outlined 12
   (`rounded-md`) [UI-78]. Проверка — vitest `DataGrid.test.tsx`: значения переменных по `density`
-- [ ] 1.2 `DataGrid`: фон строки `--dt-row-bg` / `--dt-row-fg` (открыта → `secondary-container`, `marked` →
+- [x] 1.2 `DataGrid`: фон строки `--dt-row-bg` / `--dt-row-fg` (открыта → `secondary-container`, `marked` →
   `warning-container`, иначе `--dt-bg`), закреплённая клетка — `background-color: var(--dt-row-bg);
   background-image: inherit`, без своего `text-on-surface`; итог — `surface-container` без черты; второй
   этаж шапки липнет к `top: var(--dt-head)` [UI-78]. Проверка — vitest: ожидания классов переписаны вручную,
@@ -72,7 +72,7 @@
   закреплённой клетки открытой строки равен фону строки, слой наведения на закреплённой клетке; таблица в
   окне (`compact`) — шапка 48, строка 40; `site-costs-smoke` (строка выше сгиба на 1366×768) поправлен;
   весь `npm run -s test:e2e:ci` зелёный [UI-78]. Проверка — описание PR
-- [ ] 1.4 `docs/UI.md`: «Таблицы» и «Плотность» — таблица D7 словами MD3 (высоты «не ниже»); data table —
+- [x] 1.4 `docs/UI.md`: «Таблицы» и «Плотность» — таблица D7 словами MD3 (высоты «не ниже»); data table —
   в разделе отступлений (D8), без слова «MD3» рядом [UI-78]. Проверка — ревью PR; `cd docs/tools && npm run
   toc`, если менялись главы
 
