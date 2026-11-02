@@ -3,9 +3,12 @@ import { Icon } from './Icon';
 import { Add, Delete } from './icons';
 import { Button, IconButton } from './Button';
 import {
-  dtCard, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThEdit,
+  dtCard, dtDensity, dtDensityCompact, dtLine, dtNum, dtPinnedCell, dtRow, dtRowTone, dtTable, dtTableSized, dtTdEdit,
+  dtTdSheet, dtThCompact,
 } from './dataTable';
+import { markScrolled, useStickyPadding } from './dataTableScroll';
 import type { DataGridDrag } from './DataGrid';
+import { FieldDensityContext } from './fieldBox';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -28,7 +31,10 @@ import { Tooltip } from './Tooltip';
  *   фокус встаёт на ту же кнопку соседней строки — иначе он падал бы на `body`, и с клавиатуры
  *   приходилось бы идти от начала страницы;
  * - **пустоту**: строк нет — сетка говорит это строкой во всю ширину, и кнопка «добавить» остаётся
- *   под ней, на своём месте.
+ *   под ней, на своём месте;
+ * - **размер полей клеток** ([UI-78], sharedui-md3-14): тело отдаёт полям размер `cell` контекстом — без
+ *   рамки и черты в покое, черта у фокуса. Строка не ниже 48, у листа — 40. Шапке размер не отдаётся: поле с
+ *   вводом в шапке колонки — плотное 40 с рамкой (В5).
  */
 
 export interface EditGridColumn<Row> {
@@ -99,7 +105,7 @@ export function EditGrid<Row>({
   className?: string;
   /**
    * «Лист»: поле во всю клетку, без отступов, с линиями между колонками — для сетки, где клетка и
-   * есть поле (строки массива в документе). Поля такой сетки рисуются без рамки.
+   * есть поле (строки массива в документе). Строка не ниже 40, шапка 48 (В5).
    */
   sheet?: boolean;
   /** Строка выбрана (флажком в своей колонке) — она подсвечена. */
@@ -121,6 +127,7 @@ export function EditGrid<Row>({
 
   const removable = onRemove !== undefined;
   const hasTotal = columns.some(c => c.total);
+  useStickyPadding(table, String(hasTotal));
   const span = columns.length + (numbered ? 1 : 0) + (removable ? 1 : 0);
 
   useLayoutEffect(() => {
@@ -180,7 +187,11 @@ export function EditGrid<Row>({
 
   const sized = columns.some(c => c.size !== undefined);
   const td = sheet ? dtTdSheet : dtTdEdit;
-  const th = (extra = '') => `${dtThEdit} ${sheet ? 'border-r' : ''} ${extra}`;
+  // Ширины в пикселях держит человек — подпись, которая в них не влезла, обрезается многоточием, а не лезет к соседу.
+  const th = (extra = '') => `${dtThCompact} ${sheet ? 'border-r' : ''} ${sized ? 'overflow-hidden text-ellipsis' : ''} ${extra}`;
+  // Однострочное содержимое клетки, прижатой к верху, — по центру строки (`dtLine`); у листа поле и есть клетка.
+  const line = (content: ReactNode) => (sheet ? content
+    : <div className={dtLine}><div className="min-w-0 flex-1">{content}</div></div>);
   // Закреплённая клетка липнет к своему краю и лежит НАД соседями: слой задан стилем, а не классом —
   // у шапки уже есть свой класс слоя, и два класса на одно свойство спорили бы порядком в CSS.
   const pinClass = (c: EditGridColumn<Row>) => (c.pin === 'start' ? 'sticky border-r'
@@ -191,9 +202,13 @@ export function EditGrid<Row>({
 
   return (
     <div className="space-y-2">
-      <div className={`${framed ? dtCard : 'overflow-auto'} ${className}`}>
+      <div className={`${framed ? dtCard : 'overflow-auto'} ${sheet ? dtDensityCompact : dtDensity} ${className}`}
+        onScroll={markScrolled}>
+        {/* Размер места — только телу. Шапка и итог его не берут, даже когда сетка стоит в клетке другой сетки
+            или в окне, открытом из клетки: поле в шапке колонки — плотное с рамкой (В5). */}
+        <FieldDensityContext.Provider value={null}>
         <table ref={table} aria-label={label} onKeyDown={onKeyDown}
-          className={`${dtTableCompact} ${sized ? dtTableSized : ''} ${minWidth}`}>
+          className={`${dtTable} ${sized ? dtTableSized : ''} ${minWidth}`}>
           <thead>
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}
@@ -205,13 +220,15 @@ export function EditGrid<Row>({
                   </th>
                 </Tooltip>
               ))}
-              {removable && <th className={th('w-8')}><span className="sr-only">Удалить</span></th>}
+              {/* Ширину колонки удаления назначает сетка: кнопка 32 с отступами клетки — 48. */}
+              {removable && <th className={th('w-12')}><span className="sr-only">Удалить</span></th>}
             </tr>
           </thead>
+          <FieldDensityContext.Provider value="cell">
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={span} className={`${dtTdEdit} py-3 text-center text-on-surface-variant`}>{empty}</td>
+                <td colSpan={span} className={`${td} px-2 text-center text-on-surface-variant`}>{line(empty)}</td>
               </tr>
             ) : rows.map((row, i) => {
               const chosen = selected?.(row, i) ?? false;
@@ -230,7 +247,7 @@ export function EditGrid<Row>({
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
                     onDrop: drag.onDrop,
                   } : {})}>
-                  {numbered && <th scope="row" className={`${td} text-left font-normal text-on-surface-variant tabular-nums`}>{i + 1}</th>}
+                  {numbered && <th scope="row" className={`${td} text-left font-normal text-on-surface-variant tabular-nums`}>{line(i + 1)}</th>}
                   {columns.map((c, ci) => {
                     const Cell = c.rowHeader ? 'th' : 'td';
                     return (
@@ -238,23 +255,26 @@ export function EditGrid<Row>({
                         style={pinStyle(c, 5)}
                         className={`${td} ${c.rowHeader ? 'text-left font-normal' : ''} `
                           + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? dtPinnedCell : ''}`}>
-                        {c.cell(row, i)}
+                        {line(c.cell(row, i))}
                       </Cell>
                     );
                   })}
                   {removable && (
                     <td className={`${td} text-center`}>
-                      <RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
+                      {/* По центру строки — линией, как остальные клетки: `align-middle` поверх `align-top` клетки
+                          не действует (в собранном CSS `align-top` идёт позже). */}
+                      {line(<RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
                         onClick={() => {
                           pendingFocus.current = { kind: 'removed', index: i };
                           onRemove(row, i);
-                        }} />
+                        }} />)}
                     </td>
                   )}
                 </tr>
               );
             })}
           </tbody>
+          </FieldDensityContext.Provider>
           {hasTotal && (
             <tfoot>
               <tr>
@@ -268,6 +288,7 @@ export function EditGrid<Row>({
             </tfoot>
           )}
         </table>
+        </FieldDensityContext.Provider>
       </div>
       {add && (
         <Button ref={addButton} variant="outlined" icon={<Icon icon={Add} size={18} />}
@@ -282,8 +303,11 @@ export function EditGrid<Row>({
   );
 }
 
-/** Итоговая строка: липнет к низу, как у `DataGrid`, — итог виден при любой длине черновика. */
-const FOOT = 'sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant px-2 py-1.5 text-body-small text-on-surface-variant align-top';
+/**
+ * Итоговая строка: липнет к низу, как у `DataGrid`, — итог виден при любой длине черновика. На
+ * surface-container без черты над ним, высотой со строку (вариант А, 02.11.2026).
+ */
+const FOOT = 'sticky bottom-0 z-10 bg-surface-container h-(--dt-row) px-2 py-1 text-label-large text-on-surface align-middle';
 
 function RemoveButton({ index, label, onClick }: { index: number; label: string; onClick: () => void }) {
   return <IconButton label={label} icon={Delete} danger data-remove={index} onClick={onClick} />;

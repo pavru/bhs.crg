@@ -71,28 +71,18 @@ export const dtLine = 'flex min-h-[calc(var(--dt-row)-2*var(--spacing)-1px)] ite
 export const dtSection = 'pt-3 pb-1 border-b border-outline-variant text-left text-body-small font-medium text-on-surface-variant';
 
 /**
- * Сетка правки (EditGrid) — до PR 2 sharedui-md3-14-data своя плотность: таблица с мелким текстом и
- * шапкой 2rem. Её классы ниже переходят на шкалу D7 вместе с полем `density="cell"`.
- */
-export const dtTableCompact = 'w-full border-separate border-spacing-0 text-body-small [--dt-head:2rem]';
-
-/**
- * Шапка сетки правки до PR 2: вид новой шапки, но подпись мелкая — label-medium (12, как прежняя), ведь
- * ширины колонок EditGrid заданы в пикселях под неё и подпись title-small в них не помещается.
- */
-export const dtThEdit = `${dtThBase} text-label-medium px-2`;
-
-/**
- * Клетка сетки правки (EditGrid): плотная, но прижата к верху — рядом с полем стоит то, что
+ * Клетка сетки правки (EditGrid): как у плотной таблицы, но прижата к верху — рядом с полем стоит то, что
  * растёт вниз (поле с пометкой, сумма с примечанием), и поля строки обязаны стоять на одной линии.
+ * Однострочное содержимое ставит по центру строки `dtLine`. Строка не ниже 48: поле клетки 40 ([UI-78]) с
+ * отступами 2 × 4 px и чертой строки 1 px даёт 49.
  */
-export const dtTdEdit = `px-2 py-1 border-b border-outline-variant align-top ${ICON_BUTTON_XS}`;
+export const dtTdEdit = `px-2 py-1 h-(--dt-row) border-b border-outline-variant align-top ${ICON_BUTTON_XS}`;
 
 /**
  * Сетка правки «листом» (EditGrid, `sheet`): поле во всю клетку без отступов и линии между колонками —
- * как в электронной таблице. Клетка с фокусом подсвечена: у поля без рамки другого признака нет.
+ * как в электронной таблице. Клетку в фокусе показывает черта самого поля клетки, а не заливка ([UI-78]).
  */
-export const dtTdSheet = `p-0 h-7 border-b border-r border-outline-variant align-middle focus-within:bg-primary-container ${ICON_BUTTON_XS}`;
+export const dtTdSheet = `p-0 h-(--dt-row) border-b border-r border-outline-variant align-middle ${ICON_BUTTON_XS}`;
 
 /**
  * Ширина таблицы с ширинами колонок, заданными числом (EditGrid, `size`): таблица шириной по сумме

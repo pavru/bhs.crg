@@ -24,6 +24,7 @@ import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
+import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -172,6 +173,9 @@ try {
     await cell('Наименование в счёте', 1).fill('Кабель из бумаги поставщика');
     await cell('Количество', 1).fill('100');
     await cell('Цена', 1).fill('48,50');
+    // Сетка правки по шкале D7 (вариант А, [UI-78]): строка не ниже 48, у поля в клетке рамки нет, черта — у фокуса.
+    await rowsAtLeast(page.getByRole('table', { name: 'Строки счёта' }).locator('tbody tr'), 48, 'строки счёта');
+    await oneLineOnFocus(cell('Количество', 1), 'количество строки счёта');
     await saveLines();
 
     // ⚠️ ПЕРЕЗАГРУЗКА: без неё проверка подтверждала бы состояние живого компонента.

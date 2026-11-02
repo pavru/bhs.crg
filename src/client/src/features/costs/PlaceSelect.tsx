@@ -1,5 +1,6 @@
 import { withArchiveWord } from '@/shared/ui/archive';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { useFieldDensity } from '@/shared/ui/fieldBox';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { choiceOf, fromChoice, OUTSIDE_SITES, placeName, type Place, type Places } from './places';
@@ -21,8 +22,9 @@ import { choiceOf, fromChoice, OUTSIDE_SITES, placeName, type Place, type Places
  * последним пунктом, после статей. Стоящая неизбранная стройка — группой «Не в избранном», а НЕ веткой
  * потери: потеря значит «нет в справочнике», а эта стройка в нём есть. Статьи не фильтруются.</p>
  *
- * <p>Поле стоит в плотных строках разноски — компактный `Select` (issue #1353). `placeholder` —
- * пункт «значения нет», а не только подсказка: выбрав его, цель снимают.</p>
+ * <p>Поле стоит в плотных строках разноски — компактный `Select` (issue #1353): в клетке сетки правки —
+ * поле клетки ([UI-78]), в шапке колонки матрицы — плотное с рамкой (В5). `placeholder` — пункт «значения
+ * нет», а не только подсказка: выбрав его, цель снимают.</p>
  */
 export function PlaceSelect({ value, places, label, placeholder = '— выберите —', disabled, className = 'w-full', onChange }: {
   value: Place;
@@ -38,6 +40,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
   const articles = places.articles?.filter(a => !a.archived || a.id === value.article);
   const list = value.article ? places.articles : places.sites;
   const id = value.article ?? value.construction;
+  const density = useFieldDensity(undefined, 'dense');
   const sites = useSiteChoices(places.sites, value.article ? null : value.construction);
   // Список ещё не пришёл — «удалена» было бы неправдой: «ещё не знаем» не то же, что «нет».
   const orphan = current === '' ? null
@@ -45,7 +48,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
       : list.some(item => item.id === id) ? null : placeName({ ...value, section: null }, places);
 
   return (
-    <Select density="dense" value={current} aria-label={label} disabled={disabled} className={className}
+    <Select density={density} value={current} aria-label={label} disabled={disabled} className={className}
       emptyItem={placeholder} stayOpenOn={REVEAL_CHOICE}
       onValueChange={choice => pickSite(choice, sites.reveal, picked => onChange(fromChoice(picked)))}>
       {orphan !== null && <SelectItem value={current}>{orphan}</SelectItem>}

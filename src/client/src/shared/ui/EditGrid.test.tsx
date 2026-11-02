@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EditGrid, type EditGridColumn } from './EditGrid';
 import { Select, SelectItem } from './Select';
+import { TextField } from './TextField';
 
 // Radix Select зовёт API указателя и прокрутки, которых в jsdom нет.
 beforeAll(() => {
@@ -207,12 +208,63 @@ describe('EditGrid (#1354)', () => {
     expect(screen.getByRole('columnheader', { name: 'Имя' }).style.width).toBe('120px');
   });
 
-  it('шапка до PR 2 — подпись label-medium: ширины колонок в пикселях заданы под мелкую', () => {
-    render(<EditGrid rows={[line('А')]} rowKey={r => r.key}
-      columns={[{ key: 'name', label: 'Имя', size: 120, cell: r => r.name }]} />);
+  it('шапка по шкале D7 — подпись title-small; строка не ниже 48, у листа — 40 (В5)', () => {
+    const { container, rerender } = render(<EditGrid rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
     const head = screen.getByRole('columnheader', { name: 'Имя' });
-    expect(head.className).toContain('text-label-medium');
-    expect(head.className).not.toContain('text-title-small');
+    expect(head.className).toContain('text-title-small');
+    expect(head.className).not.toContain('text-label-medium');
+    expect(container.querySelector('table')!.parentElement!.className).toContain('[--dt-row:48px]');
+    rerender(<EditGrid sheet rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    expect(container.querySelector('table')!.parentElement!.className).toContain('[--dt-row:40px]');
+    expect(screen.getByRole('cell', { name: 'А' }).className).toContain('h-(--dt-row)');
+  });
+
+  it('клетка листа в фокусе не заливается: фокус показывает черта поля', () => {
+    render(<EditGrid sheet rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    expect(screen.getByRole('cell', { name: 'А' }).className).not.toContain('bg-primary-container');
+  });
+
+  it('поле тела берёт размер клетки, поле шапки — нет', () => {
+    const { container } = render(<EditGrid rows={[line('А')]} rowKey={r => r.key} columns={[{
+      key: 'name', label: 'Имя', header: <TextField label="Имя в шапке" density="dense" />,
+      cell: (l, i) => <TextField label={`Имя, строка ${i + 1}`} value={l.name} onChange={() => {}} />,
+    }]} />);
+    const body = screen.getByLabelText('Имя, строка 1');
+    expect(body.className).toContain('pl-2');
+    expect(body.closest('td')!.querySelector('fieldset')).toBeNull();
+    expect(screen.getByLabelText('Имя в шапке').closest('th')!.querySelector('fieldset')).not.toBeNull();
+    expect(container.querySelectorAll('fieldset')).toHaveLength(1);
+  });
+
+  it('колонку удаления назначает сетка — 48 под кнопку 32 с отступами', () => {
+    render(<Draft initial={[line('А')]} />);
+    const remove = screen.getByRole('columnheader', { name: 'Удалить' });
+    expect(remove.className).toContain('w-12');
+    expect(remove.className).not.toContain('w-8');
+    // Кнопка — по центру строки линией клетки, как поля: `align-middle` поверх `align-top` клетки не действует.
+    const button = screen.getByRole('button', { name: 'Удалить строку 1' });
+    expect(button.closest('td')!.className).not.toContain('align-middle');
+    expect(button.parentElement!.parentElement!.className).toContain('items-center');
+  });
+
+  it('сетка в клетке другой сетки: размер места получает только тело, шапка — нет', () => {
+    const inner = <EditGrid label="Внутренняя" rows={[line('Б')]} rowKey={r => r.key} columns={[{
+      key: 'name', label: 'Имя', header: <TextField label="Шапка внутренней" />,
+      cell: (l, i) => <TextField label={`Внутри, строка ${i + 1}`} value={l.name} onChange={() => {}} />,
+    }]} />;
+    render(<EditGrid rows={[line('А')]} rowKey={r => r.key} columns={[{ key: 'name', label: 'Имя', cell: () => inner }]} />);
+    expect(screen.getByLabelText('Шапка внутренней').closest('th')!.querySelector('fieldset')).not.toBeNull();
+    expect(screen.getByLabelText('Внутри, строка 1').closest('td')!.querySelector('fieldset')).toBeNull();
+  });
+
+  it('итог — surface-container без черты над ним', () => {
+    render(<Draft initial={[line('А')]} />);
+    const total = document.querySelector('tfoot td')!;
+    expect(total.className).toContain('bg-surface-container');
+    expect(total.className).not.toContain('border-t');
   });
 
   it('выбранная строка подсвечена фоном открытой строки — secondary-container, как в DataGrid', () => {

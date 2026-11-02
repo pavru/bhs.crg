@@ -537,7 +537,9 @@ await check('admin-corrects-locked-invoice', async () => {
     // Режим едет телом всегда (#1498): без него сервер отказал бы, «не менять» из отсутствия он не читает.
     if (response.request().postDataJSON()?.vatMode !== 'Included')
       throw new Error(`тело исправления без режима счёта: ${response.request().postData()?.slice(0, 200)}`);
-    await page.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
+    // `.first()`: Radix Toast повторяет текст в живой области для диктора (role="status"), и копия успевает
+    // появиться к проверке — строгий локатор видел два элемента (CI PR #1730, как в site-picker-checks.mjs).
+    await page.getByText(/Исправление записано: версия 1 ушла в историю/).first().waitFor({ timeout: 10_000 });
     if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
 
     // История на форме (PR 6b-2): записанное исправление видно сразу — с версией и причиной.

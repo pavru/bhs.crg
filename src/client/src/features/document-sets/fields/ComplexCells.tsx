@@ -12,7 +12,6 @@ import { DateInput } from '@/shared/ui/DateInput';
 import type { CatalogScope, DocumentType, EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
 import { type SchemaField } from '@/shared/api/schema';
-import { CELL_INPUT } from './constants';
 import { RefPickerModal } from './RefPickerModal';
 import { ArchivedRefMark } from './ArchivedRefs';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -20,6 +19,7 @@ import { SuggestField } from '@/shared/ui/SuggestField';
 import { useSuggestSource } from './suggestContext';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { cellLine, fieldBox } from '@/shared/ui/fieldBox';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -37,11 +37,12 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
   const ref = isFieldRef(value) ? value : null;
   return (
     <div className="flex items-center w-full h-full">
+      {/* Вид поля клетки листа ([UI-78]): фокус — чертой `primary` под клеткой, а не заливкой. */}
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
+        className={`flex-1 min-w-0 flex items-center gap-1 ${fieldBox('cell')} outline-none ${cellLine()}`}>
         {ref
-          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-body-small truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
-          : <span className="text-body-small text-on-surface-variant">—</span>
+          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
+          : <span className="text-on-surface-variant">—</span>
         }
       </button>
       {ref && (
@@ -99,30 +100,27 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
-      <Select variant="inline" className="w-full h-full px-1.5 text-body-small rounded-none focus:bg-primary-container"
-        aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
+      <Select density="cell" aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
     );
   }
   if (field.type === 'date') {
-    return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} compact
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-primary-container" />;
+    return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} density="cell" className="w-full" />;
   }
   // primitive-тип на базе date (issue #60) — иначе рендерился обычным текст-инпутом без DateInput/точности
   if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
-    return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} compact
+    return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} density="cell" className="w-full"
       precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
-      min={primitiveTypeDef.constraints.minDate} max={primitiveTypeDef.constraints.maxDate}
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-primary-container" />;
+      min={primitiveTypeDef.constraints.minDate} max={primitiveTypeDef.constraints.maxDate} />;
   }
-  // Без источника `SuggestField` — голый `<input>` клетки: подпись ему — `aria-label` (у клетки своей нет).
+  // Поле клетки ([UI-78]): подпись — для диктора (у клетки своей нет), ↓ при закрытом списке — переход по строкам.
   return (
-    <SuggestField source={source} compact label={field.title}
+    <SuggestField source={source} density="cell" label={field.title}
       type={field.type === 'number' ? 'number' : 'text'}
       value={strVal}
       onChange={v => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v)}
-      className={CELL_INPUT}
+      className="tabular-nums"
     />
   );
 }

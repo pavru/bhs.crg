@@ -24,6 +24,7 @@
 import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog, named } from './harness.mjs';
 import { sheetDrawn } from './pdf-viewer-checks.mjs';
 import { previewKeepsPage } from './document-preview-checks.mjs';
+import { rowsAtLeast } from './edit-grid-layout.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -78,6 +79,8 @@ await check('array-table-opens', async () => {
 await check('array-table-rows-on-first-render', async () => {
   const rows = await table.locator('tbody tr').count();
   if (rows !== WORKS_ROWS) throw new Error(`ожидали ${WORKS_ROWS} строк, нашли ${rows}`);
+  // Лист — строка не ниже 40 (было 28, В5; [UI-78]).
+  await rowsAtLeast(table.locator('tbody tr'), 40, 'лист массива');
 });
 
 // Ширины колонок человек задаёт руками, и переживать закрытие таблицы они обязаны — до ревью #861
