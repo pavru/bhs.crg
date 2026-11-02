@@ -168,7 +168,6 @@
     "shared/ui/Calendar.tsx": 2,
     "shared/ui/DataGrid.tsx": 1,
     "shared/ui/DateInput.tsx": 1,
-    "shared/ui/SearchInput.tsx": 1,
     "shared/ui/TypePickerField.tsx": 1
   },
   "button-size": {},
@@ -231,8 +230,7 @@
     "shared/ui/BottomNav.tsx": 1,
     "shared/ui/ListDetailShell.tsx": 1,
     "shared/ui/Markdown.tsx": 2,
-    "shared/ui/PageHeader.tsx": 4,
-    "shared/ui/SectionRail.tsx": 3,
+    "shared/ui/SectionRail.tsx": 1,
     "shared/ui/SuggestBox.tsx": 1
   },
   "lucide-import": {},

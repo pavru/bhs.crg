@@ -61,7 +61,7 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
           <div className="flex-1 min-h-0 flex">
             <nav aria-label={header.title} data-testid="ld-nav"
               // Под концом списка — место для плавающей кнопки, пока она есть (#1434, `--fab-clearance`).
-              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-outline-variant flex flex-col bg-surface-container-low pb-[var(--fab-clearance,0px)] ${
+              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-outline-variant flex flex-col bg-surface pb-[var(--fab-clearance,0px)] ${
                 onDetail ? '@max-2xl/ld:hidden' : ''}`}>
               {nav}
             </nav>
@@ -89,7 +89,7 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 }) {
   return (
     <div className="p-3 shrink-0">
-      <SearchInput value={value} onChange={onChange} placeholder={placeholder} rounded="full" />
+      <SearchInput value={value} onChange={onChange} placeholder={placeholder} />
     </div>
   );
 }

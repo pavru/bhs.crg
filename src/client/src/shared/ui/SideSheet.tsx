@@ -8,6 +8,7 @@ import { useHistoryLayer } from './historyLayers';
 import { Close } from './icons';
 import { focusFromLayer } from './layerFocus';
 import { FieldDensityContext } from './fieldBox';
+import { InLayerContext } from './layerPlace';
 
 /**
  * Боковая панель — side sheet MD3 ([UI-77], sharedui-md3-13), шириной 400, заголовок `title-large`, крестик у
@@ -79,7 +80,7 @@ function ModalSideContent({ title, closeLabel, onClose, actions, children }: {
       }}>
       <SheetHeader title={<Dialog.Title className={`truncate ${SHEET_TITLE}`}>{title}</Dialog.Title>} actions={actions}
         close={<IconButton label={closeLabel} icon={Close} onClick={onClose} />} />
-      <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div>
+      <InLayerContext.Provider value><div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div></InLayerContext.Provider>
     </Dialog.Content>
   );
 }
@@ -99,7 +100,7 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
   }, [opener]);
 
   const closeButton = <IconButton label={closeLabel} ref={close} icon={Close} onClick={onClose} />;
-  const body = <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div>;
+  const body = <InLayerContext.Provider value><div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div></InLayerContext.Provider>;
   if (narrow) return (
     // Во весь экран — окно без затемнения: Esc, ловушку фокуса и страницу вне Tab и читалки даёт Radix.
     <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>

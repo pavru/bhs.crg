@@ -37,7 +37,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   return (
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-body-small text-on-surface-variant state-layer focus-ring">
+        className="w-full flex items-center gap-2 px-4 py-2 rounded-full text-left text-body-small text-on-surface-variant state-layer focus-ring">
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
         <span>{caption}</span>
       </button>
@@ -45,7 +45,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label }) => (
             <NavLink key={to} to={to} onClick={guardedClick(to)}
-              className={({ isActive }) => panelLink(isActive, true)}>
+              className={({ isActive }) => panelLink(isActive)}>
               <span className="truncate">{label}</span>
             </NavLink>
           ))}

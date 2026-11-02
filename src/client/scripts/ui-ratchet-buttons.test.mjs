@@ -81,6 +81,7 @@ describe('храповик интерфейса: dense-scope и icon-button в s
     expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/DateInput.tsx' })).toEqual({});
     expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/OutlinedField.tsx' })).toEqual({});
     expect(only('dense-scope', text, { dir: 'features', file: 'features/document-sets/editor/SourceBindingTrigger.tsx' })).toEqual({});
+    expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/SearchInput.tsx' })).toEqual({});
   });
 
   it('своя кнопка-иконка в shared/ui — нарушение; крестик чипа и сам Button.tsx — нет', () => {

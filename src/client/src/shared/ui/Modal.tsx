@@ -17,6 +17,7 @@ import { useWindowSteps } from './windowSteps';
 
 import { FOOTER_ROW } from './ModalRoles';
 import { FieldDensityContext } from './fieldBox';
+import { InLayerContext } from './layerPlace';
 
 export { ModalAction, ModalButtons, ModalNote, ModalPrimary } from './ModalRoles';
 
@@ -285,6 +286,7 @@ function ModalBody({
   // сквозь портал, и окно, открытое из клетки сетки правки, рисовало бы свои поля полями клетки.
   return (
     <FieldDensityContext.Provider value={null}>
+    <InLayerContext.Provider value>
     <Dialog.Portal>
         <Dialog.Overlay
           className={DIALOG_SCRIM}
@@ -423,6 +425,7 @@ function ModalBody({
           </ModalControlContext.Provider>
         </Dialog.Content>
     </Dialog.Portal>
+    </InLayerContext.Provider>
     </FieldDensityContext.Provider>
   );
 }
