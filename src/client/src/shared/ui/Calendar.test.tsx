@@ -310,13 +310,68 @@ describe('Calendar: вид docked', () => {
     expect(screen.getByRole('button', { name: /^Ноябрь 2024/ })).toBeTruthy();
   });
 
-  it('Esc в списке из шапки — к дням; признак для слоя снят', () => {
-    const { container } = render(<Calendar value="2026-11-12" onSelect={() => {}} />);
+  it('Esc в списке из шапки — к дням; поле узнаёт, что список открыт и закрыт', () => {
+    const onHeaderList = vi.fn();
+    render(<Calendar value="2026-11-12" onSelect={() => {}} onHeaderList={onHeaderList} />);
+    expect(onHeaderList).toHaveBeenLastCalledWith(false);
     fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
-    expect(container.querySelector('[data-calendar-back]')).toBeTruthy();
+    expect(onHeaderList).toHaveBeenLastCalledWith(true);
     fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'Escape' });
     expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
-    expect(container.querySelector('[data-calendar-back]')).toBeNull();
+    expect(onHeaderList).toHaveBeenLastCalledWith(false);
+  });
+
+  // Год в списке листается без дня: назад — с фокусом в границах, иначе он встал бы на неактивный день.
+  it.each([
+    ['Esc', () => fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор года' }), { key: 'Escape' })],
+    ['селектор', () => fireEvent.click(screen.getByRole('button', { name: /выбрать год$/ }))],
+  ])('назад из лет (%s) — фокус на дне в границах min', (_, back) => {
+    render(<Calendar value="2027-03-10" min="2026-06-15" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать год$/ }));
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор года' }), { key: 'ArrowUp' });
+    back();
+    expect(screen.getByRole('button', { name: /^Июнь 2026/ })).toBeTruthy();
+    const focused = document.activeElement as HTMLButtonElement;
+    expect([focused.textContent, focused.disabled]).toEqual(['15', false]);
+  });
+
+  it('назад из месяцев — фокус в границах min, а не на первом числе', () => {
+    render(<Calendar value="2026-07-20" min="2026-06-15" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'ArrowUp' });
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'Escape' });
+    expect(screen.getByRole('button', { name: /^Июнь 2026/ })).toBeTruthy();
+    expect((document.activeElement as HTMLButtonElement).textContent).toBe('20');
+  });
+
+  it('стрелки в списке месяцев сохраняют день фокуса', () => {
+    render(<Calendar value="2026-11-20" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    const list = screen.getByRole('listbox', { name: 'Выбор месяца' });
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    fireEvent.keyDown(list, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: /^Декабрь 2026/ })).toBeTruthy();
+    expect(document.activeElement?.textContent).toBe('20');
+  });
+
+  it('в списке месяцев из шапки PageDown года не меняет — его там не видно', () => {
+    render(<Calendar value="2026-11-12" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'PageDown' });
+    fireEvent.click(option('Выбор месяца', 'Март'));
+    expect(screen.getByRole('button', { name: /^Март 2026/ })).toBeTruthy();
+  });
+
+  it('список лет: PageUp / PageDown — на десять; кольцо фокуса у строки без условия', () => {
+    render(<Calendar value="2026-01-01" precision="year" onSelect={() => {}} />);
+    const list = screen.getByRole('listbox', { name: 'Выбор года' });
+    fireEvent.keyDown(list, { key: 'PageDown' });
+    expect(document.activeElement?.textContent).toBe('2036');
+    fireEvent.keyDown(list, { key: 'PageUp' });
+    fireEvent.keyDown(list, { key: 'PageUp' });
+    expect(document.activeElement?.textContent).toBe('2016');
+    expect(option('Выбор года', '2016').className).toContain('focus-ring-inset-mark');
+    expect(option('Выбор года', '2017').className).not.toContain('focus-ring-inset-mark');
   });
 
   it('клавиши списка: ↓ на одну строку, End — к последней, Enter выбирает', () => {

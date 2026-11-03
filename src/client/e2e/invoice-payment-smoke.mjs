@@ -209,7 +209,8 @@ async function lastDayIsReachable() {
   const layer = page.locator('[data-radix-popper-content-wrapper] > [role="dialog"]');
   const at = await placedBox(layer, 'календарь');
   const view = page.viewportSize();
-  if (at.x < 8 || at.y < 0 || at.x + at.width > view.width - 8 || at.y + at.height > view.height + 0.5)
+  // Полпикселя — допуск дробных координат слоя; отступ 8 — со всех четырёх сторон.
+  if (at.x < 7.5 || at.y < 7.5 || at.x + at.width > view.width - 7.5 || at.y + at.height > view.height - 7.5)
     throw new Error(`календарь вышел за экран ${view.width}×${view.height}: ${JSON.stringify(at)}`);
   if (view.width >= 376 && Math.round(at.width) !== 360) throw new Error(`ширина календаря ${at.width}, а не 360`);
   const last = grid.getByRole('gridcell').locator('button').last();

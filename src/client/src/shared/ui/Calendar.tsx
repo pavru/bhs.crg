@@ -18,11 +18,13 @@ import { BASE, HEIGHT, LABEL, padding } from './buttonClasses';
  *
  * Шапка дней — два селектора `‹ месяц ▾ ›` `‹ год ▾ ›`: стрелки листают месяц и год, кнопка открывает
  * список на месте сетки. Выбор в списке, открытом из шапки, возвращает к прежнему виду и даты не ставит;
- * Esc в нём — тоже назад (поле не даёт Radix закрыть слой: признак `data-calendar-back` у корня).
+ * Esc в нём — тоже назад: открыт ли такой список, поле узнаёт из `onHeaderList` и не даёт Radix закрыть
+ * слой. Назад — с фокусом в границах min/max: в списке листали один год или месяц, а не день.
  *
  * «Сегодня» — день компании, а не браузера (issue #1463): кольцо в сетке и месяц, с которого открывается
  * пустое поле, — по `companyToday`. Дни — APG grid: строки `row`, клетки `gridcell` с `aria-selected`,
- * строка заголовков `columnheader`; месяцы и годы — listbox, ↑ ↓ по одному, Home / End, Enter.
+ * строка заголовков `columnheader`; месяцы и годы — listbox, ↑ ↓ по одному, Home / End, Enter, у лет
+ * PageUp / PageDown — на десять.
  *
  * Внизу — строка действий (issue #1463, вариант В): «Очистить» слева, «Сегодня» справа. Выбор календарь
  * не подтверждает — щелчок по дню сразу ставит дату, — поэтому «Отмена / OK» из MD3 здесь нет
@@ -38,7 +40,11 @@ type View = 'days' | 'months' | 'years';
 /** «Сегодня» по точности поля, а не по открытому виду: иначе кнопка обещала бы день, а ставила 01. */
 const TODAY_LABEL: Record<DatePrecision, string> = { day: 'Сегодня', month: 'Этот месяц', year: 'Этот год' };
 
-export function Calendar({ value, onSelect, precision = 'day', onClose, onClear, min, max, range }: {
+/** Строки списка лет — все допустимые годы; PageUp / PageDown листают его на десяток. */
+const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
+const YEAR_PAGE = 10;
+
+export function Calendar({ value, onSelect, precision = 'day', onClose, onClear, onHeaderList, min, max, range }: {
   /** Текущее значение — полный ISO YYYY-MM-DD или ''. */
   value: string;
   /** Выбор завершён → полный ISO (скрытые точностью части = 01, как в сегментном вводе). */
@@ -51,6 +57,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
    * календарь: обязательность и «не дату» знает оно.
    */
   onClear?: () => void;
+  /**
+   * Открыт ли список, открытый из шапки: Esc в нём вернёт к дням, а не закроет календарь. Слой поля
+   * слышит Esc раньше календаря — по этому знаку он не закрывается.
+   */
+  onHeaderList?: (open: boolean) => void;
   /** Самая ранняя и самая поздняя допустимые даты — полный ISO; нет — не ограничено. */
   min?: string;
   max?: string;
@@ -78,6 +89,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   /** Вид, к которому вернёт выбор или Esc в списке, открытом из шапки. */
   const back: View = view === 'years' && precision === 'month' ? 'months' : 'days';
   const fromHeader = view !== terminalView;
+  useLayoutEffect(() => { onHeaderList?.(fromHeader); }, [fromHeader, onHeaderList]);
   // Клавиатурный фокус (роллинг). d актуален в day-view; m — в day/month; y — везде.
   const [fy, setFy] = useState(clampYear(start.y));
   const [fm, setFm] = useState(start.m);
@@ -102,16 +114,27 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
   }, [fy, fm, fd, view]);
 
+  /** День фокуса в другом месяце — тот же, но не дальше его конца. */
+  const keepDay = (y: number, m: number) => Math.min(fd, daysInMonth(y, m));
+
   function selectDay(y: number, m: number, d: number) { onSelect(toISO(y, m, d)); onClose?.(); }
   function pickMonth(m: number) {
     if (precision === 'month') { onSelect(toISO(fy, m, 1)); onClose?.(); return; }
-    focusOn(fy, m, Math.min(fd, daysInMonth(fy, m)));
+    focusOn(fy, m, keepDay(fy, m));
     setView('days');
   }
   function pickYear(y: number) {
     if (precision === 'year') { onSelect(toISO(y, 1, 1)); onClose?.(); return; }
     // Год выбран → назад; день и месяц фокуса — в границах нового года.
-    focusOn(y, fm, Math.min(fd, daysInMonth(y, fm)), precision);
+    focusOn(y, fm, keepDay(y, fm), precision);
+    setView(back);
+  }
+  /**
+   * Назад из списка, открытого из шапки (Esc или его селектор): фокус — в границы min/max по точности
+   * вида, куда вернулись. Год в списке листается без дня, и без этого фокус встал бы на неактивный день.
+   */
+  function goBack() {
+    focusOn(fy, fm, keepDay(fy, fm), precision);
     setView(back);
   }
 
@@ -132,7 +155,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   function shiftMonth(delta: number) {
     const dt = new Date(fy, fm - 1 + delta, 1);
     const y = dt.getFullYear(), m = dt.getMonth() + 1;
-    focusOn(y, m, Math.min(fd, daysInMonth(y, m)));
+    focusOn(y, m, keepDay(y, m));
   }
 
   /** Номер дня в фокусе внутри недели языка: 0 — её первый день. */
@@ -154,7 +177,10 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     e.preventDefault();
   }
 
-  /** Клавиши списка: ↑ ↓ по одному, Home / End — к краю, PageUp / PageDown у месяцев — год. */
+  /**
+   * Клавиши списка: ↑ ↓ по одному, Home / End — к краю, PageUp / PageDown у месяцев — год, но только под
+   * селектором года: в списке из шапки года не видно, и листать его вслепую нельзя. День фокуса сохраняется.
+   */
   function onMonthsKey(e: React.KeyboardEvent) {
     let m = fm, y = fy;
     switch (e.key) {
@@ -162,17 +188,20 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
       case 'ArrowDown': m = Math.min(12, m + 1); break;
       case 'Home': m = 1; break;
       case 'End': m = 12; break;
-      case 'PageUp': y = clampYear(y - 1); break;
-      case 'PageDown': y = clampYear(y + 1); break;
+      case 'PageUp': case 'PageDown':
+        if (fromHeader) return;
+        y = clampYear(y + (e.key === 'PageUp' ? -1 : 1)); break;
       case 'Enter': case ' ': pickMonth(fm); e.preventDefault(); return;
       default: return;
     }
-    focusOn(y, m, 1, 'month'); e.preventDefault();
+    focusOn(y, m, keepDay(y, m), 'month'); e.preventDefault();
   }
   function onYearsKey(e: React.KeyboardEvent) {
     switch (e.key) {
       case 'ArrowUp': setFy(y => clampYear(y - 1)); break;
       case 'ArrowDown': setFy(y => clampYear(y + 1)); break;
+      case 'PageUp': setFy(y => clampYear(y - YEAR_PAGE)); break;
+      case 'PageDown': setFy(y => clampYear(y + YEAR_PAGE)); break;
       case 'Home': setFy(clampYear(MIN_YEAR)); break;
       case 'End': setFy(clampYear(MAX_YEAR)); break;
       case 'Enter': case ' ': pickYear(fy); break;
@@ -185,7 +214,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   function onRootKey(e: React.KeyboardEvent) {
     if (e.key !== 'Escape' || !fromHeader) return;
     e.preventDefault();
-    setView(back);
+    goBack();
   }
 
   /** Лента периода: место клетки в ней по точности вида — начало, середина, конец или вне. */
@@ -206,9 +235,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   const monthPrevOff = !!min && toISO(fy, fm, 1) <= min;
   const monthNextOff = !!max && toISO(fy, fm, daysInMonth(fy, fm)) >= max;
   const yearPrevOff = fy <= minY, yearNextOff = fy >= maxY;
-  const prevYear = () => view === 'months' ? focusOn(fy - 1, fm, 1, 'month') : shiftMonth(-12);
-  const nextYear = () => view === 'months' ? focusOn(fy + 1, fm, 1, 'month') : shiftMonth(12);
-  const toggle = (list: View) => setView(view === list ? back : list);
+  const prevYear = () => view === 'months' ? focusOn(fy - 1, fm, keepDay(fy - 1, fm), 'month') : shiftMonth(-12);
+  const nextYear = () => view === 'months' ? focusOn(fy + 1, fm, keepDay(fy + 1, fm), 'month') : shiftMonth(12);
+  const toggle = (list: View) => view === list ? goBack() : setView(list);
   const header = (
     <div className="flex items-center h-14">
       {precision === 'day' && (
@@ -286,10 +315,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
       </List>
     );
   } else {
-    const years = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
     body = (
       <List ref={gridRef} label="Выбор года" onKeyDown={onYearsKey}>
-        {years.map(y => {
+        {YEARS.map(y => {
           const place = precision === 'year' ? band(toISO(y, 1, 1), 'year') : null;
           const checked = fromHeader ? y === fy : (!!sel && sel.y === y) || place === 'start' || place === 'end';
           return (
@@ -313,8 +341,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
 
   // 360 и не шире экрана без 8 по краям: место даёт слой (`DateInput`), колонки дней — доли.
   return (
-    <div className="w-90 max-w-full px-3 pb-1 select-none text-on-surface" onKeyDown={onRootKey}
-      data-calendar-back={fromHeader || undefined}>
+    <div className="w-90 max-w-full px-3 pb-1 select-none text-on-surface" onKeyDown={onRootKey}>
       {header}
       {body}
       {/* Строка действий — без черты над ней ([UI-80]). */}
@@ -382,7 +409,8 @@ function List({ ref, label, onKeyDown, children }: {
 
 /**
  * Строка списка — 48, галочка у отмеченного, отмеченное и период — на secondary-container. Неактивная за
- * границей min/max: фокус и выбор её обходят.
+ * границей min/max: фокус и выбор её обходят. Кольцо фокуса — без условия, как у дня: список открывают и
+ * мышью, а `:focus-visible` после щелчка молчит, и курсора клавиатуры не было бы видно.
  */
 function Option({ focus, checked, band, current, off, onPick, children }: {
   focus: boolean; checked: boolean; band: boolean; current: boolean; off: boolean; onPick: () => void; children: React.ReactNode;
@@ -390,8 +418,8 @@ function Option({ focus, checked, band, current, off, onPick, children }: {
   return (
     <div role="option" aria-selected={checked} aria-disabled={off || undefined} aria-current={current ? 'date' : undefined}
       data-focus={focus} tabIndex={focus ? 0 : -1} onClick={off ? undefined : onPick}
-      className={`flex items-center gap-4 h-12 px-4 text-body-large cursor-default state-layer focus-ring-inset disabled-content ${
-        off ? 'pointer-events-none' : ''} ${
+      className={`flex items-center gap-4 h-12 px-4 text-body-large cursor-default state-layer disabled-content ${
+        focus ? 'focus-ring-inset-mark' : ''} ${off ? 'pointer-events-none' : ''} ${
         checked || band ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
       {checked ? <Icon icon={Check} size={24} className="shrink-0" /> : <span aria-hidden className="size-6 shrink-0" />}
       {children}
