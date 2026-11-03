@@ -56,10 +56,11 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
               <Icon icon={DragIndicator} size={18} />
             </span>
           </Tooltip>
-          <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
-            className="border border-outline rounded-xs px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
-          <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
-            className="border border-outline rounded-xs px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+          {/* Видимое имя полей — шапка колонок выше; плотному полю подпись — для диктора ([UI-69]). */}
+          <TextField density="dense" label={`Код, вариант ${i + 1}`} placeholder="APPROVED" className="font-mono"
+            value={v.code} onChange={e => update(i, { code: e.target.value })} />
+          <TextField density="dense" label={`Отображаемое имя, вариант ${i + 1}`} placeholder="Согласован"
+            value={v.label} onChange={e => update(i, { label: e.target.value })} />
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />

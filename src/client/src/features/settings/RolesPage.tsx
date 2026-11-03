@@ -8,6 +8,8 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Banner } from '@/shared/ui/Banner';
+import { Card } from '@/shared/ui/Card';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useRoles, usePermissionCatalog, useCreateRole, useRenameRole, useSetRolePermissions, useDeleteRole,
@@ -135,8 +137,8 @@ export function RolesPage() {
       }
       detail={selected && (
         <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="px-6 py-4 pb-2 max-w-3xl">
-          <div className="flex items-start justify-between gap-4 mb-1">
+        <div className="px-6 pt-4 pb-3 max-w-3xl">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-title-medium text-on-surface flex items-center gap-2">
                 <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />
@@ -153,49 +155,54 @@ export function RolesPage() {
               )}
             </div>
           </div>
+        </div>
 
+        {/* Нейтральная заметка области — banner во всю ширину под шапкой роли (Р2-А). */}
+        {locked && (
+          <Banner tone="info">
+            <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
+            он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
+            обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
+            снятое управление пользователями оставило бы систему без администратора. Нужен
+            администратор с ограничениями — заведите отдельную роль и выдайте ей нужные галки.
+          </Banner>
+        )}
+
+        <div className={`px-6 pb-2 max-w-3xl ${locked ? 'pt-4' : ''}`}>
           <p className="text-body-medium text-on-surface-variant mb-4">
             Роль носят {selected.users} чел.{' '}
             {locked
-              ? 'Состав этой роли задан не здесь — см. ниже.'
+              ? 'Состав этой роли задан не здесь — см. выше.'
               : 'Правка состава действует немедленно у всех них — перезаходить в систему никому не нужно.'}
           </p>
-
-          {locked && (
-            <p className="text-body-medium text-on-surface-variant border border-outline-variant rounded-md bg-surface-container px-4 py-3 mb-4">
-              <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
-              он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
-              обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
-              снятое управление пользователями оставило бы систему без администратора. Нужен
-              администратор с ограничениями — заведите отдельную роль и выдайте ей нужные галки.
-            </p>
-          )}
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
               <h2 className="text-title-small text-on-surface-variant mb-2">{group.title}</h2>
-              <div className="border border-outline-variant rounded-md divide-y divide-surface-container bg-surface">
-                {group.permissions.map((p: PermissionInfo) => (
-                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
-                    locked ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <Checkbox boxClassName="mt-px" checked={checked.has(p.code)}
-                      disabled={locked} onChange={() => toggle(p.code)} />
-                    <span className="min-w-0">
-                      <span className="block text-body-medium text-on-surface">{p.gives}</span>
-                      <span className="block text-body-small text-on-surface-variant">Открывает доступ: {p.opens}</span>
-                      <span className="block text-label-small text-on-surface-variant font-mono mt-0.5">{p.code}</span>
-                      {p.usuallyWith.length > 0 && (
-                        <span className="block text-label-small text-on-surface-variant">
-                          обычно вместе с: {p.usuallyWith.join(', ')}
-                        </span>
-                      )}
-                      {p.readAll && (
-                        <span className="block text-label-small text-on-surface-variant">входит в право «читать всё»</span>
-                      )}
-                    </span>
-                  </label>
-                ))}
-              </div>
+              <Card flush>
+                <div className="divide-y divide-surface-container">
+                  {group.permissions.map((p: PermissionInfo) => (
+                    <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
+                      locked ? 'cursor-default' : 'cursor-pointer'}`}>
+                      <Checkbox boxClassName="mt-px" checked={checked.has(p.code)}
+                        disabled={locked} onChange={() => toggle(p.code)} />
+                      <span className="min-w-0">
+                        <span className="block text-body-medium text-on-surface">{p.gives}</span>
+                        <span className="block text-body-small text-on-surface-variant">Открывает доступ: {p.opens}</span>
+                        <span className="block text-label-small text-on-surface-variant font-mono mt-0.5">{p.code}</span>
+                        {p.usuallyWith.length > 0 && (
+                          <span className="block text-label-small text-on-surface-variant">
+                            обычно вместе с: {p.usuallyWith.join(', ')}
+                          </span>
+                        )}
+                        {p.readAll && (
+                          <span className="block text-label-small text-on-surface-variant">входит в право «читать всё»</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </Card>
             </section>
           ))}
 

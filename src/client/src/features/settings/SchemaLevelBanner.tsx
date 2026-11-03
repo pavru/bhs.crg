@@ -1,4 +1,4 @@
-import { Icon } from '@/shared/ui/Icon';
+import { Banner } from '@/shared/ui/Banner';
 import { LockIcon } from '@/shared/ui/icons';
 import type { DocumentType } from '@/shared/api/types';
 import { ownerTitle } from '@/shared/api/typeOwners';
@@ -15,6 +15,9 @@ import { NO_ACCESS, useAccess } from '@/shared/api/access';
  * Показывается только у типа, где ограничение ЕСТЬ. У открытых (а сегодня это все типы) экран не
  * меняется вовсе: полоса «вам всё можно» — шум, который научатся не замечать, и вместе с ней
  * перестанут замечать настоящую.
+ *
+ * Сообщение области — `Banner` ([UI-73], sharedui-md3-17, Р1-А): стоит под шапкой деталей типа, во всю
+ * ширину, а не плашкой посреди редактора после свойств — правило касается всего типа, а не одной схемы.
  */
 export function SchemaLevelBanner({ level, module }: { level: DocumentType['editLevel']; module: string }) {
   const { data: access } = useAccess();
@@ -28,16 +31,9 @@ export function SchemaLevelBanner({ level, module }: { level: DocumentType['edit
     : 'Можно добавлять свои НЕОБЯЗАТЕЛЬНЫЕ поля и править их. Поля модуля заперты: их ведёт он сам.';
 
   return (
-    // Цвет — из объявленных токенов: невыдуманного имени Tailwind не знает, и полоса осталась бы
-    // без фона и рамки, ничем не отличаясь от текста рядом (найдено ревью PR #1010).
-    <div className="flex items-start gap-2 rounded-sm border border-outline-variant bg-secondary-container px-3 py-2">
-      <Icon icon={LockIcon} size={18} className="text-on-secondary-container shrink-0 mt-0.5" />
-      {/* Текст берёт цвет из того же набора, что и подложка: fg2 рассчитан на фон страницы, и на
-          тональной подложке его контраст никто не проверял — ни в светлой теме, ни в тёмной. */}
-      <p className="text-body-small text-on-secondary-container">
-        <span className="font-medium">Тип модуля «{owner}»{level === 'Closed' ? ' — закрытый' : ' — расширяемый'}.</span>{' '}
-        {what}
-      </p>
-    </div>
+    <Banner tone="info" icon={LockIcon}>
+      <span className="font-medium">Тип модуля «{owner}»{level === 'Closed' ? ' — закрытый' : ' — расширяемый'}.</span>{' '}
+      {what}
+    </Banner>
   );
 }

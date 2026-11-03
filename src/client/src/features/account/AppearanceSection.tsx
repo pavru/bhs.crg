@@ -4,6 +4,7 @@ import {
 import { formatDate, formatDateTime, formatMoney, formatNumber } from '@/shared/format/format';
 import { ThemeToggle } from '@/shared/ui/ThemeToggle';
 import { RadioGroup } from '@/shared/ui/RadioGroup';
+import { Card } from '@/shared/ui/Card';
 import { useTheme } from '@/shared/ui/themeContext';
 
 const PREVIEW_DATE = new Date(2025, 11, 31, 14, 5, 0); // 31 дек 2025 14:05
@@ -63,34 +64,35 @@ export function AppearanceSection() {
             && <span className="text-body-small text-on-surface-variant font-mono">{navigator.language}</span>,
         }))} />
 
-      {/* Preview */}
-      <div className="rounded-md bg-surface-container-low border border-outline-variant p-3 space-y-1.5">
-        <p className="text-body-small font-medium text-on-surface-variant mb-2">Предпросмотр ({resolved})</p>
-        <div className="flex gap-3 text-body-medium">
-          <span className="text-on-surface-variant w-20 shrink-0">Дата:</span>
-          <span className="text-on-surface font-mono">
-            {formatDate(PREVIEW_DATE)}
-          </span>
+      {/* Предпросмотр — сводка, которую читают: filled. */}
+      <Card variant="filled" title={`Предпросмотр (${resolved})`}>
+        <div className="space-y-1.5">
+          <div className="flex gap-3 text-body-medium">
+            <span className="text-on-surface-variant w-20 shrink-0">Дата:</span>
+            <span className="text-on-surface font-mono">
+              {formatDate(PREVIEW_DATE)}
+            </span>
+          </div>
+          <div className="flex gap-3 text-body-medium">
+            <span className="text-on-surface-variant w-20 shrink-0">Дата и время:</span>
+            <span className="text-on-surface font-mono">
+              {formatDateTime(PREVIEW_DATE)}
+            </span>
+          </div>
+          <div className="flex gap-3 text-body-medium">
+            <span className="text-on-surface-variant w-20 shrink-0">Число:</span>
+            <span className="text-on-surface font-mono">
+              {formatNumber(PREVIEW_NUMBER)}
+            </span>
+          </div>
+          <div className="flex gap-3 text-body-medium">
+            <span className="text-on-surface-variant w-20 shrink-0">Валюта:</span>
+            <span className="text-on-surface font-mono">
+              {formatMoney(PREVIEW_NUMBER)}
+            </span>
+          </div>
         </div>
-        <div className="flex gap-3 text-body-medium">
-          <span className="text-on-surface-variant w-20 shrink-0">Дата и время:</span>
-          <span className="text-on-surface font-mono">
-            {formatDateTime(PREVIEW_DATE)}
-          </span>
-        </div>
-        <div className="flex gap-3 text-body-medium">
-          <span className="text-on-surface-variant w-20 shrink-0">Число:</span>
-          <span className="text-on-surface font-mono">
-            {formatNumber(PREVIEW_NUMBER)}
-          </span>
-        </div>
-        <div className="flex gap-3 text-body-medium">
-          <span className="text-on-surface-variant w-20 shrink-0">Валюта:</span>
-          <span className="text-on-surface font-mono">
-            {formatMoney(PREVIEW_NUMBER)}
-          </span>
-        </div>
-      </div>
+      </Card>
 
       {saved && <p className="text-body-medium text-success">Сохранено</p>}
       {failed && (

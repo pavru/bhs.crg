@@ -12,6 +12,8 @@ import { IconButton } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 // ─── Typst it-field autocomplete ──────────────────────────────────────────────
 
 type ItFieldTree = Map<string, { field: SchemaField; children?: ItFieldTree }>;
@@ -128,25 +130,14 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
     >
       <div className="flex-1 min-h-0 flex flex-col gap-3 px-6 pt-2 pb-4">
         <div className="grid grid-cols-2 gap-3 shrink-0">
-          <div>
-            <label className="block text-body-small font-medium text-on-surface-variant mb-1">Название варианта</label>
-            <input
-              value={draft.name}
-              onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-              placeholder="Название варианта"
-              className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
-            />
-          </div>
-          <div>
-            <label className="block text-body-small font-medium text-on-surface-variant mb-1">Имя функции Typst</label>
-            <input
-              value={draft.fnName}
-              onChange={e => setDraft(d => ({ ...d, fnName: e.target.value }))}
-              placeholder="typst_fn_name"
-              spellCheck={false}
-              className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
-            />
-          </div>
+          <TextField label="Название варианта"
+            value={draft.name}
+            onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+          />
+          <TextField label="Имя функции Typst" hint="Например, typst_fn_name" spellCheck={false} className="font-mono"
+            value={draft.fnName}
+            onChange={e => setDraft(d => ({ ...d, fnName: e.target.value }))}
+          />
         </div>
 
         <label className="block text-body-small font-medium text-on-surface-variant shrink-0">
@@ -236,21 +227,16 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
       {renders.map((r, i) => {
         const lines = r.block ? r.block.split('\n').length : 0;
         return (
-          <div key={i} className="border border-outline-variant rounded-md p-3 space-y-2 bg-surface-container-low">
+          <Card key={i}>
             <div className="flex items-center gap-2">
               <div className="flex-1 grid grid-cols-2 gap-2">
-                <input
+                <TextField density="dense" label="Название варианта" placeholder="Название варианта"
                   value={r.name}
                   onChange={e => update(i, { name: e.target.value })}
-                  placeholder="Название варианта"
-                  className="border border-outline rounded-sm px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
-                <input
+                <TextField density="dense" label="Имя функции Typst" placeholder="typst_fn_name" spellCheck={false} className="font-mono"
                   value={r.fnName}
                   onChange={e => update(i, { fnName: e.target.value })}
-                  placeholder="typst_fn_name"
-                  spellCheck={false}
-                  className="border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
               <IconButton label="Удалить вариант" danger onClick={() => remove(i)} icon={Delete} />
@@ -280,7 +266,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
                 Вызов: <code className="font-mono text-primary">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
               </p>
             )}
-          </div>
+          </Card>
         );
       })}
       <button type="button" onClick={add}

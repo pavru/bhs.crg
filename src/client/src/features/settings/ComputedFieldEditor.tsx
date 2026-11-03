@@ -5,6 +5,9 @@ import { nextTabStop, tabStops } from '@/shared/ui/tabStops';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 
 /** Редактор формулы расчётного поля (issue #368): текст выражения (JS) + пикер-typeahead «Вставить поле»,
  *  инлайн-валидация (синтаксис/неизвестное поле/цикл, #309/#311) и «Проверить на образце». */
@@ -96,8 +99,8 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
 
   return (
     <div className="rounded-sm border border-primary/30 bg-primary-container/40 p-2 space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-label-small text-on-surface-variant font-medium">Формула (JavaScript)</span>
+      {/* Подпись «Формула (JavaScript)» — у самого поля, в вырезе рамки ([UI-69]); здесь только действия. */}
+      <div className="flex items-center justify-end gap-2">
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
             className="text-label-small px-2 py-0.5 rounded-xs border border-outline text-on-surface-variant state-layer">
@@ -120,9 +123,8 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
                 onOpenAutoFocus={() => { focusMoved.current = false; }}
                 onCloseAutoFocus={e => { if (focusMoved.current) { focusMoved.current = false; e.preventDefault(); } }}
                 className={`z-50 w-64 max-w-(--radix-popover-content-available-width) rounded-md py-1 focus:outline-none ${LAYER_SURFACE}`}>
-                <input value={pickFilter} onChange={e => setPickFilter(e.target.value)}
-                  placeholder="Фильтр…" aria-label="Фильтр полей" spellCheck={false}
-                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+                <TextField density="dense" label="Фильтр полей" placeholder="Фильтр…" spellCheck={false} containerClassName="mx-2 mb-1"
+                  value={pickFilter} onChange={e => setPickFilter(e.target.value)} />
                 <div className="max-h-52 overflow-auto">
                   {filtered.length === 0
                     ? <p className="px-3 py-2 text-body-small text-on-surface-variant">Нет полей</p>
@@ -140,10 +142,10 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
           </Popover.Root>
         </div>
       </div>
-      <textarea ref={taRef} value={expr} spellCheck={false} rows={2}
+      <TextAreaField ref={taRef} label="Формула (JavaScript)" value={expr} spellCheck={false} rows={2}
         onChange={e => onChange({ expression: e.target.value })}
         placeholder={'get("Количество") * get("Цена")'}
-        className="w-full font-mono text-body-small border border-outline rounded-xs px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y" />
+        className="font-mono resize-y" />
 
       {/* Инлайн-статус валидации (#309/#311) */}
       {inCycle ? (
@@ -157,23 +159,22 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
       ) : null}
 
       {testOpen && (
-        <div className="rounded-xs border border-outline-variant bg-surface p-2 space-y-1.5">
+        <Card>
           {testRefs.length === 0
             ? <p className="text-label-small text-on-surface-variant">Формула не ссылается на поля.</p>
             : testRefs.map(k => (
-              <label key={k} className="flex items-center gap-2 text-label-small">
-                <code className="font-mono text-on-surface-variant w-28 truncate shrink-0">{k}</code>
-                <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
-                  placeholder="образцовое значение"
-                  className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
-              </label>
+              <div key={k} className="flex items-center gap-2 text-label-small">
+                <code aria-hidden className="font-mono text-on-surface-variant w-28 truncate shrink-0">{k}</code>
+                <TextField density="dense" label={k} placeholder="образцовое значение" containerClassName="flex-1"
+                  value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))} />
+              </div>
             ))}
           <div className="text-label-small pt-0.5">
             {testResult?.error
               ? <span className="text-error">Ошибка: {testResult.error}</span>
               : <span className="text-on-surface-variant">Результат: <strong className="font-mono">{String(testResult?.value ?? '—')}</strong></span>}
           </div>
-        </div>
+        </Card>
       )}
 
       <p className="text-label-small text-on-surface-variant">

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Delete, Upload, Warning } from '@/shared/ui/icons';
+import { Banner } from '@/shared/ui/Banner';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -64,11 +65,11 @@ export function BrandingSection() {
     try {
       const saved = await uploadLogo.mutateAsync(file);
       // Логотип сохранён, а значки из него не вышли — это не «успех»: зелёный тост здесь был бы
-      // отказом, переодетым в результат. Подробности — под логотипом, постоянной плашкой.
+      // отказом, переодетым в результат. Подробности — в начале раздела, постоянным banner.
       // Держится столько же, сколько отказ: загрузка идёт до пятнадцати секунд, и четыре секунды
       // обычного сообщения администратор, отвлёкшийся на это время, пропустил бы.
       if (saved.icons.state === 'failed')
-        toast.info('Логотип загружен, но значки из него построить не удалось — подробности под логотипом.',
+        toast.info('Логотип загружен, но значки из него построить не удалось — подробности в начале раздела.',
           { duration: FAILURE_TOAST });
       else toast.success('Логотип загружен.');
     } catch (e) {
@@ -82,9 +83,14 @@ export function BrandingSection() {
     data && (data.isCustom ? 'Пусто — вернуться к общему названию' : `Не задано, действует общее: ${data.productName}`),
     homeScreenNameHint(name),
   ].filter(Boolean).join('. ');
+  const failure = data && iconsFailure(data.icons);
 
   return (
     <CollapsibleSection title="Название и логотип" storageKey="branding" defaultOpen={false}>
+      {/* Отказ построения значков — сообщение раздела, banner в его начале (Р1-А). Warning, а не error:
+          логотип сохранён, действует запасное значение — стандартные значки. */}
+      {failure && <Banner tone="warning" data-testid="brand-icons-failed">{failure}</Banner>}
+
       <p className="text-body-small text-on-surface-variant">
         Видны в шапке и на странице входа. Название — ещё в заголовке вкладки и под значком
         установленного приложения; логотип — ещё и сам значок: на вкладке, в закладках и на экране
@@ -142,7 +148,7 @@ export function BrandingSection() {
           onChange={e => { void pickLogo(e.target.files?.[0]); e.target.value = ''; }}
         />
 
-        {data && <IconsNote icons={data.icons} named={data.isCustom} />}
+        {data && <ElongatedNote icons={data.icons} named={data.isCustom} />}
       </div>
 
       {/* Постоянно, а не «после смены»: секцию открывают, чтобы менять оформление, а вопрос «почему
@@ -197,7 +203,8 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   const busy = uploading || removing;
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
-      <div className="flex items-center justify-center w-16 h-16 rounded-md border border-outline-variant bg-surface overflow-hidden">
+      {/* Медиа без обводки на surface-container-highest (Р5-А): рамка поверх логотипа спорила бы с его краем. */}
+      <div className="flex items-center justify-center w-16 h-16 rounded-md bg-surface-container-highest overflow-hidden">
         {!logo && <span className="text-label-small text-on-surface-variant">нет</span>}
         {logo && unread && (
           <span className="text-label-small leading-tight text-center text-warning" data-testid="branding-logo-unread">
@@ -263,32 +270,21 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
       </figure>
 
       <figure className="flex flex-col items-center gap-1">
-        {/* Значок iPhone: он без своего скругления и прозрачности — скругляем сами, как система.
-            Рамка обязательна: белая плитка на светлой поверхности иначе не видна, и полей не
+        {/* Значок iPhone: он без своего скругления и прозрачности — скругляем сами, как система, ближней
+            ступенью шкалы (8 из 40 — система берёт около 22 %). Рамка обязательна: белая плитка на светлой поверхности иначе не видна, и полей не
             разглядеть. 40 точек: меньше 48 этот значок на телефоне не бывает, а 40 ещё помещается
             в строку. */}
         <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
-          className="rounded-[22%] border border-outline-variant" onError={fail} />
+          className="rounded-sm border border-outline-variant" onError={fail} />
         <figcaption className="text-label-small text-on-surface-variant">приложение</figcaption>
       </figure>
     </div>
   );
 }
 
-/** Слова под строкой логотипа: отказ построения — плашкой, вытянутый логотип — предупреждением. */
-function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
-  const failure = iconsFailure(icons);
-  if (failure)
-    // Warning, а не danger: логотип сохранён, действует запасное значение — стандартные значки.
-    // Заметность даёт заливка и то, что плашка стоит на месте ожидаемого результата — превью.
-    return (
-      <p role="status" data-testid="brand-icons-failed"
-        className="mt-3 flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-warning-container text-on-warning-container border border-outline-variant max-w-xl">
-        <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
-        <span>{failure}</span>
-      </p>
-    );
-
+/** Слова под строкой логотипа: вытянутый логотип — предупреждением. Отказ построения — banner раздела. */
+function ElongatedNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
+  if (iconsFailure(icons)) return null;
   const elongated = elongatedWarning(icons, named);
   if (!elongated) return null;
   // Без блокировки и без подтверждения перед загрузкой: вытянутый логотип — законный выбор, а путь

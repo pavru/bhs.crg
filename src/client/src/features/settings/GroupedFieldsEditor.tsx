@@ -8,6 +8,8 @@ import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/sh
 import { FieldCard } from './FieldBuilder';
 import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 import { StatusText } from '@/shared/ui/StatusText';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Группированный редактор собственных полей (issue #197 Фаза C): группы = карточки-контейнеры,
@@ -279,8 +281,7 @@ export function GroupedFieldsEditor({
           <div key={group.key}>
             {/* Место вставки при перетаскивании группы (перед этой карточкой) */}
             {!!dragGroupKey && !draggingThis && groupDropBefore === group.key && <DropLine />}
-            <div
-              className={`border rounded-md overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant bg-surface-container-low'}`}
+            <Card flush dragged={draggingThis} dropTarget={zone.highlighted}
               onDragOver={e => { if (dragGroupKey && !draggingThis) { e.preventDefault(); setGroupDropBefore(group.key); } }}
               onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
@@ -292,11 +293,9 @@ export function GroupedFieldsEditor({
                 onDragStart={() => setDragGroupKey(group.key)}
                 onDragEnd={endGroupDrag} icon={DragIndicator} />
               <Icon icon={Layers} size={18} className="text-on-surface-variant shrink-0" />
-              <input
+              <TextField density="dense" label="Название группы" placeholder="Название группы" containerClassName="flex-1 min-w-0"
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
-                placeholder="Название группы"
-                className="flex-1 min-w-0 text-body-medium font-medium border-b border-transparent hover:border-outline focus:border-primary bg-transparent outline-none"
               />
               <span className="text-body-small text-on-surface-variant shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
@@ -317,7 +316,7 @@ export function GroupedFieldsEditor({
               {members.map(k => renderMemberByKey(k, group.key, members))}
               {zone.appendLine && members.length > 0 && <DropLine />}
             </div>
-            </div>
+            </Card>
           </div>
         );
       })}
@@ -327,12 +326,10 @@ export function GroupedFieldsEditor({
       <div className="flex items-center gap-2"
         onDragOver={e => { if (dragGroupKey) { e.preventDefault(); setGroupDropBefore('__end__'); } }}
         onDrop={() => { if (dragGroupKey) { moveGroupTo(dragGroupKey, '__end__'); endGroupDrag(); } }}>
-        <input
+        <TextField density="dense" label="Название новой группы" placeholder="Название новой группы" containerClassName="flex-1"
           value={newGroupTitle}
           onChange={e => setNewGroupTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } }}
-          placeholder="Название новой группы"
-          className="flex-1 border border-dashed border-outline rounded-sm px-3 py-2 text-body-medium bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
         <Button type="button" variant="outlined" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
           Группа
@@ -343,8 +340,9 @@ export function GroupedFieldsEditor({
 }
 
 // ── Индикатор места вставки при drag&drop (issue: линия, куда ляжет поле) ──────
+// Черта 2 px `primary`, как у `drop-mark-*` строк таблиц; ореола-тени нет — тень только уровнем ([UI-66]).
 function DropLine() {
-  return <div aria-hidden className="h-0.5 rounded-full bg-primary mb-2 shadow-[0_0_0_1px_var(--color-primary)]" />;
+  return <div aria-hidden className="h-0.5 rounded-full bg-primary mb-2" />;
 }
 
 // ── Компактная read-only строка унаследованного поля внутри группы ────────────

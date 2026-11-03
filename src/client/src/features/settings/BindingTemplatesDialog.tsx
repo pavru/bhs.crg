@@ -10,9 +10,8 @@ import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/share
 import type { DataSetBindingTemplate, DocumentType } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { IconButton } from '@/shared/ui/Button';
-
-// Shared input styling.
-const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
+import { TextField } from '@/shared/ui/TextField';
+import { Card } from '@/shared/ui/Card';
 
 // ─── Template form ────────────────────────────────────────────────────────────
 
@@ -72,18 +71,9 @@ function TemplateForm({
 
   return (
     <div className="space-y-4">
-      {/* Название */}
-      <div>
-        <label className="block text-body-small font-medium mb-1 text-on-surface-variant">
-          Название шаблона
-        </label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Напр.: Список материалов"
-          className={`w-full ${FIELD_CLS}`}
-        />
-      </div>
+      {/* Название: пример — подсказкой под полем, место подсказки внутри занимает подпись. */}
+      <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)}
+        hint="Напр.: Список материалов" />
 
       {/* Режим */}
       <Select label="Режим" value={targetFieldKey} onValueChange={handleTargetChange}
@@ -119,11 +109,10 @@ function TemplateForm({
                   </span>
                   <span className="text-label-small font-mono text-on-surface-variant">{f.key}</span>
                 </div>
-                <input
+                <TextField density="dense" label={`Колонка в файле: ${f.title}`} containerClassName="flex-1"
                   value={columnMappings[f.key] ?? ''}
                   onChange={e => setMapping(f.key, e.target.value)}
                   placeholder="Название колонки в файле"
-                  className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface text-on-surface"
                 />
               </div>
             ))}
@@ -281,7 +270,7 @@ export function BindingTemplatesDialog({
       </p>
 
       {/* Список */}
-      <div className="rounded-lg overflow-hidden mb-4 border border-outline-variant bg-surface">
+      <Card flush className="mb-4">
         {isLoading ? (
           <div className="p-6 text-center text-body-medium text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -293,12 +282,11 @@ export function BindingTemplatesDialog({
             <TemplateRow key={t.id} template={t} docType={docType} allDocTypes={allDocTypes} />
           ))
         )}
-      </div>
+      </Card>
 
       {/* Форма добавления */}
       {adding ? (
-        <div className="rounded-lg p-4 border border-outline-variant bg-surface-container-low">
-          <p className="text-body-small font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
+        <Card title="Новый шаблон">
           <TemplateForm
             docType={docType}
             allDocTypes={allDocTypes}
@@ -306,7 +294,7 @@ export function BindingTemplatesDialog({
             onCancel={() => setAdding(false)}
             saving={create.isPending}
           />
-        </div>
+        </Card>
       ) : (
         <button
           onClick={() => setAdding(true)}

@@ -1,3 +1,4 @@
+import { Card } from '@/shared/ui/Card';
 import { Icon } from '@/shared/ui/Icon';
 import { KeyboardArrowDown, KeyboardArrowUp } from '@/shared/ui/icons';
 
@@ -17,7 +18,8 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-outline-variant rounded-md bg-surface overflow-hidden">
+    // Шапка-кнопка до краёв карточки — тело без отступов (`flush`, [UI-81]).
+    <Card flush>
       <button type="button" onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2.5 state-layer">
         <span className="text-on-surface-variant shrink-0">{icon}</span>
@@ -27,6 +29,6 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
       </button>
       {open && <div className="px-3 pb-3 pt-1 border-t border-outline-variant">{children}</div>}
-    </div>
+    </Card>
   );
 }

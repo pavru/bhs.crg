@@ -69,8 +69,6 @@ export function EmailSettingsSection() {
     catch (e) { setTestResult({ ok: false, error: apiError(e, 'Не удалось отправить.') }); }
   }
 
-  const fieldCls = "w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
-
   return (
     <CollapsibleSection title="Почта (SMTP)" storageKey="email" defaultOpen={false}>
       <p className="text-body-small text-on-surface-variant">
@@ -118,8 +116,8 @@ export function EmailSettingsSection() {
       <div className="border-t border-surface-container pt-3 space-y-2">
         <p className="text-body-medium font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-on-surface-variant" /> Тест-отправка</p>
         <div className="flex items-center gap-2">
-          <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
-            placeholder="Адрес для проверки" />
+          <TextField containerClassName="flex-1" label="Адрес для проверки" type="email" value={testTo}
+            onChange={e => setTestTo(e.target.value)} />
           <Button variant="outlined" className="shrink-0" onClick={handleTest} disabled={!testTo.trim()}
             loading={testEmail.isPending}>
             Отправить

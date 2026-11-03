@@ -15,6 +15,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Card } from '@/shared/ui/Card';
 
 /**
  * Фоновая сетка бренд-панели (по макету 2a) — тонкие линии 34×34.
@@ -55,55 +56,55 @@ export function LoginPage() {
           формы входа на два поля и предупреждение, и при `h-[600px]` с `overflow-hidden` ей
           срезало заголовок сверху и кнопку снизу — экран, которым система встречает
           установившего, оказывался нерабочим (issue #826). */}
-      <div
-        className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-xl bg-surface border border-outline-variant shadow-elevation-2"
-      >
-        {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
-        <div
-          className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-primary text-on-primary"
-          style={GRID_BG}
-        >
-          {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
-          <div className="flex items-center gap-3">
-            <BrandLogo className="w-12 h-12 rounded-2xl bg-on-primary/20" iconSize={24} />
-            <span className="text-headline-small font-medium">{productName}</span>
-          </div>
-          <div>
-            <div className="text-headline-medium">Исполнительная документация</div>
-            <p className="mt-4 text-body-large leading-relaxed text-on-primary/70 max-w-[300px]">
-              Единая система ведения и согласования исполнительной документации по объекту строительства.
-            </p>
-          </div>
-          <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
-            <div className="text-body-small text-on-primary/55">
-              {versionLabel || ' '}
+      <Card flush className="w-full max-w-md md:max-w-[900px]">
+        <div className="flex md:min-h-[600px]">
+          {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
+          <div
+            className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-primary text-on-primary"
+            style={GRID_BG}
+          >
+            {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
+            <div className="flex items-center gap-3">
+              <BrandLogo className="w-12 h-12 rounded-lg bg-on-primary/20" iconSize={24} />
+              <span className="text-headline-small font-medium">{productName}</span>
             </div>
-          </Tooltip>
-        </div>
-
-        {/* ── Форма (справа) ────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
-          {/* Компактный бренд для узких экранов (панель скрыта) */}
-          <div className="flex md:hidden items-center gap-3 mb-6">
-            <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
-            <span className="text-headline-small font-semibold text-primary leading-none">{productName}</span>
+            <div>
+              <div className="text-headline-medium">Исполнительная документация</div>
+              <p className="mt-4 text-body-large leading-relaxed text-on-primary/70 max-w-[300px]">
+                Единая система ведения и согласования исполнительной документации по объекту строительства.
+              </p>
+            </div>
+            <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
+              <div className="text-body-small text-on-primary/55">
+                {versionLabel || ' '}
+              </div>
+            </Tooltip>
           </div>
 
-          {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
-              через мгновение подменить его регистрацией — значит первым делом мигнуть в лицо
-              администратору формой, которой он воспользоваться не может. */}
-          {isPending ? <Waiting />
-            : registrationOpen ? <FirstAdminForm /> : <SignInForm />}
+          {/* ── Форма (справа) ────────────────────────────────────────────────── */}
+          <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
+            {/* Компактный бренд для узких экранов (панель скрыта) */}
+            <div className="flex md:hidden items-center gap-3 mb-6">
+              <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
+              <span className="text-headline-small text-primary leading-none">{productName}</span>
+            </div>
 
-          {version && (
-            <Tooltip content={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
-              <p className="md:hidden mt-6 text-center text-label-small text-on-surface-variant">
-                {versionLabel}
-              </p>
-            </Tooltip>
-          )}
+            {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
+                через мгновение подменить его регистрацией — значит первым делом мигнуть в лицо
+                администратору формой, которой он воспользоваться не может. */}
+            {isPending ? <Waiting />
+              : registrationOpen ? <FirstAdminForm /> : <SignInForm />}
+
+            {version && (
+              <Tooltip content={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
+                <p className="md:hidden mt-6 text-center text-label-small text-on-surface-variant">
+                  {versionLabel}
+                </p>
+              </Tooltip>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
