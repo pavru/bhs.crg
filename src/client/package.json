@@ -42,9 +42,9 @@
     "test:e2e:seed": "node e2e/seed.mjs",
     "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment site-costs costs table-chips table-view table-saved-views field-mapping planning-estimates"
   },
-  "//engines": "Нижнюю границу Node задаёт react-router 8 (>=22.22.0). Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE. Образ сборки — node:22-alpine, см. deploy/Dockerfile.web.",
+  "//engines": "Нижняя граница Node — версия из .nvmrc в корне: одна версия у разработчика, в CI и в образе сборки (deploy/Dockerfile.web), сверяет nodeVersion.test.ts. Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE.",
   "engines": {
-    "node": ">=22.22.0"
+    "node": ">=26.13.0"
   },
   "//overrides": "monaco-editor закрепляет dompurify ровно на 3.4.8, а в версиях до 3.4.11 включительно числятся обходы очистки разметки. Своей версии monaco без них пока нет, поэтому поднимаем зависимость сами: 3.4.x — исправительные выпуски, разметку Monaco чистит только в подсказках. Снять, когда monaco перейдёт на 3.4.12+.",
   "overrides": {

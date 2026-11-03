@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SplitButton, type SplitButtonProps } from './SplitButton';
 import { Button } from './Button';
 import { HEIGHT, variantClass } from './buttonClasses';
@@ -115,7 +115,8 @@ describe('SplitButton', () => {
     await openWithKeyboard(arrow());
     await act(async () => { fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' }); });
     expect(screen.queryByRole('menu')).toBeNull();
-    expect(document.activeElement).toBe(arrow());
+    // Фокус Radix возвращает таймером после закрытия, а не в том же такте (как в AccountMenu.test).
+    await waitFor(() => expect(document.activeElement).toBe(arrow()));
   });
 
   it('при loading обе части недоступны, меню не открыть; основная часть объясняет', async () => {
