@@ -37,7 +37,7 @@ export interface ToolbarProps {
 
 export function ViewerToolbar(p: ToolbarProps) {
   return (
-    // Высота 48: кнопки-иконки — 40 ([UI-68]), и при h-10 с border-t им осталось бы 39 px.
+    // Высота 64 — docked toolbar MD3: кнопки-иконки и поле номера по 40 ([UI-68]) и по 12 сверху и снизу.
     <div role="group" aria-label="Просмотр файла" data-testid="viewer-toolbar"
       className="shrink-0 h-16 flex items-center gap-1 px-2 bg-surface-container">
       {p.numPages > 1 && (
@@ -64,8 +64,22 @@ export function ViewerToolbar(p: ToolbarProps) {
 /**
  * Номер страницы — плотное поле 40 с числом страниц суффиксом «/ M» внутри: Enter переходит, Esc и уход
  * фокуса возвращают текущий, недопустимое молча возвращается к текущему. Подпись поля — для диктора,
- * а «/ M» он читает как «из M». Ширина — под три цифры номера и суффикс.
+ * а «/ M» он читает как «из M».
+ *
+ * Суффикс — текстом в поле, а не в слоте хвоста: слот держит место под кнопку (44, при касании 52), и в
+ * поле шириной под номер тот съедал бы цифры, а длинное «/ 1234» в него не входило. Ширина поля и отступ
+ * под суффикс — по числу цифр M: номер не длиннее числа страниц.
  */
+function pageFieldSize(numPages: number) {
+  const digits = String(numPages).length;
+  return {
+    // pl-3 + номер + 4 + «/ M» + pr-3.
+    width: `calc(1.75rem + ${2 * digits + 2}ch)`,
+    // Суффикс у правого края (right-3) и зазор 4 до номера.
+    paddingRight: `calc(1rem + ${digits + 2}ch)`,
+  };
+}
+
 function PageField({ page, numPages, onPage }: { page: number; numPages: number; onPage: (p: number) => void }) {
   const total = useId();
   // Пока поле не в работе, оно показывает текущую страницу; набранное живёт только во время правки.
@@ -81,16 +95,19 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(false); setText(String(page)); }
   };
+  const size = pageFieldSize(numPages);
   return (
-    <TextField label="Номер страницы" density="dense" containerClassName="w-20 shrink-0" aria-describedby={total}
-      inputMode="numeric" value={editing ? text : String(page)} className="tabular-nums"
-      onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
-      onChange={e => { setText(e.target.value); setEditing(true); }}
-      trailing={(
-        <span className="text-body-medium text-on-surface-variant tabular-nums whitespace-nowrap pointer-events-none">
+    // Своя единица ch — у шрифта поля: ширина считается в цифрах.
+    <div className="shrink-0 text-body-medium" style={{ width: size.width }}>
+      <TextField label="Номер страницы" density="dense" aria-describedby={total}
+        inputMode="numeric" value={editing ? text : String(page)} className="tabular-nums" style={{ paddingRight: size.paddingRight }}
+        onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
+        onChange={e => { setText(e.target.value); setEditing(true); }}>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-body-medium text-on-surface-variant tabular-nums whitespace-nowrap">
           <span aria-hidden>/ {numPages}</span><span id={total} className="sr-only">из {numPages}</span>
         </span>
-      )} />
+      </TextField>
+    </div>
   );
 }
 

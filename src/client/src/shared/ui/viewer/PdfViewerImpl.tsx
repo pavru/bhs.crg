@@ -174,7 +174,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   return (
     <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} onScroll={onScroll} data-testid="viewer-region"
-        className="relative flex-1 min-h-0 overflow-auto bg-surface-container focus-ring-inset">
+        className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {ready
           ? <PdfPages doc={doc} layout={l} scale={scale} rotation={rotation} range={range} prepared={prepared} />
           : <ViewerMessage state={state === 'ready' ? 'loading' : state} source={source} actions={actions} />}

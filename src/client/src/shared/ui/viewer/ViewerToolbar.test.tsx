@@ -44,6 +44,18 @@ describe('панель просмотрщика', () => {
     expect(described?.textContent).toBe('из 12');
   });
 
+  // Суффикс — не в слоте хвоста кнопки (44, при касании 52): там «/ 1234» налезал на номер, а на
+  // сенсорном экране в поле шириной 80 номер обрезался уже с трёх цифр.
+  it('поле номера по числу цифр: ширина и отступ под суффикс растут вместе с ним', () => {
+    render(<ViewerToolbar {...props({ numPages: 1234, page: 7 })} />);
+    const field = screen.getByRole('textbox', { name: 'Номер страницы' });
+    // jsdom переставляет слагаемые calc — сверяем их, а не строку целиком.
+    const terms = (v: string) => v.replace(/^calc\(|\)$/g, '').split(' + ').sort();
+    expect(terms(field.style.paddingRight)).toEqual(['1rem', '6ch']);
+    expect(terms((field.closest('[style*="width"]') as HTMLElement).style.width)).toEqual(['1.75rem', '10ch']);
+    expect(screen.getByText('/ 1234')).toBeTruthy();
+  });
+
   it('широкая — `−` и `+` на панели, в меню их нет', async () => {
     render(<ViewerToolbar {...props()} />);
     expect(screen.getByRole('button', { name: 'Уменьшить' })).toBeTruthy();

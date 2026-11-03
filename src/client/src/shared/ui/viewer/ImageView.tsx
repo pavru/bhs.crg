@@ -84,7 +84,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
   return (
     <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} data-testid="viewer-region" data-view="image"
-        className="relative flex-1 min-h-0 overflow-auto bg-surface-container focus-ring-inset">
+        className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {failed && <ViewerMessage state="broken" source={source} actions={actions} />}
         {!failed && !ready && <ViewerMessage state="loading" source={source} />}
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}

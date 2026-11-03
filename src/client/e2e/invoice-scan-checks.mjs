@@ -11,26 +11,40 @@ import { sheetDrawn } from './pdf-viewer-checks.mjs';
 const PDF_TYPE = 'application/pdf';
 
 /**
- * Вид листа и холста в текущей теме — сразу, как контур листа встал, до отрисовки: лист белый, край —
- * тень (светлая) или обводка (тёмная), холст — роль `surface-container` ([UI-18], md3-16).
+ * Следить за первым листом просмотрщика и записать его вид в миг появления контура — до отрисовки: лист
+ * белый, край — тень (светлая) или обводка (тёмная), холст — роль `surface-container` ([UI-18], md3-16).
+ * Наблюдатель срабатывает до кадра, а холст листа встаёт позже — по готовности отрисовки вне экрана, так
+ * что видна именно загрузка, а не нарисованный лист.
  */
-async function sheetLooks(page, sheet) {
-  const handle = await sheet.elementHandle();
-  return page.evaluate(el => {
-    const probe = document.createElement('div');
-    probe.style.background = 'var(--md-sys-color-surface-container)';
-    document.body.append(probe);
-    const role = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    const s = getComputedStyle(el);
-    const region = el.closest('[data-testid=viewer-region]');
-    return {
-      theme: document.documentElement.dataset.theme,
-      drawn: !!el.querySelector('canvas'),
-      sheet: s.backgroundColor, shadow: s.boxShadow, outline: s.outlineStyle,
-      canvas: region ? getComputedStyle(region).backgroundColor : null, role,
+async function watchFirstSheet(page) {
+  await page.evaluate(() => {
+    window.__sheetAtLoad = null;
+    const look = el => {
+      const probe = document.createElement('div');
+      probe.style.background = 'var(--md-sys-color-surface-container)';
+      document.body.append(probe);
+      const role = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      // Холст — первая непрозрачная заливка над листом: область прокрутки прозрачна, красит корень.
+      let canvas = null;
+      for (let n = el.parentElement; n && !canvas; n = n.parentElement) {
+        const bg = getComputedStyle(n).backgroundColor;
+        if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') canvas = bg;
+      }
+      const s = getComputedStyle(el);
+      return {
+        theme: document.documentElement.dataset.theme, drawn: !!el.querySelector('canvas'),
+        sheet: s.backgroundColor, shadow: s.boxShadow, outline: s.outlineStyle, canvas, role,
+      };
     };
-  }, handle);
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector('[data-testid=viewer-region] .bhs-sheet[data-page="1"]');
+      if (!el) return;
+      observer.disconnect();
+      window.__sheetAtLoad = look(el);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
 }
 
 export async function invoiceScanChecks(page, check, h) {
@@ -63,9 +77,11 @@ export async function invoiceScanChecks(page, check, h) {
     for (const scheme of ['light', 'dark']) {
       await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
       await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), scheme);
+      await watchFirstSheet(page);
       await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
       await h.named(`контур листа не встал (${scheme})`, () => sheet.waitFor({ timeout: 30_000 }));
-      const at = await sheetLooks(page, sheet);
+      const at = await (await page.waitForFunction(() => window.__sheetAtLoad, null, { timeout: 5_000 })).jsonValue();
+      if (at.drawn) throw new Error(`контур листа пойман уже нарисованным (${scheme}) — загрузка не проверена`);
       const edge = scheme === 'dark' ? at.outline === 'solid' && at.shadow === 'none'
         : at.outline === 'none' && at.shadow !== 'none';
       if (at.theme !== scheme || at.sheet !== 'rgb(255, 255, 255)' || !edge || at.canvas !== at.role)

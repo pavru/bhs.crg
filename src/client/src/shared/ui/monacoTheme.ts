@@ -31,9 +31,12 @@ export const ROLE = {
 /** Значение роли по имени её переменной (`ROLE.surface`) — строка `#rrggbb`. */
 type Role = (variable: string) => string;
 
-/** Прозрачность как суффикс `#rrggbbaa`: выделение — 16 %, неактивное — 8 %. */
-const ALPHA_16 = '29';
+/** Прозрачность как суффикс `#rrggbbaa`: выделение — 16 %, неактивное — 8 %; прочие — для ползунка и поиска. */
 const ALPHA_8 = '14';
+const ALPHA_16 = '29';
+const ALPHA_24 = '3d';
+const ALPHA_32 = '52';
+const ALPHA_50 = '80';
 
 /** Чистая функция «роли → тема»: всё, что видит пользователь, здесь, без DOM и Monaco. */
 export function bhsTheme(role: Role, dark: boolean): editor.IStandaloneThemeData {
@@ -67,7 +70,25 @@ export function bhsTheme(role: Role, dark: boolean): editor.IStandaloneThemeData
       'editor.lineHighlightBackground': role(ROLE.surfaceContainer),
       'editor.lineHighlightBorder': role(ROLE.surfaceContainer),
       'editorIndentGuide.background1': role(ROLE.outlineVariant),
+      'editorIndentGuide.activeBackground1': role(ROLE.onSurfaceVariant),
+      'editorBracketMatch.background': role(ROLE.primary) + ALPHA_16,
+      'editorBracketMatch.border': role(ROLE.primary),
       'editorError.foreground': role(ROLE.error),
+      // Найденное поиском: текущее — контейнером, прочие — им же вполсилы; без оранжевого базы.
+      'editor.findMatchBackground': role(ROLE.secondaryContainer),
+      'editor.findMatchHighlightBackground': role(ROLE.secondaryContainer) + ALPHA_50,
+      'editor.wordHighlightBackground': role(ROLE.primary) + ALPHA_8,
+      'editor.wordHighlightStrongBackground': role(ROLE.primary) + ALPHA_16,
+      // Полоса прокрутки и линейка обзора: ползунок — on-surface-variant с прозрачностью, как слой состояния.
+      'scrollbarSlider.background': role(ROLE.onSurfaceVariant) + ALPHA_16,
+      'scrollbarSlider.hoverBackground': role(ROLE.onSurfaceVariant) + ALPHA_24,
+      'scrollbarSlider.activeBackground': role(ROLE.onSurfaceVariant) + ALPHA_32,
+      'editorOverviewRuler.border': role(ROLE.outlineVariant),
+      // Поле поиска в окне поиска и рамка фокуса.
+      'input.background': role(ROLE.surface),
+      'input.foreground': role(ROLE.onSurface),
+      'input.border': role(ROLE.outlineVariant),
+      'focusBorder': role(ROLE.primary),
       // Подсказки, поиск и всплывающие окна — слой поверхностью меню ([UI-76]).
       'editorWidget.background': role(ROLE.surfaceContainer),
       'editorWidget.foreground': role(ROLE.onSurface),
