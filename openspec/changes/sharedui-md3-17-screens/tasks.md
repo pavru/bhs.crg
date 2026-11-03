@@ -102,8 +102,11 @@
   `legacy-shadow` здесь не стояли. «Много версий» шаблона — banner в начале группы, а не плашка под версиями;
   «документы без файла» — banner с действием «Вырезать документы заново». Листы PDF вынесены в
   `PdfPageTiles.tsx`, `PdfGroupingEditor` ушёл из `file-size-baseline.json` (422 строки кода)
-- [ ] 2.2 Живые прогоны (`field-mapping-smoke`, `table-*`) и весь `npm run -s test:e2e:ci` зелёные;
+- [x] 2.2 Живые прогоны (`field-mapping-smoke`, `table-*`) и весь `npm run -s test:e2e:ci` зелёные;
   снимки до и после. Проверка — описание PR
+  Сделано 04.11.2026 на стенде как в CI: все 21 набор `test:e2e:ci` зелёные. Снимки до и после, обе темы,
+  1366 и 375 — https://claude.ai/artifact/4JJrg2AfFtifwG137wspqk. Редактор разбиения PDF и построитель
+  XPath посев стенда не открывает (нужен разобранный движком PDF и XML-набор) — на снимках их нет
 
 ## 3. PR 3: `document-sets`, `quality-docs`, `catalog`, `common-data`
 
