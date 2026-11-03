@@ -79,7 +79,7 @@ export function ActivityCenter() {
         {/* Прокручивается только список уведомлений: шапка с «Отметить все» и «Очистить все» и
             раздел «Выполняется» стоят на месте, как у прежнего колокольчика (ревью PR #1450). */}
         <Popover.Content align="end" sideOffset={8} collisionPadding={8} aria-label="Активность"
-          className={`z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-2xl focus:outline-none ${LAYER_SURFACE}`}>
+          className={`z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-lg focus:outline-none ${LAYER_SURFACE}`}>
           {busy && (
             <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-outline-variant pt-1">
               <h2 id={jobsHeading} className="px-5 pt-2 text-body-large font-medium text-on-surface">Выполняется</h2>

@@ -24,6 +24,8 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { StatusText } from '@/shared/ui/StatusText';
 import { FIELD_CLS } from '@/shared/filter/fieldClass';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -191,10 +193,7 @@ export function FieldCard({
   };
 
   return (
-    <div
-      className={`border rounded-md overflow-hidden bg-surface transition-colors ${dragging ? 'border-primary' : 'border-outline-variant'}`}
-      onDragOver={onDragOver}
-      onDrop={onDrop}>
+    <Card flush dragged={dragging} onDragOver={onDragOver} onDrop={onDrop}>
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
       <div className="flex items-center gap-2 pl-2 pr-3 py-2 state-layer"
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -220,41 +219,25 @@ export function FieldCard({
       <div className="px-3 pb-3 pt-2 border-t border-outline-variant space-y-2">
       <div className="grid grid-cols-[1fr_1fr_160px_72px_76px] gap-2 items-center">
         {/* Title */}
-        <input
-          ref={titleRef}
-          value={field.title}
-          onChange={e => updateTitle(e.target.value)}
-          placeholder="Название"
-          className="border border-outline rounded-sm px-3 py-1.5 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
-        />
-        {/* Key — стабильный идентификатор хранения (issue #355) */}
-        <div className="relative">
-          <Tooltip content={keyLocked ? 'Идентификатор хранения — заморожен. Нажмите замок, чтобы изменить.' : undefined}>
-            <input
-              value={field.key}
-              onChange={e => { onChange({ key: e.target.value }); if (savedKey !== null) onKeyRename?.(savedKey, e.target.value); }}
-              readOnly={keyLocked}
-              placeholder="КлючПоля"
-              spellCheck={false}
-              className={`w-full border rounded-sm pl-3 pr-9 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 ${
-                keyConflict ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'
-              } ${keyLocked ? 'bg-surface-container/60 text-on-surface-variant cursor-default' : 'bg-surface'}`}
-            />
-          </Tooltip>
-          {keyConflict ? (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-body-small text-error">!</span>
-          ) : keyLocked ? (
-            <IconButton label="Изменить ключ (осторожно: осиротит данные документов)"
-              className="absolute right-0 top-1/2 -translate-y-1/2"
-              onClick={() => setConfirmUnlock(true)} icon={LockIcon} />
-          ) : keyAutoNew ? (
-            <Tooltip content="Ключ авто-генерируется из названия">
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
-                <Icon icon={LinkIcon} size={18} />
-              </span>
-            </Tooltip>
-          ) : null}
-        </div>
+        <TextField ref={titleRef} density="dense" label="Название" placeholder="Название"
+          value={field.title} onChange={e => updateTitle(e.target.value)} />
+        {/* Key — стабильный идентификатор хранения (issue #355). Занятый ключ — рамка и знак ошибки поля. */}
+        <Tooltip content={keyLocked ? 'Идентификатор хранения — заморожен. Нажмите замок, чтобы изменить.' : undefined}>
+          <TextField density="dense" label="Ключ поля" placeholder="КлючПоля" spellCheck={false}
+            value={field.key} readOnly={keyLocked} invalid={keyConflict}
+            onChange={e => { onChange({ key: e.target.value }); if (savedKey !== null) onKeyRename?.(savedKey, e.target.value); }}
+            className={`font-mono ${keyLocked ? 'cursor-default' : ''}`}
+            trailing={keyConflict ? undefined : keyLocked ? (
+              <IconButton label="Изменить ключ (осторожно: осиротит данные документов)"
+                onClick={() => setConfirmUnlock(true)} icon={LockIcon} />
+            ) : keyAutoNew ? (
+              <Tooltip content="Ключ авто-генерируется из названия">
+                <span className="flex text-on-surface-variant">
+                  <Icon icon={LinkIcon} size={18} />
+                </span>
+              </Tooltip>
+            ) : undefined} />
+        </Tooltip>
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <Tooltip content="Выбрать тип поля">
           <button type="button" onClick={() => setPickerOpen(true)}
@@ -361,9 +344,8 @@ export function FieldCard({
               density="dense" className="flex-1"
             />
           ) : (
-            <input
+            <TextField density="dense" label="Значение по умолчанию" placeholder="не задано" containerClassName="flex-1"
               type={field.type === 'number' ? 'number' : 'text'}
-              placeholder="не задано"
               value={field.defaultValue != null ? String(field.defaultValue) : ''}
               onChange={e => {
                 const v = e.target.value;
@@ -372,7 +354,6 @@ export function FieldCard({
                     : field.type === 'number' ? Number(v) : v,
                 });
               }}
-              className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             />
           )}
         </div>
@@ -382,15 +363,13 @@ export function FieldCard({
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] space-y-1.5">
           {(field.options ?? []).map((opt, oi) => (
             <div key={oi} className="flex items-center gap-1.5">
-              <input
+              <TextField density="dense" label={`Вариант ${oi + 1}`} placeholder={`Вариант ${oi + 1}`} containerClassName="flex-1"
                 value={opt}
                 onChange={e => {
                   const opts = [...(field.options ?? [])];
                   opts[oi] = e.target.value;
                   onChange({ options: opts });
                 }}
-                placeholder={`Вариант ${oi + 1}`}
-                className="flex-1 border border-outline rounded-xs px-2 py-1 text-body-small focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
               <IconButton label={`Удалить вариант ${oi + 1}`}
                 danger
@@ -460,7 +439,7 @@ export function FieldCard({
           onChange(changed ? { ...dec, defaultValue: undefined, options: undefined, tags: tagsForKind(field.tags, dec.type) } : dec);
         }}
       />
-    </div>
+    </Card>
   );
 }
 

@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { RadioGroup } from '@/shared/ui/RadioGroup';
-import { Cancel, CheckCircle, ChevronRight, Delete, Download, Info, KeyboardArrowDown, RestartAlt, Upload, Warning } from '@/shared/ui/icons';
+import { Cancel, ChevronRight, Delete, Download, KeyboardArrowDown, RestartAlt, Upload, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
+import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { formatBytes } from '@/shared/api/attachments';
@@ -395,27 +396,29 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
+      {/* Итог, пересчёт и предупреждения — сообщения окна, banner в его начале над отчётом (Р1-А). */}
+      <Banner tone={report.success ? 'success' : 'error'}>
+        {report.success
+          ? `Восстановление выполнено успешно (${total} записей)`
+          : 'Восстановление завершилось с ошибкой'}
+      </Banner>
+      {report.conversionNotice && <Banner tone="info">{report.conversionNotice}</Banner>}
+      {/* Banner говорит, ЧТО есть предупреждения; сам список — в прокрутке отчёта: banner не прокручивается,
+          и сотня строк в нём сжала бы отчёт до нуля, а нижние ушли бы за край окна. */}
+      {report.warnings.length > 0 && (
+        <Banner tone="warning">Предупреждения ({report.warnings.length}) — список ниже.</Banner>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
-        <div className={`flex items-center gap-3 rounded-md p-3 ${
-          report.success ? 'bg-success-container text-on-success-container' : 'bg-error-container text-on-error-container'
-        }`}>
-          {report.success
-            ? <Icon icon={CheckCircle} size={20} className="text-success shrink-0" />
-            : <Icon icon={Cancel} size={20} className="text-error shrink-0" />}
-          <span className="text-body-medium font-medium">
-            {report.success
-              ? `Восстановление выполнено успешно (${total} записей)`
-              : 'Восстановление завершилось с ошибкой'}
-          </span>
-        </div>
-
-        {report.conversionNotice && (
-          <div className="flex gap-2 rounded-md border border-primary-container bg-primary-container p-3 text-body-medium text-on-primary-container">
-            <Icon icon={Info} size={18} className="shrink-0 mt-0.5" />
-            <span>{report.conversionNotice}</span>
-          </div>
+        {report.warnings.length > 0 && (
+          <ul aria-label="Предупреждения" className="space-y-1 text-body-medium text-on-surface">
+            {report.warnings.map((w, i) => (
+              <li key={i} className="flex gap-2">
+                <span aria-hidden className="shrink-0 text-warning">·</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
         )}
-
         {report.success && (
           <div className="rounded-md border border-outline-variant overflow-hidden">
             <DataGrid framed={false} columns={STAT_COLUMNS} rowKey={r => r.label} rows={[
@@ -452,19 +455,6 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
           </div>
         )}
 
-        {report.warnings.length > 0 && (
-          <div className="rounded-md border border-outline-variant bg-warning-container p-3 space-y-1">
-            <p className="text-title-small text-warning mb-2">
-              Предупреждения ({report.warnings.length})
-            </p>
-            {report.warnings.map((w, i) => (
-              <div key={i} className="flex gap-2 text-body-medium text-warning">
-                <span className="shrink-0">·</span>
-                <span>{w}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

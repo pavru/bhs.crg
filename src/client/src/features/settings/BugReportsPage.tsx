@@ -5,6 +5,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { BugReport, Check, ChevronRight, Close, ContentCopy, ImageIcon, KeyboardArrowDown, OpenInNew, Send, Undo, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
@@ -248,12 +249,13 @@ function ReportBody({ report, githubConfigured }: {
               </Button>
             </div>
           </div>
-          <textarea
+          <TextAreaField
+            label="Текст (Markdown)"
             value={draft}
             onChange={e => setDraft(e.target.value)}
             rows={16}
             spellCheck={false}
-            className="w-full rounded-lg border border-outline bg-surface px-3 py-2 font-mono text-body-small leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="font-mono"
           />
           <p className="text-body-small text-on-surface-variant">
             Markdown. Уберите внутреннее — названия строек, организаций и объектов: репозиторий

@@ -9,6 +9,7 @@ import { DataObject } from '@/shared/ui/icons';
 import { ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { TextField } from '@/shared/ui/TextField';
+import { Card } from '@/shared/ui/Card';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
@@ -116,7 +117,8 @@ export function CreateForm({
           <p className="text-title-small text-on-surface-variant mb-2">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
-          <div className="border border-outline-variant rounded-md bg-surface-container-low px-3 py-2 space-y-1">
+          {/* Сводка только для чтения — filled ([UI-77]); строки — своим плотным столбцом, не зазором тела карточки. */}
+          <Card variant="filled"><div className="space-y-1">
             {parentEffectiveFields.map(f => (
               <div key={f.key} className="flex items-center gap-3 text-body-small text-on-surface-variant">
                 <span className="font-mono text-on-surface-variant w-36 truncate">{f.key}</span>
@@ -131,7 +133,7 @@ export function CreateForm({
                 </span>
               </div>
             ))}
-          </div>
+          </div></Card>
           <p className="text-body-small text-on-surface-variant mt-1">
             Управление унаследованными полями — после создания типа.
           </p>
