@@ -199,11 +199,22 @@ async function leavePayment(dialog) {
  * <p>Проверяем точкой, а не рамкой: `boundingBox` у обрезанной кнопки честный, её просто не видно.
  * `elementFromPoint` в центре последнего дня обязан попасть в сам календарь, а не в подвал окна.
  * Потом по этому дню щёлкаем: выбор доходит до поля — то, что когда-то ломал портал в body (#338).</p>
+ *
+ * <p>Docked-календарь ([UI-80]) — 360 и до 440 в высоту: на ноутбуке под полем столько места нет. Слой
+ * обязан уместиться в экран без 8 по краям (`collisionPadding`), а не уместившееся — прокручиваться
+ * внутри: последний день докручивается и только потом проверяется точкой.</p>
  */
 async function lastDayIsReachable() {
   const { dialog, grid } = await openPaymentCalendar();
+  const layer = page.locator('[data-radix-popper-content-wrapper] > [role="dialog"]');
+  const at = await placedBox(layer, 'календарь');
+  const view = page.viewportSize();
+  if (at.x < 8 || at.y < 0 || at.x + at.width > view.width - 8 || at.y + at.height > view.height + 0.5)
+    throw new Error(`календарь вышел за экран ${view.width}×${view.height}: ${JSON.stringify(at)}`);
+  if (view.width >= 376 && Math.round(at.width) !== 360) throw new Error(`ширина календаря ${at.width}, а не 360`);
   const last = grid.getByRole('gridcell').locator('button').last();
-  const box = await placedBox(last, 'календарь');
+  await last.scrollIntoViewIfNeeded();
+  const box = await placedBox(last, 'последний день');
   const covered = await page.evaluate(([x, y]) => {
     const hit = document.elementFromPoint(x, y);
     return hit?.closest('[data-radix-popper-content-wrapper]') ? null : (hit?.outerHTML.slice(0, 160) ?? 'за экраном');
@@ -220,6 +231,35 @@ async function lastDayIsReachable() {
 }
 
 await check('payment-date-calendar-not-clipped', lastDayIsReachable);
+// Ноутбук 1366×768 ([UI-80]): месяц из шести недель — 440, под полем окна «Оплата» места меньше.
+// Календарь виден целиком или прокручивается внутри себя — край экрана его не срезает.
+await check('payment-date-calendar-fits-laptop', async () => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  try { await lastDayIsReachable(); } finally { await page.setViewportSize({ width: 1500, height: 1000 }); }
+});
+// Список месяцев прокручивается к отмеченному сам и только сам: прокрутка ушла бы и в слой календаря
+// (у него своя по месту), и шапка с селектором уехала бы за край — так и было на первом снимке.
+await check('payment-date-calendar-month-list-keeps-header', async () => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  try {
+    const { dialog } = await openPaymentCalendar();
+    const layer = page.locator('[data-radix-popper-content-wrapper] > [role="dialog"]');
+    await layer.getByRole('button', { name: /выбрать месяц$/ }).click();
+    const list = layer.getByRole('listbox', { name: 'Выбор месяца' });
+    await list.waitFor({ timeout: 5_000 });
+    const [scrolled, selector, outer] = await Promise.all([
+      layer.evaluate(el => el.scrollTop),
+      layer.getByRole('button', { name: /выбрать месяц$/ }).boundingBox(),
+      layer.boundingBox(),
+    ]);
+    if (scrolled !== 0 || selector.y < outer.y)
+      throw new Error(`шапка календаря уехала: слой прокручен на ${scrolled}, селектор ${selector.y} выше слоя ${outer.y}`);
+    if (!(await list.getByRole('option', { selected: true }).isVisible())) throw new Error('отмеченный месяц не виден');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await leavePayment(dialog);
+  } finally { await page.setViewportSize({ width: 1500, height: 1000 }); }
+});
 // Телефон: окно там во весь экран и совпадает с экраном — обрезки не было и до #1521, так что это не
 // сторож обрезки. Проверяется другое: календарь помещается в 375 px (сдвиг `collisionPadding`), и
 // щелчок по дню ставит дату.
@@ -234,8 +274,9 @@ await check('payment-date-calendar-fits-phone', async () => {
 await check('payment-date-calendar-tab-goes-to-next-field', async () => {
   const { dialog, grid } = await openPaymentCalendar();
   await placedBox(grid, 'календарь');
-  for (let i = 0; i < 6 && await grid.isVisible(); i++) await page.keyboard.press('Tab');
-  if (await grid.isVisible()) throw new Error('шесть нажатий Tab не вывели фокус из календаря');
+  // Остановок в календаре — шесть кнопок шапки docked ([UI-80]), день и строка действий: двенадцати хватает.
+  for (let i = 0; i < 12 && await grid.isVisible(); i++) await page.keyboard.press('Tab');
+  if (await grid.isVisible()) throw new Error('двенадцать нажатий Tab не вывели фокус из календаря');
   await focusLandsOn(dialog.getByLabel('Платёжный документ'), 'Tab из календаря не дошёл до «Платёжного документа»');
   await leavePayment(dialog);
 });

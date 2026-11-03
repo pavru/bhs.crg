@@ -165,7 +165,6 @@
     "features/settings/typeEditorShell.tsx": 1
   },
   "icon-button": {
-    "shared/ui/Calendar.tsx": 2,
     "shared/ui/DataGrid.tsx": 1,
     "shared/ui/DateInput.tsx": 1,
     "shared/ui/TypePickerField.tsx": 1

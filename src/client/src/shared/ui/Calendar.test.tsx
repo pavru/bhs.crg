@@ -13,6 +13,11 @@ vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
 
 afterEach(() => { cleanup(); locale = 'ru-RU'; vi.useRealTimers(); setCompanyTimeZone(null); });
 
+/** Подписи строк списка месяцев или лет. */
+const options = (name: string) => within(screen.getByRole('listbox', { name })).getAllByRole('option').map(o => o.textContent);
+const option = (name: string, text: string) =>
+  within(screen.getByRole('listbox', { name })).getAllByRole('option').find(o => o.textContent === text)!;
+
 const weekdays = () => within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('columnheader')
   .map(d => d.textContent);
 
@@ -58,15 +63,17 @@ describe('Calendar: язык пользователя', () => {
     expect(onSelect).toHaveBeenLastCalledWith('2026-10-18'); // воскресенье — конец недели с понедельника
   });
 
-  it('месяцы точности «месяц» — по языку, без точки сокращения', () => {
+  it('месяцы точности «месяц» — полными названиями по языку, в шапке — сокращением без точки', () => {
     locale = 'en-US';
     render(<Calendar value="2026-10-01" precision="month" onSelect={() => {}} />);
-    const grid = screen.getByRole('grid', { name: 'Выбор месяца' });
-    expect(within(grid).getAllByRole('button').map(b => b.textContent)).toContain('Oct');
+    expect(options('Выбор месяца')).toContain('October');
     cleanup();
     locale = 'ru-RU';
     render(<Calendar value="2026-10-01" precision="month" onSelect={() => {}} />);
-    expect(within(screen.getByRole('grid', { name: 'Выбор месяца' })).getAllByRole('button').map(b => b.textContent)).toContain('Окт');
+    expect(options('Выбор месяца')).toContain('Октябрь');
+    cleanup();
+    render(<Calendar value="2026-09-18" onSelect={() => {}} />);
+    expect(screen.getByRole('button', { name: /выбрать месяц$/ }).textContent).toBe('Сен');
   });
 });
 
@@ -83,16 +90,17 @@ describe('Calendar: разметка сетки', () => {
     expect(selected.map(c => c.textContent)).toEqual(['18']);
   });
 
+  // Месяц и год — списком docked date picker ([UI-80], выбор владельца 03.11.2026), а не сеткой.
   it.each([
-    ['month' as const, 'Выбор месяца', '2026-10-01', 'Окт'],
-    ['year' as const, 'Выбор года', '2026-01-01', '2026'],
-  ])('%s: клетки по четыре в строке, выбранная — aria-selected', (precision, name, value, label) => {
+    ['month' as const, 'Выбор месяца', '2026-10-01', 'Октябрь', 12],
+    ['year' as const, 'Выбор года', '2026-01-01', '2026', 201],
+  ])('%s: listbox, отмечено значение — aria-selected и галочка', (precision, name, value, label, count) => {
     render(<Calendar value={value} precision={precision} onSelect={() => {}} />);
-    const grid = screen.getByRole('grid', { name });
-    const rows = within(grid).getAllByRole('row');
-    for (const row of rows) expect(within(row).getAllByRole('gridcell').length).toBeLessThanOrEqual(4);
-    const selected = within(grid).getAllByRole('gridcell').filter(c => c.getAttribute('aria-selected') === 'true');
-    expect(selected.map(c => c.textContent)).toEqual([label]);
+    const all = within(screen.getByRole('listbox', { name })).getAllByRole('option');
+    expect(all).toHaveLength(count);
+    const selected = all.filter(o => o.getAttribute('aria-selected') === 'true');
+    expect(selected.map(o => o.textContent)).toEqual([label]);
+    expect(selected[0].querySelector('svg')).toBeTruthy();
   });
 });
 
@@ -158,8 +166,8 @@ describe('Calendar: границы min/max', () => {
     render(<Calendar value="2026-10-14" min="2026-10-10" max="2026-11-25" onSelect={() => {}} />);
     expect((day('9') as HTMLButtonElement).disabled).toBe(true);
     expect((day('10') as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByRole('button', { name: 'Назад' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Вперёд' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Предыдущий месяц' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Следующий месяц' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('фокус стрелкой упирается в границу, а не уходит на неактивный день', () => {
@@ -180,40 +188,44 @@ describe('Calendar: границы min/max', () => {
   it('без «Очистить» и «Сегодня» строки действий нет', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 21, 12));
-    const { container } = render(<Calendar value="" max="2026-01-31" onSelect={() => {}} />);
-    expect(container.querySelector('.border-t')).toBeNull();
+    render(<Calendar value="" max="2026-01-31" onSelect={() => {}} />);
+    expect(screen.queryByTestId('calendar-actions')).toBeNull();
   });
 
   it('точность «месяц»: месяц границы доступен, хотя её день позже 01', () => {
     render(<Calendar value="2026-09-01" precision="month" min="2026-07-15" max="2027-03-10" onSelect={() => {}} />);
-    const months = within(screen.getByRole('grid', { name: 'Выбор месяца' })).getAllByRole('button');
-    expect(months.filter(b => (b as HTMLButtonElement).disabled).map(b => b.textContent)).toEqual(['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн']);
+    const months = within(screen.getByRole('listbox', { name: 'Выбор месяца' })).getAllByRole('option');
+    expect(months.filter(o => o.getAttribute('aria-disabled') === 'true').map(o => o.textContent))
+      .toEqual(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь']);
   });
 
   it('«Вперёд» неактивна, если следующий месяц целиком за max', () => {
     render(<Calendar value="2026-11-14" min="2026-10-10" max="2026-11-25" onSelect={() => {}} />);
-    expect((screen.getByRole('button', { name: 'Вперёд' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Назад' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Следующий месяц' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Предыдущий месяц' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('месяцы: стрелка за max упирается в месяц границы', () => {
+  it('месяцы: ↓ и End за max упираются в месяц границы', () => {
     render(<Calendar value="2027-02-01" precision="month" max="2027-03-10" onSelect={() => {}} />);
-    const grid = screen.getByRole('grid', { name: 'Выбор месяца' });
-    fireEvent.keyDown(grid, { key: 'ArrowRight' });
-    fireEvent.keyDown(grid, { key: 'ArrowRight' });
-    expect(document.activeElement?.textContent).toBe('Мар');
-    fireEvent.keyDown(grid, { key: 'PageDown' });
-    expect(document.activeElement?.textContent).toBe('Мар');
+    const list = screen.getByRole('listbox', { name: 'Выбор месяца' });
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Март');
+    fireEvent.keyDown(list, { key: 'End' });
+    expect(document.activeElement?.textContent).toBe('Март');
+    fireEvent.keyDown(list, { key: 'PageDown' });
+    expect(document.activeElement?.textContent).toBe('Март');
   });
 
-  it('годы: за границами неактивны, PageDown упирается в год max', () => {
+  it('годы: за границами неактивны, End и Home упираются в годы max и min', () => {
     render(<Calendar value="2025-01-01" precision="year" min="2024-05-01" max="2026-03-10" onSelect={() => {}} />);
-    const grid = screen.getByRole('grid', { name: /год/i });
-    const years = within(grid).getAllByRole('button');
-    const off = (y: string) => (years.find(b => b.textContent === y) as HTMLButtonElement).disabled;
+    const list = screen.getByRole('listbox', { name: 'Выбор года' });
+    const off = (y: string) => option('Выбор года', y).getAttribute('aria-disabled') === 'true';
     expect([off('2023'), off('2024'), off('2026'), off('2027')]).toEqual([true, false, false, true]);
-    fireEvent.keyDown(grid, { key: 'PageDown' });
+    fireEvent.keyDown(list, { key: 'End' });
     expect(document.activeElement?.textContent).toBe('2026');
+    fireEvent.keyDown(list, { key: 'Home' });
+    expect(document.activeElement?.textContent).toBe('2024');
   });
 });
 
@@ -226,6 +238,121 @@ describe('Calendar: лента периода', () => {
     expect(day('12').className).toContain('bg-primary ');
     expect(day('24').className).toContain('bg-primary ');
     // Полоса ленты — у каждого дня с 12 по 24 включительно: 13 дней.
-    expect(container.querySelectorAll('span.bg-primary-container')).toHaveLength(13);
+    expect(container.querySelectorAll('span.bg-secondary-container')).toHaveLength(13);
+    // Дни между концами — цветом текста на ленте.
+    expect(day('18').className).toContain('text-on-secondary-container');
+  });
+
+  it('точность «месяц»: концы периода отмечены галочкой, середина — на ленте', () => {
+    render(<Calendar value="2026-03-01" precision="month" range={['2026-03-01', '2026-06-01']} onSelect={() => {}} />);
+    const all = within(screen.getByRole('listbox', { name: 'Выбор месяца' })).getAllByRole('option');
+    expect(all.filter(o => o.getAttribute('aria-selected') === 'true').map(o => o.textContent)).toEqual(['Март', 'Июнь']);
+    expect(option('Выбор месяца', 'Апрель').className).toContain('bg-secondary-container');
+    expect(option('Выбор месяца', 'Июль').className).not.toContain('bg-secondary-container');
+  });
+});
+
+// Docked date picker ([UI-80], макет А md3-16): 360, клетка 40 в строке 48, шапка — два селектора.
+describe('Calendar: вид docked', () => {
+  it('ширина 360 и не шире места; клетка дня 40; выбранный — круг primary, сегодня — обводка primary', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 20, 12));
+    const { container } = render(<Calendar value="2026-11-15" onSelect={() => {}} />);
+    const root = (container.firstElementChild as HTMLElement).className.split(/\s+/);
+    expect(root).toContain('w-90');
+    expect(root).toContain('max-w-full');
+    const grid = screen.getByRole('grid', { name: 'Календарь' });
+    const day = (n: string) => within(grid).getAllByRole('button').find(b => b.textContent === n)!;
+    expect(day('15').className).toContain('size-10');
+    expect(day('15').className).toContain('bg-primary text-on-primary');
+    expect(day('20').className).toContain('inset-ring-primary');
+    expect(day('20').className).not.toContain('bg-primary');
+    expect(within(grid).getAllByRole('gridcell')[0].className).toContain('h-12');
+  });
+
+  it('строка действий — без черты над ней', () => {
+    render(<Calendar value="2026-10-18" onSelect={() => {}} onClear={() => {}} />);
+    expect(screen.getByTestId('calendar-actions').className.split(/\s+/)).not.toContain('border-t');
+  });
+
+  it('стрелки листают месяц и год', () => {
+    render(<Calendar value="2026-11-12" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Следующий месяц' }));
+    expect(screen.getByRole('button', { name: /^Декабрь 2026/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Предыдущий год' }));
+    expect(screen.getByRole('button', { name: /^Декабрь 2025/ })).toBeTruthy();
+  });
+
+  it('выбор месяца из шапки возвращает к дням и даты не ставит', () => {
+    const onSelect = vi.fn(), onClose = vi.fn();
+    render(<Calendar value="2026-11-12" onSelect={onSelect} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    // Отмечен показанный месяц; пока список открыт, стрелок нет.
+    expect(option('Выбор месяца', 'Ноябрь').getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('button', { name: 'Следующий месяц' })).toBeNull();
+    fireEvent.click(option('Выбор месяца', 'Октябрь'));
+    expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Октябрь 2026/ })).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('кнопка года: список лет, выбранный отмечен и в фокусе, стрелок и селектора месяца нет', () => {
+    render(<Calendar value="2026-11-12" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать год$/ }));
+    const y2026 = option('Выбор года', '2026');
+    expect(y2026.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(y2026);
+    expect(screen.queryByRole('button', { name: 'Предыдущий год' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /выбрать месяц$/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /выбрать год$/ }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(option('Выбор года', '2024'));
+    expect(screen.getByRole('button', { name: /^Ноябрь 2024/ })).toBeTruthy();
+  });
+
+  it('Esc в списке из шапки — к дням; признак для слоя снят', () => {
+    const { container } = render(<Calendar value="2026-11-12" onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    expect(container.querySelector('[data-calendar-back]')).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'Escape' });
+    expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
+    expect(container.querySelector('[data-calendar-back]')).toBeNull();
+  });
+
+  it('клавиши списка: ↓ на одну строку, End — к последней, Enter выбирает', () => {
+    const onSelect = vi.fn(), onClose = vi.fn();
+    render(<Calendar value="2026-05-01" precision="month" onSelect={onSelect} onClose={onClose} />);
+    const list = screen.getByRole('listbox', { name: 'Выбор месяца' });
+    expect(document.activeElement?.textContent).toBe('Май');
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Июнь');
+    fireEvent.keyDown(list, { key: 'End' });
+    expect(document.activeElement?.textContent).toBe('Декабрь');
+    fireEvent.keyDown(list, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith('2026-12-01');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('точность «месяц»: список под селектором года, выбор ставит месяц показанного года', () => {
+    const onSelect = vi.fn(), onClose = vi.fn();
+    render(<Calendar value="2026-10-01" precision="month" onSelect={onSelect} onClose={onClose} />);
+    expect(screen.queryByRole('button', { name: /выбрать месяц$/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Следующий год' }));
+    fireEvent.click(option('Выбор месяца', 'Март'));
+    expect(onSelect).toHaveBeenCalledWith('2027-03-01');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('точность «месяц»: год из шапки возвращает к месяцам, Esc в годах — тоже', () => {
+    const onSelect = vi.fn();
+    render(<Calendar value="2026-10-01" precision="month" onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать год$/ }));
+    fireEvent.click(option('Выбор года', '2028'));
+    expect(screen.getByRole('listbox', { name: 'Выбор месяца' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^2028/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /выбрать год$/ }));
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор года' }), { key: 'Escape' });
+    expect(screen.getByRole('listbox', { name: 'Выбор месяца' })).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
