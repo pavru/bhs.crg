@@ -31,7 +31,6 @@ vi.mock('@/shared/ui/CodeEditor', () => ({
     return <textarea data-testid="editor" ref={area} />;
   },
 }));
-vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 vi.mock('@/shared/ui/typstUserLibCompletion', () => ({ useUserLibCompletion: () => {} }));
 vi.mock('@/shared/ui/typstAssetCompletion', () => ({ useAssetCompletion: () => {} }));
 vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info: vi.fn(), success: vi.fn(), error: vi.fn() }) }));

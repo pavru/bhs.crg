@@ -91,5 +91,5 @@ export function ViewerMessage({ state, source, actions, loadingText = 'Файл 
 }
 
 function Centered({ children }: { children: ReactNode }) {
-  return <div className="h-full w-full flex items-center justify-center p-4 bg-surface-container-low">{children}</div>;
+  return <div className="h-full w-full flex items-center justify-center p-4 bg-surface-container">{children}</div>;
 }

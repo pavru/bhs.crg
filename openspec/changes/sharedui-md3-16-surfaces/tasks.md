@@ -66,24 +66,37 @@
 
 ## 1. PR 1: просмотрщик и редактор кода
 
-- [ ] 1.1 `ViewerToolbar`: docked toolbar 64 на `surface-container` без черты, промежуток 16 вместо черты
+- [x] 1.1 `ViewerToolbar`: docked toolbar 64 на `surface-container` без черты, промежуток 16 вместо черты
   между группами, поле номера — `TextField density="dense"` с суффиксом «/ M», в узкой колонке чип
   показывает процент, режим — галочкой в меню [UI-11]. Проверка — `ViewerToolbar.test.tsx`: состав панели,
   суффикс, узкая колонка (меньше 420 px) с процентом в чипе, меню вверх
-- [ ] 1.2 Холст `surface-container` (`PdfViewerImpl`, `ImageView`, `ViewerMessage`, обёртка
+  ✓ 03.11.2026: `ViewerToolbar.test.tsx` — вид панели (h-16, без `border-t`), суффикс «/ 12» и «из 12» для
+  чтения с экрана, чип «86 %» в узкой колонке с «По ширине» галочкой в меню; vitest просмотрщика 93/93.
+- [x] 1.2 Холст `surface-container` (`PdfViewerImpl`, `ImageView`, `ViewerMessage`, обёртка
   `InvoiceScanPanel`); кольцо фокуса области листов — общее кольцо В14; лист (`viewer/sheet.css`) уже по
   [UI-18] — не трогается. Проверка — vitest `PdfViewer.test.tsx`; живая проверка в обеих темах: контуры
   листов белые при загрузке (её пока нет — пишется)
-- [ ] 1.3 Живые прогоны просмотрщика (`invoices-smoke`, `invoice-scan-checks` и помощники
+  ✓ 03.11.2026: живая проверка «лист белый при загрузке в обеих темах, холст — surface-container» в
+  `invoice-scan-checks.mjs` (тема ставится до перехода к счёту, лист грузится уже в ней); на сборке «до» она
+  красная — холст был `surface-container-low`.
+- [x] 1.3 Живые прогоны просмотрщика (`invoices-smoke`, `invoice-scan-checks` и помощники
   `pdf-viewer-checks`, `document-preview-checks`) поправлены тем же PR; весь `npm run -s test:e2e:ci`
   зелёный. Проверка — описание PR
-- [ ] 1.4 Тема Monaco `bhs` в `shared/ui/monacoTheme.ts` из `--md-sys-color-*`: чистая функция темы и
+  ✓ 03.11.2026: помощники правки не потребовали — «из N» осталось текстом для чтения с экрана. Весь
+  `test:e2e:ci` на стенде как в CI — 21/21 (3 пропуска dialogs штатные: посев не создаёт распознанный набор);
+  invoices с новой проверкой — 22/22.
+- [x] 1.4 Тема Monaco `bhs` в `shared/ui/monacoTheme.ts` из `--md-sys-color-*`: чистая функция темы и
   `MutationObserver` на `data-theme`, переопределяющий `bhs`; `MonacoEditor.tsx` определяет тему при
   загрузке, `CodeEditor` ставит её сам; пять мест теряют `theme=` [UI-80]. Проверка — vitest: фон темы равен
   роли `surface` в обеих темах (ожидаемое — из генератора темы), смена `data-theme` переопределяет тему;
-  `rg "vs-dark|'vs'" src/client/src` пуст
-- [ ] 1.5 `docs/UI.md`: абзац о просмотрщике (панель, лист) и о редакторе кода [UI-11] [UI-18] [UI-80].
+  `rg "vs-dark|'vs'" src/client/src` находит только базу темы в `monacoTheme.ts`
+  ✓ 03.11.2026: `monacoTheme.test.ts` (определение, смена `data-theme`, отписка, громкий отказ без CSS) и
+  `scripts/monaco-theme.test.mjs` (фон = surface, текущая строка = surface-container, контраст токенов ≥ 4,5 в
+  обеих темах); grep находит `vs` только в `monacoTheme.ts` и его тесте.
+- [x] 1.5 `docs/UI.md`: абзац о просмотрщике (панель, лист) и о редакторе кода [UI-11] [UI-18] [UI-80].
   Проверка — ревью PR
+  ✓ 03.11.2026: строка PdfViewer переписана, добавлена строка «Редактор кода», «панель просмотрщика» →
+  «меню масштаба просмотрщика».
 
 ## 2. PR 2: календарь и время
 

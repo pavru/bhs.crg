@@ -10,6 +10,29 @@ import { sheetDrawn } from './pdf-viewer-checks.mjs';
 
 const PDF_TYPE = 'application/pdf';
 
+/**
+ * Вид листа и холста в текущей теме — сразу, как контур листа встал, до отрисовки: лист белый, край —
+ * тень (светлая) или обводка (тёмная), холст — роль `surface-container` ([UI-18], md3-16).
+ */
+async function sheetLooks(page, sheet) {
+  const handle = await sheet.elementHandle();
+  return page.evaluate(el => {
+    const probe = document.createElement('div');
+    probe.style.background = 'var(--md-sys-color-surface-container)';
+    document.body.append(probe);
+    const role = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const s = getComputedStyle(el);
+    const region = el.closest('[data-testid=viewer-region]');
+    return {
+      theme: document.documentElement.dataset.theme,
+      drawn: !!el.querySelector('canvas'),
+      sheet: s.backgroundColor, shadow: s.boxShadow, outline: s.outlineStyle,
+      canvas: region ? getComputedStyle(region).backgroundColor : null, role,
+    };
+  }, handle);
+}
+
 export async function invoiceScanChecks(page, check, h) {
   await check('фото счёта — режимом картинки: декодировано под CSP, без нумерации страниц', async () => {
     const number = `СЧ-Ф${h.stamp}`;
@@ -28,6 +51,28 @@ export async function invoiceScanChecks(page, check, h) {
     await h.named('панели просмотрщика у фото нет', () => page.getByTestId('viewer-toolbar').waitFor({ timeout: 5_000 }));
     if ((await page.getByTestId('viewer-toolbar').getByRole('textbox', { name: 'Номер страницы' }).count()) !== 0)
       throw new Error('у фото на панели нумерация страниц');
+  });
+
+  await check('лист белый при загрузке в обеих темах, холст — surface-container', async () => {
+    const number = `СЧ-Т${h.stamp}`;
+    const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Лист в темах') });
+    await h.attachScan(created.id, h.officeFile('converter-reference.pdf'), 'Скан.pdf', PDF_TYPE);
+    const sheet = page.getByRole('region', { name: 'Скан.pdf' }).getByRole('group', { name: /^Страница 1 из / });
+    // Тема ставится атрибутом на списке, а счёт открывается переходом внутри приложения: лист грузится
+    // уже в ней. Выбор темы на сервер не пишется — он пережил бы проверку; перезагрузка вернёт свою.
+    for (const scheme of ['light', 'dark']) {
+      await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
+      await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), scheme);
+      await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
+      await h.named(`контур листа не встал (${scheme})`, () => sheet.waitFor({ timeout: 30_000 }));
+      const at = await sheetLooks(page, sheet);
+      const edge = scheme === 'dark' ? at.outline === 'solid' && at.shadow === 'none'
+        : at.outline === 'none' && at.shadow !== 'none';
+      if (at.theme !== scheme || at.sheet !== 'rgb(255, 255, 255)' || !edge || at.canvas !== at.role)
+        throw new Error(`вид листа в теме ${scheme}: ${JSON.stringify(at)}`);
+      await sheetDrawn(page, h.named, sheet);
+    }
+    await page.reload({ waitUntil: 'networkidle' });
   });
 
   await check('поддельный PDF: отказ «файл не читается как PDF» и «Оригинал»', async () => {

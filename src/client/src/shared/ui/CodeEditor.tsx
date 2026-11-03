@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import type { EditorProps } from '@monaco-editor/react';
 import { CYRILLIC_ALLOWED } from './editorUnicode';
+import { MONACO_THEME } from './monacoTheme';
 
 const MonacoEditor = lazy(() => import('./MonacoEditor'));
 
@@ -30,14 +31,15 @@ const BASE_OPTIONS: EditorProps['options'] = {
  * Props — те же, что у @monaco-editor/react.
  *
  * Настройки вызывающего накладываются поверх общих: место одно на все пять редакторов, иначе
- * каждый новый пришлось бы вспоминать отдельно.
+ * каждый новый пришлось бы вспоминать отдельно. Тему вызывающий не называет вовсе: она одна, своя, из
+ * ролей палитры (`monacoTheme.ts`, [UI-80]) — вернуть встроенную `vs` не даст тип.
  */
-export default function CodeEditor({ options, ...props }: EditorProps) {
+export default function CodeEditor({ options, ...props }: Omit<EditorProps, 'theme'>) {
   return (
     <Suspense
       fallback={<div className="h-full w-full flex items-center justify-center text-body-medium text-on-surface-variant">Загрузка редактора…</div>}
     >
-      <MonacoEditor {...props} options={{ ...BASE_OPTIONS, ...options }} />
+      <MonacoEditor {...props} theme={MONACO_THEME} options={{ ...BASE_OPTIONS, ...options }} />
     </Suspense>
   );
 }

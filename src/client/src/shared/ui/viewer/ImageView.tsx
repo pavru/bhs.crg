@@ -82,9 +82,9 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
   const sheet = l ? { width: l.widths[0], height: l.heights[0] } : null;
 
   return (
-    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container-low" onKeyDown={onKeyDown} {...hover}>
+    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} data-testid="viewer-region" data-view="image"
-        className="relative flex-1 min-h-0 overflow-auto bg-surface-container-low focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2">
+        className="relative flex-1 min-h-0 overflow-auto bg-surface-container focus-ring-inset">
         {failed && <ViewerMessage state="broken" source={source} actions={actions} />}
         {!failed && !ready && <ViewerMessage state="loading" source={source} />}
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}
@@ -117,7 +117,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
           onZoomIn={() => zoom('in')} onZoomOut={() => zoom('out')}
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Картинка повёрнута'); }}
-          narrow={box.width > 0 && box.width < NARROW_PX} />
+          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>

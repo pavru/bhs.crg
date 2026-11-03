@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
@@ -106,7 +105,6 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
   onSave: (r: TypstRender) => void;
   onClose: () => void;
 }) {
-  const { resolvedTheme } = useTheme();
   useUserLibCompletion();
   useAssetCompletion();
   const [draft, setDraft] = useState<TypstRender>(render);
@@ -158,7 +156,6 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
           <Editor
             height="100%"
             defaultLanguage="typst"
-            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
             value={draft.block}
             onChange={val => setDraft(d => ({ ...d, block: val ?? '' }))}
             beforeMount={beforeMountTypstBlock}
