@@ -81,7 +81,8 @@ body {
    29.10.2026, вариант А листа sharedui-md3-05) — значения один раз, в переменных ниже. Щелчок мышью
    его не рисует. focus-ring-inset — для строки и клетки таблицы: снаружи кольцо там срезает прокрутка
    и закрывают соседи. focus-ring-mark — то же кольцо без условия, для варианта группы
-   (group-focus-visible:focus-ring-mark): фокус у ссылки, кольцо — у её плашки. У поля ввода фокус
+   (group-focus-visible:focus-ring-mark): фокус у ссылки, кольцо — у её плашки; focus-ring-inset-mark —
+   оно же внутрь, у строки фокуса роллинга в списке календаря. У поля ввода фокус
    показывает обводка самого поля, кольца нет. */
 :root {
   --md-focus-ring: 3px solid var(--md-sys-color-secondary);
@@ -97,6 +98,10 @@ body {
 @utility focus-ring-mark {
   outline: var(--md-focus-ring);
   outline-offset: var(--md-focus-ring-offset);
+}
+@utility focus-ring-inset-mark {
+  outline: var(--md-focus-ring);
+  outline-offset: var(--md-focus-ring-inset);
 }
 
 /* Цель нажатия при касании — 48 px у 40-пиксельного элемента ([UI-68], docs/UI.md «Узкий экран»):

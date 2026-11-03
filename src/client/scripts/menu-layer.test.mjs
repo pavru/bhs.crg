@@ -31,15 +31,17 @@ export function menuLayerOwners(sources) {
 }
 
 /**
- * Слои поповеров и списка `Select` берут поверхность одной константой `LAYER_SURFACE` (2а.3): фона,
- * рамки и тени своих у них нет. Иначе тёмная тема снова разведёт их с меню, как до этого change.
+ * Слои поповеров и списка `Select` берут поверхность одной константой `LAYER_SURFACE` (2а.3), календарь —
+ * `DATE_PICKER_SURFACE` ([UI-80]): фона, рамки и тени своих у них нет. Иначе тёмная тема снова разведёт
+ * их с меню, как до этого change.
  *
  * Имя пакета в файле берётся из его импорта (`import * as P from '@radix-ui/react-popover'`), а не
  * угадывается: под другим именем слой иначе прошёл бы мимо. Классы читаются только из открывающего
  * тега `Content` — без этого проверка уходила бы к `className` следующего элемента.
  */
 const LAYER_PACKAGES = /import\s+\*\s+as\s+(\w+)\s+from\s+['"]@radix-ui\/react-(?:popover|select)['"]/g;
-const SHARED = '${LAYER_SURFACE}';
+// Календарь — единственное исключение ([UI-80], md3-16): токен docked date picker, уровнем выше слоя.
+const SHARED = ['${LAYER_SURFACE}', '${DATE_PICKER_SURFACE}'];
 const OWN_LOOK = /(?:^|[\s`"])(?:bg-surface[\w-]*|border(?:-[\w-]+)?|shadow-[\w-]+)(?=[\s`"]|$)/;
 const CLASS_ATTR = /\bclassName=(\{`[^`]*`\}|"[^"]*")/;
 
@@ -63,7 +65,10 @@ export function strayLayers(sources) {
   return sources.flatMap(({ path, text }) => [...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
     [...text.matchAll(new RegExp(String.raw`<${alias}\.Content\b`, 'g'))]
       .map(m => openingTag(text, m.index).match(CLASS_ATTR)?.[1] ?? '<без className>')
-      .filter(cls => !cls.includes(SHARED) || OWN_LOOK.test(cls.replace(SHARED, '')))
+      .filter(cls => {
+        const shared = SHARED.find(c => cls.includes(c));
+        return !shared || OWN_LOOK.test(cls.replace(shared, ''));
+      })
       .map(cls => `${path}: ${cls}`)));
 }
 
@@ -83,9 +88,13 @@ describe('слой меню — только у общего Menu', () => {
       { path: 'a.tsx', text: POPOVER + '<Popover.Content className="z-50 rounded-md border border-outline-variant bg-surface p-3">' },
       { path: 'b.tsx', text: POPOVER + '<Popover.Content align="end"\n className={`z-50 rounded-md p-3 ${LAYER_SURFACE}`}>' },
       { path: 'c.tsx', text: "import * as RS from '@radix-ui/react-select';\n<RS.Content className={`z-50 shadow-elevation-3 ${LAYER_SURFACE}`}>" },
+      // Поверхность календаря — общая, но и у неё своей тени сверху быть не должно.
+      { path: 'd.tsx', text: POPOVER + '<Popover.Content className={`z-50 rounded-lg ${DATE_PICKER_SURFACE}`}>' },
+      { path: 'e.tsx', text: POPOVER + '<Popover.Content className={`shadow-elevation-2 ${DATE_PICKER_SURFACE}`}>' },
     ])).toEqual([
       'a.tsx: "z-50 rounded-md border border-outline-variant bg-surface p-3"',
       'c.tsx: {`z-50 shadow-elevation-3 ${LAYER_SURFACE}`}',
+      'e.tsx: {`shadow-elevation-2 ${DATE_PICKER_SURFACE}`}',
     ]);
   });
 

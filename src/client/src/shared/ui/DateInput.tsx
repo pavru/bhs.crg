@@ -14,7 +14,7 @@ import { useSegmentField } from './useSegmentField';
 import { nextTabStop, tabStops } from './tabStops';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
-import { LAYER_SURFACE } from './menuClasses';
+import { DATE_PICKER_SURFACE } from './menuClasses';
 
 interface DateInputProps {
   /**
@@ -113,6 +113,9 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
+  // Список месяцев или лет открыт из шапки календаря: Esc вернёт его к дням, слою закрываться нельзя.
+  const headerList = useRef(false);
+  const onHeaderList = (open: boolean) => { headerList.current = open; };
   // Знак ошибки поля формы (`DateField`, [UI-69]) — перед хвостом: крестиком и календарём. Хвост живёт
   // здесь, поэтому знак оболочки встаёт тоже здесь, и он у поля один; вне оболочки его нет.
   const mark = useContext(FieldMarkContext);
@@ -263,6 +266,11 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   //
   // `hideWhenDetached`: поле прокрутили из видимой части тела окна — календарь прячется. Внутри окна
   // его прятал край окна; в body он висел бы над шапкой, указывая на невидимое поле.
+  //
+  // Размер слоя — не больше места у поля ([UI-80]): месяц из шести недель — 440, а в окне на ноутбуке под
+  // полем меньше. Не уместившееся прокручивается внутри, а не срезается краем экрана; ширина — до экрана
+  // без `collisionPadding` по краям. Esc в списке месяцев или лет, открытом из шапки, возвращает к дням
+  // (`onHeaderList` календаря) — слой Radix слышит Esc раньше календаря и закрылся бы.
   return (
     <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
@@ -270,9 +278,10 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
-          className={`z-50 rounded-lg focus:outline-none ${LAYER_SURFACE}`}>
+          onEscapeKeyDown={e => { if (headerList.current) e.preventDefault(); }}
+          className={`z-50 rounded-lg overflow-y-auto max-h-(--radix-popover-content-available-height) max-w-(--radix-popover-content-available-width) focus:outline-none ${DATE_PICKER_SURFACE}`}>
           <Calendar value={calendarValue} precision={precision}
-            onSelect={pick} onClose={() => setPickerOpen(false)}
+            onSelect={pick} onClose={() => setPickerOpen(false)} onHeaderList={onHeaderList}
             min={min} max={max} range={range}
             onClear={clearable ? clearFromCalendar : undefined} />
         </Popover.Content>
