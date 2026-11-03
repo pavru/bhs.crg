@@ -227,7 +227,6 @@
     "features/settings/FieldMappingPage.tsx": 2,
     "features/settings/IntegrationSettingsSection.tsx": 3,
     "shared/siteFilter/SitesFilter.tsx": 1,
-    "shared/ui/BottomNav.tsx": 1,
     "shared/ui/ListDetailShell.tsx": 1,
     "shared/ui/Markdown.tsx": 2,
     "shared/ui/SectionRail.tsx": 1,

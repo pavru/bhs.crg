@@ -77,6 +77,17 @@ describe('нижняя навигация', () => {
     expect(screen.getByLabelText('адрес').textContent).toBe('/document-sets');
   });
 
+  it('navigation bar MD3: surface-container без черты, подпись label-medium одним весом', () => {
+    shown(<BottomNav sections={work} active="costs" />);
+    const nav = screen.getByRole('navigation', { name: 'Разделы' });
+    expect(nav.className).toContain('bg-surface-container');
+    expect(nav.className).not.toMatch(/\bborder-t\b/);
+    const label = (name: string) => screen.getByRole('link', { name }).querySelector('span:last-child')!.className;
+    expect(screen.getByRole('link', { name: 'Затраты' }).className).toContain('text-label-medium');
+    expect(label('Затраты')).not.toMatch(/font-/);
+    expect(label('Стройки')).not.toMatch(/font-/);
+  });
+
   it('без рабочих разделов строки нет', () => {
     shown(<BottomNav sections={[]} active={null} />);
     expect(screen.queryByRole('navigation')).toBeNull();
@@ -161,6 +172,8 @@ describe('меню раздела в заголовке страницы', () =>
       .toBe('Другие страницы раздела «Учёт затрат»');
     expect(screen.getByText('Учёт затрат')).toBeTruthy();
     expect(trigger().getAttribute('aria-haspopup')).toBe('menu');
+    // Цель касания — видимые 48 ([UI-68]), без выноса `touch-target` за контур.
+    expect(trigger().className).toMatch(/\bmin-h-12\b/);
     open();
     expect(screen.getAllByRole('menuitem').map(i => i.textContent)).toEqual(
       ['Счета', 'Накладные', 'Учётный период', 'Наборы данных']);

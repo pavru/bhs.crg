@@ -53,6 +53,26 @@ describe('CommandPalette — вид', () => {
     expect(scrim).toBeTruthy();
     expect(scrim.style.backdropFilter).toBe('');
   });
+
+  it('уже 768 — во весь экран, «Назад» закрывает, подсказки клавиш нет', () => {
+    const wide = window.innerWidth;
+    window.innerWidth = 375;
+    try {
+      const onOpenChange = vi.fn();
+      access = reader;
+      render(<MemoryRouter><NavigationGuardProvider><CommandPalette open onOpenChange={onOpenChange} /></NavigationGuardProvider></MemoryRouter>);
+      const dialog = screen.getByRole('dialog', { name: 'Поиск и действия', hidden: true });
+      expect(dialog.className).toContain('inset-0');
+      expect(dialog.className).not.toContain('rounded-xl');
+      expect(dialog.textContent).not.toContain('Esc');
+      expect(dialog.textContent).not.toContain('выбрать');
+      expect(dialog.textContent).not.toContain('Enter');
+      fireEvent.click(screen.getByRole('button', { name: 'Назад', hidden: true }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    } finally {
+      window.innerWidth = wide;
+    }
+  });
 });
 
 /** Командная палитра — один вход в «сделать» и «перейти» (issue #1433). */

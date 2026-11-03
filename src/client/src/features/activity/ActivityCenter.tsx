@@ -53,13 +53,13 @@ export function ActivityCenter() {
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button type="button" data-testid="activity" aria-label={label}
-          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 touch-target ' +
+          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-12 touch-target ' +
             'hover:text-on-surface state-layer data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container ' +
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ' +
             // Цвет — в каждой ветке свой, а не общий с перебивкой: из двух `text-*` побеждает тот, что
             // позже в таблице стилей, а не в атрибуте (ревью PR #1450).
-            // На телефоне — 44 px: цель касания (#1434).
-            (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-11 text-on-surface-variant')}>
+            // На телефоне — 48 px: цель касания видимая, как у соседей по полосе 64 (#1434, sharedui-md3-15).
+            (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-12 text-on-surface-variant')}>
           {busy ? (
             <>
               <CircularProgress size={20} className="text-primary" />
