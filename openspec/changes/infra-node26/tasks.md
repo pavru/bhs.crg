@@ -31,7 +31,7 @@
 ## 3. Сторож заплаток делает границу сам [UI-21]
 
 - [x] 3.1 Генератор `src/client/scripts/browser-border.mjs` и запись
-  `src/client/src/shared/ui/viewer/browserBorder.json`, снятая на `node:22.23.3-alpine` (D6);
+  `src/client/src/shared/testing/browserBorder.json`, снятая на `node:22.23.3-alpine` (D6);
   проверка — в записи нет `getOrInsertComputed`, `sumPrecise`, `toBase64`, `try` у `Promise`.
 - [x] 3.2 Помощник `browserBorder.ts` и подключение первым импортом `pdfEngine.test.ts`; тест «граница
   наступила» — на местах функций из `IMPLS` стоят заплатки (D6); проверка — весь `pdfEngine.test.ts`
@@ -55,6 +55,15 @@
 - [x] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopyTests"`
   (сервер не тронут — остальные backend-тесты не нужны).
 - [ ] 5.4 PR: CI зелёный, включая обе работы на Node из `.nvmrc` и живые прогоны.
+
+## 6. Правки по ревью PR #1747
+
+- [x] 6.1 Помощник границы и снимок — в `src/shared/testing/`, вне Node отказ исключением; разбор пути и
+  ключа — общий `browserBorderPaths.ts` у генератора и помощника; снимок пересобран — совпал байт в байт.
+- [x] 6.2 Сверка `setup-node` — по всем workflow и по шагу целиком (и «`- name:` первым»); тест на это.
+- [x] 6.3 `execArgv` — `--no-webstorage` только там, где у Node есть хранилище (до 25 флага нет).
+- [x] 6.4 Тексты: что снимок не моделирует (Firefox/Safari, веб-API) — design, DEV_NOTES, dependabot,
+  шапки; комментарии `release.yml` и `Dockerfile.web` без Node 22.
 
 ## Workflow follow-up
 

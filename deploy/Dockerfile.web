@@ -3,8 +3,8 @@
 # Версия Node — одна на всё: та же, что в .nvmrc (по нему ставит Node CI) и в нижней границе
 # engines клиента; совпадение сверяет src/client/nodeVersion.test.ts. Литералом, потому что
 # FROM файла не читает. Граница не на честном слове: .npmrc включает engine-strict, и на Node
-# ниже неё `npm ci` падает с EBADENGINE, а не собирает образ втихую (проверено на
-# node:22.20-alpine). Поэтому .npmrc копируется рядом с манифестами.
+# ниже неё `npm ci` падает с EBADENGINE, а не собирает образ втихую. Поэтому .npmrc копируется
+# рядом с манифестами.
 FROM node:26.13.0-alpine AS build
 WORKDIR /app
 COPY src/client/package.json src/client/package-lock.json src/client/.npmrc ./

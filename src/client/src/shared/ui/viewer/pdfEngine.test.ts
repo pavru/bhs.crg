@@ -1,5 +1,5 @@
 // Первым: делает в среде границу браузеров — до pdfEngine, который ставит заплатки (см. ниже).
-import { REMOVED_AT_BORDER } from './browserBorder';
+import { REMOVED_AT_BORDER } from '@/shared/testing/browserBorder';
 // Типов Node у приложения нет нарочно (tsconfig.app), а ссылка на них отсюда подмешала бы их всему
 // приложению. Этому тесту Node нужен — он читает эталонный PDF с диска, — поэтому без типов, здесь.
 // @ts-expect-error — модуль Node без типов
