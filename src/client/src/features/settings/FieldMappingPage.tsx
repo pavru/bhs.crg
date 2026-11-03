@@ -188,7 +188,7 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
       </p>
       {data.map(module => (
         <section key={module.code} className="space-y-5" data-module={module.code}>
-          {!single && <h2 className="text-body-large font-semibold text-on-surface">{module.title}</h2>}
+          {!single && <h2 className="text-title-medium text-on-surface">{module.title}</h2>}
           {module.unmet > 0 && (
             <p className="text-body-medium text-warning">
               Не назначено {module.unmet} из {module.total} — считая справочники и их обязательные поля.
@@ -251,7 +251,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
   return (
     <div className="space-y-2" data-role={group.role}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-body-medium font-semibold text-on-surface">{group.label}</h3>
+        <h3 className="text-title-small text-on-surface">{group.label}</h3>
         {group.type && (
           <>
             <span className="text-body-medium text-on-surface-variant">тип «{group.type.name}»</span>

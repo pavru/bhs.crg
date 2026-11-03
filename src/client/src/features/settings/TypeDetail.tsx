@@ -20,6 +20,7 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { PropertiesEditor } from './PropertiesEditor';
 import { SchemaEditor } from './SchemaEditor';
+import { SchemaLevelBanner } from './SchemaLevelBanner';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Типы, ссылающиеся на данный тип полем complex/array/doc-ref/doc-array (по собственной схеме). */
@@ -193,6 +194,8 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
             ]} />
           </>
         } />
+      {/* Уровень правки схемы — сообщение всей области деталей, под её шапкой ([UI-73]). */}
+      <SchemaLevelBanner level={docType.editLevel} module={docType.module} />
       {/* Тело редактора (существующие редакторы как есть — Фаза A) */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-4xl">

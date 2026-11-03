@@ -69,18 +69,27 @@
 - [x] 0.7 `skip: ['shared/ui/Checkbox.tsx']` у `legacy-radius`, единица уровня снята. Проверка —
   `ui-ratchet-shape.test.mjs`: второй `rounded-[…]` вне `Checkbox` красный, в `Checkbox` — нет;
   `docs/UI.md`, «Форма и возвышение» называет исключение
-- [ ] 0.8 `/design-sync` по новым компонентам и свойствам (владелец). Проверка — якорь в задаче
+- [x] 0.8 `/design-sync` по новым компонентам и свойствам (владелец). Проверка — якорь в задаче
+  Сделано 04.11.2026 по master 2.65.0: `SelectionBar` (64 компонента), ячейка States у `Card`; якорь cfa6ed2e4e57
 
 ## 1. PR 1: `settings`, `account`, `auth`, `activity`, `jobs`, `notifications`, экран входа
 
-- [ ] 1.1 Места «компонент» по перечню 0.2 (34) и Р1, Р2, Р5 по варианту А: плашки → `Banner` в начале
+- [x] 1.1 Места «компонент» по перечню 0.2 (34) и Р1, Р2, Р5 по варианту А: плашки → `Banner` в начале
   области (среди них `SchemaLevelBanner`, итог восстановления копии, отказ построения значков), ошибка
   модели движка — ошибкой поля «Модель», «Состав роли не правится» — `Banner info`, карточки → `Card` (цель
   перетаскивания и ошибка — свойствами 0.5), рамка логотипа — медиа по Р5, остатки шкал — ступенью MD3;
   сырые поля → `TextField` / плотное (`raw-field`, 30 мест в `settings`) [UI-81]. Проверка — уровни шести
   правил по файлам раздела — ноль; `npm test` раздела зелёный
-- [ ] 1.2 Живые прогоны раздела (`settings-smoke`, `types-smoke`, `print-profiles-checks`) и весь
+  Сделано 04.11.2026: шесть правил по файлам раздела — ноль (`settings`, `account`, `auth`, `activity`,
+  `LoginPage`; в `jobs` и `notifications` мест не было). Уровни: `notice-plaque` 32 → 25, `hand-card` 67 → 49,
+  `raw-field` 77 → 47, `legacy-radius` 5 → 2, `legacy-shadow` 1 → 0, `legacy-type` 39 → 26. `SchemaLevelBanner` —
+  в `TypeDetail` под шапкой деталей; ошибка модели движка — `error` у `Select` «Модель»; `FieldBuilder` ушёл из
+  `file-size-baseline.json` (497 строк кода), `PrimitiveTypesPage` 590 → 554
+- [x] 1.2 Живые прогоны раздела (`settings-smoke`, `types-smoke`, `print-profiles-checks`) и весь
   `npm run -s test:e2e:ci` зелёные; снимки экранов раздела до и после в обеих темах. Проверка — описание PR
+  Сделано 04.11.2026 на стенде как в CI (своя база и бакет, посев): все 21 набор `test:e2e:ci` зелёные
+  (`print-profiles-checks` едет внутри `settings`). Снимки до и после, обе темы, 1366 и 375 —
+  https://claude.ai/artifact/JG3eocTdHSf7igGF82mpDZ
 
 ## 2. PR 2: `datasets`, `templates`, `tables`
 

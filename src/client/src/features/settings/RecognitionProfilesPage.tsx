@@ -23,6 +23,7 @@ import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/s
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Banner } from '@/shared/ui/Banner';
 
 /**
  * Библиотека профилей распознавания (issue #408). Промпты пишем мы — пользователь правит только
@@ -81,21 +82,16 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
         const locked = systemNames.includes(f.name.trim());
         return (
           <div key={rowKey(f, i)} className={cols}>
-            <div className="relative">
-              <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
-                <input value={f.name} onChange={e => update(i, { name: e.target.value })}
-                  readOnly={locked} placeholder="Позиция"
-                  className={`w-full border border-outline rounded-xs px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
-                    locked ? 'pr-7 text-on-surface-variant cursor-not-allowed' : ''}`} />
-              </Tooltip>
-              {locked && (
-                <Icon icon={LockIcon} size={18} className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant"
-                  aria-label="Обязательное поле" />
-              )}
-            </div>
-            <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
-              placeholder="Что это за колонка — своими словами"
-              className="border border-outline rounded-xs px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+            <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
+              <TextField density="dense" label={`Имя (ключ), строка ${i + 1}`} value={f.name} onChange={e => update(i, { name: e.target.value })}
+                readOnly={locked} placeholder="Позиция" className={`font-mono ${locked ? 'cursor-not-allowed' : ''}`}
+                trailing={locked && (
+                  <Icon icon={LockIcon} size={18} className="text-on-surface-variant" aria-label="Обязательное поле" />
+                )} />
+            </Tooltip>
+            <TextField density="dense" label={`Описание — подсказка модели, строка ${i + 1}`} value={f.description ?? ''}
+              onChange={e => update(i, { description: e.target.value })}
+              placeholder="Что это за колонка — своими словами" />
             <Select density="dense" value={f.type || 'string'} onValueChange={type => update(i, { type })}
               aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
               {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -219,16 +215,15 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
           </>
         } />
 
+      {/* Сообщение панели — banner в её начале, под шапкой деталей (Р1-А). */}
+      {profile.builtInOutdated && (
+        <Banner tone="warning">
+          Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
+          обновление к вам не применялось. «Сбросить к заводским» вернёт актуальный набор параметров.
+        </Banner>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
-        {profile.builtInOutdated && (
-          <div className="flex gap-2 rounded-md border border-outline-variant bg-warning-container p-3 text-body-medium text-on-warning-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <span>
-              Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
-              обновление к вам не применялось. «Сбросить к заводским» вернёт актуальный набор параметров.
-            </span>
-          </div>
-        )}
 
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} />
 

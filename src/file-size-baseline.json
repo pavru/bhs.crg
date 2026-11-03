@@ -7,8 +7,7 @@
   "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 670,
   "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 654,
   "src/client/src/features/document-sets/fields/ComplexFields.tsx": 736,
-  "src/client/src/features/settings/FieldBuilder.tsx": 518,
-  "src/client/src/features/settings/PrimitiveTypesPage.tsx": 590,
+  "src/client/src/features/settings/PrimitiveTypesPage.tsx": 554,
   "src/server/BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs": 636,
   "src/server/BHS.CRG.Infrastructure/DataSets/DataSetSourceService.cs": 508,
   "src/server/BHS.CRG.Tests/Integration/BackupServiceTests.RoundTrip.cs": 629

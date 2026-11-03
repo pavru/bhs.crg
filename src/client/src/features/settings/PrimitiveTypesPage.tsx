@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
+import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -10,6 +10,7 @@ import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
+import { Card } from '@/shared/ui/Card';
 import { DateRange } from '@/shared/ui/DateRange';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { validateSample } from '@/features/document-sets/fields/fieldValidation';
@@ -41,7 +42,6 @@ import { findReferencingTypeNames } from './fieldTypeUsage';
 import { withRowUids } from '@/shared/utils/rowIdentity';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusText } from '@/shared/ui/StatusText';
@@ -131,34 +131,21 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     if (!to) delete next.maxDate;
     onChange(next);
   }
-  const inputCls = 'w-full px-3 py-2 rounded-md border border-outline bg-surface text-body-medium';
-
+  // Пример ввода — подсказкой под полем: у поля формы место подсказки внутри занимает подпись ([UI-69]).
   if (baseType === 'string') {
     return (
       <div className="space-y-3">
-        <div>
-          <label className="block text-body-medium font-medium text-on-surface mb-1">Шаблон (regex)</label>
-          <input type="text" className={`${inputCls} font-mono`} placeholder="например: ^[\w.]+@[\w]+\.\w+$"
-            value={constraints.pattern ?? ''}
-            onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')} />
-        </div>
-        <div>
-          <label className="block text-body-medium font-medium text-on-surface mb-1">Сообщение об ошибке</label>
-          <input type="text" className={inputCls} placeholder="например: Введите корректный email"
-            value={constraints.patternMessage ?? ''}
-            onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')} />
-        </div>
+        <TextField label="Шаблон (regex)" className="font-mono" hint="Например: ^[\w.]+@[\w]+\.\w+$"
+          value={constraints.pattern ?? ''}
+          onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')} />
+        <TextField label="Сообщение об ошибке" hint="Например: Введите корректный email"
+          value={constraints.patternMessage ?? ''}
+          onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')} />
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-body-medium font-medium text-on-surface mb-1">Мин. длина</label>
-            <input type="number" min={0} className={inputCls} value={constraints.minLength ?? ''}
-              onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')} />
-          </div>
-          <div>
-            <label className="block text-body-medium font-medium text-on-surface mb-1">Макс. длина</label>
-            <input type="number" min={0} className={inputCls} value={constraints.maxLength ?? ''}
-              onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')} />
-          </div>
+          <TextField label="Мин. длина" type="number" min={0} value={constraints.minLength ?? ''}
+            onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')} />
+          <TextField label="Макс. длина" type="number" min={0} value={constraints.maxLength ?? ''}
+            onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')} />
         </div>
       </div>
     );
@@ -167,16 +154,10 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-body-medium font-medium text-on-surface mb-1">Минимум</label>
-            <input type="number" className={inputCls} value={constraints.min ?? ''}
-              onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')} />
-          </div>
-          <div>
-            <label className="block text-body-medium font-medium text-on-surface mb-1">Максимум</label>
-            <input type="number" className={inputCls} value={constraints.max ?? ''}
-              onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')} />
-          </div>
+          <TextField label="Минимум" type="number" value={constraints.min ?? ''}
+            onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')} />
+          <TextField label="Максимум" type="number" value={constraints.max ?? ''}
+            onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')} />
         </div>
         <Checkbox checked={constraints.integer ?? false} label="Только целые числа"
           onChange={v => v ? set('integer', true) : unset('integer')} />
@@ -212,34 +193,16 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   // Образец даты — в маске языка пользователя и тем же разбором, что вставка (issue #1461).
   const err = has ? validateSample(sample, def) : null;
   const ok = has && !err;
-  const placeholder = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? 'например: 42' : 'введите образец';
-  const statusIcon = ok ? CheckCircle : ErrorIcon;
-  const tone = !has ? 'text-on-surface-variant' : ok ? 'text-success' : 'text-error';
+  const example = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? '42' : null;
+  // Итог проверки — текстом под полем ([UI-69]): ошибка — ошибкой поля, иначе — подсказкой; «соответствует» —
+  // ещё и знаком в хвосте, цветом `success`.
+  const hint = ok ? 'Соответствует ограничениям'
+    : example ? `Проверяется по ограничениям. Например: ${example}` : 'Проверяется по ограничениям';
   return (
-    <div>
-      <label className="block text-body-medium font-medium text-on-surface mb-1">Проверка образца</label>
-      <div className="flex items-center gap-2 rounded-md bg-surface-container-low border border-outline-variant px-3 py-2">
-        <Icon icon={statusIcon} size={18} className={`shrink-0 ${tone}`} />
-        <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
-          className="flex-1 min-w-0 bg-transparent text-body-medium font-mono outline-none text-on-surface placeholder:text-on-surface-variant" />
-        <Tooltip content={has && !ok ? (err ?? '') : undefined}>
-          <span className={`text-body-small shrink-0 max-w-[45%] truncate ${tone}`}>
-            {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
-          </span>
-        </Tooltip>
-      </div>
-    </div>
-  );
-}
-
-// ─── Card wrapper ────────────────────────────────────────────────────────────────
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="border border-outline-variant rounded-lg bg-surface p-4 space-y-3">
-      <p className="text-title-small text-on-surface-variant">{title}</p>
-      {children}
-    </div>
+    <TextField label="Проверка образца" className="font-mono" spellCheck={false}
+      value={sample} onChange={e => setSample(e.target.value)}
+      error={has && !ok ? (err ?? undefined) : undefined} hint={hint}
+      trailing={ok ? <span className="flex text-success"><Icon icon={CheckCircle} size={18} aria-hidden /></span> : undefined} />
   );
 }
 

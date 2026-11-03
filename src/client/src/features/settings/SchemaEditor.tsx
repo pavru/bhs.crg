@@ -7,7 +7,6 @@
  */
 import { useState, useMemo, useRef } from 'react';
 import { apiError } from '@/shared/utils/apiError';
-import { SchemaLevelBanner } from './SchemaLevelBanner';
 import { Icon } from '@/shared/ui/Icon';
 import { Code, DataObject, Help, Memory, Refresh, Warning } from '@/shared/ui/icons';
 import { Markdown } from '@/shared/ui/Markdown';
@@ -34,6 +33,8 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusText } from '@/shared/ui/StatusText';
+import { Card } from '@/shared/ui/Card';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -216,7 +217,6 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
   return (
     <div className="space-y-4">
-      <SchemaLevelBanner level={docType.editLevel} module={docType.module} />
       {parentType && (
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -379,12 +379,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </div>
             {helpPreview ? (
               help.trim()
-                ? <div className="rounded-sm border border-outline-variant bg-surface p-3"><Markdown>{help}</Markdown></div>
+                ? <Card><Markdown>{help}</Markdown></Card>
                 : <p className="text-body-small text-on-surface-variant italic px-1">Пусто — введите текст на вкладке «Текст».</p>
             ) : (
-              <textarea value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
-                placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно."
-                className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+              <TextAreaField label="Текст справки" value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
+                placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно." />
             )}
           </div>
         </SectionCard>

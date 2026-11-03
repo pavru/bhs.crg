@@ -20,6 +20,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { ProxyToggle } from './ProxyToggle';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Card } from '@/shared/ui/Card';
 
 // ─── Метаданные движков (порядок отображения, подписи, какие поля показывать) ────
 
@@ -157,13 +158,18 @@ function EngineCard({
   // вердикт сам, здесь только то, что человек видит сразу после нажатия.
   const checkVision = useCheckVision();
   const checked = checkVision.data;
+  // Беда с моделью — ошибкой поля «Модель» (Р1-А): совет поставщика («перейдите на такую-то») — самое
+  // полезное в сообщении, и место ему — под тем полем, которое он велит поменять. Слепота важнее:
+  // ненастроенный движок цепочка пропускает, движок без модели получает отказ, а слепой — отвечает
+  // выдуманным. «Модель не обслуживается» у выключенного движка не говорим — он и не обещает участия.
+  const modelError = blind ? blindIssue ?? undefined : form.enabled && modelIssue ? modelIssue : undefined;
   return (
-    <div className={`rounded-md border p-3 space-y-3 ${
-      blind ? 'border-error bg-surface' : form.enabled ? 'border-outline-variant bg-surface' : 'border-outline-variant bg-surface-container-low'}`}>
+    // Выключенный движок приглушён ролью текста имени, а не заливкой карточки; ошибка — обводкой `error`.
+    <Card invalid={blind}>
       <div className="flex items-start gap-2">
         <label className="flex items-center gap-2 flex-1 cursor-pointer">
           <Checkbox checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
-          <span className="text-body-medium font-medium text-on-surface">{meta.label}</span>
+          <span className={`text-body-medium font-medium ${form.enabled ? 'text-on-surface' : 'text-on-surface-variant'}`}>{meta.label}</span>
         </label>
         {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
@@ -200,24 +206,6 @@ function EngineCard({
       </div>
       <p className="text-body-small text-on-surface-variant">{meta.hint}</p>
 
-      {/* Беда с моделью — отдельной строкой, а не бейджем в шапке: там она не поместится, а совет
-          поставщика («перейдите на такую-то») — самое полезное в этом сообщении и прятать его в
-          подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
-          движок цепочка пропускает, а этот — берёт и получает отказ. */}
-      {blind && (
-        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-error-container text-on-error-container border border-error/30">
-          <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-px" />
-          <span>{blindIssue}</span>
-        </p>
-      )}
-
-      {form.enabled && !blind && modelIssue && (
-        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-warning-container text-on-warning-container border border-outline-variant">
-          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
-          <span>{modelIssue}</span>
-        </p>
-      )}
-
       {!meta.keyless && (
         <TextField label="API-ключ" type="password" autoComplete="off" value={form.apiKey}
           onChange={e => onChange({ ...form, apiKey: e.target.value })}
@@ -241,10 +229,13 @@ function EngineCard({
                     // всё что угодно, просто Ollama не отвечает.
                     : <>Ollama не отвечает — список скачанных моделей узнать не удалось.</>}
               </div>
+              {/* Без списка выбора нет и поля с ошибкой — сообщение о модели тем же текстом под заглушкой:
+                  иначе красная обводка карточки осталась бы без причины. */}
+              {modelError && <p role="alert" className="mt-1 px-4 text-body-small text-error">{modelError}</p>}
             </Field>
           ) : (
             <Select label={meta.modelLabel} value={form.model || undefined} placeholder="— выберите —"
-              onValueChange={m => onChange({ ...form, model: m })}>
+              error={modelError} onValueChange={m => onChange({ ...form, model: m })}>
               {opts.map(o => {
                 // Пометка приходит с сервера (он же и сравнивал имена) — здесь только показываем.
                 const u = gone(o);
@@ -283,7 +274,7 @@ function EngineCard({
                   : checked?.state === 'unknown'
                     // «Не проверили» — не приговор модели: остановленная Ollama выглядела бы слепой.
                     ? (checked.error ?? 'проверить не удалось')
-                    // Про слепоту уже сказано полосой выше — второй раз не повторяем.
+                    // Про слепоту уже сказано под полем модели — второй раз не повторяем.
                     : checked?.state === 'blind' ? '' : 'зрение не проверялось'}
           </span>
         </div>
@@ -306,7 +297,7 @@ function EngineCard({
       )}
 
       <ProxyToggle checked={form.useProxy} onChange={v => onChange({ ...form, useProxy: v })} />
-    </div>
+    </Card>
   );
 }
 
@@ -406,7 +397,7 @@ export function IntegrationSettingsSection() {
         <>
           {/* Распознавание + приоритет */}
           <div className="space-y-2">
-            <h3 className="text-body-small font-semibold text-on-surface-variant">Распознавание реквизитов (по приоритету)</h3>
+            <h3 className="text-title-small text-on-surface-variant">Распознавание реквизитов (по приоритету)</h3>
             <p className="text-body-small text-on-surface-variant">
               Движки опрашиваются сверху вниз: первый включённый с заданным ключом обрабатывает документ.
             </p>
@@ -436,7 +427,7 @@ export function IntegrationSettingsSection() {
 
           {/* Веб-поиск */}
           <div className="space-y-2">
-            <h3 className="text-body-small font-semibold text-on-surface-variant">Веб-поиск документов</h3>
+            <h3 className="text-title-small text-on-surface-variant">Веб-поиск документов</h3>
             <p className="text-body-small text-on-surface-variant">Выдача всех включённых движков объединяется.</p>
             <div className="space-y-2">
               {Object.keys(WEB_ENGINES).map(k => web[k] && (
@@ -460,7 +451,7 @@ export function IntegrationSettingsSection() {
 
           {/* Домены */}
           <div className="space-y-3">
-            <h3 className="text-body-small font-semibold text-on-surface-variant">Домены для тиров поиска</h3>
+            <h3 className="text-title-small text-on-surface-variant">Домены для тиров поиска</h3>
             <DomainList
               label="ФГИС"
               hint="Реестры сертификатов/деклараций (site:-фильтр первого тира)."

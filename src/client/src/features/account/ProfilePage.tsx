@@ -170,7 +170,7 @@ export function ProfilePage() {
       {/* Оформление и язык (issue #954, ТЗ AUTH-16.6): личные настройки — в профиле, а не в
           «Настройке системы», где язык лежал за административным правом. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-4">
+        <h2 className="flex items-center gap-2 text-title-small text-on-surface mb-4">
           <Icon icon={Palette} size={18} className="text-on-surface-variant" /> Оформление и язык
         </h2>
         <AppearanceSection />
@@ -185,7 +185,7 @@ export function ProfilePage() {
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-1">
+        <h2 className="flex items-center gap-2 text-title-small text-on-surface mb-1">
           <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" /> Мои права
         </h2>
         <p className="text-body-small text-on-surface-variant mb-4">
@@ -195,7 +195,7 @@ export function ProfilePage() {
       </div>
 
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-1">
+        <h2 className="flex items-center gap-2 text-title-small text-on-surface mb-1">
           <Icon icon={Mail} size={18} className="text-on-surface-variant" /> Сменить email
         </h2>
         <p className="text-body-small text-on-surface-variant mb-4">
