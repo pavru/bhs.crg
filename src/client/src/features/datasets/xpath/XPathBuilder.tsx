@@ -1,17 +1,21 @@
 import { useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Add, Delete, Warning } from '@/shared/ui/icons';
+import { Add, Close, Delete, Warning } from '@/shared/ui/icons';
 import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredicate } from './xpathModel';
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 interface XPathBuilderProps {
   value: string;
   onChange: (value: string) => void;
+  /** Имя поля для читалки: плотное поле подпись прячет, а пример ввода — не имя. */
+  label?: string;
   placeholder?: string;
   /**
    * Даёт предпросмотр данных, которые матчит текущее выражение — вычисляется от debounced
@@ -28,7 +32,7 @@ interface XPathBuilderProps {
  * вышло за пределы поддерживаемого поднабора (см. xpathModel.ts), показывается
  * предупреждение вместо визуального редактора; сам текст при этом остаётся рабочим.
  */
-export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBuilderProps) {
+export function XPathBuilder({ value, onChange, label = 'Выражение XPath', placeholder, preview }: XPathBuilderProps) {
   const model = useMemo(() => parseXPath(value), [value]);
   const unparseable = value.trim() !== '' && model === null;
 
@@ -41,13 +45,8 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
 
   return (
     <div className="space-y-1.5">
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder ?? '/Root/Item'}
-        spellCheck={false}
-        className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-small font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      />
+      <TextField density="dense" label={label} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder ?? '/Root/Item'} spellCheck={false} className="font-mono" />
       {unparseable ? (
         <p className="text-body-small text-warning flex items-start gap-1.5 py-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
@@ -71,7 +70,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
   if (!spec) return null;
 
   return (
-    <div className="text-body-small rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
+    <Card variant="filled" flush className="px-3 py-2 text-body-small">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
@@ -92,7 +91,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
           )}
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -139,7 +138,8 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
   }
 
   return (
-    <div className="border border-outline-variant rounded-sm px-1.5 py-1 bg-surface-container-low flex flex-col gap-1 min-w-0">
+    // Шаг — карточка на уровень (Р6), условия — внутри неё.
+    <Card flush className="px-2 py-1.5 min-w-0">
       <div className="flex items-center gap-1">
         {isLast && (
           <Tooltip content="Атрибут / элемент">
@@ -150,12 +150,13 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
             </button>
           </Tooltip>
         )}
-        <input value={step.name} onChange={e => onChange({ name: e.target.value })}
+        <TextField density="dense" label={step.axis === 'attribute' ? 'Имя атрибута' : 'Имя элемента'}
+          value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
-          className="w-24 text-body-small font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
+          className="font-mono" containerClassName="w-32" />
         <IconButton label="Удалить шаг" danger onClick={onRemove} icon={Delete} />
       </div>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1 mt-1">
         {step.predicates.map((p, i) => (
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
@@ -164,7 +165,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           + условие
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -190,10 +191,8 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
     }
   }
 
-  const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-primary';
-
   return (
-    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded-xs px-1.5 py-0.5 text-label-small text-on-primary-container">
+    <span className="inline-flex flex-wrap items-center gap-1 rounded-sm bg-surface-container-high px-1.5 py-1 text-label-small text-on-surface">
       <Select variant="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>
@@ -203,8 +202,8 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
       </Select>
 
       {predicate.kind !== 'position' && (
-        <input value={predicate.path} onChange={e => onChange({ ...predicate, path: e.target.value })}
-          placeholder="путь" className={`w-16 font-mono ${inputCls}`} />
+        <TextField density="dense" label="Путь условия" placeholder="путь" value={predicate.path}
+          onChange={e => onChange({ ...predicate, path: e.target.value })} className="font-mono" containerClassName="w-28" />
       )}
 
       {predicate.kind === 'equals' && (
@@ -213,23 +212,22 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
             <SelectItem value="=">=</SelectItem>
             <SelectItem value="!=">≠</SelectItem>
           </Select>
-          <input value={predicate.value} onChange={e => onChange({ ...predicate, value: e.target.value })}
-            placeholder="значение" className={`w-16 ${inputCls}`} />
+          <TextField density="dense" label="Значение условия" placeholder="значение" value={predicate.value}
+            onChange={e => onChange({ ...predicate, value: e.target.value })} containerClassName="w-28" />
         </>
       )}
 
       {predicate.kind === 'contains' && (
-        <input value={predicate.value} onChange={e => onChange({ ...predicate, value: e.target.value })}
-          placeholder="значение" className={`w-16 ${inputCls}`} />
+        <TextField density="dense" label="Значение условия" placeholder="значение" value={predicate.value}
+          onChange={e => onChange({ ...predicate, value: e.target.value })} containerClassName="w-28" />
       )}
 
       {predicate.kind === 'position' && predicate.op === 'index' && (
-        <input type="number" min={1} value={predicate.index}
-          onChange={e => onChange({ kind: 'position', op: 'index', index: Number(e.target.value) })}
-          className={`w-10 ${inputCls}`} />
+        <TextField density="dense" label="Номер позиции" type="number" min={1} value={predicate.index}
+          onChange={e => onChange({ kind: 'position', op: 'index', index: Number(e.target.value) })} containerClassName="w-20" />
       )}
 
-      <button type="button" onClick={onRemove} className="text-primary-container hover:text-error">×</button>
+      <IconButton label="Удалить условие" onClick={onRemove} icon={Close} />
     </span>
   );
 }

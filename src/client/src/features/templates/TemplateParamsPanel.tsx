@@ -11,6 +11,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TextField } from '@/shared/ui/TextField';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -91,10 +92,10 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   <Icon icon={DragIndicator} size={18} />
                 </span>
               </Tooltip>
-              <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
-                className="w-24 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
-              <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
-                className="flex-1 min-w-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+              <TextField density="dense" label={`Имя параметра ${i + 1}`} placeholder="имя"
+                value={p.name} onChange={e => patch(i, { name: e.target.value })} containerClassName="w-24 shrink-0" />
+              <TextField density="dense" label={`Подпись параметра ${i + 1}`} placeholder="подпись"
+                value={p.label} onChange={e => patch(i, { label: e.target.value })} containerClassName="flex-1 min-w-0" />
               <Select density="dense" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
@@ -134,8 +135,8 @@ function ParamDefault({ type, value, onChange }: {
       </span>
     );
   return (
-    <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
-      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} placeholder="по умолч."
-      className="w-20 shrink-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+    <TextField density="dense" label="Значение по умолчанию" placeholder="по умолч."
+      type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
+      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} containerClassName="w-20 shrink-0" />
   );
 }

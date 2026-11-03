@@ -7,6 +7,8 @@ import {
 import { hiddenLabel, withBoundOption } from '@/shared/api/recognitionProfileGroups';
 import type { DataSetFile } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Профили распознавания НАБОРА (issue #412): штамп, обложка/титул и счёт читают файл целиком, поэтому
@@ -88,15 +90,12 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
         })}
 
         {dormant.map(h => (
-          <div key={h.id}>
-            <p className="text-body-medium font-medium text-on-surface-variant mb-1">{h.kindLabel}</p>
-            {/* Текстом, а не выключенным селектом: длинная подпись в селекте обрезается, и
-                обрезается как раз причина — «модуль … выключен». */}
-            <p className="border border-outline-variant rounded-sm px-2 py-1.5 text-body-medium bg-surface-container text-on-surface-variant">{hiddenLabel(h)}</p>
-            <p className="text-label-small text-on-surface-variant mt-1">
-              Привязка сохранена и начнёт действовать, когда модуль включат.
-            </p>
-          </div>
+          // Полем только для чтения, а не выключенным селектом (Р3): выключенный читается «нельзя выбрать»,
+          // а здесь выбор сделан. Длинная причина — «модуль … выключен» — обрезается в строке, целиком она в подсказке.
+          <Tooltip key={h.id} content={hiddenLabel(h)}>
+            <TextField readOnly label={h.kindLabel} value={hiddenLabel(h)}
+              hint="Привязка сохранена и начнёт действовать, когда модуль включат." />
+          </Tooltip>
         ))}
 
         {error && <p className="text-body-medium text-error">{error}</p>}

@@ -1,10 +1,14 @@
 import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 
 interface JsonPathBuilderProps {
   value: string;
   onChange: (value: string) => void;
+  /** Имя поля для читалки: плотное поле подпись прячет, а пример ввода — не имя. */
+  label?: string;
   placeholder?: string;
   /**
    * Даёт предпросмотр данных, которые матчит текущее выражение — вычисляется от debounced
@@ -20,19 +24,14 @@ interface JsonPathBuilderProps {
  * — без визуального конструктора шагов: точечная нотация JSONPath ($.a.b[0]) интуитивнее XPath
  * для человека без подготовки, поэтому для первой версии визуальный слой избыточен.
  */
-export function JsonPathBuilder({ value, onChange, placeholder, preview }: JsonPathBuilderProps) {
+export function JsonPathBuilder({ value, onChange, label = 'Выражение JSONPath', placeholder, preview }: JsonPathBuilderProps) {
   const debouncedValue = useDebouncedValue(value, 400);
   const previewSpec = preview ? preview(debouncedValue) : null;
 
   return (
     <div className="space-y-1.5">
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder ?? '$.items[*]'}
-        spellCheck={false}
-        className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-small font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      />
+      <TextField density="dense" label={label} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder ?? '$.items[*]'} spellCheck={false} className="font-mono" />
       {preview && <JsonPathPreviewPanel spec={previewSpec} />}
     </div>
   );
@@ -44,7 +43,7 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
   if (!spec) return null;
 
   return (
-    <div className="text-body-small rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
+    <Card variant="filled" flush className="px-3 py-2 text-body-small">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
@@ -65,6 +64,6 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
           )}
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }

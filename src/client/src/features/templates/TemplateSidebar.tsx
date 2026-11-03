@@ -14,6 +14,7 @@ import type { TemplateGroup } from './groupTemplates';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Banner } from '@/shared/ui/Banner';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
@@ -253,6 +254,12 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
               {isExpanded && (
                 <div className="border-b border-surface-container">
+                  {/* Сообщение группы — banner в её начале ([UI-73]), а не плашка под списком версий. */}
+                  {tooMany && (
+                    <Banner tone="warning" actions={[{ label: 'Очистить', onClick: () => onCleanup(group) }]}>
+                      Много версий: {group.versions.length}
+                    </Banner>
+                  )}
                   {group.versions.map(t => {
                     const used = usage[t.id]?.count ?? 0;
                     // Удалять индивидуально нельзя рабочую/дефолтную версию (защита active/default — на уровне UI).
@@ -296,18 +303,6 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     </div>
                     );
                   })}
-                  {tooMany && (
-                    <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-outline-variant rounded-sm flex items-center gap-2">
-                      <Icon icon={Warning} size={18} className="text-warning shrink-0" />
-                      <span className="text-body-small text-warning flex-1">Много версий</span>
-                      <button
-                        onClick={() => onCleanup(group)}
-                        className="text-body-small text-warning underline hover:text-warning shrink-0"
-                      >
-                        Очистить
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
