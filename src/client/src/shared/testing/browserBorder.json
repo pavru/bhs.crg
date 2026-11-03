@@ -1,5 +1,15 @@
 {
  "node": "22.23.3",
+ "bcd": "8.1.8",
+ "browsers": {
+  "chrome": "126",
+  "firefox": "126",
+  "safari": "18"
+ },
+ "kept": {
+  "Error.captureStackTrace": "среда тестов: стек ошибок vitest и Node (у Firefox нет)",
+  "Error.stackTraceLimit": "среда тестов: без него V8 не пишет стек, и место падения теряется (у Firefox нет)"
+ },
  "objects": {
   "globalThis": [
    "AbortController",
@@ -41,7 +51,6 @@
    "Int32Array",
    "Int8Array",
    "Intl",
-   "Iterator",
    "JSON",
    "Map",
    "Math",
@@ -62,10 +71,7 @@
    "Promise",
    "Proxy",
    "RangeError",
-   "ReadableByteStreamController",
    "ReadableStream",
-   "ReadableStreamBYOBReader",
-   "ReadableStreamBYOBRequest",
    "ReadableStreamDefaultController",
    "ReadableStreamDefaultReader",
    "ReferenceError",
@@ -333,9 +339,7 @@
    "valueOf"
   ],
   "Symbol": [
-   "asyncDispose",
    "asyncIterator",
-   "dispose",
    "for",
    "hasInstance",
    "isConcatSpreadable",
@@ -590,18 +594,11 @@
    "clear",
    "constructor",
    "delete",
-   "difference",
    "entries",
    "forEach",
    "has",
-   "intersection",
-   "isDisjointFrom",
-   "isSubsetOf",
-   "isSupersetOf",
    "keys",
    "size",
-   "symmetricDifference",
-   "union",
    "values"
   ],
   "WeakMap": [
@@ -662,9 +659,6 @@
    "byteLength",
    "constructor",
    "detached",
-   "maxByteLength",
-   "resizable",
-   "resize",
    "slice",
    "transfer",
    "transferToFixedLength"
@@ -679,9 +673,6 @@
    "Symbol.toStringTag",
    "byteLength",
    "constructor",
-   "grow",
-   "growable",
-   "maxByteLength",
    "slice"
   ],
   "DataView": [
@@ -874,27 +865,180 @@
    "BYTES_PER_ELEMENT",
    "constructor"
   ],
-  "Iterator": [
-   "from",
+  "AbortSignal": [
+   "abort",
+   "any",
+   "length",
+   "name",
+   "prototype",
+   "timeout"
+  ],
+  "AbortSignal.prototype": [
+   "Symbol.toStringTag",
+   "aborted",
+   "constructor",
+   "onabort",
+   "reason",
+   "throwIfAborted"
+  ],
+  "Blob": [
    "length",
    "name",
    "prototype"
   ],
-  "Iterator.prototype": [
-   "Symbol.iterator",
+  "Blob.prototype": [
+   "Symbol.toStringTag",
+   "arrayBuffer",
+   "constructor",
+   "size",
+   "slice",
+   "stream",
+   "text",
+   "type"
+  ],
+  "CompressionStream": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "CompressionStream.prototype": [
    "Symbol.toStringTag",
    "constructor",
-   "drop",
-   "every",
-   "filter",
-   "find",
-   "flatMap",
-   "forEach",
-   "map",
-   "reduce",
-   "some",
-   "take",
-   "toArray"
+   "readable",
+   "writable"
+  ],
+  "DecompressionStream": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "DecompressionStream.prototype": [
+   "Symbol.toStringTag",
+   "constructor",
+   "readable",
+   "writable"
+  ],
+  "ReadableStream": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "ReadableStream.prototype": [
+   "Symbol.toStringTag",
+   "cancel",
+   "constructor",
+   "getReader",
+   "locked",
+   "pipeThrough",
+   "pipeTo",
+   "tee"
+  ],
+  "Response": [
+   "error",
+   "json",
+   "length",
+   "name",
+   "prototype",
+   "redirect"
+  ],
+  "Response.prototype": [
+   "Symbol.toStringTag",
+   "arrayBuffer",
+   "blob",
+   "body",
+   "bodyUsed",
+   "clone",
+   "constructor",
+   "headers",
+   "json",
+   "ok",
+   "redirected",
+   "status",
+   "statusText",
+   "text",
+   "type",
+   "url"
+  ],
+  "TextDecoder": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "TextDecoder.prototype": [
+   "Symbol.toStringTag",
+   "constructor",
+   "decode",
+   "encoding",
+   "fatal",
+   "ignoreBOM"
+  ],
+  "TextEncoder": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "TextEncoder.prototype": [
+   "Symbol.toStringTag",
+   "constructor",
+   "encode",
+   "encodeInto",
+   "encoding"
+  ],
+  "TransformStream": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "TransformStream.prototype": [
+   "Symbol.toStringTag",
+   "constructor",
+   "readable",
+   "writable"
+  ],
+  "URL": [
+   "canParse",
+   "createObjectURL",
+   "length",
+   "name",
+   "parse",
+   "prototype",
+   "revokeObjectURL"
+  ],
+  "URL.prototype": [
+   "Symbol.toStringTag",
+   "constructor",
+   "hash",
+   "host",
+   "hostname",
+   "href",
+   "origin",
+   "password",
+   "pathname",
+   "port",
+   "protocol",
+   "search",
+   "searchParams",
+   "toJSON",
+   "toString",
+   "username"
+  ],
+  "WritableStream": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "WritableStream.prototype": [
+   "Symbol.toStringTag",
+   "abort",
+   "close",
+   "constructor",
+   "getWriter",
+   "locked"
+  ],
+  "%IteratorPrototype%": [
+   "Symbol.iterator",
+   "Symbol.toStringTag",
+   "constructor"
   ],
   "Math": [
    "E",
@@ -944,9 +1088,7 @@
   ],
   "JSON": [
    "Symbol.toStringTag",
-   "isRawJSON",
    "parse",
-   "rawJSON",
    "stringify"
   ],
   "Reflect": [
@@ -978,7 +1120,6 @@
    "store",
    "sub",
    "wait",
-   "waitAsync",
    "xor"
   ],
   "Intl": [

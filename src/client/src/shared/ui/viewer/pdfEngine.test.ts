@@ -1,5 +1,6 @@
 // Первым: делает в среде границу браузеров — до pdfEngine, который ставит заплатки (см. ниже).
-import { REMOVED_AT_BORDER } from '@/shared/testing/browserBorder';
+import { KEPT_AT_BORDER, REMOVED_AT_BORDER, REMOVED_KEYS } from '@/shared/testing/browserBorder';
+import { resolveBorderPath } from '@/shared/testing/browserBorderPaths';
 // Типов Node у приложения нет нарочно (tsconfig.app), а ссылка на них отсюда подмешала бы их всему
 // приложению. Этому тесту Node нужен — он читает эталонный PDF с диска, — поэтому без типов, здесь.
 // @ts-expect-error — модуль Node без типов
@@ -10,14 +11,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { openPdf, setAssetBase, ViewerFailure, wrap } from './pdfEngine';
-import { IMPLS } from './pdfPolyfills';
+import { IMPLS, ITERATOR_PROTOTYPE } from './pdfPolyfills';
 
 /**
  * Настоящий движок в Node, без подмен (issue #1490, [UI-10], [UI-17], [UI-21]).
  *
  * Это и сторож заплаток: до загрузки библиотеки `browserBorder` убирает из среды функции, которых нет
- * на границе просмотрщика (Chrome 126, Safari 18) — `Map.getOrInsertComputed`, `Math.sumPrecise`… —
- * на любой версии Node. Обновлённый pdf.js, вызвавший новую функцию без заплатки, краснит этот тест.
+ * хотя бы у одного браузера границы (Chrome 126, Firefox 126, Safari 18) — `Map.getOrInsertComputed`,
+ * глобал `Iterator`, `Response.bytes`… — на любой версии Node. Обновлённый pdf.js, вызвавший новую
+ * функцию без заплатки, краснит этот тест: загрузкой и открытием документа — или, если путь в Node не
+ * проходится (worker качает файлы, пользователь выделяет текст), сверкой вызовов по имени.
  *
  * Эталон — PDF, который конвертер поставки делает из `converter-reference.xlsx` (сверяет пару
  * `deploy/converter.tests.sh`): текст со шрифтом LibreOffice, кириллица и числа по-русски.
@@ -28,6 +31,17 @@ const root = path.resolve(here, '../../../../../..');
 setAssetBase(`${path.resolve(here, '../../../../node_modules/pdfjs-dist').replace(/\\/g, '/')}/`);
 
 const reference = () => new Uint8Array(readFileSync(path.join(root, 'deploy/converter-reference.pdf')));
+/**
+ * Совпадения имён, заведомо не те: метод убран границей, а сборка зовёт одноимённый у другого объекта.
+ * Каждое — с причиной, сверенной по тексту сборки.
+ */
+const FALSE_MATCHES: Record<string, string> = {
+  'SharedArrayBuffer.prototype.grow': '`.grow(` у pdf.js — WebAssembly.Memory и WebAssembly.Table (wasm-декодеры)',
+};
+
+const builds = ['pdf.mjs', 'pdf.worker.mjs'].map(file => ({
+  file, text: readFileSync(path.resolve(here, '../../../../node_modules/pdfjs-dist/build', file), 'utf8') as string,
+}));
 
 async function failureOf(bytes: Uint8Array): Promise<string> {
   try {
@@ -52,6 +66,14 @@ describe('граница браузеров в среде теста', () => {
       ['Uint8Array.prototype.toBase64', proto.toBase64, IMPLS.toBase64],
       ['Uint8Array.prototype.toHex', proto.toHex, IMPLS.toHex],
       ['Uint8Array.fromBase64', (Uint8Array as unknown as Record<string, unknown>).fromBase64, IMPLS.fromBase64],
+      ['globalThis.Iterator', (globalThis as Record<string, unknown>).Iterator, IMPLS.iteratorCtor],
+      ...(['map', 'filter', 'take', 'drop', 'flatMap', 'reduce', 'toArray', 'forEach', 'some', 'every', 'find'] as const)
+        .map(name => [`%IteratorPrototype%.${name}`, (ITERATOR_PROTOTYPE as Record<string, unknown>)[name], IMPLS[name]] as [string, unknown, unknown]),
+      ['Set.prototype.intersection', (Set.prototype as unknown as Record<string, unknown>).intersection, IMPLS.setIntersection],
+      ['Response.prototype.bytes', (Response.prototype as unknown as Record<string, unknown>).bytes, IMPLS.bytes],
+      ['Blob.prototype.bytes', (Blob.prototype as unknown as Record<string, unknown>).bytes, IMPLS.bytes],
+      ['ReadableStream.prototype.values', (ReadableStream.prototype as unknown as Record<string, unknown>).values, IMPLS.streamValues],
+      ['ReadableStream.prototype[Symbol.asyncIterator]', (ReadableStream.prototype as unknown as Record<symbol, unknown>)[Symbol.asyncIterator], IMPLS.streamValues],
     ];
     expect(places.filter(([, actual, impl]) => actual !== impl).map(([name]) => name)).toEqual([]);
   });
@@ -60,7 +82,39 @@ describe('граница браузеров в среде теста', () => {
     // Node один на всё (.nvmrc) и новее снимка с Node 22: убранное обязано быть.
     expect(REMOVED_AT_BORDER).toEqual(expect.arrayContaining([
       'Map.prototype.getOrInsertComputed', 'Uint8Array.prototype.toBase64', 'Promise.try',
+      // Пробелы Firefox и Safari и веб-API — их Node 22 имел, а граница нет.
+      'globalThis.Iterator', '%IteratorPrototype%.toArray', 'Set.prototype.intersection',
+      'Response.prototype.bytes', 'Blob.prototype.bytes', 'ReadableStream.prototype.Symbol.asyncIterator',
     ]));
+  });
+
+  it('каждый убранный границей метод, который сборка зовёт по имени, после заплаток на месте', () => {
+    // Загрузка в Node проходит не все пути: worker берёт файлы с диска, а не `fetch` (`bytes`),
+    // выделения текста нет (итераторные помощники слоя текста). Поэтому — по тексту сборки.
+    // Метод прототипа ищется как `.имя(`, статический — как `Объект.имя(`. Совпадение имён (`.filter(`
+    // и у массивов) даёт лишний красный, а не пропуск: так и задумано, заплатка дешевле разбора.
+    // Глобалы и символы — не здесь: глобал без проверки краснит загрузку, `for await` — `doc.text()`.
+    const called = REMOVED_KEYS
+      .filter(({ path, name }) => path !== 'globalThis' && !name.startsWith('Symbol.'))
+      .filter(({ path, name }) => {
+        const call = path.endsWith('.prototype') || path === '%IteratorPrototype%' ? `.${name}(` : `${path}.${name}(`;
+        return builds.some(b => b.text.includes(call));
+      })
+      .map(({ path, name }) => `${path}.${name}`);
+    const unpatched = called.filter(key => {
+      const at = key.lastIndexOf('.');
+      return !(key in FALSE_MATCHES) && !(key.slice(at + 1) in (resolveBorderPath(key.slice(0, at)) as object));
+    });
+    expect(unpatched).toEqual([]);
+    // Исключение без совпадения устарело: библиотека перестала звать это имя — убрать.
+    expect(Object.keys(FALSE_MATCHES).filter(key => !called.includes(key))).toEqual([]);
+  });
+
+  it('оставленное ради среды тестов сборка не трогает', () => {
+    // Иначе нарочно не убранное прикрывало бы пропуск заплатки.
+    const used = Object.keys(KEPT_AT_BORDER)
+      .filter(key => builds.some(b => new RegExp(`\\.${key.slice(key.lastIndexOf('.') + 1)}\\b`).test(b.text)));
+    expect(used).toEqual([]);
   });
 });
 
