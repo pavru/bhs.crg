@@ -21,29 +21,32 @@
 
 ## What Changes
 
-- **Панель просмотрщика** — закреплённая панель у нижнего края, как в выбранном варианте В:
-  - поверхность `surface-container`, кнопки-иконки 40 со знаком 24;
-  - поле номера страницы — плотное поле 40;
-  - масштаб — чип с меню, слой меню — общий `Menu` из `sharedui-md3-13-containers`.
+Выбор владельца 03.11.2026 — макет А «MD3 буквально» целиком (проект Claude Design md3-16).
 
-  Состав панели, узкая колонка, клавиши и озвучка — без изменений. Правка [UI-11].
+- **Панель просмотрщика** — docked toolbar 64 у нижнего края:
+  - поверхность `surface-container` без черты, одной плоскостью с холстом; кнопки-иконки 40 со знаком 24;
+  - поле номера страницы — плотное поле 40 с суффиксом «/ M»;
+  - масштаб — чип с меню, слой — общий `Menu dense`; в узкой колонке чип показывает процент.
+
+  Состав панели, клавиши и озвучка — без изменений. Правка [UI-11].
 - **Холст и лист** — холст `surface-container`, лист белый в любой теме: в светлой отделён
-  возвышением 1, в тёмной — обводкой `outline-variant`. Правка [UI-18].
-- **Календарь** — docked date picker:
-  - ширина 360, клетка 40 с целью 48;
+  возвышением 1, в тёмной — обводкой `outline-variant` (уже в коде). Правка [UI-18].
+- **Календарь** — docked date picker дословно:
+  - ширина 360, клетка 40 в строке 48, цель 48;
   - выбранный день — круг `primary`, «сегодня» — обводка 1 px `primary`;
   - лента периода — `secondary-container`;
-  - шапка месяца и года — текстовые кнопки с переходом к выбору;
-  - поверхность `surface-container-high`, радиус 16, возвышение 3.
+  - шапка — два селектора `‹ месяц ▾ ›` и `‹ год ▾ ›`; месяц и год выбираются списком;
+  - поверхность `surface-container-high`, радиус 16, возвышение 3 — исключение из общего слоя [UI-76];
+  - высота не больше доступного места, на телефоне — не шире экрана.
 
-  Клавиатура APG, границы min/max, день компании — без изменений.
+  Клавиатура вида дней, границы min/max, день компании — без изменений. Клавиши выбора месяца и года —
+  по модели списка.
 - **Строка «Очистить / Сегодня»** и **сегменты времени ЧЧ:ММ** (`TimeField`) — названы в разделе
   отступлений `docs/UI.md`. `TimeField` получает только роли и шкалы, time picker не вводится.
 - **Тема редактора кода** — одна своя тема Monaco из ролей `--md-sys-*`, в обеих темах приложения,
   вместо `vs` / `vs-dark` в пяти местах. Смена темы приложения перекрашивает открытый редактор без
   перезагрузки.
-- Правки живых прогонов, проверяющих размеры (`pdf-viewer-checks` — 7 проверок, календарь в
-  `fields-smoke` и `invoice-payment-smoke`), — вместе с компонентом.
+- Правки живых прогонов просмотрщика и календаря — вместе с компонентом.
 
 ## Capabilities
 
@@ -52,24 +55,26 @@
 
 ### Modified Capabilities
 - `sharedui`:
-  - правка [UI-11] — панель просмотра, вид ролями MD3;
+  - правка [UI-11] — панель просмотра, вид ролями MD3, процент в узком чипе;
   - правка [UI-18] — тёмная тема просмотрщика: холст и лист ролями;
-  - новые [UI-80] — вид панели, календарь по docked date picker, строка «Очистить / Сегодня» и
-    сегменты времени как отступления, тема редактора кода.
+  - правка [UI-76] — календарь как единственное исключение из поверхности поповеров;
+  - новые [UI-80] — календарь по docked date picker, шапка и списки месяца и года, строка
+    «Очистить / Сегодня» и сегменты времени как отступления, тема редактора кода.
 
 ## Impact
 
 - **Клиент:**
-  - `shared/ui/viewer/ViewerToolbar.tsx`, `PdfPages.tsx`, `PdfViewerImpl.tsx`, `ViewerMessage.tsx`;
-    `textLayer.css` не трогается — выделение на белом листе нарочно своё;
-  - `shared/ui/Calendar.tsx`, `DateInput.tsx` (слой календаря), `DateRange.tsx`, `TimeField.tsx`,
-    `TimeInput.tsx`;
-  - `shared/ui/MonacoEditor.tsx`, `CodeEditor.tsx` и пять мест с `theme=` в `features/templates/*` и
-    `features/settings/TypstRendersEditor.tsx`.
-- **Сторожа:** уровень `fixed-width` перепроверяется после календаря 360. Тест темы Monaco сверяет её
+  - `shared/ui/viewer/ViewerToolbar.tsx`, `PdfViewerImpl.tsx`, `ImageView.tsx`, `ViewerMessage.tsx`,
+    обёртка `features/costs/InvoiceScanPanel.tsx`; `sheet.css` и `textLayer.css` не трогаются;
+  - `shared/ui/Calendar.tsx`, `DateInput.tsx` и `DateRange.tsx` (слой календаря), `menuClasses.ts`
+    (`DATE_PICKER_SURFACE`), `TimeField.tsx`, `TimeInput.tsx`;
+  - новый `shared/ui/monacoTheme.ts`, `MonacoEditor.tsx`, `CodeEditor.tsx` и пять мест с `theme=` в
+    `features/templates/*` и `features/settings/TypstRendersEditor.tsx`.
+- **Сторожа:** `scripts/menu-layer.test.mjs` — исключение `DATE_PICKER_SURFACE`. Тест темы Monaco сверяет её
   цвета с ролями.
-- **Живые прогоны:** `pdf-viewer-checks`, `document-preview-checks`, `fields-smoke`,
-  `invoice-payment-smoke`, весь список.
+- **Живые прогоны:** просмотрщик — `invoices-smoke`, `invoice-scan-checks` (помощники `pdf-viewer-checks`,
+  `document-preview-checks`); календарь — `invoice-payment-smoke`, `shared-ui-smoke`, `table-chips-smoke`,
+  `keyboard-smoke`; весь список.
 - **Claude Design:** `/design-sync` после слияния.
 - **Сервер:** не меняется.
 - **PR:** два — просмотрщик и редактор кода; календарь и время. Оба с меткой `version:minor`.
