@@ -69,7 +69,7 @@ export function ActivityCenter() {
             </>
           ) : (
             <>
-              <Icon icon={Notifications} size={20} />
+              <Icon icon={Notifications} size={24} />
               {unread > 0 && <Badge count={unread} className="absolute top-0.5 right-0.5" />}
             </>
           )}
