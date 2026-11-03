@@ -120,32 +120,42 @@
 
 ## 2. PR 2: телефон
 
-- [ ] 2.1 `BottomNav` — navigation bar 80 на `surface-container` без черты (`border-t` уходит), подпись
+- [x] 2.1 `BottomNav` — navigation bar 80 на `surface-container` без черты (`border-t` уходит), подпись
   `label-medium` одним весом; индикатор 64×32 и знак 24 с заливкой — уже [UI-79]. Проверка — vitest
   `phoneShell.test.tsx`: класс поверхности, нет `border-t`; база `legacy-type` у `BottomNav` опущена
-- [ ] 2.2 `PrimaryFab` — extended FAB 56, радиус 16, `primary-container`, возвышение 3 — уже так, кода нет
+  - Сделано: `BottomNav` — `bg-surface-container` без `border-t`, `text-label-medium` без `font-*` у подписи; `phoneShell.test.tsx` — вид navigation bar; база `legacy-type` `BottomNav` 1 → 0.
+- [x] 2.2 `PrimaryFab` — extended FAB 56, радиус 16, `primary-container`, возвышение 3 — уже так, кода нет
   [UI-79]. Проверка — `invoices-smoke` на 390 px: FAB над нижней навигацией, не перекрывает последнюю строку
   списка
-- [ ] 2.3 Полоса телефона по макету А: 64 — знак экземпляра 48 (ссылка), search bar 56, аватар 48;
+  - Сделано: кода нет. Проверка — новая в `invoices-smoke` («на телефоне плавающая кнопка над нижней навигацией и не закрывает последнюю строку»): 390 px, список докручен до конца; на сборке без места под кнопкой падает. Вид кнопки (56, `primary-container`) — `narrow-primary-action-is-a-labelled-fab` в `rail-checks`.
+- [x] 2.3 Полоса телефона по макету А: 64 — знак экземпляра 48 (ссылка), search bar 56, аватар 48;
   заголовок-кнопка — строкой ниже, цель 48 (`min-h-11` уходит), слой состояния и `secondary-container` у
   открытого меню — уже; палитра в окне меньше 768 px — во весь экран со стрелкой «Назад» [UI-79]. Проверка —
   `rail-checks` на 375 px; vitest палитры на узком экране
-- [ ] 2.4 Цели касания оболочки — 48 (правило [UI-68]): поиск в шапке и `PhoneBrand` дотянуты с 44;
+  - Сделано: полоса `h-16` и на телефоне: `PhoneBrand` 48 со слоем состояния, строка поиска 56 (телефонные `max-md:` 44 сняты), центр активности и аватар — видимые 48; заголовок-кнопка `min-h-12` без `touch-target`. Палитра уже `WIDE` — full-screen search view: `inset-0`, «Назад» (`ArrowBack`) вместо знака поиска, без `Esc`, подсказки клавиш и «Enter» у пункта; подсказка запроса остаётся. Найдено по ходу: на 375 px обёртка поиска ужималась в 0, и кнопка вылезала поверх центра активности (так было и на master с 44) — обёртки больше нет, кнопка — сама элемент полосы со своим `min-w-14` и `me-auto`, ужимается имя пространства; `rail-checks` ловит наложение элементов шапки, в том числе в тесной шапке (длинное имя пространства, широкий центр активности), — на сборке с прежней обёрткой падает. Место палитры во весь экран — видимая область (`visualViewport`): экранная клавиатура её сжимает, и низ выдачи не уходит под клавиатуру (`fullPlace`, `paletteDock.ts`). Проверка — vitest палитры на 375 px, `phoneShell.test.tsx`.
+- [x] 2.4 Цели касания оболочки — 48 (правило [UI-68]): поиск в шапке и `PhoneBrand` дотянуты с 44;
   `rail-checks` — порог 48 и селектор `main > header a`; `docs/UI.md` — отступление 44 снято;
   `phoneLayout.ts` не меняется (80 и 72 уже MD3) [UI-79]. Проверка — `rail-checks` на 375 и 390 px зелёный с
   новым числом
-- [ ] 2.5 Весь `npm run -s test:e2e:ci` зелёный (правка оболочки — весь список). Проверка — описание PR
+  - Сделано: `rail-checks`: порог 48 без исключения поиска, селектор с `main > header a`, высота шапки на 390 px — ровно 64, новая проверка наложения; `docs/UI.md` — абзац «Телефон»: полоса 64, navigation bar, палитра во весь экран, отступление 44 снято.
+- [x] 2.5 Весь `npm run -s test:e2e:ci` зелёный (правка оболочки — весь список). Проверка — описание PR
+  - Сделано: весь `test:e2e:ci` на стенде 5058/4175 — 21/21 (3 пропуска PDF, как в CI), после PR 2.
 - [ ] 2.6 `/design-sync` после слияния PR 2: `SectionRail`, `BottomNav`, `PrimaryFab`, `PageHeader`,
   `SearchInput` — новый вид в дизайн-системе (D12). Проверка — превью компонентов
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; опустившиеся
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+  - Сделано: `tsc -b` чистый, vitest 311/311 файлов (PR 1 и PR 2).
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; опустившиеся
   уровни записаны в базу тем же PR
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+  - Сделано: без роста; опущены `icon-button` (`SearchInput`), `legacy-type` (`PageHeader`, `SectionRail` — PR 1; `BottomNav` — PR 2).
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
-- [ ] 3.4 В описании каждого PR — макет, выбранный вариант и ссылка; снимки 5–7 ключевых экранов до и
+  - Сделано: зелёный.
+- [x] 3.4 В описании каждого PR — макет, выбранный вариант и ссылка; снимки 5–7 ключевых экранов до и
   после в обеих темах на 1366×768 и 375 px, включая оболочку на телефоне (зонтик, 5.2); весь
   `npm run -s test:e2e:ci` зелёный (5.1)
-- [ ] 3.5 PR с меткой `version:minor`
+  - Сделано: снимки до (`be0ef24e`) и после (PR 2) — 8 экранов × 2 темы, 1366×768 и 375 px: артефакт https://claude.ai/artifact/Wh38oGjZYqz4JvWS8hktNW; e2e 21/21 в обоих PR.
+- [x] 3.5 PR с меткой `version:minor`
+  - Сделано: метка на pavru/bhs.crg#1738 и на PR 2.

@@ -144,33 +144,58 @@ export async function railChecks(page, check) {
 const sideScroll = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 /**
- * Цели касания меньше 48 px — нижняя навигация, шапка, заголовок-меню (issue #1434, [UI-68]). Цель — рамка
- * вместе с `::after` утилиты `touch-target`: видимая кнопка 40, а нажимается 48. Мерить — при касании
- * (`emulateTouch`): без него утилита не включена, и замер видел бы рамку.
+ * Кнопки и ссылки оболочки на телефоне — одним сбором на обе проверки: цели касания и наложение в шапке.
  *
- * Скрытая кнопка не цель: у неё рамка 0×0, а `::after` всё равно посчитан бы — 8×8. Поиск в шапке —
- * названное отступление (design.md sharedui-md3-10): `overflow-hidden` срезает `::after`, и он держит
- * видимые 44 — порог у него 44, а не пропуск: меньше 44 он не станет молча.
+ * `small` — цели меньше 48 px: нижняя навигация, шапка, заголовок-меню (issue #1434, [UI-68]). Цель — рамка
+ * вместе с `::after` утилиты `touch-target`: видимая кнопка 40, а нажимается 48. Мерить — при касании
+ * (`emulateTouch`): без него утилита не включена, и замер видел бы рамку. Скрытая кнопка не цель: у неё
+ * рамка 0×0, а `::after` всё равно посчитан бы — 8×8. Ссылки шапки (знак экземпляра) — тоже цели.
+ * Отступлений нет (sharedui-md3-15): поиск в шапке — строка 56, и его `overflow-hidden`, срезающий
+ * `::after`, порогу больше не мешает.
+ *
+ * `overlaps` — пары элементов шапки, чьи рамки пересекаются (`::after` в рамку не входит): строка поиска,
+ * ужатая обёрткой до нуля, вылезала поверх центра активности, а ширина страницы при этом в порядке.
  */
-const smallTargets = page => page.evaluate(() =>
-  [...document.querySelectorAll('#app-bottom-nav a, main > header button, [data-testid=section-menu-trigger]')]
-    .map(el => {
-      const box = el.getBoundingClientRect();
-      const after = getComputedStyle(el, '::after');
-      const px = v => parseFloat(v) || 0;
-      const grown = after.content !== 'none' && after.position === 'absolute';
-      return {
-        el,
-        shown: box.width > 0 && box.height > 0,
-        // Отступление названо по имени кнопки, а не по признаку: другая кнопка шапки с горячей
-        // клавишей молча получила бы порог 44.
-        min: el.matches('[data-testid=header-search]') ? 44 : 48,
-        width: grown ? box.width - px(after.left) - px(after.right) : box.width,
-        height: grown ? box.height - px(after.top) - px(after.bottom) : box.height,
-      };
-    })
-    .filter(({ shown, min, width, height }) => shown && (width < min || height < min))
-    .map(({ el, width, height }) => `«${(el.getAttribute('aria-label') ?? el.textContent ?? '').slice(0, 30)}» ${Math.round(width)}×${Math.round(height)}`));
+const shellTargets = page => page.evaluate(() => {
+  const px = v => parseFloat(v) || 0;
+  const items = [...document.querySelectorAll('#app-bottom-nav a, main > header button, main > header a, [data-testid=section-menu-trigger]')]
+    .map(el => ({ el, box: el.getBoundingClientRect(), name: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 30) }))
+    .filter(({ box }) => box.width > 0 && box.height > 0);
+  const small = items.map(({ el, box, name }) => {
+    const after = getComputedStyle(el, '::after');
+    const grown = after.content !== 'none' && after.position === 'absolute';
+    const width = grown ? box.width - px(after.left) - px(after.right) : box.width;
+    const height = grown ? box.height - px(after.top) - px(after.bottom) : box.height;
+    return width < 48 || height < 48 ? `«${name}» ${Math.round(width)}×${Math.round(height)}` : null;
+  }).filter(Boolean);
+  const header = items.filter(({ el }) => el.matches('main > header *'));
+  const overlaps = [];
+  for (let i = 0; i < header.length; i++)
+    for (let j = i + 1; j < header.length; j++) {
+      const a = header[i].box, b = header[j].box;
+      if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5)
+        overlaps.push(`«${header[i].name}» и «${header[j].name}»`);
+    }
+  return { small, overlaps };
+});
+
+/**
+ * Тесная шапка: длинное имя пространства и центр активности шире обычного (занят — кольцо, число,
+ * значок). Стенд показывает одно состояние, а налезание зависит от ширины соседей поиска, — так оно
+ * проверяется и там, где поиску достаётся меньше всего. Подмена — только в DOM и снимается тем же
+ * вызовом с `false`.
+ */
+const crowdHeader = (page, on) => page.evaluate(on => {
+  const name = document.querySelector('[data-testid=workspace-switcher] .truncate');
+  const activity = document.querySelector('[data-testid=activity]');
+  if (on) {
+    if (name) { name.dataset.was = name.textContent; name.textContent = 'Электромонтаж и пусконаладка — все стройки'; }
+    activity?.insertAdjacentHTML('beforeend', '<span data-crowd style="display:inline-block;width:40px"></span>');
+  } else {
+    if (name?.dataset.was !== undefined) { name.textContent = name.dataset.was; delete name.dataset.was; }
+    document.querySelectorAll('[data-crowd]').forEach(el => el.remove());
+  }
+}, on);
 
 /**
  * Узкий экран (issue #1355, #1434): 390 и 375 px — ширины обычных телефонов. Размер окна
@@ -189,9 +214,9 @@ async function narrowChecks(page, check) {
 
     await check('narrow-screen-bottom-nav-reaches-every-section', async () => {
       if (await page.getByTestId('rail').isVisible()) throw new Error('на 390 px панель осталась у края');
-      // Шапка — одной строкой и на телефоне (#1432): пустая вторая строка под ней была бы лишней.
+      // Шапка — одной строкой и на телефоне (#1432): top app bar 64, как на рабочем столе (sharedui-md3-15).
       const header = await page.locator('main > header').boundingBox();
-      if (!header || header.height > 49) throw new Error(`шапка на 390 px высотой ${header?.height}px — не в одну строку`);
+      if (!header || Math.round(header.height) !== 64) throw new Error(`шапка на 390 px высотой ${header?.height}px, а не 64 — не в одну строку`);
       // Гамбургера нет: разделы — внизу (#1434).
       if (await page.getByRole('button', { name: 'Меню', exact: true }).count()) throw new Error('в шапке остался гамбургер');
       // Те же рабочие разделы, что в рейле рабочего стола: копия, разошедшаяся с рейлом, прятала бы разделы.
@@ -203,8 +228,17 @@ async function narrowChecks(page, check) {
         if (extra > 0) throw new Error(`на ${width} px каркас шире экрана на ${extra}px — страница едет вбок`);
         await emulateTouch(page);
         try {
-          const small = await smallTargets(page);
+          const { small, overlaps } = await shellTargets(page);
           if (small.length) throw new Error(`на ${width} px цели касания меньше 48 px: ${small.join(', ')}`);
+          if (overlaps.length) throw new Error(`на ${width} px в шапке налезают: ${overlaps.join(', ')}`);
+          await crowdHeader(page, true);
+          try {
+            const crowded = await shellTargets(page);
+            if (crowded.overlaps.length) throw new Error(`на ${width} px в тесной шапке налезают: ${crowded.overlaps.join(', ')}`);
+            if (crowded.small.length) throw new Error(`на ${width} px в тесной шапке цели меньше 48 px: ${crowded.small.join(', ')}`);
+          } finally {
+            await crowdHeader(page, false);
+          }
         } finally {
           await emulateTouch(page, false);
         }

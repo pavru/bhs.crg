@@ -140,12 +140,11 @@ function Shell() {
             строкой и на телефоне: вторая строка (#1355) была нужна подписи избранного, а оно ушло в
             отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском.
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
-            меню заголовка страницы. Цель касания — 48 px утилитой `touch-target` под pointer: coarse
-            ([UI-68]); у поиска — видимые 44 (`max-md:h-11`): его `overflow-hidden` срезал бы ::after.
-            На рабочем столе — top app bar MD3 (sharedui-md3-15): 64, прозрачная, на поверхности рейла,
-            без черты; от содержимого её отделяет цвет и угол рабочей области. На телефоне полоса и
-            содержимое — одна поверхность, высота пока прежняя 48: полоса 64 с элементами 48 — PR 2. */}
-        <header className="h-12 md:h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
+            меню заголовка страницы. Top app bar MD3 (sharedui-md3-15): 64, без черты. На рабочем
+            столе — прозрачная, на поверхности рейла; от содержимого её отделяет цвет и угол рабочей
+            области. На телефоне полоса и содержимое — одна поверхность `surface`: знак экземпляра 48,
+            строка поиска 56, аватар 48 — цели касания 48 видны глазом ([UI-68]). */}
+        <header className="h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
@@ -198,7 +197,7 @@ function PhoneBrand() {
   const guardedClick = useGuardedNavClick();
   return (
     <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
-      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-ring">
+      className="md:hidden shrink-0 flex items-center justify-center w-12 h-12 rounded-full state-layer focus-ring">
       <BrandLogo className="w-7 h-7 text-primary" iconSize={22} />
     </Link>
   );
@@ -215,17 +214,19 @@ function SearchButton({ onOpen, ref }: { onOpen: () => void; ref: Ref<HTMLButton
   // которой там пользуются.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
   return (
-    <div className="flex-1 min-w-0 flex">
-      {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала
-          обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
-          остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
-      <button ref={ref} type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
-        className="@container flex-1 min-w-14 max-md:min-w-11 max-w-180 flex items-center gap-4 max-md:gap-2.5 h-14 max-md:h-11 px-4 max-md:px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-high text-body-large text-on-surface-variant state-layer focus-ring">
-        <Icon icon={Search} size={24} className="shrink-0" />
-        <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
-        <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-label-small text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
-      </button>
-    </div>
+    // Без обёртки: кнопка — сама элемент полосы, и её `min-w-14` держит строку сама. Обёртка с
+    // `min-w-0` уходила на 375 px в 0, и кнопка вылезала из неё поверх центра активности; ужимается
+    // переключатель пространства — его имя обрезается. Остаток строки сверх 720 забирает `me-auto`,
+    // и центр активности с аватаром стоят у края.
+    // Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала обрезается
+    // подпись, потом уходит метка клавиш, потом подпись становится невидимой, и остаётся значок
+    // поиска. Метка держится дольше подписи: учить клавише — смысл кнопки.
+    <button ref={ref} type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
+      className="@container flex-1 min-w-14 max-w-180 flex items-center gap-4 h-14 px-4 ms-1 md:ms-3 me-auto overflow-hidden rounded-full bg-surface-container-high text-body-large text-on-surface-variant state-layer focus-ring">
+      <Icon icon={Search} size={24} className="shrink-0" />
+      <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
+      <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-label-small text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+    </button>
   );
 }
 

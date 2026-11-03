@@ -22,7 +22,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { readFileSync } from 'node:fs';
-import { BASE, launchBrowser, login, createChecks, named } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, named, settled, watchRequests } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
@@ -688,6 +688,49 @@ try {
       () => page.getByTestId('reread-failed').waitFor({ state: 'detached', timeout: 10_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
       throw new Error('набранное пропало после удачного повтора');
+  });
+
+  // ── 14. Телефон (sharedui-md3-15, задача 2.2): плавающая кнопка стоит над нижней навигацией и не
+  // закрывает конец списка — под последней строкой оставлено её место (`--fab-clearance`). Полоса
+  // телефона стала 64, и место под список изменилось. Своё окно с тем же входом: у открытой формы
+  // выше набраны правки, и уход со страницы спросил бы о них; новый вход занял бы место в счёте входов
+  // прогона (`suites.test.mjs`) — токен переносится.
+  await check('на телефоне плавающая кнопка над нижней навигацией и не закрывает последнюю строку', async () => {
+    const token = await page.evaluate(() => localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token'));
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ru-RU' });
+    await ctx.addInitScript(t => localStorage.setItem('access_token', t), token);
+    const phone = await ctx.newPage();
+    try {
+      await watchRequests(phone);
+      await phone.goto(`${BASE}/invoices`);
+      await settled(phone);
+      await named('плавающей кнопки на телефоне нет', () => phone.getByTestId('primary-fab').waitFor({ timeout: 10_000 }));
+      await phone.getByTestId('invoice-row').first().waitFor({ timeout: 10_000 });
+      // До конца прокрутки — повторами: список догружается по мере прокрутки.
+      let rows = 0;
+      for (let i = 0; i < 20; i++) {
+        const now = await phone.evaluate(() => {
+          const all = document.querySelectorAll('[data-testid=invoice-row]');
+          let box = all[all.length - 1].parentElement;
+          while (box && !(box.scrollHeight > box.clientHeight && /auto|scroll/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+          if (box) box.scrollTop = box.scrollHeight;
+          return all.length;
+        });
+        await settled(phone);
+        if (now === rows) break;
+        rows = now;
+      }
+      const m = await phone.evaluate(() => {
+        const all = document.querySelectorAll('[data-testid=invoice-row]');
+        const box = el => document.querySelector(el)?.getBoundingClientRect();
+        return { last: all[all.length - 1].getBoundingClientRect().bottom, fab: box('[data-testid=primary-fab]'), nav: box('#app-bottom-nav') };
+      });
+      if (!m.nav) throw new Error('на 390 px нет нижней навигации');
+      if (m.fab.bottom > m.nav.top + 0.5) throw new Error(`плавающая кнопка (низ ${Math.round(m.fab.bottom)}) заходит на нижнюю навигацию (верх ${Math.round(m.nav.top)})`);
+      if (m.last > m.fab.top + 0.5) throw new Error(`последняя строка списка (низ ${Math.round(m.last)}) уходит под плавающую кнопку (верх ${Math.round(m.fab.top)})`);
+    } finally {
+      await ctx.close();
+    }
   });
 } finally {
   await browser.close();

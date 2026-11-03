@@ -59,15 +59,15 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
 
   return (
     <Menu align="end" sideOffset={8} width="w-80" trigger={
-      // На телефоне — поле вокруг аватара: видимые 44 px, а не 36 (#1434); при касании цель 48 —
-      // `touch-target` на 2 px наружу ([UI-68]).
+      // На телефоне — поле вокруг аватара: видимые 48 px, а не 36 (#1434, полоса 64 — sharedui-md3-15);
+      // `touch-target` при касании — на 2 px наружу ([UI-68]).
       <button type="button" data-testid="account-menu"
         aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-        className={'relative shrink-0 rounded-full max-md:p-1 touch-target [--_touch-inset:-2px] focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
+        className={'relative shrink-0 rounded-full max-md:p-1.5 touch-target [--_touch-inset:-2px] focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
           (here || inAdmin ? 'ring-2 ring-primary' : '')}>
         <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-body-medium" />
         {newer && <span data-testid="update-dot" aria-hidden="true"
-          className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
+          className="absolute -top-0.5 -right-0.5 max-md:top-1 max-md:right-1 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
       </button>
     }>
       <div className="flex items-center gap-3 px-3 pt-2 pb-3">

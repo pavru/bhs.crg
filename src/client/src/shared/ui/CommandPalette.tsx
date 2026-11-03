@@ -1,8 +1,10 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Icon } from './Icon';
-import { DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search, type IconDef } from './icons';
+import { ArrowBack, DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search, type IconDef } from './icons';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import { dockedPlace, PALETTE_SURFACE } from './paletteDock';
+import { dockedPlace, fullPlace, PALETTE_SURFACE } from './paletteDock';
+import { IconButton } from './Button';
+import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
@@ -61,21 +63,31 @@ export function CommandPalette(props: PaletteProps) {
   return props.open ? <CommandPaletteBody {...props} /> : null;
 }
 
-function useDockedPlace(anchorRef: PaletteProps['anchorRef']) {
+function usePalettePlace(anchorRef: PaletteProps['anchorRef'], full: boolean) {
   const [place, setPlace] = useState<CSSProperties | null>(null);
   // Место меряется до первого кадра (layout-эффект), и заново — когда окно сменило размер: строка
-  // поиска переехала или ужалась, палитра идёт за ней.
+  // поиска переехала или ужалась, палитра идёт за ней. На телефоне — когда видимую область сжала или
+  // сдвинула экранная клавиатура: о ней знает только `visualViewport`.
   useLayoutEffect(() => {
-    const measure = () => setPlace(dockedPlace(anchorRef?.current, window.innerWidth));
+    const view = window.visualViewport;
+    const measure = () => setPlace(full ? fullPlace(view) : dockedPlace(anchorRef?.current, window.innerWidth, true));
     measure();
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [anchorRef]);
+    view?.addEventListener('resize', measure);
+    view?.addEventListener('scroll', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      view?.removeEventListener('resize', measure);
+      view?.removeEventListener('scroll', measure);
+    };
+  }, [anchorRef, full]);
   return place;
 }
 
 function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
-  const place = useDockedPlace(anchorRef);
+  // На телефоне — full-screen search view MD3: поле во всю ширину, «Назад» вместо знака поиска.
+  const full = !useMedia(WIDE);
+  const place = usePalettePlace(anchorRef, full);
   // «Назад» на телефоне закрывает палитру, а не страницу под ней (issue #1418).
   useHistoryLayer(true, () => { onOpenChange(false); return true; });
   // Палитра — второй вход в те же разделы, что и рейл, и уходить обязана тем же путём — через
@@ -154,21 +166,23 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
         {/* Scrim без размытия — по MD3: размытый фон читался как «страница сломалась». */}
         <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" />
         <Dialog.Content
-          data-modal-state="transient" data-docked={place ? 'true' : undefined}
-          aria-describedby={undefined} style={place ?? undefined}
-          className={`fixed z-50 overflow-hidden rounded-xl text-on-surface focus:outline-none ${PALETTE_SURFACE} ${
-            place ? '' : 'left-1/2 top-16 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2'}`}
+          data-modal-state="transient" aria-describedby={undefined} style={place ?? undefined}
+          className={`fixed z-50 overflow-hidden text-on-surface focus:outline-none ${
+            full ? 'inset-0 flex flex-col bg-surface-container-high'
+              : `rounded-xl ${PALETTE_SURFACE} ${place ? '' : 'left-1/2 top-16 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2'}`}`}
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
-          <div className="flex items-center gap-4 border-b border-outline-variant pl-4 pr-4">
-            <Icon icon={Search} size={24} aria-hidden className="shrink-0 text-on-surface" />
+          <div className={`flex items-center border-b border-outline-variant ${full ? 'shrink-0 h-18 gap-1 pl-1 pr-4' : 'gap-4 px-4'}`}>
+            {full
+              ? <IconButton label="Назад" icon={ArrowBack} onClick={() => onOpenChange(false)} />
+              : <Icon icon={Search} size={24} aria-hidden className="shrink-0 text-on-surface" />}
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               onChange={e => { setQuery(e.target.value); setActive(0); }}
               placeholder="Найти раздел или действие…"
               className="h-14 flex-1 bg-transparent text-body-large text-on-surface outline-none placeholder:text-on-surface-variant"
             />
-            <kbd className="rounded-sm bg-surface-container-high px-2 py-0.5 font-mono text-label-small text-on-surface-variant">Esc</kbd>
+            {!full && <kbd className="rounded-sm bg-surface-container-high px-2 py-0.5 font-mono text-label-small text-on-surface-variant">Esc</kbd>}
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
@@ -181,7 +195,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
             ))}
           </div>
 
-          <ul ref={list} className="max-h-[55vh] overflow-y-auto px-2 pb-3 pt-1">
+          <ul ref={list} className={`${full ? 'flex-1 min-h-0' : 'max-h-[55vh]'} overflow-y-auto px-2 pb-3 pt-1`}>
             {filtered.length === 0 ? (
               <li className="px-3 py-6 text-center text-body-medium text-on-surface-variant">Ничего не найдено</li>
             ) : filtered.map((it, i) => (
@@ -207,7 +221,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
                           пространства» иначе слышно не было бы (ревью PR #1478). */}
                       <span className="sr-only">, {it.group}</span>
                     </span>
-                    {i === current && (
+                    {i === current && !full && (
                       <span className="flex items-center gap-1 text-label-small">
                         Enter <Icon icon={KeyboardReturn} size={18} aria-hidden />
                       </span>
@@ -219,9 +233,12 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
           </ul>
 
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant px-5 py-3 text-label-small text-on-surface-variant">
-            <span><b className="font-medium">↑ ↓</b> выбрать</span>
-            <span><b className="font-medium">Enter</b> открыть</span>
-            <span className="flex-1" />
+            {/* Клавиши — рабочему столу: на телефоне клавиатуры нет, подсказка запроса остаётся. */}
+            {!full && <>
+              <span><b className="font-medium">↑ ↓</b> выбрать</span>
+              <span><b className="font-medium">Enter</b> открыть</span>
+              <span className="flex-1" />
+            </>}
             <span>Подсказка: напишите «тёмная тема» или «{example}»</span>
           </div>
         </Dialog.Content>

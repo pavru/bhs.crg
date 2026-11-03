@@ -13,7 +13,9 @@ import { SectionPill } from './SectionRail';
  * профиля (решение владельца от 17.10.2026), а нижняя строка — для работы. Разделов нет — нет и
  * строки: пустая полоса у края звала бы нажать в никуда.
  *
- * Высота — `h-20`; она же записана в `phoneLayout.ts` для тех, кто обходит строку (тосты).
+ * Высота — `h-20`; она же записана в `phoneLayout.ts` для тех, кто обходит строку (тосты). Поверхность —
+ * `surface-container` без черты: от содержимого строку отделяет тон (sharedui-md3-15). Подпись —
+ * `label-medium` одним весом у всех; выбранный раздел отличают индикатор и залитый знак.
  */
 export function BottomNav({ sections, active }: { sections: RailSection[]; active: RailId | null }) {
   const guardedClick = useGuardedNavClick();
@@ -21,15 +23,15 @@ export function BottomNav({ sections, active }: { sections: RailSection[]; activ
 
   return (
     <nav id="app-bottom-nav" data-testid="bottom-nav" aria-label="Разделы"
-      className="md:hidden shrink-0 flex bg-surface border-t border-outline-variant pb-[env(safe-area-inset-bottom)]">
+      className="md:hidden shrink-0 flex bg-surface-container pb-[env(safe-area-inset-bottom)]">
       {sections.map(section => {
         const on = section.def.id === active;
         return (
           <Link key={section.def.id} to={section.home} onClick={guardedClick(section.home)}
             aria-current={on ? 'true' : undefined}
-            className="group flex-1 min-w-0 h-20 flex flex-col items-center justify-center gap-1 text-body-small select-none focus-visible:outline-none">
+            className="group flex-1 min-w-0 h-20 flex flex-col items-center justify-center gap-1 text-label-medium select-none focus-visible:outline-none">
             <SectionPill icon={section.def.icon} on={on} wide />
-            <span className={`max-w-full px-1 truncate ${on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}`}>
+            <span className={`max-w-full px-1 truncate ${on ? 'text-on-surface' : 'text-on-surface-variant'}`}>
               {section.def.label}
             </span>
           </Link>
