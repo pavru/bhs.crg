@@ -17,7 +17,13 @@ export default defineConfig({
   },
   // Язык форматирования у тестов один и назван явно: «системный» дал бы ответ, зависящий от машины
   // (см. src/shared/testing/formatLocale.ts).
-  test: { setupFiles: ['./src/shared/testing/formatLocale.ts', './src/shared/testing/matchMedia.ts', './src/shared/testing/intersectionObserver.ts'] },
+  // Воркеры — без своего хранилища Node: в Node 26 `localStorage` — геттер на globalThis, без
+  // --localstorage-file он отдаёт undefined, а среда jsdom поверх имеющегося свойства своё не
+  // ставит. Пять файлов падали «reading 'setItem'», и только у разработчика (infra-node26).
+  test: {
+    setupFiles: ['./src/shared/testing/formatLocale.ts', './src/shared/testing/matchMedia.ts', './src/shared/testing/intersectionObserver.ts'],
+    execArgv: ['--no-webstorage'],
+  },
   // Адрес API — из окружения: в CI живые прогоны поднимают свою копию на другом порту, и
   // прибитый гвоздём :5000 увёл бы их в чужое (или несуществующее) приложение. Умолчание —
   // прежнее, ради `npm run dev` без переменных.

@@ -197,7 +197,8 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
 храповики линта и интерфейса, `md3:migrate --check` на всей истории — забытый перевод шкалы формы в ветке до перехода), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
 и **живые прогоны в браузере** — четырьмя независимыми
-работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
+работами. **Node — одна версия на всё: `.nvmrc` в корне** (CI ставит по нему, образ `web` и `engines`
+называют её же, сверяет `nodeVersion.test.ts`; подробности — DEV_NOTES).
 
 **Проверки ЗАПРЕЩАЮТ слияние — с 25 августа 2026.** В репозитории включён набор правил «Master
 ruleset»: master меняется только через PR, а слить его нельзя, пока не прошли три обязательные
