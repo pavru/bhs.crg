@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { BottomSheet, type SheetBase } from './BottomSheet';
@@ -8,6 +8,7 @@ import { useHistoryLayer } from './historyLayers';
 import { Close } from './icons';
 import { focusFromLayer } from './layerFocus';
 import { LayerBoundary } from './LayerBoundary';
+import { WindowLayerContext, WindowStepContext } from './modalControl';
 
 /**
  * Боковая панель — side sheet MD3 ([UI-77], sharedui-md3-13), шириной 400, заголовок `title-large`, крестик у
@@ -24,6 +25,13 @@ import { LayerBoundary } from './LayerBoundary';
  * </ul>
  *
  * <p>Смена ширины перемонтирует содержимое — набранное в листе при повороте экрана теряется (design 2б).</p>
+ *
+ * <p><b>Standard внутри `Modal`</b> ([UI-81], sharedui-md3-17: карточка позиции в окне выбора). Лист встаёт в
+ * свой слой окна — форму или шаг (`WindowStepHost.sheet`), — и Esc этого слоя закрывает сначала лист, затем окно
+ * или шаг, и тогда, когда фокус не в листе, а в поиске окна. Шаг поверх формы с листом получает свой Esc сам.
+ * Решает окно, по своему правилу: Esc, которым распорядилось поле, или слой над окном (меню, список), листа не
+ * закрывает. В других окнах Radix (палитра, лист во весь экран) лист не ставят. `autoFocus={false}` — на столе
+ * фокус остаётся у того, кто лист открыл (поиск окна: набор не прерывается выбором строки).</p>
  */
 export type SideSheetProps = SheetBase & {
   variant: 'standard' | 'modal';
@@ -31,6 +39,9 @@ export type SideSheetProps = SheetBase & {
   actions?: ReactNode;
   /** Standard: сменился — фокус снова на крестик (панель показала другую запись). */
   focusKey?: unknown;
+  /** Standard на столе: `false` — фокус в лист не переходит, остаётся у открывшего. Уже 768 лист — окно во весь
+   *  экран, и фокус уходит в него всегда: страница под ним недоступна. */
+  autoFocus?: boolean;
   // Заголовок не строкой именем листа не служит — тогда имя для читалки (`label`) обязательно.
 } & ({ title: string; label?: string } | { title: Exclude<ReactNode, string>; label: string });
 
@@ -84,7 +95,7 @@ function ModalSideContent({ title, closeLabel, onClose, actions, children }: {
   );
 }
 
-function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', actions, focusKey, children }: SideSheetProps) {
+function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', actions, focusKey, autoFocus = true, children }: SideSheetProps) {
   const narrow = useMedia(NARROW);
   const close = useRef<HTMLButtonElement>(null);
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
@@ -92,7 +103,8 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
   useHistoryLayer(narrow, () => { onClose(); return true; });
 
   // Фокус — в лист: Esc закрывает его с клавиатуры, и читалка узнаёт, что лист открылся.
-  useEffect(() => { if (close.current) focusFromLayer(close.current); }, [focusKey, narrow]);
+  useEffect(() => { if (autoFocus && close.current) focusFromLayer(close.current); }, [focusKey, narrow, autoFocus]);
+  useWindowSheet(!narrow, onClose);
   // Ушёл лист с фокусом внутри — фокус возвращается к тому, что его открыло.
   useEffect(() => () => {
     if (opener?.isConnected && opener !== document.body && document.activeElement === document.body) focusFromLayer(opener);
@@ -124,7 +136,8 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
     <aside aria-label={label ?? (typeof title === 'string' ? title : undefined)}
       onKeyDown={e => {
         // Esc — свой: не поднятый порталом из слоя (меню, список), не обработанный полем или меню внутри и не
-        // конец набора IME.
+        // конец набора IME. В окне Esc решает `Modal` (`useWindowSheet`) и отменяет клавишу раньше — сюда она
+        // приходит с `defaultPrevented`.
         if (e.key !== 'Escape' || e.defaultPrevented || e.nativeEvent.isComposing || !e.currentTarget.contains(e.target as Node)) return;
         e.stopPropagation();
         onClose();
@@ -135,6 +148,18 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
       <LayerBoundary>{body}</LayerBoundary>
     </aside>
   );
+}
+
+/**
+ * Лист в слое окна: внутри `Modal` Esc видимого слоя закрывает его раньше окна или шага. Закрытие — через ref:
+ * колбэк экрана меняется с каждой отрисовкой, а место в слое — одно, пока лист открыт.
+ */
+function useWindowSheet(active: boolean, onClose: () => void) {
+  const register = useContext(WindowStepContext)?.sheet;
+  const layer = useContext(WindowLayerContext);
+  const latest = useRef(onClose);
+  useLayoutEffect(() => { latest.current = onClose; });
+  useEffect(() => active && register ? register(layer, () => latest.current()) : undefined, [active, register, layer]);
 }
 
 /** Шапка листа, не ниже 72: крестик у замыкающего края, а во весь экран — у ведущего. */

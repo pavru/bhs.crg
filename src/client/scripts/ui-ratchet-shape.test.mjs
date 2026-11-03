@@ -47,6 +47,13 @@ describe('храповик интерфейса: форма и возвышен�
       .toEqual({ 'legacy-radius': 1 });
   });
 
+  it('флажок 2 px — исключение файлом: rounded-[…] в Checkbox не считается, тот же класс рядом — нарушение', () => {
+    const line = '<span className="rounded-[2px] rounded-[3px]" />';
+    expect(countAll(line, { dir: 'shared', file: 'shared/ui/Checkbox.tsx' })).toEqual({});
+    expect(countAll(line, { dir: 'shared', file: 'shared/ui/Switch.tsx' })).toEqual({ 'legacy-radius': 2 });
+    expect(countAll(line, screen)).toEqual({ 'legacy-radius': 2 });
+  });
+
   it('тень фильтром и свои значения в файле стилей — тоже нарушение; уровень, none и внутренняя тень — нет', () => {
     expect(countAll('<div className="drop-shadow-lg hover:drop-shadow inset-shadow-sm" />', screen))
       .toEqual({ 'legacy-shadow': 2 });

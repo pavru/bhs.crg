@@ -277,10 +277,12 @@ export const RULES = [
     // Скругление вне шкалы формы MD3 ([UI-66], sharedui-md3-06): `rounded` без ступени, rounded-2xl/3xl,
     // произвольный rounded-[…], borderRadius в коде и border-radius числом в стилях. Ступени 6 и 10 px
     // исчезли вместе с прежней шкалой — кодмод md3:migrate перевёл их по значению; остаток ждёт роли
-    // компонента (ребёнок 17).
+    // компонента (ребёнок 17). Форма флажка — 2 px (checkbox MD3, вне шкалы пяти ступеней) — названное
+    // исключение файлом, а не единица уровня: иначе второй rounded-[…] в Checkbox прошёл бы молча.
     count: countLegacyRadii,
     everywhere: true,
     styles: true,
+    skip: ['shared/ui/Checkbox.tsx'],
     instead: 'скругление — ступенью шкалы формы MD3: rounded-xs 4, rounded-sm 8, rounded-md 12, rounded-lg 16, rounded-xl 28, rounded-full, rounded-none; сторона и угол — так же (rounded-t-xl); какая ступень какому компоненту — docs/UI.md, «Форма и возвышение»',
   },
   {

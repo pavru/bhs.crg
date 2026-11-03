@@ -57,6 +57,66 @@ describe('Card', () => {
     expect(classes(screen.getByTestId('link'))).toContain('hover:shadow-elevation-2');
   });
 
+  it('состояния ролью: тянут — слой 16 % по data-dragging и уровень выше; цель — обводка 2 px primary; ошибка — error', () => {
+    render(<>
+      <Card data-testid="calm" title="Поле">тело</Card>
+      <Card data-testid="drag" title="Поле" dragged>тело</Card>
+      <Card data-testid="drag-e" variant="elevated" title="Поле" dragged>тело</Card>
+      <Card data-testid="drop" title="Группа" dropTarget>тело</Card>
+      <Card data-testid="bad" variant="filled" title="Движок" invalid>тело</Card>
+    </>);
+    const calm = screen.getByTestId('calm');
+    expect(calm.hasAttribute('data-dragging')).toBe(false);
+    expect(classes(calm)).not.toContain('state-layer');
+
+    const drag = screen.getByTestId('drag');
+    expect(drag.hasAttribute('data-dragging')).toBe(true);
+    expect(classes(drag)).toEqual(expect.arrayContaining(['state-layer', 'shadow-elevation-3']));
+    const dragE = classes(screen.getByTestId('drag-e'));
+    expect(dragE).toContain('shadow-elevation-4');
+    expect(dragE).not.toContain('shadow-elevation-1');
+
+    expect(classes(screen.getByTestId('drop'))).toEqual(expect.arrayContaining(['outline-2', 'outline-primary']));
+
+    // У filled своей обводки нет — ошибка её получает; обычная обводка outline-variant уходит.
+    const bad = classes(screen.getByTestId('bad'));
+    expect(bad).toEqual(expect.arrayContaining(['border', 'border-error']));
+    expect(bad).not.toContain('border-outline-variant');
+  });
+
+  it('события перетаскивания — у корня карточки; flush — тело без отступов', () => {
+    const onDragOver = vi.fn();
+    const onDrop = vi.fn();
+    const onDragStart = vi.fn();
+    render(<>
+      <Card data-testid="dnd" draggable onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} flush>
+        <div data-testid="row">строка до краёв</div>
+      </Card>
+      <Card data-testid="padded">тело</Card>
+    </>);
+    const card = screen.getByTestId('dnd');
+    expect(card.getAttribute('draggable')).toBe('true');
+    fireEvent.dragStart(card);
+    fireEvent.dragOver(card);
+    fireEvent.drop(card);
+    expect([onDragStart, onDragOver, onDrop].map(f => f.mock.calls.length)).toEqual([1, 1, 1]);
+    const body = classes(screen.getByTestId('row').parentElement!);
+    expect(body.some(c => /^(p[xytb]?|gap)-/.test(c))).toBe(false);
+    expect(classes(screen.getByTestId('padded').firstElementChild!)).toEqual(expect.arrayContaining(['px-4', 'pt-4']));
+  });
+
+  it('кликабельной карточке состояния и события перетаскивания не положены (типы)', () => {
+    render(<MemoryRouter>
+      {/* @ts-expect-error — цель накрывает карточку, тянуть нечего */}
+      <Card title="Стройка" to="/sites/1" dragged />
+      {/* @ts-expect-error — бросать на кнопку некуда */}
+      <Card title="Участок" onClick={() => {}} onDrop={() => {}} />
+      {/* @ts-expect-error — ошибка у кликабельной не рисуется */}
+      <Card title="Смета" onClick={() => {}} invalid />
+    </MemoryRouter>);
+    expect(screen.getAllByRole('heading')).toHaveLength(3);
+  });
+
   it('пустое тело — null, false, несработавшее условие — отступа не рисует', () => {
     render(<>
       <Card data-testid="empty" title="Итоги">{null}{false}</Card>

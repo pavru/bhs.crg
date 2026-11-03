@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState, type ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { BottomSheet } from './BottomSheet';
+import { Menu, MenuItem } from './Menu';
+import { Modal } from './Modal';
+import { WindowStep } from './WindowStep';
 import { SideSheet } from './SideSheet';
 import { resetHistoryLayers } from './historyLayers';
 // Слушатель `popstate` — общий с охраной шага: без него слои не слышат «Назад».
@@ -94,6 +97,115 @@ describe('SideSheet standard', () => {
     await settle();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(anchor);
+  });
+});
+
+describe('SideSheet standard внутри окна', () => {
+  /** Окно выбора: поиск и строка, по выбору которой справа открывается лист (карточка позиции, Р9-А). */
+  function Picker({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+    const [sheet, setSheet] = useState(false);
+    return (
+      <Modal open onOpenChange={onOpenChange} title="Позиция номенклатуры">
+        <div className="flex">
+          <input aria-label="Поиск" data-search onKeyDown={e => { if (e.key === 'Enter') setSheet(true); }} />
+          <SideSheet variant="standard" open={sheet} onClose={() => setSheet(false)} title="Кабель ВВГнг(А)-LS 3×2,5"
+            autoFocus={false}><p>поля позиции</p></SideSheet>
+        </div>
+      </Modal>
+    );
+  }
+  const esc = async () => {
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+  };
+
+  it('autoFocus={false}: фокус остаётся в поиске; первый Esc закрывает лист, второй — окно', async () => {
+    mockWidth(true);
+    const onOpenChange = vi.fn();
+    render(<Picker onOpenChange={onOpenChange} />);
+    const search = screen.getByRole('textbox', { name: 'Поиск' });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.getByRole('complementary', { name: 'Кабель ВВГнг(А)-LS 3×2,5' })).toBeTruthy();
+    expect(document.activeElement).toBe(search);
+
+    await esc();
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(search);
+
+    await esc();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('Esc из самого листа закрывает лист, а не окно', async () => {
+    mockWidth(true);
+    const onOpenChange = vi.fn();
+    render(<Picker onOpenChange={onOpenChange} />);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Поиск' }), { key: 'Enter' });
+    within(screen.getByRole('complementary')).getByRole('button', { name: 'Закрыть' }).focus();
+    await esc();
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('Esc, остановленный полем окна, листа не закрывает', async () => {
+    mockWidth(true);
+    render(<Modal open onOpenChange={vi.fn()} title="Окно">
+      <input aria-label="Правка" onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }} />
+      <SideSheet variant="standard" open onClose={vi.fn()} title="Лист" autoFocus={false}><p>поля</p></SideSheet>
+    </Modal>);
+    const field = screen.getByRole('textbox', { name: 'Правка' });
+    field.focus();
+    await esc();
+    expect(screen.getByRole('complementary', { name: 'Лист' })).toBeTruthy();
+  });
+  it('шаг поверх формы с листом получает свой Esc: шаг уходит, лист формы остаётся', async () => {
+    mockWidth(true);
+    const onBack = vi.fn();
+    const onSheet = vi.fn();
+    const onOpenChange = vi.fn();
+    render(<Modal open onOpenChange={onOpenChange} title="Позиция номенклатуры">
+      <input aria-label="Поиск" data-search />
+      <SideSheet variant="standard" open onClose={onSheet} title="Карточка" autoFocus={false}><p>поля</p></SideSheet>
+      <WindowStep title="Новая позиция" onBack={onBack}><input aria-label="Имя позиции" /></WindowStep>
+    </Modal>);
+    screen.getByRole('textbox', { name: 'Имя позиции' }).focus();
+    await esc();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onSheet).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('лист в теле шага закрывается Esc шага раньше самого шага', async () => {
+    mockWidth(true);
+    const onBack = vi.fn();
+    const onSheet = vi.fn();
+    render(<Modal open onOpenChange={vi.fn()} title="Окно">
+      <WindowStep title="Шаг" onBack={onBack}>
+        <input aria-label="Поле шага" />
+        <SideSheet variant="standard" open onClose={onSheet} title="Лист шага" autoFocus={false}><p>поля</p></SideSheet>
+      </WindowStep>
+    </Modal>);
+    screen.getByRole('textbox', { name: 'Поле шага' }).focus();
+    await esc();
+    expect(onSheet).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('Esc в меню над окном закрывает меню, а не лист', async () => {
+    mockWidth(true);
+    const onSheet = vi.fn();
+    render(<Modal open onOpenChange={vi.fn()} title="Окно">
+      <Menu trigger={<button type="button">Действия</button>}><MenuItem>Переименовать</MenuItem></Menu>
+      <SideSheet variant="standard" open onClose={onSheet} title="Лист" autoFocus={false}><p>поля</p></SideSheet>
+    </Modal>);
+    const trigger = screen.getByRole('button', { name: 'Действия' });
+    await act(async () => { trigger.focus(); fireEvent.keyDown(trigger, { key: 'Enter' }); });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    await esc();
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(onSheet).not.toHaveBeenCalled();
   });
 });
 

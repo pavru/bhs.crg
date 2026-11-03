@@ -52,9 +52,17 @@ export interface WindowStepHost {
   slots: Record<string, WindowStepSlots>;
   /** Места шага во весь экран — см. `ModalBar`; на столе `null`. */
   bar?: (id: string) => ModalBar | null;
+  /**
+   * Лист в слое окна (`SideSheet standard`, [UI-81]): пока он открыт, Esc слоя закрывает его, а не окно и не
+   * шаг. Слой — `form` или id шага (`WindowLayerContext`); Esc достаётся листу видимого слоя. Возвращает снятие.
+   */
+  sheet?: (layer: string, close: () => void) => () => void;
 }
 
 export const WindowStepContext = createContext<WindowStepHost | null>(null);
+
+/** Слой окна, в котором отрисован компонент: `form` — форма окна, иначе id шага (`WindowStep`). */
+export const WindowLayerContext = createContext('form');
 
 /** Открыть своё окно, если о нём просят, — но не внутри окна: там раскрываются на месте (issue #1384). */
 export function useOwnWindow(wanted: boolean): boolean {
