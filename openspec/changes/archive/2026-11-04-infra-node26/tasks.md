@@ -54,7 +54,7 @@
 - [x] 5.2 `docker build -f deploy/Dockerfile.web .` — образ собирается на `node:26.13.0-alpine`.
 - [x] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopyTests"`
   (сервер не тронут — остальные backend-тесты не нужны).
-- [ ] 5.4 PR: CI зелёный, включая обе работы на Node из `.nvmrc` и живые прогоны.
+- [x] 5.4 PR: CI зелёный, включая обе работы на Node из `.nvmrc` и живые прогоны.
 
 ## 6. Правки по ревью PR #1747
 
