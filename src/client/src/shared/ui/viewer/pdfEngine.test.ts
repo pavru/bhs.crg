@@ -1,5 +1,5 @@
 // Первым: делает в среде границу браузеров — до pdfEngine, который ставит заплатки (см. ниже).
-import { KEPT_AT_BORDER, REMOVED_AT_BORDER, REMOVED_KEYS } from '@/shared/testing/browserBorder';
+import { KEPT_AT_BORDER, REMOVED_AT_BORDER, REMOVED_KEYS, UNKNOWN_AT_BORDER } from '@/shared/testing/browserBorder';
 import { resolveBorderPath } from '@/shared/testing/browserBorderPaths';
 // Типов Node у приложения нет нарочно (tsconfig.app), а ссылка на них отсюда подмешала бы их всему
 // приложению. Этому тесту Node нужен — он читает эталонный PDF с диска, — поэтому без типов, здесь.
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { openPdf, setAssetBase, ViewerFailure, wrap } from './pdfEngine';
-import { IMPLS, ITERATOR_PROTOTYPE } from './pdfPolyfills';
+import { IMPLS, ITERATOR_HELPER_NAMES, ITERATOR_PROTOTYPE } from './pdfPolyfills';
 
 /**
  * Настоящий движок в Node, без подмен (issue #1490, [UI-10], [UI-17], [UI-21]).
@@ -32,16 +32,56 @@ setAssetBase(`${path.resolve(here, '../../../../node_modules/pdfjs-dist').replac
 
 const reference = () => new Uint8Array(readFileSync(path.join(root, 'deploy/converter-reference.pdf')));
 /**
- * Совпадения имён, заведомо не те: метод убран границей, а сборка зовёт одноимённый у другого объекта.
- * Каждое — с причиной, сверенной по тексту сборки.
+ * Обращения, заведомо безвредные: ключ убран границей, а сборка трогает одноимённый у другого
+ * объекта — или проверяет возможность и без неё идёт запасным путём. Каждое — с причиной, сверенной
+ * по тексту сборки.
  */
 const FALSE_MATCHES: Record<string, string> = {
   'SharedArrayBuffer.prototype.grow': '`.grow(` у pdf.js — WebAssembly.Memory и WebAssembly.Table (wasm-декодеры)',
+  'Set.prototype.union': '`t.union = …` — запись таблицы имён глифов, не метод Set',
+  'ArrayBuffer.prototype.resizable': '`HEAP8?.buffer?.resizable` — проверка возможности в коде Emscripten (wasm-декодеры): без неё виды кучи пересоздаются',
+};
+
+/**
+ * Ключи без данных MDN, к которым сборка обращается, — по имени: почему это не пробел. Ключ без
+ * записи в MDN остаётся в среде теста, и обращение к нему иначе прикрывало бы пропуск заплатки.
+ */
+const UNKNOWN_USED: Record<string, string> = {
+  message: 'свойство ошибок — у всех браузеров; MDN не ведёт его отдельной записью у каждого вида ошибки',
+  BYTES_PER_ELEMENT: 'у типизированных массивов с ES2015 — у всех браузеров; MDN ведёт его одной записью у TypedArray',
+  WebAssembly: 'у всех браузеров границы; MDN ведёт его разделом webassembly, а не javascript.builtins',
+  process: 'только под проверкой isNodeJS (`typeof process === "object"`) — в браузере путь не идёт',
+  Buffer: 'только под `isNodeJS && typeof Buffer !== "undefined"` — в браузере путь не идёт',
 };
 
 const builds = ['pdf.mjs', 'pdf.worker.mjs'].map(file => ({
   file, text: readFileSync(path.resolve(here, '../../../../node_modules/pdfjs-dist/build', file), 'utf8') as string,
 }));
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Имя, за которым не идёт продолжение идентификатора: `.grow` не находит `.growable`. */
+const word = (name: string) => `${escape(name)}${/[\w$]$/.test(name) ? '(?![\\w$])' : ''}`;
+const TYPED_ARRAYS = Object.getOwnPropertyNames(globalThis).filter(n => /^(Big)?(Uint|Int|Float)\d+(Clamped)?Array$/.test(n));
+
+/**
+ * Обращается ли сборка к ключу — вызовом или чтением (свойство-получатель без скобок тоже
+ * обращение). Ключ прототипа ищется как `.имя`, статический — как `Объект.имя`, статический
+ * `%TypedArray%` — через любой типизированный массив (`Uint8Array.from`).
+ */
+function mentioned(path: string, name: string): boolean {
+  const owners = path.endsWith('.prototype') || path === '%IteratorPrototype%' ? ['']
+    : path === '%TypedArray%' ? TYPED_ARRAYS : [path];
+  const re = new RegExp(`(?:${owners.map(escape).join('|')})\\.${word(name)}`);
+  return builds.some(b => re.test(b.text));
+}
+
+/** Упоминается ли имя где угодно: `.имя`, а у глобала — само имя. Шире `mentioned` нарочно. */
+function nameUsed(path: string, name: string): boolean {
+  const re = new RegExp(path === 'globalThis' ? `(?<![\\w$.])${word(name)}` : `\\.${word(name)}`);
+  return builds.some(b => re.test(b.text));
+}
+
+const split = (key: string) => [key.slice(0, key.lastIndexOf('.')), key.slice(key.lastIndexOf('.') + 1)] as const;
 
 async function failureOf(bytes: Uint8Array): Promise<string> {
   try {
@@ -67,8 +107,7 @@ describe('граница браузеров в среде теста', () => {
       ['Uint8Array.prototype.toHex', proto.toHex, IMPLS.toHex],
       ['Uint8Array.fromBase64', (Uint8Array as unknown as Record<string, unknown>).fromBase64, IMPLS.fromBase64],
       ['globalThis.Iterator', (globalThis as Record<string, unknown>).Iterator, IMPLS.iteratorCtor],
-      ...(['map', 'filter', 'take', 'drop', 'flatMap', 'reduce', 'toArray', 'forEach', 'some', 'every', 'find'] as const)
-        .map(name => [`%IteratorPrototype%.${name}`, (ITERATOR_PROTOTYPE as Record<string, unknown>)[name], IMPLS[name]] as [string, unknown, unknown]),
+      ...ITERATOR_HELPER_NAMES.map(name => [`%IteratorPrototype%.${name}`, (ITERATOR_PROTOTYPE as Record<string, unknown>)[name], IMPLS[name]] as [string, unknown, unknown]),
       ['Set.prototype.intersection', (Set.prototype as unknown as Record<string, unknown>).intersection, IMPLS.setIntersection],
       ['Response.prototype.bytes', (Response.prototype as unknown as Record<string, unknown>).bytes, IMPLS.bytes],
       ['Blob.prototype.bytes', (Blob.prototype as unknown as Record<string, unknown>).bytes, IMPLS.bytes],
@@ -88,33 +127,36 @@ describe('граница браузеров в среде теста', () => {
     ]));
   });
 
-  it('каждый убранный границей метод, который сборка зовёт по имени, после заплаток на месте', () => {
+  it('каждый убранный границей ключ, к которому сборка обращается по имени, после заплаток на месте', () => {
     // Загрузка в Node проходит не все пути: worker берёт файлы с диска, а не `fetch` (`bytes`),
-    // выделения текста нет (итераторные помощники слоя текста). Поэтому — по тексту сборки.
-    // Метод прототипа ищется как `.имя(`, статический — как `Объект.имя(`. Совпадение имён (`.filter(`
-    // и у массивов) даёт лишний красный, а не пропуск: так и задумано, заплатка дешевле разбора.
+    // выделения текста нет (итераторные помощники слоя текста). Поэтому — по тексту сборки, и вызов,
+    // и чтение свойства. Совпадение имён (`.filter` и у массивов) даёт лишний красный, а не пропуск:
+    // так и задумано, заплатка дешевле разбора.
     // Глобалы и символы — не здесь: глобал без проверки краснит загрузку, `for await` — `doc.text()`.
-    const called = REMOVED_KEYS
+    const used = REMOVED_KEYS
       .filter(({ path, name }) => path !== 'globalThis' && !name.startsWith('Symbol.'))
-      .filter(({ path, name }) => {
-        const call = path.endsWith('.prototype') || path === '%IteratorPrototype%' ? `.${name}(` : `${path}.${name}(`;
-        return builds.some(b => b.text.includes(call));
-      })
+      .filter(({ path, name }) => mentioned(path, name))
       .map(({ path, name }) => `${path}.${name}`);
-    const unpatched = called.filter(key => {
-      const at = key.lastIndexOf('.');
-      return !(key in FALSE_MATCHES) && !(key.slice(at + 1) in (resolveBorderPath(key.slice(0, at)) as object));
+    const unpatched = used.filter(key => {
+      const [owner, name] = split(key);
+      return !(key in FALSE_MATCHES) && !(name in (resolveBorderPath(owner) as object));
     });
     expect(unpatched).toEqual([]);
     // Исключение без совпадения устарело: библиотека перестала звать это имя — убрать.
-    expect(Object.keys(FALSE_MATCHES).filter(key => !called.includes(key))).toEqual([]);
+    expect(Object.keys(FALSE_MATCHES).filter(key => !used.includes(key))).toEqual([]);
   });
 
   it('оставленное ради среды тестов сборка не трогает', () => {
     // Иначе нарочно не убранное прикрывало бы пропуск заплатки.
-    const used = Object.keys(KEPT_AT_BORDER)
-      .filter(key => builds.some(b => new RegExp(`\\.${key.slice(key.lastIndexOf('.') + 1)}\\b`).test(b.text)));
-    expect(used).toEqual([]);
+    expect(Object.keys(KEPT_AT_BORDER).filter(key => nameUsed(...split(key)))).toEqual([]);
+  });
+
+  it('оставленное без данных MDN сборка трогает только с названной причиной', () => {
+    // Ключ без записи в MDN снимок не убирает: такой, которого у браузера нет, иначе прошёл бы молча.
+    const used = UNKNOWN_AT_BORDER.filter(key => nameUsed(...split(key)));
+    expect(used.filter(key => !(split(key)[1] in UNKNOWN_USED))).toEqual([]);
+    const usedNames = new Set(used.map(key => split(key)[1]));
+    expect(Object.keys(UNKNOWN_USED).filter(name => !usedNames.has(name))).toEqual([]);
   });
 });
 

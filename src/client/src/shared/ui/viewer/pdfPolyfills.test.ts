@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IMPLS, ITERATOR_PROTOTYPE, patch } from './pdfPolyfills';
+import { IMPLS, installPdfPolyfills, ITERATOR_HELPER_NAMES, ITERATOR_PROTOTYPE, patch } from './pdfPolyfills';
 
 /** Заплатки функций pdf.js 6 для браузеров на границе поддержки (D5 зонтика viewer). */
 
@@ -13,14 +13,37 @@ describe('заплатки pdf.js', () => {
     expect(Object.keys(target)).toEqual(['f']); // не перечисляется, как у настоящих
   });
 
-  it('после установки нужное pdf.js есть', () => {
-    const fn = (o: object, name: string) => typeof (o as Record<string, unknown>)[name];
-    expect(fn(Map.prototype, 'getOrInsertComputed')).toBe('function');
-    expect(fn(WeakMap.prototype, 'getOrInsert')).toBe('function');
-    expect(fn(Math, 'sumPrecise')).toBe('function');
-    expect(fn(Promise, 'try')).toBe('function');
-    expect(fn(Uint8Array.prototype, 'toBase64')).toBe('function');
-    expect(fn(Uint8Array, 'fromBase64')).toBe('function');
+  // На Node, где функции свои, проверка «после установки функция есть» зеленела бы и без заплатки:
+  // поэтому функция убирается, установка повторяется — и на месте обязана оказаться заплатка.
+  const places: [string, object, PropertyKey, unknown][] = [
+    ['Map.prototype.getOrInsert', Map.prototype, 'getOrInsert', IMPLS.getOrInsert],
+    ['Map.prototype.getOrInsertComputed', Map.prototype, 'getOrInsertComputed', IMPLS.getOrInsertComputed],
+    ['WeakMap.prototype.getOrInsert', WeakMap.prototype, 'getOrInsert', IMPLS.getOrInsert],
+    ['WeakMap.prototype.getOrInsertComputed', WeakMap.prototype, 'getOrInsertComputed', IMPLS.getOrInsertComputed],
+    ['Math.sumPrecise', Math, 'sumPrecise', IMPLS.sumPrecise],
+    ['Promise.try', Promise, 'try', IMPLS.promiseTry],
+    ['Uint8Array.prototype.toBase64', Uint8Array.prototype, 'toBase64', IMPLS.toBase64],
+    ['Uint8Array.prototype.toHex', Uint8Array.prototype, 'toHex', IMPLS.toHex],
+    ['Uint8Array.fromBase64', Uint8Array, 'fromBase64', IMPLS.fromBase64],
+    ['globalThis.Iterator', globalThis, 'Iterator', IMPLS.iteratorCtor],
+    ...ITERATOR_HELPER_NAMES.map(name => [`%IteratorPrototype%.${name}`, ITERATOR_PROTOTYPE, name, IMPLS[name]] as [string, object, PropertyKey, unknown]),
+    ['Set.prototype.intersection', Set.prototype, 'intersection', IMPLS.setIntersection],
+    ['Response.prototype.bytes', Response.prototype, 'bytes', IMPLS.bytes],
+    ['Blob.prototype.bytes', Blob.prototype, 'bytes', IMPLS.bytes],
+    ['ReadableStream.prototype.values', ReadableStream.prototype, 'values', IMPLS.streamValues],
+    ['ReadableStream.prototype[Symbol.asyncIterator]', ReadableStream.prototype, Symbol.asyncIterator, IMPLS.streamValues],
+  ];
+
+  it.each(places)('установка ставит заплатку туда, где функции нет: %s', (_, target, name, impl) => {
+    const own = Object.getOwnPropertyDescriptor(target, name);
+    try {
+      Reflect.deleteProperty(target, name);
+      installPdfPolyfills();
+      expect((target as Record<PropertyKey, unknown>)[name]).toBe(impl);
+    } finally {
+      Reflect.deleteProperty(target, name);
+      if (own) Object.defineProperty(target, name, own);
+    }
   });
 
   it('getOrInsert(Computed): существующее не перезаписывается, функция зовётся один раз', () => {
@@ -121,7 +144,34 @@ describe('заплатки границы Firefox и Safari', () => {
     expect(shim('toArray').call(filtered)).toEqual([1, 3]);
     expect(shim('some').call(new Map([['a', 1]]).values(), (v: unknown) => v === 1)).toBe(true);
     // Ленивый итог сам наследует общий прототип: на нём следующий помощник.
-    expect(Object.getPrototypeOf(Object.getPrototypeOf(Object.getPrototypeOf(filtered)))).toBe(ITERATOR_PROTOTYPE);
+    expect(Object.prototype.isPrototypeOf.call(ITERATOR_PROTOTYPE, filtered as object)).toBe(true);
+    expect(Object.prototype.toString.call(filtered)).toBe(Object.prototype.toString.call(native('filter').call(set.keys(), odd)));
+  });
+
+  it.each(['map', 'filter', 'take', 'drop', 'flatMap'])('%s: return() до первого next() закрывает источник, как встроенный', name => {
+    const arg = name === 'take' || name === 'drop' ? 1 : (v: number) => (name === 'flatMap' ? [v] : v);
+    const early = (r: unknown) => { const it = r as Iterator<unknown>; const out = [it.return?.(), it.next()]; return out; };
+    expect(run(shim(name), [1, 2], [arg], early)).toEqual(run(native(name), [1, 2], [arg], early));
+  });
+
+  it('предел и size приводятся к числу по стандарту: BigInt — TypeError, как у встроенного', () => {
+    for (const name of ['take', 'drop']) expect(run(shim(name), [1], [2n], all)).toEqual(run(native(name), [1], [2n], all));
+    const impl = IMPLS.setIntersection as (this: Set<unknown>, other: unknown) => Set<unknown>;
+    const nativeImpl = (Set.prototype as unknown as { intersection: typeof impl }).intersection;
+    const like = { size: 2n, has: () => true, keys: () => [][Symbol.iterator]() };
+    expect(() => nativeImpl.call(new Set([1]), like)).toThrow(TypeError);
+    expect(() => impl.call(new Set([1]), like)).toThrow(TypeError);
+  });
+
+  it('next() вернул не объект — TypeError, как у встроенного, а не значение undefined', () => {
+    const bad = () => Object.assign(Object.create(ITERATOR_PROTOTYPE), { next: () => 5 }) as Iterator<number>;
+    for (const name of ['toArray', 'map']) {
+      const consume = name === 'map' ? all : (r: unknown) => r;
+      const args = name === 'map' ? [(v: unknown) => v] : [];
+      const outcome = (impl: Helper) => { try { return consume(impl.call(bad(), ...args)); } catch (e) { return (e as Error).constructor.name; } };
+      expect(outcome(shim(name))).toBe('TypeError');
+      expect(outcome(shim(name))).toEqual(outcome(native(name)));
+    }
   });
 
   it('глобал Iterator — абстрактный, prototype — общий прототип итераторов', () => {
@@ -162,8 +212,9 @@ describe('заплатки границы Firefox и Safari', () => {
     });
     return { s, cancelled: () => cancelled };
   }
+  type Values = (this: ReadableStream<string>, o?: object) => AsyncIterable<string>;
   const values = (s: ReadableStream<string>, options?: object) =>
-    (IMPLS.streamValues as (this: ReadableStream<string>, o?: object) => AsyncIterable<string>).call(s, options);
+    (IMPLS.streamValues as unknown as Values).call(s, options);
 
   it('обход потока: все куски, затем поток свободен', async () => {
     const { s } = stream(['a', 'b']);
@@ -190,11 +241,33 @@ describe('заплатки границы Firefox и Safari', () => {
     expect(() => values(s)).toThrow(TypeError);
   });
 
-  it('после установки нужное pdf.js из пробелов Firefox и Safari есть', () => {
-    expect(typeof (globalThis as { Iterator?: unknown }).Iterator).toBe('function');
-    for (const name of ['map', 'filter', 'take', 'drop', 'flatMap', 'reduce', 'toArray', 'forEach', 'some', 'every', 'find']) expect(typeof native(name)).toBe('function');
-    expect(typeof (Set.prototype as unknown as Record<string, unknown>).intersection).toBe('function');
-    expect(typeof (Response.prototype as unknown as Record<string, unknown>).bytes).toBe('function');
-    expect(typeof (ReadableStream.prototype as unknown as Record<symbol, unknown>)[Symbol.asyncIterator]).toBe('function');
+  const nativeValues = (s: ReadableStream<string>, options?: object) =>
+    (ReadableStream.prototype as unknown as { values: Values }).values.call(s, options);
+
+  /** Исход раннего ухода: отменён ли поток, свободен ли он, отказ. */
+  async function leave(make: typeof values, quit: (it: AsyncIterator<string>) => Promise<unknown>, failingCancel = false) {
+    let cancelled = false;
+    const s = new ReadableStream<string>({
+      start(c) { c.enqueue('a'); },
+      cancel() { cancelled = true; if (failingCancel) throw new Error('отмена'); },
+    });
+    const it = make(s)[Symbol.asyncIterator]();
+    let error: string | undefined;
+    try { await quit(it); } catch (e) { error = (e as Error).message; }
+    return { cancelled, locked: s.locked, error };
+  }
+
+  it('обход потока: return() до первого next() отменяет поток и снимает блокировку, как встроенный', async () => {
+    const quit = (it: AsyncIterator<string>) => it.return!();
+    const shimmed = await leave(values, quit);
+    expect(shimmed).toEqual({ cancelled: true, locked: false, error: undefined });
+    expect(shimmed).toEqual(await leave(nativeValues, quit));
+  });
+
+  it('обход потока: отказ отмены не оставляет поток заблокированным, как у встроенного', async () => {
+    const quit = async (it: AsyncIterator<string>) => { await it.next(); await it.return!(); };
+    const shimmed = await leave(values, quit, true);
+    expect(shimmed).toEqual({ cancelled: true, locked: false, error: 'отмена' });
+    expect(shimmed).toEqual(await leave(nativeValues, quit, true));
   });
 });

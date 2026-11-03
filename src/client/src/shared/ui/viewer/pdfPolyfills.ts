@@ -113,22 +113,31 @@ function toHex(this: Uint8Array): string {
 }
 
 /** `%IteratorPrototype%` — общий прототип итераторов: глобала `Iterator` на границе может не быть. */
-const ITERATOR_PROTO = Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]())) as object;
+export const ITERATOR_PROTOTYPE = Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]())) as object;
 
 /** Глобал `Iterator` — абстрактный: ни вызвать, ни создать напрямую. */
 function iteratorCtor(): void {
   if (new.target === undefined || new.target === iteratorCtor) throw new TypeError('Iterator: абстрактный конструктор');
 }
 Object.defineProperty(iteratorCtor, 'name', { value: 'Iterator' });
-Object.defineProperty(iteratorCtor, 'prototype', { value: ITERATOR_PROTO, writable: false });
+Object.defineProperty(iteratorCtor, 'prototype', { value: ITERATOR_PROTOTYPE, writable: false });
 
 interface Direct { it: object; next(): IteratorResult<unknown> }
 
-/** Итератор и его `next`, прочитанный один раз, — как в стандарте. */
+const isObject = (v: unknown): v is object => (typeof v === 'object' || typeof v === 'function') && v !== null;
+
+/** Итератор и его `next`, прочитанный один раз, — как в стандарте; ответ `next` не объект — отказ. */
 function direct(it: unknown, name: string): Direct {
-  if ((typeof it !== 'object' && typeof it !== 'function') || it === null) throw new TypeError(`${name}: нужен итератор`);
-  const next = (it as { next: () => IteratorResult<unknown> }).next;
-  return { it, next: () => next.call(it) };
+  if (!isObject(it)) throw new TypeError(`${name}: нужен итератор`);
+  const next = (it as { next: () => unknown }).next;
+  return {
+    it,
+    next: () => {
+      const r = next.call(it);
+      if (!isObject(r)) throw new TypeError(`${name}: next вернул не объект`);
+      return r as IteratorResult<unknown>;
+    },
+  };
 }
 
 /** Закрыть итератор (`return`), если он это умеет. */
@@ -148,20 +157,23 @@ function needFn(f: unknown, name: string, src?: Direct): asserts f is (...args: 
   if (typeof f !== 'function') fail(src, new TypeError(`${name}: нужна функция`));
 }
 
+/** Приведение к числу по стандарту (ToNumber): BigInt и символ — отказ, а не число. */
+const toNumber = (v: unknown): number => +(v as number);
+
 function limitOf(limit: unknown, name: string, src: Direct): number {
   let n: number;
-  try { n = Number(limit); } catch (e) { fail(src, e); }
+  try { n = toNumber(limit); } catch (e) { fail(src, e); }
   if (Number.isNaN(n)) fail(src, new RangeError(`${name}: предел не число`));
   if (Math.trunc(n) < 0) fail(src, new RangeError(`${name}: предел меньше нуля`));
   return Math.trunc(n);
 }
 
 /**
- * Ленивый помощник — генератор над источником; `step` отдаёт значения и возвращает `true`, чтобы
- * закончить. Источник закрывается, когда потребитель ушёл раньше или обработчик отказал, но не
+ * Тело ленивого помощника — генератор над источником; `step` отдаёт значения и возвращает `true`,
+ * чтобы закончить. Источник закрывается, когда потребитель ушёл раньше или обработчик отказал, но не
  * тогда, когда отказал или кончился сам источник.
  */
-function* lazy(src: Direct, step: (value: unknown, index: number) => Generator<unknown, boolean | void>): Generator<unknown, undefined> {
+function* body(src: Direct, step: (value: unknown, index: number) => Generator<unknown, boolean | void>): Generator<unknown, undefined> {
   let open = false;
   try {
     for (let index = 0; ; index++) {
@@ -177,6 +189,30 @@ function* lazy(src: Direct, step: (value: unknown, index: number) => Generator<u
   }
 }
 
+const HELPER_PROTO = Object.create(ITERATOR_PROTOTYPE, {
+  [Symbol.toStringTag]: { value: 'Iterator Helper', configurable: true },
+}) as object;
+
+/**
+ * Помощник поверх тела-генератора. Сам генератор не годится: его `return()` до первого `next()` в
+ * тело не входит, а стандарт и тогда закрывает источник.
+ */
+function helper(src: Direct, gen: Generator<unknown, undefined>): Iterator<unknown> {
+  let started = false;
+  return Object.assign(Object.create(HELPER_PROTO) as object, {
+    next() { started = true; return gen.next(); },
+    return() {
+      if (started) return gen.return(undefined);
+      started = true;
+      gen.return(undefined);
+      close(src.it);
+      return { value: undefined, done: true };
+    },
+  }) as Iterator<unknown>;
+}
+
+const lazy = (src: Direct, step: Parameters<typeof body>[1]) => helper(src, body(src, step));
+
 function iterMap(this: unknown, f: unknown) {
   const src = direct(this, 'map'); needFn(f, 'map', src);
   return lazy(src, function* (v, i) { yield f(v, i); });
@@ -190,10 +226,10 @@ function iterFilter(this: unknown, f: unknown) {
 function iterTake(this: unknown, limit: unknown) {
   const src = direct(this, 'take');
   let left = limitOf(limit, 'take', src);
-  return (function* () {
+  return helper(src, (function* () {
     if (left === 0) { close(src.it); return undefined; }
-    yield* lazy(src, function* (v) { yield v; return --left === 0; });
-  })();
+    yield* body(src, function* (v) { yield v; return --left === 0; });
+  })());
 }
 
 function iterDrop(this: unknown, limit: unknown) {
@@ -282,7 +318,7 @@ function setIntersection<T>(this: Set<T>, other: unknown): Set<T> {
   const size = setSize.call(this);
   if (typeof other !== 'object' || other === null) throw new TypeError('intersection: нужно множество');
   const { size: rawSize, has, keys } = other as { size: unknown; has: unknown; keys: unknown };
-  const otherSize = Number(rawSize);
+  const otherSize = toNumber(rawSize);
   if (Number.isNaN(otherSize)) throw new TypeError('intersection: size не число');
   if (Math.trunc(otherSize) < 0) throw new RangeError('intersection: size меньше нуля');
   needFn(has, 'intersection');
@@ -305,37 +341,51 @@ async function bytes(this: { arrayBuffer(): Promise<ArrayBuffer> }): Promise<Uin
   return new Uint8Array(await this.arrayBuffer());
 }
 
-async function* readAll(reader: ReadableStreamDefaultReader<unknown>, preventCancel: boolean): AsyncGenerator<unknown, undefined> {
+const ASYNC_ITERATOR_PROTO = Object.getPrototypeOf(Object.getPrototypeOf((async function* () { /* пусто */ }).prototype)) as object;
+
+/**
+ * `ReadableStream.values()` — он же `for await`: поток блокируется сразу, как в стандарте. Не
+ * асинхронный генератор: его `return()` до первого `next()` в тело не входит, и поток остался бы
+ * заблокирован. Вызовы идут по очереди; блокировка снимается при любом исходе — концом, отказом
+ * чтения, ранним уходом и отказом отмены.
+ */
+function streamValues(this: ReadableStream<unknown>, options?: { preventCancel?: boolean }): AsyncIterator<unknown> {
+  const reader = this.getReader();
+  const preventCancel = !!options?.preventCancel;
   let finished = false;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) { finished = true; return undefined; }
-      yield value;
-    }
-  } catch (e) {
-    finished = true;
-    throw e;
-  } finally {
+  let queue: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(step: () => Promise<T>): Promise<T> => {
+    const result = queue.then(step);
+    queue = result.catch(() => undefined);
+    return result;
+  };
+  const release = () => { finished = true; reader.releaseLock(); };
+  return Object.assign(Object.create(ASYNC_ITERATOR_PROTO) as object, {
+    next: () => inTurn(async (): Promise<IteratorResult<unknown>> => {
+      if (finished) return { value: undefined, done: true };
+      let r: ReadableStreamReadResult<unknown>;
+      try { r = await reader.read(); } catch (e) { release(); throw e; }
+      if (r.done) { release(); return { value: undefined, done: true }; }
+      return { value: r.value, done: false };
+    }),
     // Потребитель ушёл раньше (`break`) — поток отменяется, если не просили иного.
-    if (!finished && !preventCancel) await reader.cancel();
-    reader.releaseLock();
-  }
+    return: (value?: unknown) => inTurn(async (): Promise<IteratorResult<unknown>> => {
+      if (finished) return { value, done: true };
+      if (preventCancel) { release(); return { value, done: true }; }
+      try { await reader.cancel(value); } finally { release(); }
+      return { value, done: true };
+    }),
+  }) as AsyncIterator<unknown>;
 }
 
-/** `ReadableStream.values()` — он же `for await`: поток блокируется сразу, как в стандарте. */
-function streamValues(this: ReadableStream<unknown>, options?: { preventCancel?: boolean }) {
-  return readAll(this.getReader(), !!options?.preventCancel);
-}
+/** Имена итераторных помощников — для тестов: список один, у заплатки. */
+export const ITERATOR_HELPER_NAMES = Object.keys(ITERATOR_HELPERS) as (keyof typeof ITERATOR_HELPERS)[];
 
 /** Сами заплатки — для теста: где функция у среды своя, установленная не видна. */
 export const IMPLS = {
   getOrInsert, getOrInsertComputed, sumPrecise, promiseTry, toBase64, fromBase64, toHex,
   iteratorCtor, ...ITERATOR_HELPERS, setIntersection, bytes, streamValues,
 };
-
-/** Где заплатка ставится помощникам итератора — для теста. */
-export const ITERATOR_PROTOTYPE = ITERATOR_PROTO;
 
 export function installPdfPolyfills(): void {
   for (const proto of [Map.prototype, WeakMap.prototype]) {
@@ -348,7 +398,7 @@ export function installPdfPolyfills(): void {
   patch(Uint8Array.prototype, 'toHex', toHex);
   patch(Uint8Array, 'fromBase64', fromBase64);
   patch(globalThis, 'Iterator', iteratorCtor);
-  for (const [name, impl] of Object.entries(ITERATOR_HELPERS)) patch(ITERATOR_PROTO, name, impl);
+  for (const [name, impl] of Object.entries(ITERATOR_HELPERS)) patch(ITERATOR_PROTOTYPE, name, impl);
   patch(Set.prototype, 'intersection', setIntersection);
   // Веб-API — где они есть: в главном потоке и в worker'е есть все три, в Node — тоже.
   if (typeof Response !== 'undefined') patch(Response.prototype, 'bytes', bytes);

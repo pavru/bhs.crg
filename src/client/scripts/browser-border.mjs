@@ -10,8 +10,9 @@
 // Тест движка pdf.js (pdfEngine.test.ts через browserBorder.ts) удаляет из среды всё, чего в снимке
 // нет, и сторож заплаток работает на любой версии Node.
 //
-// Ключа нет в данных MDN — он остаётся (служебное Node вроде `Buffer`): генератор печатает такие,
-// пересъём читается глазами. Оставленное нарочно, хоть его на границе и нет, — KEPT, с причиной.
+// Ключа нет в данных MDN — он остаётся (служебное Node вроде `Buffer`) и пишется в снимок списком
+// `unknown`: тест движка сверяет, что сборка pdf.js такие не зовёт по имени, — иначе неизвестное
+// прикрывало бы пропуск заплатки. Оставленное нарочно, хоть его на границе и нет, — KEPT, с причиной.
 // DOM (холст, шрифты) снимок не моделирует вовсе.
 //
 // Снимок — факт о границе, а не о коде: переснимать, только когда владелец сдвинул границу или
@@ -132,7 +133,8 @@ for (const kept of Object.keys(KEPT)) {
   if (!objects[path]?.includes(name)) throw new Error(`${kept} нет на Node 22 — уберите его из KEPT`);
 }
 
-const snapshot = { node: process.versions.node, bcd: bcd.__meta.version, browsers: BROWSERS, kept: KEPT, objects };
+unknown.sort();
+const snapshot = { node: process.versions.node, bcd: bcd.__meta.version, browsers: BROWSERS, kept: KEPT, unknown, objects };
 writeFileSync(out, `${JSON.stringify(snapshot, null, 1)}\n`);
 console.log(`Выброшено по данным MDN ${bcd.__meta.version} (${dropped.length}):\n  ${dropped.join('\n  ')}`);
 console.log(`Оставлено без данных MDN (${unknown.length}):\n  ${unknown.join('\n  ')}`);

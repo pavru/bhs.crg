@@ -49,3 +49,6 @@ export const REMOVED_AT_BORDER = REMOVED_KEYS.map(({ path, name }) => `${path}.$
 
 /** Нет на границе, но оставлено ради среды тестов: ключ → причина. */
 export const KEPT_AT_BORDER: Record<string, string> = border.kept;
+
+/** Оставлено, потому что в данных MDN о ключе нет записи, — `путь.ключ`. */
+export const UNKNOWN_AT_BORDER: string[] = border.unknown;
