@@ -140,17 +140,28 @@
   ✓ 03.11.2026: абзац docked date picker в «Дата и время», таблица — `density="cell"` / `"dense"`, лента —
   `secondary-container`; «Слои над окном» — исключение `DATE_PICKER_SURFACE` и размер слоя по месту;
   два отступления в «Отступлениях»; «Кто сторожит» — стрелки календаря переведены.
-- [ ] 2.6 `/design-sync` после слияния PR 2: `Calendar`, `DateInput`, `TimeField`, `PdfViewer` — новый вид
+- [x] 2.6 `/design-sync` после слияния PR 2: `Calendar`, `DateInput`, `TimeField`, `PdfViewer` — новый вид
   в дизайн-системе (D12). Проверка — превью компонентов
+  ✓ 03.11.2026: PR 2 слит #1743 (e820ef2f; правки /code-review — 15e6a9c0); `/design-sync` сделан
+  владельцем после слияния.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `native-pdf-frame`,
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+  ✓ 03.11.2026 на master b5231cab: `tsc -b` чистый, vitest 3525/3525.
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `native-pdf-frame`,
   `date-frame`, `native-date` — на нуле
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+  ✓ 03.11.2026: линт 0 (база 0), храповик интерфейса без роста (`icon-button` опущен PR 2);
+  `native-pdf-frame`, `date-frame`, `native-date` — 0.
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
-- [ ] 3.4 В описании каждого PR — макет, выбранный вариант и ссылка; снимки 5–7 ключевых экранов до и
+  ✓ 03.11.2026: зелёный.
+- [x] 3.4 В описании каждого PR — макет, выбранный вариант и ссылка; снимки 5–7 ключевых экранов до и
   после в обеих темах на 1366×768 и 375 px, включая счёт со сканом (зонтик, 5.2); весь
   `npm run -s test:e2e:ci` зелёный (5.1)
-- [ ] 3.5 PR с меткой `version:minor`
+  ✓ 03.11.2026: в описаниях #1742 и #1743 — макеты Claude Design 7a545ca1, вариант А; снимки до/после —
+  артефакты 9K9hj1gu4gFqegFesWBYsi (счёт со сканом, масштаб, предпросмотр, редактор шаблона) и
+  FyNYyu2EcU5bZbX2668NwK (календарь в «Оплате» 1366×768 и на 375), обе темы. Весь `test:e2e:ci` — 21/21 на
+  стенде по обоим PR, «Живые прогоны» в CI зелёные.
+- [x] 3.5 PR с меткой `version:minor`
+  ✓ 03.11.2026: #1742 → 2.63.0, #1743 → 2.64.0 (`version:minor`, `ui`).
