@@ -214,20 +214,19 @@ function SearchButton({ onOpen, ref }: { onOpen: () => void; ref: Ref<HTMLButton
   // которой там пользуются.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
   return (
-    // Меньше значка с полями (56 + `mx-1`) обёртка не ужимается: при `min-w-0` она уходила в 0 на
-    // 375 px, а кнопка со своим `min-w-14` вылезала из неё поверх центра активности. Ужимается
-    // переключатель пространства — его имя обрезается.
-    <div className="flex-1 min-w-16 md:min-w-20 flex">
-      {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала
-          обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
-          остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
-      <button ref={ref} type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
-        className="@container flex-1 min-w-14 max-w-180 flex items-center gap-4 h-14 px-4 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-high text-body-large text-on-surface-variant state-layer focus-ring">
-        <Icon icon={Search} size={24} className="shrink-0" />
-        <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
-        <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-label-small text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
-      </button>
-    </div>
+    // Без обёртки: кнопка — сама элемент полосы, и её `min-w-14` держит строку сама. Обёртка с
+    // `min-w-0` уходила на 375 px в 0, и кнопка вылезала из неё поверх центра активности; ужимается
+    // переключатель пространства — его имя обрезается. Остаток строки сверх 720 забирает `me-auto`,
+    // и центр активности с аватаром стоят у края.
+    // Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала обрезается
+    // подпись, потом уходит метка клавиш, потом подпись становится невидимой, и остаётся значок
+    // поиска. Метка держится дольше подписи: учить клавише — смысл кнопки.
+    <button ref={ref} type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
+      className="@container flex-1 min-w-14 max-w-180 flex items-center gap-4 h-14 px-4 ms-1 md:ms-3 me-auto overflow-hidden rounded-full bg-surface-container-high text-body-large text-on-surface-variant state-layer focus-ring">
+      <Icon icon={Search} size={24} className="shrink-0" />
+      <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
+      <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-label-small text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+    </button>
   );
 }
 

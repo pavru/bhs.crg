@@ -7,7 +7,7 @@ import { panelLink } from './panelLink';
 import { SearchInput } from './SearchInput';
 import { LayerBoundary } from './LayerBoundary';
 import { ListDetailShell } from './ListDetailShell';
-import { dockedPlace, PALETTE_SURFACE } from './paletteDock';
+import { dockedPlace, fullPlace, PALETTE_SURFACE } from './paletteDock';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 import { railDef, type RailSection } from './railSections';
 
@@ -118,6 +118,12 @@ describe('CommandPalette — docked search view', () => {
     expect(dockedPlace(anchor(400, 4, 56), 1366, true)).toBeNull();
     expect(dockedPlace(null, 1366, true)).toBeNull();
     expect(dockedPlace(anchor(0, 4, 400), 700, false)).toBeNull();
+  });
+
+  it('на телефоне — видимая область: клавиатура её сжимает, и низ выдачи не уходит под неё', () => {
+    expect(fullPlace({ offsetTop: 0, height: 480 })).toEqual({ top: 0, height: 480 });
+    expect(fullPlace({ offsetTop: 120, height: 400 })).toEqual({ top: 120, height: 400 });
+    expect(fullPlace(null)).toBeNull();
   });
 
   it('своя поверхность — surface-container-high уровня 3, не слой меню', () => {
