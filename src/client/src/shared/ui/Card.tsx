@@ -86,12 +86,12 @@ type ButtonCard = ClickableLook & { onClick: () => void; to?: never };
 export type CardProps = StaticCard | LinkCard | ButtonCard;
 
 export function Card(props: CardProps) {
+  // Что осталось после разбора — события перетаскивания (`DragEvents`): корень получает их одним списком.
   const { variant = 'outlined', title, icon, className = '', 'data-testid': testId, children,
-    dragged, dropTarget, invalid, flush,
-    draggable, onDragStart, onDragEnd, onDragEnter, onDragOver, onDragLeave, onDrop } = props;
+    dragged, dropTarget, invalid, flush, menu, actions, to, onClick, ...drag } = props;
   const v = VARIANT[variant];
   const titleId = useId();
-  const clickable = props.to !== undefined || props.onClick !== undefined;
+  const clickable = to !== undefined || onClick !== undefined;
   // Пустое тело (`null`, `false`, условие не сработало) отступа не рисует.
   const hasBody = Children.toArray(children).length > 0;
   // Ошибка — обводкой у любого вида: у filled и elevated своей нет, и без неё ошибку сказал бы только текст.
@@ -104,20 +104,18 @@ export function Card(props: CardProps) {
   const head = !!(title || icon);
   const body = flush ? 'flex flex-col' : `flex flex-col gap-3 px-4 pb-4 text-body-medium text-on-surface-variant ${head ? '' : 'pt-4'}`;
   return (
-    <div className={look} data-testid={testId} data-dragging={dragged || undefined}
-      draggable={draggable} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragEnter={onDragEnter}
-      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+    <div className={look} data-testid={testId} data-dragging={dragged || undefined} {...drag}>
       {head && (
         <div className="flex items-center gap-3 min-h-14 py-2 pr-2 pl-4">
           {icon && <Icon icon={icon} size={24} className="shrink-0 text-on-surface-variant" aria-hidden />}
           <h3 id={titleId} className="flex-1 min-w-0 text-title-medium text-on-surface">{title}</h3>
-          {!clickable && props.menu}
+          {!clickable && menu}
         </div>
       )}
       {hasBody && <div className={body}>{children}</div>}
-      {!clickable && props.actions && <div className="flex justify-end gap-2 px-4 pb-4">{props.actions}</div>}
-      {props.to !== undefined && <CardLink to={props.to} className={target} labelledBy={titleId} />}
-      {props.onClick && <button type="button" onClick={props.onClick} className={target} aria-labelledby={titleId} />}
+      {!clickable && actions && <div className="flex justify-end gap-2 px-4 pb-4">{actions}</div>}
+      {to !== undefined && <CardLink to={to} className={target} labelledBy={titleId} />}
+      {onClick && <button type="button" onClick={onClick} className={target} aria-labelledby={titleId} />}
     </div>
   );
 }

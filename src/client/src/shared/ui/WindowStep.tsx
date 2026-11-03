@@ -1,7 +1,7 @@
 import { useContext, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from './Modal';
-import { ModalBarContext, WindowStepContext, type WindowStepHost } from './modalControl';
+import { ModalBarContext, WindowLayerContext, WindowStepContext, type WindowStepHost } from './modalControl';
 
 interface WindowStepProps {
   title: string;
@@ -62,7 +62,10 @@ function HostedStep({ host, title, footer, children, onBack, busy = false, isDir
   const slot = host.slots[id];
   return (
     <>
-      {slot?.body && createPortal(<ModalBarContext.Provider value={bar}>{children}</ModalBarContext.Provider>, slot.body)}
+      {/* Слой — шаг: лист в его теле закрывается Esc шага, пока шаг виден. */}
+      {slot?.body && createPortal(<WindowLayerContext.Provider value={id}>
+        <ModalBarContext.Provider value={bar}>{children}</ModalBarContext.Provider>
+      </WindowLayerContext.Provider>, slot.body)}
       {slot?.footer && footer && createPortal(<ModalBarContext.Provider value={bar}>{footer}</ModalBarContext.Provider>,
         slot.footer)}
     </>

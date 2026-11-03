@@ -7,14 +7,30 @@ import { SelectionBar } from './SelectionBar';
 
 afterEach(cleanup);
 
+const live = (c: HTMLElement) => c.querySelector('[aria-live="polite"]')!;
+
 describe('SelectionBar', () => {
-  it('полоса — область с именем «Выбрано: N», подложка surface-container-high, число title-large', () => {
-    render(<SelectionBar count={3} onClear={vi.fn()} />);
-    const bar = screen.getByRole('region', { name: 'Выбрано: 3' });
+  it('пустой выбор — шапка области из children; выбор — полоса на её месте', () => {
+    const { rerender } = render(<SelectionBar count={0} onClear={vi.fn()}><h2>Материалы комплекта</h2></SelectionBar>);
+    expect(screen.getByRole('heading', { name: 'Материалы комплекта' })).toBeTruthy();
+    expect(screen.queryByRole('region')).toBeNull();
+    rerender(<SelectionBar count={3} onClear={vi.fn()}><h2>Материалы комплекта</h2></SelectionBar>);
+    expect(screen.queryByRole('heading', { name: 'Материалы комплекта' })).toBeNull();
+    const bar = screen.getByRole('region', { name: 'Выбор строк' });
     expect(bar.className).toContain('bg-surface-container-high');
-    const count = screen.getByText('Выбрано: 3');
-    expect(count.className).toContain('text-title-large');
-    expect(count.getAttribute('aria-live')).toBe('polite');
+    expect(screen.getByText('Выбрано: 3', { selector: 'p' }).className).toContain('text-title-large');
+  });
+
+  it('живая строка стоит и при пустом выборе — первый флажок диктор слышит; имя полосы не меняется', () => {
+    const { container, rerender } = render(<SelectionBar count={0} onClear={vi.fn()} />);
+    const status = live(container);
+    expect(status.textContent).toBe('');
+    rerender(<SelectionBar count={1} onClear={vi.fn()} />);
+    expect(live(container)).toBe(status);
+    expect(status.textContent).toBe('Выбрано: 1');
+    rerender(<SelectionBar count={2} onClear={vi.fn()} />);
+    expect(status.textContent).toBe('Выбрано: 2');
+    expect(screen.getByRole('region', { name: 'Выбор строк' })).toBeTruthy();
   });
 
   it('✕ у ведущего края снимает выбор; подпись крестика — своя', () => {
@@ -28,15 +44,17 @@ describe('SelectionBar', () => {
     expect(screen.getByRole('button', { name: 'Отменить выбор' })).toBeTruthy();
   });
 
-  it('действия — у замыкающего края; note — строкой warning под полосой, без неё строки нет', () => {
-    const { container, rerender } = render(
+  it('действия — у замыкающего края; note — строкой warning под полосой, абзацы внутри — без вложенного <p>', () => {
+    const { rerender } = render(
       <SelectionBar count={3} onClear={vi.fn()} actions={<button type="button">Связать выбранные (3)</button>} />);
     expect(screen.getByRole('button', { name: 'Связать выбранные (3)' })).toBeTruthy();
-    expect(container.querySelector('.text-warning')).toBeNull();
-    rerender(<SelectionBar count={3} onClear={vi.fn()} note="Шире выбранного уровня — 1" />);
-    const note = screen.getByText('Шире выбранного уровня — 1').parentElement!;
+    expect(screen.getByRole('region').querySelector('.text-warning')).toBeNull();
+    rerender(<SelectionBar count={3} onClear={vi.fn()} note={<p>Шире выбранного уровня — 1</p>} />);
+    const text = screen.getByText('Шире выбранного уровня — 1');
+    const note = text.parentElement!.parentElement!;
     expect(note.className).toContain('text-warning');
     expect(note.querySelector('svg')).toBeTruthy();
+    expect(text.parentElement!.closest('p')).toBeNull();
     // Строка — внутри области: предупреждение читается вместе с числом.
     expect(screen.getByRole('region').contains(note)).toBe(true);
   });

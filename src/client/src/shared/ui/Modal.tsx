@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Button, type ButtonProps } from './Button';
 import {
-  ModalBarContext, ModalBodyExitContext, ModalControlContext, WindowStepContext, useModalControl,
+  ModalBarContext, ModalBodyExitContext, ModalControlContext, WindowLayerContext, WindowStepContext, useModalControl,
   type BarAction, type ModalBar, type WindowStepHost,
 } from './modalControl';
 import { ModalAppBar } from './ModalAppBar';
@@ -202,7 +202,13 @@ function ModalBody({
   const topId = top?.id;
   const formBar = useMemo(() => placeOf('form', !topId), [placeOf, topId]);
   const stepBar = useCallback((id: string) => placeOf(id, id === topId), [placeOf, topId]);
-  const stepHost = useMemo<WindowStepHost>(() => ({ ...host, bar: stepBar }), [host, stepBar]);
+  // Открытые листы по слоям ([UI-81]): Esc видимого слоя закрывает последний открытый в нём лист.
+  const sheets = useRef(new Map<string, (() => void)[]>());
+  const sheet = useCallback((layer: string, close: () => void) => {
+    sheets.current.set(layer, [...sheets.current.get(layer) ?? [], close]);
+    return () => sheets.current.set(layer, (sheets.current.get(layer) ?? []).filter(c => c !== close));
+  }, []);
+  const stepHost = useMemo<WindowStepHost>(() => ({ ...host, bar: stepBar, sheet }), [host, stepBar, sheet]);
   const rule = DISMISSAL[state];
   // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
   // снимает его вместе с кнопкой «Закрыть» — иначе она закрыла бы окно мимо `busy`. А пока вопрос
@@ -332,7 +338,10 @@ function ModalBody({
             e.preventDefault();
             // Esc, которым отменяют набор в IME, — клавиша метода ввода, а не диалога.
             if (e.isComposing) return;
-            if (rule.escape === 'close') afterFields(leave);
+            // Открыт лист видимого слоя — Esc его: окно и шаг остаются (карточка позиции в окне выбора).
+            const openSheet = sheets.current.get(topId ?? 'form')?.at(-1);
+            if (openSheet) afterFields(openSheet);
+            else if (rule.escape === 'close') afterFields(leave);
             else if (rule.escape === 'focusExit') afterFields(() => showExit(true));
           }}
           onPointerDownOutside={() => {
@@ -349,6 +358,8 @@ function ModalBody({
           <ModalBodyExitContext.Provider value={null}>
           <ModalBarContext.Provider value={null}>
           <WindowStepContext.Provider value={stepHost}>
+          {/* Своё окно — своя форма: слой шага снаружи (окно, открытое из шага) сюда не идёт. */}
+          <WindowLayerContext.Provider value="form">
           <Dialog.Title className="sr-only">{shownTitle}</Dialog.Title>
           {/* Под вопросом окно недоступно одной обёрткой: фокус не вернётся в форму мимо вопроса. */}
           <div className="contents" inert={asking}>
@@ -416,6 +427,7 @@ function ModalBody({
 
           <LeaveQuestion open={asking} onStay={() => setConfirmClose(false)}
             onLeave={() => { setConfirmClose(false); leave(); }} />
+          </WindowLayerContext.Provider>
           </WindowStepContext.Provider>
           </ModalBarContext.Provider>
           </ModalBodyExitContext.Provider>

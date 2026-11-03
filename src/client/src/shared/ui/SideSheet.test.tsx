@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { BottomSheet } from './BottomSheet';
+import { Menu, MenuItem } from './Menu';
 import { Modal } from './Modal';
+import { WindowStep } from './WindowStep';
 import { SideSheet } from './SideSheet';
 import { resetHistoryLayers } from './historyLayers';
 // Слушатель `popstate` — общий с охраной шага: без него слои не слышат «Назад».
@@ -157,6 +159,53 @@ describe('SideSheet standard внутри окна', () => {
     field.focus();
     await esc();
     expect(screen.getByRole('complementary', { name: 'Лист' })).toBeTruthy();
+  });
+  it('шаг поверх формы с листом получает свой Esc: шаг уходит, лист формы остаётся', async () => {
+    mockWidth(true);
+    const onBack = vi.fn();
+    const onSheet = vi.fn();
+    const onOpenChange = vi.fn();
+    render(<Modal open onOpenChange={onOpenChange} title="Позиция номенклатуры">
+      <input aria-label="Поиск" data-search />
+      <SideSheet variant="standard" open onClose={onSheet} title="Карточка" autoFocus={false}><p>поля</p></SideSheet>
+      <WindowStep title="Новая позиция" onBack={onBack}><input aria-label="Имя позиции" /></WindowStep>
+    </Modal>);
+    screen.getByRole('textbox', { name: 'Имя позиции' }).focus();
+    await esc();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onSheet).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('лист в теле шага закрывается Esc шага раньше самого шага', async () => {
+    mockWidth(true);
+    const onBack = vi.fn();
+    const onSheet = vi.fn();
+    render(<Modal open onOpenChange={vi.fn()} title="Окно">
+      <WindowStep title="Шаг" onBack={onBack}>
+        <input aria-label="Поле шага" />
+        <SideSheet variant="standard" open onClose={onSheet} title="Лист шага" autoFocus={false}><p>поля</p></SideSheet>
+      </WindowStep>
+    </Modal>);
+    screen.getByRole('textbox', { name: 'Поле шага' }).focus();
+    await esc();
+    expect(onSheet).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('Esc в меню над окном закрывает меню, а не лист', async () => {
+    mockWidth(true);
+    const onSheet = vi.fn();
+    render(<Modal open onOpenChange={vi.fn()} title="Окно">
+      <Menu trigger={<button type="button">Действия</button>}><MenuItem>Переименовать</MenuItem></Menu>
+      <SideSheet variant="standard" open onClose={onSheet} title="Лист" autoFocus={false}><p>поля</p></SideSheet>
+    </Modal>);
+    const trigger = screen.getByRole('button', { name: 'Действия' });
+    await act(async () => { trigger.focus(); fireEvent.keyDown(trigger, { key: 'Enter' }); });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    await esc();
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(onSheet).not.toHaveBeenCalled();
   });
 });
 

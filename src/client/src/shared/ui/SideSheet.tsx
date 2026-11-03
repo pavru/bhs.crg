@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { BottomSheet, type SheetBase } from './BottomSheet';
@@ -8,6 +8,7 @@ import { useHistoryLayer } from './historyLayers';
 import { Close } from './icons';
 import { focusFromLayer } from './layerFocus';
 import { LayerBoundary } from './LayerBoundary';
+import { WindowLayerContext, WindowStepContext } from './modalControl';
 
 /**
  * Боковая панель — side sheet MD3 ([UI-77], sharedui-md3-13), шириной 400, заголовок `title-large`, крестик у
@@ -25,10 +26,11 @@ import { LayerBoundary } from './LayerBoundary';
  *
  * <p>Смена ширины перемонтирует содержимое — набранное в листе при повороте экрана теряется (design 2б).</p>
  *
- * <p><b>Standard внутри окна</b> ([UI-81], sharedui-md3-17: карточка позиции в окне выбора). Esc закрывает
- * сначала лист, затем окно — и тогда, когда фокус не в листе, а в поиске окна. `Modal` отвечает на Esc, только
- * если клавиша дошла до документа (`afterFields`); лист слушает её там же раньше окна и останавливает. Esc,
- * которым распорядилось поле или слой над окном (меню, список), до листа не доходит. `autoFocus={false}` —
+ * <p><b>Standard внутри `Modal`</b> ([UI-81], sharedui-md3-17: карточка позиции в окне выбора). Лист встаёт в
+ * свой слой окна — форму или шаг (`WindowStepHost.sheet`), — и Esc этого слоя закрывает сначала лист, затем окно
+ * или шаг, и тогда, когда фокус не в листе, а в поиске окна. Шаг поверх формы с листом получает свой Esc сам.
+ * Решает окно, по своему правилу: Esc, которым распорядилось поле, или слой над окном (меню, список), листа не
+ * закрывает. В других окнах Radix (палитра, лист во весь экран) лист не ставят. `autoFocus={false}` — на столе
  * фокус остаётся у того, кто лист открыл (поиск окна: набор не прерывается выбором строки).</p>
  */
 export type SideSheetProps = SheetBase & {
@@ -37,7 +39,8 @@ export type SideSheetProps = SheetBase & {
   actions?: ReactNode;
   /** Standard: сменился — фокус снова на крестик (панель показала другую запись). */
   focusKey?: unknown;
-  /** Standard: `false` — фокус в лист не переходит, остаётся у открывшего. */
+  /** Standard на столе: `false` — фокус в лист не переходит, остаётся у открывшего. Уже 768 лист — окно во весь
+   *  экран, и фокус уходит в него всегда: страница под ним недоступна. */
   autoFocus?: boolean;
   // Заголовок не строкой именем листа не служит — тогда имя для читалки (`label`) обязательно.
 } & ({ title: string; label?: string } | { title: Exclude<ReactNode, string>; label: string });
@@ -95,14 +98,13 @@ function ModalSideContent({ title, closeLabel, onClose, actions, children }: {
 function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', actions, focusKey, autoFocus = true, children }: SideSheetProps) {
   const narrow = useMedia(NARROW);
   const close = useRef<HTMLButtonElement>(null);
-  const aside = useRef<HTMLElement>(null);
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
   // Во весь экран «Назад» закрывает лист, а не уводит со страницы (на столе слоёв истории нет вовсе).
   useHistoryLayer(narrow, () => { onClose(); return true; });
 
   // Фокус — в лист: Esc закрывает его с клавиатуры, и читалка узнаёт, что лист открылся.
   useEffect(() => { if (autoFocus && close.current) focusFromLayer(close.current); }, [focusKey, narrow, autoFocus]);
-  useWindowEscape(narrow ? null : aside, onClose);
+  useWindowSheet(!narrow, onClose);
   // Ушёл лист с фокусом внутри — фокус возвращается к тому, что его открыло.
   useEffect(() => () => {
     if (opener?.isConnected && opener !== document.body && document.activeElement === document.body) focusFromLayer(opener);
@@ -131,10 +133,11 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
     </Dialog.Root>
   );
   return (
-    <aside ref={aside} aria-label={label ?? (typeof title === 'string' ? title : undefined)}
+    <aside aria-label={label ?? (typeof title === 'string' ? title : undefined)}
       onKeyDown={e => {
         // Esc — свой: не поднятый порталом из слоя (меню, список), не обработанный полем или меню внутри и не
-        // конец набора IME. В окне Esc ловит `useWindowEscape`: `Modal` уже отменил клавишу (`defaultPrevented`).
+        // конец набора IME. В окне Esc решает `Modal` (`useWindowSheet`) и отменяет клавишу раньше — сюда она
+        // приходит с `defaultPrevented`.
         if (e.key !== 'Escape' || e.defaultPrevented || e.nativeEvent.isComposing || !e.currentTarget.contains(e.target as Node)) return;
         e.stopPropagation();
         onClose();
@@ -148,22 +151,15 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
 }
 
 /**
- * Esc листа внутри окна Radix: слушатель на документе, на всплытии — после полей (поле, обработавшее Esc,
- * останавливает её, как требует `Modal`) и раньше `Modal`, чей слушатель ставится уже во время нажатия. Клавиша
- * — из того же окна: из меню или списка над ним (свой портал) она принадлежит им.
+ * Лист в слое окна: внутри `Modal` Esc видимого слоя закрывает его раньше окна или шага. Закрытие — через ref:
+ * колбэк экрана меняется с каждой отрисовкой, а место в слое — одно, пока лист открыт.
  */
-function useWindowEscape(sheet: RefObject<HTMLElement | null> | null, onClose: () => void) {
-  useEffect(() => {
-    const dialog = sheet?.current?.closest('[role=dialog]');
-    if (!dialog) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.isComposing || !dialog.contains(e.target as Node)) return;
-      e.stopImmediatePropagation();
-      onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [sheet, onClose]);
+function useWindowSheet(active: boolean, onClose: () => void) {
+  const register = useContext(WindowStepContext)?.sheet;
+  const layer = useContext(WindowLayerContext);
+  const latest = useRef(onClose);
+  useLayoutEffect(() => { latest.current = onClose; });
+  useEffect(() => active && register ? register(layer, () => latest.current()) : undefined, [active, register, layer]);
 }
 
 /** Шапка листа, не ниже 72: крестик у замыкающего края, а во весь экран — у ведущего. */
