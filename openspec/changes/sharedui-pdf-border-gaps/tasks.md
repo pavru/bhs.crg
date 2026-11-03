@@ -39,13 +39,13 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run lint:ratchet`, `npm run ui:ratchet` —
+- [x] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run lint:ratchet`, `npm run ui:ratchet` —
   зелёные; лимит 500 строк кода — `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
   --filter FileSizeRatchet` зелёный (`pdfPolyfills.ts` и `pdfEngine.test.ts` растут).
-- [ ] 4.2 `openspec validate sharedui-pdf-border-gaps --strict` зелёный.
+- [x] 4.2 `openspec validate sharedui-pdf-border-gaps --strict` зелёный.
 
 ## Workflow follow-up
 
-- Начать от master после слияния PR #1747 (`infra-node26`): ветка сейчас стоит на его голове.
-- PR → CI зелёный → слияние (пользователь) → `/opsx:archive sharedui-pdf-border-gaps` (после архива
-  `infra-node26`: дельты обоих меняют [UI-21], эта — поверх).
+- Ветка перенесена на master после слияния PR #1747 и архива `infra-node26` (#1749): дельта [UI-21]
+  этого change написана поверх его текста.
+- PR → CI зелёный → слияние (пользователь) → `/opsx:archive sharedui-pdf-border-gaps`.
