@@ -1,3 +1,5 @@
+// Первым: делает в среде границу браузеров — до pdfEngine, который ставит заплатки (см. ниже).
+import { REMOVED_AT_BORDER } from '@/shared/testing/browserBorder';
 // Типов Node у приложения нет нарочно (tsconfig.app), а ссылка на них отсюда подмешала бы их всему
 // приложению. Этому тесту Node нужен — он читает эталонный PDF с диска, — поэтому без типов, здесь.
 // @ts-expect-error — модуль Node без типов
@@ -8,13 +10,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { openPdf, setAssetBase, ViewerFailure, wrap } from './pdfEngine';
+import { IMPLS } from './pdfPolyfills';
 
 /**
  * Настоящий движок в Node, без подмен (issue #1490, [UI-10], [UI-17], [UI-21]).
  *
- * Это и сторож заплаток: в Node 22 из CI нет функций, которые вызывает сборка pdf.js 6
- * (`Map.getOrInsertComputed`, `Math.sumPrecise`…), а по набору функций Node 22 не новее Chrome 126 —
- * границы просмотрщика. Обновлённый pdf.js, вызвавший новую функцию без заплатки, краснит этот тест.
+ * Это и сторож заплаток: до загрузки библиотеки `browserBorder` убирает из среды функции, которых нет
+ * на границе просмотрщика (Chrome 126, Safari 18) — `Map.getOrInsertComputed`, `Math.sumPrecise`… —
+ * на любой версии Node. Обновлённый pdf.js, вызвавший новую функцию без заплатки, краснит этот тест.
  *
  * Эталон — PDF, который конвертер поставки делает из `converter-reference.xlsx` (сверяет пару
  * `deploy/converter.tests.sh`): текст со шрифтом LibreOffice, кириллица и числа по-русски.
@@ -35,6 +38,31 @@ async function failureOf(bytes: Uint8Array): Promise<string> {
     return e instanceof ViewerFailure ? e.kind : `чужая ошибка: ${String(e)}`;
   }
 }
+
+describe('граница браузеров в среде теста', () => {
+  it('на местах функций из заплаток — заплатки, а не встроенные функции среды', () => {
+    // На Node, где функции свои, это верно только при сработавшей границе: иначе сторож молча зелёный.
+    const proto = Uint8Array.prototype as unknown as Record<string, unknown>;
+    const places: [string, unknown, unknown][] = [
+      ['Map.prototype.getOrInsert', (Map.prototype as unknown as Record<string, unknown>).getOrInsert, IMPLS.getOrInsert],
+      ['Map.prototype.getOrInsertComputed', (Map.prototype as unknown as Record<string, unknown>).getOrInsertComputed, IMPLS.getOrInsertComputed],
+      ['WeakMap.prototype.getOrInsertComputed', (WeakMap.prototype as unknown as Record<string, unknown>).getOrInsertComputed, IMPLS.getOrInsertComputed],
+      ['Math.sumPrecise', (Math as unknown as Record<string, unknown>).sumPrecise, IMPLS.sumPrecise],
+      ['Promise.try', (Promise as unknown as Record<string, unknown>).try, IMPLS.promiseTry],
+      ['Uint8Array.prototype.toBase64', proto.toBase64, IMPLS.toBase64],
+      ['Uint8Array.prototype.toHex', proto.toHex, IMPLS.toHex],
+      ['Uint8Array.fromBase64', (Uint8Array as unknown as Record<string, unknown>).fromBase64, IMPLS.fromBase64],
+    ];
+    expect(places.filter(([, actual, impl]) => actual !== impl).map(([name]) => name)).toEqual([]);
+  });
+
+  it('Node новее границы — её функции убраны и названы', () => {
+    // Node один на всё (.nvmrc) и новее снимка с Node 22: убранное обязано быть.
+    expect(REMOVED_AT_BORDER).toEqual(expect.arrayContaining([
+      'Map.prototype.getOrInsertComputed', 'Uint8Array.prototype.toBase64', 'Promise.try',
+    ]));
+  });
+});
 
 describe('движок просмотрщика на эталонном PDF', () => {
   it('число листов и кириллица в тексте', async () => {

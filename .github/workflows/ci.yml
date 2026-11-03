@@ -279,11 +279,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 22, а не свежайший: ровно на этой версии собирается образ (deploy/Dockerfile.web). CI,
-      # проверяющий не ту версию, что поедет в продакшн, проверяет не то.
+      # Версия — из .nvmrc, полная, а не «26»: на ней же собирается образ (deploy/Dockerfile.web)
+      # и работает разработчик. CI, проверяющий не ту версию, что поедет в продакшн, проверяет не
+      # то; совпадение мест сверяет src/client/nodeVersion.test.ts.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: src/client/package-lock.json
 
@@ -509,7 +510,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: src/client/package-lock.json
 
