@@ -403,18 +403,22 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
           : 'Восстановление завершилось с ошибкой'}
       </Banner>
       {report.conversionNotice && <Banner tone="info">{report.conversionNotice}</Banner>}
+      {/* Banner говорит, ЧТО есть предупреждения; сам список — в прокрутке отчёта: banner не прокручивается,
+          и сотня строк в нём сжала бы отчёт до нуля, а нижние ушли бы за край окна. */}
       {report.warnings.length > 0 && (
-        <Banner tone="warning">
-          Предупреждения ({report.warnings.length})
-          {report.warnings.map((w, i) => (
-            <span key={i} className="flex gap-2">
-              <span className="shrink-0">·</span>
-              <span>{w}</span>
-            </span>
-          ))}
-        </Banner>
+        <Banner tone="warning">Предупреждения ({report.warnings.length}) — список ниже.</Banner>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        {report.warnings.length > 0 && (
+          <ul aria-label="Предупреждения" className="space-y-1 text-body-medium text-on-surface">
+            {report.warnings.map((w, i) => (
+              <li key={i} className="flex gap-2">
+                <span aria-hidden className="shrink-0 text-warning">·</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {report.success && (
           <div className="rounded-md border border-outline-variant overflow-hidden">
             <DataGrid framed={false} columns={STAT_COLUMNS} rowKey={r => r.label} rows={[

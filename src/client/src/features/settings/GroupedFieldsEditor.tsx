@@ -253,8 +253,10 @@ export function GroupedFieldsEditor({
       {(() => {
         const zone = dropZoneProps(null);
         return (
-          <div className={`border rounded-md overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
-            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
+          // Та же карточка, что у групп, и та же цель перетаскивания — обводка `dropTarget` ([UI-81]): своя
+          // заливка и пунктир делали одно состояние двумя видами в одном конструкторе.
+          <Card flush dropTarget={zone.highlighted}>
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant">
               <span className="text-body-medium font-medium text-on-surface-variant">Без группы</span>
               <span className="text-body-small text-on-surface-variant">{ownUngrouped.length + inhUngrouped.length}</span>
             </div>
@@ -268,7 +270,7 @@ export function GroupedFieldsEditor({
                 Добавить поле
               </Button>
             </div>
-          </div>
+          </Card>
         );
       })()}
 
@@ -293,7 +295,7 @@ export function GroupedFieldsEditor({
                 onDragStart={() => setDragGroupKey(group.key)}
                 onDragEnd={endGroupDrag} icon={DragIndicator} />
               <Icon icon={Layers} size={18} className="text-on-surface-variant shrink-0" />
-              <TextField density="dense" label="Название группы" placeholder="Название группы" containerClassName="flex-1 min-w-0"
+              <TextField density="dense" label={`Название группы ${gi + 1}`} placeholder="Название группы" containerClassName="flex-1 min-w-0"
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
               />

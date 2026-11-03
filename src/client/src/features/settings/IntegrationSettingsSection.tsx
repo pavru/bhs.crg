@@ -229,6 +229,9 @@ function EngineCard({
                     // всё что угодно, просто Ollama не отвечает.
                     : <>Ollama не отвечает — список скачанных моделей узнать не удалось.</>}
               </div>
+              {/* Без списка выбора нет и поля с ошибкой — сообщение о модели тем же текстом под заглушкой:
+                  иначе красная обводка карточки осталась бы без причины. */}
+              {modelError && <p role="alert" className="mt-1 px-4 text-body-small text-error">{modelError}</p>}
             </Field>
           ) : (
             <Select label={meta.modelLabel} value={form.model || undefined} placeholder="— выберите —"

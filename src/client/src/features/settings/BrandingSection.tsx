@@ -148,7 +148,7 @@ export function BrandingSection() {
           onChange={e => { void pickLogo(e.target.files?.[0]); e.target.value = ''; }}
         />
 
-        {data && <ElongatedNote icons={data.icons} named={data.isCustom} />}
+        {data && !failure && <ElongatedNote icons={data.icons} named={data.isCustom} />}
       </div>
 
       {/* Постоянно, а не «после смены»: секцию открывают, чтобы менять оформление, а вопрос «почему
@@ -282,9 +282,8 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
   );
 }
 
-/** Слова под строкой логотипа: вытянутый логотип — предупреждением. Отказ построения — banner раздела. */
+/** Слова под строкой логотипа: вытянутый логотип — предупреждением. При отказе построения её не зовут — тогда говорит banner раздела. */
 function ElongatedNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
-  if (iconsFailure(icons)) return null;
   const elongated = elongatedWarning(icons, named);
   if (!elongated) return null;
   // Без блокировки и без подтверждения перед загрузкой: вытянутый логотип — законный выбор, а путь

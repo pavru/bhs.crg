@@ -83,13 +83,13 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
         return (
           <div key={rowKey(f, i)} className={cols}>
             <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
-              <TextField density="dense" label="Имя (ключ)" value={f.name} onChange={e => update(i, { name: e.target.value })}
+              <TextField density="dense" label={`Имя (ключ), строка ${i + 1}`} value={f.name} onChange={e => update(i, { name: e.target.value })}
                 readOnly={locked} placeholder="Позиция" className={`font-mono ${locked ? 'cursor-not-allowed' : ''}`}
                 trailing={locked && (
                   <Icon icon={LockIcon} size={18} className="text-on-surface-variant" aria-label="Обязательное поле" />
                 )} />
             </Tooltip>
-            <TextField density="dense" label="Описание — подсказка модели" value={f.description ?? ''}
+            <TextField density="dense" label={`Описание — подсказка модели, строка ${i + 1}`} value={f.description ?? ''}
               onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами" />
             <Select density="dense" value={f.type || 'string'} onValueChange={type => update(i, { type })}
