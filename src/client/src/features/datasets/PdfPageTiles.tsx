@@ -31,7 +31,7 @@ function PageThumbnail({ fileId, pageIndex, selected = false }: { fileId: string
   }, [fileId, pageIndex]);
 
   return (
-    <div className={`w-full aspect-[210/297] rounded-md bg-surface-container-highest flex items-center justify-center overflow-hidden ${
+    <div className={`w-full aspect-[210/297] rounded-md bg-surface-container-highest state-layer state-layer-group flex items-center justify-center overflow-hidden ${
       selected ? 'outline-2 outline-primary -outline-offset-2' : ''}`}>
       {url ? (
         <img src={url} alt={`Страница ${pageIndex + 1}`} className="w-full h-full object-contain" />
@@ -60,7 +60,9 @@ export function PageTile({
 }) {
   return (
     <div onClick={e => onToggle(pageIndex, e)}
-      className="group/tile relative p-1 text-left cursor-pointer">
+      className="group group/tile relative p-1 text-left cursor-pointer">
+      {/* Отклик на наведение — слой состояния миниатюры (`state-layer-group`): цель щелчка — вся плитка,
+          и загорается она от курсора над подписью так же, как над самим листом. */}
       {/* Подсказка листа — на миниатюре с подписью, а лупа ей соседка, не потомок: у лупы своя
           подсказка, и под курсором над ней должна открываться одна, а не обе. */}
       <Tooltip content={noAnswer

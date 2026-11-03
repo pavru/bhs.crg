@@ -56,6 +56,17 @@ describe('Tooltip', () => {
     expect(screen.getByRole('button', { name: 'Обновить' }).hasAttribute('aria-description')).toBe(false);
   });
 
+  it('подсказка, повторяющая значение поля, описанием не ложится', () => {
+    // Поле только для чтения с обрезанным текстом показывает его подсказкой целиком — читалка
+    // значение уже произносит.
+    render(<>
+      <Tooltip content="Модуль «Счета» выключен"><input readOnly aria-label="Профиль" value="Модуль «Счета» выключен" /></Tooltip>
+      <Tooltip content="Только чтение"><input readOnly aria-label="Код" value="A-1" /></Tooltip>
+    </>);
+    expect(screen.getByRole('textbox', { name: 'Профиль' }).hasAttribute('aria-description')).toBe(false);
+    expect(screen.getByRole('textbox', { name: 'Код' }).getAttribute('aria-description')).toBe('Только чтение');
+  });
+
   it('неактивная своя кнопка с подсказкой: доступна мыши и Tab, вид — её же неактивный, нажатие ничего не делает', async () => {
     const onClick = vi.fn();
     render(

@@ -47,11 +47,15 @@ export function UserLibPathDialog({
           id="userlib-path" ref={inputRef} label="Путь внутри userlib/" value={path} className="font-mono"
           onChange={e => { setPath(e.target.value); setTouched(true); }}
           onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
-          error={touched && error ? error : undefined}
-          hint={mode === 'create'
-            ? 'Напр.: gost/forms/f3.typ. Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
-            : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
+          error={touched && error ? error : undefined} hint="Напр.: gost/forms/f3.typ"
         />
+        {/* Следствие пути — не подсказка поля: ошибка подсказку заменяет, а знать, что папки возникнут
+            сами и импорты никто не поправит, нужно и тогда, когда путь ещё неверен. */}
+        <p className="text-body-small text-on-surface-variant">
+          {mode === 'create'
+            ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
+            : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
+        </p>
 
         {/* Автоматически переписывать чужие импорты не беремся: это текстовая трансформация
             пользовательского кода, ошибиться в ней тоньше, чем не делать. Говорим поимённо. */}

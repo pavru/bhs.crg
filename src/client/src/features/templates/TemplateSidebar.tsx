@@ -12,9 +12,8 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import type { TemplateGroup } from './groupTemplates';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { Banner } from '@/shared/ui/Banner';
+import { Button, IconButton } from '@/shared/ui/Button';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
@@ -254,11 +253,17 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
               {isExpanded && (
                 <div className="border-b border-surface-container">
-                  {/* Сообщение группы — banner в её начале ([UI-73]), а не плашка под списком версий. */}
+                  {/* Сообщение группы — строкой в начале её версий, а не плашкой под ними и не banner:
+                      рейл узок, banner в нём встаёт выше трёх строк версий, а знак у имени группы уже
+                      сказал главное. Здесь — сколько и что с этим делать. */}
                   {tooMany && (
-                    <Banner tone="warning" actions={[{ label: 'Очистить', onClick: () => onCleanup(group) }]}>
-                      Много версий: {group.versions.length}
-                    </Banner>
+                    <div className="flex items-center gap-2 pl-5 pr-1">
+                      <Icon icon={Warning} size={18} className="text-warning shrink-0" />
+                      <span className="flex-1 min-w-0 text-body-small text-on-surface-variant">
+                        Много версий: {group.versions.length}
+                      </span>
+                      <Button variant="text" onClick={() => onCleanup(group)}>Очистить</Button>
+                    </div>
                   )}
                   {group.versions.map(t => {
                     const used = usage[t.id]?.count ?? 0;

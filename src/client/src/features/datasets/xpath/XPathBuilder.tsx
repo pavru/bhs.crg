@@ -112,7 +112,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
     <div className="flex flex-wrap items-start gap-1">
       {model.absolute && <span className="text-on-surface-variant text-body-small pt-1.5 shrink-0">/</span>}
       {model.steps.map((step, i) => (
-        <StepEditor key={i} step={step} isLast={i === model.steps.length - 1}
+        <StepEditor key={i} n={i + 1} step={step} isLast={i === model.steps.length - 1}
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
       ))}
       <button type="button" onClick={addStep}
@@ -123,8 +123,9 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
   );
 }
 
-function StepEditor({ step, isLast, onChange, onRemove }: {
-  step: XPathStep; isLast: boolean;
+function StepEditor({ n, step, isLast, onChange, onRemove }: {
+  /** Номер шага — в подписях его полей и полей условий: шагов и условий в пути много. */
+  n: number; step: XPathStep; isLast: boolean;
   onChange: (patch: Partial<XPathStep>) => void; onRemove: () => void;
 }) {
   function addPredicate() {
@@ -150,15 +151,15 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
             </button>
           </Tooltip>
         )}
-        <TextField density="dense" label={step.axis === 'attribute' ? 'Имя атрибута' : 'Имя элемента'}
+        <TextField density="dense" label={`${step.axis === 'attribute' ? 'Имя атрибута' : 'Имя элемента'}, шаг ${n}`}
           value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
           className="font-mono" containerClassName="w-32" />
-        <IconButton label="Удалить шаг" danger onClick={onRemove} icon={Delete} />
+        <IconButton label={`Удалить шаг ${n}`} danger onClick={onRemove} icon={Delete} />
       </div>
       <div className="flex flex-wrap items-center gap-1 mt-1">
         {step.predicates.map((p, i) => (
-          <PredicateEditor key={i} predicate={p}
+          <PredicateEditor key={i} where={`условие ${i + 1} шага ${n}`} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
         <button type="button" onClick={addPredicate} className="text-label-small text-primary state-layer shrink-0">
@@ -178,7 +179,9 @@ function predicateKind(p: XPathPredicate): PredicateKind {
   return p.kind;
 }
 
-function PredicateEditor({ predicate, onChange, onRemove }: {
+function PredicateEditor({ where, predicate, onChange, onRemove }: {
+  /** «условие 2 шага 1» — хвост подписи каждого поля условия. */
+  where: string;
   predicate: XPathPredicate; onChange: (p: XPathPredicate) => void; onRemove: () => void;
 }) {
   function setKind(kind: PredicateKind) {
@@ -193,7 +196,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1 rounded-sm bg-surface-container-high px-1.5 py-1 text-label-small text-on-surface">
-      <Select variant="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
+      <Select variant="inline" aria-label={`Вид, ${where}`} value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>
         <SelectItem value="contains">содержит</SelectItem>
@@ -202,32 +205,32 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
       </Select>
 
       {predicate.kind !== 'position' && (
-        <TextField density="dense" label="Путь условия" placeholder="путь" value={predicate.path}
+        <TextField density="dense" label={`Путь, ${where}`} placeholder="путь" value={predicate.path}
           onChange={e => onChange({ ...predicate, path: e.target.value })} className="font-mono" containerClassName="w-28" />
       )}
 
       {predicate.kind === 'equals' && (
         <>
-          <Select variant="inline" aria-label="Сравнение" value={predicate.op} onValueChange={op => onChange({ ...predicate, op: op as '=' | '!=' })}>
+          <Select variant="inline" aria-label={`Сравнение, ${where}`} value={predicate.op} onValueChange={op => onChange({ ...predicate, op: op as '=' | '!=' })}>
             <SelectItem value="=">=</SelectItem>
             <SelectItem value="!=">≠</SelectItem>
           </Select>
-          <TextField density="dense" label="Значение условия" placeholder="значение" value={predicate.value}
+          <TextField density="dense" label={`Значение, ${where}`} placeholder="значение" value={predicate.value}
             onChange={e => onChange({ ...predicate, value: e.target.value })} containerClassName="w-28" />
         </>
       )}
 
       {predicate.kind === 'contains' && (
-        <TextField density="dense" label="Значение условия" placeholder="значение" value={predicate.value}
+        <TextField density="dense" label={`Значение, ${where}`} placeholder="значение" value={predicate.value}
           onChange={e => onChange({ ...predicate, value: e.target.value })} containerClassName="w-28" />
       )}
 
       {predicate.kind === 'position' && predicate.op === 'index' && (
-        <TextField density="dense" label="Номер позиции" type="number" min={1} value={predicate.index}
+        <TextField density="dense" label={`Номер позиции, ${where}`} type="number" min={1} value={predicate.index}
           onChange={e => onChange({ kind: 'position', op: 'index', index: Number(e.target.value) })} containerClassName="w-20" />
       )}
 
-      <IconButton label="Удалить условие" onClick={onRemove} icon={Close} />
+      <IconButton label={`Удалить ${where}`} onClick={onRemove} icon={Close} />
     </span>
   );
 }

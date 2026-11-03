@@ -102,7 +102,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 <SelectItem value="number">число</SelectItem>
                 <SelectItem value="boolean">да/нет</SelectItem>
               </Select>
-              <ParamDefault type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
+              <ParamDefault n={i + 1} type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
               <span className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                   isFirst={i === 0} isLast={i === rows.length - 1} />
@@ -123,19 +123,21 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
 }
 
 /** Поле значения по умолчанию, зависит от типа параметра. */
-function ParamDefault({ type, value, onChange }: {
+function ParamDefault({ n, type, value, onChange }: {
+  /** Номер параметра — в подписи: строк много, и одинаковые имена полей читалка не различит. */
+  n: number;
   type: TemplateParam['type']; value: TemplateParam['default']; onChange: (v: TemplateParam['default']) => void;
 }) {
   if (type === 'boolean')
     return (
       <span className="w-20 shrink-0 flex justify-center">
         <Tooltip content="Значение по умолчанию">
-          <Checkbox aria-label="Значение по умолчанию" checked={value === true} onChange={onChange} />
+          <Checkbox aria-label={`Значение по умолчанию параметра ${n}`} checked={value === true} onChange={onChange} />
         </Tooltip>
       </span>
     );
   return (
-    <TextField density="dense" label="Значение по умолчанию" placeholder="по умолч."
+    <TextField density="dense" label={`Значение по умолчанию параметра ${n}`} placeholder="по умолч."
       type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} containerClassName="w-20 shrink-0" />
   );
