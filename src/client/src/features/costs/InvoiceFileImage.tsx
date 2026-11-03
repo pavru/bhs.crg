@@ -139,7 +139,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         )}
       </div>
       {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки-оговорки (issue #1490). */}
-      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container-low">
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container">
         {failed
           ? (
             // Отказ ДО документа — связь или хранилище, а не PDF: это говорит место, а не просмотрщик.
@@ -206,7 +206,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
         <span className="text-body-small text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
-      <div className="flex-1 min-h-0 bg-surface-container-low">
+      <div className="flex-1 min-h-0 bg-surface-container">
         <Centered>
           <div className="flex flex-col items-center gap-2 max-w-sm" data-testid="image-refused">
             {image.aboutFile

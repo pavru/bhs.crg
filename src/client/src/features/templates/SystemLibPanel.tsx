@@ -1,6 +1,5 @@
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/themeContext';
 import { useSystemTypstLib } from '@/shared/api/typstUserLib';
 import { Icon } from '@/shared/ui/Icon';
 import { LockIcon } from '@/shared/ui/icons';
@@ -10,7 +9,6 @@ import { LockIcon } from '@/shared/ui/icons';
  * каждому шаблону, импортировать не нужно. Содержит системные хелперы (напр. instance-of).
  */
 export function SystemLibPanel() {
-  const { resolvedTheme } = useTheme();
   const { data: content = '', isLoading } = useSystemTypstLib();
 
   if (isLoading) {
@@ -33,7 +31,6 @@ export function SystemLibPanel() {
         <Editor
           height="100%"
           defaultLanguage="typst"
-          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
           value={content}
           beforeMount={registerTypstLanguage}
           options={{

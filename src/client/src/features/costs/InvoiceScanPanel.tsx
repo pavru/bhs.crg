@@ -135,7 +135,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
           )}
       </div>
       {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки файла. */}
-      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container-low">
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container">
         {/* PDF и картинку различает сам просмотрщик — по типу байтов, своим белым списком ([UI-24]).
             Ключ — счёт И файл: заменённый скан показывается с начала, без прежнего поворота. */}
         {canOpen && (

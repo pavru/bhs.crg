@@ -4,15 +4,15 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ViewerToolbar, type ToolbarProps } from './ViewerToolbar';
 
 /**
- * Панель просмотрщика (issue #1490, [UI-11], вариант В): блок страниц — только у многостраничного
- * документа; в узкой колонке `−` и `+` уходят в меню масштаба.
+ * Панель просмотрщика (issue #1490, [UI-11], макет А md3-16): блок страниц — только у многостраничного
+ * документа; в узкой колонке `−` и `+` уходят в меню масштаба, а чип показывает процент.
  */
 
 afterEach(cleanup);
 
 const props = (over: Partial<ToolbarProps> = {}): ToolbarProps => ({
   numPages: 4, page: 1, onPage: vi.fn(), mode: 'width', onMode: vi.fn(), onZoomIn: vi.fn(), onZoomOut: vi.fn(),
-  canZoomIn: true, canZoomOut: true, onRotate: vi.fn(), narrow: false, ...over,
+  canZoomIn: true, canZoomOut: true, onRotate: vi.fn(), narrow: false, scale: 0.86, ...over,
 });
 
 /** Radix открывает меню по нажатию указателя, а не по click. */
@@ -30,12 +30,53 @@ describe('панель просмотрщика', () => {
     expect(screen.getByRole('button', { name: 'Повернуть по часовой' })).toBeTruthy();
   });
 
+  it('вид панели: 64 на surface-container без черты, поле номера с суффиксом «/ M»', () => {
+    render(<ViewerToolbar {...props({ numPages: 12, page: 3 })} />);
+    const bar = screen.getByTestId('viewer-toolbar');
+    expect(bar.className).toContain('h-16');
+    expect(bar.className).toContain('bg-surface-container');
+    expect(bar.className.split(/\s+/)).not.toContain('border-t');
+    const field = screen.getByRole('textbox', { name: 'Номер страницы' }) as HTMLInputElement;
+    expect(field.value).toBe('3');
+    // Суффикс виден как «/ 12», а диктор слышит «из 12» — описанием поля.
+    expect(bar.textContent).toContain('/ 12');
+    const described = document.getElementById(field.getAttribute('aria-describedby')!.split(' ')[0]);
+    expect(described?.textContent).toBe('из 12');
+  });
+
+  // Суффикс — не в слоте хвоста кнопки (44, при касании 52): там «/ 1234» налезал на номер, а на
+  // сенсорном экране в поле шириной 80 номер обрезался уже с трёх цифр.
+  it('поле номера по числу цифр: ширина и отступ под суффикс растут вместе с ним', () => {
+    render(<ViewerToolbar {...props({ numPages: 1234, page: 7 })} />);
+    const field = screen.getByRole('textbox', { name: 'Номер страницы' });
+    // jsdom переставляет слагаемые calc — сверяем их, а не строку целиком.
+    const terms = (v: string) => v.replace(/^calc\(|\)$/g, '').split(' + ').sort();
+    expect(terms(field.style.paddingRight)).toEqual(['1rem', '6ch']);
+    expect(terms((field.closest('[style*="width"]') as HTMLElement).style.width)).toEqual(['1.75rem', '10ch']);
+    expect(screen.getByText('/ 1234')).toBeTruthy();
+  });
+
   it('широкая — `−` и `+` на панели, в меню их нет', async () => {
     render(<ViewerToolbar {...props()} />);
     expect(screen.getByRole('button', { name: 'Уменьшить' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Увеличить' })).toBeTruthy();
     const menu = await openZoomMenu();
     expect(menu.textContent).not.toContain('Увеличить');
+  });
+
+  it('широкая — чип показывает режим, а не процент', () => {
+    render(<ViewerToolbar {...props()} />);
+    expect(screen.getByTestId('viewer-zoom').textContent).toContain('По ширине');
+  });
+
+  it('узкая — чип показывает действующий масштаб в процентах, режим — в имени и в меню', async () => {
+    render(<ViewerToolbar {...props({ narrow: true, scale: 0.857 })} />);
+    const chip = screen.getByTestId('viewer-zoom');
+    expect(chip.textContent).toContain('86 %');
+    expect(chip.textContent).not.toContain('По ширине');
+    expect(chip.getAttribute('aria-label')).toBe('Масштаб: 86 %, по ширине');
+    await openZoomMenu();
+    expect(screen.getByRole('menuitemradio', { name: /По ширине/ }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('узкая — `−` и `+` в меню масштаба, страницы и поворот на месте', async () => {

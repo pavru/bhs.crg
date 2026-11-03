@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';
@@ -111,7 +110,6 @@ interface EditorPanelProps {
 }
 
 export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorPanelProps) {
-  const { resolvedTheme } = useTheme();
   useUserLibCompletion();
   useAssetCompletion();
   const [content, setContent] = useState(template.content);
@@ -341,7 +339,6 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
         <Editor
           height="100%"
           defaultLanguage="typst"
-          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
           value={content}
           onChange={(val) => setContent(val ?? '')}
           beforeMount={registerTypstLanguage}

@@ -172,9 +172,9 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   const range = l ? visibleRange(l, scrollTop, box.height) : ([0, -1] as [number, number]);
 
   return (
-    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container-low" onKeyDown={onKeyDown} {...hover}>
+    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} onScroll={onScroll} data-testid="viewer-region"
-        className="relative flex-1 min-h-0 overflow-auto bg-surface-container-low focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2">
+        className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {ready
           ? <PdfPages doc={doc} layout={l} scale={scale} rotation={rotation} range={range} prepared={prepared} />
           : <ViewerMessage state={state === 'ready' ? 'loading' : state} source={source} actions={actions} />}
@@ -184,7 +184,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
           onZoomIn={() => zoom('in')} onZoomOut={() => zoom('out')}
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Лист повёрнут'); }}
-          narrow={box.width > 0 && box.width < NARROW_PX} />
+          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>

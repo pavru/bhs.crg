@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor';
 // и прежний путь с «esm/vs» перестал разрешаться.
 import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import Editor, { loader } from '@monaco-editor/react';
+import { installBhsTheme } from './monacoTheme';
 
 /*
  * Редактор берётся из НАШЕГО пакета, а не с CDN.
@@ -29,5 +30,8 @@ import Editor, { loader } from '@monaco-editor/react';
 (window as unknown as { monaco: typeof monaco }).monaco = monaco;
 
 loader.config({ monaco });
+
+// Своя тема из ролей палитры ([UI-80]) — до первого редактора, чтобы он не мигнул встроенной.
+installBhsTheme(monaco.editor);
 
 export default Editor;

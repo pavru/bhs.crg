@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/themeContext';
 import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { Icon } from '@/shared/ui/Icon';
@@ -32,7 +31,6 @@ const NO_PROBLEMS: TypeBlocksProblem[] = [];
  * схема типа. Панель отвечает на вопрос «что реально уходит в Typst», а не заменяет редактор.</p>
  */
 export function TypeBlocksPanel() {
-  const { resolvedTheme } = useTheme();
   const { data, isLoading, isError } = useTypeBlocks();
   const [selected, setSelected] = useState(ENTRYPOINT);
 
@@ -103,7 +101,6 @@ export function TypeBlocksPanel() {
               key={current?.path}
               height="100%"
               defaultLanguage="typst"
-              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
               value={current?.content ?? ''}
               beforeMount={registerTypstLanguage}
               options={{

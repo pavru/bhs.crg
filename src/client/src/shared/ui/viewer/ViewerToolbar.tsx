@@ -3,15 +3,18 @@ import { useId, useState, type KeyboardEvent } from 'react';
 import { IconButton } from '../Button';
 import { Chip } from '../Chip';
 import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator } from '../Menu';
+import { TextField } from '../TextField';
 import { normalizePage, ZOOM_PRESETS, zoomLabel, type ZoomMode } from './viewerState';
 
 /**
- * Панель просмотрщика — сплошной строкой у нижнего края области листов (вариант В макета
- * «Просмотрщик PDF: панель», выбор владельца 25.10.2026; [UI-11]). Поверх листа она не плавает:
- * закрывала бы текст и пряталась бы без наведения.
+ * Панель просмотрщика — docked toolbar 64 у нижнего края области листов, одной плоскостью с холстом
+ * (`surface-container`, без черты): граница видна там, где о панель обрезается лист (макет А «MD3
+ * буквально», выбор владельца 03.11.2026; [UI-11]). Поверх листа она не плавает: закрывала бы низ
+ * листа — печать и итоги счёта. Группы разделены промежутком 16, а не чертой.
  *
- * Уже 420 px (колонка счёта бывает 340) `−` и `+` уходят в меню масштаба, страницы и поворот остаются.
- * `group`, а не `toolbar`: тот обещает переход стрелками, а стрелки заняты полем номера ([UI-19]).
+ * Уже 420 px (колонка счёта на 1366 — 340) `−` и `+` уходят в меню масштаба, а чип показывает
+ * действующий масштаб в процентах: «По ширине» в узкую панель не входит. Режим тогда виден галочкой в
+ * меню. `group`, а не `toolbar`: тот обещает переход стрелками, а стрелки заняты полем номера ([UI-19]).
  */
 
 export const NARROW_PX = 420;
@@ -28,19 +31,21 @@ export interface ToolbarProps {
   canZoomOut: boolean;
   onRotate: () => void;
   narrow: boolean;
+  /** Действующий масштаб (1 = 100 %) — его показывает чип узкой панели. */
+  scale: number;
 }
 
 export function ViewerToolbar(p: ToolbarProps) {
   return (
-    // Высота 48: кнопки-иконки — 40 ([UI-68]), и при h-10 с border-t им осталось бы 39 px.
+    // Высота 64 — docked toolbar MD3: кнопки-иконки и поле номера по 40 ([UI-68]) и по 12 сверху и снизу.
     <div role="group" aria-label="Просмотр файла" data-testid="viewer-toolbar"
-      className="shrink-0 h-12 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
+      className="shrink-0 h-16 flex items-center gap-1 px-2 bg-surface-container">
       {p.numPages > 1 && (
         <>
           <IconButton label="Предыдущая страница" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)} icon={ChevronLeft} />
           <PageField page={p.page} numPages={p.numPages} onPage={p.onPage} />
           <IconButton label="Следующая страница" disabled={p.page >= p.numPages} onClick={() => p.onPage(p.page + 1)} icon={ChevronRight} />
-          <span aria-hidden className="w-px h-5 bg-outline-variant mx-1 shrink-0" />
+          <span aria-hidden className="w-2 shrink-0" />
         </>
       )}
       {!p.narrow && (
@@ -57,9 +62,24 @@ export function ViewerToolbar(p: ToolbarProps) {
 }
 
 /**
- * Номер страницы: Enter переходит, Esc и уход фокуса возвращают текущий, недопустимое молча
- * возвращается к текущему. Ширина — под три цифры: подпись над полем в панели лишняя.
+ * Номер страницы — плотное поле 40 с числом страниц суффиксом «/ M» внутри: Enter переходит, Esc и уход
+ * фокуса возвращают текущий, недопустимое молча возвращается к текущему. Подпись поля — для диктора,
+ * а «/ M» он читает как «из M».
+ *
+ * Суффикс — текстом в поле, а не в слоте хвоста: слот держит место под кнопку (44, при касании 52), и в
+ * поле шириной под номер тот съедал бы цифры, а длинное «/ 1234» в него не входило. Ширина поля и отступ
+ * под суффикс — по числу цифр M: номер не длиннее числа страниц.
  */
+function pageFieldSize(numPages: number) {
+  const digits = String(numPages).length;
+  return {
+    // pl-3 + номер + 4 + «/ M» + pr-3.
+    width: `calc(1.75rem + ${2 * digits + 2}ch)`,
+    // Суффикс у правого края (right-3) и зазор 4 до номера.
+    paddingRight: `calc(1rem + ${digits + 2}ch)`,
+  };
+}
+
 function PageField({ page, numPages, onPage }: { page: number; numPages: number; onPage: (p: number) => void }) {
   const total = useId();
   // Пока поле не в работе, оно показывает текущую страницу; набранное живёт только во время правки.
@@ -75,30 +95,37 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(false); setText(String(page)); }
   };
+  const size = pageFieldSize(numPages);
   return (
-    <span className="inline-flex items-center gap-1 text-body-small text-on-surface-variant whitespace-nowrap">
-      <input aria-label="Номер страницы" aria-describedby={total} inputMode="numeric" value={editing ? text : String(page)}
+    // Своя единица ch — у шрифта поля: ширина считается в цифрах.
+    <div className="shrink-0 text-body-medium" style={{ width: size.width }}>
+      <TextField label="Номер страницы" density="dense" aria-describedby={total}
+        inputMode="numeric" value={editing ? text : String(page)} className="tabular-nums" style={{ paddingRight: size.paddingRight }}
         onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
-        // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
-        // начинается с первой клавиши, иначе поле показывало бы текущий номер, а копило невидимое.
-        onChange={e => { setText(e.target.value); setEditing(true); }}
-        className="w-[4ch] h-6 rounded-xs border border-outline-variant bg-surface text-center text-body-small text-on-surface tabular-nums focus:outline-none focus:border-primary" />
-      <span id={total}>из {numPages}</span>
-    </span>
+        onChange={e => { setText(e.target.value); setEditing(true); }}>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-body-medium text-on-surface-variant tabular-nums whitespace-nowrap">
+          <span aria-hidden>/ {numPages}</span><span id={total} className="sr-only">из {numPages}</span>
+        </span>
+      </TextField>
+    </div>
   );
 }
 
 /**
  * Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. Режим —
  * выбор из вариантов: галочка у текущего ([UI-76]). `modal={false}` — листы под меню прокручиваются.
+ * В узкой панели чип показывает процент, а имя для диктора называет и режим.
  */
 function ZoomMenu(p: ToolbarProps) {
+  const percent = `${Math.round(p.scale * 100)} %`;
+  const shown = p.narrow ? percent : zoomLabel(p.mode);
+  const spoken = p.narrow && typeof p.mode !== 'number' ? `${percent}, ${zoomLabel(p.mode).toLowerCase()}` : shown;
   const radio = (mode: ZoomMode, label: string, hint?: string) => (
     <MenuRadioItem key={String(mode)} value={String(mode)} trailing={hint} onSelect={() => p.onMode(mode)}>{label}</MenuRadioItem>
   );
   return (
     <Menu modal={false} dense side="top" sideOffset={6} width="min-w-48"
-      trigger={<Chip selected={false} menu aria-label={`Масштаб: ${zoomLabel(p.mode)}`} data-testid="viewer-zoom">{zoomLabel(p.mode)}</Chip>}>
+      trigger={<Chip selected={false} menu aria-label={`Масштаб: ${spoken}`} data-testid="viewer-zoom">{shown}</Chip>}>
       <MenuRadioGroup value={String(p.mode)}>
         {radio('width', 'По ширине', 'Ctrl 0')}
         {radio('page', 'Страница целиком')}
