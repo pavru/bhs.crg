@@ -35,8 +35,9 @@
     <PackageReference Include="CsvHelper" Version="33.0.1" />
     <!-- Диапазон, а не точная версия: 2.7.4 — последний выпуск без чужой лицензии (issue #1756, DEV_NOTES
          «Поставка»). В 2.7.5–2.7.6 NPOI тянет NSax под LGPL-3.0, с 2.8.0 бинарники на NuGet — под EULA
-         со сбором. Граница видна там, где версию правят, а транзитивная ≥ 2.7.5 даёт NU1608 до тестов;
-         переписанный диапазон ловит NpoiLicenseTests. -->
+         со сбором. Граница видна там, где версию правят, а транзитивная ≥ 2.7.5 останавливает restore
+         (NU1605 здесь, NU1608 из соседнего проекта — Directory.Build.props); переписанный диапазон ловит
+         NpoiLicenseTests. -->
     <PackageReference Include="NPOI" Version="[2.7.4,2.7.5)" />
     <PackageReference Include="System.IO.Packaging" Version="9.0.5" />
     <PackageReference Include="Jint" Version="4.0.0" />
