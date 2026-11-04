@@ -16,8 +16,8 @@ import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilte
 import { CountText } from '@/shared/ui/CountText';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Tooltip } from '@/shared/ui/Tooltip';
-
-const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 interface TemplateFormState {
   name: string;
@@ -49,15 +49,10 @@ function ExtractionFields({
   function removeColumn(i: number) { onColumnsChange(columns.filter((_, idx) => idx !== i)); }
 
   return (
-    <div className="space-y-2 rounded-md p-3 border border-outline-variant bg-surface-container-low">
-      <div>
-        <label className="block text-body-small font-medium mb-1 text-on-surface-variant">
-          Extraction — row-selector <span className="font-normal">(XPath/JSONPath/имя листа — по формату файла; необязательно)</span>
-        </label>
-        <input value={sheetOrPath} onChange={e => onSheetOrPathChange(e.target.value)}
-          placeholder="Напр.: //Position[not(Resources)]"
-          className={`w-full font-mono text-body-small ${FIELD_CLS}`} />
-      </div>
+    <Card>
+      <TextField label="Extraction — row-selector" value={sheetOrPath} onChange={e => onSheetOrPathChange(e.target.value)}
+        hint="XPath, JSONPath или имя листа — по формату файла; необязательно. Напр.: //Position[not(Resources)]"
+        className="font-mono" />
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-body-small font-medium text-on-surface-variant">Колонки — относительно строки</label>
@@ -69,16 +64,17 @@ function ExtractionFields({
         <div className="space-y-1.5">
           {columns.map((col, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
-                placeholder="Название" className={`w-32 shrink-0 text-body-small ${FIELD_CLS} px-2 py-1`} />
-              <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
-                placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-body-small ${FIELD_CLS} px-2 py-1`} />
+              <TextField density="dense" label={`Название, колонка ${i + 1}`} placeholder="Название"
+                value={col.name} onChange={e => updateColumn(i, { name: e.target.value })} containerClassName="w-32 shrink-0" />
+              <TextField density="dense" label={`Выражение, колонка ${i + 1}`} placeholder="Выражение"
+                value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
+                className="font-mono" containerClassName="flex-1 min-w-0" />
               <IconButton label={`Удалить колонку ${i + 1}`} danger onClick={() => removeColumn(i)} icon={Delete} />
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -124,15 +120,8 @@ function TemplateForm({
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-body-small font-medium mb-1 text-on-surface-variant">Название шаблона</label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Напр.: Без аннулированных, по артикулу"
-          className={`w-full ${FIELD_CLS}`}
-        />
-      </div>
+      <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)}
+        hint="Напр.: Без аннулированных, по артикулу" />
 
       <ExtractionFields sheetOrPath={sheetOrPath} onSheetOrPathChange={setSheetOrPath}
         columns={columns} onColumnsChange={setColumns} />
@@ -262,7 +251,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         можно свободно скорректировать (см. «применить шаблон» у каждого источника).
       </p>
 
-      <div className="rounded-lg overflow-hidden mb-4 border border-outline-variant bg-surface">
+      <Card flush className="mb-4">
         {isLoading ? (
           <div className="p-6 text-center text-body-medium text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -270,13 +259,12 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         ) : (
           templates.map(t => <TemplateRow key={t.id} template={t} />)
         )}
-      </div>
+      </Card>
 
       {adding ? (
-        <div className="rounded-lg p-4 border border-outline-variant bg-surface-container-low">
-          <p className="text-body-small font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
+        <Card title="Новый шаблон">
           <TemplateForm onSave={handleCreate} onCancel={() => setAdding(false)} saving={create.isPending} />
-        </div>
+        </Card>
       ) : (
         <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-body-medium font-medium px-3 py-2 rounded-sm text-on-primary-container bg-primary-container">
           <Icon icon={Add} size={18} /> Добавить шаблон

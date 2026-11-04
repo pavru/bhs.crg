@@ -19,6 +19,7 @@ import { carriesFiles } from '@/shared/ui/fileDrop';
 import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Card } from '@/shared/ui/Card';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
 const ALL = 'all';
@@ -88,11 +89,11 @@ function FileDetail({ file, inherited, job }: {
   const isSystem = file.format === 'System';
 
   return (
-    <div className="rounded-md border border-outline-variant bg-surface overflow-hidden">
+    <Card flush>
       <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-body-medium font-semibold text-on-surface truncate" title={file.name}>{file.name}</span>
+            <span className="text-title-small text-on-surface truncate" title={file.name}>{file.name}</span>
             <span className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[file.format]}</span>
             {inherited && <LevelChip file={file} />}
           </div>
@@ -146,7 +147,7 @@ function FileDetail({ file, inherited, job }: {
           </p>
         </>}
         confirmLabel="Удалить набор" onConfirm={() => { void handleDelete(); }} />
-    </div>
+    </Card>
   );
 }
 
@@ -169,19 +170,21 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
       {files.map(f => {
         const names = f.sources.map(s => s.name).slice(0, 4).join(' · ');
         return (
-          <div key={f.id} className="flex items-center gap-3 rounded-md border border-outline-variant bg-surface px-4 py-3">
-            <Icon icon={Description} size={18} className="text-primary shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-body-medium font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
-                <span className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+          <Card key={f.id} flush>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Icon icon={Description} size={18} className="text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-body-medium font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
+                  <span className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+                </div>
+                <div className="text-body-small text-on-surface-variant mt-0.5 truncate">
+                  {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
+                </div>
               </div>
-              <div className="text-body-small text-on-surface-variant mt-0.5 truncate">
-                {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
-              </div>
+              <Button variant="outlined" onClick={() => onOpen(f.id)} icon={<Icon icon={ChevronRight} size={18} />}>Открыть</Button>
             </div>
-            <Button variant="outlined" onClick={() => onOpen(f.id)} icon={<Icon icon={ChevronRight} size={18} />}>Открыть</Button>
-          </div>
+          </Card>
         );
       })}
     </div>

@@ -11,6 +11,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TextField } from '@/shared/ui/TextField';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -91,17 +92,17 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   <Icon icon={DragIndicator} size={18} />
                 </span>
               </Tooltip>
-              <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
-                className="w-24 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
-              <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
-                className="flex-1 min-w-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+              <TextField density="dense" label={`Имя параметра ${i + 1}`} placeholder="имя"
+                value={p.name} onChange={e => patch(i, { name: e.target.value })} containerClassName="w-24 shrink-0" />
+              <TextField density="dense" label={`Подпись параметра ${i + 1}`} placeholder="подпись"
+                value={p.label} onChange={e => patch(i, { label: e.target.value })} containerClassName="flex-1 min-w-0" />
               <Select density="dense" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
                 <SelectItem value="number">число</SelectItem>
                 <SelectItem value="boolean">да/нет</SelectItem>
               </Select>
-              <ParamDefault type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
+              <ParamDefault n={i + 1} type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
               <span className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                   isFirst={i === 0} isLast={i === rows.length - 1} />
@@ -122,20 +123,22 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
 }
 
 /** Поле значения по умолчанию, зависит от типа параметра. */
-function ParamDefault({ type, value, onChange }: {
+function ParamDefault({ n, type, value, onChange }: {
+  /** Номер параметра — в подписи: строк много, и одинаковые имена полей читалка не различит. */
+  n: number;
   type: TemplateParam['type']; value: TemplateParam['default']; onChange: (v: TemplateParam['default']) => void;
 }) {
   if (type === 'boolean')
     return (
       <span className="w-20 shrink-0 flex justify-center">
         <Tooltip content="Значение по умолчанию">
-          <Checkbox aria-label="Значение по умолчанию" checked={value === true} onChange={onChange} />
+          <Checkbox aria-label={`Значение по умолчанию параметра ${n}`} checked={value === true} onChange={onChange} />
         </Tooltip>
       </span>
     );
   return (
-    <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
-      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} placeholder="по умолч."
-      className="w-20 shrink-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+    <TextField density="dense" label={`Значение по умолчанию параметра ${n}`} placeholder="по умолч."
+      type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
+      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} containerClassName="w-20 shrink-0" />
   );
 }

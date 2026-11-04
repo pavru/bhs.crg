@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { validatePath } from './userLibTree';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Путь файла библиотеки (issue #473). Создание и переименование — одна форма: и то и другое суть
@@ -42,25 +43,19 @@ export function UserLibPathDialog({
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title={mode === 'create' ? 'Новый файл библиотеки' : 'Изменить путь'}>
       <div className="space-y-3">
-        <div>
-          <label htmlFor="userlib-path" className="block text-body-small text-on-surface-variant mb-1">
-            Путь внутри <code className="font-mono">userlib/</code>
-          </label>
-          <input
-            id="userlib-path" ref={inputRef} value={path}
-            onChange={e => { setPath(e.target.value); setTouched(true); }}
-            onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
-            placeholder="gost/forms/f3.typ"
-            className="w-full h-8 px-2.5 text-body-medium font-mono rounded-sm border border-outline-variant bg-surface text-on-surface
-                       outline-none focus:ring-2 focus:ring-primary/40"
-          />
-          <p className="mt-1 text-body-small text-on-surface-variant">
-            {mode === 'create'
-              ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
-              : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
-          </p>
-          {touched && error && <p className="mt-1 text-body-small text-error">{error}</p>}
-        </div>
+        <TextField
+          id="userlib-path" ref={inputRef} label="Путь внутри userlib/" value={path} className="font-mono"
+          onChange={e => { setPath(e.target.value); setTouched(true); }}
+          onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
+          error={touched && error ? error : undefined} hint="Напр.: gost/forms/f3.typ"
+        />
+        {/* Следствие пути — не подсказка поля: ошибка подсказку заменяет, а знать, что папки возникнут
+            сами и импорты никто не поправит, нужно и тогда, когда путь ещё неверен. */}
+        <p className="text-body-small text-on-surface-variant">
+          {mode === 'create'
+            ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
+            : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
+        </p>
 
         {/* Автоматически переписывать чужие импорты не беремся: это текстовая трансформация
             пользовательского кода, ошибиться в ней тоньше, чем не делать. Говорим поимённо. */}

@@ -9,10 +9,13 @@ import type { SortColumn, SortSpec } from '@/shared/api/types';
 import { useDialogSave } from './useDialogSave';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { IconButton } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 
 function SortRow({
-  level, columns, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast,
+  n, level, columns, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast,
 }: {
+  /** Номер уровня — в имени колонки: уровней несколько, а читалка различает поля по имени. */
+  n: number;
   level: SortColumn;
   columns?: string[];
   onChange: (l: SortColumn) => void;
@@ -25,17 +28,14 @@ function SortRow({
   return (
     <div className="flex items-center gap-1.5">
       {columns && columns.length > 0 ? (
-        <Select density="dense" className="flex-1 min-w-0" aria-label="Колонка сортировки"
+        <Select density="dense" className="flex-1 min-w-0" aria-label={`Колонка сортировки, уровень ${n}`}
           value={level.column} onValueChange={column => onChange({ ...level, column })} emptyItem="— колонка —">
           {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
         </Select>
       ) : (
-        <input
-          value={level.column}
-          onChange={e => onChange({ ...level, column: e.target.value })}
-          placeholder="Колонка"
-          className="border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface text-on-surface flex-1 min-w-0"
-        />
+        <TextField density="dense" label={`Колонка сортировки, уровень ${n}`} placeholder="Колонка"
+          value={level.column} onChange={e => onChange({ ...level, column: e.target.value })}
+          containerClassName="flex-1 min-w-0" />
       )}
       <div className="flex rounded-xs text-body-small font-medium overflow-hidden shrink-0 border border-outline-variant">
         {(['asc', 'desc'] as const).map(d => (
@@ -124,6 +124,7 @@ export function SortSpecDialog({
         {levels.map((l, i) => (
           <SortRow
             key={rowKey(l, i)}
+            n={i + 1}
             level={l}
             columns={columns}
             onChange={next => updateLevel(i, next)}

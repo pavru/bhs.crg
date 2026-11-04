@@ -8,6 +8,8 @@ import { columnAccessor } from './computedColumnAccess';
 import { useDialogSave } from './useDialogSave';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 function ColumnRow({
   col,
@@ -23,34 +25,27 @@ function ColumnRow({
   onExprFocus: (el: HTMLInputElement, index: number) => void;
 }) {
   return (
-    <div className="rounded-md p-3 space-y-2 border border-outline-variant bg-surface-container-low">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 space-y-1">
-          <label className="block text-label-medium text-on-surface-variant">
-            Имя новой колонки
-          </label>
-          <input
-            value={col.alias}
-            onChange={e => onChange({ ...col, alias: e.target.value })}
-            placeholder="Напр.: ФИО"
-            className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
-          />
-        </div>
-        <IconButton label={`Удалить колонку ${index + 1}`} danger className="mt-4" onClick={onRemove} icon={Delete} />
-      </div>
-      <div className="space-y-1">
-        <label className="block text-label-medium text-on-surface-variant">
-          Выражение (JavaScript)
-        </label>
-        <input
-          value={col.expr}
-          onChange={e => onChange({ ...col, expr: e.target.value })}
-          onFocus={e => onExprFocus(e.currentTarget, index)}
-          placeholder="Напр.: Фамилия + ' ' + Имя"
-          className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
+    <Card>
+      <div className="flex items-start gap-2">
+        <TextField
+          label="Имя новой колонки"
+          value={col.alias}
+          onChange={e => onChange({ ...col, alias: e.target.value })}
+          hint="Напр.: ФИО"
+          className="font-mono"
+          containerClassName="flex-1"
         />
+        <IconButton label={`Удалить колонку ${index + 1}`} danger className="mt-2" onClick={onRemove} icon={Delete} />
       </div>
-    </div>
+      <TextField
+        label="Выражение (JavaScript)"
+        value={col.expr}
+        onChange={e => onChange({ ...col, expr: e.target.value })}
+        onFocus={e => onExprFocus(e.currentTarget, index)}
+        hint="Напр.: Фамилия + ' ' + Имя"
+        className="font-mono"
+      />
+    </Card>
   );
 }
 
@@ -129,33 +124,34 @@ export function ComputedColumnsDialog({
         <ModalPrimary onClick={handleSave} loading={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</ModalPrimary>
       </>}
     >
-      <div className="rounded-md p-3 mb-4 text-body-small space-y-1 bg-surface-container-low border border-outline-variant">
-        <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>
-        <p className="text-on-surface-variant">
-          К колонке можно обратиться тремя способами:{' '}
-          <code className="font-mono px-1 rounded-xs bg-surface-container">Фамилия</code> — по имени, если оно годится
-          в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded-xs bg-surface-container">_</code>);{' '}
-          <code className="font-mono px-1 rounded-xs bg-surface-container">get("Кол-во")</code> — по точному заголовку,
-          подходит всегда;{' '}
-          <code className="font-mono px-1 rounded-xs bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
-          <b>счёт с единицы</b>.
-        </p>
-        <p className="text-on-surface-variant">
-          Примеры:{' '}
-          <code className="font-mono text-on-surface-variant">{"Фамилия + ' ' + Имя"}</code>
-          {' — '}
-          <code className="font-mono text-on-surface-variant">{"String(parseFloat(get('Цена')) * parseFloat(cols[3]))"}</code>
-          {' — '}
-          <code className="font-mono text-on-surface-variant">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
-        </p>
-        <p className="text-on-surface-variant">
-          Вычисляемые колонки применяются до фильтрации и маппинга — их можно использовать в условиях фильтра.
-        </p>
-      </div>
+      <Card variant="filled" title="Синтаксис JavaScript" className="mb-4">
+        <div className="space-y-1 text-body-small">
+          <p className="text-on-surface-variant">
+            К колонке можно обратиться тремя способами:{' '}
+            <code className="font-mono px-1 rounded-xs bg-surface-container">Фамилия</code> — по имени, если оно годится
+            в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded-xs bg-surface-container">_</code>);{' '}
+            <code className="font-mono px-1 rounded-xs bg-surface-container">get("Кол-во")</code> — по точному заголовку,
+            подходит всегда;{' '}
+            <code className="font-mono px-1 rounded-xs bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
+            <b>счёт с единицы</b>.
+          </p>
+          <p className="text-on-surface-variant">
+            Примеры:{' '}
+            <code className="font-mono text-on-surface-variant">{"Фамилия + ' ' + Имя"}</code>
+            {' — '}
+            <code className="font-mono text-on-surface-variant">{"String(parseFloat(get('Цена')) * parseFloat(cols[3]))"}</code>
+            {' — '}
+            <code className="font-mono text-on-surface-variant">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
+          </p>
+          <p className="text-on-surface-variant">
+            Вычисляемые колонки применяются до фильтрации и маппинга — их можно использовать в условиях фильтра.
+          </p>
+        </div>
+      </Card>
 
       {sourceColumns.length > 0 && (
-        <div className="rounded-md p-3 mb-4 text-body-small bg-surface-container-low border border-outline-variant">
-          <p className="mb-2 text-on-surface-variant">
+        <Card variant="filled" className="mb-4">
+          <p className="text-body-small text-on-surface-variant">
             Колонки источника — нажмите, чтобы вставить в выражение
             {columns.length === 0 && <span className="text-on-surface-variant"> (сначала добавьте колонку)</span>}
           </p>
@@ -179,7 +175,7 @@ export function ComputedColumnsDialog({
               </Tooltip>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       <div className="space-y-3 mb-4">

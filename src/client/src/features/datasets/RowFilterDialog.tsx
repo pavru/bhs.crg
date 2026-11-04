@@ -14,6 +14,7 @@ import { ConditionHint } from '@/shared/filter/ConditionHint';
 import { useDialogSave } from './useDialogSave';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
 
 // ─── Logic toggle ─────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ function LogicToggle({
   onChange: (l: 'and' | 'or') => void;
 }) {
   return (
-    <div className="flex rounded-xs text-body-small font-bold overflow-hidden shrink-0 border border-outline-variant">
+    <div className="flex rounded-xs text-label-medium overflow-hidden shrink-0 border border-outline-variant">
       {(['and', 'or'] as const).map(l => (
         <button
           key={l}
@@ -82,9 +83,6 @@ function FilterConditionRow({
 
 // ─── Group editor (recursive) ─────────────────────────────────────────────────
 
-// Полоска слева — классом, а не стилем: переменную темы из класса Tailwind выводит в сборку сам.
-const DEPTH_ACCENTS = ['border-l-primary', 'border-l-[color-mix(in_srgb,var(--color-primary)_50%,var(--color-outline))]', 'border-l-outline'];
-
 function FilterGroupEditor({
   group,
   path,
@@ -125,7 +123,6 @@ function FilterGroupEditor({
     onChange({ ...group, children: group.children.filter((_, idx) => idx !== i) });
   }
 
-  const accent = DEPTH_ACCENTS[Math.min(depth, DEPTH_ACCENTS.length - 1)];
 
   const content = (
     <div>
@@ -205,12 +202,8 @@ function FilterGroupEditor({
   // Root: no visual box
   if (depth === 0) return content;
 
-  // Sub-group: visually wrapped (left accent colour is depth-based)
-  return (
-    <div className={`rounded-r-md p-2.5 bg-surface-container-low border-l-3 ${accent}`}>
-      {content}
-    </div>
-  );
+  // Подгруппа — карточка на уровень (Р6): глубину показывает вложенность, а не цвет полосы.
+  return <Card flush className="p-3">{content}</Card>;
 }
 
 // ─── Main dialog ──────────────────────────────────────────────────────────────
@@ -293,7 +286,7 @@ export function RowFilterDialog({
 
       <p className="text-body-small mb-4 text-on-surface-variant">{words.note}</p>
 
-      <div className="rounded-md p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
+      <Card flush className="p-3 min-h-15">
         <FilterGroupEditor
           group={root}
           path=""
@@ -304,7 +297,7 @@ export function RowFilterDialog({
           depth={0}
           columns={columns ?? []}
         />
-      </div>
+      </Card>
 
       {refusal && <p role="alert" className="mt-3 text-body-small text-error">{refusal}</p>}
     </Modal>

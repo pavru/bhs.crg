@@ -28,7 +28,9 @@ interface TooltipProps {
   children: ReactElement;
   /**
    * Подсказка — ещё и ИМЯ элемента: у кнопки без подписи (одна иконка) браузерный `title` давал его
-   * сам. Без этого строковая подсказка ложится постоянным описанием (`aria-description`).
+   * сам. Без этого строковая подсказка ложится постоянным описанием (`aria-description`) — кроме случая,
+   * когда она повторяет подпись или значение элемента: поле только для чтения с обрезанным текстом
+   * показывает его подсказкой целиком, а читалка произнесла бы его дважды.
    */
   name?: boolean;
   side?: TooltipSide;
@@ -37,8 +39,9 @@ interface TooltipProps {
 export function Tooltip({ content, children, name = false, side = 'top' }: TooltipProps) {
   const empty = content == null || content === '' || content === false;
   const text = typeof content === 'string' && content !== '' ? content : undefined;
-  const ownLabel = (children.props as { 'aria-label'?: unknown })['aria-label'];
-  const aria: Record<string, string> = !text ? {} : name ? { 'aria-label': text } : ownLabel === text ? {} : { 'aria-description': text };
+  const own = children.props as { 'aria-label'?: unknown; value?: unknown };
+  const repeats = own['aria-label'] === text || own.value === text;
+  const aria: Record<string, string> = !text ? {} : name ? { 'aria-label': text } : repeats ? {} : { 'aria-description': text };
   const { open, hide, anchor, Element, props } = useTooltipTrigger(children, { empty, aria });
 
   return (
