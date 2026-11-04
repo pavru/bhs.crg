@@ -115,6 +115,7 @@ public static class SpreadsheetExporter
     private static void WriteSheet(IWorkbook wb, Sheet s, CellStyles styles)
     {
         var sheet = wb.CreateSheet(SafeSheetName(s.Name));
+        if (sheet is SXSSFSheet streamed) StreamingSheetFonts.Detach(streamed);
         // Строка итогов может быть шире таблицы: её подпись встаёт за последней колонкой, когда под
         // первой стоит сам итог. Ширину считаем и там — иначе сумма за краем таблицы показана решёткой.
         var widths = new int[Math.Max(s.Columns.Count, (s.Footer ?? []).Select(f => f.Count).DefaultIfEmpty().Max())];
@@ -144,6 +145,8 @@ public static class SpreadsheetExporter
         // контейнере поставки нет, и на длинном листе обходит каждую клетку второй раз. Без ширины
         // вовсе дата в колонке по умолчанию показана решёткой «########» — значение на месте, но
         // человек видит испорченный файл.
+        // ⚠️ У потокового листа AutoSizeColumn не работает вовсе: трекер, которым он мерит, выключен
+        // (StreamingSheetFonts), и NPOI ответит невнятным отказом «колонка не отслеживается».
         for (var c = 0; c < widths.Length; c++)
             sheet.SetColumnWidth(c, (Math.Clamp(widths[c], MinWidth, MaxWidth) + 2) * 256);
     }
