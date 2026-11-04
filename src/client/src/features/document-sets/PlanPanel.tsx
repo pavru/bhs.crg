@@ -8,6 +8,7 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useDocumentSetPlan, useReplaceDocumentSetPlan, type PlanRow } from '@/shared/api/plans';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Строка в правке — ТОЛЬКО план. Факта здесь нет намеренно: он приходит с сервера и в состоянии
@@ -150,15 +151,14 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
               <div key={r.documentTypeId}
                 className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 items-center px-3 py-1.5 border-t border-outline-variant text-body-medium">
                 <span className="truncate text-on-surface" title={r.typeName}>{r.typeName}</span>
-                <input type="number" min={1} value={r.plannedCount}
-                  aria-label={`План по типу «${r.typeName}»`}
+                <TextField density="dense" type="number" min={1} value={r.plannedCount}
+                  label={`План по типу «${r.typeName}»`}
                   onChange={e => {
                     // Минимум единица: ноль — это отсутствие строки, и сервер такую отвергает.
                     const n = Math.max(1, Math.floor(Number(e.target.value) || 1));
                     setRows(prev => prev.map((x, j) => (j === i ? { ...x, plannedCount: n } : x)));
                   }}
-                  className="h-8 px-2 rounded-md border border-outline-variant bg-surface text-right tabular-nums
-                             focus:outline-none focus:border-primary" />
+                  className="text-right tabular-nums" />
                 <Tooltip content={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
                   <span className={`text-right tabular-nums ${
                     (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-primary' : 'text-on-surface-variant'}`}>

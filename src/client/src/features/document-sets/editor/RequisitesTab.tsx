@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { CheckCircle, ChevronRight, Circle, Database, DocumentScanner, ErrorIcon, FunctionIcon, Info, KeyboardArrowDown, RadioButtonChecked, Warning } from '@/shared/ui/icons';
+import { CheckCircle, ChevronRight, Circle, Database, DocumentScanner, ErrorIcon, FunctionIcon, Info, KeyboardArrowDown, RadioButtonChecked } from '@/shared/ui/icons';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { containsRef } from './brokenRefs';
 import { BrokenCount } from './BrokenCount';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Banner } from '@/shared/ui/Banner';
 
 /** Ссылка на сохранение вкладки: оболочка вызывает его, не зная внутренностей формы. */
 export type SaveRef = { current: (() => Promise<boolean>) | null };
@@ -491,7 +492,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     Кроме привязанного к источнику: там контрол read-only и подпись сверху идёт
                     вместе с бейджем привязки — как и у простых полей ниже. */}
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array'
-                  && !(field.type === 'text' && !bound && !locked) && (
+                  && !(field.type === 'text' && !bound && !locked) && !(locked && isContainer) && (
                   <label className="block text-body-small font-medium text-on-surface-variant mb-1 pr-5">
                     {field.title}
                     {/* У запертого поля ни звёздочки, ни «опц.»: и то и другое — указание тому, кто
@@ -516,7 +517,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   </label>
                 )}
                 {locked && isContainer ? (
-                  <LockedFieldValue value={raw} />
+                  <LockedFieldValue label={field.title} value={raw} />
                 ) : field.type === 'complex' ? (
                   bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
                     stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
@@ -741,15 +742,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       {/* Баннер неполноты (issue #296, вариант A): черновик можно сохранить с пустыми обязательными —
           но неполнота не «тихая», показываем всегда; жёсткий гейт — на генерации. */}
       {missingRequired.length > 0 && (
-        <div className="shrink-0 px-6 pt-3">
-          <div className="flex items-start gap-2.5 rounded-md border border-outline-variant bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <span>
-              Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или
-              привязать к источнику данных; для генерации PDF потребуются.
-            </span>
-          </div>
-        </div>
+        <Banner tone="warning">
+          Черновик — не заполнено обязательных: {missingRequired.length}. Их можно заполнить позже или
+          привязать к источнику данных; для генерации PDF потребуются.
+        </Banner>
       )}
       <div className="flex-1 min-h-0 flex">
         {/* Drawer разделов (list-detail, issue #191) */}

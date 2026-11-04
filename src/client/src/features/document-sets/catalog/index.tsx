@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Close, KeyboardArrowDown, KeyboardArrowUp, Refresh, RestartAlt, VerifiedUser } from '@/shared/ui/icons';
+import { KeyboardArrowDown, KeyboardArrowUp, Refresh, RestartAlt, VerifiedUser } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
@@ -47,8 +47,9 @@ import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/s
 import { ValueIssueHint, ValueIssueCount } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
 import { ArchivedTwinNote } from './ArchivedTwinNote';
-import { BoundRefValue } from './BoundRefValue';
+import { BoundValueField } from './BoundRefValue';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Chip } from '@/shared/ui/Chip';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
@@ -402,7 +403,7 @@ export function CatalogEntryForm({
               return <div key={field.key}>{lockedLabel}<FileField value={val} onChange={() => {}} readOnly /></div>;
             // Составное, массив и ссылка под замком сегодня не заводятся — см. `LockedFieldValue`.
             if (field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array')
-              return <div key={field.key}>{lockedLabel}<LockedFieldValue value={val} /></div>;
+              return <LockedFieldValue key={field.key} label={field.title} value={val} />;
             return (
               <div key={field.key}>
                 <PrimitiveInput field={field} value={val} label={field.title}
@@ -445,16 +446,9 @@ export function CatalogEntryForm({
                 ? `📎 ${val.fileName} (${formatBytes(val.size)})`
                 : (typeof val === 'string' ? val : JSON.stringify(val));
             return (
-              <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-body-medium font-medium text-on-surface-variant mb-1">
-                  {field.title}
-                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
-                    stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
-                </label>
-                <div className="w-full border border-outline-variant rounded-sm px-3 py-2 text-body-medium bg-surface-container text-on-surface-variant">
-                  {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-on-surface-variant">нет данных</em>)}
-                </div>
-              </div>
+              <BoundValueField key={field.key} label={field.title} refId={refId} display={display}
+                origin={<SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
+                  stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />} />
             );
           }
 
@@ -618,27 +612,20 @@ export function CatalogEntryForm({
       <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
-      <div>
-        <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
-          Псевдонимы <span className="text-body-small text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
-        </label>
+      <div className="space-y-2">
+        <TextField label="Псевдоним" value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
+          onBlur={addAlias}
+          hint="Доп. имя для поиска при связывании с источниками; Enter — добавить." />
         {aliases.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
+          // Псевдонимы — input chips ([UI-68]): значение и крестик, нажать в чипе больше нечего.
+          <div role="group" aria-label="Псевдонимы" className="flex flex-wrap gap-2">
             {aliases.map(a => (
-              <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
-                <span className="min-w-0 break-words">{a}</span>
-                <IconButton label={`Удалить «${a}»`}
-                  danger className="-my-1.5"
-                  onClick={() => setAliases(prev => prev.filter(x => x !== a))} icon={Close} />
-              </span>
+              <Chip key={a} removeOnly removeLabel={`Удалить «${a}»`}
+                onRemove={() => setAliases(prev => prev.filter(x => x !== a))}>{a}</Chip>
             ))}
           </div>
         )}
-        <input value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
-          onBlur={addAlias}
-          placeholder="Добавить псевдоним и Enter..."
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
       </div>
 
       {!entry ? (

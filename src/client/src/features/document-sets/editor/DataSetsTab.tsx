@@ -21,6 +21,7 @@ import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
   let cur: string | null = childId;
@@ -467,7 +468,7 @@ function AddBindingPanel({
   }
 
   return (
-    <div className="rounded-lg p-4 space-y-4 border border-outline-variant bg-surface-container-low">
+    <Card variant="filled" flush className="p-4 gap-4">
       <div>
         <label className="block text-body-small font-medium mb-1 text-on-surface-variant">
           Источник данных
@@ -539,7 +540,7 @@ function AddBindingPanel({
           Отмена
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -681,7 +682,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">
+      <Card flush>
         {bindings.length === 0 && !adding ? (
           <div className="p-6 text-center text-body-medium text-on-surface-variant">
             Нет привязок к наборам данных
@@ -699,7 +700,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {adding ? (
         <AddBindingPanel

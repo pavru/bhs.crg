@@ -17,6 +17,7 @@ import { useCan } from '@/shared/api/access';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
 /** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
@@ -306,13 +307,12 @@ function PasteMappingModalBody({
       </>}>
       <div className="space-y-4">
         <p className="text-body-medium text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
-        <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
+        <TextAreaField label="Данные из Excel" autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
           onPaste={e => {
             const text = e.clipboardData.getData('text/plain');
             if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
           }}
-          placeholder="Вставьте данные из Excel..." rows={7}
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-small font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
+          placeholder="Вставьте данные из Excel..." rows={7} className="font-mono resize-none" />
       </div>
     </WindowStep>
   );

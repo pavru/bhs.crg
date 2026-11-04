@@ -6,6 +6,8 @@ import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { useSetEmailRecipients } from '@/shared/api/documentSets';
 import { apiError } from '@/shared/utils/apiError';
+import { TextField } from '@/shared/ui/TextField';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -72,8 +74,6 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
     setUnchecked(new Set()); setExternal(''); setSubject(''); setBody('');
   }
 
-  const field = "w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
-
   return (
     <Modal open={open} onOpenChange={o => { if (!o) leave(); }} title={`Отправить: ${itemName}`}
       // Письмо ушло в очередь — терять уже нечего. Подписчиков снимают галками (их окно видит),
@@ -119,21 +119,15 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
           </div>
         )}
 
-        <div>
-          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Внешние адреса (контрагенты)</label>
-          <textarea className={field + ' min-h-16 resize-y'} value={external} onChange={e => { setExternal(e.target.value); setError(''); }}
-            placeholder="Через запятую: client@zakazchik.ru, tn@stroynadzor.ru" />
-          {externalBad.length > 0 && <p className="text-label-small text-error mt-0.5">Неверные: {externalBad.join(', ')}</p>}
-        </div>
+        <TextAreaField label="Внешние адреса (контрагенты)" rows={2} className="resize-y"
+          value={external} onChange={e => { setExternal(e.target.value); setError(''); }}
+          placeholder="client@zakazchik.ru, tn@stroynadzor.ru"
+          error={externalBad.length > 0 ? `Неверные: ${externalBad.join(', ')}` : undefined} hint="Через запятую." />
 
-        <div>
-          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Тема (необязательно)</label>
-          <input className={field} value={subject} onChange={e => setSubject(e.target.value)} placeholder={defaultSubjectHint} />
-        </div>
-        <div>
-          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Текст (необязательно)</label>
-          <textarea className={field + ' min-h-24 resize-y'} value={body} onChange={e => setBody(e.target.value)} placeholder={defaultBodyHint} />
-        </div>
+        <TextField label="Тема (необязательно)" value={subject} onChange={e => setSubject(e.target.value)}
+          hint={`Пусто — «${defaultSubjectHint}».`} />
+        <TextAreaField label="Текст (необязательно)" rows={3} className="resize-y"
+          value={body} onChange={e => setBody(e.target.value)} placeholder={defaultBodyHint} />
 
         {error && <p className="text-body-medium text-error">{error}</p>}
         {queued && (

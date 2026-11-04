@@ -23,6 +23,7 @@ import { useGuardedLeave, useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { Badge } from '@/shared/ui/Badge';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { TextField } from '@/shared/ui/TextField';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -45,14 +46,14 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
   if (editing) {
     return (
-      <input
+      <TextField density="dense" label="Название документа"
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={save}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
         autoFocus
         placeholder={docType?.name ?? 'Название документа'}
-        className="text-body-medium font-medium text-on-surface bg-transparent border-b border-primary outline-none w-full min-w-0"
+        containerClassName="w-full min-w-0"
       />
     );
   }

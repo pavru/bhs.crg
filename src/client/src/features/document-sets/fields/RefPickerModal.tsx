@@ -17,6 +17,7 @@ import { useIsArchivedRef } from './archivedRefIds';
 import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DocumentStatusText } from './DocumentStatusText';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -390,11 +391,11 @@ function RefPickerModalBody({
       <div className="space-y-4">
         {/* Подсветку на первую строку возвращает сам ввод (issue #858): это следствие набора
             текста, а не состояние, которое надо чем-то догонять. */}
-        <input
+        {/* Поле, а не search bar: стрелки ведут подсветку по списку ниже (`combobox`), а поиску списка это не положено. */}
+        <TextField label="Поиск объекта"
           value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
-          placeholder="Поиск…" autoFocus role="combobox" aria-expanded
+          autoFocus role="combobox" aria-expanded
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
         />
 
         {currentArchived && (

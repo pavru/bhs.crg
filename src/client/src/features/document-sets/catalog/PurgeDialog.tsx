@@ -9,6 +9,9 @@ import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { countMatches, holderLabel, mismatchShown, type PurgeFailure } from './purgeRecord';
+import { TextField } from '@/shared/ui/TextField';
+
+const MISMATCH = 'Не совпадает с числом в строке «Всего ссылок».';
 
 const HOLDER_COLUMNS: DataGridColumn<PurgeHolder>[] = [
   { key: 'holder', label: 'Кто ссылается', wrap: true,
@@ -76,7 +79,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   const [refused, setRefused] = useState<string | null>(null);
   // Ответа по существу нет (сеть, сбой сервера): диалог остаётся, попытку можно повторить.
   const [failed, setFailed] = useState<string | null>(null);
-  const fieldId = useId(), hintId = useId(), errorId = useId();
+  const fieldId = useId();
 
   const matches = countMatches(input, offer);
   const mismatch = mismatchShown(input, offer, settled);
@@ -150,22 +153,18 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               )}
 
               <div className="mt-4">
-                <label htmlFor={fieldId} className="block text-body-small font-medium text-on-surface-variant mb-1">Число теряемых ссылок</label>
                 {/* type=text, а не number: без стрелок и прокрутки колесом; на телефоне цифровую
-                    клавиатуру даёт inputMode. Шрифт 16px — иначе iOS увеличит страницу при фокусе. */}
-                <input id={fieldId} type="text" inputMode="numeric" autoComplete="off" autoFocus
-                  value={input} disabled={pending}
+                    клавиатуру даёт inputMode. */}
+                <TextField id={fieldId} label="Число теряемых ссылок" type="text" inputMode="numeric" autoComplete="off" autoFocus
+                  value={input} disabled={pending} className="tabular-nums"
                   onChange={e => { setInput(e.target.value); setSettled(false); }}
                   onBlur={() => setSettled(true)}
                   // Кнопка при несовпадении выключена, и Enter форму не отправит: без этого нажатие
                   // не делало бы ничего и не объясняло почему (ревью PR #1246).
                   onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
-                  aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
-                  className={`w-full h-10 px-3 rounded-sm bg-surface border text-body-large sm:text-body-medium text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
-                    mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
-                {mismatch
-                  ? <p id={errorId} role="alert" className="mt-1 text-body-small text-error">Не совпадает с числом в строке «Всего ссылок».</p>
-                  : <p id={hintId} className="mt-1 text-body-small text-on-surface-variant">Введите число из строки «Всего ссылок».</p>}
+                  error={mismatch ? MISMATCH : undefined} hint="Введите число из строки «Всего ссылок»." />
+                {/* Ошибка поля приходит после ухода из него — её объявляем: текст под полем читалка сама не прочтёт. */}
+                <span role="alert" className="sr-only">{mismatch ? MISMATCH : ''}</span>
               </div>
 
               <div className="flex gap-2 justify-end items-start mt-4">
