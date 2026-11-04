@@ -171,9 +171,14 @@ PR 5 разделён на два (решение владельца 05.11.2026)
 без подписи, `raw-field` их не видит) и скачок ширины списка в окне выбора позиции, когда открывается лист
 карточки (находка ревью PR 4, skipped).
 
-- [ ] 5.1а PR 5а — остатки `shared/`, 7 мест: `legacy-type` в `siteFilter/SitesFilter`, `ListDetailShell`,
+- [x] 5.1а PR 5а — остатки `shared/`, 7 мест: `legacy-type` в `siteFilter/SitesFilter`, `ListDetailShell`,
   `Markdown` (2), `SectionRail`, `SuggestBox`; `raw-field` — поиск в `siteFilter/FavoritesPicker` [UI-81].
   Проверка — в `ui-baseline.json` по шести правилам нет ни одного файла `shared/`
+  Сделано 05.11.2026: заголовок отбора «Стройки» — `title-small`; `DetailTitle` — `title-large`; заголовки
+  `Markdown` — `title-medium` / `title-small`; название в рейле — `label-small` без начертания; совпадение в
+  подсказке — `font-medium` (три теста `SuggestField` ищут его по этому классу); поиск избранного — плотный
+  `TextField`. Уровни: `raw-field` 1 → 0, `legacy-type` 6 → 0; остались `notice-plaque` 8 и `hand-card` 8 —
+  экран счёта. Весь `test:e2e:ci` зелёный (21 набор); снимки — https://claude.ai/artifact/DfBvGpqC6ykaKn72jYoeTi
 - [ ] 5.1б PR 5б — 16 мест экрана счёта после архива `costs-invoice-screen-10…13` (что те оставили) [UI-81].
   Проверка — по шести правилам в `ui-baseline.json` нет ни одного файла
 - [ ] 5.2 PR 5б — тест пустого уровня — новым файлом (`ui-ratchet.test.mjs` и `ui-ratchet-lib.mjs` у порога 500
