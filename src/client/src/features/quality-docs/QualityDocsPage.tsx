@@ -30,6 +30,8 @@ import { matchesLink } from './qualityLinkSearch';
 import { ScopeReachNote } from './ScopeReachNote';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
 // и на одном экране уровень документа и уровень его связок читались бы разными словами.
@@ -369,14 +371,16 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
 
   if (rows.length === 0) return null;
   return (
-    <dl className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 text-body-small space-y-1">
-      {rows.map(r => (
-        <div key={r.key} className="flex gap-2">
-          <dt className="text-on-surface-variant shrink-0 w-40">{r.title}</dt>
-          <dd className="text-on-surface-variant min-w-0 break-words">{r.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <Card variant="filled" flush className="px-4 py-3">
+      <dl className="text-body-small space-y-1">
+        {rows.map(r => (
+          <div key={r.key} className="flex gap-2">
+            <dt className="text-on-surface-variant shrink-0 w-40">{r.title}</dt>
+            <dd className="text-on-surface min-w-0 break-words">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   );
 }
 
@@ -439,12 +443,12 @@ function WebSearchModal({ open, onClose, docTypes }: {
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title="Поиск документов в интернете" wide>
-      <div className="flex items-center gap-2 flex-wrap">
-        <input value={query} onChange={e => setQuery(e.target.value)}
+      <div className="flex items-start gap-2 flex-wrap">
+        <TextField label="Что искать" value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void run(); }}
-          placeholder="Напр.: Выключатель автоматический EKF AV-10"
-          className="flex-1 min-w-[260px] border border-outline rounded-sm px-3 py-2 text-body-medium bg-surface text-on-surface" />
-        <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
+          hint="Напр.: Выключатель автоматический EKF AV-10" containerClassName="flex-1 min-w-[260px]" />
+        {/* Кнопка 40 — по центру поля 56, а не всей колонки с подсказкой под полем. */}
+        <Button variant="filled" onClick={run} disabled={searching || !query.trim()} className="mt-2"
           loading={searching} icon={<Icon icon={Search} size={18} />}>
           Найти
         </Button>

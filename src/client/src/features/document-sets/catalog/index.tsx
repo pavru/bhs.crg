@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Close, KeyboardArrowDown, KeyboardArrowUp, Refresh, RestartAlt, VerifiedUser } from '@/shared/ui/icons';
+import { KeyboardArrowDown, KeyboardArrowUp, Refresh, RestartAlt, VerifiedUser } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
@@ -33,7 +33,7 @@ import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognize
 } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
-  SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
+  SCOPE_COLORS, AliasesField, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection, SuggestOwner,
   isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT,
   BaseInstanceChip, SCOPE_TIER, candidateName, type BaseCandidate,
@@ -47,7 +47,7 @@ import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/s
 import { ValueIssueHint, ValueIssueCount } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
 import { ArchivedTwinNote } from './ArchivedTwinNote';
-import { BoundRefValue } from './BoundRefValue';
+import { BoundValueField } from './BoundRefValue';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
@@ -69,12 +69,6 @@ export function CatalogEntryForm({
 }) {
   const [displayName, setDisplayName] = useState(entry?.displayName ?? '');
   const [aliases, setAliases] = useState<string[]>(entry?.aliases ?? []);
-  const [aliasDraft, setAliasDraft] = useState('');
-  function addAlias() {
-    const t = aliasDraft.trim();
-    if (t && !aliases.some(a => a.toLowerCase() === t.toLowerCase())) setAliases(prev => [...prev, t]);
-    setAliasDraft('');
-  }
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
@@ -402,7 +396,7 @@ export function CatalogEntryForm({
               return <div key={field.key}>{lockedLabel}<FileField value={val} onChange={() => {}} readOnly /></div>;
             // Составное, массив и ссылка под замком сегодня не заводятся — см. `LockedFieldValue`.
             if (field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array')
-              return <div key={field.key}>{lockedLabel}<LockedFieldValue value={val} /></div>;
+              return <LockedFieldValue key={field.key} label={field.title} value={val} />;
             return (
               <div key={field.key}>
                 <PrimitiveInput field={field} value={val} label={field.title}
@@ -445,16 +439,9 @@ export function CatalogEntryForm({
                 ? `📎 ${val.fileName} (${formatBytes(val.size)})`
                 : (typeof val === 'string' ? val : JSON.stringify(val));
             return (
-              <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-body-medium font-medium text-on-surface-variant mb-1">
-                  {field.title}
-                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
-                    stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
-                </label>
-                <div className="w-full border border-outline-variant rounded-sm px-3 py-2 text-body-medium bg-surface-container text-on-surface-variant">
-                  {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-on-surface-variant">нет данных</em>)}
-                </div>
-              </div>
+              <BoundValueField key={field.key} label={field.title} refId={refId} display={display}
+                origin={<SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
+                  stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />} />
             );
           }
 
@@ -582,6 +569,7 @@ export function CatalogEntryForm({
 
   return (
     <form onSubmit={e => { e.preventDefault(); void save(false); }} className="flex flex-col min-h-0 flex-1">
+      {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (
@@ -618,28 +606,7 @@ export function CatalogEntryForm({
       <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
-      <div>
-        <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
-          Псевдонимы <span className="text-body-small text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
-        </label>
-        {aliases.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
-            {aliases.map(a => (
-              <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
-                <span className="min-w-0 break-words">{a}</span>
-                <IconButton label={`Удалить «${a}»`}
-                  danger className="-my-1.5"
-                  onClick={() => setAliases(prev => prev.filter(x => x !== a))} icon={Close} />
-              </span>
-            ))}
-          </div>
-        )}
-        <input value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
-          onBlur={addAlias}
-          placeholder="Добавить псевдоним и Enter..."
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
-      </div>
+      <AliasesField aliases={aliases} onChange={setAliases} />
 
       {!entry ? (
         <div>
@@ -761,7 +728,6 @@ export function CatalogEntryForm({
         </div>
       )}
 
-      {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
       {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       </div>

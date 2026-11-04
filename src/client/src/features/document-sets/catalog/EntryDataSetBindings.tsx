@@ -14,6 +14,7 @@ import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { isScalarField, type SchemaField } from '@/shared/api/schema';
 import { bindableFields } from '@/features/document-sets/fields';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { Card } from '@/shared/ui/Card';
 
 /// Записи каталога не всегда живут внутри комплекта (System/Section/Construction-скоуп
 /// без setId) — для них берём файлы своего уровня ВМЕСТЕ с родительскими (issue #721).
@@ -77,7 +78,7 @@ function AddEntryBindingPanel({
   }
 
   return (
-    <div className="rounded-lg p-4 space-y-4 border border-outline-variant bg-surface-container-low">
+    <Card variant="filled" flush className="p-4 gap-4">
       <div>
         <label className="block text-body-small font-medium mb-1 text-on-surface-variant">Источник данных</label>
         {files.length === 0 ? (
@@ -137,7 +138,7 @@ function AddEntryBindingPanel({
           Отмена
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -229,11 +230,10 @@ export function EntryDataSetBindings({
   const { data: files } = useEntryAvailableFiles(setId, scope, scopeId);
 
   return (
-    <div className="rounded-md border border-outline-variant p-3 space-y-2">
-      <p className="text-title-small text-on-surface-variant">Наборы данных</p>
-
+    <Card title="Наборы данных">
+      {/* Строки привязок — до краёв карточки, разделителем между собой (у строки свой нижний край). */}
       {bindings.length > 0 && (
-        <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">
+        <div className="-mx-4 mb-2 border-y border-outline-variant">
           {bindings.map(b => (
             <EntryBindingRow key={b.id} binding={b} entryId={entryId} schemaFields={schemaFields} allDocTypes={allDocTypes} />
           ))}
@@ -251,6 +251,6 @@ export function EntryDataSetBindings({
           <Icon icon={Add} size={18} /> Привязать источник данных
         </button>
       )}
-    </div>
+    </Card>
   );
 }

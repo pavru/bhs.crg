@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Delete, Description, LinkOff, Refresh } from '@/shared/ui/icons';
+import { Add, Database, Delete, Description } from '@/shared/ui/icons';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
-import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
+import { BROKEN_LABEL, BrokenRefChip, BrokenRefNote } from './BrokenRef';
 import { IconButton } from '@/shared/ui/Button';
 import { DocumentStatusText } from './DocumentStatusText';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusText } from '@/shared/ui/StatusText';
 
 export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -38,16 +40,11 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
    *
    * <p>Была она ровно в одном состоянии из четырёх — у битой instance-ссылки. В остальных трёх
    * (здоровая instance, здоровая и битая catalog) замена делалась в два шага: снять, потом открыть
-   * пикер заново — при том что снятие уже стёрло, на что смотреть при выборе замены. Значок и
-   * подпись — как у составного поля (<code>ComplexFieldGroup</code>), чтобы одно и то же действие
-   * везде называлось одинаково.</p>
+   * пикер заново — при том что снятие уже стёрло, на что смотреть при выборе замены. Значение — input
+   * chip, как у составного поля (<code>RefTile</code>, Р4): щелчок по чипу — заменить, крестик — снять.</p>
    */
-  function replaceButton(tone: string) {
-    return (
-      <IconButton label="Заменить ссылку"
-        onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName={tone} />
-    );
-  }
+  const replace = () => setPickerOpen(true);
+  const clear = () => onChange(null);
 
   if (iRef) {
     const inst = otherInstances.find(i => i.id === iRef.instanceId);
@@ -55,61 +52,26 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     const label = inst?.name || dt?.name || iRef.displayName;
     // Instance-промах ловим локально и бесплатно (данные комплекта уже в руках) — без похода в backend.
     const isBroken = broken || !inst;
-    if (isBroken) {
-      return (
-        <div>
-          <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
-            <Icon icon={Description} size={18} className="text-error shrink-0" />
-            <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
-            {replaceButton('text-error')}
-            <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-error" />
-          </div>
-          <BrokenRefNote />
-          {picker}
-        </div>
-      );
-    }
+    if (isBroken) return <BrokenRefChip name={iRef.displayName} onReplace={replace} onClear={clear}>{picker}</BrokenRefChip>;
     return (
-      <div className="flex items-center gap-2 border border-primary/30 rounded-md px-3 py-2 bg-primary-container">
-        <Icon icon={Description} size={18} className="text-primary shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-body-medium text-on-primary-container font-medium truncate">{label}</span>
-          {inst?.name && dt && <span className="block text-body-small text-on-primary-container/70 truncate">{dt.name}</span>}
-        </span>
-        {inst && (
-          <DocumentStatusText status={inst.status} />
-        )}
-        {replaceButton('text-on-primary-container/70')}
-        <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-on-primary-container/70" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip icon={Description} title="Заменить ссылку" onClick={replace} onRemove={clear} removeLabel="Снять ссылку"
+          className="max-w-full">{label}</Chip>
+        {inst?.name && dt && <StatusText>{dt.name}</StatusText>}
+        {inst && <DocumentStatusText status={inst.status} />}
         {picker}
       </div>
     );
   }
 
   if (cRef) {
-    if (broken) {
-      return (
-        <div>
-          <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
-            <Icon icon={Description} size={18} className="text-error shrink-0" />
-            <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
-            {replaceButton('text-error')}
-            <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-error" />
-          </div>
-          <BrokenRefNote />
-          {picker}
-        </div>
-      );
-    }
+    if (broken) return <BrokenRefChip name={cRef.displayName} onReplace={replace} onClear={clear}>{picker}</BrokenRefChip>;
+    // Вид ссылки — знак общих данных, а не заливка warning-container: тревоги в ней не было.
     return (
-      <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-warning-container">
-        <Icon icon={Description} size={18} className="text-warning shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-body-medium text-warning font-medium truncate">{cRef.displayName}</span>
-          <span className="block text-body-small text-warning truncate">Общие данные</span>
-        </span>
-        {replaceButton('text-warning')}
-        <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-warning" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip icon={Database} title="Заменить ссылку" onClick={replace} onRemove={clear} removeLabel="Снять ссылку"
+          className="max-w-full">{cRef.displayName}</Chip>
+        <StatusText>Общие данные</StatusText>
         {picker}
       </div>
     );
@@ -191,7 +153,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             if (itemBroken) {
               return (
                 <div key={i}>
-                  <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
+                  <div className="flex items-center gap-2 px-3 py-2">
                     <Icon icon={Description} size={18} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-body-medium truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
                     <IconButton label={`Удалить ссылку ${i + 1}`} danger onClick={() => removeRef(i)} icon={Delete} iconClassName="text-error" />

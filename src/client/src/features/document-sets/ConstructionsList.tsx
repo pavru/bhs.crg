@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Apartment, Close, Delete, Edit, Search } from '@/shared/ui/icons';
+import { Add, Apartment, Star } from '@/shared/ui/icons';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
-import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
+import { SearchInput } from '@/shared/ui/SearchInput';
 import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
-import { useScopePurge } from './useScopePurge';
 import { problemOf } from '@/shared/api/reconciliations';
 import { planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
+import { useListConstructions, useCreateConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
@@ -19,10 +18,8 @@ import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
-import type { Construction } from '@/shared/api/types';
 import { DocumentStatusText } from './fields';
 import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
-import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -48,18 +45,10 @@ function DocumentSearchPanel() {
 
   return (
     <div className="mb-5">
-      <div className="relative">
-        <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
-        <input value={text} onChange={e => setText(e.target.value)}
-          placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
-          className="w-full pl-9 pr-8 py-2 text-body-medium border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
-        {text && (
-          <IconButton label="Очистить" onClick={() => setText('')}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2" icon={Close} />
-        )}
-      </div>
+      <SearchInput value={text} onChange={setText} ariaLabel="Поиск документа"
+        placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…" />
       {active && (
-        <div className="mt-2 border border-outline-variant rounded-md overflow-hidden bg-surface">
+        <Card flush className="mt-2">
           {isFetching && results.length === 0 ? (
             <div className="px-3 py-3 text-body-small text-on-surface-variant">Поиск…</div>
           ) : results.length === 0 ? (
@@ -84,7 +73,7 @@ function DocumentSearchPanel() {
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -104,17 +93,9 @@ export function ConstructionsList() {
   // Список строек — первый потребитель избранного (#1218): урезается, и отбор «Стройки» стоит над ним (#1432).
   const filter = useSiteFilter();
   const toast = useSnackbar();
-  // Стройки, оставленные на экране после щелчка по звезде: снятая не исчезает из-под курсора, а
-  // первая звезда не сжимает список до одной карточки, пока человек не ушёл с экрана (§62.2).
-  const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
-  // Переключили отбор «Стройки» — это уже явное «покажи иначе», и удержание снимается: иначе отбор
-  // говорил бы «Избранные» над неурезанным списком (ревью PR #1331).
-  const [keptOn, setKeptOn] = useState(filter.on);
-  if (keptOn !== filter.on) {
-    setKeptOn(filter.on);
-    setKept(new Set());
-  }
-  const shown = constructions.filter(c => filter.visible(c.id) || kept.has(c.id));
+  // Звезды на карточке нет (Р7, sharedui-md3-17): избранное отмечают в шапке стройки, и удерживать на
+  // экране снятую из-под курсора карточку (§62.2) больше нечего — список урезан отбором как есть.
+  const shown = constructions.filter(c => filter.visible(c.id));
   // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
   // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
   const { shown: idOn, plan: plans, problems } = useIdIndicators('System');
@@ -125,12 +106,6 @@ export function ConstructionsList() {
   const can = useCan();
   const canEdit = can.permission('core.constructions.edit');
   const createMutation = useCreateConstruction();
-  const deleteMutation = useDeleteConstruction();
-  const renameMutation = useRenameConstruction();
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<Construction | null>(null);
-  const purge = useScopePurge('construction', () => setDeleteTarget(null));
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -147,12 +122,6 @@ export function ConstructionsList() {
       }
       navigate(`/document-sets/${c.id}`);
     } catch (err: unknown) { setCreateError(err instanceof Error ? err.message : 'Ошибка'); }
-  }
-
-  async function commitRename(c: Construction) {
-    if (!editName.trim() || editName === c.name) { setEditId(null); return; }
-    await renameMutation.mutateAsync({ id: c.id, name: editName });
-    setEditId(null);
   }
 
   return (
@@ -179,26 +148,15 @@ export function ConstructionsList() {
           {shown.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className={`bg-surface border border-outline-variant rounded-lg p-5 flex flex-col gap-3 hover:border-primary hover:shadow-elevation-2 transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
-                onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
-                <div className="flex items-start justify-between gap-2">
-                  <FavoriteStar id={c.id} onToggled={() => setKept(new Set(shown.map(x => x.id)))} />
-                  {editId === c.id ? (
-                    <input value={editName} onChange={e => setEditName(e.target.value)}
-                      onBlur={() => commitRename(c)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') { e.stopPropagation(); setEditId(null); } }}
-                      autoFocus onClick={e => e.stopPropagation()}
-                      className="flex-1 text-body-large font-semibold border-b border-primary bg-transparent outline-none" />
-                  ) : (
-                    <h3 className="text-body-large font-semibold text-on-surface flex-1">{c.name}</h3>
-                  )}
-                  {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-                    <IconButton label="Переименовать"
-                      onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }} icon={Edit} />
-                    <IconButton label="Удалить" danger
-                      onClick={e => { e.stopPropagation(); setDeleteTarget(c); }} icon={Delete} />
-                  </div>}
-                </div>
+              // Карточка — одна цель (Р7, sharedui-md3-17): щелчок открывает стройку. Избранное, переименование и
+              // удаление — в шапке стройки; здесь только знак «в избранном».
+              <Card key={c.id} to={`/document-sets/${c.id}`} title={c.name} data-testid="construction-card">
+                <div className="flex flex-col gap-3">
+                {filter.favorites.has(c.id) && (
+                  <span className="flex items-center gap-1 text-body-small text-on-surface-variant">
+                    <Icon icon={Star} size={18} className="text-primary" /> в избранном
+                  </span>
+                )}
                 <div className="flex items-center gap-4 text-body-small text-on-surface-variant">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   {/* Комплекты — модуль ИД (issue #1128): без него счётчика нет, а не «0 комплектов». */}
@@ -234,7 +192,8 @@ export function ConstructionsList() {
                     )}
                   </div>
                 )}
-              </div>
+                </div>
+              </Card>
             );
           })}
         </div>
@@ -256,37 +215,6 @@ export function ConstructionsList() {
           </form>
         )}
       </Modal>
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
-        title={`Удалить стройку «${deleteTarget?.name ?? ''}»?`}
-        description={(() => {
-          if (!deleteTarget) return undefined;
-          const sectionsN = deleteTarget.sections.length;
-          const setsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
-          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.documentCount ?? 0), 0), 0);
-          if (sectionsN === 0) return undefined;
-          return (
-            <>
-              <p>Вместе с ней будут безвозвратно удалены:</p>
-              <CascadeList items={[
-                ruCount(sectionsN, 'раздел', 'раздела', 'разделов'),
-                ...(setsN > 0 ? [ruCount(setsN, 'комплект', 'комплекта', 'комплектов')] : []),
-                ...(docsN > 0 ? [`${ruCount(docsN, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`] : []),
-              ]} />
-            </>
-          );
-        })()}
-        confirmLabel={`Удалить стройку «${deleteTarget?.name ?? ''}»`}
-        requireCheckbox={deleteTarget && deleteTarget.sections.length > 0 ? 'Понимаю, что это необратимо' : undefined}
-        onConfirm={async () => {
-          // mutateAsync ради видимости отказа 409 (issue #739) — см. ConstructionDetail.
-          if (deleteTarget) await deleteMutation.mutateAsync(deleteTarget.id);
-        }}
-        onRefused={purge.onRefused(deleteTarget)}
-      />
-      {purge.dialog}
     </div>
   );
 }

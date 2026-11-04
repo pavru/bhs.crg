@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Delete, Description, Download, ImageIcon, TableChart, Upload, Visibility } from '@/shared/ui/icons';
+import { Description, Download, ImageIcon, TableChart, Upload } from '@/shared/ui/icons';
 import {
   type FileAttachment, isFileAttachment, getFileCategory,
   uploadAttachment, uploadPrintForm, loadAttachmentBlob, loadAttachmentObjectUrl, formatBytes, saveBlob,
 } from '@/shared/api/attachments';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
+import { Chip } from '@/shared/ui/Chip';
+import type { IconDef } from '@/shared/ui/icons';
 
 export interface PrintFormContext {
   setId: string;
@@ -18,12 +20,26 @@ export interface PrintFormContext {
   onMetaUpdated: (updates: Record<string, unknown>) => void;
 }
 
+const isSheet = (mimeType: string) => mimeType.includes('sheet') || mimeType.includes('excel');
+
+/** Знак вида файла — форма знака. Один на чип вложения (цвет у знака там свой) и на `FileTypeIcon`. */
+function fileKindIcon(mimeType: string): IconDef {
+  if (mimeType.startsWith('image/')) return ImageIcon;
+  if (isSheet(mimeType)) return TableChart;
+  return Description;
+}
+
+/** Цвет знака вида файла в списках. */
+function fileKindTone(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'text-tertiary';
+  if (mimeType === 'application/pdf') return 'text-error';
+  if (mimeType.includes('word')) return 'text-primary';
+  if (isSheet(mimeType)) return 'text-success';
+  return 'text-on-surface-variant';
+}
+
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType.startsWith('image/')) return <Icon icon={ImageIcon} size={18} className="text-tertiary shrink-0" />;
-  if (mimeType === 'application/pdf') return <Icon icon={Description} size={18} className="text-error shrink-0" />;
-  if (mimeType.includes('word')) return <Icon icon={Description} size={18} className="text-primary shrink-0" />;
-  if (mimeType.includes('sheet') || mimeType.includes('excel')) return <Icon icon={TableChart} size={18} className="text-success shrink-0" />;
-  return <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />;
+  return <Icon icon={fileKindIcon(mimeType)} size={18} className={`${fileKindTone(mimeType)} shrink-0`} />;
 }
 
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
@@ -186,17 +202,14 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   }
 
   if (attachment) {
+    const chip = {
+      icon: fileKindIcon(attachment.mimeType), title: 'Предпросмотр', onClick: () => setPreviewOpen(true), className: 'max-w-full',
+      children: `${attachment.fileName} · ${formatBytes(attachment.size)}`,
+    };
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
-          <FileTypeIcon mimeType={attachment.mimeType} />
-          <span className="flex-1 text-body-medium text-on-surface font-medium truncate">{attachment.fileName}</span>
-          <span className="text-body-small text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
-          <IconButton label="Предпросмотр" onClick={() => setPreviewOpen(true)} icon={Visibility} />
-          {!readOnly && (
-            <IconButton label="Удалить" danger onClick={() => onChange(null)} icon={Delete} />
-          )}
-        </div>
+        {/* Вложение — input chip (Р4): щелчок — предпросмотр, крестик — удалить; под замком — без крестика. */}
+        {readOnly ? <Chip {...chip} /> : <Chip {...chip} onRemove={() => onChange(null)} removeLabel="Удалить файл" />}
         {uploadError && <p className="text-body-small text-error mt-1">{uploadError}</p>}
         <FilePreviewModal open={previewOpen} onOpenChange={setPreviewOpen} attachment={attachment} />
       </>

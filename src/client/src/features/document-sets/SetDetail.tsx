@@ -38,6 +38,7 @@ import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Card } from '@/shared/ui/Card';
 
 // ── Экран комплекта ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -321,11 +322,11 @@ export function SetDetail() {
       {!addError && assembleMsg && <p className="text-body-small text-on-surface-variant mb-3">{assembleMsg}</p>}
 
       {set.instances.length === 0 ? (
-        <div className="bg-surface border border-outline-variant rounded-lg overflow-hidden">
-          <EmptyState className="m-4 border-0" icon={<Icon icon={Description} size={40} />} title="В комплекте пока нет документов"
+        <Card>
+          <EmptyState className="border-0" icon={<Icon icon={Description} size={40} />} title="В комплекте пока нет документов"
             description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
             action={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
-        </div>
+        </Card>
       ) : (
         <DataGrid columns={documentColumns} rows={set.instances} rowKey={inst => inst.id} onRowOpen={openDocument}
           drag={{

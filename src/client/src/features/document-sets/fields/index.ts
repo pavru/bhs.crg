@@ -1,5 +1,6 @@
 export * from './constants';
 export { DocumentStatusText } from './DocumentStatusText';
+export { AliasesField } from './AliasesField';
 export * from './FileField';
 export * from './ImageField';
 export * from './checkImageResult';

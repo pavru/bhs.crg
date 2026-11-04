@@ -217,7 +217,7 @@ function ArrayTableModalBody({
       key: f.key, label: f.title, size: getW(f),
       header: (
         <>
-          <span className="block truncate font-semibold text-on-surface-variant select-none">
+          <span className="block truncate text-on-surface-variant select-none">
             {f.title}{f.required && <span className="text-error ml-0.5">*</span>}
           </span>
           {/* Шапка липкая, а значит позиционирована: разделитель встаёт по её правому краю. */}

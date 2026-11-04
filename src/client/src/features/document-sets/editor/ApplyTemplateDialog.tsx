@@ -8,6 +8,7 @@ import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import type { DataSetBindingTemplate, DataSetFile, DataSetSource, DocumentType } from '@/shared/api/types';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
+import { Card } from '@/shared/ui/Card';
 
 // ─── Column match preview ─────────────────────────────────────────────────────
 
@@ -224,12 +225,9 @@ export function ApplyTemplateDialog({
 
         {/* Превью совпадения колонок */}
         {selectedTemplate && selectedSource && (
-          <div className="rounded-md p-3 border border-outline-variant bg-surface-container-low">
-            <p className="text-body-small font-semibold mb-2 text-on-surface-variant">
-              Проверка колонок
-            </p>
+          <Card variant="filled" title="Проверка колонок">
             <ColumnMatchPreview template={selectedTemplate} source={selectedSource} />
-          </div>
+          </Card>
         )}
 
         {error && (

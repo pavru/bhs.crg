@@ -380,9 +380,12 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   return (
     <div className="space-y-4">
-      <ScopeToolbar isFetching={isFetching} refetch={refetch} materialsCount={materials.length}
-        linkedCount={linkedCount} scope={scope} setScope={setScope}
-        sectionId={sectionId} constructionId={constructionId} />
+      <BulkSelectionBar selected={selected} setSelected={setSelected}
+        openPickerForSelected={openPickerForSelected} scope={scope} widerThanSelector={widerThanSelector}>
+        <ScopeToolbar isFetching={isFetching} refetch={refetch} materialsCount={materials.length}
+          linkedCount={linkedCount} scope={scope} setScope={setScope}
+          sectionId={sectionId} constructionId={constructionId} />
+      </BulkSelectionBar>
 
       {materials.length === 0 ? (
         <p className="text-body-medium text-on-surface-variant text-center py-6">
@@ -394,11 +397,6 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
           findLink={findLink} suggestionByKey={suggestionByKey} scope={scope} scopeId={scopeId}
           docById={docById} docName={docName} setViewDoc={setViewDoc}
           openPickerFor={openPickerFor} setBreaking={setBreaking} acceptSuggestion={acceptSuggestion} />
-      )}
-
-      {selected.size > 0 && (
-        <BulkSelectionBar selected={selected} setSelected={setSelected}
-          openPickerForSelected={openPickerForSelected} widerThanSelector={widerThanSelector} />
       )}
 
       <div className="flex items-center gap-3">

@@ -2,6 +2,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { LockIcon } from '@/shared/ui/icons';
 import { LOCKED_HINT } from './lockedFields';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { TextField } from '@/shared/ui/TextField';
 
 // Компоненты отдельным файлом от предиката и подсказки (та же причина, что у
 // `fieldValidation.ts`, issue #858): модуль, экспортирующий и компонент, и функцию, не
@@ -34,16 +35,17 @@ export function LockedFieldIcon({ className = '' }: { className?: string }) {
  * стоит не «на всякий случай», а потому что дыра здесь была бы ТИХОЙ: разреши белый список
  * ссылку — и поле с замком осталось бы обычным редактором, а отказ пришёл бы с сервера при
  * сохранении, без объяснения, какое из сорока полей его вызвало.</p>
+ *
+ * <p>Поле только для чтения (Р3, sharedui-md3-17): подпись своя, значение одной строкой и целиком — в
+ * подсказке, замок — в хвосте.</p>
  */
-export function LockedFieldValue({ value }: { value: unknown }) {
+export function LockedFieldValue({ label, value }: { label: string; value: unknown }) {
   const shown = value == null || value === ''
     ? null
     : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return (
     <Tooltip content={shown ?? undefined}>
-      <div className="w-full border rounded-sm px-3 py-2 text-body-medium text-on-surface-variant bg-surface-container border-outline-variant truncate">
-        {shown ?? <em className="text-on-surface-variant">нет значения</em>}
-      </div>
+      <TextField readOnly label={label} value={shown ?? 'нет значения'} trailing={<LockedFieldIcon className="pr-2" />} />
     </Tooltip>
   );
 }

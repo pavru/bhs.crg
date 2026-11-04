@@ -1,14 +1,14 @@
-import { Icon } from '@/shared/ui/Icon';
 import { Archive, Unarchive } from '@/shared/ui/icons';
 import { useSetCommonDataArchive, type ArchivedTwin } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
-import { Button } from '@/shared/ui/Button';
+import { Banner } from '@/shared/ui/Banner';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /**
  * «Такая запись есть в архиве» в форме новой записи (issue #1185). Сервер отказал в создании: ключ
- * идентичности совпал с архивной записью, а действующей с таким ключом нет. Строка стоит В ФОРМЕ, а
- * не диалогом: человек видит и то, что набрал, и то, с чем это совпало.
+ * идентичности совпал с архивной записью, а действующей с таким ключом нет. Сообщение — banner вверху
+ * формы (Р1, sharedui-md3-17), а не диалог: человек видит и то, что набрал, и то, с чем это совпало; и не
+ * строка у подвала — после попытки сохранить её было не видно над длинной формой.
  *
  * <p>Два выхода, и оба названы: вернуть ту запись (тогда новая не нужна, форма закрывается) или
  * создать новую осознанно. Без права вести общие данные первого выхода нет, и текст говорит, к кому
@@ -38,28 +38,17 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
   }
 
   const pending = busy || unarchive.isPending;
+  // Пока идёт одно действие, второе не жмётся: Banner блокирует только ждущее, поэтому второе скрыто. Иначе
+  // возврат двойника, нажатый во время «Создать новую», дал бы в справочнике две одинаковые действующие записи.
+  const actions = [
+    ...(canReturn && !busy ? [{ label: 'Вернуть из архива', icon: Unarchive, loading: unarchive.isPending, onClick: () => void giveBack() }] : []),
+    ...(pending ? [] : [{ label: 'Создать новую', onClick: onCreateAnyway }]),
+  ];
   return (
-    <div className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 space-y-2">
-      <p className="text-body-medium text-on-surface flex items-center gap-1.5">
-        <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
-        Такая запись есть в архиве: «{twin.archivedName}».
-      </p>
-      <p className="text-body-small text-on-surface-variant">
-        Совпали поля идентичности. Вернуть ту запись — и ссылки на неё останутся целы, а в справочнике
-        не появится вторая такая же.
-        {!canReturn && ' Вернуть из архива может тот, кто ведёт общие данные.'}
-      </p>
-      <div className="flex gap-2">
-        {canReturn && (
-          <Button type="button" variant="tonal" icon={<Icon icon={Unarchive} size={18} />}
-            loading={unarchive.isPending} disabled={pending} onClick={() => void giveBack()}>
-            Вернуть из архива
-          </Button>
-        )}
-        <Button type="button" variant="text" disabled={pending} onClick={onCreateAnyway}>
-          Создать новую
-        </Button>
-      </div>
-    </div>
+    <Banner tone="info" icon={Archive} urgent actions={actions}>
+      Такая запись есть в архиве: «{twin.archivedName}». Совпали поля идентичности. Вернуть ту запись — и ссылки
+      на неё останутся целы, а в справочнике не появится вторая такая же.
+      {!canReturn && ' Вернуть из архива может тот, кто ведёт общие данные.'}
+    </Banner>
   );
 }

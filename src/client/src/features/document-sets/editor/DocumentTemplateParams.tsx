@@ -6,6 +6,7 @@ import { parseTemplateParams } from '@/features/templates/templateParams';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Значения параметров ОДНОГО сфокусированного шаблона на документе. Параметры индивидуальны для
@@ -83,8 +84,7 @@ function ParamValueInput({ type, name, value, onChange }: {
   if (type === 'boolean')
     return <Checkbox aria-label={name} checked={value === true} onChange={onChange} />;
   return (
-    <input type={type === 'number' ? 'number' : 'text'} aria-label={name} value={value == null ? '' : String(value)}
-      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
-      className="w-40 shrink-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+    <TextField density="dense" label={name} type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
+      onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} containerClassName="w-40 shrink-0" />
   );
 }

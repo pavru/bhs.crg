@@ -245,7 +245,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     // Составное, массив и ссылка под замком сегодня не заводятся (белый список видов значения в
     // объявлении модуля), но редактор им не даём: см. `LockedFieldValue`.
     if (locked && (f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' || f.type === 'doc-array'))
-      return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<LockedFieldValue value={v} /></div></Tooltip>;
+      return <Tooltip key={f.key} content={hint}><div className={cls}><LockedFieldValue label={f.title} value={v} /></div></Tooltip>;
     if (f.type === 'complex')
       return <Tooltip key={f.key} content={hint}><div className={cls}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
         onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div></Tooltip>;

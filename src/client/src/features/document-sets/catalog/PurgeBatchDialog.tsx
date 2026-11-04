@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from '@/shared/ui/dialogSurface';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronRight, KeyboardArrowDown, Warning } from '@/shared/ui/icons';
@@ -19,6 +19,7 @@ import {
   batchConsequences, batchFailure, carriedOver, batchSubtitle, batchTitle, batchToast, emptyText, excludedGroups, isNamed,
   leftOut, moreNote, wasNote,
 } from './purgeBatch';
+import { PurgeCountField } from './PurgeCountField';
 
 /**
  * Пакетная очистка: удалить разом записи, которые держат только данные выключенных или снятых
@@ -49,7 +50,6 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   // Номер попытки — в ключе запроса: «Проверить заново» обязано дойти до сервера и тогда, когда
   // источник не изменился (те же записи в том же порядке), иначе диалог показал бы прежний ответ.
   const [attempt, setAttempt] = useState(0);
-  const fieldId = useId(), hintId = useId(), errorId = useId();
 
   const asked = useQuery({
     queryKey: ['purge-batch-preview', source, attempt],
@@ -178,7 +178,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
             <DataGrid density="compact" className="mt-3 max-h-64" columns={columns} rows={preview.records} rowKey={r => r.id} />
             {/* Итог — вне прокрутки, всегда на виду. Число нарочно не повторено ни в подписи поля,
                 ни внутри него: чтобы его перепечатать, взгляд обязан пройти по списку. */}
-            <div className="flex justify-between px-2 py-1.5 text-body-small font-semibold text-on-surface">
+            <div className="flex justify-between px-2 py-1.5 text-body-small font-medium text-on-surface">
               <span>Всего ссылок</span><span className="tabular-nums">{preview.references}</span>
             </div>
             {more && <p className="text-body-small text-on-surface-variant">{more}</p>}
@@ -194,20 +194,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
             <ul className="mt-3 text-body-small text-on-surface-variant list-disc pl-4 space-y-1">
               {batchConsequences(preview).map(line => <li key={line}>{line}</li>)}
             </ul>
-            <div className="mt-4">
-              <label htmlFor={fieldId} className="block text-body-small font-medium text-on-surface-variant mb-1">Число теряемых ссылок</label>
-              <input id={fieldId} type="text" inputMode="numeric" autoComplete="off" autoFocus
-                value={input} disabled={busy}
-                onChange={e => { setInput(e.target.value); setSettled(false); }}
-                onBlur={() => setSettled(true)}
-                onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
-                aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
-                className={`w-full h-10 px-3 rounded-sm bg-surface border text-body-large sm:text-body-medium text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
-                  mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
-              {mismatch
-                ? <p id={errorId} role="alert" className="mt-1 text-body-small text-error">Не совпадает с числом в строке «Всего ссылок».</p>
-                : <p id={hintId} className="mt-1 text-body-small text-on-surface-variant">Введите число из строки «Всего ссылок».</p>}
-            </div>
+            <PurgeCountField value={input} disabled={busy} mismatch={mismatch}
+              onChange={v => { setInput(v); setSettled(false); }} onSettle={() => setSettled(true)} />
             <div className="flex gap-2 justify-end items-start mt-4">
               <Button type="button" variant="text" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
               <Button type="submit" variant="filled" danger multiline className="min-w-0" disabled={!matches} loading={busy}>

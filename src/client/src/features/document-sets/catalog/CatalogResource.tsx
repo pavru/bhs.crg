@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Apartment, Check, Close, ContentCopy, Database, Description, Edit, KeyboardArrowDown, KeyboardArrowUp, Layers, Search } from '@/shared/ui/icons';
+import { Add, Apartment, Check, Close, ContentCopy, Database, Description, Edit, KeyboardArrowDown, KeyboardArrowUp, Layers } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -31,6 +31,8 @@ import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { CATALOG_RECORD } from '@/shared/ui/recordRoutes';
 import { StatusText } from '@/shared/ui/StatusText';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 const NO_TYPE = '__no_type__';
 const PROFILE = '__profile__';
@@ -216,15 +218,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       {/* Рейл типов */}
       <aside className="w-48 shrink-0 sticky top-0 self-start space-y-0.5">
         {rail.groups.length > TYPE_SEARCH_THRESHOLD && (
-          <div className="relative mb-1">
-            <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
-            <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
-              className="w-full h-8 pl-7 pr-9 rounded-sm text-body-small bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
-            {typeSearch && (
-              <IconButton label="Очистить"
-                className="absolute right-0 top-1/2 -translate-y-1/2"
-                onClick={() => setTypeSearch('')} icon={Close} />
-            )}
+          <div className="mb-1">
+            {/* Плотное поле, а не search bar: рейл в 192 px, и поле 56 в нём было бы выше пунктов. */}
+            <TextField density="dense" label="Поиск типа" placeholder="Тип…" value={typeSearch}
+              onChange={e => setTypeSearch(e.target.value)}
+              trailing={typeSearch ? <IconButton label="Очистить" onClick={() => setTypeSearch('')} icon={Close} /> : undefined} />
           </div>
         )}
         {profileType && (
@@ -446,7 +444,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-body-large font-semibold text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
+            <h2 className="text-title-medium text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
             <StatusText tone="primary">уровень</StatusText>
           </div>
           <p className="text-body-small text-on-surface-variant mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
@@ -456,7 +454,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         </Button>
       </div>
 
-      <div className="rounded-md border border-outline-variant bg-surface p-3 mb-3">
+      <Card className="mb-3">
         <p className="text-body-small text-on-surface-variant">
           Эти данные доступны <span className="font-medium">во всех документах уровня</span> — в шаблоне через ключ:
         </p>
@@ -469,7 +467,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
             </button>
           </Tooltip>
         </div>
-      </div>
+      </Card>
 
       {preview.length > 0 ? (
         <div className="rounded-md border border-outline-variant divide-y divide-surface-container">

@@ -8,6 +8,7 @@ import { isSubtypeOf, type SchemaField } from '@/shared/api/schema';
 import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
 import { DocumentStatusText } from './DocumentStatusText';
+import { SearchInput } from '@/shared/ui/SearchInput';
 
 export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, otherInstances, setId, onSelect }: {
   open: boolean;
@@ -61,12 +62,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Выбрать документ" nothingToLose>
       <div className="space-y-4">
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Поиск..."
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
-          autoFocus
-        />
+        <SearchInput value={search} onChange={setSearch} ariaLabel="Поиск документа" autoFocus />
         {filteredCatalog.length > 0 && (
           <div>
             <p className="text-title-small text-on-surface-variant mb-2">Каталог общих данных</p>

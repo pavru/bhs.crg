@@ -17,6 +17,7 @@ import { LinkPickerModal } from '@/features/document-sets/editor/LinkPickerModal
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { SelectionBar } from '@/shared/ui/SelectionBar';
 
 /**
  * Связки материалов документа качества — правая часть экрана контроля (issue #555).
@@ -144,6 +145,15 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
 
   return (
     <div className="space-y-1">
+      {/* Выбор — контекстной шапкой в начале списка (Р8, sharedui-md3-17), а не липкой панелью у его низа.
+          Число — по ВИДИМЫМ выбранным: действия работают именно над ними, и подпись обязана совпадать с
+          тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
+      {/* Правая часть экрана прокручивается с отступом `py-4` — полоса прилипает к её краю. */}
+      <SelectionBar count={chosen.length} onClear={() => setSelected(new Set())} stickAt="-top-4"
+        actions={[
+          { label: 'Перепривязать', icon: ChangeCircle, onClick: () => setBulkRelink(true), variant: 'filled' },
+          { label: 'Разорвать', icon: LinkOff, onClick: () => setBulkBreak(true), variant: 'outlined' },
+        ]} />
       {shown.length === 0 && (
         <p className="text-body-medium text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}
@@ -179,20 +189,6 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
           </div>
         </div>
       ))}
-
-      {/* Число — по ВИДИМЫМ выбранным: действия работают именно над ними, и подпись обязана
-          совпадать с тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
-      {chosen.length > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-2 rounded-sm border border-outline-variant bg-surface px-3 py-2 shadow-elevation-1">
-          <span className="text-body-medium text-on-surface-variant">Выбрано: {chosen.length}</span>
-          <Button variant="filled" icon={<Icon icon={ChangeCircle} size={18} />}
-            onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
-          <Button variant="outlined" icon={<Icon icon={LinkOff} size={18} />}
-            onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
-          <button type="button" onClick={() => setSelected(new Set())}
-            className="ml-auto text-body-small text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>
-        </div>
-      )}
 
       <ConfirmDialog
         open={bulkBreak} onOpenChange={setBulkBreak}

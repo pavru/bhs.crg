@@ -1,11 +1,25 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SelectionBar } from './SelectionBar';
+import { LinkIcon } from './icons';
 
 /** Контекстная шапка выбора ([UI-81], sharedui-md3-17 PR 0, макет А развилки Р8). */
 
-afterEach(cleanup);
+const realMatchMedia = window.matchMedia;
+
+/** Ширина окна для `useMedia`: в jsdom своего `matchMedia` нет. */
+function mockWidth(wide: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+    matches: q.includes('min-width') ? wide : !wide, addEventListener() {}, removeEventListener() {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+beforeEach(() => mockWidth(true));
+afterEach(() => {
+  cleanup();
+  window.matchMedia = realMatchMedia;
+});
 
 const live = (c: HTMLElement) => c.querySelector('[aria-live="polite"]')!;
 
@@ -45,9 +59,11 @@ describe('SelectionBar', () => {
   });
 
   it('действия — у замыкающего края; note — строкой warning под полосой, абзацы внутри — без вложенного <p>', () => {
+    const onClick = vi.fn();
     const { rerender } = render(
-      <SelectionBar count={3} onClear={vi.fn()} actions={<button type="button">Связать выбранные (3)</button>} />);
-    expect(screen.getByRole('button', { name: 'Связать выбранные (3)' })).toBeTruthy();
+      <SelectionBar count={3} onClear={vi.fn()} actions={[{ label: 'Связать выбранные', icon: LinkIcon, onClick, variant: 'filled' }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Связать выбранные' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('region').querySelector('.text-warning')).toBeNull();
     rerender(<SelectionBar count={3} onClear={vi.fn()} note={<p>Шире выбранного уровня — 1</p>} />);
     const text = screen.getByText('Шире выбранного уровня — 1');
@@ -57,5 +73,17 @@ describe('SelectionBar', () => {
     expect(text.parentElement!.closest('p')).toBeNull();
     // Строка — внутри области: предупреждение читается вместе с числом.
     expect(screen.getByRole('region').contains(note)).toBe(true);
+  });
+
+  it('на телефоне действия — кнопками-значками с той же подписью', () => {
+    mockWidth(false);
+    render(<SelectionBar count={2} onClear={vi.fn()} actions={[{ label: 'Разорвать', icon: LinkIcon, onClick: vi.fn() }]} />);
+    const button = screen.getByRole('button', { name: 'Разорвать' });
+    expect(button.textContent).toBe('');
+  });
+
+  it('полоса липкая к верху прокрутки — действия видны и у конца длинного списка', () => {
+    render(<SelectionBar count={1} onClear={vi.fn()} />);
+    expect(screen.getByRole('region').className).toContain('sticky top-0');
   });
 });

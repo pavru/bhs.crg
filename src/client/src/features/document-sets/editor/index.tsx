@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { ArrowBack, Edit } from '@/shared/ui/icons';
+import { ArrowBack, Edit, RightPanelClose, RightPanelOpen } from '@/shared/ui/icons';
 import { DocumentObservationsChip } from './DocumentObservations';
 import { useRenameDocumentInstance, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
 import { useListDataSetBindings } from '@/shared/api/datasets';
@@ -23,6 +23,8 @@ import { useGuardedLeave, useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { Badge } from '@/shared/ui/Badge';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { TextField } from '@/shared/ui/TextField';
+import { setDocumentPreviewOpen, useDocumentPreview } from './documentPreviewOpen';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -45,14 +47,14 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
   if (editing) {
     return (
-      <input
+      <TextField density="dense" label="Название документа"
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={save}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
         autoFocus
         placeholder={docType?.name ?? 'Название документа'}
-        className="text-body-medium font-medium text-on-surface bg-transparent border-b border-primary outline-none w-full min-w-0"
+        containerClassName="w-full min-w-0"
       />
     );
   }
@@ -115,6 +117,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
 
   // Редактируемые вкладки (есть что сохранять на уровне документа).
   const editable = tab === 'requisites';
+  const preview = useDocumentPreview();
   async function doSave(): Promise<boolean> {
     if (!saveRef.current) return true; // на этой вкладке нечего сохранять
     setSaving(true);
@@ -211,6 +214,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
               здесь нет: их связь с документом слабее, чем выглядит. */}
           <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />
+          {/* Переключатель предпросмотра (Р9): лист — у реквизитов и только там, где ему есть место. */}
+          {editable && preview.available && (
+            <IconButton label={preview.open ? 'Скрыть предпросмотр' : 'Показать предпросмотр'}
+              icon={preview.open ? RightPanelClose : RightPanelOpen}
+              onClick={() => setDocumentPreviewOpen(!preview.open)} />
+          )}
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
               {savedFlash && <span className="text-body-medium text-success hidden sm:inline">Сохранено</span>}
