@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from '@/shared/ui/dialogSurface';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -9,9 +9,7 @@ import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { countMatches, holderLabel, mismatchShown, type PurgeFailure } from './purgeRecord';
-import { TextField } from '@/shared/ui/TextField';
-
-const MISMATCH = 'Не совпадает с числом в строке «Всего ссылок».';
+import { PurgeCountField } from './PurgeCountField';
 
 const HOLDER_COLUMNS: DataGridColumn<PurgeHolder>[] = [
   { key: 'holder', label: 'Кто ссылается', wrap: true,
@@ -79,7 +77,6 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   const [refused, setRefused] = useState<string | null>(null);
   // Ответа по существу нет (сеть, сбой сервера): диалог остаётся, попытку можно повторить.
   const [failed, setFailed] = useState<string | null>(null);
-  const fieldId = useId();
 
   const matches = countMatches(input, offer);
   const mismatch = mismatchShown(input, offer, settled);
@@ -152,20 +149,8 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
                 <div className="mt-3 rounded-sm bg-error-container px-3 py-2 text-body-small text-on-surface" role="alert">{failed}</div>
               )}
 
-              <div className="mt-4">
-                {/* type=text, а не number: без стрелок и прокрутки колесом; на телефоне цифровую
-                    клавиатуру даёт inputMode. */}
-                <TextField id={fieldId} label="Число теряемых ссылок" type="text" inputMode="numeric" autoComplete="off" autoFocus
-                  value={input} disabled={pending} className="tabular-nums"
-                  onChange={e => { setInput(e.target.value); setSettled(false); }}
-                  onBlur={() => setSettled(true)}
-                  // Кнопка при несовпадении выключена, и Enter форму не отправит: без этого нажатие
-                  // не делало бы ничего и не объясняло почему (ревью PR #1246).
-                  onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
-                  error={mismatch ? MISMATCH : undefined} hint="Введите число из строки «Всего ссылок»." />
-                {/* Ошибка поля приходит после ухода из него — её объявляем: текст под полем читалка сама не прочтёт. */}
-                <span role="alert" className="sr-only">{mismatch ? MISMATCH : ''}</span>
-              </div>
+              <PurgeCountField value={input} disabled={pending} mismatch={mismatch}
+                onChange={v => { setInput(v); setSettled(false); }} onSettle={() => setSettled(true)} />
 
               <div className="flex gap-2 justify-end items-start mt-4">
                 <Button type="button" variant="text" className="shrink-0" disabled={pending} data-modal-exit="" onClick={onClose}>Отмена</Button>

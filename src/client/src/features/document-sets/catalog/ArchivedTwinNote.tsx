@@ -38,10 +38,10 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
   }
 
   const pending = busy || unarchive.isPending;
-  // «Создать новую» во время возврата не жмётся: Banner блокирует только ждущее действие, поэтому оно
-  // скрыто, пока идёт любое из двух.
+  // Пока идёт одно действие, второе не жмётся: Banner блокирует только ждущее, поэтому второе скрыто. Иначе
+  // возврат двойника, нажатый во время «Создать новую», дал бы в справочнике две одинаковые действующие записи.
   const actions = [
-    ...(canReturn ? [{ label: 'Вернуть из архива', icon: Unarchive, loading: unarchive.isPending, onClick: () => void giveBack() }] : []),
+    ...(canReturn && !busy ? [{ label: 'Вернуть из архива', icon: Unarchive, loading: unarchive.isPending, onClick: () => void giveBack() }] : []),
     ...(pending ? [] : [{ label: 'Создать новую', onClick: onCreateAnyway }]),
   ];
   return (

@@ -52,7 +52,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     const label = inst?.name || dt?.name || iRef.displayName;
     // Instance-промах ловим локально и бесплатно (данные комплекта уже в руках) — без похода в backend.
     const isBroken = broken || !inst;
-    if (isBroken) return <>{<BrokenRefChip name={iRef.displayName} onReplace={replace} onClear={clear} />}{picker}</>;
+    if (isBroken) return <BrokenRefChip name={iRef.displayName} onReplace={replace} onClear={clear}>{picker}</BrokenRefChip>;
     return (
       <div className="flex flex-wrap items-center gap-2">
         <Chip icon={Description} title="Заменить ссылку" onClick={replace} onRemove={clear} removeLabel="Снять ссылку"
@@ -65,7 +65,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   }
 
   if (cRef) {
-    if (broken) return <>{<BrokenRefChip name={cRef.displayName} onReplace={replace} onClear={clear} />}{picker}</>;
+    if (broken) return <BrokenRefChip name={cRef.displayName} onReplace={replace} onClear={clear}>{picker}</BrokenRefChip>;
     // Вид ссылки — знак общих данных, а не заливка warning-container: тревоги в ней не было.
     return (
       <div className="flex flex-wrap items-center gap-2">

@@ -19,9 +19,10 @@ export function BoundValueField({ label, refId, display, origin }: {
   /** Знак происхождения значения (`SourceOriginIcon`). */
   origin?: ReactNode;
 }) {
-  const { data: entry } = useCommonDataEntry(refId);
+  const { data: entry, isError } = useCommonDataEntry(refId);
+  // Отказ чтения — словами, а не вечным «запись каталога…»: ожидание и потерянная запись выглядели одинаково.
   const shown = refId
-    ? entry ? `${entry.displayName}${entry.archived ? ' · в архиве' : ''}` : 'запись каталога…'
+    ? entry ? `${entry.displayName}${entry.archived ? ' · в архиве' : ''}` : isError ? 'запись каталога не найдена' : 'запись каталога…'
     : display;
   return (
     <Tooltip content={shown ?? undefined}>

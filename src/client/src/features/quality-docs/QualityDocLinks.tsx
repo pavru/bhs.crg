@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { ChangeCircle, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { linkAnomaly } from './linkScopes';
 import { ScopeReachNote } from './ScopeReachNote';
@@ -18,7 +18,6 @@ import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { SelectionBar } from '@/shared/ui/SelectionBar';
-import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 
 /**
  * Связки материалов документа качества — правая часть экрана контроля (issue #555).
@@ -45,7 +44,6 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   search: string;
 }) {
   const toast = useSnackbar();
-  const wide = useMedia(WIDE);
   const removeLink = useRemoveMaterialLink();
   const removeLinks = useRemoveMaterialLinks();
   const setLinks = useSetMaterialLinks();
@@ -150,14 +148,12 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       {/* Выбор — контекстной шапкой в начале списка (Р8, sharedui-md3-17), а не липкой панелью у его низа.
           Число — по ВИДИМЫМ выбранным: действия работают именно над ними, и подпись обязана совпадать с
           тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
-      <SelectionBar count={chosen.length} onClear={() => setSelected(new Set())}
-        actions={wide ? <>
-          <Button variant="filled" icon={<Icon icon={ChangeCircle} size={18} />} onClick={() => setBulkRelink(true)}>Перепривязать</Button>
-          <Button variant="outlined" icon={<Icon icon={LinkOff} size={18} />} onClick={() => setBulkBreak(true)}>Разорвать</Button>
-        </> : <>
-          <IconButton variant="filled" label="Перепривязать выбранные" icon={ChangeCircle} onClick={() => setBulkRelink(true)} />
-          <IconButton variant="outlined" label="Разорвать выбранные" icon={LinkOff} onClick={() => setBulkBreak(true)} />
-        </>} />
+      {/* Правая часть экрана прокручивается с отступом `py-4` — полоса прилипает к её краю. */}
+      <SelectionBar count={chosen.length} onClear={() => setSelected(new Set())} stickAt="-top-4"
+        actions={[
+          { label: 'Перепривязать', icon: ChangeCircle, onClick: () => setBulkRelink(true), variant: 'filled' },
+          { label: 'Разорвать', icon: LinkOff, onClick: () => setBulkBreak(true), variant: 'outlined' },
+        ]} />
       {shown.length === 0 && (
         <p className="text-body-medium text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}

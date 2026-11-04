@@ -381,7 +381,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   return (
     <div className="space-y-4">
       <BulkSelectionBar selected={selected} setSelected={setSelected}
-        openPickerForSelected={openPickerForSelected} widerThanSelector={widerThanSelector}>
+        openPickerForSelected={openPickerForSelected} scope={scope} widerThanSelector={widerThanSelector}>
         <ScopeToolbar isFetching={isFetching} refetch={refetch} materialsCount={materials.length}
           linkedCount={linkedCount} scope={scope} setScope={setScope}
           sectionId={sectionId} constructionId={constructionId} />

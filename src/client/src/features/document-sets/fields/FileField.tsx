@@ -20,19 +20,26 @@ export interface PrintFormContext {
   onMetaUpdated: (updates: Record<string, unknown>) => void;
 }
 
-/** Знак вида файла — для чипа вложения, где цвет у знака свой (primary), а вид говорит форма знака. */
+const isSheet = (mimeType: string) => mimeType.includes('sheet') || mimeType.includes('excel');
+
+/** Знак вида файла — форма знака. Один на чип вложения (цвет у знака там свой) и на `FileTypeIcon`. */
 function fileKindIcon(mimeType: string): IconDef {
   if (mimeType.startsWith('image/')) return ImageIcon;
-  if (mimeType.includes('sheet') || mimeType.includes('excel')) return TableChart;
+  if (isSheet(mimeType)) return TableChart;
   return Description;
 }
 
+/** Цвет знака вида файла в списках. */
+function fileKindTone(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'text-tertiary';
+  if (mimeType === 'application/pdf') return 'text-error';
+  if (mimeType.includes('word')) return 'text-primary';
+  if (isSheet(mimeType)) return 'text-success';
+  return 'text-on-surface-variant';
+}
+
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType.startsWith('image/')) return <Icon icon={ImageIcon} size={18} className="text-tertiary shrink-0" />;
-  if (mimeType === 'application/pdf') return <Icon icon={Description} size={18} className="text-error shrink-0" />;
-  if (mimeType.includes('word')) return <Icon icon={Description} size={18} className="text-primary shrink-0" />;
-  if (mimeType.includes('sheet') || mimeType.includes('excel')) return <Icon icon={TableChart} size={18} className="text-success shrink-0" />;
-  return <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />;
+  return <Icon icon={fileKindIcon(mimeType)} size={18} className={`${fileKindTone(mimeType)} shrink-0`} />;
 }
 
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
@@ -195,15 +202,14 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   }
 
   if (attachment) {
+    const chip = {
+      icon: fileKindIcon(attachment.mimeType), title: 'Предпросмотр', onClick: () => setPreviewOpen(true), className: 'max-w-full',
+      children: `${attachment.fileName} · ${formatBytes(attachment.size)}`,
+    };
     return (
       <>
         {/* Вложение — input chip (Р4): щелчок — предпросмотр, крестик — удалить; под замком — без крестика. */}
-        {readOnly
-          ? <Chip icon={fileKindIcon(attachment.mimeType)} title="Предпросмотр" onClick={() => setPreviewOpen(true)}
-              className="max-w-full">{attachment.fileName} · {formatBytes(attachment.size)}</Chip>
-          : <Chip icon={fileKindIcon(attachment.mimeType)} title="Предпросмотр" onClick={() => setPreviewOpen(true)}
-              onRemove={() => onChange(null)} removeLabel="Удалить файл"
-              className="max-w-full">{attachment.fileName} · {formatBytes(attachment.size)}</Chip>}
+        {readOnly ? <Chip {...chip} /> : <Chip {...chip} onRemove={() => onChange(null)} removeLabel="Удалить файл" />}
         {uploadError && <p className="text-body-small text-error mt-1">{uploadError}</p>}
         <FilePreviewModal open={previewOpen} onOpenChange={setPreviewOpen} attachment={attachment} />
       </>

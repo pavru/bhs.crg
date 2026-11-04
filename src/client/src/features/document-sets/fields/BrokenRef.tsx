@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Chip } from '@/shared/ui/Chip';
 import { ErrorIcon, type IconDef } from '@/shared/ui/icons';
@@ -16,9 +17,11 @@ export const BROKEN_LABEL = 'text-error line-through';
 
 /**
  * Битая ссылка поля — input chip (Р4): знак ошибки вместо знака вида, щелчок — заменить, крестик — снять;
- * нота — под ним.
+ * нота — под ним. Окно выбора замены — детьми, как у `RefTile`.
  */
-export function BrokenRefChip({ name, onReplace, onClear }: { name: string; onReplace: () => void; onClear: () => void }) {
+export function BrokenRefChip({ name, onReplace, onClear, children }: {
+  name: string; onReplace: () => void; onClear: () => void; children?: ReactNode;
+}) {
   return (
     <div>
       <Chip icon={ErrorIcon as IconDef} iconTone="error" iconLabel="Битая ссылка" title="Заменить ссылку"
@@ -26,6 +29,7 @@ export function BrokenRefChip({ name, onReplace, onClear }: { name: string; onRe
         <span className="line-through">{name}</span>
       </Chip>
       <BrokenRefNote />
+      {children}
     </div>
   );
 }

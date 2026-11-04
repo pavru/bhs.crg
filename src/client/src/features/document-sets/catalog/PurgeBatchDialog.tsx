@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from '@/shared/ui/dialogSurface';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronRight, KeyboardArrowDown, Warning } from '@/shared/ui/icons';
@@ -19,9 +19,7 @@ import {
   batchConsequences, batchFailure, carriedOver, batchSubtitle, batchTitle, batchToast, emptyText, excludedGroups, isNamed,
   leftOut, moreNote, wasNote,
 } from './purgeBatch';
-import { TextField } from '@/shared/ui/TextField';
-
-const MISMATCH = 'Не совпадает с числом в строке «Всего ссылок».';
+import { PurgeCountField } from './PurgeCountField';
 
 /**
  * Пакетная очистка: удалить разом записи, которые держат только данные выключенных или снятых
@@ -52,7 +50,6 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   // Номер попытки — в ключе запроса: «Проверить заново» обязано дойти до сервера и тогда, когда
   // источник не изменился (те же записи в том же порядке), иначе диалог показал бы прежний ответ.
   const [attempt, setAttempt] = useState(0);
-  const fieldId = useId();
 
   const asked = useQuery({
     queryKey: ['purge-batch-preview', source, attempt],
@@ -197,16 +194,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
             <ul className="mt-3 text-body-small text-on-surface-variant list-disc pl-4 space-y-1">
               {batchConsequences(preview).map(line => <li key={line}>{line}</li>)}
             </ul>
-            <div className="mt-4">
-              <TextField id={fieldId} label="Число теряемых ссылок" type="text" inputMode="numeric" autoComplete="off" autoFocus
-                value={input} disabled={busy} className="tabular-nums"
-                onChange={e => { setInput(e.target.value); setSettled(false); }}
-                onBlur={() => setSettled(true)}
-                onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
-                error={mismatch ? MISMATCH : undefined} hint="Введите число из строки «Всего ссылок»." />
-              {/* Ошибка поля приходит после ухода из него — её объявляем: текст под полем читалка сама не прочтёт. */}
-              <span role="alert" className="sr-only">{mismatch ? MISMATCH : ''}</span>
-            </div>
+            <PurgeCountField value={input} disabled={busy} mismatch={mismatch}
+              onChange={v => { setInput(v); setSettled(false); }} onSettle={() => setSettled(true)} />
             <div className="flex gap-2 justify-end items-start mt-4">
               <Button type="button" variant="text" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
               <Button type="submit" variant="filled" danger multiline className="min-w-0" disabled={!matches} loading={busy}>

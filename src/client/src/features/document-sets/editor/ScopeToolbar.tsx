@@ -3,6 +3,7 @@ import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Search } from '@/shared/ui/icons';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import type { CatalogScope } from '@/shared/api/types';
+import { LINK_SCOPE_CHOICES } from './linkScopeChoices';
 
 /**
  * Шапка вкладки: обновление материалов, счётчики и выбор области связи (issue #1032 — вынесено из
@@ -34,12 +35,10 @@ export function ScopeToolbar({ isFetching, refetch, materialsCount, linkedCount,
             предлагаем — привязку было бы некуда положить. */}
         <Select density="dense" value={scope} onValueChange={v => setScope(v as CatalogScope)}
           aria-label="Область связи" className="w-56">
-          <SelectItem value="Set">Только этот комплект</SelectItem>
-          {sectionId && <SelectItem value="Section">Весь раздел</SelectItem>}
-          {constructionId && <SelectItem value="Construction">Вся стройка</SelectItem>}
-          {/* Слово «Система» — из общего словаря областей (issue #649): экран контроля называет
-              этот уровень так же, и выбирать одним словом, а читать другое человек не должен. */}
-          <SelectItem value="System">Все стройки (Система)</SelectItem>
+          <SelectItem value="Set">{LINK_SCOPE_CHOICES.Set}</SelectItem>
+          {sectionId && <SelectItem value="Section">{LINK_SCOPE_CHOICES.Section}</SelectItem>}
+          {constructionId && <SelectItem value="Construction">{LINK_SCOPE_CHOICES.Construction}</SelectItem>}
+          <SelectItem value="System">{LINK_SCOPE_CHOICES.System}</SelectItem>
         </Select>
       </div>
     </div>

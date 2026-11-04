@@ -8,10 +8,10 @@ import { IconButton } from '@/shared/ui/Button';
 const link = 'text-primary hover:underline focus-ring rounded-xs';
 
 /**
- * Звезда стройки (§62.2). Стоит вне hover-группы действий: она ещё и признак, а невидимый признак
- * ничего не помечает. Клик не проваливается в карточку.
+ * Звезда стройки (§62.2) — в шапке её страницы (Р7, sharedui-md3-17): карточка в списке — одна ссылка, кнопкам
+ * внутри неё места нет. Видна всегда, а не по наведению: она ещё и признак, а невидимый признак ничего не помечает.
  */
-export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => void }) {
+export function FavoriteStar({ id }: { id: string }) {
   const filter = useSiteFilterState();
   const toggle = useToggleFavorite();
   const [busy, setBusy] = useState(false);
@@ -19,10 +19,8 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
   const on = filter.favorites.has(id);
   return (
     <IconButton label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
-      selected={on} disabled={busy} data-testid="favorite-star" className="-ml-1"
-      onClick={async e => {
-        e.stopPropagation();
-        onToggled?.();
+      selected={on} disabled={busy} data-testid="favorite-star"
+      onClick={async () => {
         setBusy(true);
         await toggle(id, !on);
         setBusy(false);

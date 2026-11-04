@@ -674,7 +674,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   if (isFieldRef(value)) {
     // Битая ссылка (issue #332): цель удалена — чип со знаком ошибки и нота.
     if (broken)
-      return <>{<BrokenRefChip name={value.displayName} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})} />}{picker}</>;
+      return <BrokenRefChip name={value.displayName} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})}>{picker}</BrokenRefChip>;
     // Обычная ссылка — и ссылка на запись в архиве тоже: она не потеряна (см. RefTile).
     return <RefTile value={value} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})}>{picker}</RefTile>;
   }
