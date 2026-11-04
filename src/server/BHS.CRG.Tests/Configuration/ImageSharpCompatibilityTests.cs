@@ -1,7 +1,9 @@
+using System.Globalization;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using PdfSharpCore.Drawing;
 using PdfSharpCore.Pdf;
+using SixLabors.Fonts;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -51,6 +53,7 @@ public class ImageSharpCompatibilityTests
     public void NPOI_пишет_книгу_с_картинкой_и_автошириной()
     {
         using var book = new XSSFWorkbook();
+        book.GetFontAt(0).FontName = ReadableSystemFont();
         var sheet = book.CreateSheet("Лист");
         sheet.CreateRow(0).CreateCell(0).SetCellValue("Наименование позиции с длинным текстом");
 
@@ -67,5 +70,46 @@ public class ImageSharpCompatibilityTests
         using var saved = new MemoryStream();
         book.Write(saved, leaveOpen: true);
         Assert.True(saved.Length > 0);
+    }
+
+    /// <summary>
+    /// Семейство машины, которое SixLabors.Fonts в самом деле читает. Без него NPOI мерил бы Calibri,
+    /// Arial или ПЕРВЫМ семейством машины, а первым на части раннеров CI стоит цветной Noto Color Emoji
+    /// без таблицы <c>loca</c> — и тест краснел по шрифтам раннера, а не по версиям пакетов.
+    ///
+    /// <para>⚠️ <see cref="MissingMethodException" /> и родня здесь НЕ глотаются: ради них тест и
+    /// стоит, а семейство отбрасывается только за нечитаемый файл.</para>
+    /// </summary>
+    private static string ReadableSystemFont()
+    {
+        var name = SystemFonts.Families
+            .Select(f => f.Name)
+            .Order(StringComparer.Ordinal)
+            .FirstOrDefault(Readable);
+        Assert.True(name is not null, "На машине нет ни одного шрифта, который читает SixLabors.Fonts: автоширину мерить нечем.");
+        return name!;
+
+        static bool Readable(string family)
+        {
+            try
+            {
+                // Тем же путём, что NPOI: семейство по имени в культуре потока, затем замер.
+                return SystemFonts.TryGet(family, CultureInfo.CurrentCulture, out var found)
+                    && TextMeasurer.MeasureSize("0", new TextOptions(found.CreateFont(11))).Width > 0;
+            }
+            catch (Exception e) when (!IsVersionMismatch(e))
+            {
+                return false;
+            }
+        }
+
+        // По всей цепочке: несовместимость, случившаяся в статическом конструкторе, приходит обёрнутой
+        // в TypeInitializationException, и проглоти её фильтр — тест соврал бы «на машине нет шрифтов».
+        static bool IsVersionMismatch(Exception? e)
+        {
+            for (; e is not null; e = e.InnerException)
+                if (e is MissingMemberException or TypeLoadException) return true;
+            return false;
+        }
     }
 }
