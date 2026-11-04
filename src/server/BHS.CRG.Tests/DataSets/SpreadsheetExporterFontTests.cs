@@ -105,8 +105,8 @@ public class SpreadsheetExporterFontTests
 
         private static InvalidOperationException Changed(string what) => new(
             $"В NPOI.SS.Util.SheetUtil нет {what}: NPOI сменил устройство кэша шрифтов, и подменить шрифт "
-            + "книги тест не может. Переход на NPOI 2.8 — issue #1756: там трекер автоширины заводится по "
-            + "требованию, и тест переписывается под новый путь, а не удаляется.");
+            + "книги тест не может. NPOI сменили вопреки решению остаться на ветке 2.7 (issue #1756, "
+            + "NpoiLicenseTests): сначала решение о NPOI, и тест переписывается под новый путь, а не удаляется.");
 
         /// <summary>
         /// TrueType-файл из одной таблицы <c>name</c>: описание шрифта (семейство, начертание) читается,
