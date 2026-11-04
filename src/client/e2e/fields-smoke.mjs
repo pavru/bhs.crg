@@ -292,7 +292,9 @@ await check('union-second-row-has-its-own-variant', async () => {
 editor = await openInstance(PDF_DOC);
 
 async function filePreviewDrawn() {
-  const eye = editor.getByRole('button', { name: /предпросмотр/i }).first();
+  // Вложение — чип с именем файла (Р4): щелчок по нему открывает предпросмотр. По «предпросмотр» не ищем —
+  // так называется и переключатель предпросмотра документа в шапке.
+  const eye = editor.getByRole('button', { name: /\.pdf · / }).first();
   if (!(await eye.count())) throw new Error('кнопки предпросмотра у поля-файла нет');
   await eye.click();
   await settled(page);

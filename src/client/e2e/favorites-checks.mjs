@@ -69,7 +69,7 @@ export async function favoritesChecks(page, check) {
       await page.goto(`${BASE}/document-sets`);
       await settled(page);
       const label = await page.getByTestId('sites-filter').getAttribute('aria-label');
-      if (label !== `Избранные стройки — 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
+      if (label !== `Избранные стройки · скрыто ${all.length - 1} — 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
       const left = await cards(page).count();
       if (left !== 1) throw new Error(`после первой звезды карточек ${left}, ждали одну`);
     });

@@ -117,7 +117,8 @@ try {
   await check('nested-route-params', async () => {
     await page.goto(`${BASE}/document-sets`);
     await page.waitForLoadState('networkidle');
-    const card = page.locator('h3').first();
+    // Карточка стройки — одна ссылка во всю площадь (Р7, sharedui-md3-17): щёлкаем саму ссылку.
+    const card = page.getByTestId('construction-card').first().getByRole('link');
     if (!(await card.count())) throw new Error('нет ни одной стройки — нужны демо-данные');
     await card.click();
     // Голый адрес стройки уводит на панель по умолчанию (plan-02) — первую блока «Работы», а без него

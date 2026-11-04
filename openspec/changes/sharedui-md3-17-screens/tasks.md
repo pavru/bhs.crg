@@ -126,9 +126,13 @@
   `error-container` правило `container-text` не видело); **не переведено** — `fieldInputClass`
   (`fields/constants.ts:20`): пять сырых `<input>`/`<textarea>` в `PrimitiveInput` без подписи (подпись рисует
   вызывающий), правило `raw-field` их не видит
-- [ ] 3.2 Живые прогоны (`document-preview-checks`, `fields-smoke`, `pages-smoke`) и весь
+- [x] 3.2 Живые прогоны (`document-preview-checks`, `fields-smoke`, `pages-smoke`) и весь
   `npm run -s test:e2e:ci` зелёные; снимки комплекта документов, редактора с предпросмотром и страницы
   «Стройки» до и после. Проверка — описание PR
+  Сделано 04.11.2026 на стенде как в CI: все 21 набор `test:e2e:ci` зелёные. Карточка стройки стала одной
+  ссылкой, а переключатель предпросмотра — кнопкой в шапке, и три проверки подстроены под это: `routing`
+  щёлкает ссылку карточки, `favorites` отмечает стройку звездой в её шапке, `fields` открывает вложение
+  его чипом. Снимки до и после, обе темы, 1366 и 375 — https://claude.ai/artifact/K4AxBynPFfZzpknRqzHjfQ
 
 ## 4. PR 4: `costs`, `planning`, `periods`, `reconciliations`
 
