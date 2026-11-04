@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { LinkIcon, LinkOff, Refresh } from '@/shared/ui/icons';
+import { LinkIcon } from '@/shared/ui/icons';
 import { SCOPE_LABELS, type FieldRef } from '@/shared/api/types';
-import { SCOPE_COLORS } from './constants';
 import { ArchivedRefMark } from './ArchivedRefs';
-import { IconButton } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusText } from '@/shared/ui/StatusText';
 
 /**
- * Плитка составного поля, заполненного ССЫЛКОЙ (issue #189): нейтральный контейнер, имя — ссылка
- * primary, тональный chip уровня, два действия — «заменить» (открыть пикер) и «снять».
+ * Значение составного поля, заполненного ССЫЛКОЙ (issue #189) — input chip со знаком ссылки (Р4,
+ * sharedui-md3-17): щелчок по чипу — заменить (открыть пикер), крестик — снять; уровень — словом рядом.
+ * Вид ссылки говорит знак, а не заливка.
  *
  * <p>Ссылка на запись в архиве рисуется этой же плиткой, с пометкой после имени (issue #1185):
  * запись не потеряна и чинить нечего — пометка лишь говорит, что выбрать её заново не выйдет.
@@ -20,17 +20,11 @@ export function RefTile({ value, onReplace, onClear, children }: {
   children?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-1.5 border border-outline-variant rounded-md pl-3 pr-1.5 py-1.5 bg-surface-container-low">
-      <Icon icon={LinkIcon} size={18} className="text-on-surface-variant shrink-0" />
-      <span className="flex-1 text-body-medium text-primary font-medium truncate">{value.displayName}</span>
+    <div className="flex flex-wrap items-center gap-2">
+      <Chip icon={LinkIcon} title="Заменить ссылку" onClick={onReplace} onRemove={onClear} removeLabel="Снять ссылку"
+        className="max-w-full">{value.displayName}</Chip>
       <ArchivedRefMark value={value} />
-      {value.scope && (
-        <span className={`text-body-small px-2 py-0.5 rounded-full font-medium shrink-0 ${SCOPE_COLORS[value.scope]}`}>
-          {SCOPE_LABELS[value.scope]}
-        </span>
-      )}
-      <IconButton label="Заменить ссылку" onClick={onReplace} icon={Refresh} />
-      <IconButton label="Снять ссылку" danger onClick={onClear} icon={LinkOff} />
+      {value.scope && <StatusText>{SCOPE_LABELS[value.scope]}</StatusText>}
       {children}
     </div>
   );

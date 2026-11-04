@@ -1,9 +1,9 @@
 import { useContext, useState, useEffect, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Close, LinkIcon, Unarchive, Warning } from '@/shared/ui/icons';
+import { LinkIcon, Unarchive, Warning } from '@/shared/ui/icons';
 import { ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -23,6 +23,7 @@ import {
   suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, offeredScopes,
   hasScopelessCatalogRef,
 } from './extractToCommonData';
+import { AliasesField } from './AliasesField';
 
 /** Найденный дубликат: по составному ключу — сильное совпадение, по имени — тёзка. */
 interface Duplicate {
@@ -114,7 +115,6 @@ export function ExtractToCommonDataModal({
   const [name, setName] = useState(
     () => suggestEntryName(values, subFields, identityFieldKeys(compositeType, allDocTypes), typeDefs));
   const [aliases, setAliases] = useState<string[]>([]);
-  const [aliasDraft, setAliasDraft] = useState('');
   // Уровень по умолчанию — самый УЗКИЙ доступный, а не самый удобный (прецедент #587): узкая ошибка
   // обратима — записи не окажется там, где её ищут, и это видно сразу; широкая тиха — чужой объект
   // подставится в чужой документ, и не заметит никто.
@@ -181,12 +181,6 @@ export function ExtractToCommonDataModal({
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [name, effectiveTarget, targetScopeId, values, compositeType.id, blocking.length]);
-
-  function addAlias() {
-    const t = aliasDraft.trim();
-    if (t && !aliases.some(a => a.toLowerCase() === t.toLowerCase())) setAliases(prev => [...prev, t]);
-    setAliasDraft('');
-  }
 
   /**
    * Связать с найденной записью. Архивную сначала возвращаем из архива (issue #1185): ссылка на
@@ -308,13 +302,7 @@ export function ExtractToCommonDataModal({
           </Note>
         )}
 
-        <div>
-          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">Тип</label>
-          <div className="h-10 flex items-center rounded-sm border border-outline-variant bg-surface-container-low px-3 text-body-medium text-on-surface-variant">
-            {compositeType.name}
-          </div>
-          <p className="text-body-small text-on-surface-variant mt-1">Задан полем — выбирать нечего.</p>
-        </div>
+        <TextField readOnly label="Тип" value={compositeType.name} hint="Задан полем — выбирать нечего." />
 
         <TextField label="Наименование" value={name} onChange={e => setName(e.target.value)} required autoFocus />
 
@@ -344,28 +332,7 @@ export function ExtractToCommonDataModal({
           )}
         </div>
 
-        <div>
-          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
-            Псевдонимы <span className="text-body-small text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
-          </label>
-          {aliases.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-1.5">
-              {aliases.map(a => (
-                <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
-                  <span className="min-w-0 break-words">{a}</span>
-                  <IconButton label={`Удалить «${a}»`}
-                    danger className="-my-1.5"
-                    onClick={() => setAliases(prev => prev.filter(x => x !== a))} icon={Close} />
-                </span>
-              ))}
-            </div>
-          )}
-          <input value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
-            onBlur={addAlias}
-            placeholder="Добавить псевдоним и Enter..."
-            className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
-        </div>
+        <AliasesField aliases={aliases} onChange={setAliases} />
 
         {duplicate && (
           <Note tone="warning" icon={<Icon icon={Warning} size={18} />}

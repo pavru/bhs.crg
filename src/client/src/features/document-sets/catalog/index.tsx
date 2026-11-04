@@ -33,7 +33,7 @@ import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognize
 } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
-  SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
+  SCOPE_COLORS, AliasesField, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection, SuggestOwner,
   isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT,
   BaseInstanceChip, SCOPE_TIER, candidateName, type BaseCandidate,
@@ -49,7 +49,6 @@ import { BindingCheckReport } from './BindingCheckReport';
 import { ArchivedTwinNote } from './ArchivedTwinNote';
 import { BoundValueField } from './BoundRefValue';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { Chip } from '@/shared/ui/Chip';
 
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
@@ -70,12 +69,6 @@ export function CatalogEntryForm({
 }) {
   const [displayName, setDisplayName] = useState(entry?.displayName ?? '');
   const [aliases, setAliases] = useState<string[]>(entry?.aliases ?? []);
-  const [aliasDraft, setAliasDraft] = useState('');
-  function addAlias() {
-    const t = aliasDraft.trim();
-    if (t && !aliases.some(a => a.toLowerCase() === t.toLowerCase())) setAliases(prev => [...prev, t]);
-    setAliasDraft('');
-  }
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
@@ -612,21 +605,7 @@ export function CatalogEntryForm({
       <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
-      <div className="space-y-2">
-        <TextField label="Псевдоним" value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
-          onBlur={addAlias}
-          hint="Доп. имя для поиска при связывании с источниками; Enter — добавить." />
-        {aliases.length > 0 && (
-          // Псевдонимы — input chips ([UI-68]): значение и крестик, нажать в чипе больше нечего.
-          <div role="group" aria-label="Псевдонимы" className="flex flex-wrap gap-2">
-            {aliases.map(a => (
-              <Chip key={a} removeOnly removeLabel={`Удалить «${a}»`}
-                onRemove={() => setAliases(prev => prev.filter(x => x !== a))}>{a}</Chip>
-            ))}
-          </div>
-        )}
-      </div>
+      <AliasesField aliases={aliases} onChange={setAliases} />
 
       {!entry ? (
         <div>

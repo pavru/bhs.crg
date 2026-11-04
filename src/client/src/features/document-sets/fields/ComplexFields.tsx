@@ -12,7 +12,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Delete, DragIndicator, Edit, Info, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LinkOff, Refresh, Share, TableChart, Warning } from '@/shared/ui/icons';
+import { Add, Delete, DragIndicator, Edit, EditNote, Info, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, Share, TableChart, Warning } from '@/shared/ui/icons';
 import { Modal, ModalAction, ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { useOwnWindow } from '@/shared/ui/modalControl';
@@ -40,13 +40,14 @@ import { ArchivedRefMark } from './ArchivedRefs';
 import { RefTile } from './RefTile';
 import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
-import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
+import { BROKEN_LABEL, BrokenRefChip, BrokenRefNote } from './BrokenRef';
 import { ArrayTableModal } from './ArrayTableModal';
 import {
   isRowEmpty, filledVariants, overfilledNote, isVariantFilled, unionSummary,
 } from './complexFieldHelpers';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
 
 /** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
 const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
@@ -394,7 +395,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 return (
                   <div key={i}>
                     <div {...dropTarget(i)}
-                      className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE} ${selectedRing(i)}`}>
+                      className={`flex items-center gap-2 px-3 py-2 ${selectedRing(i)}`}>
                       {rowChrome(i, true)}
                       <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
                       <span className={`flex-1 text-body-medium truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
@@ -433,7 +434,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 <div key={i}>
                 <div {...dropTarget(i)}
                   className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken
-                    ? `${BROKEN_PLATE} ${selectedRing(i)}`
+                    ? selectedRing(i)
                     : selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
                   {rowChrome(i, wrappedBroken)}
                   <Icon icon={LinkIcon} size={18} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
@@ -671,21 +672,9 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   );
 
   if (isFieldRef(value)) {
-    // Битая ссылка (issue #332): цель удалена — danger-плитка + нота вместо нейтрального контейнера.
-    if (broken) {
-      return (
-        <div>
-          <div className={`flex items-center gap-1.5 rounded-md pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
-            <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
-            <span className={`flex-1 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
-            <IconButton label="Заменить ссылку" onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName="text-error" />
-            <IconButton label="Снять ссылку" danger onClick={() => onChange({})} icon={LinkOff} iconClassName="text-error" />
-          </div>
-          <BrokenRefNote />
-          {picker}
-        </div>
-      );
-    }
+    // Битая ссылка (issue #332): цель удалена — чип со знаком ошибки и нота.
+    if (broken)
+      return <>{<BrokenRefChip name={value.displayName} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})} />}{picker}</>;
     // Обычная ссылка — и ссылка на запись в архиве тоже: она не потеряна (см. RefTile).
     return <RefTile value={value} onReplace={() => setPickerOpen(true)} onClear={() => onChange({})}>{picker}</RefTile>;
   }
@@ -741,16 +730,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
-          <button type="button" onClick={() => setModalOpen(true)}
-            className="flex-1 min-w-0 text-left text-body-medium text-on-surface-variant hover:text-on-surface truncate">
-            {isEmpty ? <span className="text-on-surface-variant">Заполнить…</span> : objectSummary(subValues, subFields, typeDefs)}
-          </button>
-          <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1 text-body-small text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors shrink-0">
-            <Icon icon={LinkIcon} size={18} /> Из каталога
-          </button>
-          <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
+        {/* Сводка — assist chip, открывающий окно (Р4); «Из каталога» — соседний. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip icon={EditNote} title="Изменить" onClick={() => setModalOpen(true)} className="max-w-full">
+            {isEmpty ? 'Заполнить…' : objectSummary(subValues, subFields, typeDefs)}
+          </Chip>
+          <Chip icon={LinkIcon} onClick={() => setPickerOpen(true)}>Из каталога</Chip>
         </div>
         {/* Правка объекта ложится в поле сразу: закрыть окно — ничего не потерять. */}
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide isDirty={false}
@@ -964,11 +949,10 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
-          <button type="button" onClick={() => setModalOpen(true)}
-            className="flex-1 min-w-0 text-left text-body-medium text-on-surface-variant hover:text-on-surface truncate">
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip icon={EditNote} title="Изменить" onClick={() => setModalOpen(true)} className="max-w-full">
             {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
-          </button>
+          </Chip>
           {/* Свёрнутая строка показывает ТОЛЬКО активный вариант, поэтому без метки она выглядела бы
               обычными данными — а ✎ и первая правка унесли бы второй вариант (issue #756). Ровно та
               же дверь, что закрыта в списке строк массива; здесь она оставалась открытой. */}
@@ -979,7 +963,6 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
               </span>
             </Tooltip>
           )}
-          <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title} isDirty={false}
           footer={<ModalExit variant="filled">Готово</ModalExit>}>

@@ -9,6 +9,7 @@ import type { ImageValue, ImageBlobValue, ImageOptions } from '@/shared/api/sche
 import { checkImageResult } from './checkImageResult';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { TextField } from '@/shared/ui/TextField';
 
 /**
  * Предел проверяет СЕРВЕР (issue #534). Клиентская константа была осознанной временной мерой: у
@@ -153,7 +154,8 @@ export function ImageField({ value, onChange, readOnly = false }: {
     <div className="space-y-2">
       {/* Пока байты едут — показываем ЛОКАЛЬНОЕ превью с индикатором в углу, а не пустую рамку:
           файл уже в браузере, и ждать нечего (issue #522). */}
-      <div className="relative border border-outline-variant rounded-md overflow-hidden bg-surface-container-low flex items-center justify-center p-2 max-h-52">
+      {/* Медиа без обводки на surface-container-highest (Р5-А), как логотип в настройках. */}
+      <div className="relative rounded-md overflow-hidden bg-surface-container-highest flex items-center justify-center p-2 max-h-52">
         {shownSrc
           ? <img src={shownSrc} alt="" className="max-h-48 max-w-full object-contain" />
           : <span className="py-8 text-body-small text-on-surface-variant">Загрузка изображения…</span>}
@@ -184,12 +186,10 @@ export function ImageField({ value, onChange, readOnly = false }: {
 
       {sizeOpen && img && (
         <div className="flex flex-wrap items-center gap-2 pl-1">
-          <input value={img.width ?? ''} onChange={e => patch({ width: e.target.value })}
-            placeholder="ширина (напр. 4cm)"
-            className="w-36 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
-          <input value={img.height ?? ''} onChange={e => patch({ height: e.target.value })}
-            placeholder="высота"
-            className="w-24 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+          <TextField density="dense" label="Ширина изображения" placeholder="ширина (напр. 4cm)"
+            value={img.width ?? ''} onChange={e => patch({ width: e.target.value })} containerClassName="w-36" />
+          <TextField density="dense" label="Высота изображения" placeholder="высота"
+            value={img.height ?? ''} onChange={e => patch({ height: e.target.value })} containerClassName="w-24" />
           <Select density="dense" className="w-auto" aria-label="Выравнивание" value={img.align ?? ''}
             onValueChange={align => patch({ align: (align || undefined) as ImageValue['align'] })} emptyItem="выравнивание">
             <SelectItem value="left">слева</SelectItem>

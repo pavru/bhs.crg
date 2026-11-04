@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Database, Description, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
+import { Database, Description, LinkIcon, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { type BaseCandidate } from './baseCandidates';
-import { IconButton } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusText } from '@/shared/ui/StatusText';
+import { TextField } from '@/shared/ui/TextField';
 
 // Базовый экземпляр (issue #71/#73): объект дочернего типа наследуется от базы — документа комплекта
 // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). Единый пикер + общие хелперы
@@ -71,10 +74,9 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
         {/* Подсветка возвращается на первую строку в ОБРАБОТЧИКЕ ввода, а не эффектом (issue #858):
             сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.
             Эффектом это давало лишний коммит, в котором active ещё указывал в старый список. */}
-        <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
-          placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
-          aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
-          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+        <TextField label="Поиск кандидата" value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
+          autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
+          aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined} />
         {filtered.length === 0 ? (
           <p className="text-body-medium text-on-surface-variant text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
@@ -115,24 +117,21 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface p-4 space-y-2">
-      <p className="text-body-medium font-medium text-on-surface">
-        {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
-        {title && !selected?.proxy && <span className="font-normal ml-1 text-on-surface-variant">({title})</span>}
-      </p>
+    <Card title={<>
+      {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
+      {title && !selected?.proxy && <span className="ml-1 text-on-surface-variant">({title})</span>}
+    </>}>
+      <div className="space-y-2">
       {selected ? (
         <>
-        <div className="flex items-center gap-2 rounded-sm border border-primary-container bg-primary-container px-3 py-2">
-          {selected.proxy
-            ? <Icon icon={LinkIcon} size={18} className="text-primary shrink-0" />
-            : selected.kind === 'instance'
-              ? <Icon icon={Description} size={18} className="text-primary shrink-0" />
-              : <Icon icon={Database} size={18} className="text-primary shrink-0" />}
-          <span className="flex-1 text-body-medium font-medium text-primary truncate">
-            {selected.proxy && <span className="text-on-surface-variant font-normal">→ </span>}{selected.name}
-          </span>
-          <span className="text-label-small text-on-surface-variant shrink-0">{selected.scopeLabel}</span>
-          <IconButton label="Снять ссылку" danger onClick={onClear} icon={LinkOff} iconClassName="text-primary" />
+        {/* Выбранная база — input chip со знаком вида (Р4): щелчок — выбрать другую, крестик — снять. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip icon={selected.proxy ? LinkIcon : selected.kind === 'instance' ? Description : Database}
+            title="Выбрать другой" onClick={() => setPickerOpen(true)} onRemove={onClear} removeLabel="Снять ссылку"
+            className="max-w-full">
+            {selected.proxy && '→ '}{selected.name}
+          </Chip>
+          <StatusText>{selected.scopeLabel}</StatusText>
         </div>
         {selected.targetIsProxy && (
           <p className="text-label-small text-warning flex items-center gap-1">
@@ -142,10 +141,10 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         )}
         </>
       ) : missing ? (
-        <div className="flex items-center gap-2 rounded-sm border border-warning/40 bg-warning/5 px-3 py-2">
-          <span className="flex-1 text-body-medium text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
-          <IconButton label="Снять ссылку" danger onClick={onClear} icon={LinkOff} iconClassName="text-primary" />
-        </div>
+        <Chip icon={Warning} iconTone="warning" iconLabel="Недоступен" title="Выбрать другой" onClick={() => setPickerOpen(true)}
+          onRemove={onClear} removeLabel="Снять ссылку" className="max-w-full">
+          Базовый экземпляр недоступен (удалён или вне области видимости)
+        </Chip>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
           className="flex items-center gap-2 text-body-medium text-primary border border-dashed border-primary-container rounded-sm px-3 py-2 w-full hover:bg-primary-container transition-colors">
@@ -154,7 +153,8 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         </button>
       )}
       {!selected && !missing && manualHint && <p className="text-body-small text-on-surface-variant">{manualHint}</p>}
+      </div>
       <BaseCandidatePicker open={pickerOpen} onOpenChange={setPickerOpen} candidates={candidates} onSelect={onSelect} />
-    </div>
+    </Card>
   );
 }

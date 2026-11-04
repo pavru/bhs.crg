@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Description, LinkOff, Refresh } from '@/shared/ui/icons';
+import { Database, Description } from '@/shared/ui/icons';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { RefPickerModal } from './RefPickerModal';
-import { IconButton } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
 
 export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, setId, scope, scopeId }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -18,14 +18,11 @@ export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, 
   return (
     <div>
       {ref ? (
-        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-warning-container">
-          <Icon icon={Description} size={18} className="text-warning shrink-0" />
-          <span className="flex-1 text-body-medium text-warning font-medium">{ref.displayName}</span>
-          {/* «Заменить» рядом со «Снять» (issue #749): без неё замена шла в два шага, причём первый
-              стирал то, на что смотришь, выбирая второй. Пикер тот же, что и при первом выборе. */}
-          <IconButton label="Заменить ссылку" onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName="text-warning" />
-          <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-warning" />
-        </div>
+        // Значение — input chip со знаком общих данных (Р4): вид ссылки говорит знак, а не заливка
+        // warning-container (тревоги в ней не было). «Заменить» — щелчок по чипу (issue #749): без неё
+        // замена шла в два шага, причём первый стирал то, на что смотришь, выбирая второй.
+        <Chip icon={Database} title="Заменить ссылку" onClick={() => setPickerOpen(true)}
+          onRemove={() => onChange(null)} removeLabel="Снять ссылку" className="max-w-full">{ref.displayName}</Chip>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
           className="flex items-center gap-2 px-3 py-2 text-body-medium text-warning border border-dashed border-outline-variant rounded-md hover:bg-warning-container transition-colors w-full">

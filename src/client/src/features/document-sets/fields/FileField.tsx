@@ -1,21 +1,30 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Delete, Description, Download, ImageIcon, TableChart, Upload, Visibility } from '@/shared/ui/icons';
+import { Description, Download, ImageIcon, TableChart, Upload } from '@/shared/ui/icons';
 import {
   type FileAttachment, isFileAttachment, getFileCategory,
   uploadAttachment, uploadPrintForm, loadAttachmentBlob, loadAttachmentObjectUrl, formatBytes, saveBlob,
 } from '@/shared/api/attachments';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
+import { Chip } from '@/shared/ui/Chip';
+import type { IconDef } from '@/shared/ui/icons';
 
 export interface PrintFormContext {
   setId: string;
   instanceId: string;
   fieldKey: string;
   onMetaUpdated: (updates: Record<string, unknown>) => void;
+}
+
+/** Знак вида файла — для чипа вложения, где цвет у знака свой (primary), а вид говорит форма знака. */
+function fileKindIcon(mimeType: string): IconDef {
+  if (mimeType.startsWith('image/')) return ImageIcon;
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return TableChart;
+  return Description;
 }
 
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
@@ -188,15 +197,13 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   if (attachment) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
-          <FileTypeIcon mimeType={attachment.mimeType} />
-          <span className="flex-1 text-body-medium text-on-surface font-medium truncate">{attachment.fileName}</span>
-          <span className="text-body-small text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
-          <IconButton label="Предпросмотр" onClick={() => setPreviewOpen(true)} icon={Visibility} />
-          {!readOnly && (
-            <IconButton label="Удалить" danger onClick={() => onChange(null)} icon={Delete} />
-          )}
-        </div>
+        {/* Вложение — input chip (Р4): щелчок — предпросмотр, крестик — удалить; под замком — без крестика. */}
+        {readOnly
+          ? <Chip icon={fileKindIcon(attachment.mimeType)} title="Предпросмотр" onClick={() => setPreviewOpen(true)}
+              className="max-w-full">{attachment.fileName} · {formatBytes(attachment.size)}</Chip>
+          : <Chip icon={fileKindIcon(attachment.mimeType)} title="Предпросмотр" onClick={() => setPreviewOpen(true)}
+              onRemove={() => onChange(null)} removeLabel="Удалить файл"
+              className="max-w-full">{attachment.fileName} · {formatBytes(attachment.size)}</Chip>}
         {uploadError && <p className="text-body-small text-error mt-1">{uploadError}</p>}
         <FilePreviewModal open={previewOpen} onOpenChange={setPreviewOpen} attachment={attachment} />
       </>
