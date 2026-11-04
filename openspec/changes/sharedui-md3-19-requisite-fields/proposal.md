@@ -70,7 +70,7 @@
 ## Impact
 
 - Клиент: `features/document-sets/fields/PrimitiveInput.tsx`, `fields/constants.ts`
-  (`fieldInputClass`), `editor/RequisitesTab.tsx` (подписи над полем у строк 495 и 610 — при варианте А
+  (`fieldInputClass`), `editor/RequisitesTab.tsx` (подписи над полем у строк 496 и 609 — при варианте А
   уходят; файл в `file-size-baseline.json` на 650 — расти ему нельзя).
 - Храповик: `scripts/ui-ratchet-inputs.mjs` и его тест, `ui-baseline.json`; `docs/UI.md` — абзац о
   `raw-field` (сегодня в нём «константа другого модуля правилу не видна»).
