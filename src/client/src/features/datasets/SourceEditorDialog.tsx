@@ -326,7 +326,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
               <label className="block text-body-medium font-medium text-on-surface mb-1">
                 Row-selector — путь к строкам (одна строка = один узел; условия сужают до конкретных)
               </label>
-              <PathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder={DEFAULT_ROW_SELECTOR[pathFormat]}
+              <PathBuilder label="Row-selector" value={sheetOrPath} onChange={setSheetOrPath} placeholder={DEFAULT_ROW_SELECTOR[pathFormat]}
                 preview={v => { const rs = composeRowSelector(v); return rs ? { fileId, rowSelector: rs } : null; }} />
             </div>
 
@@ -348,11 +348,10 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
               <div className="space-y-2">
                 {columns.map((col, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
-                      placeholder="Название колонки"
-                      className="w-40 shrink-0 px-2 py-1.5 rounded-sm border border-outline bg-surface text-body-medium" />
+                    <TextField density="dense" label={`Название колонки ${i + 1}`} placeholder="Название колонки"
+                      value={col.name} onChange={e => updateColumn(i, { name: e.target.value })} containerClassName="w-40 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <PathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
+                      <PathBuilder label={`Выражение колонки ${i + 1}`} value={col.expr} onChange={expr => updateColumn(i, { expr })}
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
                         preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                     </div>

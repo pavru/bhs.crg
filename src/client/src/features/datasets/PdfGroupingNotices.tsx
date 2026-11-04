@@ -1,7 +1,6 @@
-import { Icon } from '@/shared/ui/Icon';
-import { ContentCut, Warning } from '@/shared/ui/icons';
+import { ContentCut } from '@/shared/ui/icons';
 import { useRecutGrouping } from '@/shared/api/datasets';
-import { Button } from '@/shared/ui/Button';
+import { Banner } from '@/shared/ui/Banner';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
 
@@ -29,28 +28,22 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
   if (missing <= 0) return null;
 
   return (
-    <div role="alert" data-testid="missing-parts" className="mb-3 shrink-0 flex items-start gap-2 rounded-md
-      border border-outline-variant bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
-      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-      <p className="flex-1">
-        {ruCount(missing, 'документ', 'документа', 'документов')} без файла в хранилище: генерация выпустит
-        их без вложений.{' '}
-        {dirty
-          ? 'Сохранение разбиения вырежет их заново.'
-          : 'Вырезать их можно заново из файла набора — по текущему разбиению, оно не изменится.'}
-      </p>
-      {!dirty && (
-        <Button variant="outlined" icon={<Icon icon={ContentCut} size={18} />} loading={recut.isPending}
-          onClick={() => recut.mutate(undefined, {
-            onSuccess: r => r.missingParts > 0
-              ? toast.error(`Вырезаны не все: без файла осталось ${ruCount(r.missingParts, 'документ', 'документа', 'документов')}.`)
-              : toast.success('Документы вырезаны заново.'),
-            onError: e => toast.apiError(e, 'Не удалось вырезать документы'),
-          })}>
-          Вырезать документы заново
-        </Button>
-      )}
-    </div>
+    <Banner tone="warning" urgent data-testid="missing-parts" className="mb-3"
+      actions={dirty ? [] : [{
+        label: 'Вырезать документы заново', icon: ContentCut, loading: recut.isPending,
+        onClick: () => recut.mutate(undefined, {
+          onSuccess: r => r.missingParts > 0
+            ? toast.error(`Вырезаны не все: без файла осталось ${ruCount(r.missingParts, 'документ', 'документа', 'документов')}.`)
+            : toast.success('Документы вырезаны заново.'),
+          onError: e => toast.apiError(e, 'Не удалось вырезать документы'),
+        }),
+      }]}>
+      {ruCount(missing, 'документ', 'документа', 'документов')} без файла в хранилище: генерация выпустит
+      их без вложений.{' '}
+      {dirty
+        ? 'Сохранение разбиения вырежет их заново.'
+        : 'Вырезать их можно заново из файла набора — по текущему разбиению, оно не изменится.'}
+    </Banner>
   );
 }
 

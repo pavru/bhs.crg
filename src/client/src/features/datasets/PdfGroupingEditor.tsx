@@ -1,26 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Add, ArrowBack, Delete, Edit, ErrorIcon, KeyboardArrowDown, Refresh, Save, Table, Warning, ZoomIn } from '@/shared/ui/icons';
+import { Add, ArrowBack, Delete, Edit, KeyboardArrowDown, Refresh, Save, Table, Warning } from '@/shared/ui/icons';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
-  loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
+  recognitionRefusal, type RecognitionRefusal,
 } from '@/shared/api/datasets';
 import { useHiddenRecognitionProfiles, useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import { isHiddenBound, withBoundOption, type HiddenRecognitionProfile, type ProfileOption } from '@/shared/api/recognitionProfileGroups';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
-import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { GroupingSaveError, MissingPartsNotice } from './PdfGroupingNotices';
+import { PageTile, PageViewer } from './PdfPageTiles';
 import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Menu, MenuItem, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
 import { Chip } from '@/shared/ui/Chip';
+import { Card } from '@/shared/ui/Card';
+import { TextField } from '@/shared/ui/TextField';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -72,121 +74,6 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
   const title = mapped.filter(g => g.kind === 'TitlePage');
   const docs = mapped.filter(g => g.kind === 'Document');
   return [...cover, ...ensure('Cover'), ...title, ...ensure('TitlePage'), ...docs];
-}
-
-// ─── Миниатюра страницы (ленивая загрузка, без OCR — только чтобы узнать документ глазами) ────
-
-function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: number }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    loadPageThumbnailUrl(fileId, pageIndex)
-      .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [fileId, pageIndex]);
-
-  return (
-    <div className="w-full aspect-[210/297] rounded-xs bg-surface-container-low border border-outline-variant flex items-center justify-center overflow-hidden">
-      {url ? (
-        <img src={url} alt={`Страница ${pageIndex + 1}`} className="w-full h-full object-contain" />
-      ) : failed ? (
-        <span className="text-label-small text-on-surface-variant px-1 text-center">нет превью</span>
-      ) : (
-        <CircularProgress size={18} className="text-on-surface-variant" />
-      )}
-    </div>
-  );
-}
-
-// ─── Одна миниатюра-страница со статусом выделения/подозрительности ────────────────────────────
-// Внешний контейнер — div (не button): внутри лежит кнопка «просмотреть лист», а button-в-button
-// — невалидный HTML. Клик по плитке переключает выделение, клик по лупе (stopPropagation) — открывает
-// крупный просмотр листа.
-
-function PageTile({
-  fileId, pageIndex, selected, suspicious, noAnswer, onToggle, onView,
-}: {
-  fileId: string; pageIndex: number; selected: boolean; suspicious: boolean;
-  /** Движок не ответил по этому листу — признак ЛИСТА, а не группы (issue #803). */
-  noAnswer: boolean;
-  onToggle: (pageIndex: number, e: React.MouseEvent) => void;
-  onView: (pageIndex: number) => void;
-}) {
-  return (
-    <div onClick={e => onToggle(pageIndex, e)}
-      className={`group/tile relative rounded-sm p-1 border-2 transition-colors text-left cursor-pointer ${
-        selected ? 'border-primary bg-primary-container' : 'border-transparent hover:border-outline-variant'
-      }`}>
-      {/* Подсказка листа — на миниатюре с подписью, а лупа ей соседка, не потомок: у лупы своя
-          подсказка, и под курсором над ней должна открываться одна, а не обе. */}
-      <Tooltip content={noAnswer
-          ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
-          : `Страница ${pageIndex + 1}`}>
-        <div>
-          <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
-          <div className="flex items-center justify-between mt-1 px-0.5">
-            <span className="text-label-small text-on-surface-variant">{pageIndex + 1}</span>
-            {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
-                что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
-            {noAnswer ? <Icon icon={ErrorIcon} size={18} className="text-error" />
-              : suspicious && <Icon icon={Warning} size={18} className="text-warning" />}
-          </div>
-        </div>
-      </Tooltip>
-      <IconButton label="Просмотреть лист крупно"
-        className="absolute top-1.5 right-1.5 bg-surface/90 border border-outline-variant opacity-70 hover:opacity-100"
-        onClick={e => { e.stopPropagation(); onView(pageIndex); }} icon={ZoomIn} />
-    </div>
-  );
-}
-
-// ─── Крупный просмотр одного листа (высокое DPI, клик — вписать ↔ 100%) ──────────────────────────
-
-function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex: number; onClose: () => void }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [zoomed, setZoomed] = useState(false);
-
-  // Ни одного «сбросить перед загрузкой»: просмотрщик заводится заново на каждый лист (ключ по
-  // номеру листа на месте вызова, issue #858), поэтому «ещё грузится» — это начальное состояние
-  // свежего компонента, а не то, в которое его надо возвращать эффектом.
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    loadPageImageUrl(fileId, pageIndex)
-      .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [fileId, pageIndex]);
-
-  return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} wide nothingToLose>
-      {failed ? (
-        <p className="text-body-medium text-error py-10 text-center">Не удалось загрузить изображение листа.</p>
-      ) : !url ? (
-        <div className="flex items-center justify-center py-16 text-on-surface-variant"><CircularProgress size={20} /></div>
-      ) : (
-        <>
-          {/* Центрируем img через mx-auto (НЕ flex justify-center): при зуме, когда картинка шире/выше
-              контейнера, auto-поля схлопываются в 0 → доступен скролл ко ВСЕМ краям (иначе левый/верхний
-              край центрированного флекс-элемента недостижим и лист «обрезается»). */}
-          <div className="overflow-auto max-h-[78vh] rounded-xs border border-outline-variant bg-surface-container-low">
-            <img src={url} alt={`Лист ${pageIndex + 1}`}
-              onClick={() => setZoomed(z => !z)}
-              className={`block mx-auto ${zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full max-h-[78vh] object-contain cursor-zoom-in'}`} />
-          </div>
-          <p className="text-body-small text-on-surface-variant mt-2 text-center">Клик по изображению — переключить масштаб (вписать ↔ 100%).</p>
-        </>
-      )}
-    </Modal>
-  );
 }
 
 // ─── Панель действий над выделением (перенести в группу / отделить) ────────────────────────────
@@ -280,7 +167,7 @@ function GroupSection({
   }
 
   return (
-    <div className={`rounded-md border p-3 ${isSpecial ? 'border-outline-variant bg-surface-container-low' : 'border-outline-variant bg-surface'}`}>
+    <Card flush variant={isSpecial ? 'filled' : 'outlined'} className="p-3">
       <div className="flex items-center justify-between gap-2 mb-2">
         {isSpecial ? (
           <span className="text-body-medium font-medium text-on-surface-variant">{groupLabel(group)}</span>
@@ -290,12 +177,13 @@ function GroupSection({
           // редактор до того, как фокус попадёт во второе поле — из-за этого имя было не отредактировать.
           <div className="flex items-center gap-2 flex-1"
             onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
-            <input value={codeVal} onChange={e => setCodeVal(e.target.value)} placeholder="Шифр"
+            <TextField density="dense" label="Шифр" placeholder="Шифр" value={codeVal} onChange={e => setCodeVal(e.target.value)}
               autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
-              className="text-body-medium font-medium border-b border-primary bg-transparent outline-none w-32" />
-            <input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder="Наименование документа"
+              containerClassName="w-32" />
+            <TextField density="dense" label="Наименование документа" placeholder="Наименование документа"
+              value={nameVal} onChange={e => setNameVal(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
-              className="text-body-medium border-b border-primary bg-transparent outline-none flex-1" />
+              containerClassName="flex-1" />
           </div>
         ) : (
           <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-left group/title min-w-0">
@@ -369,7 +257,7 @@ function GroupSection({
           onSplitSelected={onSplitSelected}
         />
       )}
-    </div>
+    </Card>
   );
 }
 
