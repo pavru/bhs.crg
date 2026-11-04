@@ -64,7 +64,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
         <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
           className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-lg focus-ring">
           <BrandLogo className="w-8 h-8 text-primary" iconSize={24} />
-          <span className="w-full px-1 text-label-small font-semibold text-primary text-center truncate">{productName}</span>
+          <span className="w-full px-1 text-label-small text-primary text-center truncate">{productName}</span>
         </Link>
       </Tooltip>
 

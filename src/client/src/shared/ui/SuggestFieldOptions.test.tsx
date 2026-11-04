@@ -59,7 +59,7 @@ describe('SuggestField: перечень вместо адреса (UI-55)', () 
     render(<Field />);
     type('берез');
     expect(shownTexts()).toEqual(['Берёзовая 4']);
-    expect(list()!.querySelector('.font-semibold')!.textContent).toBe('Берёз');
+    expect(list()!.querySelector('.font-medium')!.textContent).toBe('Берёз');
   });
 
   it('архивный пункт виден с пометкой, а в поле уходит значение', () => {

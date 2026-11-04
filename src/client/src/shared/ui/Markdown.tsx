@@ -67,8 +67,8 @@ export function Markdown({ children, className = '' }: { children: string; class
     if (h) {
       flushPara(); flushList();
       const lvl = h[1].length;
-      const cls = lvl === 1 ? 'text-body-large font-semibold text-on-surface'
-        : lvl === 2 ? 'text-body-medium font-semibold text-on-surface' : 'text-body-medium font-medium text-on-surface';
+      const cls = lvl === 1 ? 'text-title-medium text-on-surface'
+        : lvl === 2 ? 'text-title-small text-on-surface' : 'text-body-medium font-medium text-on-surface';
       out.push(<p key={`h${k++}`} className={cls}>{inline(h[2], `h${k}`)}</p>);
     } else if (ul) {
       flushPara();

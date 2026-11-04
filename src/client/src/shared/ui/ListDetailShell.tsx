@@ -165,9 +165,9 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
 }
 
 /** Имя выбранного объекта в `DetailHeader` (issue #1352): `h2` — на ступень ниже заголовка страницы,
- *  крупно, но тише его (`font-normal`). Длинное обрезается, полностью — в подсказке. */
+ *  крупно, но тише его (`title-large`, вес 400). Длинное обрезается, полностью — в подсказке. */
 export function DetailTitle({ children }: { children: string }) {
-  return <h2 className="text-xl font-normal text-on-surface truncate min-w-0" title={children}>{children}</h2>;
+  return <h2 className="text-title-large text-on-surface truncate min-w-0" title={children}>{children}</h2>;
 }
 
 /** Sticky-шапка detail: слева доменный `heading` (имя+бейджи+код), справа dirty-бейдж + «Сохранить»

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Search, Star } from '@/shared/ui/icons';
+import { Star } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TextField } from '@/shared/ui/TextField';
 import { apiError } from '@/shared/utils/apiError';
 import { useSiteFilterState } from './siteFilterContext';
 
@@ -52,12 +53,8 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
         отбор «Стройки» над списком показывает и все.
       </p>
       {filter.sites.length >= SEARCH_FROM && (
-        <div className="relative">
-          <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Название стройки…"
-            aria-label="Название стройки"
-            className="w-full h-8 pl-8 pr-2 text-body-medium border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
-        </div>
+        <TextField density="dense" label="Название стройки" placeholder="Название стройки…"
+          value={query} onChange={e => setQuery(e.target.value)} />
       )}
       {filter.sites.length === 0 ? (
         <p className="text-body-medium text-on-surface-variant">Строек пока нет.</p>

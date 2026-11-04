@@ -238,5 +238,5 @@ function highlight(value: string, q: string): ReactNode {
   const at = matchStart(value, q);
   if (at < 0) return value;
   const end = at + q.trim().length;
-  return <>{value.slice(0, at)}<span className="font-semibold">{value.slice(at, end)}</span>{value.slice(end)}</>;
+  return <>{value.slice(0, at)}<span className="font-medium">{value.slice(at, end)}</span>{value.slice(end)}</>;
 }

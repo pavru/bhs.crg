@@ -77,7 +77,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
         <Popover.Content align="start" sideOffset={6} data-testid="sites-filter-popover" aria-labelledby={heading}
           className={`z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md p-4 ${LAYER_SURFACE}`}>
           <div className="flex items-center justify-between mb-2">
-            <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Стройки в списках</h2>
+            <h2 id={heading} className="text-title-small text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>
               <IconButton label="Закрыть" icon={Close} />
             </Popover.Close>
