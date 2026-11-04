@@ -33,7 +33,7 @@ export function AliasesPanel() {
   return (
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
-        <h2 className="text-body-large font-semibold text-on-surface flex items-center gap-2">
+        <h2 className="text-title-medium text-on-surface flex items-center gap-2">
           <Icon icon={LinkIcon} size={18} className="text-on-surface-variant" /> Алиасы позиций
         </h2>
         <p className="text-body-small text-on-surface-variant mt-0.5">

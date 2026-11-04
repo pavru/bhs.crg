@@ -55,7 +55,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
         <Popover.Content align="start" sideOffset={6} data-testid="layout-popover" aria-labelledby={heading}
           className={`z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md p-4 ${LAYER_SURFACE}`}>
           <div className="flex items-center justify-between mb-1">
-            <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Раскладка вида</h2>
+            <h2 id={heading} className="text-title-small text-on-surface">Раскладка вида</h2>
             <Popover.Close asChild>
               <IconButton label="Закрыть" icon={Close} />
             </Popover.Close>

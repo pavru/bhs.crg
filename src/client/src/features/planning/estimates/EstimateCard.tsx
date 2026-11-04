@@ -57,7 +57,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
     <div className="space-y-3">
       <BackLink back={back} />
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-body-large font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
+        <h2 className="text-title-medium text-on-surface min-w-0 truncate">{data.name}</h2>
         <StatusText tone="neutral">{KIND_LABEL[data.kind]}</StatusText>
         {editable && (
           <Button variant="outlined" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>

@@ -35,10 +35,6 @@
     "shared/siteFilter/SitesFilter.tsx": 1
   },
   "raw-field": {
-    "features/costs/ArticlesDialog.tsx": 2,
-    "features/costs/InvoiceLinesPaste.tsx": 1,
-    "features/costs/InvoicePlaceField.tsx": 1,
-    "features/costs/SupplierTermsDialog.tsx": 1,
     "shared/siteFilter/FavoritesPicker.tsx": 1
   },
   "cell-field": {},
@@ -48,22 +44,15 @@
     "features/settings/FunctionalTagChip.tsx": 1
   },
   "notice-plaque": {
-    "features/costs/CorrectionBar.tsx": 2,
-    "features/costs/CorrectionPreviewDialog.tsx": 1,
     "features/costs/InvoiceDeleteDialog.tsx": 1,
     "features/costs/InvoiceForm.tsx": 1,
     "features/costs/InvoicePartyNote.tsx": 1,
     "features/costs/InvoiceRecognitionNote.tsx": 1,
     "features/costs/InvoiceTwinNotes.tsx": 2,
-    "features/costs/IssuedMaterialsDialog.tsx": 1,
     "features/costs/LostReferencesNote.tsx": 1,
-    "features/costs/StaleInvoiceNotice.tsx": 1,
-    "features/costs/WaybillCorrectionBar.tsx": 2,
-    "features/costs/WaybillForm.tsx": 2,
-    "features/planning/estimates/MakeCurrentDialog.tsx": 1
+    "features/costs/StaleInvoiceNotice.tsx": 1
   },
   "hand-card": {
-    "features/costs/CostViewsBand.tsx": 1,
     "features/costs/InvoiceLinesTable.tsx": 1,
     "features/costs/InvoicePayment.tsx": 1,
     "features/costs/InvoiceRecognitionNote.tsx": 1,
@@ -97,15 +86,6 @@
   "legacy-radius": {},
   "legacy-shadow": {},
   "legacy-type": {
-    "features/costs/CorrectionHistory.tsx": 1,
-    "features/costs/LayoutChooser.tsx": 1,
-    "features/periods/ClosingSections.tsx": 2,
-    "features/periods/PeriodsPage.tsx": 1,
-    "features/planning/estimates/EstimateCard.tsx": 1,
-    "features/planning/estimates/EstimatesPanel.tsx": 1,
-    "features/reconciliations/AliasesPanel.tsx": 1,
-    "features/reconciliations/ObservationsPanel.tsx": 1,
-    "features/reconciliations/ReconciliationsPage.tsx": 1,
     "shared/siteFilter/SitesFilter.tsx": 1,
     "shared/ui/ListDetailShell.tsx": 1,
     "shared/ui/Markdown.tsx": 2,

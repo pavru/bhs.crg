@@ -36,7 +36,7 @@ export function ClosingSections({ sections, stale, before = null }: {
     <div className={`space-y-4 ${stale ? 'opacity-50' : ''}`} aria-busy={stale}>
       {sections.map(section => (
         <section key={section.module} aria-label={section.title}>
-          <h3 className="text-body-medium font-semibold text-on-surface">{section.title}</h3>
+          <h3 className="text-title-small text-on-surface">{section.title}</h3>
           <p className="text-body-small text-on-surface-variant">{section.dateRule}</p>
 
           <Group title="Не завершено — закрытию не мешает" group="unfinished" section={section} before={before} warn
@@ -52,7 +52,7 @@ export function ClosingSections({ sections, stale, before = null }: {
       {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
       {gone.map(section => (
         <section key={`gone:${section.module}`} aria-label={section.title} className="text-body-medium text-on-surface-variant">
-          <h3 className="text-body-medium font-semibold text-on-surface-variant">{section.title}</h3>
+          <h3 className="text-title-small text-on-surface-variant">{section.title}</h3>
           <p>
             Раздела больше нет: модуль о закрытии уже ничего не сообщает.
             {unfinishedSummary([section]) && <Was text={`было не завершено: ${unfinishedSummary([section])}`} />}

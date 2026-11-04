@@ -1,3 +1,4 @@
+import { Banner } from '@/shared/ui/Banner';
 import { Tabs } from '@/shared/ui/Tabs';
 import type { SiteCosts } from '@/shared/api/siteCosts';
 import { formatMoney } from '@/shared/format/format';
@@ -31,13 +32,15 @@ export function CostViewsBand({ data, closing, onChange }: {
   if (!data.differs) return null;
   const view: View = closing ? 'closing' : 'corrected';
 
+  // Пояснение — banner info в начале области (Р2-А); переключатель в действия banner не встаёт (там только
+  // text-кнопки) — он строкой под ним.
   return (
-    <section aria-label="Закрытые периоды" className="rounded-md border border-outline-variant bg-surface-container px-3 py-2 space-y-1.5 text-body-medium">
-      <p className="text-on-surface-variant">
+    <section aria-label="Закрытые периоды" className="space-y-2">
+      <Banner tone="info">
         В периоде есть исправления после закрытия: {data.differs === 'totals'
           ? 'итоги взглядов различаются.'
           : 'итоги равны, различаются разделы, поставщики или дни.'}
-      </p>
+      </Banner>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span className="text-body-small text-on-surface-variant">Закрытые периоды</span>
         <Tabs id={COST_VIEWS_ID} variant="segmented" aria-label="Закрытые периоды" value={view} onChange={onChange}

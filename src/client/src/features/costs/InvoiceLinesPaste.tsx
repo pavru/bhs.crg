@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { ContentPaste } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -88,11 +89,8 @@ function PasteDialog({ mode, onClose, onAdd }: {
         </>}>
         <div className="space-y-3">
 
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
-            aria-label="Таблица из буфера"
-            placeholder="Вставьте сюда таблицу товаров — из Excel, из PDF или из письма"
-            className="w-full rounded-md border border-outline-variant bg-surface-container px-3 py-2 text-body-small font-mono
-              text-on-surface outline-none focus:border-primary" />
+          <TextAreaField label="Таблица из буфера" value={text} onChange={e => setText(e.target.value)} rows={5}
+            hint="Вставьте сюда таблицу товаров — из Excel, из PDF или из письма" className="font-mono" />
 
           {table.length > 0 && (
             <>

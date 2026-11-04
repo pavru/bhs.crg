@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { BOTTOM_SHEET_SURFACE, DIALOG_SCRIM, SHEET_TITLE } from '@/shared/ui/dialogSurface';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
+import { TextField } from '@/shared/ui/TextField';
 import { ChevronLeft, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -182,11 +183,11 @@ function Choices({ places, value, label, onPick }: {
   let index = list.lost ? 1 : 0;
   return (
     <>
-      <input ref={input} type="text" value={query} autoFocus aria-label={site ? `Найти раздел стройки «${site.name}»` : 'Найти стройку или раздел'}
+      <TextField ref={input} density="dense" containerClassName="mx-1 mb-1" value={query} autoFocus
+        label={site ? `Найти раздел стройки «${site.name}»` : 'Найти стройку или раздел'}
         role="combobox" aria-expanded aria-controls={`${ids}-list`} aria-activedescendant={active?.id}
         placeholder={site ? 'Найти раздел' : 'Найти стройку или раздел'}
-        onChange={e => { setQuery(e.target.value); setActiveKey(null); }} onKeyDown={onKeyDown}
-        className="mx-1 mb-1 h-8 px-2 rounded-xs border border-outline bg-surface text-body-medium text-on-surface placeholder:text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+        onChange={e => { setQuery(e.target.value); setActiveKey(null); }} onKeyDown={onKeyDown} />
       {site && !query.trim() && (
         <button type="button" onMouseDown={keepFocus} onClick={() => step(null)}
           className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded-xs text-body-small text-on-surface-variant hover:bg-primary-container"

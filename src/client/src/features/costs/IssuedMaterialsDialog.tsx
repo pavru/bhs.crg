@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Warning } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Banner } from '@/shared/ui/Banner';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import { useIssuedMaterials, type IssuedMaterial } from '@/shared/api/waybills';
@@ -28,8 +27,8 @@ const COLUMNS: DataGridColumn<IssuedMaterial>[] = [
  * «Материалы на объекте»: что выдано на стройку проведёнными накладными (ТЗ COST-17; задача D1,
  * issue #1083).
  *
- * <p>⚠️ Оговорка о несопоставленных строках стоит НАД перечнем, а не под ним: перечень без неё
- * читается как «выдано только это», а строка без позиции номенклатуры в него не попадает.</p>
+ * <p>⚠️ Оговорка о несопоставленных строках стоит НАД перечнем, а не под ним — banner в начале окна: перечень
+ * без неё читается как «выдано только это», а строка без позиции номенклатуры в него не попадает.</p>
  */
 export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
   sites: CostsConstruction[];
@@ -41,8 +40,17 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
   const data = materials.data;
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Материалы на объекте" wide nothingToLose>
-      <div className="space-y-3">
+    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Материалы на объекте" wide nothingToLose flushBody
+      footer={<ModalExit>Закрыть</ModalExit>}>
+      {/* Оговорка — сообщение окна: banner в его начале (Р1-А), над перечнем, который без неё неполон. */}
+      {site && data && data.unmatchedLines > 0 && (
+        <Banner tone="warning">
+          Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
+          ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
+          отбор «Сопоставить» в списке накладных.
+        </Banner>
+      )}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-2 pb-2 space-y-3">
         <Select label="Стройка" value={site} onValueChange={setSite} placeholder="выберите стройку"
           error={sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список.' : undefined}>
           {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -56,15 +64,6 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
 
         {site && data && (
           <>
-            {data.unmatchedLines > 0 && (
-              <p role="status" className="flex items-start gap-2 rounded-md border border-outline-variant
-                bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
-                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-                Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
-                ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
-                отбор «Сопоставить» в списке накладных.
-              </p>
-            )}
             {data.items.length === 0
               ? (
                 <p className="text-body-small text-on-surface-variant">

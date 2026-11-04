@@ -2,6 +2,7 @@ import { LOST, MISSING } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CheckCircle, EditNote, Refresh, Save, Undo, Warning } from '@/shared/ui/icons';
+import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -287,28 +288,16 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           {!correcting && <WaybillDeleteMenu view={view} canEdit={canEdit} dirty={dirty} onDeleted={onClose} />}
         </div>
         {gone && (
-          <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-md border
-            border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <p className="flex-1">
-              Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
-              экране: перенесите нужное себе. Сохранить его уже некуда.
-            </p>
-            <Button variant="outlined" onClick={onClose}>Закрыть накладную</Button>
-          </div>
+          <Banner tone="error" data-testid="waybill-gone-open" actions={[{ label: 'Закрыть накладную', onClick: onClose }]}>
+            Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
+            экране: перенесите нужное себе. Сохранить его уже некуда.
+          </Banner>
         )}
         {outdated && !gone && (
-          <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30
-            bg-error-container px-3 py-2 text-body-small text-on-error-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <span className="flex-1">
-              Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
-              сервер откажет. Перечитайте накладную и внесите правки заново.
-            </span>
-            <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={() => adopt(fresh)}>
-              Перечитать, отбросив правки
-            </Button>
-          </div>
+          <Banner tone="error" actions={[{ label: 'Перечитать, отбросив правки', icon: Refresh, onClick: () => adopt(fresh) }]}>
+            Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
+            сервер откажет. Перечитайте накладную и внесите правки заново.
+          </Banner>
         )}
         {note && (
           <p role="status" className="flex items-start gap-2 text-body-small text-warning">

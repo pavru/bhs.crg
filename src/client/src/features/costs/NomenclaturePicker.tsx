@@ -6,6 +6,7 @@ import { Close, Search, Warning } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
+import { SideSheet } from '@/shared/ui/SideSheet';
 import { apiError } from '@/shared/utils/apiError';
 import { isNotFound, useNomenclature } from '@/shared/api/invoices';
 import { useNomenclatureCard, type NomenclatureCard } from '@/shared/api/nomenclatureCard';
@@ -157,9 +158,10 @@ function useNarrow() {
 /**
  * Тело монтируется по открытию: запрос заводится заново, и эффекта «закрылось — очисти» не нужно.
  *
- * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции. Одно выделение на
- * список (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой.
- * Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
+ * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции — side sheet в слое окна
+ * ([UI-81]): Esc закрывает сначала его, фокус остаётся в поиске. Одно выделение на список
+ * (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой. Крестик прячет лист
+ * до выделения другой строки. Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
  *
  * <p><b>Пустой запрос — кандидаты, а не голова алфавита</b> (issue #1518): первые 25 позиций по алфавиту
  * этой строке не подходят ничем. Набор — обычный поиск; стёр — кандидаты снова, из кэша.</p>
@@ -181,6 +183,8 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const [creating, setCreating] = useState(false);
   // Карточка шагом окна — на узком теле.
   const [opened, setOpened] = useState<PickerRow | null>(null);
+  // Лист закрыт крестиком или Esc — для этой строки; выделение другой открывает его снова.
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const canCreate = useCan().permission('core.nomenclature.edit');
   const { ref, narrow } = useNarrow();
   const phone = !useMedia(WIDE);
@@ -306,8 +310,8 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         </>
       )}>
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-outline-variant'}>
-        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
+        : 'flex-1 min-h-0 flex border-t border-outline-variant'}>
+        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'flex-1 min-w-0 overflow-y-auto'}`}>
           {plate}
           <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
             <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
@@ -401,11 +405,13 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
-          <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-outline-variant px-5 py-4">
-            <NomenclatureCardPanel id={selection.active}
+          <SideSheet variant="standard" open={!!selection.active && selection.active !== dismissed}
+            onClose={() => setDismissed(selection.active)} autoFocus={false}
+            title={active?.name ?? 'без названия'} label="Карточка позиции">
+            <NomenclatureCardPanel id={selection.active} titled
               compare={selection.active ? compare(active?.matched ?? null) : undefined}
               head={active ? { name: active.name, type: active.type, why: active.why } : null} onPick={onPick} />
-          </aside>
+          </SideSheet>
         )}
       </div>
 
