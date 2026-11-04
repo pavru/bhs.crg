@@ -433,9 +433,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               return (
                 <div key={i}>
                 <div {...dropTarget(i)}
-                  className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken
+                  className={`state-layer flex items-center gap-2 px-3 py-2 ${wrappedBroken
                     ? selectedRing(i)
-                    : selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
+                    : selected.has(i) ? 'bg-primary-container' : ''}`}>
                   {rowChrome(i, wrappedBroken)}
                   <Icon icon={LinkIcon} size={18} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
                   <span className={`flex-1 text-body-medium truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
