@@ -103,7 +103,7 @@ public class RenditionServiceTests
             shown.GetRow(0).CreateCell(5).SetCellValue("hiddencolumn secret words never printed");
             shown.SetColumnHidden(5, true);
             workbook.CreateSheet("Service").CreateRow(0).CreateCell(0).SetCellValue("hiddensheet settings template rows");
-            workbook.SetSheetHidden(1, SheetState.Hidden);
+            workbook.SetSheetHidden(1, SheetVisibility.Hidden);
         });
 
         var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(InvoiceText))).BuildAsync(book));

@@ -104,7 +104,7 @@ public class OldWorkbookRenditionTests
         var book = Workbook(b =>
         {
             b.CreateSheet("Hidden").CreateRow(0).CreateCell(0).SetCellValue("secret");
-            b.SetSheetHidden(0, SheetState.Hidden);
+            b.SetSheetHidden(0, SheetVisibility.Hidden);
             string[][] sheets = [["alpha bravo", "service marks"], ["charlie delta", "export noise words"]];
             for (var i = 0; i < sheets.Length; i++)
             {
@@ -183,7 +183,7 @@ public class OldWorkbookRenditionTests
             var (name, hidden, text) = sheets[i];
             var sheet = book.CreateSheet(name);
             if (text is not null) sheet.CreateRow(0).CreateCell(0).SetCellValue(text);
-            if (hidden) book.SetSheetHidden(i, SheetState.Hidden);
+            if (hidden) book.SetSheetHidden(i, SheetVisibility.Hidden);
         }
     });
 

@@ -33,26 +33,31 @@
     <PackageReference Include="ExcelDataReader" Version="3.7.0" />
     <PackageReference Include="ExcelDataReader.DataSet" Version="3.7.0" />
     <PackageReference Include="CsvHelper" Version="33.0.1" />
-    <PackageReference Include="NPOI" Version="2.7.2" />
+    <!-- Диапазон, а не точная версия: 2.7.4 — последний выпуск без чужой лицензии (issue #1756, DEV_NOTES
+         «Поставка»). В 2.7.5–2.7.6 NPOI тянет NSax под LGPL-3.0, с 2.8.0 бинарники на NuGet — под EULA
+         со сбором. Граница видна там, где версию правят, а транзитивная ≥ 2.7.5 даёт NU1608 до тестов;
+         переписанный диапазон ловит NpoiLicenseTests. -->
+    <PackageReference Include="NPOI" Version="[2.7.4,2.7.5)" />
     <PackageReference Include="System.IO.Packaging" Version="9.0.5" />
     <PackageReference Include="Jint" Version="4.0.0" />
     <PackageReference Include="PdfSharpCore" Version="1.3.67" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
-    <!-- Кодом не используется: его тянут NPOI и PdfSharpCore, а версии из их зависимостей (2.1.9 и
+    <!-- Кодом не используется: его тянут NPOI и PdfSharpCore, а версии из их зависимостей (2.1.10 и
          1.0.4) и вся ветка 3.x — с уведомлениями об уязвимостях, которые проверка пакетов переводит
          в отказ сборки (NU1903). Исправление есть только в 4.x, поэтому версия прибита здесь.
          ⚠️ Прямая ссылка включает ПРОВЕРКУ ЛИЦЕНЗИИ Six Labors при сборке (targets лежат в build/,
          транзитивной зависимости они не достаются): Debug без ключа — предупреждение, Release — отказ.
          Ключ: секрет SIXLABORS_LICENSE_KEY в CI, локально — файл sixlabors.lic в КОРНЕ репозитория
          (см. ниже) или переменная SixLaborsLicenseKey. Подробности — docs/DEV_NOTES.md, «Поставка».
-         Убрать строку можно, когда NPOI и PdfSharpCore сами перейдут на исправленную версию.
+         Строка остаётся: NPOI стоит на ветке 2.7 (issue #1756), а вся она тянет ImageSharp 2.x; да и
+         PdfSharpCore на исправленную версию не перешёл.
          Совместимость библиотек с этой версией стережёт ImageSharpCompatibilityTests. -->
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.5" />
 
     <!-- Кодом не используется: NPOI тянет этот пакет за собой, а версия из его зависимостей (8.0.2)
          числится в известных уязвимостях (NU1903). Прямая ссылка поднимает разрешённую версию до
-         исправленной — убрать её можно будет, когда NPOI сам перейдёт на 10.0.13+. -->
+         исправленной. Строка остаётся: NPOI стоит на ветке 2.7 (issue #1756), и вся она тянет 8.0.2. -->
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
 
     <!-- Тоже кодом не используется: MimeKit (через MailKit) тянет 10.0.0, а она в известных

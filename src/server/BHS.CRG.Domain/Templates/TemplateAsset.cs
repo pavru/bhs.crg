@@ -34,7 +34,7 @@ public class TemplateAsset : Entity
     public string BlobPath { get; private set; } = default!;
 
     /// <summary>Только для Kind=Font — имя семейства, распознанное из файла при загрузке
-    /// (SixLabors.Fonts). Null, если распознать не удалось — резолвер приоритета тогда
+    /// (FontFamilyNameReader — своё чтение таблицы name). Null, если распознать не удалось — резолвер приоритета тогда
     /// сравнивает по Name (менее надёжный fallback).</summary>
     public string? FontFamilyName { get; private set; }
 
