@@ -275,13 +275,13 @@ describe('SuggestField: вид (UI-4)', () => {
     expect(screen.queryByText('С других строек')).toBeNull();
   });
 
-  it('совпадение — жирным, с начала слова, без регистра и с ё=е', async () => {
+  it('совпадение — весом, с начала слова, без регистра и с ё=е', async () => {
     answer([{ value: 'Провод ПуГВ', here: true }]);
     wrap(<Field />);
     box().focus();
     typeFast(box(), 'пуг');
     await opened();
-    expect(options()[0].querySelector('.font-semibold')?.textContent).toBe('ПуГ');
+    expect(options()[0].querySelector('[data-match]')?.textContent).toBe('ПуГ');
 
     expect(matchStart('Ёлка', 'ел')).toBe(0);
     expect(matchStart('Кабель-канал', 'кан')).toBe(7);
@@ -422,7 +422,7 @@ describe('SuggestField: прошлый ответ не переживает св
     fireEvent.change(box(), { target: { value: 'Кабе' } });
     await pause(250);
     expect(asked()).toEqual(['Каб', 'Кабе']);
-    expect(options().map(o => o.querySelector('.font-semibold')?.textContent)).toEqual(['Каб', 'Каб', 'Каб']);
+    expect(options().map(o => o.querySelector('[data-match]')?.textContent)).toEqual(['Каб', 'Каб', 'Каб']);
   });
 
   it('другое поле в той же клетке не показывает значений прежнего', async () => {
