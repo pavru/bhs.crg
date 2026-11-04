@@ -261,6 +261,11 @@
   контекстная шапка выбора, `SideSheet` 400 для предпросмотра и карточки номенклатуры. PR — шесть: PR 0
   (`SelectionBar`, состояния `Card`, `SideSheet` в окне, `skip` флажка у `legacy-radius`, `/design-sync`) и
   пять по разделам.
+- [ ] 4.1a `sharedui-md3-19-requisite-fields` (2–3) — значение реквизита из источника и под замком: пять
+  сырых полей `fieldInputClass` в `PrimitiveInput` → поле `shared/ui` по варианту владельца [UI-86];
+  `raw-field` видит класс из функции и другого модуля, `FIELD_CLS` — объявленное исключение [UI-69]. Вынесен
+  из 4.1 решением владельца 05.11.2026 (заметка к задаче 3.1 md3-17). Раздел 0 — три макета и выбор
+  владельца. 4.2 не блокирует: в `fieldInputClass` нет псевдонимов. Проверка — change заархивирован.
 - [ ] 4.2 `sharedui-md3-20-legacy-removal` (1) — удаление псевдонимов, сброс `--color-*`, `--radius-*`,
   `--text-*`, `--shadow-*` в `@theme` (D11),
   `theme-classes.test.mjs`, снятие `legacy-class`, `palette`, `text-size`, финал `docs/UI.md`, README
