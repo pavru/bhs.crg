@@ -52,9 +52,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
       readOnly={rest.readOnly} density={density} htmlFor={inputId} trailing={trailing} containerClassName={containerClassName}
     >
-      {/* В клетке подписи у оболочки нет — имя полю даёт `aria-label`. */}
+      {/* В клетке подписи у оболочки нет — имя полю даёт `aria-label`. Неверное — `aria-invalid`, а не одна красная
+          рамка: рамку диктор не прочтёт (ревью PR #1760). */}
       <input
         ref={ref} id={inputId} aria-label={density === 'cell' ? label : undefined} placeholder={density === 'form' ? ' ' : placeholder ?? ' '} required={required} aria-describedby={described}
+        aria-invalid={invalid || !!error || undefined}
         className={`peer w-full rounded-xs bg-transparent text-on-surface ${fieldBox(density, { trailing: !!trailing })} ` +
           `outline-none disabled-content ${className}`}
         {...rest}

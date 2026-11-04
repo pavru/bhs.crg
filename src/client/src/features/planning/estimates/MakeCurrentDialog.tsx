@@ -5,7 +5,7 @@ import {
 } from '@/shared/api/planningEstimates';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
-import { Banner } from '@/shared/ui/Banner';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -29,15 +29,12 @@ export function MakeCurrentDialog({ estimateId, revision, onClose }: {
   // Запрос смены — снаружи тела: пока он идёт, окно не закрывается (`busy`) — закрытое спрятало бы исход.
   const make = useMakeCurrentRevision();
   return (
-    <Modal open={revision !== null} onOpenChange={open => { if (!open) onClose(); }} wide busy={make.isPending} flushBody
+    <Modal open={revision !== null} onOpenChange={open => { if (!open) onClose(); }} wide busy={make.isPending}
       title={revision ? `Сделать ред. ${revision.number} действующей?` : ''}>
       {revision && <Body estimateId={estimateId} revisionId={revision.id} make={make} onDone={onClose} />}
     </Modal>
   );
 }
-
-/** Тело окна прокручивается само (`flushBody`): banner над ним стоит на месте. */
-const BODY = 'flex-1 min-h-0 overflow-y-auto px-6 pt-2 pb-6';
 
 function Body({ estimateId, revisionId, make, onDone }: {
   estimateId: string;
@@ -62,20 +59,19 @@ function Body({ estimateId, revisionId, make, onDone }: {
     });
   };
 
-  if (preview.isError) return <p role="alert" className={`${BODY} text-body-medium text-error`}>{apiError(preview.error, 'Расхождения не посчитались')}</p>;
-  if (!preview.data) return <p className={`${BODY} text-body-medium text-on-surface-variant`}>Считаем, что изменится в плане…</p>;
+  if (preview.isError) return <p role="alert" className="text-body-medium text-error">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
+  if (!preview.data) return <p className="text-body-medium text-on-surface-variant">Считаем, что изменится в плане…</p>;
   const data = preview.data;
 
   return (
-    <>
-    {/* Несопоставленные строки — сообщение окна: banner в его начале, над фактами (Р1-А). */}
-    {data.unmatched > 0 && (
-      <Banner tone="warning">
-        В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
-        можно сделать и сейчас; сопоставленное позже войдёт в план само.
-      </Banner>
-    )}
-    <div className={`${BODY} space-y-4`}>
+    <div className="space-y-4">
+      {/* Несопоставленные строки — сообщение окна: banner в его начале, над фактами (Р1-А). */}
+      {data.unmatched > 0 && (
+        <ModalBanner tone="warning">
+          В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
+          можно сделать и сейчас; сопоставленное позже войдёт в план само.
+        </ModalBanner>
+      )}
       <p className="text-body-medium text-on-surface-variant">
         {data.currentRevisionNumber === null
           ? `План стройки будет считаться по ред. ${data.revisionNumber}.`
@@ -99,7 +95,6 @@ function Body({ estimateId, revisionId, make, onDone }: {
         </ModalPrimary>
       </ModalButtons>
     </div>
-    </>
   );
 }
 

@@ -100,3 +100,9 @@ export interface ModalBar {
 }
 
 export const ModalBarContext = createContext<ModalBar | null>(null);
+
+/**
+ * Место banner окна (`ModalBanner`): под шапкой, над прокруткой тела. `null` — не в окне (или окно `flushBody`,
+ * раскладывающее тело само); `host: null` — окно есть, а место ещё не смонтировано.
+ */
+export const ModalBannerContext = createContext<{ host: HTMLElement | null } | null>(null);

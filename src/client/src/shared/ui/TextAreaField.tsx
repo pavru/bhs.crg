@@ -54,6 +54,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
       <div className="pt-4">
         <textarea
           ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
+          aria-invalid={invalid || !!error || undefined}
           className={`block w-full rounded-xs bg-transparent pl-4 pr-[calc(1rem+var(--field-mark,0px))] pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}

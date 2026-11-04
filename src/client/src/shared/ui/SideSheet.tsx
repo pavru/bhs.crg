@@ -26,6 +26,9 @@ import { WindowLayerContext, WindowStepContext } from './modalControl';
  *
  * <p>Смена ширины перемонтирует содержимое — набранное в листе при повороте экрана теряется (design 2б).</p>
  *
+ * <p>Заголовок переносится, а не обрезается: в листе это обычно имя записи, и различаются такие имена нередко
+ * концом («кабель … 5х2,5» и «… 5х4») — многоточие спрятало бы ровно то, ради чего лист открыли (ревью PR #1760).</p>
+ *
  * <p><b>Standard внутри `Modal`</b> ([UI-81], sharedui-md3-17: карточка позиции в окне выбора). Лист встаёт в
  * свой слой окна — форму или шаг (`WindowStepHost.sheet`), — и Esc этого слоя закрывает сначала лист, затем окно
  * или шаг, и тогда, когда фокус не в листе, а в поиске окна. Шаг поверх формы с листом получает свой Esc сам.
@@ -88,7 +91,7 @@ function ModalSideContent({ title, closeLabel, onClose, actions, children }: {
         e.preventDefault();
         focusFromLayer(opener);
       }}>
-      <SheetHeader title={<Dialog.Title className={`truncate ${SHEET_TITLE}`}>{title}</Dialog.Title>} actions={actions}
+      <SheetHeader title={<Dialog.Title className={`break-words ${SHEET_TITLE}`}>{title}</Dialog.Title>} actions={actions}
         close={<IconButton label={closeLabel} icon={Close} onClick={onClose} />} />
       <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">{children}</div>
     </Dialog.Content>
@@ -125,7 +128,7 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
           // Фокус к открывшему возвращает эффект выше — один владелец на оба вида.
           onCloseAutoFocus={e => e.preventDefault()}>
           <SheetHeader lead={closeButton} actions={actions}
-            title={<Dialog.Title className={`truncate ${SHEET_TITLE}`}>{title}</Dialog.Title>} />
+            title={<Dialog.Title className={`break-words ${SHEET_TITLE}`}>{title}</Dialog.Title>} />
           {body}
         </Dialog.Content>
       </Dialog.Portal>
@@ -143,7 +146,7 @@ function StandardSheet({ onClose, title, label, closeLabel = 'Закрыть', a
         onClose();
       }}
       className="w-100 shrink-0 flex flex-col min-h-0 border-l border-outline-variant bg-surface">
-      <SheetHeader close={closeButton} actions={actions} title={<h2 className={`truncate ${SHEET_TITLE}`}>{title}</h2>} />
+      <SheetHeader close={closeButton} actions={actions} title={<h2 className={`break-words ${SHEET_TITLE}`}>{title}</h2>} />
       {/* Лист рядом со страницей — тоже слой: портала нет, но место своё. */}
       <LayerBoundary>{body}</LayerBoundary>
     </aside>
