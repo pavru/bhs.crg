@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Star } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { TextField } from '@/shared/ui/TextField';
+import { SearchInput } from '@/shared/ui/SearchInput';
 import { apiError } from '@/shared/utils/apiError';
 import { useSiteFilterState } from './siteFilterContext';
 
@@ -53,8 +53,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
         отбор «Стройки» над списком показывает и все.
       </p>
       {filter.sites.length >= SEARCH_FROM && (
-        <TextField density="dense" label="Название стройки" placeholder="Название стройки…"
-          value={query} onChange={e => setQuery(e.target.value)} />
+        <SearchInput value={query} onChange={setQuery} placeholder="Название стройки…" ariaLabel="Название стройки" />
       )}
       {filter.sites.length === 0 ? (
         <p className="text-body-medium text-on-surface-variant">Строек пока нет.</p>

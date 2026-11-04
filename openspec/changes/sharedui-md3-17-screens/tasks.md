@@ -179,6 +179,11 @@ PR 5 разделён на два (решение владельца 05.11.2026)
   подсказке — `font-medium` (три теста `SuggestField` ищут его по этому классу); поиск избранного — плотный
   `TextField`. Уровни: `raw-field` 1 → 0, `legacy-type` 6 → 0; остались `notice-plaque` 8 и `hand-card` 8 —
   экран счёта. Весь `test:e2e:ci` зелёный (21 набор); снимки — https://claude.ai/artifact/DfBvGpqC6ykaKn72jYoeTi
+  Правки ревью PR (05.11.2026): совпадение в подсказке — вес `font-medium` с меткой `data-match`, [UI-4] и
+  сценарий [UI-55] переписаны с «жирным» на «весом» (MODIFIED в дельте `sharedui`); заголовки `Markdown` —
+  `h3`–`h5` ролями `title-large` / `title-medium` / `title-small` (`##` и `###` совпадали); поиск избранного —
+  `SearchInput` (лупа и сброс по Esc), поповер отбора «Стройки» — `LayerBoundary`, поле в нём плотное 40;
+  `DetailTitle` — до двух строк вместо обрезки
 - [ ] 5.1б PR 5б — 16 мест экрана счёта после архива `costs-invoice-screen-10…13` (что те оставили) [UI-81].
   Проверка — по шести правилам в `ui-baseline.json` нет ни одного файла
 - [ ] 5.2 PR 5б — тест пустого уровня — новым файлом (`ui-ratchet.test.mjs` и `ui-ratchet-lib.mjs` у порога 500

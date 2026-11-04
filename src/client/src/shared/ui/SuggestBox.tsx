@@ -234,9 +234,13 @@ function Announce({ shown, count }: { shown: boolean; count: number }) {
   return <span aria-live="polite" className="sr-only">{said.text}</span>;
 }
 
+/**
+ * Совпадение с набранным — весом роли (`font-medium`, 500 против 400 у пункта), а не цветом ([UI-4]):
+ * начертания жирнее ролей MD3 нет. `data-match` — метка для проверок: класс веса носят и другие части пункта.
+ */
 function highlight(value: string, q: string): ReactNode {
   const at = matchStart(value, q);
   if (at < 0) return value;
   const end = at + q.trim().length;
-  return <>{value.slice(0, at)}<span className="font-medium">{value.slice(at, end)}</span>{value.slice(end)}</>;
+  return <>{value.slice(0, at)}<span data-match="" className="font-medium">{value.slice(at, end)}</span>{value.slice(end)}</>;
 }

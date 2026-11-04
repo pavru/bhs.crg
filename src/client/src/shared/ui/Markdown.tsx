@@ -4,6 +4,16 @@ import { type ReactNode } from 'react';
 // поэтому текст экранируется React'ом). Поддерживает: заголовки решётками, маркированные и нумерованные
 // списки, абзацы; инлайн — жирный, курсив, код, ссылки. Для справки типа документа (schema.help).
 
+/**
+ * Заголовки решётками — настоящие заголовки (читалка ходит по ним), ниже `h2` места, где
+ * справка стоит: детали типа и формы реквизитов. Роли — ступенями шкалы MD3, чтобы `##` и `###` различались.
+ */
+const HEADINGS = [
+  { Tag: 'h3', cls: 'text-title-large' },
+  { Tag: 'h4', cls: 'text-title-medium' },
+  { Tag: 'h5', cls: 'text-title-small' },
+] as const;
+
 const INLINE = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
 
 function safeHref(url: string): string | undefined {
@@ -66,10 +76,8 @@ export function Markdown({ children, className = '' }: { children: string; class
     const ol = /^\d+\.\s+(.*)$/.exec(line);
     if (h) {
       flushPara(); flushList();
-      const lvl = h[1].length;
-      const cls = lvl === 1 ? 'text-title-medium text-on-surface'
-        : lvl === 2 ? 'text-title-small text-on-surface' : 'text-body-medium font-medium text-on-surface';
-      out.push(<p key={`h${k++}`} className={cls}>{inline(h[2], `h${k}`)}</p>);
+      const { Tag, cls } = HEADINGS[h[1].length - 1];
+      out.push(<Tag key={`h${k++}`} className={`${cls} text-on-surface`}>{inline(h[2], `h${k}`)}</Tag>);
     } else if (ul) {
       flushPara();
       if (list && !list.ordered) list.items.push(ul[1]);

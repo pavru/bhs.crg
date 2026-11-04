@@ -9,6 +9,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { FavoritesPicker } from './FavoritesPicker';
 import { useSiteFilterState } from './siteFilterContext';
 import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
+import { LayerBoundary } from '@/shared/ui/LayerBoundary';
 
 /**
  * Отбор «Стройки» в строке фильтров списка (issue #1432) — вместо сегмента «Избранные N / Все N» в шапке.
@@ -88,7 +89,8 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
             <Choices on={filter.on} onPick={filter.setOn} onDone={() => setOpen(false)}
               favorites={`${count} из ${total}`} all={String(total)} />
           )}
-          <FavoritesPicker />
+          {/* Поповер — слой: поиск в нём плотный (40), как в окне и листе. */}
+          <LayerBoundary><FavoritesPicker /></LayerBoundary>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
