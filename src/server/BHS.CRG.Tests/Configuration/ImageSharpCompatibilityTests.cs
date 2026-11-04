@@ -97,10 +97,19 @@ public class ImageSharpCompatibilityTests
                 return SystemFonts.TryGet(family, CultureInfo.CurrentCulture, out var found)
                     && TextMeasurer.MeasureSize("0", new TextOptions(found.CreateFont(11))).Width > 0;
             }
-            catch (Exception e) when (e is not (MissingMethodException or MissingFieldException or TypeLoadException))
+            catch (Exception e) when (!IsVersionMismatch(e))
             {
                 return false;
             }
+        }
+
+        // По всей цепочке: несовместимость, случившаяся в статическом конструкторе, приходит обёрнутой
+        // в TypeInitializationException, и проглоти её фильтр — тест соврал бы «на машине нет шрифтов».
+        static bool IsVersionMismatch(Exception? e)
+        {
+            for (; e is not null; e = e.InnerException)
+                if (e is MissingMemberException or TypeLoadException) return true;
+            return false;
         }
     }
 }

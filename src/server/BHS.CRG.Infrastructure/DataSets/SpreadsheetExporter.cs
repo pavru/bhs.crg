@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Reflection;
 using System.Text;
 using CsvHelper;
 using NPOI.HSSF.UserModel;
@@ -116,7 +115,7 @@ public static class SpreadsheetExporter
     private static void WriteSheet(IWorkbook wb, Sheet s, CellStyles styles)
     {
         var sheet = wb.CreateSheet(SafeSheetName(s.Name));
-        if (sheet is SXSSFSheet streamed) WithoutFontMeasure(streamed);
+        if (sheet is SXSSFSheet streamed) StreamingSheetFonts.Detach(streamed);
         // Строка итогов может быть шире таблицы: её подпись встаёт за последней колонкой, когда под
         // первой стоит сам итог. Ширину считаем и там — иначе сумма за краем таблицы показана решёткой.
         var widths = new int[Math.Max(s.Columns.Count, (s.Footer ?? []).Select(f => f.Count).DefaultIfEmpty().Max())];
@@ -146,42 +145,14 @@ public static class SpreadsheetExporter
         // контейнере поставки нет, и на длинном листе обходит каждую клетку второй раз. Без ширины
         // вовсе дата в колонке по умолчанию показана решёткой «########» — значение на месте, но
         // человек видит испорченный файл.
+        // ⚠️ У потокового листа AutoSizeColumn не работает вовсе: трекер, которым он мерит, выключен
+        // (StreamingSheetFonts), и NPOI ответит невнятным отказом «колонка не отслеживается».
         for (var c = 0; c < widths.Length; c++)
             sheet.SetColumnWidth(c, (Math.Clamp(widths[c], MinWidth, MaxWidth) + 2) * 256);
     }
 
     private const int MinWidth = 6;
     private const int MaxWidth = 60;
-
-    /// <summary>
-    /// Потоковый лист — без замера шрифтом машины. NPOI 2.7 заводит трекер автоширины при сбросе
-    /// ПЕРВОЙ же строки, хотя автоширину никто не просил, а трекер в конструкторе меряет знак «0»
-    /// шрифтом книги — системным, через SixLabors.Fonts. Calibri и Arial на Linux обычно нет, и NPOI
-    /// берёт первое попавшееся семейство машины. Окажись им цветной Noto Color Emoji (растровый, без
-    /// таблицы <c>loca</c>) — падает КАЖДАЯ выгрузка xlsx: <c>MissingFontTableException</c>. Какое
-    /// семейство первое, решает порядок файлов на диске: на одних раннерах CI проходило, на других
-    /// падало, а на сервере заказчика зависело бы от того, какие шрифты там стоят.
-    ///
-    /// <para>Трекер NPOI держит в <c>Lazy</c> и читает через <c>.Value?.</c>, поэтому <c>Lazy</c>,
-    /// отдающий <c>null</c>, выключает его целиком. Ширину колонок считает <see cref="WriteSheet" />,
-    /// <c>AutoSizeColumn</c> здесь не зовётся — терять нечего.</para>
-    ///
-    /// <para>⚠️ Поле закрытое. В NPOI 2.8.1 трекер заводится по требованию — с переходом на неё метод
-    /// убирается. Сменись устройство поля раньше — отказ здесь, с названной причиной, а не тихий
-    /// возврат замера: этим путём идёт каждая xlsx-выгрузка в тестах.</para>
-    /// </summary>
-    private static void WithoutFontMeasure(SXSSFSheet sheet)
-    {
-        if (AutoSizeTracker?.FieldType != typeof(Lazy<AutoSizeColumnTracker>))
-            throw new InvalidOperationException(
-                "В SXSSFSheet нет поля _autoSizeColumnTracker вида Lazy<AutoSizeColumnTracker>: NPOI сменил "
-                + "устройство листа, и замер ширины системным шрифтом выключить нечем. "
-                + "См. SpreadsheetExporter.WithoutFontMeasure.");
-        AutoSizeTracker.SetValue(sheet, new Lazy<AutoSizeColumnTracker>(() => null!));
-    }
-
-    private static readonly FieldInfo? AutoSizeTracker =
-        typeof(SXSSFSheet).GetField("_autoSizeColumnTracker", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private static void WriteRow(
         IRow line, IReadOnlyList<object?> row, int count, CellStyles styles, int[] widths, bool emptyAsText)

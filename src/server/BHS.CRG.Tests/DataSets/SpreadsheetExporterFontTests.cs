@@ -32,7 +32,8 @@ public class SpreadsheetExporterFontTests
         using var _ = UnreadableBookFont.Install();
         // Контроль: подмена действует — замер NPOI падает так же, как на неудачном раннере. Без этой
         // строки тест позеленел бы и там, где NPOI до кэша не дошёл.
-        Assert.Throws<MissingFontTableException>(() => SheetUtil.GetDefaultCharWidth(new XSSFWorkbook()));
+        using (var probe = new XSSFWorkbook())
+            Assert.Throws<MissingFontTableException>(() => SheetUtil.GetDefaultCharWidth(probe));
 
         // Строк больше окна потоковой книги (200): сброс идёт и по ходу записи, а не только в конце.
         var rows = Enumerable.Range(1, 500)
@@ -41,7 +42,8 @@ public class SpreadsheetExporterFontTests
         var (bytes, _, _) = SpreadsheetExporter.ExportSheets(
             SpreadsheetFormat.Xlsx, [new SpreadsheetExporter.Sheet("Лист", ["№", "Наименование"], rows)]);
 
-        var sheet = new XSSFWorkbook(new MemoryStream(bytes)).GetSheetAt(0);
+        using var book = new XSSFWorkbook(new MemoryStream(bytes));
+        var sheet = book.GetSheetAt(0);
         Assert.Equal("Позиция 500", sheet.GetRow(500).GetCell(1).StringCellValue);
         // Ширина по-прежнему по содержимому — счётом знаков: «Наименование» и два знака запаса.
         Assert.Equal((12 + 2) * 256, sheet.GetColumnWidth(1));
@@ -63,14 +65,14 @@ public class SpreadsheetExporterFontTests
 
         public static UnreadableBookFont Install()
         {
-            var util = typeof(SheetUtil);
-            const BindingFlags Static = BindingFlags.Static | BindingFlags.NonPublic;
-            var cache = (IDictionary)util.GetField("FontCache", Static)!.GetValue(null)!;
+            var cache = Internal<IDictionary>("FontCache");
             // Кэшем NPOI пользуется, только пока культура потока — та, с которой он стартовал.
-            var startup = (CultureInfo)util.GetField("StartupCulture", Static)!.GetValue(null)!;
-            var keyType = util.GetNestedType("FontCacheKey", BindingFlags.NonPublic)!;
+            var startup = Internal<CultureInfo>("StartupCulture");
+            var keyType = typeof(SheetUtil).GetNestedType("FontCacheKey", BindingFlags.NonPublic)
+                ?? throw Changed("типа ключа FontCacheKey");
 
-            var bookFont = new XSSFWorkbook().GetFontAt(0);
+            using var book = new XSSFWorkbook();
+            var bookFont = book.GetFontAt(0);
             var key = Activator.CreateInstance(keyType, bookFont.FontName, (float)bookFont.FontHeightInPoints, FontStyle.Regular)!;
 
             var path = Path.Combine(Path.GetTempPath(), $"bhs-unreadable-{Guid.NewGuid():N}.ttf");
@@ -89,8 +91,22 @@ public class SpreadsheetExporterFontTests
         {
             _cache.Remove(_key);
             CultureInfo.CurrentCulture = _culture;
-            try { File.Delete(_path); } catch (IOException) { }
+            // Временный файл бывает занят антивирусом: не убранный файл в TEMP — не повод для красного.
+            try { File.Delete(_path); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
+
+        /// <summary>
+        /// Закрытое поле <see cref="SheetUtil" /> нужного вида — или отказ с причиной: подмена держится на
+        /// устройстве NPOI 2.7, и после его смены тест обязан сказать это, а не упасть NullReferenceException.
+        /// </summary>
+        private static T Internal<T>(string name) where T : class
+            => typeof(SheetUtil).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null) as T
+               ?? throw Changed($"поля {name} вида {typeof(T).Name}");
+
+        private static InvalidOperationException Changed(string what) => new(
+            $"В NPOI.SS.Util.SheetUtil нет {what}: NPOI сменил устройство кэша шрифтов, и подменить шрифт "
+            + "книги тест не может. Переход на NPOI 2.8 — issue #1756: там трекер автоширины заводится по "
+            + "требованию, и тест переписывается под новый путь, а не удаляется.");
 
         /// <summary>
         /// TrueType-файл из одной таблицы <c>name</c>: описание шрифта (семейство, начертание) читается,
