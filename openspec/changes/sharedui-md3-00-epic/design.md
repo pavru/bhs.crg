@@ -256,7 +256,7 @@ filled, рейл и нижняя навигация, extended FAB, размер�
 | `raw-state` | `bg-black/N`, `bg-white/N`, `brightness-*`, `hover:bg-<поверхность>` | 05 | 05 |
 | `dark-variant` | `dark:` | 05 | 05 |
 | `legacy-radius`, `legacy-shadow`, `legacy-type` | старые шкалы | 06, 07 | 17 |
-| `notice-plaque`, `hand-card` | плашка `*-subtle + border + rounded`, карточка руками | 12, 13 | 17 |
+| `notice-plaque`, `hand-card` | плашка `*-subtle + border + rounded`, карточка руками | 12, 13 | 17; файлы экрана счёта — `costs-invoice-screen-10`, `-11` |
 | `native-radio` | `<input type="radio">` и свой `role="radio"` вне `shared/ui` | 11 | 13 (после 11 — 2: пункты-галочки `SitesFilter`, `LayoutChooser`) |
 | `raw-field` | сырой `<input>` / `<textarea>` со своей рамкой вне `shared/ui` (69 мест на 31.10.2026) | 11 | 17 |
 | `list-row` | строка списка руками: слой состояния и условная заливка выбранного в `features/` (модуль `ui-ratchet-lists.mjs`) | 18 | 18 (перечень), остаток — 17 |
@@ -336,6 +336,7 @@ filled, рейл и нижняя навигация, extended FAB, размер�
 ## Migration Plan
 
 Порядок: **0 (предусловия) → 01 → 02 → {03, 04} → {05, 06, 07} → {10…14} → {15, 16, 18} → 17 → 20.**
+Зонтик закрывается после 18, 19, 20 и эпика `costs-invoice-screen`: экран счёта доводит до нуля он сам.
 - 02 и 03 правят одни строки (`<Trash2 size={14} className="text-fg3" />`), поэтому идут подряд, каждый
   сливается сразу.
 - 05, 06 и 07 конфликтуют только текстом, конфликт снимается перезапуском кодмода.

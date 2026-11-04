@@ -162,7 +162,7 @@
   позиции на листе); ни одна проверка не подстраивалась. Снимки до и после, обе темы, 1366 и 375 —
   https://claude.ai/artifact/7WpscdPEcQBsEzPvrcCPgR
 
-## 5. PR 5а и 5б: `shared/`, экран счёта и правила в ноль
+## 5. PR 5а и 5б: `shared/`, тест пустого уровня и документы
 
 PR 5 разделён на два (решение владельца 05.11.2026): у `costs-invoice-screen-10…13` не начата ни одна
 задача, а `shared/` от них не зависит. PR 5а — `shared/` сразу; PR 5б — экран счёта, ноль и сторожа после
@@ -184,20 +184,23 @@ PR 5 разделён на два (решение владельца 05.11.2026)
   `h3`–`h5` ролями `title-large` / `title-medium` / `title-small` (`##` и `###` совпадали); поиск избранного —
   `SearchInput` (лупа и сброс по Esc), поповер отбора «Стройки» — `LayerBoundary`, поле в нём плотное 40;
   `DetailTitle` — до двух строк вместо обрезки
-- [ ] 5.1б PR 5б — 16 мест экрана счёта после архива `costs-invoice-screen-10…13` (что те оставили) [UI-81].
-  Проверка — по шести правилам в `ui-baseline.json` нет ни одного файла
+- [x] 5.1б Экран счёта — вынесен из change (решение владельца 05.11.2026): 16 мест (`notice-plaque` 8 —
+  `costs-invoice-screen-11`, задача 4.4; `hand-card` 8 — `-10` 4.7 и `-11` 4.4) доводит эпик
+  `costs-invoice-screen` (его 3.3), зонтик `sharedui-md3-00-epic` закрывается после него. Проверка — задачи
+  внесены в `tasks.md` 10, 11 и 00 эпика счёта
 - [ ] 5.2 PR 5б — тест пустого уровня — новым файлом (`ui-ratchet.test.mjs` и `ui-ratchet-lib.mjs` у порога 500
   строк): фикстуры с плашкой, карточкой руками, сырым полем, `rounded-2xl`, `shadow-sm`, `text-xs`
   краснят своё правило при пустом уровне (`compare({}, …)`) [UI-81]. Проверка — новый тест зелёный,
   фикстуры красные; `FileSizeRatchet` зелёный
 - [ ] 5.3 PR 5б — `docs/UI.md`: «Язык формы», «Цвет», «Форма и возвышение», «Текст», «Карточки» — без упоминаний
   накопленных плашек, карточек и полей руками; перечень правил храповика в `CLAUDE.md` и `AGENTS.md` —
-  шесть правил «на нуле» — одним коммитом. Проверка — ревью PR; `AgentRulesCopyTests` зелёный
+  четыре правила «на нуле», `notice-plaque` и `hand-card` — «на нуле вне экрана счёта» — одним коммитом. Проверка — ревью PR; `AgentRulesCopyTests` зелёный
 
 ## 6. Верификация
 
 - [ ] 6.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 6.2 `cd src/client && npm run ui:ratchet` — шесть правил на нуле; `npm run lint:ratchet` — без роста
+- [ ] 6.2 `cd src/client && npm run ui:ratchet` — шесть правил на нуле вне файлов экрана счёта (там — 16 мест
+  `notice-plaque` и `hand-card` или меньше); `npm run lint:ratchet` — без роста
 - [ ] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
   — зелёный
 - [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
