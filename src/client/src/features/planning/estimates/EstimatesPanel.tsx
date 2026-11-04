@@ -58,7 +58,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
     <div className="space-y-3">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-body-large font-semibold text-on-surface">Сметы</h2>
+          <h2 className="text-title-medium text-on-surface">Сметы</h2>
           <p className="text-body-small text-on-surface-variant">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
         </div>
         {editable && (

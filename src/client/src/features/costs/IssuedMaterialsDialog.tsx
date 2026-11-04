@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Warning } from '@/shared/ui/icons';
+import { Banner } from '@/shared/ui/Banner';
 import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import type { CostsConstruction } from '@/shared/api/invoices';
@@ -28,8 +27,10 @@ const COLUMNS: DataGridColumn<IssuedMaterial>[] = [
  * «Материалы на объекте»: что выдано на стройку проведёнными накладными (ТЗ COST-17; задача D1,
  * issue #1083).
  *
- * <p>⚠️ Оговорка о несопоставленных строках стоит НАД перечнем, а не под ним: перечень без неё
- * читается как «выдано только это», а строка без позиции номенклатуры в него не попадает.</p>
+ * <p>⚠️ Оговорка о несопоставленных строках стоит НАД перечнем, а не под ним: перечень без неё читается как
+ * «выдано только это», а строка без позиции номенклатуры в него не попадает. Banner — в начале перечня, под
+ * выбором стройки, а не в начале окна: оговорка про выбранную стройку и появляется после выбора — над полем она
+ * читалась бы раньше него и сдвигала бы поле из-под руки (ревью PR #1760).</p>
  */
 export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
   sites: CostsConstruction[];
@@ -57,13 +58,11 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
         {site && data && (
           <>
             {data.unmatchedLines > 0 && (
-              <p role="status" className="flex items-start gap-2 rounded-md border border-outline-variant
-                bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
-                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
+              <Banner tone="warning">
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
                 ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
                 отбор «Сопоставить» в списке накладных.
-              </p>
+              </Banner>
             )}
             {data.items.length === 0
               ? (

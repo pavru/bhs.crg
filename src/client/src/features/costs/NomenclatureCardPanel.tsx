@@ -36,12 +36,13 @@ const COMPARE_TONE: Record<CompareRow['tone'], string> = {
 
 /**
  * Карточка позиции справа от списка в окне выбора (issue #1517, данные — #1516): убедиться до выбора, что
- * позиция та. Одна на окно, показывает выделенную.
+ * позиция та. Одна на окно, показывает выделенную. В окне выбора она — тело side sheet ([UI-81]), имя позиции —
+ * его заголовок (`titled`); в шаге «Новая позиция» и шагом на узком теле имя пишет она сама.
  *
  * <p>⚠️ Каждое состояние — своими словами: «ничего не выделено», «грузится», «не прочитана», «позицию
  * удалили». Пустая панель на месте любого из них читалась бы как «у позиции нет полей».</p>
  */
-export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPick }: {
+export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', titled = false, onPick }: {
   /** Выделенная позиция; `null` — ничего не выделено. */
   id: string | null;
   head?: CardHead | null;
@@ -49,6 +50,8 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
   compare?: { title: string; rows: (card: NomenclatureCard) => CompareRow[] };
   /** Как нарисовать «Выбрать эту позицию»; `null` — кнопки нет (её держит подвал шага). */
   pick?: 'tonal' | 'filled' | null;
+  /** Имя позиции пишет шапка листа — здесь только «почему в списке» и пометка архива. */
+  titled?: boolean;
   onPick: (id: string, name: string | null) => void;
 }) {
   const card = useNomenclatureCard(id);
@@ -60,14 +63,14 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
   if (card.isError && isNotFound(card.error)) return (
     <div className="space-y-2">
-      {head && <Title name={head.name} />}
+      {head && <Title titled={titled} name={head.name} />}
       <Refusal>Этой позиции в справочнике больше нет: её удалили, пока окно было открыто. Выберите другую.</Refusal>
     </div>
   );
 
   if (card.isError) return (
     <div className="space-y-2">
-      {head && <Title name={head.name} why={head.why} />}
+      {head && <Title titled={titled} name={head.name} why={head.why} />}
       <Refusal>
         Карточка не прочитана: {apiError(card.error, 'сервер отказал')}. Позицию можно выбрать и так — по названию.
       </Refusal>
@@ -77,7 +80,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
   if (!card.data) return (
     <div className="space-y-3" aria-busy="true">
-      {head ? <Title name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded-xs bg-surface-container animate-pulse" />}
+      {head ? <Title titled={titled} name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded-xs bg-surface-container animate-pulse" />}
       <div className="space-y-2">
         {[0, 1, 2, 3].map(i => <div key={i} className="h-4 rounded-xs bg-surface-container animate-pulse" />)}
       </div>
@@ -92,7 +95,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
   return (
     <div className="space-y-3">
-      <Title name={data.name} why={head?.why} archived={data.archived} />
+      <Title titled={titled} name={data.name} why={head?.why} archived={data.archived} />
 
       {rows.length > 0 && (
         <section className="space-y-1.5">
@@ -176,7 +179,15 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
   );
 }
 
-function Title({ name, why, archived = false }: { name: string | null; why?: string | null; archived?: boolean }) {
+function Title({ name, why, archived = false, titled }: {
+  name: string | null; why?: string | null; archived?: boolean; titled: boolean;
+}) {
+  if (titled) return why || archived ? (
+    <div className="flex flex-wrap items-center gap-2">
+      {archived && <ArchivedMark />}
+      {why && <p className="text-body-small text-on-surface-variant">{why}</p>}
+    </div>
+  ) : null;
   return (
     <div>
       <p className="text-body-large font-medium leading-snug text-on-surface break-words">

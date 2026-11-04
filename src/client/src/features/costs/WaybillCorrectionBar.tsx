@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
-import { Close, EditNote, LockIcon, Logout, Save, Warning } from '@/shared/ui/icons';
+import { Close, EditNote, LockIcon, Logout, Save } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
+import { Banner } from '@/shared/ui/Banner';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useCan } from '@/shared/api/access';
 import { REASON_LENGTH } from './correction';
@@ -54,30 +55,19 @@ export function WaybillCorrectionBar({
 }) {
   if (unneeded)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
-        px-3 py-2 text-body-small text-on-warning-container">
-        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-        <p className="flex-1">
-          Исправление больше не нужно: закрытие периода отменили, и накладная не заперта. Её правят обычным путём —
-          верните в черновик, поправьте и проведите снова. Набранное здесь не сохранится: перенесите нужное себе.
-        </p>
-        <Button variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={onRelease}>
-          Выйти из исправления
-        </Button>
-      </div>
+      <Banner tone="warning" urgent actions={[{ label: 'Выйти из исправления', icon: Logout, onClick: onRelease }]}>
+        Исправление больше не нужно: закрытие периода отменили, и накладная не заперта. Её правят обычным путём —
+        верните в черновик, поправьте и проведите снова. Набранное здесь не сохранится: перенесите нужное себе.
+      </Banner>
     );
 
   return (
     <div className="space-y-2" data-testid="waybill-correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
-        px-3 py-2 text-body-small text-on-warning-container">
-        <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
-        <p className="flex-1">
-          Исправление закрытого периода: накладная останется проведённой, прежнее содержимое ляжет в историю.
-          Правьте шапку и строки — запишется всё одним исправлением.
-          {siteMoved && ' Стройка сменена: учётная дата пересчитается — накладная ляжет первым открытым днём новой стройки, не раньше даты отпуска.'}
-        </p>
-      </div>
+      <Banner tone="warning" icon={EditNote}>
+        Исправление закрытого периода: накладная останется проведённой, прежнее содержимое ляжет в историю.
+        Правьте шапку и строки — запишется всё одним исправлением.
+        {siteMoved && ' Стройка сменена: учётная дата пересчитается — накладная ляжет первым открытым днём новой стройки, не раньше даты отпуска.'}
+      </Banner>
       <div className="flex items-end gap-2 flex-wrap">
         <TextAreaField label="Причина исправления" required rows={2} maxLength={REASON_LENGTH}
           containerClassName="flex-1 min-w-64" value={reason}

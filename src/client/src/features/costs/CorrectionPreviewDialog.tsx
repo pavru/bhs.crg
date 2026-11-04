@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Check, ChevronRight, KeyboardArrowDown, Refresh, Warning } from '@/shared/ui/icons';
+import { Check, ChevronRight, KeyboardArrowDown, Refresh } from '@/shared/ui/icons';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { apiError } from '@/shared/utils/apiError';
 import { formatDate } from '@/shared/format/format';
 import type { CorrectionPreview, CorrectionRecordView } from '@/shared/api/invoiceCorrection';
@@ -47,15 +48,10 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
           )}
         </>
       )}>
+      {/* Отказ подсчёта — сообщение окна: banner в его начале (Р1-А). */}
+      {!pending && error != null && <ModalBanner tone="error">{apiError(error, 'Исправление не посчитано')}</ModalBanner>}
       <div className="space-y-3 text-body-medium">
         {pending && <p className="text-on-surface-variant">Считаем, что запишет исправление…</p>}
-        {!pending && error != null && (
-          <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
-            px-3 py-2 text-body-small text-on-error-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <span>{apiError(error, 'Исправление не посчитано')}</span>
-          </div>
-        )}
         {shown && <Shown preview={shown} reason={reason} note={note} places={places} />}
       </div>
     </Modal>

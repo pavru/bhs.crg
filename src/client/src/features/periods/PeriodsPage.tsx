@@ -353,7 +353,7 @@ function History({ records, nameOf }: {
 
   return (
     <>
-      <h2 className="text-body-medium font-semibold text-on-surface-variant mt-6 mb-2">История</h2>
+      <h2 className="text-title-small text-on-surface-variant mt-6 mb-2">История</h2>
       <DataGrid rows={records} rowKey={r => r.id} columns={[
         { key: 'at', label: 'Когда', width: 'w-36',
           cell: r => <span className="text-on-surface-variant tabular-nums">{formatDateTime(r.at)}</span> },

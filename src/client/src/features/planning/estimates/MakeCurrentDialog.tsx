@@ -5,6 +5,7 @@ import {
 } from '@/shared/api/planningEstimates';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -64,6 +65,13 @@ function Body({ estimateId, revisionId, make, onDone }: {
 
   return (
     <div className="space-y-4">
+      {/* Несопоставленные строки — сообщение окна: banner в его начале, над фактами (Р1-А). */}
+      {data.unmatched > 0 && (
+        <ModalBanner tone="warning">
+          В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
+          можно сделать и сейчас; сопоставленное позже войдёт в план само.
+        </ModalBanner>
+      )}
       <p className="text-body-medium text-on-surface-variant">
         {data.currentRevisionNumber === null
           ? `План стройки будет считаться по ред. ${data.revisionNumber}.`
@@ -75,13 +83,6 @@ function Body({ estimateId, revisionId, make, onDone }: {
       {data.cost && (
         <p className="text-body-medium text-on-surface-variant">
           Себестоимость: {formatMoney(data.cost.was)} → <span className="font-medium text-on-surface">{formatMoney(data.cost.becomes)}</span>
-        </p>
-      )}
-
-      {data.unmatched > 0 && (
-        <p className="rounded-sm border border-outline-variant bg-warning-container px-3 py-2 text-body-medium text-on-warning-container">
-          В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
-          можно сделать и сейчас; сопоставленное позже войдёт в план само.
         </p>
       )}
 

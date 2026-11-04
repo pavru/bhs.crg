@@ -15,9 +15,12 @@ export async function dialogLinesFollowBodyScroll(page) {
     const lines = () => dlg.evaluate(d => {
       const body = d.querySelector('.overflow-y-auto');
       const seen = (el, side) => !!el && getComputedStyle(el)[side] !== 'rgba(0, 0, 0, 0)';
+      // Между шапкой и телом — место banner окна (`ModalBanner`): черту рисует шапка, а не оно.
+      let head = body.previousElementSibling;
+      while (head?.hasAttribute('data-modal-banner')) head = head.previousElementSibling;
       return {
         scrollable: body.scrollHeight > body.clientHeight + 1,
-        top: seen(body.previousElementSibling, 'borderBottomColor'),
+        top: seen(head, 'borderBottomColor'),
         bottom: seen(body.nextElementSibling, 'borderTopColor'),
       };
     });
@@ -47,7 +50,9 @@ export async function dialogLinesFollowBodyScroll(page) {
       const body = d.querySelector('.overflow-y-auto');
       if (body.scrollHeight > body.clientHeight + 1) return null;
       const c = (el, side) => getComputedStyle(el)[side];
-      return [c(body.previousElementSibling, 'borderBottomColor'), c(body.nextElementSibling, 'borderTopColor')];
+      let head = body.previousElementSibling;
+      while (head?.hasAttribute('data-modal-banner')) head = head.previousElementSibling;
+      return [c(head, 'borderBottomColor'), c(body.nextElementSibling, 'borderTopColor')];
     });
     if (both && both.some(c => c !== 'rgba(0, 0, 0, 0)')) throw new Error(`короткое тело с чертой: ${both}`);
   });

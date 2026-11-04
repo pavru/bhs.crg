@@ -270,7 +270,7 @@ export function ReconciliationsPage() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant shrink-0">
         <div className="min-w-0 flex-1">
-          <h2 className="text-body-large font-semibold text-on-surface truncate">{selected.name}</h2>
+          <h2 className="text-title-medium text-on-surface truncate">{selected.name}</h2>
           <p className="text-body-small text-on-surface-variant mt-0.5">
             {currentRun ? runSummary(currentRun) : 'Прогонов ещё не было'}
           </p>

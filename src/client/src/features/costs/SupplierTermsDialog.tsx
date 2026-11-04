@@ -105,13 +105,12 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
         const days = parseDays(text);
         return (
           <Tooltip content={typeof days !== 'number' ? BAD_DAYS : undefined}>
-            <input value={text} inputMode="numeric" readOnly={saving.has(item.supplierId)} aria-label={`Отсрочка, дней: ${termsSupplier(item)}`}
-              aria-invalid={typeof days !== 'number' || undefined}
+            <TextField density="dense" containerClassName="w-24" value={text} inputMode="numeric"
+              readOnly={saving.has(item.supplierId)} label={`Отсрочка, дней: ${termsSupplier(item)}`}
+              invalid={typeof days !== 'number'}
               onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
               onBlur={() => void change(item)}
-              onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-              className={`w-24 rounded-xs border bg-surface px-2 py-0.5 text-body-medium text-on-surface
-                ${typeof days !== 'number' ? 'border-error' : 'border-outline-variant'}`} />
+              onKeyDown={e => { if (e.key === 'Enter') void change(item); }} />
           </Tooltip>
         );
       } },

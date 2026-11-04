@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Button, type ButtonProps } from './Button';
 import {
-  ModalBarContext, ModalBodyExitContext, ModalControlContext, WindowLayerContext, WindowStepContext, useModalControl,
+  ModalBannerContext, ModalBarContext, ModalBodyExitContext, ModalControlContext, WindowLayerContext, WindowStepContext, useModalControl,
   type BarAction, type ModalBar, type WindowStepHost,
 } from './modalControl';
 import { ModalAppBar } from './ModalAppBar';
@@ -168,6 +168,10 @@ function ModalBody({
     setBodyExits(n => n + 1);
     return () => setBodyExits(n => n - 1);
   }, []);
+  // Место banner окна (`ModalBanner`) — над прокруткой тела: сообщение стоит на месте, а черта и края
+  // прокрутки считаются по телу, как у любого окна.
+  const [bannerHost, setBannerHost] = useState<HTMLDivElement | null>(null);
+  const bannerPlace = useMemo(() => ({ host: bannerHost }), [bannerHost]);
   // Во весь экран ([UI-75]): `fullScreen` всегда, любое окно — на экране уже 768. Решает JS, а не классы
   // `max-sm:`: от узости зависит, где стоят действия, а не только ширина.
   const narrow = useMedia(NARROW);
@@ -393,6 +397,8 @@ function ModalBody({
               )}
             </>
           ) : (
+            <ModalBannerContext.Provider value={bannerPlace}>
+            <div ref={setBannerHost} data-modal-banner className="shrink-0" hidden={!!top} />
             <div className="overflow-y-auto flex-1 min-h-0 px-6">
               <div ref={edgeStart} />
               <div className={`pt-2 ${(actions || acknowledge || top) && !bar ? 'pb-2' : 'pb-6'}`}>
@@ -408,6 +414,7 @@ function ModalBody({
               </div>
               <div ref={edgeEnd} />
             </div>
+            </ModalBannerContext.Provider>
           )}
 
           {/* Во весь экран подвала нет, но кнопки с ролью смонтированы и тут: из подвала они переносят себя

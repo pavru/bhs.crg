@@ -45,7 +45,7 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
 
   return (
     <section className="space-y-3" aria-label="Исправления">
-      <h2 className="text-body-large font-semibold">Исправления</h2>
+      <h2 className="text-title-medium">Исправления</h2>
       {book.isPending && <p className="text-body-small text-on-surface-variant">Загружаем историю счёта…</p>}
       {book.error != null && <p className="text-body-small text-error">История счёта не загрузилась: {apiError(book.error)}</p>}
       {book.data && (

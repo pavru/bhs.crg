@@ -6,11 +6,12 @@ import { Close, Search, Warning } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
+import { SideSheet } from '@/shared/ui/SideSheet';
 import { apiError } from '@/shared/utils/apiError';
 import { isNotFound, useNomenclature } from '@/shared/api/invoices';
 import { useNomenclatureCard, type NomenclatureCard } from '@/shared/api/nomenclatureCard';
 import { useNomenclatureCandidates, type LineMatched } from '@/shared/api/nomenclatureCandidates';
-import { WIDE, useMedia } from '@/shared/hooks/useMedia';
+import { NARROW, WIDE, useMedia } from '@/shared/hooks/useMedia';
 import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
 import { NomenclatureCardPanel } from './NomenclatureCardPanel';
@@ -126,6 +127,10 @@ const NO_NEIGHBOURS = (): readonly NeighbourLine[] => [];
 /**
  * Окно уже этой ширины — карточке рядом со списком места нет (issue #1517): она открывается шагом окна
  * по нажатию на строку. Меряется окно, а не экран: на планшете окно уже экрана.
+ *
+ * <p>⚠️ Экран уже 768 — тоже узко, какой бы ширины ни было окно: лист карточки там сам становится окном во весь
+ * экран (`SideSheet`), а окно выбора тогда уже во весь экран — лист лёг бы под него и запер пикер (экран 720–767,
+ * ревью PR #1760).</p>
  */
 const NARROW_BODY = 720;
 
@@ -151,15 +156,17 @@ function useNarrow() {
     observer.observe(dialog);
     return () => observer.disconnect();
   }, [node]);
-  return { ref, narrow };
+  const screen = useMedia(NARROW);
+  return { ref, narrow: narrow || screen };
 }
 
 /**
  * Тело монтируется по открытию: запрос заводится заново, и эффекта «закрылось — очисти» не нужно.
  *
- * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции. Одно выделение на
- * список (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой.
- * Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
+ * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции — side sheet в слое окна
+ * ([UI-81]): Esc закрывает сначала его, фокус остаётся в поиске. Одно выделение на список
+ * (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой. Крестик прячет лист
+ * до выделения другой строки. Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
  *
  * <p><b>Пустой запрос — кандидаты, а не голова алфавита</b> (issue #1518): первые 25 позиций по алфавиту
  * этой строке не подходят ничем. Набор — обычный поиск; стёр — кандидаты снова, из кэша.</p>
@@ -181,6 +188,9 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const [creating, setCreating] = useState(false);
   // Карточка шагом окна — на узком теле.
   const [opened, setOpened] = useState<PickerRow | null>(null);
+  // Лист закрыт крестиком или Esc — для этой строки; выделение другой открывает его снова, и возврат к этой —
+  // тоже: закрытие помнится только до смены выделения (правка состоянием при отрисовке, без эффекта).
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const canCreate = useCan().permission('core.nomenclature.edit');
   const { ref, narrow } = useNarrow();
   const phone = !useMedia(WIDE);
@@ -232,6 +242,11 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   // Выделенная могла уйти из списка — набор сменил находки, а карточка осталась. Кандидат и тогда
   // сохраняет причину и сверку со строкой.
   const active = rows.find(r => r.id === selection.active) ?? picked.rows.find(r => r.id === selection.active) ?? null;
+  if (dismissed !== null && dismissed !== selection.active) setDismissed(null);
+  // Имя в шапке листа — из карточки, строка списка — запасом: выделенная могла уйти из списка, и строки, у
+  // которой его взять, тогда нет (а «без названия» над настоящей позицией читалось бы как правда).
+  const activeCard = useNomenclatureCard(selection.active);
+  const sheetTitle = activeCard.data ? activeCard.data.name ?? 'без названия' : active ? active.name ?? 'без названия' : '';
   // Enter выбирает выделенную, только пока она среди ЭТОГО ответа: прошлый ответ стоит на экране, пока
   // едет новый, и Enter по нему выбрал бы строку, которой под набранным уже нет.
   const fresh = !searching || (query === typed.trim() && !found.isPlaceholderData);
@@ -306,8 +321,8 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         </>
       )}>
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-outline-variant'}>
-        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
+        : 'flex-1 min-h-0 flex border-t border-outline-variant'}>
+        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'flex-1 min-w-0 overflow-y-auto'}`}>
           {plate}
           <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
             <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
@@ -401,11 +416,13 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
-          <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-outline-variant px-5 py-4">
-            <NomenclatureCardPanel id={selection.active}
+          <SideSheet variant="standard" open={!!selection.active && selection.active !== dismissed}
+            onClose={() => setDismissed(selection.active)} autoFocus={false}
+            title={sheetTitle} label="Карточка позиции">
+            <NomenclatureCardPanel id={selection.active} titled
               compare={selection.active ? compare(active?.matched ?? null) : undefined}
               head={active ? { name: active.name, type: active.type, why: active.why } : null} onPick={onPick} />
-          </aside>
+          </SideSheet>
         )}
       </div>
 

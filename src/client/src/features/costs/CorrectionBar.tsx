@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Close, EditNote, Logout, SearchCheck, Warning } from '@/shared/ui/icons';
+import { Close, EditNote, Logout, SearchCheck } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
+import { Banner } from '@/shared/ui/Banner';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatDate } from '@/shared/format/format';
@@ -119,29 +120,18 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
   // Закрытие отменили — исправлять больше нечего: набранное становится обычной правкой.
   if (view.payment.lockedBy === null)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
-        px-3 py-2 text-body-small text-on-warning-container">
-        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-        <p className="flex-1">
-          Исправление больше не нужно — правьте как обычно: счёт больше не заперт. Набранное в шапке и строках
-          останется несохранённым — сохраните его обычными кнопками; разноску из исправления наберите заново.
-        </p>
-        <Button variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={draft.release}>
-          Выйти из исправления
-        </Button>
-      </div>
+      <Banner tone="warning" urgent actions={[{ label: 'Выйти из исправления', icon: Logout, onClick: draft.release }]}>
+        Исправление больше не нужно — правьте как обычно: счёт больше не заперт. Набранное в шапке и строках
+        останется несохранённым — сохраните его обычными кнопками; разноску из исправления наберите заново.
+      </Banner>
     );
 
   return (
     <div className="space-y-2" data-testid="correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
-        px-3 py-2 text-body-small text-on-warning-container">
-        <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
-        <p className="flex-1">
-          Исправление закрытого периода: изменения лягут в книгу, закрытый месяц не изменится. Правьте шапку,
-          строки и разноску — запишется всё одним исправлением.
-        </p>
-      </div>
+      <Banner tone="warning" icon={EditNote}>
+        Исправление закрытого периода: изменения лягут в книгу, закрытый месяц не изменится. Правьте шапку,
+        строки и разноску — запишется всё одним исправлением.
+      </Banner>
       {stale && <StaleInvoiceNotice what="исправление" onReread={reread} />}
       <div className="flex items-end gap-2 flex-wrap">
         <TextAreaField label="Причина исправления" required rows={2} maxLength={REASON_LENGTH}

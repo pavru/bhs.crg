@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
+import { TextField } from '@/shared/ui/TextField';
 import { Add, Archive, Check, Close, Delete, Edit, Unarchive } from '@/shared/ui/icons';
 import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -88,10 +89,10 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
     <li key={article.id} className="flex items-center gap-2 py-1.5">
       {editing?.id === article.id ? (
         <>
-          <input value={editing.name} autoFocus aria-label={`Название статьи «${article.name}»`}
+          <TextField density="dense" containerClassName="flex-1" value={editing.name} autoFocus
+            label={`Название статьи «${article.name}»`}
             onChange={e => setEditing({ ...editing, name: e.target.value })}
-            onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
-            className={FIELD} />
+            onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }} />
           <IconButton label="Сохранить название" onClick={() => void rename()} icon={Check} />
           <IconButton label="Отменить" onClick={() => setEditing(null)} icon={Close} />
         </>
@@ -139,9 +140,8 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <input value={name} placeholder="Например, «Склад»" aria-label="Новая статья"
-          onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void add(); }}
-          className={FIELD} />
+        <TextField density="dense" containerClassName="flex-1" value={name} placeholder="Например, «Склад»" label="Новая статья"
+          onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void add(); }} />
         <Button variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!name.trim()}
           loading={save.isPending && !editing} onClick={() => void add()}>
           Добавить
@@ -157,4 +157,3 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const FIELD = `flex-1 rounded-xs border border-outline-variant bg-surface px-2 py-1 text-body-medium text-on-surface outline-none focus:border-primary`;
