@@ -18,7 +18,17 @@ const RESET = { favoriteConstructions: null, favoritesFilter: null };
 // следующий их уже не увидит.
 const SPARE = 'Избранное: вторая стройка (проверка)';
 
-const stars = page => page.getByTestId('favorite-star');
+// Звезда — в шапке стройки, карточка в списке — одна ссылка (Р7, sharedui-md3-17).
+const star = page => page.getByTestId('favorite-star');
+const cards = page => page.getByTestId('construction-card');
+
+/** Отметить стройку (или снять отметку) звездой в шапке её страницы. Переход — адресом. */
+async function toggleOnPage(page, id) {
+  await page.goto(`${BASE}/document-sets/${id}`);
+  await settled(page);
+  await star(page).click();
+  await settled(page);
+}
 
 export async function favoritesChecks(page, check) {
   const reset = await callApi(page, 'PUT', '/account/settings', RESET);
@@ -51,21 +61,23 @@ export async function favoritesChecks(page, check) {
       await popover.waitFor({ state: 'detached', timeout: 5000 });
     });
 
-    await check('favorites-first-star-keeps-the-screen', async () => {
-      await stars(page).first().click();
+    await check('favorites-star-in-construction-header', async () => {
+      // На карточке звезды нет — карточка одна цель; отмечают в шапке стройки.
+      if (await star(page).count()) throw new Error('звезда осталась на карточке стройки');
+      await toggleOnPage(page, all[0].id);
+      if ((await star(page).getAttribute('aria-pressed')) !== 'true') throw new Error('звезда в шапке не нажалась');
+      await page.goto(`${BASE}/document-sets`);
       await settled(page);
-      // Первая звезда не сжимает список под курсором — до ухода с экрана (§62.2).
-      const left = await stars(page).count();
-      if (left !== all.length) throw new Error(`после первой звезды карточек ${left}, а строек ${all.length}`);
-      // Отбор включён, но удержанные карточки не скрыты — число скрытых не пишется.
       const label = await page.getByTestId('sites-filter').getAttribute('aria-label');
       if (label !== `Избранные стройки — 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
+      const left = await cards(page).count();
+      if (left !== 1) throw new Error(`после первой звезды карточек ${left}, ждали одну`);
     });
 
     await check('favorites-filter-list-after-reload', async () => {
       await page.reload();
       await settled(page);
-      const left = await stars(page).count();
+      const left = await cards(page).count();
       if (left !== 1) throw new Error(`после перезагрузки карточек ${left}, ждали одну`);
       const chip = await page.getByTestId('sites-filter').innerText();
       if (!chip.includes(`скрыто ${all.length - 1}`)) throw new Error(`отбор у списка: «${chip}»`);
@@ -73,22 +85,22 @@ export async function favoritesChecks(page, check) {
 
     await check('favorites-switch-shows-all-and-is-stored', async () => {
       await pickSites(page, 'Все стройки');
-      if ((await stars(page).count()) !== all.length) throw new Error('«Все» не показало все стройки');
+      if ((await cards(page).count()) !== all.length) throw new Error('«Все» не показало все стройки');
       // Хранит сервер: с другого компьютера человек увидит то же.
       const stored = (await callApi(page, 'GET', '/account/settings')).body.favoritesFilter;
       if (stored !== 'off') throw new Error(`выключенный фильтр не сохранён: ${stored}`);
       await pickSites(page, 'Избранные стройки');
-      if ((await stars(page).count()) !== 1) throw new Error('«Избранные» не вернули отбор');
+      if ((await cards(page).count()) !== 1) throw new Error('«Избранные» не вернули отбор');
     });
 
     await check('favorites-switch-after-star-filters-the-list', async () => {
-      // Звезда держит карточки на экране до ухода с него, но явное переключение отбора это удержание
-      // снимает — иначе «Избранные» горели бы над неурезанным списком (ревью PR #1331).
+      // Вторая звезда при выключенном отборе: список показывает всё, а «Избранные» — обе отмеченные.
       await pickSites(page, 'Все стройки');
-      await page.locator('[data-testid="favorite-star"][aria-pressed="false"]').first().click();
+      await toggleOnPage(page, all[1].id);
+      await page.goto(`${BASE}/document-sets`);
       await settled(page);
       await pickSites(page, 'Избранные стройки');
-      const left = await stars(page).count();
+      const left = await cards(page).count();
       if (left !== 2) throw new Error(`после звезды и «Избранные» карточек ${left}, ждали две`);
     });
 
@@ -118,8 +130,12 @@ export async function favoritesChecks(page, check) {
       // В список — переходом внутри приложения: перезагрузка перечитала бы справочник.
       await page.getByRole('navigation').getByRole('link', { name: 'Стройки' }).first().click();
       await settled(page);
-      // Под фильтром в списке только избранные — снимаем одну из них: запись та же.
-      await page.locator('[data-testid="favorite-star"][aria-pressed="true"]').first().click();
+      // Под фильтром в списке только избранные — открываем одну переходом внутри приложения и снимаем
+      // её звездой в шапке: запись та же.
+      await cards(page).first().click();
+      await settled(page);
+      if ((await star(page).getAttribute('aria-pressed')) !== 'true') throw new Error('открылась неизбранная стройка');
+      await star(page).click();
       await settled(page);
       const stored = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions.split(',');
       if (!stored.includes(elsewhere)) throw new Error('звезда сняла стройку, отмеченную на другом компьютере');
@@ -188,10 +204,8 @@ export async function favoritesChecks(page, check) {
       try {
         await page.goto(`${BASE}/document-sets`);
         await page.getByTestId('sites-filter-error').waitFor({ timeout: 20000 });
-        const left = await stars(page).count();
-        if (left !== 0 && left !== all.length) throw new Error(`при сбое настроек карточек ${left} из ${all.length}`);
-        const cards = await page.locator('h3').count();
-        if (cards < all.length) throw new Error(`при сбое настроек видно ${cards} строек из ${all.length}`);
+        const seen = await cards(page).count();
+        if (seen < all.length) throw new Error(`при сбое настроек видно ${seen} строек из ${all.length}`);
       } finally {
         await page.unroute('**/api/account/settings');
       }

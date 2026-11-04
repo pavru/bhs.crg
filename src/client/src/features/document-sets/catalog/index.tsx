@@ -569,6 +569,7 @@ export function CatalogEntryForm({
 
   return (
     <form onSubmit={e => { e.preventDefault(); void save(false); }} className="flex flex-col min-h-0 flex-1">
+      {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (
@@ -727,7 +728,6 @@ export function CatalogEntryForm({
         </div>
       )}
 
-      {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
       {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       </div>

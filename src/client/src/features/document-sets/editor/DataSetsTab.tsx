@@ -10,8 +10,7 @@ import {
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
   useAutoMapDataSetSource, usePreviewDataSetBindings,
 } from '@/shared/api/datasets';
-import type { DocumentInstance, DocumentType, DataSetBinding, ComputedColumn } from '@/shared/api/types';
-import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
+import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS, type DocumentInstance, type DocumentType, type DataSetBinding, type ComputedColumn } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { bindableFields } from '../fields/bindableFields';
 import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';

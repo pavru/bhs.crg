@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Description, Refresh, RightPanelClose, RightPanelOpen, ScanDelete } from '@/shared/ui/icons';
+import { Refresh, ScanDelete } from '@/shared/ui/icons';
 import { previewDocument, type PreviewResult } from '@/shared/api/documentSets';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { SideSheet } from '@/shared/ui/SideSheet';
+import { setDocumentPreviewOpen, useDocumentPreview } from './documentPreviewOpen';
 import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
@@ -15,12 +16,12 @@ type State =
   | { kind: 'no-template' }
   | { kind: 'error'; message: string };
 
-const LS_KEY = 'doc-preview-open';
-
 /**
- * Панель живого предпросмотра документа (issue #193): справа от формы, реальный PDF по дефолтному
- * шаблону. Перегенерация с дебаунсом при правках + «Обновить»; single-flight (отмена устаревшего
- * ответа); сворачивается в тонкую полосу (выбор запоминается в localStorage).
+ * Живой предпросмотр документа (issue #193): справа от формы, реальный PDF по дефолтному шаблону.
+ * Перегенерация с дебаунсом при правках + «Обновить»; single-flight (отмена устаревшего ответа).
+ *
+ * Вид — standard side sheet 400 (Р9, sharedui-md3-17): открывает и закрывает его переключатель в шапке
+ * документа, полосы-ручки у края формы больше нет. Фокус лист не берёт — правят форму, а смотрят в лист.
  *
  * PDF показывает общий просмотрщик (issue #1493): ключ документа — сам документ, поэтому новый вариант
  * встаёт на том же листе и месте, с тем же масштабом и поворотом, без пустого кадра.
@@ -33,15 +34,12 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   instanceId: string;
   requisites: unknown;
 }) {
-  // По умолчанию свёрнута (issue #193 follow-up): открыта только если пользователь явно её открывал.
-  const [open, setOpen] = useState(() => localStorage.getItem(LS_KEY) === '1');
+  const { open } = useDocumentPreview();
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   // Идёт перегенерация. На обновлении прежний PDF остаётся на экране — крутится только «Обновить».
   const [busy, setBusy] = useState(false);
   const reqId = useRef(0);
-
-  const setOpenPersist = (v: boolean) => { setOpen(v); localStorage.setItem(LS_KEY, v ? '1' : '0'); };
 
   const run = useCallback(async () => {
     const id = ++reqId.current;
@@ -70,29 +68,14 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   // Открытая панель покажет PDF — ядро просмотрщика грузится, пока строится первый вариант.
   useEffect(() => { if (open) preloadPdfViewer(); }, [open]);
 
-  if (!open) {
-    return (
-      <Tooltip content="Показать предпросмотр" name>
-        <button type="button" onClick={() => setOpenPersist(true)}
-          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-on-surface-variant hover:text-primary state-layer">
-          <Icon icon={RightPanelOpen} size={18} />
-          <span className="text-body-small [writing-mode:vertical-rl] rotate-180">Предпросмотр</span>
-        </button>
-      </Tooltip>
-    );
-  }
-
   return (
-    <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-outline-variant bg-surface-container/40">
-      <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-outline-variant bg-surface">
-        <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
-        <span className="text-body-medium font-medium text-on-surface flex-1">Предпросмотр документа</span>
-        {updatedAt && state.kind === 'pdf' && (
-          <span className="text-body-small text-on-surface-variant">обновлено {timeAgo(updatedAt)}</span>
-        )}
-        <IconButton label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'} loading={busy} icon={Refresh} />
-        <IconButton label="Скрыть предпросмотр" onClick={() => setOpenPersist(false)} icon={RightPanelClose} />
-      </div>
+    <SideSheet variant="standard" open={open} onClose={() => setDocumentPreviewOpen(false)} autoFocus={false}
+      title="Предпросмотр" label="Предпросмотр документа" closeLabel="Скрыть предпросмотр"
+      actions={<IconButton label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'} loading={busy} icon={Refresh} />}>
+      <div data-testid="document-preview" className="flex flex-col h-full gap-2">
+      {updatedAt && state.kind === 'pdf' && (
+        <p className="shrink-0 text-body-small text-on-surface-variant">обновлено {timeAgo(updatedAt)}</p>
+      )}
       <div className="flex-1 min-h-0 relative">
         {state.kind === 'pdf' && (
           <PdfViewer source={state.blob} documentKey={instanceId} title="Предпросмотр документа"
@@ -123,7 +106,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
           <div className="absolute inset-0 flex items-center justify-center text-on-surface-variant text-body-medium">Предпросмотр появится здесь</div>
         )}
       </div>
-    </div>
+      </div>
+    </SideSheet>
   );
 }
 

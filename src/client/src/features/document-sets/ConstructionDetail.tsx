@@ -19,6 +19,7 @@ import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCr
 import { useCan } from '@/shared/api/access';
 import { useIdIndicators } from './useIdIndicators';
 import { useScopePanels } from './scopePanels';
+import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -107,8 +108,11 @@ export function ConstructionDetail() {
     </div>
   );
 
+  // «Избранное», «переименовать», «удалить» — здесь, в шапке стройки, а не на её карточке в списке (Р7,
+  // sharedui-md3-17): карточка — одна цель, кнопкам внутри неё места нет.
   const headerAction = (
     <>
+      <FavoriteStar id={construction.id} />
       {canEdit && <>
         <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
