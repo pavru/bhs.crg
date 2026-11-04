@@ -75,8 +75,13 @@
   подсказки у полей убраны, «Верно» у режима осталось [COST-6.4]. Проверка — vitest `statusOf` и формы.
 - [ ] 4.3 Полоса сверки — только числа, без фразы о расхождении и «сохранить всё равно можно» (41)
   [COST-6.4]. Проверка — `invoice-lines-smoke`: в полосе числа и тон, фраза — в пункте перечня.
-- [ ] 4.4 Правило храповика `notice-plaque` по `features/costs` — до нуля, базовый уровень опущен тем же
-  PR [COST-6.4]. Проверка — `npm run ui:ratchet` зелёный с опущенным уровнем.
+- [ ] 4.4 Правило храповика `notice-plaque` по `features/costs` — до нуля (к 05.11.2026 — 8 мест: `InvoiceForm`,
+  `InvoiceDeleteDialog`, `InvoicePartyNote`, `InvoiceRecognitionNote`, `InvoiceTwinNotes` 2, `LostReferencesNote`,
+  `StaleInvoiceNotice`), и `hand-card` в заметках — `InvoiceRecognitionNote`, `LostReferencesNote`,
+  `SupplierMatchNote` 3 — до нуля: заметка уходит в перечень листа или становится `Banner`, карточка — `Card`
+  по выбору А `sharedui-md3-17` (макеты 4f525fa0) [COST-6.4] [UI-81]. Базовый уровень опущен тем же PR.
+  Внесено 05.11.2026: экран счёта вынесен из `sharedui-md3-17-screens` в этот эпик. Проверка —
+  `npm run ui:ratchet` зелёный с опущенным уровнем, в `ui-baseline.json` у обоих правил нет этих файлов.
 - [ ] 4.5 Снимки «после» PR 2 на четырёх размерах с названием макета и вариантом. Проверка — описание
   PR 2.
 
@@ -85,7 +90,7 @@
 - [ ] 5.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (`invoiceStatus.test.ts`
   входит).
 - [ ] 5.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `notice-plaque` по
-  `features/costs` убывает.
+  `features/costs` — ноль, `hand-card` — без файлов заметок.
 - [ ] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный; `--filter "FullyQualifiedName~InvoiceReadiness"` — зелёный (сервер не менялся, ответ 02
   потребляется как есть).
