@@ -99,9 +99,9 @@ export function nearestRole(cls) {
 
 /**
  * Объявления класса без селектора, переменные — значениями темы: `(класс, 'light' | 'dark') → текст`
- * или null, если Tailwind класс не порождает. Так сверяют «рисует то же»: тема MD3 — псевдоним и его
- * роль (md3-theme.test.mjs), кодмод — пару карты (md3-migrate.test.mjs). Переменные — из
- * сгенерированных файлов темы, тёмная поверх светлой. `.prime(классы)` — разобрать их заранее одним
+ * или null, если Tailwind класс не порождает. Так сверяют значения классов: тема MD3 — шкалы и роли
+ * (md3-theme.test.mjs), кодмод — что пара карты ведёт в словарь (md3-migrate.test.mjs). Переменные — из
+ * сгенерированного файла темы, тёмная поверх светлой. `.prime(классы)` — разобрать их заранее одним
  * вызовом движка; без него класс разбирается при первом обращении.
  */
 export async function loadDeclarations(srcRoot) {
@@ -109,11 +109,9 @@ export async function loadDeclarations(srcRoot) {
   const design = await loadDesign(await read(join(srcRoot, 'index.css')), srcRoot);
   const light = new Map();
   const dark = new Map();
-  for (const name of ['md3-tokens.css', 'md3-legacy.css']) {
-    const css = await read(join(srcRoot, 'theme', name));
-    for (const [, selector, body] of css.matchAll(/^(:root(?:\[data-theme="dark"\])?) \{\n([^}]*)\}/gm))
-      for (const [, k, v] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) (selector === ':root' ? light : dark).set(k, v.trim());
-  }
+  const css = await read(join(srcRoot, 'theme', 'md3-tokens.css'));
+  for (const [, selector, body] of css.matchAll(/^(:root(?:\[data-theme="dark"\])?) \{\n([^}]*)\}/gm))
+    for (const [, k, v] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) (selector === ':root' ? light : dark).set(k, v.trim());
   const vars = { light, dark: new Map([...light, ...dark]) };
   // Движок зовётся пачкой: `prime` отдаёт ему все классы теста одним вызовом, а не по одному.
   const raw = new Map();

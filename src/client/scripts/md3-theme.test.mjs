@@ -23,51 +23,26 @@ describe('тема MD3: файлы равны генерации', () => {
   });
 });
 
-/**
- * Старое имя → роль MD3 того же значения (design sharedui-md3-01, «Псевдонимы»). Таблица — договор,
- * и держится здесь отдельно от описания темы: перепутанный в md3-theme.json псевдоним
- * (`fg1 → on-surface-variant`) сменил бы вид, а сверка «псевдоним ≡ его же роль» этого не заметила бы.
- */
-const ALIAS_ROLE = {
-  'fg1': 'on-surface', 'fg2': 'on-surface-variant',
-  // В1 (29.10.2026): у текста две роли — третий и четвёртый серый стали подписью ([UI-63]).
-  'fg3': 'on-surface-variant', 'fg4': 'on-surface-variant',
-  'base': 'surface-container-low', 'muted': 'surface-container', 'muted-hover': 'surface-container-high',
-  'stroke': 'outline-variant', 'stroke-strong': 'outline',
-  'brand': 'primary', 'brand-subtle': 'primary-container', 'on-brand': 'on-primary', 'on-brand-subtle': 'on-primary-container',
-  'tonal': 'secondary-container', 'on-tonal': 'on-secondary-container',
-  'tertiary-subtle': 'tertiary-container', 'on-tertiary-subtle': 'on-tertiary-container',
-  'success-subtle': 'success-container', 'warning-subtle': 'warning-container',
-  'danger': 'error', 'danger-subtle': 'error-container', 'on-danger': 'on-error',
-};
-const UTILITIES = ['bg', 'text', 'border', 'border-t', 'ring', 'outline', 'divide', 'fill', 'stroke', 'from',
-  'accent', 'caret', 'decoration'];
-
 let declarations;
-beforeAll(async () => {
-  declarations = await loadDeclarations(srcRoot);
-  declarations.prime(UTILITIES.flatMap(u => Object.entries(ALIAS_ROLE).flatMap(([old, role]) => [`${u}-${old}`, `${u}-${role}`])));
-});
+beforeAll(async () => { declarations = await loadDeclarations(srcRoot); });
 
-describe('тема MD3: старые имена рисуют прежнее', () => {
-  it('перечень старых имён в описании темы — тот же, что в договоре', () => {
-    expect(Object.keys(theme.aliases).filter(k => !k.startsWith('//')).sort())
-      .toEqual(Object.keys(ALIAS_ROLE).sort());
+describe('тема MD3: словарь без старых имён ([UI-82])', () => {
+  it('слой Tailwind сбрасывает цвет, радиус, текст и тень до ролей и шкал', () => {
+    const tailwind = generate(theme)['md3-tailwind.css'];
+    const head = tailwind.slice(0, tailwind.indexOf('--color-primary:'));
+    for (const ns of ['--color-*', '--radius-*', '--text-*', '--shadow-*']) expect(head).toContain(`${ns}: initial;`);
   });
 
-  it.each(Object.entries(ALIAS_ROLE))('%s ≡ %s в обеих темах', (old, role) => {
-    for (const mode of ['light', 'dark'])
-      for (const u of UTILITIES) {
-        const was = declarations(`${u}-${old}`, mode);
-        const now = declarations(`${u}-${role}`, mode);
-        expect(was, `${u}-${old} Tailwind не порождает`).not.toBeNull();
-        expect(was, `${u}-${old} рисует не то же, что ${u}-${role} (${mode === 'light' ? 'светлая' : 'тёмная'} тема): `
-          + `псевдоним «${old}» в src/theme/md3-theme.json обязан указывать на роль «${role}»`).toBe(now);
-      }
+  it('псевдонимов нет: файла старых имён генератор не пишет, старое имя и палитра Tailwind не рисуются', () => {
+    expect(Object.keys(generate(theme))).toEqual(['md3-tokens.css', 'md3-tailwind.css']);
+    for (const cls of ['bg-brand', 'text-fg1', 'border-stroke', 'bg-tonal', 'bg-danger-subtle', 'bg-base',
+      'bg-gray-500', 'text-white', 'rounded-2xl', 'rounded', 'text-xs', 'shadow-lg'])
+      expect(declarations(cls, 'light'), cls).toBeNull();
   });
 
-  it('своих значений у старых имён нет: --legacy-* снят (sharedui-md3-05)', () => {
-    expect(generate(readTheme())['md3-legacy.css']).not.toContain('--legacy-');
+  it('вернувшийся раздел aliases — отказ генератора', () => {
+    expect(() => generate({ ...theme, aliases: { fg1: 'on-surface' } }))
+      .toThrow('раздела aliases нет с финала перехода');
   });
 });
 
@@ -102,11 +77,6 @@ describe('тема MD3: генератор отказывает кривому �
       .toThrow('у roles.surface-bright-2 нет значения светлой темы');
     expect(() => generate(variant(t => { delete t.ext.dark.success; })))
       .toThrow('у ext.success нет значения тёмной темы');
-  });
-
-  it('псевдоним с именем роли', () => {
-    expect(() => generate(variant(t => { t.aliases.surface = 'primary'; })))
-      .toThrow('псевдоним «surface» совпадает с именем роли');
   });
 
   it('половина превью значка числом, а не ссылкой на роль', () => {

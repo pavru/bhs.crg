@@ -23,7 +23,6 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CLASS_AFTER, CLASS_BEFORE, COLOR_UTILITIES, containerTextHits, stripComments } from './class-scan.mjs';
 import { entries, themeDir } from './md3-theme.mjs';
-import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
 import { formatSizeReport, migrateSizes } from './md3-size-migrate.mjs';
@@ -50,10 +49,11 @@ const TOKEN = new RegExp(
   + `|${CLASS_BEFORE}(!?-?)([a-z][\\w-]*)((?:\\/(?:[\\w.]+|\\[[^\\]\\s]+\\]))?!?)${CLASS_AFTER}`, 'gm');
 
 /**
- * Правила из карты. `aliases` — все старые имена цвета (описание темы): имя без пары в `names` —
- * неоднозначно и называется отчётом.
+ * Правила из карты. `aliases` — старые имена цвета сверх `names`: имя без пары неоднозначно и называется
+ * отчётом. До финала перехода это были псевдонимы описания темы; с sharedui-md3-20 их нет, и все старые
+ * имена — в карте.
  */
-export function compile(map = classMap, aliases = entries(theme.aliases).map(([k]) => k)) {
+export function compile(map = classMap, aliases = []) {
   const names = Object.fromEntries(entries(map.names));
   const classes = Object.fromEntries(entries(map.classes));
   const vars = Object.fromEntries(entries(map.vars));
@@ -200,8 +200,8 @@ function containerText(text, file) {
 
 const SOURCE = /\.(?:[cm]?[tj]sx?|css)$/;
 
-// Не переводятся при любом корне: src/theme/ — сами псевдонимы и сгенерированная тема (`--color-fg1: …`
-// перевёлся бы в роль), scripts/ — сама команда, её карта и фикстуры старых имён у тестов сторожей.
+// Не переводятся при любом корне: src/theme/ — сгенерированная тема (переменные --color-* — сами роли),
+// scripts/ — сама команда, её карта и фикстуры старых имён у тестов сторожей.
 // Регистр сравнивается без учёта на Windows: буква диска у cwd и у import.meta.url бывает разной.
 const norm = p => process.platform === 'win32' ? p.toLowerCase() : p;
 const NEVER = [themeDir, here].map(norm);

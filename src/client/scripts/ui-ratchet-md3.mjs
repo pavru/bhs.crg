@@ -3,14 +3,13 @@
 // по классам в строках кода, и словарь растёт с каждым ребёнком эпика.
 
 import { COLOR_UTILITIES, classTokens, scanCandidates, stripComments } from './class-scan.mjs';
-import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 
 // Старые имена цвета (правило `legacy-class`) — псевдонимы из описания темы и имена карты md3:migrate:
 // снятый псевдоним (warning-border, stroke-subtle) класса больше не даёт, и пришедший из старой ветки
 // `border-warning-border` молча рисовал бы рамку цветом текста. Длинные — первыми.
-const LEGACY = Object.entries(theme.aliases).filter(([k]) => !k.startsWith('//'));
-const LEGACY_NAMES = [...new Set([...LEGACY.map(([k]) => k), ...Object.keys(classMap.names)])]
+const LEGACY = Object.entries(classMap.names).filter(([k, v]) => !k.startsWith('//') && v.same).map(([k, v]) => [k, v.to]);
+const LEGACY_NAMES = [...new Set(Object.keys(classMap.names).filter(k => !k.startsWith('//')))]
   .sort((a, b) => b.length - a.length).join('|');
 const LEGACY_CLASS = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${LEGACY_NAMES})(?:/[\\w.]+)?$`);
 const LEGACY_VAR = new RegExp(`var\\(--color-(?:${LEGACY_NAMES})\\)`, 'g');

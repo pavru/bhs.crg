@@ -108,6 +108,24 @@ describe('словарь темы: отказ называет роль', () => 
     expect(nearestRole(themeCandidates(`"${cls}"`)[0].cls)).toBe(role);
   });
 
+  it('файл экрана со старым именем, палитрой, ступенями Tailwind и своим значением — отказ на каждом', () => {
+    // Фикстура задачи 1.2 и сценария [UI-82]: класс в className, в clsx, в карте вариантов и в шаблоне.
+    const screen = [
+      'const tone = { quiet: "text-fg2", raw: "bg-gray-500" };',
+      'export const X = ({ on }) => <div className={clsx("rounded-2xl", on && "text-[11px]")}>',
+      '  <p className={`shadow-lg ${on ? "text-fg1" : ""}`} />',
+      '</div>;',
+    ].join('\n');
+    expect(offendersIn('features/x.tsx', screen)).toEqual([
+      'src/features/x.tsx:1 text-fg2 → text-on-surface-variant',
+      'src/features/x.tsx:1 bg-gray-500 → роль цвета MD3: text-on-surface, bg-surface-container, border-outline-variant, text-primary… (src/theme/md3-theme.json; docs/UI.md, «Цвет»)',
+      'src/features/x.tsx:2 rounded-2xl → ступень формы: rounded-xs, -sm, -md, -lg, -xl, rounded-full, rounded-none (docs/UI.md, «Форма и возвышение»)',
+      'src/features/x.tsx:2 text-[11px] → роль текста: text-body-medium, text-body-small, text-label-small, text-title-small… (docs/UI.md, «Текст»)',
+      'src/features/x.tsx:3 shadow-lg → уровень возвышения: shadow-elevation-1…5 (docs/UI.md, «Форма и возвышение»)',
+      'src/features/x.tsx:3 text-fg1 → text-on-surface',
+    ]);
+  });
+
   it('у текста роли обводки нет пары: отказ называет причину, а не похожий класс', () => {
     expect(nearestRole('text-stroke')).toMatch(/^текст цветом обводки запрещён/);
   });

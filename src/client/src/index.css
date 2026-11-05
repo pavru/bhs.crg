@@ -1,11 +1,11 @@
 @import "tailwindcss";
 /* Сторожа в scripts/ держат в фикстурах тестов запрещённые классы — в сборку их не брать. */
 @source not "../scripts";
-/* Тема MD3 (эпик sharedui-md3, [UI-57]): переменные ролей, слой Tailwind и старые имена-псевдонимы.
-   Все три файла генерирует npm run md3:theme из src/theme/md3-theme.json — правка цвета там. */
+/* Тема MD3 (эпик sharedui-md3, [UI-57]): переменные ролей и слой Tailwind. Слой сбрасывает пространства
+   имён цвета, радиуса, текста и тени ([UI-82]): класс этих утилит — только из словаря MD3. Оба файла
+   генерирует npm run md3:theme из src/theme/md3-theme.json — правка цвета там. */
 @import "./theme/md3-tokens.css";
 @import "./theme/md3-tailwind.css";
-@import "./theme/md3-legacy.css";
 
 @theme inline {
   --font-mono: 'Roboto Mono', ui-monospace, 'Cascadia Code', Consolas, monospace; /* код, версия */
