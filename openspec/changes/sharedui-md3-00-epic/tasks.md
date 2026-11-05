@@ -288,6 +288,7 @@
   `NewNomenclatureStep`, `LinkPickerModal`) и списки содержимого карточки (`ComplexFields`, замечания сверки,
   `NotificationList`, `fields/SectionRail`) — на `ListItem` или свой вид по разбору; `list-row` — в ноль.
   Заведён решением владельца 05.11.2026 (Л4 md3-18): `sharedui-md3-17-screens`, куда это шло, закрыт.
+  Уровень после md3-18 PR 2 — 7: `ComplexFields` 3, `RefPickerModal` 2, `BaseCandidatePicker`, `ScopeGroupList`.
   После 3.8. Проверка — change заархивирован.
 - [x] 4.2 `sharedui-md3-20-legacy-removal` (1) — удаление псевдонимов, сброс `--color-*`, `--radius-*`,
   `--text-*`, `--shadow-*` в `@theme` (D11),

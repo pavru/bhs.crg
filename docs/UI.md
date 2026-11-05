@@ -1274,8 +1274,9 @@ Expressive, как и split-кнопка ([UI-83], В7 от 31.10.2026).
   храповик, правило `list-row` ([UI-84]), область по умолчанию, по синтаксическому дереву
   (`scripts/ui-ratchet-lists.mjs`). Не строка: открытое меню (`data-[state=open]:`), подложка наведения с
   прозрачностью (`hover:bg-primary-container/70`), заливка без условия, пометка (`span`). Выход — `ListItem`,
-  `ListGroupHeader`, `NavItem`. Уровень заведён по факту (24) — строки экранов переводит sharedui-md3-18 PR 2,
-  остаток — `sharedui-md3-21-pick-lists`; только опускается.
+  `ListGroupHeader`, `NavItem`. Уровень заведён по факту (24), строки экранов переведены sharedui-md3-18 PR 2 —
+  остаток 7 (`ComplexFields`, `RefPickerModal`, `BaseCandidatePicker`, `ScopeGroupList`) ведёт
+  `sharedui-md3-21-pick-lists`; только опускается.
 - Белое на сплошной заливке — `text-white`, `ring-white`, `bg-white` вместе с `bg-primary` /
   `bg-error` / `bg-success` / `bg-warning` (и старыми `bg-brand`, `bg-danger`, и переменной роли
   `bg-[var(--md-sys-color-primary)]`) — тот же храповик, правило `white-on-fill` (#1462),
