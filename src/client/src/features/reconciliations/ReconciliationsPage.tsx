@@ -223,7 +223,7 @@ export function ReconciliationsPage() {
   }
 
   const reconciliationRow = (i: typeof items[number]) => (
-    <NavItem key={i.id} icon={<Icon icon={Balance} size={18} />} label={i.name}
+    <NavItem key={i.id} icon={Balance} label={i.name}
       active={view === 'reconciliation' && i.id === selectedId}
       onClick={() => { setView('reconciliation'); setSelectedId(i.id); setRunId(null); }} />
   );
@@ -231,7 +231,7 @@ export function ReconciliationsPage() {
   const nav = (
     <>
       <NavSearchInput value={search} onChange={setSearch} placeholder="Поиск сверки…" />
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
+      <div className="flex-1 overflow-y-auto pb-2">
         {outsideSearch && (
           <>
             <NavSection label="Открыта, вне поиска" />
@@ -241,7 +241,7 @@ export function ReconciliationsPage() {
         {filtered.length > 0 && <NavSection label="Сверки" />}
         {filtered.map(reconciliationRow)}
         {filtered.length === 0 && !isLoading && (
-          <p className="px-3 py-2 text-body-medium text-on-surface-variant">
+          <p className="px-4 py-2 text-body-medium text-on-surface-variant">
             {outsideSearch ? 'Больше ничего не найдено' : 'Сверок нет'}
           </p>
         )}
@@ -249,11 +249,11 @@ export function ReconciliationsPage() {
         {/* Отдельной секцией, а не в общем списке: находка сверки — результат арифметики,
             замечание — утверждение агента. Смешать значит выдать одно за другое. */}
         <NavSection label="Внешний анализ" />
-        <NavItem icon={<Icon icon={SmartToy} size={18} />} label="Замечания агента"
+        <NavItem icon={SmartToy} label="Замечания агента"
           count={observations.filter(isUnreviewed).length}
           active={view === 'observations'}
           onClick={() => setView('observations')} />
-        <NavItem icon={<Icon icon={LinkIcon} size={18} />} label="Алиасы позиций"
+        <NavItem icon={LinkIcon} label="Алиасы позиций"
           count={aliases.filter(a => a.status === 'Proposed').length}
           active={view === 'aliases'}
           onClick={() => setView('aliases')} />

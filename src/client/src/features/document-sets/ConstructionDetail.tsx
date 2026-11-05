@@ -84,15 +84,15 @@ export function ConstructionDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+    <div className="flex-1 overflow-y-auto pb-3">
       {panels.workNav}
       <NavSection label="Разделы" />
-      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет разделов</p>}
+      {construction.sections.length === 0 && <p className="px-4 py-2 text-body-medium text-on-surface-variant">Нет разделов</p>}
       {construction.sections.map(s => {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);
         return (
-          <NavItem key={s.id} icon={<Icon icon={Layers} size={18} />} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
+          <NavItem key={s.id} icon={Layers} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
             progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />

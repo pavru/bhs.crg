@@ -141,7 +141,7 @@ export function QualityDocsPage() {
   const outsideList = current && !visibleDocs.some(d => d.id === current.id) ? current : null;
 
   const docRow = (d: QualityDocument) => (
-    <NavItem key={d.id} icon={<Icon icon={VerifiedUser} size={18} />}
+    <NavItem key={d.id} icon={VerifiedUser}
       label={isAmbiguous(d, ambiguousNames)
         ? `${d.displayName} · ${docNumberOf(d, docTypes) || 'без номера'}`
         : d.displayName}
@@ -162,7 +162,7 @@ export function QualityDocsPage() {
         <NavSearchInput value={search} onChange={setSearch} placeholder="Материал или документ…" />
       </div>
       {/* Список скроллится САМ: без этого длинный перечень растит страницу и уносит шапку. */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto pb-2">
         {[...states.keys()].length > 0 && (
           <>
             <NavSection label="Требует внимания" />
@@ -172,7 +172,7 @@ export function QualityDocsPage() {
               const meta = STATE_META[s];
               const icon = meta.icon;
               return (
-                <NavItem key={s} icon={<Icon icon={icon} size={18} />} label={meta.label} filter
+                <NavItem key={s} icon={icon} label={meta.label} filter
                   active={stateFilter === s}
                   count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}

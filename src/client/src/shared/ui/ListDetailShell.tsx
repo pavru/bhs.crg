@@ -2,6 +2,8 @@ import { useContext, type ReactNode } from 'react';
 import { ListDetailViewContext as ViewContext, useListDetailView, type ListDetailView } from './listDetailView';
 import { Icon } from './Icon';
 import { ArrowBack, ChevronRight } from './icons';
+import type { IconDef } from './icons/types';
+import { ListItem } from './ListItem';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
@@ -94,18 +96,21 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
   );
 }
 
-/** Микрозаголовок секции левой навигации scope-страницы («КОМПЛЕКТЫ», «ЭТОТ РАЗДЕЛ», …). */
+/** Заголовок группы левой навигации («Комплекты», «Этот раздел», …) — подзаголовок списка MD3 ([UI-84]):
+ *  `title-small` роли `on-surface-variant`, отступы 16 / 16 / 8. */
 export function NavSection({ label }: { label: string }) {
-  return <div className="px-3 pt-3 pb-1 text-title-small text-on-surface-variant">{label}</div>;
+  return <div className="px-4 pt-4 pb-2 text-title-small text-on-surface-variant">{label}</div>;
 }
 
 /**
- * Пилюля левой навигации scope-страницы (issue #210, ось видимости). Два рода (аффорданс кодирует scope):
- * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
- * без `chevron` — ресурс/контент уровня (меняет detail на месте): число у подписи (`CountText`), подсветка при active.
+ * Пункт левой навигации scope-страницы (issue #210, ось видимости) — строка `ListItem` ([UI-84], sharedui-md3-18).
+ * Два рода (аффорданс кодирует scope): `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron,
+ * НИКОГДА не выбран; без `chevron` — ресурс/контент уровня (меняет detail на месте): число у подписи
+ * (`CountText`), выбран при active.
  */
 export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle, note }: {
-  icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
+  /** Знак 24 — символом: размер задаёт строка (Л5). */
+  icon?: IconDef; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
   /** Пункт сужает СПИСОК (отбор по состоянию), а не меняет карточку: на узком месте он оставляет
    *  список на экране — показать карточку значило бы спрятать только что отобранное (issue #1355). */
   filter?: boolean;
@@ -126,41 +131,40 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
   /** Пометка на месте счётчика: панель открыта по ссылке вне пространства (plan-02, макет П0). */
   note?: string;
 }) {
-  const highlight = active && !chevron;
+  // Ребёнок с шевроном выбранным не бывает — ни заливкой, ни `aria-current`.
+  const selected = !!active && !chevron;
   // Пункт уровня меняет карточку на месте — на узком месте её и надо показать (issue #1355).
   // Ребёнок уводит на другой адрес, отбор меняет список: им карточка ни при чём.
   const view = useContext(ViewContext);
   return (
-    <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left state-layer focus-ring ${
-        highlight ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-      <span className={`shrink-0 ${highlight ? 'text-on-primary-container' : 'text-on-surface-variant'}`}>{icon}</span>
-      <span className="flex-1 truncate text-body-medium">{label}</span>
-      {progress != null && (
-        <StatusText tone={progress === 100 ? 'success' : 'neutral'} title={progressTitle ?? `Готовность по плану: ${progress}%`} className="tabular-nums">
-          {progress}%
-        </StatusText>
-      )}
-      {alert != null && alert > 0 && (
-        // Пометка с числом, а не badge: у badge один цвет — красный, а красный здесь зарезервирован за
-        // арифметикой (`alertDanger`); знак тона различает «разобрать» и «расхождение» и без цвета.
-        <StatusText tone={alertDanger ? 'error' : 'warning'} title={`Требует разбора: ${alert}`} className="tabular-nums">
-          {alert > 99 ? '99+' : alert}
-        </StatusText>
-      )}
-      {chevron ? (
-        <>
-          {count != null && <span className="text-body-small text-on-surface-variant shrink-0">{count}</span>}
-          <Icon icon={ChevronRight} size={18} className="shrink-0 text-on-surface-variant" />
-        </>
-      ) : note ? (
-        <StatusText>{note}</StatusText>
-      ) : (
-        count != null && count > 0 && (
-          <CountText onContainer={highlight}>{count}</CountText>
-        )
-      )}
-    </button>
+    <ListItem icon={icon} headline={label} selected={selected}
+      onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }}
+      trailing={<>
+        {progress != null && (
+          <StatusText tone={progress === 100 ? 'success' : 'neutral'} title={progressTitle ?? `Готовность по плану: ${progress}%`} className="tabular-nums">
+            {progress}%
+          </StatusText>
+        )}
+        {alert != null && alert > 0 && (
+          // Пометка с числом, а не badge: у badge один цвет — красный, а красный здесь зарезервирован за
+          // арифметикой (`alertDanger`); знак тона различает «разобрать» и «расхождение» и без цвета.
+          <StatusText tone={alertDanger ? 'error' : 'warning'} title={`Требует разбора: ${alert}`} className="tabular-nums">
+            {alert > 99 ? '99+' : alert}
+          </StatusText>
+        )}
+        {chevron ? (
+          <>
+            {count != null && <CountText>{count}</CountText>}
+            <Icon icon={ChevronRight} size={24} className="shrink-0 text-on-surface-variant" />
+          </>
+        ) : note ? (
+          <StatusText>{note}</StatusText>
+        ) : (
+          count != null && count > 0 && (
+            <CountText onContainer={selected && 'secondary'}>{count}</CountText>
+          )
+        )}
+      </>} />
   );
 }
 

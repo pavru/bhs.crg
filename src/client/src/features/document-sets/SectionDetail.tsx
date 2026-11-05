@@ -95,17 +95,17 @@ export function SectionDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+    <div className="flex-1 overflow-y-auto pb-3">
       {panels.workNav}
       <HiddenByWorkspace module="id" what="Комплекты раздела" />
       {idOn && <>
         <NavSection label="Комплекты" />
-        {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет комплектов</p>}
+        {section.documentSets.length === 0 && <p className="px-4 py-2 text-body-medium text-on-surface-variant">Нет комплектов</p>}
         {section.documentSets.map(ds => {
           const p = problemOf(problems, ds.id);
           const done = planOf(plan, ds.id);
           return (
-            <NavItem key={ds.id} icon={<Icon icon={FolderOpen} size={18} />} label={ds.name} count={ds.documentCount ?? 0} chevron
+            <NavItem key={ds.id} icon={FolderOpen} label={ds.name} count={ds.documentCount ?? 0} chevron
               progress={done?.percent ?? null} progressTitle={planTitle(done)}
               alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
               onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />

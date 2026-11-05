@@ -52,7 +52,7 @@
 
 ## 1. PR 1: `ListItem`, `NavItem` и правило
 
-- [ ] 1.1 `shared/ui/ListItem.tsx` по Р1–Р2 [UI-84]: прямоугольник во всю ширину, отступы 16, `gap` 16;
+- [x] 1.1 `shared/ui/ListItem.tsx` по Р1–Р2 [UI-84]: прямоугольник во всю ширину, отступы 16, `gap` 16;
   `min-h-12` без `supporting` и `min-h-16` с ним (Л2); `headline` `body-large` `on-surface` с `title` (Р6),
   `supporting` `body-medium` `on-surface-variant` (узел — многострочный растёт), замыкающий текст
   `label-small`; ведущий знак 24 (Л5); `selected` — `secondary-container` / `on-secondary-container` и
@@ -60,23 +60,23 @@
   цели; `depth` — 16 на уровень (D8); утилита `state-layer-row` в `index.css` — слой и кольцо `-inset` строки
   по `:has(> [data-li-target]…)`. Проверка — новый `ListItem.test.tsx`: высоты по классам, `aria-current`
   только у выбранной, `action` и `leadingAction` не внутри `button`, `title` у подписи, `ref` на цели
-- [ ] 1.1a `shared/ui/ListGroupHeader.tsx` по Р7 [UI-84]: подзаголовок `title-small` `on-surface-variant`
+- [x] 1.1a `shared/ui/ListGroupHeader.tsx` по Р7 [UI-84]: подзаголовок `title-small` `on-surface-variant`
   целью не ниже 48, шеврон `expand_less` / `expand_more`, `aria-expanded`, число, `action` соседом; без
   выбора. Проверка — тест: `aria-expanded` меняется, `aria-current` нет никогда, `action` не внутри `button`
-- [ ] 1.2 `NavItem` и `NavSection` на `ListItem` (Р3) [UI-84]: поведение прежнее — `showDetail` у пункта
+- [x] 1.2 `NavItem` и `NavSection` на `ListItem` (Р3) [UI-84]: поведение прежнее — `showDetail` у пункта
   уровня, `filter` оставляет список, шеврон не подсвечивается (`selected={false}`); пометки и число — в
   `trailing`, `CountText` на выбранной — `on-secondary-container`; `icon` — символом 24 в 14 вызовах.
   `NavSection` — `title-small` `on-surface-variant`, отступы 16 / 16 / 8. Проверка — `listDetailView.test.tsx`
   и `primitives.test.tsx` зелёные, классы переписаны вручную вместе с отрицательными
   (`not.toContain('bg-primary-container')`)
-- [ ] 1.3 Правило `list-row` (Р5) [UI-84]: модуль `scripts/ui-ratchet-lists.mjs` с `listRules(countElements)`,
+- [x] 1.3 Правило `list-row` (Р5) [UI-84]: модуль `scripts/ui-ratchet-lists.mjs` с `listRules(countElements)`,
   подключение одной строкой в `ui-ratchet-lib.mjs`, область по умолчанию (вне `shared/ui`), подсказка —
   `ListItem`; тест `scripts/ui-ratchet-lists.test.mjs` — положительные случаи (строка счёта, `typeRow`, `div`
   дерева, `aria-current:bg-secondary-container`) и отрицательные (`ListItem`, `NavItem`,
   `data-[state=open]:`, `hover:bg-primary-container/70` — `BaseInstanceChip`, пометка `span`); уровень в
   `ui-baseline.json` — по факту, около 24 (`npm run ui:ratchet:update` осознанно). Проверка — `npm run
   ui:ratchet` зелёный, тест модуля зелёный; `FileSizeRatchet` — `ui-ratchet-lib.mjs` не перешагнул 500 строк
-- [ ] 1.4 `docs/UI.md`: строка «Строка списка — `ListItem`» в таблице «Язык формы» и раздел «Списки
+- [x] 1.4 `docs/UI.md`: строка «Строка списка — `ListItem`» в таблице «Язык формы» и раздел «Списки
   list-detail» (вид А, роли, действие соседом и видно всегда, `ListGroupHeader`, `NavItem` — для разделов
   уровня, `title` у подписи, правило `list-row`); перечень правил храповика в `CLAUDE.md` и `AGENTS.md` —
   одним коммитом. Проверка — `AgentRulesCopyTests` зелёный
