@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Генератор темы MD3 (эпик sharedui-md3, [UI-57]): из описания src/theme/md3-theme.json — три файла
-// рядом с ним, все в git и все руками не правятся:
+// Генератор темы MD3 (эпик sharedui-md3, [UI-57]): из описания src/theme/md3-theme.json — два файла
+// рядом с ним, оба в git и оба руками не правятся:
 //   md3-tokens.css   — переменные --md-sys-* / --md-ext-* обеих тем (тёмная — атрибутом data-theme;
 //                      форма, возвышение и роли текста — одни на обе);
-//   md3-tailwind.css — слой Tailwind: класс — роль без префикса (bg-primary, text-on-surface-variant);
-//   md3-legacy.css   — старые имена классов (text-fg1, bg-brand…) псевдонимами ролей. Финал эпика
-//                      удаляет файл целиком, а не правит строки.
+//   md3-tailwind.css — слой Tailwind: класс — роль без префикса (bg-primary, text-on-surface-variant).
+//                      Пространства имён цвета, радиуса, текста и тени он сначала сбрасывает ([UI-82]):
+//                      класс этих утилит порождает только словарь MD3, а не палитра и шкалы Tailwind.
+// Старых имён классов (md3-legacy.css, псевдонимы ролей) нет с финала перехода, sharedui-md3-20.
 //
 // Почему файлы, а не переменные прямо в index.css: тогда дрейф генерации сверялся бы по куску
 // рукописного файла. Дрейф сторожит md3-theme.test.mjs — тем же generate(), что и здесь.
@@ -26,19 +27,19 @@ const HEADER = '/* Сгенерировано scripts/md3-theme.mjs из src/the
 /** Пары «имя — значение» без ключей-комментариев («//»). */
 export const entries = obj => Object.entries(obj ?? {}).filter(([k]) => !k.startsWith('//'));
 
-/** Переменная роли: своя роль (`ext`) — `--md-ext-color-*`, роль схемы MD3 — `--md-sys-color-*`. */
-export function roleVar(theme, role) {
-  if (role in theme.roles.light) return `--md-sys-color-${role}`;
-  if (role in theme.ext.light) return `--md-ext-color-${role}`;
-  throw new Error(`md3-theme.json: роли «${role}» нет ни в roles, ни в ext`);
-}
-
 /**
  * Роли без класса Tailwind. `shadow` рисуют уровни тени (`--md-sys-elevation-*`), а её класс
  * перехватил бы имена утилит тени: `text-shadow` красил бы текст в цвет тени, и сторож цветовых
  * классов принимал бы его как известный.
  */
 export const NO_CLASS = ['shadow'];
+
+/**
+ * Пространства имён `@theme`, которые слой Tailwind сбрасывает перед словарём MD3 ([UI-82]). Тень — во всех
+ * четырёх видах: у `drop-shadow-*`, `inset-shadow-*` и `text-shadow-*` свои пространства, и без сброса их
+ * ступени Tailwind (`drop-shadow-md`) рисовались бы мимо уровней возвышения.
+ */
+export const RESET = ['--color-*', '--radius-*', '--text-*', '--shadow-*', '--drop-shadow-*', '--inset-shadow-*', '--text-shadow-*'];
 
 /**
  * Значение половины превью значка: ссылка «тема.роль» (`light.surface-container-low`). Числом её не
@@ -225,10 +226,10 @@ export function generate(source) {
     for (const name of light.filter(k => !dark.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения тёмной темы`);
     for (const name of dark.filter(k => !light.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения светлой темы`);
   }
-  // Псевдоним с именем роли пишет свой --color-* после слоя ролей и молча перекрывает класс роли.
-  const classes = [...entries(theme.roles.light), ...entries(theme.ext.light), ...entries(theme.static)].map(([k]) => k);
-  for (const [name] of entries(theme.aliases))
-    if (classes.includes(name)) throw new Error(`md3-theme.json: псевдоним «${name}» совпадает с именем роли — класс роли он перекрыл бы`);
+  // Вернувшийся раздел старых имён — тот же «гибрид», что снял финал перехода: отказ, а не молчание.
+  if ('aliases' in theme)
+    throw new Error('md3-theme.json: раздела aliases нет с финала перехода (sharedui-md3-20, [UI-82]) — '
+      + 'старое имя в ветке переводит npm run md3:migrate');
   const statics = entries(theme.static).map(([k, ref]) => [k, staticValue(theme, k, ref)]);
 
   const block = (selector, lines) => `${selector} {\n${lines.map(l => `  ${l}`).join('\n')}\n}\n`;
@@ -253,6 +254,10 @@ export function generate(source) {
   const tailwind = [
     HEADER,
     block('@theme inline', [
+      // Сброс — до словаря ([UI-82], D2 зонтика): палитра, радиусы, ступени текста и тени Tailwind классов
+      // больше не порождают, и забытое имя ловит сторож словаря (theme-classes.test.mjs). Отступы, точки
+      // излома, начертания и шрифты — свои у Tailwind: MD3 их не задаёт.
+      ...RESET.map(ns => `${ns}: initial;`),
       ...entries(theme.roles.light).filter(([k]) => !NO_CLASS.includes(k))
         .map(([k]) => `--color-${k}: var(--md-sys-color-${k});`),
       ...[...entries(theme.ext.light), ...statics].map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
@@ -262,18 +267,7 @@ export function generate(source) {
     ]),
   ].join('\n');
 
-  // Своих значений у старых имён больше нет (sharedui-md3-05 снял fg-disabled, brand-hover,
-  // brand-pressed вместе с --legacy-*): псевдоним — только имя роли.
-  const aliases = entries(theme.aliases);
-  for (const [name, to] of aliases)
-    if (typeof to !== 'string') throw new Error(`md3-theme.json: псевдоним «${name}» — не имя роли MD3`);
-  const legacy = [
-    HEADER + '/* Старые имена классов — переходные псевдонимы ролей MD3 ([UI-58]): рисуют ровно то же, что до\n'
-      + '   перехода, и расти им нельзя (храповик legacy-class). Файл удаляет финал эпика целиком. */\n',
-    block('@theme inline', aliases.map(([k, to]) => `--color-${k}: var(${roleVar(theme, to)});`)),
-  ].join('\n');
-
-  return { 'md3-tokens.css': tokens, 'md3-tailwind.css': tailwind, 'md3-legacy.css': legacy };
+  return { 'md3-tokens.css': tokens, 'md3-tailwind.css': tailwind };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

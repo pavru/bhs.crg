@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultScopeNote, ICON_SCALE, RULES, ROOT } from './ui-ratchet-lib.mjs';
 
 // Фикстуры правил — на ролях MD3 (sharedui-md3-02). Старые имена остались там, где проверяются они сами:
-// одна фикстура white-on-fill (bg-brand text-white), имена без роли (bg-brand-hover, text-fg3) и блок
-// legacy-class ниже. Здесь счёт прочих правил — без legacy-class, raw-state и dark-variant: фикстуры
+// одна фикстура white-on-fill (bg-brand text-white) и имена без роли (bg-brand-hover, text-fg3). Старые
+// имена, сырую палитру и свой размер текста храповик не считает с финала перехода (sharedui-md3-20): их
+// ловит сторож словаря темы, theme-classes.test.mjs. Здесь счёт прочих правил — без raw-state и dark-variant: фикстуры
 // white-on-fill и пометок держат самодельное наведение нарочно (оно не их нарушение), а эти правила
 // проверяют свои блоки. legacy-radius и legacy-shadow (sharedui-md3-06) — в ui-ratchet-shape.test.mjs: прежние фикстуры
 // пишут rounded, rounded-lg и тени старыми классами, и это не их нарушение. legacy-type (sharedui-md3-07) — в
 // ui-ratchet-type.test.mjs по той же причине: фикстуры пишут text-xs, font-semibold и uppercase.
-const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant', 'legacy-radius', 'legacy-shadow', 'legacy-type']);
+const OWN_BLOCK = new Set(['raw-state', 'dark-variant', 'legacy-radius', 'legacy-shadow', 'legacy-type']);
 const countViolations = (text, opts) =>
   Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => !OWN_BLOCK.has(rule)));
 
@@ -25,16 +26,6 @@ describe('храповик интерфейса: счёт', () => {
 
   it('свой заголовок страницы', () => {
     expect(countViolations('<h1 className="text-xl">Стройки</h1> <h2>Раздел</h2> <h1>')).toEqual({ h1: 2 });
-  });
-
-  it('произвольный размер текста — px и rem, но не цвет', () => {
-    expect(countViolations('text-[11px] md:text-[12.5px] text-[0.7rem] text-xs text-[#333]'))
-      .toEqual({ 'text-size': 3, palette: 1 });
-  });
-
-  it('сырая палитра с модификаторами и прозрачностью', () => {
-    expect(countViolations('bg-indigo-50 hover:text-purple-700 border-red-200/50 placeholder:text-purple-400/70'))
-      .toEqual({ palette: 4 });
   });
 
   /** Тело окна обычно живёт в своём файле, без `<Modal` в тексте (ревью PR #1386). */
@@ -381,50 +372,10 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
 
   it('сгенерированная тема своих --legacy-* и старых имён не считает; стили — только legacy-*', () => {
     expect(countAll(':root { --legacy-fg3: #5b5f67; } @theme inline { --color-fg3: var(--legacy-fg3); --color-x: var(--color-brand); }',
-      { dir: 'theme', file: 'theme/md3-legacy.css' })).toEqual({});
+      { dir: 'theme', file: 'theme/md3-tailwind.css' })).toEqual({});
     expect(countAll('.a { width: 520px; } .b { color: #fff; } <table>', { dir: ROOT, file: 'index.css' })).toEqual({});
   });
 
-  it('старое имя в файле стилей — тоже legacy-class', () => {
-    expect(countAll('.x { outline: 2px solid var(--color-brand); } /* var(--color-fg1) */',
-      { dir: 'shared', file: 'shared/ui/viewer/textLayer.css' })).toEqual({ 'legacy-class': 1 });
-  });
-
-  it('старые имена — с вариантом, прозрачностью и через var(--color-…)', () => {
-    expect(countAll([
-      '<div className="hover:bg-brand-subtle text-fg1 border-stroke/50" />',
-      "const s = { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }; const d = 'var(--color-fg3)';",
-      '/* text-fg2 в комментарии не рисуется */',
-    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5, 'legacy-shadow': 1 });
-  });
-
-  /** Граница класса — та же, что у кодмода md3:migrate (sharedui-md3-02): что он переводит, то сторож и видит. */
-  it('старые имена в селекторе и в строке внутри строки; путь файла — не класс', () => {
-    expect(countAll([
-      "querySelectorAll('span.bg-brand-subtle'); getByText('x', { selector: '.text-fg1' })",
-      '.bg-brand:hover, .row.border-stroke { }',
-      "const t = '${on ? \\'border-brand-subtle\\' : \\'\\'}';",
-      "import icon from './bg-brand.svg'; url('text-fg1.png')",
-    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
-  });
-
-  it('третий серый в новом файле — legacy-class с советом on-surface-variant (sharedui-md3-04, [UI-63])', () => {
-    expect(countAll('<p className="text-label-small text-fg4" />', { dir: 'features', file: 'features/x/New.tsx' }))
-      .toEqual({ 'legacy-class': 1 });
-    const advice = RULES.find(r => r.id === 'legacy-class').instead;
-    expect(advice).toContain('fg3 → on-surface-variant');
-    expect(advice).toContain('fg4 → on-surface-variant');
-  });
-
-  it('снятое имя без псевдонима (warning-border, stroke-subtle) — всё равно старое: класса оно больше не даёт', () => {
-    expect(countAll('<div className="border border-warning-border divide-stroke-subtle" />', { dir: 'features', file: 'features/x/Old.tsx' }))
-      .toEqual({ 'legacy-class': 2 });
-  });
-
-  it('имена ролей, общие у обоих словарей, и размер text-base — не старые имена', () => {
-    expect(countAll('text-success bg-surface text-tertiary text-base text-base/6 bg-primary text-on-surface-variant on-warning'))
-      .toEqual({});
-  });
 });
 
 describe('храповик интерфейса: текст на контейнере (sharedui-md3-04)', () => {
@@ -576,7 +527,6 @@ describe('храповик интерфейса: какие каталоги о�
     expect(scopeNote(RULES.find(r => r.id === 'portal-container'))).toBe('portal-container — и в shared/ui/');
     expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
     expect(scopeNote(RULES.find(r => r.id === 'legacy-token'))).toBe('legacy-token — весь src/ со стилями, кроме theme/');
-    expect(scopeNote(RULES.find(r => r.id === 'legacy-class'))).toBe('legacy-class — весь src/ со стилями, кроме theme/');
     expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
       .toBe('native-pdf-frame — и в shared/ui/, кроме shared/ui/viewer/');
     expect(defaultScopeNote()).toBe('features/ и shared/ без shared/ui/');

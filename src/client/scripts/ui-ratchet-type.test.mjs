@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { countViolations, RULES } from './ui-ratchet-lib.mjs';
 
-// Храповик интерфейса, роли текста (sharedui-md3-07, [UI-67]): правило legacy-type и подсказка
-// text-size. Отдельно от ui-ratchet.test.mjs: там фикстуры прочих правил пишут ступени Tailwind, и счёт
-// тех правил смотрит без этого.
+// Храповик интерфейса, роли текста (sharedui-md3-07, [UI-67]): правило legacy-type. Свой размер
+// (text-[11px]) с финала перехода ловит сторож словаря темы (theme-classes.test.mjs). Отдельно от
+// ui-ratchet.test.mjs: там фикстуры прочих правил пишут ступени Tailwind, и счёт тех правил смотрит без этого.
 const screen = { dir: 'features', file: 'features/x.tsx' };
 const own = text => countViolations(text, screen)['legacy-type'] ?? 0;
 
@@ -37,11 +37,9 @@ describe('храповик интерфейса: роли текста (sharedui
       .toEqual({ 'legacy-type': 1 });
   });
 
-  it('подсказки называют роли, а не прежние ступени', () => {
-    for (const id of ['legacy-type', 'text-size']) {
-      const { instead } = RULES.find(r => r.id === id);
-      expect(instead).toContain('text-body-medium');
-      expect(instead).not.toMatch(/\btext-(?:xs|sm|caption|note)\b/);
-    }
+  it('подсказка называет роли, а не прежние ступени', () => {
+    const { instead } = RULES.find(r => r.id === 'legacy-type');
+    expect(instead).toContain('text-body-medium');
+    expect(instead).not.toMatch(/\btext-(?:xs|sm|caption|note)\b/);
   });
 });

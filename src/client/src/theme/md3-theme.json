@@ -1,12 +1,12 @@
 {
   "//": [
     "Описание темы MD3 (эпик sharedui-md3, [UI-57] [UI-62]). Единственный источник цвета клиента: из него",
-    "`npm run md3:theme` пишет md3-tokens.css, md3-tailwind.css и md3-legacy.css — руками их не правят.",
+    "`npm run md3:theme` пишет md3-tokens.css и md3-tailwind.css — руками их не правят.",
     "mode \"seed\" — значения ролей обеих тем считает генератор схемы MCU из seed по варианту схемы",
     "(решение владельца 29.10.2026: tonalSpot, primary закреплён равным seed, свои роли без гармонизации).",
     "Ручных значений ролей нет: цвет меняют seed, variant, pinPrimary и ext. Контраст пар — тест темы.",
-    "aliases — старые имена классов: имя роли или { legacy } — значение без роли MD3.",
-    "Растить их нельзя (храповик legacy-class); снимает финал эпика."
+    "Старых имён классов (aliases) нет с финала перехода (sharedui-md3-20, [UI-82]): ветку на старых именах",
+    "переводит npm run md3:migrate по scripts/md3-class-map.json."
   ],
   "mode": "seed",
   "seed": "#1d5fb0",
@@ -84,29 +84,5 @@
     "level3": ["0 1px 3px 0 .3", "0 4px 8px 3px .15"],
     "level4": ["0 2px 3px 0 .3", "0 6px 10px 4px .15"],
     "level5": ["0 4px 4px 0 .3", "0 8px 12px 6px .15"]
-  },
-  "aliases": {
-    "fg1": "on-surface",
-    "fg2": "on-surface-variant",
-    "fg3": "on-surface-variant",
-    "fg4": "on-surface-variant",
-    "base": "surface-container-low",
-    "muted": "surface-container",
-    "muted-hover": "surface-container-high",
-    "stroke": "outline-variant",
-    "stroke-strong": "outline",
-    "brand": "primary",
-    "brand-subtle": "primary-container",
-    "on-brand": "on-primary",
-    "on-brand-subtle": "on-primary-container",
-    "tonal": "secondary-container",
-    "on-tonal": "on-secondary-container",
-    "tertiary-subtle": "tertiary-container",
-    "on-tertiary-subtle": "on-tertiary-container",
-    "success-subtle": "success-container",
-    "warning-subtle": "warning-container",
-    "danger": "error",
-    "danger-subtle": "error-container",
-    "on-danger": "on-error"
   }
 }

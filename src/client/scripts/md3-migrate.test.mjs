@@ -3,10 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { COLOR_UTILITIES } from './class-scan.mjs';
-import { loadDeclarations } from './color-classes-lib.mjs';
+import { loadDeclarations } from './theme-classes-lib.mjs';
 import { clientRoot, compile, formatReport, migrateFiles, migrateText, sourceFiles } from './md3-migrate.mjs';
-import { countLegacyClasses } from './ui-ratchet-md3.mjs';
 import classMap from './md3-class-map.json' with { type: 'json' };
 
 // Кодмод перевода старых имён (эпик sharedui-md3, [UI-58]): почему команда, а не sed, — в md3-migrate.mjs.
@@ -119,7 +117,6 @@ describe('md3:migrate: неоднозначное не трогает, а наз
 
   it('fg-disabled снят из темы (sharedui-md3-05), но пара у него есть: класса из старой ветки не теряем', () => {
     expect(migrated('"text-fg-disabled"')).toBe('"text-on-surface/38"');
-    expect(countLegacyClasses('<i className="text-fg-disabled" />')).toBe(1);
   });
 
   it('у текста две роли (sharedui-md3-04): fg3, fg4 и text-stroke-strong → on-surface-variant', () => {
@@ -256,36 +253,31 @@ describe('md3:migrate: один проход', () => {
   });
 });
 
-describe('md3:migrate: пары карты рисуют то же', () => {
-  // Каждая цветовая утилита по отдельности: `border-[xytblrse]` — восемь сторон.
-  const utilities = COLOR_UTILITIES.split('|')
-    .flatMap(u => u === 'border-[xytblrse]' ? [...'xytblrse'].map(s => `border-${s}`) : [u]);
+describe('md3:migrate: пары карты ведут в словарь темы', () => {
+  // До финала перехода (sharedui-md3-20) пара `same: true` сверялась с псевдонимом: старый и новый класс
+  // рисовали одно и то же. Псевдонимов нет, старое имя не рисуется вовсе — и сверяется то, что осталось
+  // от обещания: перевод ветки, начатой до финала, даёт классы, которые Tailwind порождает.
   let declarations;
   beforeAll(async () => {
     declarations = await loadDeclarations(join(import.meta.dirname, '..', 'src'));
-    const names = Object.entries(classMap.names).filter(([k]) => !k.startsWith('//')).flatMap(([old, { to }]) => [old, to]);
-    declarations.prime(utilities.flatMap(u => names.map(n => `${u}-${n}`)));
+    declarations.prime(targets(classMap).map(([, cls]) => cls));
   });
 
-  /** Пары `same: true`, у которых старый и новый класс рисуют разное, — с утилитой и темой. */
-  const mismatches = names => Object.entries(names).filter(([k, v]) => !k.startsWith('//') && v.same).flatMap(([old, { to }]) =>
-    ['light', 'dark'].flatMap(mode => {
-      const theme = mode === 'light' ? 'светлая' : 'тёмная';
-      if (declarations(`bg-${old}`, mode) == null) return [`${old} → ${to}: bg-${old} Tailwind не порождает`];
-      return utilities.filter(u => declarations(`${u}-${old}`, mode) !== declarations(`${u}-${to}`, mode))
-        .map(u => `${u}-${old} → ${u}-${to} (${theme} тема): ${declarations(`${u}-${old}`, mode)} ≠ ${declarations(`${u}-${to}`, mode)}`);
-    }));
+  /** Пара карты → класс-цель: имя цвета — с `bg`, полный класс и замена состояния — как есть. */
+  const targets = map => [
+    ...Object.entries(map.names ?? {}).filter(([k]) => !k.startsWith('//')).map(([old, { to }]) => [old, `bg-${to}`]),
+    ...Object.entries(map.classes ?? {}).filter(([, v]) => v.to).map(([old, { to }]) => [old, to]),
+    ...Object.entries(map.states?.to ?? {}),
+  ];
+  const outside = map => targets(map).filter(([, cls]) => declarations(cls, 'light') == null).map(([old, cls]) => `${old} → ${cls}`);
 
-  it('каждая пара same: true × цветовые утилиты — те же объявления в обеих темах', () => {
-    expect(mismatches(classMap.names), 'Пара карты с same: true меняет вид — уберите same или поправьте пару в '
-      + 'scripts/md3-class-map.json').toEqual([]);
+  it('каждая пара переводит в класс, который Tailwind порождает', () => {
+    expect(outside(classMap), 'Пара карты ведёт мимо словаря темы — поправьте её в scripts/md3-class-map.json').toEqual([]);
   });
 
-  it('пара с другим значением краснеет и называет пару и тему', () => {
-    const bad = mismatches({ fg2: { to: 'primary', same: true } });
-    expect(bad.length).toBeGreaterThan(0);
-    expect(bad[0]).toMatch(/^bg-fg2 → bg-primary \(светлая тема\)/);
-    expect(bad.some(m => m.includes('(тёмная тема)'))).toBe(true);
+  it('пара в имя вне словаря краснеет и называет пару', () => {
+    expect(outside({ names: { fg2: { to: 'fg9' } }, classes: { 'text-xs': { to: 'text-2xs' } } }))
+      .toEqual(['fg2 → bg-fg9', 'text-xs → text-2xs']);
   });
 });
 

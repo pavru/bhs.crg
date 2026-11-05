@@ -5,8 +5,6 @@
     "features/auth/AuthCard.tsx": 1,
     "features/catalog/LoginPage.tsx": 1
   },
-  "text-size": {},
-  "palette": {},
   "fixed-width": {
     "features/catalog/LoginPage.tsx": 2,
     "features/costs/InvoiceLinesTable.tsx": 1,
@@ -78,7 +76,6 @@
   "date-frame": {},
   "native-pdf-frame": {},
   "legacy-token": {},
-  "legacy-class": {},
   "container-text": {},
   "raw-state": {},
   "dark-variant": {},

@@ -11,10 +11,8 @@ import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { inputRules } from './ui-ratchet-inputs.mjs';
 import { cellRules } from './ui-ratchet-cells.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
-import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
+import { countDarkVariants, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates } from './ui-ratchet-md3.mjs';
 
-const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
-const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
 /** Каталог файлов из корня src/ (App.tsx, main.tsx) — для `countViolations({ dir })` и `dirsToScan`. */
 export const ROOT = '.';
@@ -53,18 +51,6 @@ export const RULES = [
     // посреди пустого экрана, а не страница с шапкой, и в уровне они стоят навсегда.
     pattern: /<h1\b/g,
     instead: 'заголовок страницы — PageHeader (shared/ui/PageHeader), в list-detail — ListDetailShell: docs/UI.md, «Заголовки»',
-  },
-  {
-    id: 'text-size',
-    // Произвольный размер текста: text-[11px], text-[0.7rem]. Цвет вида text-[#fff] ловит palette.
-    pattern: /\btext-\[\d+(?:\.\d+)?(?:px|rem|em)\]/g,
-    instead: 'размер текста — ролью MD3 (text-body-small, text-body-medium, text-label-small, text-title-small…): docs/UI.md, «Текст»',
-  },
-  {
-    id: 'palette',
-    // Сырая палитра Tailwind (bg-indigo-50, hover:text-purple-700/80) и hex в произвольном значении.
-    pattern: new RegExp(`(?<![\\w-])(?:${UTILITIES})-(?:${COLORS})-\\d{2,3}\\b|-\\[#[0-9a-fA-F]{3,8}\\]`, 'g'),
-    instead: 'цвет — только токеном (text-primary, bg-warning-container, text-tertiary…): docs/UI.md, «Цвет»',
   },
   {
     id: 'fixed-width',
@@ -227,20 +213,6 @@ export const RULES = [
     styles: true,
     skip: ['theme/'],
     instead: 'переменная MD3: --f-shadow4/16/28 → --md-sys-elevation-level1/2/3, --f-brand → --md-sys-color-primary, цвет — --md-sys-color-<роль> или класс роли (bg-primary, text-on-surface) (docs/UI.md, «Цвет»)',
-  },
-  {
-    id: 'legacy-class',
-    // Старые имена цвета (text-fg1, bg-brand…) — переходные псевдонимы ролей MD3 ([UI-58]): рисуют
-    // прежнее, но расти им нельзя. Перечень — псевдонимы описания темы, граница класса — та же, что у
-    // сторожа словаря (любая цветовая утилита, вариант, прозрачность). Плюс `var(--color-<старое>)` —
-    // и в файлах стилей: там старое имя пишут именно так. `theme/` — сами псевдонимы.
-    // `text-base` — размер текста, а не цвет. Уровень 0 (sharedui-md3-05); снимается финалом эпика вместе
-    // с псевдонимами.
-    count: countLegacyClasses,
-    everywhere: true,
-    styles: true,
-    skip: ['theme/'],
-    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; brand-hover, brand-pressed → наведение и нажатие рисует state-layer, текст — text-primary; fg-disabled → text-on-surface/38; обводки по статусу нет — рамка формы outline-variant (docs/UI.md, «Цвет»)`,
   },
   {
     id: 'container-text',
