@@ -29,6 +29,9 @@ import { containsRef } from './brokenRefs';
 import { BrokenCount } from './BrokenCount';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Banner } from '@/shared/ui/Banner';
+import { ListItem } from '@/shared/ui/ListItem';
+import { CountText } from '@/shared/ui/CountText';
+import { NavSection } from '@/shared/ui/ListDetailShell';
 
 /** Ссылка на сохранение вкладки: оболочка вызывает его, не зная внутренностей формы. */
 export type SaveRef = { current: (() => Promise<boolean>) | null };
@@ -750,30 +753,27 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       <div className="flex-1 min-h-0 flex">
         {/* Drawer разделов (list-detail, issue #191) */}
         {useDrawer && (
-          <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-outline-variant overflow-y-auto p-3 gap-0.5">
-            <div className="text-body-small font-medium text-on-surface-variant px-3 pb-1.5">Разделы</div>
+          <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-outline-variant overflow-y-auto pb-3">
+            <NavSection label="Разделы" />
             {items.map(item => {
               const isActive = item.key === activeItem.key;
               const stats = sectionStats(item.fields);
               const broken = brokenInFields(item.fields);
-              let icon = Circle, iconCls = 'text-on-surface-variant';
+              // Тихий знак на выбранной — цветом текста её контейнера, а не on-surface-variant.
+              let icon = Circle, iconCls = isActive ? 'text-on-secondary-container' : 'text-on-surface-variant';
               // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
               if (broken > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
               else if (showValidation && stats.missing > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
               else if (stats.total > 0 && stats.filled === stats.total) { icon = CheckCircle; iconCls = 'text-primary'; }
               else if (isActive) { icon = RadioButtonChecked; iconCls = 'text-primary'; }
-              else if (stats.filled > 0) { icon = RadioButtonChecked; iconCls = 'text-on-surface-variant'; }
+              else if (stats.filled > 0) icon = RadioButtonChecked;
+              // Строка MD3 ([UI-84]): знак состояния раздела — ведущий узел, счётчики — замыкающие.
               return (
-                <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
-                  aria-current={isActive ? 'true' : undefined}
-                  className={`state-layer w-full flex items-center gap-3 text-left px-3 h-11 rounded-full ${
-                    isActive ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
-                  <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
-                  <span className="flex-1 truncate text-body-medium">{item.title}</span>
-                  <BrokenCount nav count={broken} className="shrink-0" />
-                  <ValueIssueCount count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
-                  {stats && <span className="text-body-small text-on-surface-variant tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
-                </button>
+                <ListItem key={item.key} onClick={() => setActiveKey(item.key)} selected={isActive}
+                  leading={<Icon icon={icon} size={24} className={`shrink-0 ${iconCls}`} />} headline={item.title}
+                  trailing={<><BrokenCount nav count={broken} className="shrink-0" />
+                    <ValueIssueCount count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
+                    {stats && <CountText onContainer={isActive && 'secondary'}>{stats.filled}/{stats.total}</CountText>}</>} />
               );
             })}
           </nav>

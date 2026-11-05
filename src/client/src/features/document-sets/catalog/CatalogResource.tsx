@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Check, Close, ContentCopy, Database, Description, Edit, KeyboardArrowDown, KeyboardArrowUp, Layers } from '@/shared/ui/icons';
@@ -29,6 +29,9 @@ import { ArchivedBanner } from './ArchiveParts';
 import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { ListItem } from '@/shared/ui/ListItem';
+import { CountText } from '@/shared/ui/CountText';
+import type { IconDef } from '@/shared/ui/icons/types';
 import { CATALOG_RECORD } from '@/shared/ui/recordRoutes';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Card } from '@/shared/ui/Card';
@@ -216,9 +219,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   return (
     <div className="flex gap-5 items-start">
       {/* Рейл типов */}
-      <aside className="w-48 shrink-0 sticky top-0 self-start space-y-0.5">
+      <aside className="w-48 shrink-0 sticky top-0 self-start">
         {rail.groups.length > TYPE_SEARCH_THRESHOLD && (
-          <div className="mb-1">
+          <div className="mb-1 px-1">
             {/* Плотное поле, а не search bar: рейл в 192 px, и поле 56 в нём было бы выше пунктов. */}
             <TextField density="dense" label="Поиск типа" placeholder="Тип…" value={typeSearch}
               onChange={e => setTypeSearch(e.target.value)}
@@ -226,15 +229,15 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           </div>
         )}
         {profileType && (
-          <TypeNavItem icon={<Icon icon={Apartment} size={18} />} label={`Данные: ${SCOPE_LABELS[scope]}`}
+          <TypeNavItem icon={Apartment} label={`Данные: ${SCOPE_LABELS[scope]}`}
             count={undefined} active={filterTypeId === PROFILE} profile
             onClick={() => setFilterTypeId(PROFILE)} />
         )}
-        <TypeNavItem icon={<Icon icon={Layers} size={18} />} label="Все записи" count={normalEntries.filter(isLive).length}
+        <TypeNavItem icon={Layers} label="Все записи" count={normalEntries.filter(isLive).length}
           active={!filterTypeId} onClick={() => setFilterTypeId('')} />
         {railGroups.map(({ type: t, items }) => (
           <TypeNavItem key={t.id}
-            icon={isDocType(t.id) ? <Icon icon={Description} size={18} /> : <Icon icon={Database} size={18} />}
+            icon={isDocType(t.id) ? Description : Database}
             label={t.name} count={items.filter(isLive).length} doc={isDocType(t.id)}
             active={filterTypeId === t.id} onClick={() => setFilterTypeId(t.id)} />
         ))}
@@ -365,19 +368,21 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
 
 /** Пункт вертикального рейла типов (issue #210, вариант B). Активный — заливка brand-subtle;
  *  документные типы (внешний каталог) — приглушённая иконка; счётчик tabular. */
-function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick }: {
-  icon?: ReactNode; label: string; count?: number; active?: boolean; doc?: boolean; muted?: boolean;
+/**
+ * Строка рейла типов — `ListItem` ([UI-84], sharedui-md3-18). Знак красится по смыслу строки: профиль уровня —
+ * `primary` (без своей заливки: выбранным его делает только `selected`), тип документа — `warning`; у выбранной
+ * — цвет текста её контейнера.
+ */
+function TypeNavItem({ icon, label, count, active = false, doc, muted, profile, onClick }: {
+  icon?: IconDef; label: string; count?: number; active?: boolean; doc?: boolean; muted?: boolean;
   profile?: boolean; onClick: () => void;
 }) {
+  const tone = active ? 'text-on-secondary-container' : profile ? 'text-primary' : doc ? 'text-warning' : 'text-on-surface-variant';
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-md text-left ${
-        active ? 'bg-primary-container text-on-primary-container font-medium'
-          : profile ? 'text-primary hover:bg-primary-container' : 'text-on-surface-variant state-layer'}`}>
-      {icon && <span className={`shrink-0 ${active || profile ? 'text-primary' : doc ? 'text-warning' : 'text-on-surface-variant'}`}>{icon}</span>}
-      <span className={`flex-1 truncate text-body-medium ${muted ? 'italic text-on-surface-variant' : ''}`}>{label}</span>
-      {count != null && <span className="text-body-small text-on-surface-variant tabular-nums shrink-0">{count}</span>}
-    </button>
+    <ListItem onClick={onClick} selected={active} title={label}
+      leading={icon && <Icon icon={icon} size={24} className={`shrink-0 ${tone}`} />}
+      headline={muted ? <span className="italic">{label}</span> : label}
+      trailing={count != null ? <CountText onContainer={active && 'secondary'}>{count}</CountText> : undefined} />
   );
 }
 

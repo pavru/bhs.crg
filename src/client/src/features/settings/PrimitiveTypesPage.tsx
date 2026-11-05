@@ -45,6 +45,7 @@ import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusText } from '@/shared/ui/StatusText';
+import { ListItem } from '@/shared/ui/ListItem';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { constraintsOf } from './primitiveConstraints';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
@@ -501,22 +502,17 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
 
   const typeRow = (t: Row) => {
     const active = t.id === selectedId;
+    // Строка MD3 ([UI-84]): имя — подпись, код · превью — вторая строка (64), чип — замыкающий текст.
     return (
-      <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
-        className={`state-layer w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left ${
-          active ? 'bg-primary-container text-on-primary-container' : ''}`}>
-        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`} />
-        <span className="min-w-0 flex-1">
-          {/* Строка 1 — только имя, полный приоритет ширины. */}
-          <span className={`block text-body-medium font-medium truncate ${active ? 'text-primary' : 'text-on-surface'}`}>{t.name}</span>
-          {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
-          <span className="flex items-baseline gap-1 min-w-0 text-on-surface-variant">
+      <ListItem key={t.id} onClick={() => onSelect(t.id)} selected={active} icon={t.icon} headline={t.name}
+        trailing={t.chip}
+        supporting={(
+          // Код (mono, capped) · превью; оба truncate, длинный код не ломает строку.
+          <span className="flex items-baseline gap-1 min-w-0">
             <span className="font-mono text-label-small truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
             {t.preview && <span className="text-body-small truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
-        </span>
-        <StatusText>{t.chip}</StatusText>
-      </button>
+        )} />
     );
   };
 
@@ -527,7 +523,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
         items={[{ value: 'primitive', label: 'Примитивные' }, { value: 'enum', label: 'Перечисления' }]} />
       <TabPanel id={LISTS_ID} value={mode} className="flex-1 min-h-0 flex flex-col">
         <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
-        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+        <div className="flex-1 overflow-y-auto pb-3">
           {outside && (
             <>
               <NavSection label="Открыт, вне поиска" />

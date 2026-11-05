@@ -9,6 +9,7 @@ import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
+import { ListItem } from '@/shared/ui/ListItem';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -61,25 +62,19 @@ export function BugReportsPage() {
   const open = filtered.filter(r => r.status === 'New' || r.status === 'Forwarded');
   const closed = filtered.filter(r => r.status === 'Fixed' || r.status === 'Rejected');
 
+  // Строка MD3 ([UI-84]): автор, время и пометки — вторая строка, состояние — замыкающее.
   const row = (r: BugReportListItem) => (
-    <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
-      aria-current={r.id === selectedId ? 'true' : undefined}
-      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
-        r.id === selectedId ? 'bg-primary-container' : ''}`}>
-      <div className="flex items-start gap-2">
-        <span className={`flex-1 min-w-0 text-body-medium truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
-          {r.summary}
+    <ListItem key={r.id} onClick={() => { ld.showDetail(); setPicked(r.id); }} selected={r.id === selectedId}
+      headline={r.summary} trailing={<ReportStatus status={r.status} />}
+      supporting={(
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate">{r.author}</span>
+          <span>·</span>
+          <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
+          {r.hasScreenshot && <Icon icon={ImageIcon} size={18} className="shrink-0" aria-label="со снимком экрана" />}
+          {r.githubIssueNumber && <span className="shrink-0">· #{r.githubIssueNumber}</span>}
         </span>
-        <ReportStatus status={r.status} />
-      </div>
-      <div className="flex items-center gap-1.5 mt-0.5 text-label-small text-on-surface-variant">
-        <span className="truncate">{r.author}</span>
-        <span>·</span>
-        <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
-        {r.hasScreenshot && <Icon icon={ImageIcon} size={18} className="shrink-0" aria-label="со снимком экрана" />}
-        {r.githubIssueNumber && <span className="shrink-0">· #{r.githubIssueNumber}</span>}
-      </div>
-    </button>
+      )} />
   );
 
   return (
@@ -99,12 +94,12 @@ export function BugReportsPage() {
       nav={
         <div className="flex flex-col min-h-0">
           <NavSearchInput value={query} onChange={setQuery} placeholder="Поиск по тексту и автору…" />
-          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto pb-2">
             {open.length > 0 && <NavSection label="В разборе" />}
             {open.map(row)}
             {closed.length > 0 && <NavSection label="Закрытые" />}
             {closed.map(row)}
-            {filtered.length === 0 && <p className="text-body-medium text-on-surface-variant px-3 py-2">Ничего не найдено</p>}
+            {filtered.length === 0 && <p className="text-body-medium text-on-surface-variant px-4 py-2">Ничего не найдено</p>}
           </div>
         </div>
       }

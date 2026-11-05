@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, ContentCopy, Delete, Description, KeyboardArrowDown, KeyboardArrowUp, LockIcon, OpenInNew, Star, Warning } from '@/shared/ui/icons';
+import { Add, ContentCopy, Delete, Description, LockIcon, OpenInNew, Star, Warning } from '@/shared/ui/icons';
+import { ListItem } from '@/shared/ui/ListItem';
+import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -221,35 +223,25 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
           const hasDefault = group.versions.some(t => t.isDefault);
           const tooMany = group.versions.length >= maxVersions;
           const latestVersion = group.versions[0]?.version ?? 1;
-          const isGroupSelected = selectedTemplate?.name === group.name;
 
+          // Шаблон — заголовок группы (Р7, вариант Б): выбранным не бывает, выбрана только версия внутри.
+          // Действия шаблона — в «⋮» у заголовка, видны без наведения.
           return (
             <div key={group.name}>
-              <div className={`state-layer flex items-center group/grp ${isGroupSelected ? 'bg-primary-container' : ''}`}>
-                <button
-                  onClick={() => handleGroupHeaderClick(group)}
-                  className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left min-w-0"
-                >
-                  {isExpanded
-                    ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
-                    : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
-                  {hasDefault && <Icon icon={Star} size={18} className="fill-warning text-warning shrink-0" />}
-                  <span className={`text-body-medium truncate flex-1 ${isGroupSelected ? 'text-primary font-medium' : 'text-on-surface'}`}>
-                    {group.name}
+              <ListGroupHeader label={group.name} open={isExpanded} onToggle={() => handleGroupHeaderClick(group)}
+                lead={hasDefault && <Icon icon={Star} size={18} className="fill-warning text-warning shrink-0" />}
+                count={(
+                  <span className="flex items-center gap-1">
+                    v{latestVersion}
+                    {tooMany && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                   </span>
-                  <span className="text-body-small text-on-surface-variant shrink-0">v{latestVersion}</span>
-                  {tooMany && (
-                    <Icon icon={Warning} size={18} className="text-warning shrink-0" />
-                  )}
-                </button>
-                <IconButton label="Дублировать шаблон"
-                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
-                  onClick={() => onDuplicate(group)} icon={ContentCopy} />
-                <IconButton label="Удалить шаблон со всеми версиями"
-                  danger
-                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
-                  onClick={() => onDeleteGroup(group)} icon={Delete} />
-              </div>
+                )}
+                action={(
+                  <RowActionsMenu ariaLabel={`Действия шаблона «${group.name}»`} actions={[
+                    { key: 'duplicate', label: 'Дублировать шаблон', icon: ContentCopy, onSelect: () => onDuplicate(group) },
+                    { key: 'delete', label: 'Удалить шаблон со всеми версиями…', danger: true, icon: Delete, onSelect: () => onDeleteGroup(group) },
+                  ]} />
+                )} />
 
               {isExpanded && (
                 <div className="border-b border-surface-container">
@@ -257,7 +249,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                       рейл узок, banner в нём встаёт выше трёх строк версий, а знак у имени группы уже
                       сказал главное. Здесь — сколько и что с этим делать. */}
                   {tooMany && (
-                    <div className="flex items-center gap-2 pl-5 pr-1">
+                    <div className="flex items-center gap-2 pl-4 pr-1">
                       <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                       <span className="flex-1 min-w-0 text-body-small text-on-surface-variant">
                         Много версий: {group.versions.length}
@@ -269,43 +261,33 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     const used = usage[t.id]?.count ?? 0;
                     // Удалять индивидуально нельзя рабочую/дефолтную версию (защита active/default — на уровне UI).
                     const deleteBlocked = t.isActive || t.isDefault;
+                    // Версия — строка ListItem (Р7): выбрана — только она; пометки — замыкающие, комментарий —
+                    // вторая строка; «⋮» видно без наведения.
                     return (
-                    <div key={t.id}
-                      className={`state-layer flex items-center group/ver pl-5
-                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : ''}`}>
-                      <button
-                        onClick={() => onSelect(t)}
-                        className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0
-                          ${selectedTemplate?.id === t.id ? 'text-primary' : 'text-on-surface-variant'}`}
-                      >
-                        <span className="text-body-small font-mono shrink-0 w-6">v{t.version}</span>
-                        <span className="flex items-center gap-1 flex-1 min-w-0">
-                          {t.isActive && <span className="text-body-small text-success shrink-0">активный</span>}
-                          {t.isDefault && <span className="text-body-small text-warning shrink-0">по умолч.</span>}
-                          {used > 0 && (
-                            <Tooltip content={`Используется в ${used} докум.`}>
-                              <span className="flex items-center gap-0.5 text-body-small text-on-surface-variant shrink-0">
-                                <Icon icon={Description} size={18} /> {used}
-                              </span>
-                            </Tooltip>
-                          )}
-                          {t.comment && (
-                            <span className="text-body-small text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>
-                          )}
-                        </span>
-                      </button>
-                      <div className="pr-1 opacity-0 group-hover/ver:opacity-100 focus-within:opacity-100 transition-all shrink-0">
-                        <RowActionsMenu ariaLabel={`Действия версии v${t.version}`} actions={[
-                          { key: 'open', label: 'Открыть', icon: OpenInNew, onSelect: () => onSelect(t) },
-                          {
-                            key: 'delete', label: 'Удалить версию…', danger: true, icon: Delete,
-                            disabled: deleteBlocked,
-                            badge: used > 0 ? `${used} докум.` : undefined,
-                            onSelect: () => onDelete(t),
-                          },
-                        ]} />
-                      </div>
-                    </div>
+                      <ListItem key={t.id} onClick={() => onSelect(t)} selected={selectedTemplate?.id === t.id}
+                        headline={`v${t.version}`} supporting={t.comment || undefined}
+                        trailing={(t.isActive || t.isDefault || used > 0) && (
+                          <>
+                            {t.isActive && <span className="text-success">активный</span>}
+                            {t.isDefault && <span className="text-warning">по умолч.</span>}
+                            {used > 0 && (
+                              <Tooltip content={`Используется в ${used} докум.`}>
+                                <span className="flex items-center gap-0.5"><Icon icon={Description} size={18} /> {used}</span>
+                              </Tooltip>
+                            )}
+                          </>
+                        )}
+                        action={(
+                          <RowActionsMenu ariaLabel={`Действия версии v${t.version}`} actions={[
+                            { key: 'open', label: 'Открыть', icon: OpenInNew, onSelect: () => onSelect(t) },
+                            {
+                              key: 'delete', label: 'Удалить версию…', danger: true, icon: Delete,
+                              disabled: deleteBlocked,
+                              badge: used > 0 ? `${used} докум.` : undefined,
+                              onSelect: () => onDelete(t),
+                            },
+                          ]} />
+                        )} />
                     );
                   })}
                 </div>

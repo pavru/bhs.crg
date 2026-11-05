@@ -14,7 +14,7 @@ import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { Checkbox } from '@/shared/ui/Checkbox';
+import { GenerationTemplateRows } from './GenerationTemplateRows';
 
 // ── Вкладка «Генерация» ─────────────────────────────────────────────────────────
 // Выделено из editor/index.tsx (#490): файл на 1220 строк был оболочкой вкладок и двумя
@@ -175,29 +175,10 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           </p>
         ) : (
           <>
-            {/* Клик по ВСЕЙ строке (обёртка-label) переключает участие в генерации (issue #316);
-                фокус (показ параметров ниже) следует за кликом через onChange. Галочка отражает участие,
-                подсветка строки — фокус. */}
-            <div className="rounded-sm border border-outline divide-y divide-outline-variant overflow-hidden">
-              {activeTemplates.map((t: Template) => {
-                const selected = selectedTemplateIds.includes(t.id);
-                const focused = focusedTemplate?.id === t.id;
-                return (
-                  <label key={t.id}
-                    className={`state-layer flex items-center gap-2 pr-2.5 text-body-medium border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
-                    <Checkbox checked={selected} disabled={setTemplatesMutation.isPending}
-                      onChange={v => { toggleTemplate(t.id, v); setChosenFocus(t.id); }}
-                      aria-label={`Использовать шаблон «${t.name}» для генерации`}
-                      boxClassName="ml-2.5" />
-                    <span className="flex-1 min-w-0 py-1.5">
-                      <span className={`truncate ${focused ? 'text-primary font-medium' : 'text-on-surface'}`}>
-                        {t.isDefault ? '★ ' : ''}{t.name} <span className="text-on-surface-variant font-normal">(v{t.version})</span>
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+            {/* Флажок — участие в генерации, строка — шаблон для параметров ниже (Р8, вместо #316). */}
+            <GenerationTemplateRows templates={activeTemplates} participating={selectedTemplateIds}
+              focusedId={focusedTemplate?.id ?? null} disabled={setTemplatesMutation.isPending}
+              onToggle={toggleTemplate} onFocus={setChosenFocus} />
             {selectedTemplateIds.length === 0 && (
               <p className="text-label-small text-on-surface-variant">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
             )}
