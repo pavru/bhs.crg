@@ -188,23 +188,31 @@ PR 5 разделён на два (решение владельца 05.11.2026)
   `costs-invoice-screen-11`, задача 4.4; `hand-card` 8 — `-10` 4.7 и `-11` 4.4) доводит эпик
   `costs-invoice-screen` (его 3.3), зонтик `sharedui-md3-00-epic` закрывается после него. Проверка — задачи
   внесены в `tasks.md` 10, 11 и 00 эпика счёта
-- [ ] 5.2 PR 5б — тест пустого уровня — новым файлом (`ui-ratchet.test.mjs` и `ui-ratchet-lib.mjs` у порога 500
+- [x] 5.2 PR 5б — тест пустого уровня — новым файлом (`ui-ratchet.test.mjs` и `ui-ratchet-lib.mjs` у порога 500
   строк): фикстуры с плашкой, карточкой руками, сырым полем, `rounded-2xl`, `shadow-sm`, `text-xs`
   краснят своё правило при пустом уровне (`compare({}, …)`) [UI-81]. Проверка — новый тест зелёный,
   фикстуры красные; `FileSizeRatchet` зелёный
-- [ ] 5.3 PR 5б — `docs/UI.md`: «Язык формы», «Цвет», «Форма и возвышение», «Текст», «Карточки» — без упоминаний
+- [x] 5.3 PR 5б — `docs/UI.md`: «Язык формы», «Цвет», «Форма и возвышение», «Текст», «Карточки» — без упоминаний
   накопленных плашек, карточек и полей руками; перечень правил храповика в `CLAUDE.md` и `AGENTS.md` —
   четыре правила «на нуле», `notice-plaque` и `hand-card` — «на нуле вне экрана счёта» — одним коммитом. Проверка — ревью PR; `AgentRulesCopyTests` зелёный
+  Сделано 05.11.2026: `scripts/ui-ratchet-empty-level.test.mjs` — фикстура каждого из шести правил краснит при
+  пустом уровне, и сам уровень сверен: четыре правила пусты, `notice-plaque` и `hand-card` — только в 11 файлах
+  экрана счёта. В `docs/UI.md` оговорки «накоплено до ребёнка 17» заменены уровнем и эпиком счёта
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 6.2 `cd src/client && npm run ui:ratchet` — шесть правил на нуле вне файлов экрана счёта (там — 16 мест
+- [x] 6.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 6.2 `cd src/client && npm run ui:ratchet` — шесть правил на нуле вне файлов экрана счёта (там — 16 мест
   `notice-plaque` и `hand-card` или меньше); `npm run lint:ratchet` — без роста
-- [ ] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
+- [x] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
   — зелёный
-- [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
-- [ ] 6.5 В описании каждого PR — снимки экранов раздела до и после в обеих темах на 1366×768 и 375 px
+- [x] 6.5 В описании каждого PR — снимки экранов раздела до и после в обеих темах на 1366×768 и 375 px
   (зонтик, 5.2), для мест «макет» — макет, вариант и ссылка; весь `npm run -s test:e2e:ci` зелёный (5.1)
-- [ ] 6.6 PR с меткой `version:minor`
+- [x] 6.6 PR с меткой `version:minor`
+
+Верификация 05.11.2026 (PR 5б): `tsc -b` чисто; vitest 3633/3633; `ui:ratchet` — шесть правил на нуле вне
+экрана счёта (`notice-plaque` 8, `hand-card` 8 — только его файлы); `lint:ratchet` 0; `AgentRulesCopy` и
+`FileSizeRatchet` зелёные. Снимки и e2e — у PR 0–5а (артефакты в заметках разделов); PR 5б интерфейса не
+меняет — тест храповика и документы

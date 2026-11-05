@@ -249,7 +249,7 @@
 
 ## 4. Дети: экраны и финал
 
-- [ ] 4.1 `sharedui-md3-17-screens` (по разделу на PR) — плашки → `Banner`, карточки → `Card`, остатки
+- [x] 4.1 `sharedui-md3-17-screens` (по разделу на PR) — плашки → `Banner`, карточки → `Card`, остатки
   шкал и самоделок в `features/`; правила `legacy-radius`, `legacy-shadow`, `legacy-type`,
   `notice-plaque`, `hand-card` — в ноль [UI-81]. С 31.10.2026 (решение владельца в 11) — и `raw-field`:
   самодельные текстовые поля → `TextField` или плотное поле; задачу в `tasks.md` 17 вносит его сессия через
@@ -264,6 +264,10 @@
   Экран счёта вынесен из 17 (решение владельца 05.11.2026): его 16 мест (`notice-plaque` 8, `hand-card` 8)
   доводят `costs-invoice-screen-10` (4.7) и `-11` (4.4), которые эти файлы переписывают; 17 закрывается без
   них. 20 это не держит: в файлах экрана счёта нет старых имён, `legacy-class` и шкалы — на нуле.
+  Закрыт 05.11.2026: PR 0–4 (#1746, #1748, #1751, #1753, #1760), 5а (#1763), 5б — тест пустого уровня
+  `ui-ratchet-empty-level.test.mjs`, `docs/UI.md`, перечень правил в `CLAUDE.md` / `AGENTS.md` и архив
+  `2026-11-05-sharedui-md3-17-screens` одним PR. `raw-field`, `legacy-radius`, `legacy-shadow`, `legacy-type` —
+  ноль во всём `src/`; `notice-plaque` 8 и `hand-card` 8 — только файлы экрана счёта
 - [ ] 4.1a `sharedui-md3-19-requisite-fields` (2–3) — значение реквизита из источника и под замком: пять
   сырых полей `fieldInputClass` в `PrimitiveInput` → поле `shared/ui` по варианту владельца [UI-86];
   `raw-field` видит класс из функции и другого модуля, `FIELD_CLS` — объявленное исключение [UI-69]. Вынесен
