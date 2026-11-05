@@ -6,6 +6,7 @@ import { useFieldDensity } from './fieldBox';
 import { matchStart, type SuggestItem } from './suggestMatch';
 import type { SuggestFeed } from './suggestFeeds';
 import { LAYER_SURFACE } from './menuClasses';
+import { ListOption } from './ListOption';
 
 /** Пропы поля с подсказкой — общие для обоих источников (`SuggestField`). */
 export interface SuggestFieldBaseProps
@@ -180,7 +181,7 @@ export function SuggestBox({
           onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()}
           // Щелчок по самому полю — не «мимо»: список закрыл бы и тут же открылся бы вводом.
           onInteractOutside={e => { if (e.target === input.current) e.preventDefault(); }}
-          className={`z-50 overflow-hidden rounded-xs p-1 ${LAYER_SURFACE}`}
+          className={`z-50 overflow-hidden rounded-xs py-2 ${LAYER_SURFACE}`}
           // Не уже поля; в узкой клетке сетки — не уже 18rem, чтобы марка кабеля не ложилась в столбик.
           style={{ width: 'max(var(--radix-popover-trigger-width), 18rem)', maxWidth: 'min(32rem, calc(100vw - 32px))' }}>
           <SuggestOptions items={items} q={view?.q ?? ''} listId={listId} active={active} onPick={accept} />
@@ -195,17 +196,10 @@ function SuggestOptions({ items, q, listId, active, onPick }: {
 }) {
   return items.map((item, i) => (
     <Item key={item.value} group={item.group && item.group !== items[i - 1]?.group ? item.group : undefined} first={i === 0}>
-      <div id={`${listId}-${i}`} role="option" aria-selected={i === active} title={item.label ?? item.value}
-        // Щелчок не уводит фокус из поля: иначе blur закрыл бы список раньше щелчка.
-        onMouseDown={e => e.preventDefault()} onClick={() => onPick(item)}
-        // Выбранный стрелкой — контейнером secondary, а не слоем: фокус остаётся в поле, и курсор над
-        // другим пунктом давал бы второй такой же слой — какой примет Enter, было бы не видно.
-        className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded-xs px-3 py-1.5 text-body-medium ' +
-          'pointer-coarse:min-h-11 state-layer ' +
-          (i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface')}>
-        <span className="line-clamp-2">{highlight(item.label ?? item.value, q)}</span>
-        {item.note && <span className="ml-auto shrink-0 text-label-small text-on-surface-variant">{item.note}</span>}
-      </div>
+      {/* Пункт слоя под полем ([UI-87], форма `menu`): 40, на касании 48. Щелчок не уводит фокус из поля
+          (иначе blur закрыл бы список раньше щелчка); выбранный стрелкой — контейнером secondary, а не слоем. */}
+      <ListOption id={`${listId}-${i}`} form="menu" active={i === active} headline={highlight(item.label ?? item.value, q)}
+        supporting={item.note} onChoose={() => onPick(item)} />
     </Item>
   ));
 }

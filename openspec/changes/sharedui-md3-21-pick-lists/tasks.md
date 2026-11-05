@@ -88,7 +88,7 @@
 
 ## 1. PR 1: строка варианта, сторож, окна выбора
 
-- [ ] 1.1 `shared/ui/listRow.tsx` и `ListOption` по Р1 [UI-87]: общий помощник отступов, высот и ролей текста
+- [x] 1.1 `shared/ui/listRow.tsx` и `ListOption` по Р1 [UI-87]: общий помощник отступов, высот и ролей текста
   (`listRowBox`, `ListRowBody`) — его берут `ListOption` и `ListItem`, вид `ListItem` не меняется. `ListOption`:
   `div role="option"` с `id`, без `tabIndex`; формы `list` (48 / 64, `body-large`, пояснение второй строкой) и
   `menu` (40 мышью, 48 на касании, `label-large`, пояснение замыкающим текстом, перенос подписи);
@@ -98,11 +98,11 @@
   замыкающего края с `tabIndex=-1`. Тест: фокус остаётся в поле, активный залит, `aria-selected` только у
   текущего, `action` не выбирает вариант, архивный не выбирается, обе формы своей высоты. Проверка — тест
   зелёный
-- [ ] 1.2 `ListItem` по Р3 [UI-84]: ветка `Target` с `passive: true` (без слоя нажатия и `data-li-target`,
+- [x] 1.2 `ListItem` по Р3 [UI-84]: ветка `Target` с `passive: true` (без слоя нажатия и `data-li-target`,
   соседи сохраняют `data-li-side`) и проп `checked` (заливка выбранного без `aria-current`). Тест: две
   отмеченные строки, ни одной `aria-current`; строка `passive` не кнопка и без `state-layer-row`; без цели и
   без `passive` тип не собирается. Проверка — тест зелёный
-- [ ] 1.3 Сторож Р5 в `scripts/ui-ratchet-lists.mjs` [UI-84]: `role="option"` вне `shared/ui` — атрибутом и
+- [x] 1.3 Сторож Р5 в `scripts/ui-ratchet-lists.mjs` [UI-84]: `role="option"` вне `shared/ui` — атрибутом и
   литералом в ветке выражения; заливка в `const` той же функции — инициализатор подмешан до проверки `STATE`;
   один счёт на элемент. Тесты модуля:
   - `PickerOption` с `tone` считается, и один раз;
@@ -113,34 +113,37 @@
   Подсказка называет `ListOption` и `ListItem`. Уровень заведён по факту (`npm run ui:ratchet:update`,
   ожидается 9), число и файлы — в описании PR. Проверка — `ui-ratchet-lists.test.mjs` (`npm test`) и
   `npm run ui:ratchet` зелёные
-- [ ] 1.4 `PickerOption` (`costs/PickerRows.tsx`) на `ListOption form="list"` по Р2 [UI-87]: лучшее
+- [x] 1.4 `PickerOption` (`costs/PickerRows.tsx`) на `ListOption form="list"` по Р2 [UI-87]: лучшее
   совпадение — надписью без `primary-container`; «Выбрать» из строк убрано, `kbd Enter` — только у активной,
   «›» — у нелучших на узком окне. `NomenclaturePicker`, `PointMatchDialogs`, `ResourceMatchDialog` проверены
   вживую (стрелки, Enter, мышь после покоя). Замер на 1366×768: сколько вариантов видно с открытым листом —
   в описании PR. Проверка — три окна на стенде, лучшее не залито, когда активен другой
-- [ ] 1.5 `InvoicePlaceField` на `ListOption form="menu"` [UI-87]: 40 мышью, 48 на нижнем листе телефона;
+- [x] 1.5 `InvoicePlaceField` на `ListOption form="menu"` [UI-87]: 40 мышью, 48 на нижнем листе телефона;
   активный — `secondary-container`; текущее место — галочкой (П2), `aria-selected` уже его; шаг к объектам
   стройки — `action`, без `hover:bg-primary-container`; длинное имя переносится. Проверка — шаг не выбирает
   место и не уводит фокус из поля; тесты `InvoicePlaceField` зелёные
-- [ ] 1.6 `RefPickerModal`, `BaseCandidatePicker` — варианты на `ListOption form="list"`; `ScopeGroupList` —
+- [x] 1.6 `RefPickerModal`, `BaseCandidatePicker` — варианты на `ListOption form="list"`; `ScopeGroupList` —
   структура Р7: заголовок уровня — `ListGroupHeader` вне listbox (Tab до него доходит), у каждой группы свой
   `role="listbox"` с `aria-labelledby`, поле поиска — `aria-controls` на listbox активного варианта; записи —
   `ListOption` при `asOptions`, иначе `ListItem` [UI-87]. Свёрнутая группа стрелкам не отдаётся
   (`useScopeGroups`). «не заполнено» на активной строке сохраняет цвет предупреждения. Варианты перестают
   быть остановками Tab (Р8) — тесты, что ходили Tab'ом, переписаны на стрелки. `RefPickerModal.tsx` не растёт
   (`file-size-baseline.json`). Проверка — тесты окон и стенд
-- [ ] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
+- [x] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
   «в архиве», активная — `secondary-container` вместо `surface-container`. Проверка — стенд: шаг новой
   номенклатуры с похожими и архивной
-- [ ] 1.8 По П5 (да) — `SuggestBox` на `ListOption form="menu"` (40 вместо `min-h-8`), `TypePicker` на
+  _Отступление (PR 1, 06.11.2026):_ строки — `ListItem`, а не `ListOption`. У шага нет поля, которое вело бы
+  их стрелками, и вариант без фокуса оставил бы клавиатуре нечем выбрать похожую позицию. Наведённая —
+  `selected` (справа её карточка), архивная — `passive` с «в архиве»; вид — как у формы `list`.
+- [x] 1.8 По П5 (да) — `SuggestBox` на `ListOption form="menu"` (40 вместо `min-h-8`), `TypePicker` на
   `ListOption form="list"` с `aria-activedescendant` вместо кнопки внутри `option` (Р6). Поведение прежнее,
   правка ARIA у `TypePicker` и пересечения с `work-22-web-entry-ui`, `sharedui-date-input-back-layer` названы в
   описании PR. Проверка — их тесты зелёные
-- [ ] 1.9 `docs/UI.md`: раздел «Списки выбора» рядом со «Списки list-detail» — `ListOption`, форма по
+- [x] 1.9 `docs/UI.md`: раздел «Списки выбора» рядом со «Списки list-detail» — `ListOption`, форма по
   контейнеру (окно — `list`, слой под полем — `menu`), пометки вместо заливок, галочка текущего значения,
   действие внутри варианта, группы Р7; строка в таблице «Язык формы». Перечень правил храповика в `CLAUDE.md`
   и `AGENTS.md` (описание `list-row`, уровень) — одним коммитом. Проверка — `AgentRulesCopyTests`
-- [ ] 1.10 Уровень `list-row` опущен тем же PR на окна 1–6. Проверка — `npm run ui:ratchet` зелёный,
+- [x] 1.10 Уровень `list-row` опущен тем же PR на окна 1–6. Проверка — `npm run ui:ratchet` зелёный,
   в `ui-baseline.json` у `list-row` только файлы перечня Б
 
 ## 2. PR 2: списки карточки, `list-row` в ноль

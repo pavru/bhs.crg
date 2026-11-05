@@ -63,7 +63,7 @@ function show(view: InvoiceView) {
 /** Выбрать раздел стройки «Комарова 36» вторым шагом поля. */
 function pickSection(name: string) {
   fireEvent.click(screen.getByRole('combobox', { name: 'Объект счёта' }));
-  fireEvent.click(screen.getByRole('option', { name: 'Комарова 36' }).nextElementSibling!);
+  fireEvent.click(screen.getByRole('option', { name: 'Комарова 36' }).querySelector('button')!);
   fireEvent.click(screen.getByRole('option', { name }));
 }
 

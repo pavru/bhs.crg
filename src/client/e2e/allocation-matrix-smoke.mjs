@@ -292,7 +292,7 @@ await check('header-section-without-matrix', async () => {
 
   // Второй шаг — «›» у стройки: он рядом с пунктом, а не в нём, чтобы имя пункта оставалось названием.
   await select.click();
-  await page.getByRole('option', { name: site.name, exact: true }).locator('xpath=following-sibling::button').click();
+  await page.getByRole('option', { name: site.name, exact: true }).locator('button').click();
   await Promise.all([written(), page.getByRole('option', { name: sectionName, exact: true }).click()]);
 
   if (await page.getByRole('dialog', { name: 'Разноска по объектам' }).count())

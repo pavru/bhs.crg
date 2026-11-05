@@ -11,7 +11,9 @@ import { fullTextIfCut } from './fullTextIfCut';
  * <p>Выбранным не бывает: заливки выбора и `aria-current` у него нет — выбрана бывает только строка внутри.
  * Строки группы идут без отступа. Действия группы («⋮») — `action`, сосед цели, видны всегда.</p>
  */
-export function ListGroupHeader({ label, title, count, lead, open, onToggle, action }: {
+export function ListGroupHeader({ id, label, title, count, lead, open, onToggle, action }: {
+  /** На цель заголовка: им подписан список группы (`aria-labelledby`). */
+  id?: string;
   label: ReactNode;
   /** Полный текст обрезанной подписи — нативной подсказкой при обрезке, как у `ListItem`. */
   title?: string;
@@ -26,7 +28,7 @@ export function ListGroupHeader({ label, title, count, lead, open, onToggle, act
   const full = title ?? (typeof label === 'string' ? label : undefined);
   return (
     <div className="flex items-stretch w-full state-layer state-layer-row text-on-surface-variant">
-      <button type="button" onClick={onToggle} aria-expanded={open} data-li-target=""
+      <button id={id} type="button" onClick={onToggle} aria-expanded={open} data-li-target=""
         className={`flex-1 min-w-0 flex items-center gap-2 pl-4 ${action ? 'pr-2' : 'pr-4'} pt-3 pb-1 min-h-12 text-left text-title-small cursor-pointer focus:outline-none`}>
         {lead}
         <span className="flex-1 min-w-0 truncate" onPointerEnter={full ? fullTextIfCut(full) : undefined}>{label}</span>

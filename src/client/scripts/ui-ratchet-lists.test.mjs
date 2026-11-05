@@ -43,6 +43,40 @@ describe('храповик интерфейса: list-row', () => {
     ].join(' '))).toBe(0);
   });
 
+  it('вариант выбора руками (sharedui-md3-21): role="option" атрибутом и литералом, один счёт на элемент', () => {
+    // PickerOption: и role, и заливка выбранного в const той же функции — один счёт
+    expect(rows(`function PickerOption({ active, best }) {
+      const tone = best ? 'bg-primary-container' : active ? 'bg-surface-container' : 'state-layer';
+      return <div role="option" aria-selected={active} className={\`px-2 \${tone}\`}>x</div>;
+    }`)).toBe(1);
+    expect(rows('<div role="option" className="px-3 py-1.5">Стройка</div>')).toBe(1);
+    expect(rows("<li role={grouped ? 'option' : undefined}>x</li>")).toBe(1);
+    expect(RULES.find(r => r.id === 'list-row').instead).toContain('ListOption');
+  });
+
+  it('заливка в const той же функции — считается и без role', () => {
+    expect(rows(`function Row({ active }) {
+      const tone = active ? 'bg-secondary-container' : 'state-layer';
+      return <button className={\`w-full \${tone}\`}>x</button>;
+    }`)).toBe(1);
+    // const из другой функции — названный пропуск
+    expect(rows(`const tone = a ? 'bg-secondary-container' : 'state-layer';
+      function Row() { return <button className={\`w-full \${tone}\`}>x</button>; }`)).toBe(0);
+    // одноимённый const вложенной функции — другая переменная: строка с тоном из пропов не считается
+    expect(rows(`function List({ tone, rows }) {
+      const item = r => { const tone = r.on ? 'bg-secondary-container' : 'state-layer'; return tone; };
+      return <button className={\`w-full state-layer \${tone}\`}>{rows.map(item)}</button>;
+    }`)).toBe(0);
+  });
+
+  it('вариант из shared/ui и role другого значения — не считаются', () => {
+    expect(rows([
+      '<ListOption id="o1" headline="Кабель" active onChoose={f} />',
+      '<div role="listbox">список</div>',
+      '<div role="optionGroup">x</div>',
+    ].join(' '))).toBe(0);
+  });
+
   it('область по умолчанию: shared/ui не смотрит, прочий shared — смотрит', () => {
     const row = "<button className={`state-layer ${a ? 'bg-secondary-container' : ''}`}>x</button>";
     expect(rows(row, 'shared/ui/ListItem.tsx')).toBe(0);

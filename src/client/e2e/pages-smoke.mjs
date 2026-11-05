@@ -48,7 +48,7 @@ await check('templates-auto-select-after-type-pick', async () => {
   await selector.click();
   await settled(page);
   const picker = page.locator('[role=dialog]').last();
-  const option = picker.locator('button').filter({ hasText: /АОСР|Кабельный журнал|Титульный/ }).first();
+  const option = picker.getByRole('option').filter({ hasText: /АОСР|Кабельный журнал|Титульный/ }).first();
   if (!(await option.count())) throw new Error('в пикере типов нет знакомых типов');
   firstTypeName = (await option.innerText()).split(/\r?\n/)[0].trim();
   await option.click();
@@ -92,7 +92,7 @@ await check('templates-selection-does-not-leak-to-other-type', async () => {
   await selector.click();
   await settled(page);
   const picker = page.locator('[role=dialog]').last();
-  const empty = picker.locator('button').filter({ hasText: rx(EMPTY_TYPE) }).first();
+  const empty = picker.getByRole('option').filter({ hasText: rx(EMPTY_TYPE) }).first();
   if (!(await empty.count())) throw new Error(`типа «${EMPTY_TYPE}» в пикере нет`);
   await empty.click();
   await settled(page);

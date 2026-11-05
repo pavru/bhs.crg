@@ -168,7 +168,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
         {searching ? (
           <div className="space-y-2">
             {found.isError && <p role="alert" className="text-body-small text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
-            <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-2 space-y-0.5">{list.map(option)}</div>
+            <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-4">{list.map(option)}</div>
             {answered && list.length === 0 && <p className="text-body-small text-on-surface-variant">По этому запросу позиций нет. Проверьте другое написание.</p>}
             {!!answered?.inArchive && <p className="text-body-small text-on-surface-variant">В архиве под этот запрос: {answered.inArchive} — заводить заново не нужно.</p>}
             {answered?.more && (
@@ -178,7 +178,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
         ) : (
           <CandidatesBlock asked answer={answer} rows={picked.rows.length} more={picked.more} current={null} headingId={`${listId}-h`}>
             {picked.rows.length > 0 && (
-              <div id={listId} role="listbox" aria-labelledby={`${listId}-h`} className="-mx-2 space-y-0.5">{picked.rows.map(option)}</div>
+              <div id={listId} role="listbox" aria-labelledby={`${listId}-h`} className="-mx-4">{picked.rows.map(option)}</div>
             )}
           </CandidatesBlock>
         )}

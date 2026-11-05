@@ -111,7 +111,7 @@ await check('field-type-picker-has-all-sections', async () => {
  */
 await check('field-type-pick-updates-summary', async () => {
   const picker = page.locator('[role=dialog]').last();
-  await picker.locator('button').filter({ hasText: /^Флаг/ }).first().click();
+  await picker.getByRole('option').filter({ hasText: /^Флаг/ }).first().click();
   // Ждём перерисовку карточки после ЛОКАЛЬНОЙ правки: выбор типа поля пишется в состояние
   // редактора, на сервер он уходит только кнопкой «Сохранить», которую эта проверка не нажимает.
   await settled(page);
@@ -198,7 +198,7 @@ await check('template-versions-grouped-by-name', async () => {
   // проверялась бы на пустом списке — «нет группы с несколькими версиями», то есть проверка
   // объявляла бы, что проверять нечего, вместо того чтобы дождаться данных.
   const templates = answerTo('GET', /\/api\/templates\?/);
-  await picker.locator('button').filter({ hasText: /АОСР/ }).first().click();
+  await picker.getByRole('option').filter({ hasText: /АОСР/ }).first().click();
   await expectOk(templates, 'загрузка версий шаблона');
   // Ответ получен — осталась отрисовка. Сказать о её отсутствии словами — дело утверждения ниже,
   // поэтому истечение срока здесь глотаем: у утверждения есть имя типа и понятное сообщение.
@@ -417,7 +417,7 @@ await check('core-type-refuses-to-lean-on-a-module-type', async () => {
   await page.getByRole('button', { name: /Родительский тип/ }).first().click();
   // Ждём открытие диалога пикера; типы в нём уже загружены.
   await settled(page);
-  await page.locator('[role=dialog]').last().locator('button')
+  await page.locator('[role=dialog]').last().getByRole('option')
     .filter({ hasText: OWNED }).first().click();
   // Ждём закрытие диалога и перерисовку пикера: выбор родителя пишется в состояние формы, на
   // сервер он уходит только кнопкой «Сохранить» ниже.

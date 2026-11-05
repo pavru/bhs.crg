@@ -131,7 +131,7 @@ describe('SuggestField: принятие только явное (UI-2)', () => 
     typeFast(box(), 'Каб');
     await opened();
     expect(box().getAttribute('aria-activedescendant')).toBeNull();
-    expect(options().some(o => o.getAttribute('aria-selected') === 'true')).toBe(false);
+    expect(options().some(o => o.className.includes('bg-secondary-container'))).toBe(false);
 
     const typed = changes.length;
     fireEvent.keyDown(box(), { key: 'ArrowDown' });
@@ -139,9 +139,12 @@ describe('SuggestField: принятие только явное (UI-2)', () => 
     fireEvent.keyDown(box(), { key: 'ArrowUp' });
     expect(changes.length).toBe(typed);
     expect(box().value).toBe('Каб');
-    const active = screen.getByRole('option', { selected: true, hidden: true });
-    expect(box().getAttribute('aria-activedescendant')).toBe(active.id);
+    // Активный называет поле (`aria-activedescendant`); aria-selected у подсказок — ни у одной: текущего значения
+    // среди них нет ([UI-87]).
+    const active = document.getElementById(box().getAttribute('aria-activedescendant')!)!;
     expect(active.textContent).toBe('Кабель ВВГнг 3×2,5');
+    expect(active.className).toContain('bg-secondary-container');
+    expect(options().some(o => o.getAttribute('aria-selected') === 'true')).toBe(false);
 
     const enter = fireEvent.keyDown(box(), { key: 'Enter' });
     expect(enter).toBe(false); // preventDefault: форма не отправляется
@@ -357,7 +360,7 @@ describe('SuggestField в сетке правки (UI-8)', () => {
     await opened();
     fireEvent.keyDown(second, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(second);
-    expect(screen.getByRole('option', { selected: true, hidden: true }).textContent).toBe('Кабель ВВГнг 3×2,5');
+    expect(document.getElementById(second.getAttribute('aria-activedescendant')!)!.textContent).toBe('Кабель ВВГнг 3×2,5');
 
     fireEvent.keyDown(second, { key: 'Escape' });
     await waitFor(() => expect(list()).toBeNull());

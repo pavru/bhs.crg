@@ -91,7 +91,7 @@ export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; on
             placeholder="наименование или часть наименования" className="flex-1 bg-transparent text-body-medium outline-none text-on-surface placeholder:text-on-surface-variant" />
         </div>
         {found.isError && <p role="alert" className="text-body-small text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
-        <div id={listId} role="listbox" aria-label="Найденные позиции" onMouseLeave={selection.leave} className="-mx-2 space-y-0.5">
+        <div id={listId} role="listbox" aria-label="Найденные позиции" onMouseLeave={selection.leave} className="-mx-4">
           {rows.map(row => (
             <PickerOption key={row.id} row={row} id={`${listId}-${row.id}`} active={row.id === selection.active} enter={false}
               narrow={false} kinds={false} onChoose={r => choose(r.id)} onHover={selection.hover} />

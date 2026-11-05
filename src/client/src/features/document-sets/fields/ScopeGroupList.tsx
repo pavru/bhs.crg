@@ -1,13 +1,21 @@
-import { Icon } from '@/shared/ui/Icon';
-import { ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
+import { useId } from 'react';
+import { CountText } from '@/shared/ui/CountText';
+import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
+import { ListItem } from '@/shared/ui/ListItem';
+import { ListOption } from '@/shared/ui/ListOption';
 import type { CommonDataEntry, CatalogScope } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
-import { SCOPE_COLORS } from './constants';
 import type { ScopeGroup } from './catalogGroups';
 
-/** Разметка групп каталога — общая для обоих диалогов выбора; правила группировки см. useScopeGroups. */
+/**
+ * Разметка групп каталога — общая для обоих диалогов выбора; правила группировки см. useScopeGroups.
+ *
+ * <p>Группа — заголовок `ListGroupHeader` (кнопка `aria-expanded`, до неё доходит Tab) и под ним СВОЙ listbox,
+ * подписанный заголовком ([UI-87], Р7): кнопка внутри listbox была бы его запрещённым ребёнком. Стрелки поля
+ * поиска заголовков не касаются — они ходят по вариантам раскрытых групп.</p>
+ */
 export function ScopeGroupList({
-  groups, isExpanded, toggle, isActive, onHover, onSelect, optionIdOf, hintOf, maxHeight = 'max-h-64',
+  groups, isExpanded, toggle, isActive, onHover, onSelect, optionIdOf, listboxIdOf, hintOf, maxHeight = 'max-h-64',
 }: {
   groups: ScopeGroup[];
   isExpanded: (scope: CatalogScope) => boolean;
@@ -17,61 +25,41 @@ export function ScopeGroupList({
   onSelect: (entry: CommonDataEntry) => void;
   /**
    * Идентификатор строки как ОПЦИИ клавиатурного списка. Его наличие и означает, что вызывающий
-   * такой список ведёт: строки получают <code>role="option"</code> с <code>aria-selected</code>,
-   * а поле поиска адресует активную через <code>aria-activedescendant</code>.
+   * такой список ведёт: строки — варианты `ListOption` в listbox группы, а поле поиска адресует активный
+   * через <code>aria-activedescendant</code>.
    *
-   * <p>Без него строки остаются обычными кнопками. Иначе скринридер объявлял бы список
-   * невыбранных опций, между которыми некуда перейти: ни владеющего <code>listbox</code>, ни
-   * активного элемента, ни стрелок — так это и выглядело бы в «Выбрать документ…», где никакой
-   * навигации нет.</p>
+   * <p>Без него строки остаются обычными строками списка (`ListItem`). Иначе скринридер объявлял бы список
+   * невыбранных опций, между которыми некуда перейти: ни активного элемента, ни стрелок — так это и выглядело
+   * бы в «Выбрать документ…», где никакой навигации нет.</p>
    */
   optionIdOf?: (entry: CommonDataEntry) => string | undefined;
+  /** Идентификатор listbox группы — на него показывает `aria-controls` поля поиска. Нужен вместе с `optionIdOf`. */
+  listboxIdOf?: (scope: CatalogScope) => string;
   /** Правая метка строки — например «куда ляжет» для union'а. */
   hintOf?: (entry: CommonDataEntry) => string | null;
   maxHeight?: string;
 }) {
-  const asOptions = !!optionIdOf;
+  const ids = useId();
   return (
-    <div className={`space-y-1 ${maxHeight} overflow-y-auto`}>
+    <div className={`-mx-4 ${maxHeight} overflow-y-auto`}>
       {groups.map(g => {
         const expanded = isExpanded(g.scope);
+        const headerId = `${ids}-${g.scope}`;
         return (
           <div key={g.scope}>
-            {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
-            <button type="button" onClick={() => toggle(g.scope)} aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-sm state-layer">
-              {expanded ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
-              <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
-                {SCOPE_LABELS[g.scope]}
-              </span>
-              <span className="text-body-small text-on-surface-variant">{g.entries.length}</span>
-            </button>
-            {expanded && (
-              <div className="space-y-0.5 pl-1.5">
-                {g.entries.map(entry => {
-                  const on = isActive?.(entry) ?? false;
-                  const hint = hintOf?.(entry) ?? null;
-                  return (
-                    <button key={entry.id} type="button"
-                      role={asOptions ? 'option' : undefined}
-                      aria-selected={asOptions ? on : undefined}
-                      id={optionIdOf?.(entry)}
-                      onMouseEnter={() => onHover?.(entry)} onClick={() => onSelect(entry)}
-                      className={`w-full flex items-center px-3 py-2 text-body-medium text-left rounded-sm transition-colors ${
-                        on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                      <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
-                        {entry.displayName}
-                      </span>
-                      {hint && (
-                        <span className={`text-label-small shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
-                          {hint}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+            <ListGroupHeader id={headerId} label={SCOPE_LABELS[g.scope]} count={<CountText>{g.entries.length}</CountText>}
+              open={expanded} onToggle={() => toggle(g.scope)} />
+            {expanded && (optionIdOf ? (
+              <div role="listbox" id={listboxIdOf?.(g.scope)} aria-labelledby={headerId}>
+                {g.entries.map(entry => (
+                  <ListOption key={entry.id} id={optionIdOf(entry) ?? `${ids}-${entry.id}`} headline={entry.displayName}
+                    trailing={hintOf?.(entry)} active={isActive?.(entry) ?? false}
+                    onHover={() => onHover?.(entry)} onChoose={() => onSelect(entry)} />
+                ))}
               </div>
-            )}
+            ) : g.entries.map(entry => (
+              <ListItem key={entry.id} headline={entry.displayName} trailing={hintOf?.(entry)} onClick={() => onSelect(entry)} />
+            )))}
           </div>
         );
       })}

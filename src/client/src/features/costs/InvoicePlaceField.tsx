@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { BOTTOM_SHEET_SURFACE, DIALOG_SCRIM, SHEET_TITLE } from '@/shared/ui/dialogSurface';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
+import { ListOption } from '@/shared/ui/ListOption';
 import { TextField } from '@/shared/ui/TextField';
 import { ChevronLeft, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
@@ -162,23 +163,20 @@ function Choices({ places, value, label, onPick }: {
     }
   };
 
-  const row = (option: Option, text: string, row?: PlaceRow) => (
-    <div key={option.id} className="flex items-center gap-1">
-      <div id={option.id} role="option" aria-selected={'row' in option && value !== null && samePlace(option.row.place, value)}
-        aria-description={row && row.sections > 0 ? `${ruCount(row.sections, 'раздел', 'раздела', 'разделов')}, стрелка вправо — разделы` : undefined}
-        onMouseMove={() => setActiveKey(key(option))}
-        onClick={() => activate(option)}
-        className={`min-w-0 flex-1 px-3 py-1.5 rounded-xs text-body-medium cursor-pointer select-none break-words ${option === active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface'} aria-selected:font-medium`}>
-        {text}
-      </div>
-      {row && row.sections > 0 && (
-        <button type="button" tabIndex={-1} aria-hidden onMouseDown={keepFocus} onClick={() => step(row.place.construction)}
-          className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded-xs text-body-small text-on-surface-variant hover:text-on-surface hover:bg-primary-container">
-          {row.sections}<Icon icon={ChevronRight} size={18} />
-        </button>
-      )}
-    </div>
-  );
+  // Вариант — пункт слоя под полем ([UI-87], форма `menu`): текущее место — галочкой, шаг к разделам стройки —
+  // действием у края, которое не выбирает место и не уводит фокус из поля набора.
+  const row = (option: Option, text: string, row?: PlaceRow) => {
+    const sections = row && row.sections > 0 ? ruCount(row.sections, 'раздел', 'раздела', 'разделов') : undefined;
+    return (
+      <ListOption key={option.id} id={option.id} form="menu" headline={text} active={option === active}
+        current={'row' in option && value !== null && samePlace(option.row.place, value)}
+        // Число разделов диктору говорит описание — в имени пункта оно повторилось бы.
+        supporting={sections && <span aria-hidden>{sections}</span>}
+        description={sections && `${sections}, стрелка вправо — разделы`}
+        onHover={() => setActiveKey(key(option))} onChoose={() => activate(option)}
+        action={row && sections ? { icon: ChevronRight, label: `Разделы стройки «${text}»`, onAct: () => step(row.place.construction) } : undefined} />
+    );
+  };
 
   let index = list.lost ? 1 : 0;
   return (
@@ -190,7 +188,7 @@ function Choices({ places, value, label, onPick }: {
         onChange={e => { setQuery(e.target.value); setActiveKey(null); }} onKeyDown={onKeyDown} />
       {site && !query.trim() && (
         <button type="button" onMouseDown={keepFocus} onClick={() => step(null)}
-          className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded-xs text-body-small text-on-surface-variant hover:bg-primary-container"
+          className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded-xs text-body-small text-on-surface-variant state-layer"
           aria-label={`Назад к стройкам из разделов «${site.name}»`}>
           <Icon icon={ChevronLeft} size={18} aria-hidden />{site.name}
         </button>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useKeyScroll } from '@/shared/ui/useKeyScroll';
 import { Icon } from '@/shared/ui/Icon';
 import { Database, Description, LinkIcon, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
@@ -7,6 +8,7 @@ import { Card } from '@/shared/ui/Card';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusText } from '@/shared/ui/StatusText';
 import { TextField } from '@/shared/ui/TextField';
+import { ListOption } from '@/shared/ui/ListOption';
 
 // Базовый экземпляр (issue #71/#73): объект дочернего типа наследуется от базы — документа комплекта
 // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). Единый пикер + общие хелперы
@@ -42,31 +44,23 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
   // Единый порядок для клавиатурной навигации (issue #107 F5): proxy-группа, затем базовые.
   const ordered = [...proxyCands, ...baseCands];
 
+  const byKeys = useKeyScroll(ordered.length ? `bcp-opt-${active}` : undefined);
   function pick(c: BaseCandidate) { onSelect(c); onOpenChange(false); }
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, ordered.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); byKeys(); setActive(a => Math.min(a + 1, ordered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); byKeys(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); const c = ordered[active]; if (c) pick(c); }
   }
 
-  const row = (c: BaseCandidate, gi: number) => {
-    const on = gi === active;
-    return (
-      <button key={`${c.kind}:${c.id}`} type="button" role="option" aria-selected={on} id={`bcp-opt-${gi}`}
-        onMouseEnter={() => setActive(gi)} onClick={() => pick(c)}
-        className={`w-full flex items-center gap-3 px-3 py-2 text-body-medium text-left rounded-sm transition-colors ${
-          on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-        {c.proxy
-          ? <Icon icon={LinkIcon} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
-          : c.kind === 'instance'
-            ? <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
-            : <Icon icon={Database} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />}
-        <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>{c.name}</span>
-        {c.targetIsProxy && <span className="text-label-small text-warning shrink-0">роль</span>}
-        <span className={`text-label-small shrink-0 ${on ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{c.scopeLabel}</span>
-      </button>
-    );
-  };
+  const row = (c: BaseCandidate, gi: number) => (
+    <ListOption key={`${c.kind}:${c.id}`} id={`bcp-opt-${gi}`} active={gi === active}
+      icon={c.proxy ? LinkIcon : c.kind === 'instance' ? Description : Database} iconTone="text-primary" headline={c.name}
+      trailing={<>{c.targetIsProxy && <span className="text-warning">роль</span>}{c.scopeLabel}</>}
+      onHover={() => setActive(gi)} onChoose={() => pick(c)} />
+  );
+  // Две группы — два listbox, каждый подписан своим заголовком (Р7): заголовок внутри listbox был бы его
+  // запрещённым ребёнком. Поле поиска показывает на тот, где стоит активный.
+  const activeList = active < proxyCands.length ? 'bcp-proxy' : 'bcp-base';
 
   return (
     <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль" nothingToLose>
@@ -75,22 +69,24 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
             сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.
             Эффектом это давало лишний коммит, в котором active ещё указывал в старый список. */}
         <TextField label="Поиск кандидата" value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
-          autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
+          autoFocus role="combobox" aria-expanded aria-controls={ordered.length ? activeList : undefined}
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined} />
         {filtered.length === 0 ? (
           <p className="text-body-medium text-on-surface-variant text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
-          <div id="bcp-listbox" role="listbox" aria-label="Кандидаты" className="space-y-3 max-h-72 overflow-y-auto">
+          <div className="-mx-4 space-y-3 max-h-72 overflow-y-auto">
             {proxyCands.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-title-small text-on-surface-variant px-1">Роль на реальный объект (тот же тип)</p>
-                {proxyCands.map((c, i) => row(c, i))}
+              <div>
+                <p id="bcp-proxy-h" className="text-title-small text-on-surface-variant px-4 mb-1">Роль на реальный объект (тот же тип)</p>
+                <div id="bcp-proxy" role="listbox" aria-labelledby="bcp-proxy-h">{proxyCands.map((c, i) => row(c, i))}</div>
               </div>
             )}
             {baseCands.length > 0 && (
-              <div className="space-y-1">
-                {proxyCands.length > 0 && <p className="text-title-small text-on-surface-variant px-1">Базовый тип</p>}
-                {baseCands.map((c, j) => row(c, proxyCands.length + j))}
+              <div>
+                {proxyCands.length > 0 && <p id="bcp-base-h" className="text-title-small text-on-surface-variant px-4 mb-1">Базовый тип</p>}
+                <div id="bcp-base" role="listbox" {...(proxyCands.length > 0 ? { 'aria-labelledby': 'bcp-base-h' } : { 'aria-label': 'Кандидаты' })}>
+                  {baseCands.map((c, j) => row(c, proxyCands.length + j))}
+                </div>
               </div>
             )}
           </div>

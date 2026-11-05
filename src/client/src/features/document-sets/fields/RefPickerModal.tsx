@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
+import { useKeyScroll } from '@/shared/ui/useKeyScroll';
 import { Description, FileCopy } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
@@ -18,6 +18,7 @@ import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DocumentStatusText } from './DocumentStatusText';
 import { TextField } from '@/shared/ui/TextField';
+import { ListOption } from '@/shared/ui/ListOption';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -300,6 +301,12 @@ function RefPickerModalBody({
     return i == null ? undefined : `rp-opt-${i}`;
   };
   const isOn = (key: string) => indexByKey.get(key) === active;
+  const hover = (key: string) => { const i = indexByKey.get(key); if (i != null) setActive(i); };
+  const chooseKey = (key: string) => { const i = indexByKey.get(key); if (i != null) choose(options[i]); };
+  // Свой listbox у каждой группы (Р7): поле поиска показывает на тот, где стоит активный вариант.
+  const listboxOf = (o: RpOption | undefined) =>
+    !o ? undefined : o.type === 'catalog' ? `rp-lb-c-${o.entry.scope}` : o.type === 'instance' ? 'rp-lb-i' : 'rp-lb-d';
+  const byKeys = useKeyScroll(options.length ? `rp-opt-${active}` : undefined);
 
   function toCandidate(o: RpOption): Candidate {
     if (o.type === 'catalog') {
@@ -332,8 +339,8 @@ function RefPickerModalBody({
   }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, options.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); byKeys(); setActive(a => Math.min(a + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); byKeys(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); const o = options[active]; if (o) choose(o); }
   }
 
@@ -396,6 +403,7 @@ function RefPickerModalBody({
           value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           autoFocus role="combobox" aria-expanded
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
+          aria-controls={listboxOf(options[active])}
         />
 
         {currentArchived && (
@@ -413,9 +421,10 @@ function RefPickerModalBody({
               // стрелки продолжили бы с номера, который теперь указывает на чужую запись.
               toggle={s => { toggle(s); setActive(0); }}
               isActive={e => isOn(`c:${e.id}`)}
-              onHover={e => { const i = indexByKey.get(`c:${e.id}`); if (i != null) setActive(i); }}
-              onSelect={e => { const i = indexByKey.get(`c:${e.id}`); if (i != null) choose(options[i]); }}
+              onHover={e => hover(`c:${e.id}`)}
+              onSelect={e => chooseKey(`c:${e.id}`)}
               optionIdOf={e => optionId(`c:${e.id}`)}
+              listboxIdOf={scope => `rp-lb-c-${scope}`}
               hintOf={e => variantHint(unionMode ? placementOf(e.compositeTypeId) : { kind: 'self' })}
             />
           </div>
@@ -423,31 +432,16 @@ function RefPickerModalBody({
 
         {instanceCandidates.length > 0 && (
           <div>
-            <p className="text-title-small text-on-surface-variant mb-2">
+            <p id="rp-h-i" className="text-title-small text-on-surface-variant mb-2">
               Документы комплекта
             </p>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div role="listbox" id="rp-lb-i" aria-labelledby="rp-h-i" className="-mx-4 max-h-48 overflow-y-auto">
               {instanceCandidates.map(({ inst, label, placement }) => {
                 const key = `i:${inst.id}`;
-                const on = isOn(key);
-                const hint = variantHint(placement);
                 return (
-                  <button key={inst.id} type="button" role="option" aria-selected={on} id={optionId(key)}
-                    onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
-                    onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-body-medium text-left rounded-sm transition-colors ${
-                      on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <Icon icon={FileCopy} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
-                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
-                      {label}
-                    </span>
-                    {hint && (
-                      <span className={`text-label-small shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
-                        {hint}
-                      </span>
-                    )}
-                    <DocumentStatusText status={inst.status} />
-                  </button>
+                  <ListOption key={inst.id} id={optionId(key) ?? key} icon={FileCopy} headline={label} active={isOn(key)}
+                    trailing={<>{variantHint(placement)}<DocumentStatusText status={inst.status} /></>}
+                    onHover={() => hover(key)} onChoose={() => chooseKey(key)} />
                 );
               })}
             </div>
@@ -456,37 +450,24 @@ function RefPickerModalBody({
 
         {fieldCandidates.length > 0 && (
           <div>
-            <p className="text-title-small text-on-surface-variant mb-2">
+            <p id="rp-h-d" className="text-title-small text-on-surface-variant mb-2">
               Поля других документов
             </p>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div role="listbox" id="rp-lb-d" aria-labelledby="rp-h-d" className="-mx-4 max-h-48 overflow-y-auto">
               {fieldCandidates.map(({ inst, field, label, filled, placement }) => {
                 const key = `d:${inst.id}-${field.key}`;
-                const on = isOn(key);
-                const hint = variantHint(placement);
                 return (
-                  <button key={key} type="button" role="option" aria-selected={on} id={optionId(key)}
-                    onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
-                    onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-body-medium text-left rounded-sm transition-colors ${
-                      on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
-                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
-                      {label}
-                    </span>
-                    {hint && (
-                      <span className={`text-label-small shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
-                        {hint}
-                      </span>
-                    )}
-                    {!filled && (
-                      <Tooltip content="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
-                        <span className={`text-label-small shrink-0 ${on ? 'text-on-secondary-container' : 'text-warning'}`}>
-                          не заполнено
-                        </span>
-                      </Tooltip>
-                    )}
-                  </button>
+                  <ListOption key={key} id={optionId(key) ?? key} icon={Description} headline={label} active={isOn(key)}
+                    trailing={<>
+                      {variantHint(placement)}
+                      {/* Цвет предупреждения — и на активной строке: пометка говорит о беде, а не о выборе. */}
+                      {!filled && (
+                        <Tooltip content="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
+                          <span className="text-warning">не заполнено</span>
+                        </Tooltip>
+                      )}
+                    </>}
+                    onHover={() => hover(key)} onChoose={() => chooseKey(key)} />
                 );
               })}
             </div>

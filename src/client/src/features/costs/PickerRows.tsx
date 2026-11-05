@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { Button } from '@/shared/ui/Button';
+import { ListOption } from '@/shared/ui/ListOption';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { apiError } from '@/shared/utils/apiError';
 import type { NomenclatureCandidates } from '@/shared/api/nomenclatureCandidates';
@@ -8,11 +9,13 @@ import { LOST } from './lostReferences';
 import { Refusal } from './NomenclatureCardPanel';
 import type { PickerRow } from './pickerCandidates';
 
-/** Строка списка окна выбора: кандидат, находка поиска или запись справочника. */
-export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, onHover }: {
+/** Строка списка окна выбора: кандидат, находка поиска или запись справочника ([UI-87], `ListOption` формы `list`). */
+export function PickerOption({ row, id, active, current = false, enter, narrow, kinds, onChoose, onHover }: {
   row: PickerRow;
   id: string;
   active: boolean;
+  /** Позиция уже стоит в строке: галочка и `aria-selected` (П2, Р1). */
+  current?: boolean;
   /** Enter сейчас выберет эту строку — сказано на ней. */
   enter: boolean;
   narrow: boolean;
@@ -21,27 +24,22 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
   onChoose: (row: PickerRow) => void;
   onHover: (id: string) => void;
 }) {
-  const tone = row.best
-    ? `bg-primary-container ${active ? 'ring-1 ring-primary/40' : ''}`
-    : active ? 'bg-surface-container' : 'state-layer';
+  // Лучшее совпадение — надписью, без своей заливки: подсвечена только активная строка. «Выбрать» на каждой
+  // строке был шумом — Enter сказан только на активной.
+  // Пометки собираются списком: пустой — слота нет (фрагмент `present` считал бы содержимым).
+  const marks = [
+    kinds && row.type && <span key="type">{row.type}</span>,
+    // На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518).
+    narrow && !row.best && <span key="card" className="text-body-small text-primary" aria-hidden>›</span>,
+    enter && (
+      <kbd key="enter" aria-hidden className="rounded-xs border border-outline-variant bg-surface px-1 font-mono text-label-small text-on-surface-variant">Enter</kbd>
+    ),
+  ].filter(Boolean);
   return (
-    <div id={id} role="option" aria-selected={active}
-      onClick={() => onChoose(row)} onMouseMove={() => { if (!active) onHover(row.id); }}
-      className={`cursor-pointer px-2 py-1.5 rounded-sm flex items-baseline gap-2 ${tone}`}>
-      <span className="min-w-0 flex-1">
-        {row.best && <span className="block text-label-small font-medium text-primary">Лучшее совпадение</span>}
-        <span className="block text-body-medium text-on-surface">{row.name ?? 'без названия'}</span>
-        {row.why && <span className="block text-label-small text-on-surface-variant">{row.why}</span>}
-      </span>
-      {kinds && row.type && <span className="text-label-small text-on-surface-variant shrink-0">{row.type}</span>}
-      {/* На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518). */}
-      <span className="text-body-small text-primary shrink-0 whitespace-nowrap" aria-hidden>
-        {narrow && !row.best ? '›' : 'Выбрать'}
-        {enter && (
-          <kbd className="ml-1 rounded-xs border border-outline-variant bg-surface px-1 font-mono text-label-small text-on-surface-variant">Enter</kbd>
-        )}
-      </span>
-    </div>
+    <ListOption id={id} active={active} current={current} overline={row.best ? 'Лучшее совпадение' : undefined}
+      headline={row.name ?? 'без названия'} supporting={row.why ?? undefined}
+      trailing={marks.length ? marks : undefined}
+      onChoose={() => onChoose(row)} onHover={() => onHover(row.id)} />
   );
 }
 
