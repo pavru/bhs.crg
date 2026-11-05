@@ -113,7 +113,7 @@
   Подсказка называет `ListOption` и `ListItem`. Уровень заведён по факту (`npm run ui:ratchet:update`,
   ожидается 9), число и файлы — в описании PR. Проверка — `ui-ratchet-lists.test.mjs` (`npm test`) и
   `npm run ui:ratchet` зелёные
-- [ ] 1.4 `PickerOption` (`costs/PickerRows.tsx`) на `ListOption form="list"` по Р2 [UI-87]: лучшее
+- [x] 1.4 `PickerOption` (`costs/PickerRows.tsx`) на `ListOption form="list"` по Р2 [UI-87]: лучшее
   совпадение — надписью без `primary-container`; «Выбрать» из строк убрано, `kbd Enter` — только у активной,
   «›» — у нелучших на узком окне. `NomenclaturePicker`, `PointMatchDialogs`, `ResourceMatchDialog` проверены
   вживую (стрелки, Enter, мышь после покоя). Замер на 1366×768: сколько вариантов видно с открытым листом —
@@ -129,7 +129,7 @@
   (`useScopeGroups`). «не заполнено» на активной строке сохраняет цвет предупреждения. Варианты перестают
   быть остановками Tab (Р8) — тесты, что ходили Tab'ом, переписаны на стрелки. `RefPickerModal.tsx` не растёт
   (`file-size-baseline.json`). Проверка — тесты окон и стенд
-- [ ] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
+- [x] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
   «в архиве», активная — `secondary-container` вместо `surface-container`. Проверка — стенд: шаг новой
   номенклатуры с похожими и архивной
   _Отступление (PR 1, 06.11.2026):_ строки — `ListItem`, а не `ListOption`. У шага нет поля, которое вело бы
