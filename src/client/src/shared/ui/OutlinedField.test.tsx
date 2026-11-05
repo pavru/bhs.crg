@@ -42,6 +42,14 @@ describe('OutlinedField: размер', () => {
   });
 });
 
+describe('OutlinedField: ширина рамки', () => {
+  it('рамка не шире поля: у fieldset снят min-content, иначе длинная всплывшая подпись растягивает его', () => {
+    // jsdom раскладки не считает — сторожим сам класс; замер на 375 — в описании PR sharedui-md3-19.
+    const { container } = render(<TextField label="Количество экземпляров по договору" readOnly value="250" onChange={() => {}} />);
+    expect(classes(container.querySelector('fieldset')!)).toContain('min-w-0');
+  });
+});
+
 describe('OutlinedField: только для чтения', () => {
   it('обводка border-outline-variant без подложки', () => {
     const { container } = render(<TextField label="Состояние" readOnly value="Черновик" onChange={() => {}} />);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LinkOff } from '@/shared/ui/icons';
 import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
-import { SourceBindingTrigger } from './SourceBindingTrigger';
+import { SourceBindingTrigger, type SourceOriginMark } from './SourceBindingTrigger';
 import {
   useAvailableDataSetFiles, useCreateDataSetBinding, useUpdateDataSetBinding,
   useDeleteDataSetBinding, useAutoMapDataSetSource,
@@ -26,12 +26,14 @@ type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
  * react-remove-scroll делает `pointer-events: none` для всего вне контента диалога — портал Popover
  * в body оказывался инертным (клики не ловились). Вложенный Dialog (Modal) координируется корректно.
  */
-export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bindings }: {
+export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bindings, origin }: {
   instanceId: string;
   setId: string;
   field: SchemaField;
   scalarFields: SchemaField[];
   bindings: DataSetBinding[];
+  /** Кнопка в хвосте поля только для чтения, слитая со знаком происхождения ([UI-86], см. `SourceBindingTrigger`). */
+  origin?: SourceOriginMark;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -132,7 +134,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
 
   return (
     <>
-      <SourceBindingTrigger locked={locked} isBound={isBound} onOpen={() => onOpenChange(true)} />
+      <SourceBindingTrigger locked={locked} isBound={isBound} origin={origin} onOpen={() => onOpenChange(true)} />
 
       <Modal open={open} onOpenChange={onOpenChange} title={`Источник для «${field.title}»`}
         footer={<>

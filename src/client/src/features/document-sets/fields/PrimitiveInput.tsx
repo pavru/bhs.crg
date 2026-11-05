@@ -1,14 +1,16 @@
+import type { ReactNode } from 'react';
 import { ruToISO } from '@/shared/utils/date';
-import { DateInput } from '@/shared/ui/DateInput';
+import { inMask } from '@/shared/format/dateMask';
+import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import type { FieldTrailingProps } from '@/shared/ui/fieldBox';
 import type { SchemaField } from '@/shared/api/schema';
-import type { PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
-import { fieldInputClass } from './constants';
+import type { PrimitiveTypeDef, EnumTypeDef, DatePrecision } from '@/shared/api/types';
 import { useSuggestSource } from './suggestContext';
 
 /**
@@ -25,16 +27,51 @@ function dateForDisplay(value: string): string {
   return ruToISO(value);
 }
 
-export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly, label, hint }: {
+/**
+ * Дата только для чтения — готовым текстом в записи маски поля (D7 sharedui-md3-19), а не `DateField`:
+ * своего хвоста у поля даты нет (знак ошибки стоит в его поле ввода), а готовый текст и копируется
+ * целиком. Нераспознаваемое значение показываем как есть — по той же причине, что `dateForDisplay`.
+ * Язык — из `useLocale`, как у `DateInput`: смени его человек при открытой форме, дата из источника
+ * обязана перейти на новую маску вместе с редактируемыми (ревью PR #1775).
+ */
+function shownDate(value: string, locale: string, precision: DatePrecision = 'day') {
+  return inMask(dateForDisplay(value), resolveLocale(locale), precision);
+}
+
+/**
+ * Поле только для чтения — значение кладёт источник данных или модуль, а не человек ([UI-86]).
+ *
+ * Хвост и ошибка — только у него. У редактируемого поля кнопка привязки стоит в углу ячейки, а ошибку
+ * под полем рисует форма: так она стоит одинаково у строки, перечисления, даты и подсказки по введённому.
+ */
+interface ReadOnlyView {
+  /** Сообщение об ошибке значения — на месте подсказки, а не строкой под полем ([UI-86]). */
+  error?: string;
+  /**
+   * Хвост: замок и кнопка привязки, слитая со знаком происхождения ([UI-86]). `trailingMark` — перед кнопкой
+   * есть ещё знак 18 (см. `FieldTrailingProps`). Флажок хвоста не рисует: признаки у него — рядом с его
+   * собственной подписью.
+   */
+  trailing?: ReactNode;
+  trailingMark?: boolean;
+  /** Пояснения знаков хвоста — ид элементов, которые диктор прочтёт вместе с полем. */
+  describedBy?: string;
+}
+
+export interface PrimitiveInputProps extends ReadOnlyView {
   field: SchemaField; value: unknown; onChange: (val: unknown) => void; invalid: boolean;
   primitiveTypeDef?: PrimitiveTypeDef; enumTypeDef?: EnumTypeDef; readOnly?: boolean;
-  /** Если задано — контрол сам рендерит подпись в вырезе рамки (issue #110 G1, #565): всплывающую
-   *  у однострочных полей, постоянно поднятую у текста, даты и перечисления (там у контрола нет
-   *  состояния «пусто» в смысле CSS). Чекбокс подписывает себя сам (field.title). */
-  label?: string; hint?: string;
-}) {
+  /**
+   * Подпись в вырезе рамки (issue #110 G1, #565): всплывающая у однострочных полей, постоянно поднятая у
+   * текста, даты и перечисления. Обязательна (D7 sharedui-md3-19): поле без подписи было сырым полем ввода со
+   * своей рамкой, а у поля формы по схеме имя есть всегда. Флажок подписывает себя ею же.
+   */
+  label: string; hint?: string;
+}
+
+export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly, label, hint,
+  error, trailing, trailingMark, describedBy }: PrimitiveInputProps) {
   const strVal = value == null ? '' : String(value);
-  const cls = fieldInputClass(invalid, readOnly);
   /**
    * Звёздочку обязательности у нередактируемого поля не рисуем (issue #958): она — указание тому,
    * кто заполняет, а у read-only поля ввода нет вовсе. Значение кладёт либо источник данных, либо
@@ -46,12 +83,20 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   // Подсказка по введённому ранее (issue #1533): только в форме записи, назвавшей тип-владелец, и
   // только у поля, которое правило `Suggestable` подсказывает. Иначе — прежнее поле, адрес не зовётся.
   const source = useSuggestSource(field);
+  const [locale] = useLocale();
+  // Знак перед кнопкой тип поля пускает только вместе с самим хвостом.
+  const tail: FieldTrailingProps = trailing != null && trailingMark ? { trailing, trailingMark: true } : { trailing };
+  /** Поле только для чтения с готовым значением — строка, число, перечисление, дата. */
+  const shown = (text: string, ownHint = hint) =>
+    <TextField label={label} hint={ownHint} invalid={invalid} error={error} aria-describedby={describedBy}
+      value={text} readOnly onChange={() => {}} {...tail} />;
 
   if (field.type === 'text')
-    return label != null
-      ? <TextAreaField label={label} required={askRequired} hint={hint} invalid={invalid}
-          value={strVal} readOnly={readOnly} onChange={e => onChange(e.target.value)} className="resize-y" />
-      : <textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} readOnly={readOnly} className={cls + ' resize-y'} />;
+    return readOnly
+      ? <TextAreaField label={label} hint={hint} invalid={invalid} error={error} aria-describedby={describedBy}
+          value={strVal} readOnly onChange={() => {}} className="resize-y" {...tail} />
+      : <TextAreaField label={label} required={askRequired} hint={hint} invalid={invalid}
+          value={strVal} onChange={e => onChange(e.target.value)} className="resize-y" />;
   if (field.type === 'boolean')
     return (
       // Read-only флажок НЕ отключаем (issue #958): `disabled` убирает его из обхода клавиатурой и
@@ -63,7 +108,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         <Checkbox checked={!!value} aria-readonly={readOnly || undefined}
           onChange={v => { if (!readOnly) onChange(v); }}
           onClick={e => { if (readOnly) e.preventDefault(); }} />
-        <span className="text-body-medium text-on-surface-variant">{label ?? field.title}</span>
+        <span className="text-body-medium text-on-surface-variant">{label}</span>
       </label>
     );
   if (field.type === 'enum') {
@@ -74,28 +119,10 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     const empty = opts.length === 0;
-    if (empty && label == null)
-      return <p className="text-body-small text-on-surface-variant italic py-1">{NO_OPTIONS}</p>;
-    if (readOnly) {
-      // Отключённый список — не то же, что показанный выбор (issue #958): из `disabled`-контрола
-      // значение не выделить и не скопировать, а клавиатура его пропускает. Показываем ПОДПИСЬ
-      // выбранного варианта обычным read-only полем — код варианта человеку ничего не говорит.
-      const shown = opts.find(o => o.code === strVal)?.label ?? strVal;
-      return label != null
-        ? <TextField label={label} required={undefined} hint={hint} invalid={invalid}
-            value={shown} readOnly onChange={() => {}} />
-        : <input type="text" value={shown} readOnly aria-label={field.title}
-            onChange={() => {}} className={cls} />;
-    }
-    const items = opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>);
-    // Без подписи — плотное поле ([UI-69]): ошибку показывает его же рамка, своей не нужно.
-    if (label == null)
-      return (
-        <Select density="dense" aria-label={field.title} value={strVal || undefined} onValueChange={onChange}
-          placeholder="— выберите —" invalid={invalid}>
-          {items}
-        </Select>
-      );
+    // Отключённый список — не то же, что показанный выбор (issue #958): из `disabled`-контрола
+    // значение не выделить и не скопировать, а клавиатура его пропускает. Показываем ПОДПИСЬ
+    // выбранного варианта обычным read-only полем — код варианта человеку ничего не говорит.
+    if (readOnly) return shown(opts.find(o => o.code === strVal)?.label ?? strVal);
     return (
       <Select value={strVal || undefined} onValueChange={onChange} disabled={empty}
         placeholder={empty ? '—' : '— выберите —'}
@@ -103,51 +130,37 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         // Про отсутствие вариантов сообщаем подписью ПОД полем, а не вместо поля: иначе исчезала бы
         // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
         hint={empty ? NO_OPTIONS : hint} invalid={invalid}>
-        {items}
+        {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
     );
   }
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;
+    const typeHint = hint ?? primitiveTypeDef.description;
     if (bt === 'date') {
       const { datePrecision: prec = 'day', minDate: min, maxDate: max } = primitiveTypeDef.constraints;
-      return label != null
-        ? <DateField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
-            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} min={min} max={max} />
-        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} density="dense" invalid={invalid}
-            className="w-full" readOnly={readOnly} required={askRequired} min={min} max={max} />;
+      if (readOnly) return shown(shownDate(strVal, locale, prec), typeHint);
+      return <DateField label={label} required={askRequired} hint={typeHint} invalid={invalid}
+        value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} min={min} max={max} />;
     }
+    if (readOnly) return shown(strVal, typeHint);
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
-    if (label != null)
-      return <TextField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
-        type={bt === 'number' ? 'number' : 'text'} step={step} value={strVal} readOnly={readOnly}
-        invalid={invalid} onChange={e => onCh(e.target.value)} />;
-    return (
-      <input type={bt === 'number' ? 'number' : 'text'} step={step} placeholder={primitiveTypeDef.description}
-        value={strVal} readOnly={readOnly} onChange={e => onCh(e.target.value)} className={cls} />
-    );
+    return <TextField label={label} required={askRequired} hint={typeHint}
+      type={bt === 'number' ? 'number' : 'text'} step={step} value={strVal}
+      invalid={invalid} onChange={e => onCh(e.target.value)} />;
   }
   if (field.type === 'date') {
-    return label != null
-      ? <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
-          value={dateForDisplay(strVal)} onChange={v => onChange(v)} readOnly={readOnly} />
-      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} density="dense" invalid={invalid}
-          className="w-full" readOnly={readOnly} required={askRequired} />;
+    if (readOnly) return shown(shownDate(strVal, locale));
+    return <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
+      value={dateForDisplay(strVal)} onChange={v => onChange(v)} />;
   }
-  if (source && !readOnly)
-    return label != null
-      ? <SuggestField source={source} label={label} required={askRequired} hint={hint} invalid={invalid}
-          value={strVal} onChange={v => onChange(v)} />
-      // Голое поле формы, не клетка: ↓ открывает список, как у поля с подписью.
-      : <SuggestField source={source} compact arrowOpens label={field.title} value={strVal} onChange={v => onChange(v)} className={cls} />;
+  if (readOnly) return shown(strVal);
+  if (source)
+    return <SuggestField source={source} label={label} required={askRequired} hint={hint} invalid={invalid}
+      value={strVal} onChange={v => onChange(v)} />;
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
-  if (label != null)
-    return <TextField label={label} required={askRequired} hint={hint}
-      type={field.type === 'number' ? 'number' : 'text'} value={strVal} readOnly={readOnly}
-      invalid={invalid} onChange={e => onCh(e.target.value)} />;
-  return (
-    <input type={field.type === 'number' ? 'number' : 'text'} value={strVal} readOnly={readOnly}
-      onChange={e => onCh(e.target.value)} className={cls} />
-  );
+  return <TextField label={label} required={askRequired} hint={hint}
+    type={field.type === 'number' ? 'number' : 'text'} value={strVal}
+    invalid={invalid} onChange={e => onCh(e.target.value)} />;
 }

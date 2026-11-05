@@ -17,18 +17,6 @@ export const SCOPE_COLORS: Record<CatalogScope, string> = {
   System: 'bg-surface-container text-on-surface-variant',
 };
 
-export function fieldInputClass(invalid = false, readOnly = false) {
-  if (readOnly) {
-    // Курсор обычный, а не `not-allowed`: поле ДОСТУПНО — в него можно встать, выделить значение и
-    // скопировать. `not-allowed` — знак отключённого контрола, и на read-only он просто врёт
-    // (issue #958). Отличие от обычного поля несёт фон и приглушённый текст.
-    return 'w-full border rounded-sm px-3 py-2 text-body-medium text-on-surface-variant bg-surface-container border-outline-variant';
-  }
-  return `w-full border rounded-sm px-3 py-2 text-body-medium text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface ${
-    invalid ? 'border-error focus-visible:ring-error' : 'border-outline'
-  }`;
-}
-
 /**
  * Поле занимает обе колонки сетки формы (составное, массив, ссылка, картинка, файл, многострочный
  * текст) — в отличие от скалярного, которому хватает половины ряда.
