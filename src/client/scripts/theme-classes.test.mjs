@@ -11,6 +11,14 @@ const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 let unknown;
 beforeAll(async () => { unknown = await loadThemeCheck(join(srcRoot, 'index.css')); });
 
+/** Файлы клиента — `путь от src/ → текст`, читаются один раз на все проверки файла. */
+const sources = new Map(readdirSync(srcRoot, { recursive: true })
+  .map(f => String(f).replaceAll('\\', '/'))
+  .filter(f => /\.(?:tsx?|jsx?|css)$/.test(f))
+  .map(f => [f, readFileSync(join(srcRoot, f), 'utf8')]));
+/** Код без стилей: классы сторож ищет в нём, переменные — везде. */
+const scripts = [...sources].filter(([f]) => !f.endsWith('.css'));
+
 /**
  * Произвольные значения, у которых в словаре нет ступени, — по месту и с причиной. Класс из списка в
  * другом файле — снова отказ: исключение названо местом, а не классом вообще.
@@ -54,9 +62,19 @@ describe('словарь темы: что сторож видит', () => {
         'text-(length:--x)', 'shadow-lg', 'shadow-[0_1px_2px_#000]', 'rounded-[28px]', 'drop-shadow-(--x)']);
   });
 
-  it('произвольный цвет и не-классы не берёт', () => {
-    expect(themeCandidates('bg-[var(--md-sys-color-surface-container)] text-(--x) text-[color:var(--x)] context-menu textual rounded-corner.svg'))
+  it('произвольный text- берёт весь — цвет он или размер, решает движок', () => {
+    expect(themeCandidates('"text-(--x) text-[var(--x)] text-[calc(1rem+2px)]"').map(c => c.cls))
+      .toEqual(['text-(--x)', 'text-[var(--x)]', 'text-[calc(1rem+2px)]']);
+  });
+
+  it('произвольный цвет прочих утилит и не-классы не берёт', () => {
+    expect(themeCandidates('bg-[var(--md-sys-color-surface-container)] border-(--x) context-menu textual rounded-corner.svg'))
       .toEqual([]);
+  });
+
+  it('голый rounded — только в строке: вне неё это имя переменной или свойства JSX', () => {
+    expect(themeCandidates('function f({ value, rounded }) { return rounded ? 1 : 0 }\nconst x = <S rounded />;')).toEqual([]);
+    expect(themeCandidates('const c = on ? "rounded p-1" : `rounded-t ${x}`;').map(c => c.cls)).toEqual(['rounded', 'rounded-t']);
   });
 });
 
@@ -69,6 +87,16 @@ describe('словарь темы: что вне него', () => {
   it('произвольное значение размера текста, радиуса и тени — отказ', () => {
     expect(unknown(['text-[11px]', 'rounded-[28px]', 'rounded-t-[6px]', 'shadow-[0_1px_2px_#000]', 'drop-shadow-(--x)']))
       .toEqual(['text-[11px]', 'rounded-[28px]', 'rounded-t-[6px]', 'shadow-[0_1px_2px_#000]', 'drop-shadow-(--x)']);
+  });
+
+  it('произвольный text- — отказ, когда Tailwind ставит им размер, а не цвет', () => {
+    expect(unknown(['text-[calc(1rem+2px)]', 'text-[clamp(1rem,2vw,2rem)]', 'text-(length:--x)', 'text-[var(--x)]',
+      'text-(--x)', 'text-[color:var(--x)]'])).toEqual(['text-[calc(1rem+2px)]', 'text-[clamp(1rem,2vw,2rem)]', 'text-(length:--x)']);
+  });
+
+  it('ступени тени у drop-shadow, inset-shadow и text-shadow — вне словаря', () => {
+    expect(unknown(['drop-shadow-md', 'inset-shadow-sm', 'text-shadow-sm', 'shadow-elevation-1']))
+      .toEqual(['drop-shadow-md', 'inset-shadow-sm', 'text-shadow-sm']);
   });
 
   it('роли MD3 — и те, которыми ещё никто не рисует, — проходят', () => {
@@ -90,9 +118,8 @@ describe('словарь темы: исключения', () => {
   });
 
   it('каждое исключение ещё стоит на своём месте: снятое снимается и из списка', () => {
-    const files = readdirSync(srcRoot, { recursive: true }).map(f => String(f).replaceAll('\\', '/'));
-    const stale = EXCEPTIONS.filter(e => !files.some(f => e.files.test(f)
-      && themeCandidates(readFileSync(join(srcRoot, f), 'utf8')).some(c => c.cls === e.cls)));
+    const stale = EXCEPTIONS.filter(e => !scripts.some(([f, text]) => e.files.test(f)
+      && themeCandidates(text).some(c => c.cls === e.cls)));
     expect(stale.map(e => e.cls)).toEqual([]);
   });
 });
@@ -104,6 +131,8 @@ describe('словарь темы: отказ называет роль', () => 
     ['border-stroke/50', 'border-outline-variant/50'],
     ['text-xs', 'text-body-small'],
     ['bg-black/40', 'bg-scrim/32'],
+    // Своя прозрачность пары главнее прозрачности класса: не `text-on-surface/38/50`.
+    ['text-fg-disabled/50', 'text-on-surface/38'],
   ])('%s → %s', (cls, role) => {
     expect(nearestRole(themeCandidates(`"${cls}"`)[0].cls)).toBe(role);
   });
@@ -133,6 +162,8 @@ describe('словарь темы: отказ называет роль', () => 
   it('без пары в карте — шкала или раздел docs/UI.md', () => {
     expect(nearestRole('rounded-[28px]')).toMatch(/^ступень формы/);
     expect(nearestRole('shadow-lg')).toMatch(/^уровень возвышения/);
+    expect(nearestRole('inset-shadow-sm')).toMatch(/^уровень возвышения/);
+    expect(nearestRole('text-shadow-sm')).toMatch(/^уровень возвышения/);
     expect(nearestRole('text-[11px]')).toMatch(/^роль текста/);
     expect(nearestRole('bg-gray-500')).toMatch(/^роль цвета MD3/);
   });
@@ -144,7 +175,7 @@ describe('словарь темы: отказ называет роль', () => 
  * до финала это держал `legacy-class` храповика, теперь — сторож словаря. Своя переменная файла
  * (`--text-scale-factor` слоя текста просмотрщика) — его дело.
  */
-const THEME_VAR = /var\(\s*(--(?:color|radius|text|shadow)-[\w-]+)/g;
+const THEME_VAR = /var\(\s*(--(?:color|radius|text|(?:drop-|inset-)?shadow)-[\w-]+)/g;
 const themeVars = new Set([...readFileSync(join(srcRoot, 'theme', 'md3-tailwind.css'), 'utf8')
   .matchAll(/^\s*(--[\w-]+):/gm)].map(m => m[1]));
 const unknownVars = (file, source) => {
@@ -159,22 +190,19 @@ describe('словарь темы: переменные', () => {
     expect(unknownVars('shared/ui/x.css', '.a { outline: 2px solid var(--color-brand); color: var(--color-primary); }\n'
       + '.b { border-radius: var(--radius-lg); --text-k: 2; font-size: calc(var(--text-k) * 1px); }  /* var(--color-fg1) */'))
       .toEqual(['src/shared/ui/x.css:1 --color-brand']);
+    expect(unknownVars('shared/ui/x.css', '.c { filter: drop-shadow(var(--drop-shadow-md)); }'))
+      .toEqual(['src/shared/ui/x.css:1 --drop-shadow-md']);
   });
 
   it('в клиенте нет переменных вне словаря темы', () => {
-    const files = readdirSync(srcRoot, { recursive: true }).map(f => String(f).replaceAll('\\', '/'))
-      .filter(f => /\.(?:tsx?|jsx?|css)$/.test(f) && !f.startsWith('theme/'));
-    expect(files.flatMap(f => unknownVars(f, readFileSync(join(srcRoot, f), 'utf8'))),
+    expect([...sources].filter(([f]) => !f.startsWith('theme/')).flatMap(([f, text]) => unknownVars(f, text)),
       'Переменная вне словаря темы — var() отдаёт пустое. Цвет — var(--color-<роль>) или --md-sys-color-<роль>:\n'
       + 'docs/UI.md, «Цвет».').toEqual([]);
   });
 });
 
 it('в клиенте нет классов вне словаря темы', () => {
-  const files = readdirSync(srcRoot, { recursive: true })
-    .map(f => String(f).replaceAll('\\', '/'))
-    .filter(f => /\.(tsx?|jsx?)$/.test(f));
-  const offenders = files.flatMap(file => offendersIn(file, readFileSync(join(srcRoot, file), 'utf8')));
+  const offenders = scripts.flatMap(([file, text]) => offendersIn(file, text));
 
   // Сообщение называет выход: без него класс заменяют первым похожим, и он снова не рисуется.
   expect(offenders, 'Классы вне словаря темы MD3 — Tailwind их не рисует, или значение мимо шкалы.\n'

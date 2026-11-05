@@ -34,8 +34,12 @@ export const entries = obj => Object.entries(obj ?? {}).filter(([k]) => !k.start
  */
 export const NO_CLASS = ['shadow'];
 
-/** Пространства имён `@theme`, которые слой Tailwind сбрасывает перед словарём MD3 ([UI-82]). */
-export const RESET = ['--color-*', '--radius-*', '--text-*', '--shadow-*'];
+/**
+ * Пространства имён `@theme`, которые слой Tailwind сбрасывает перед словарём MD3 ([UI-82]). Тень — во всех
+ * четырёх видах: у `drop-shadow-*`, `inset-shadow-*` и `text-shadow-*` свои пространства, и без сброса их
+ * ступени Tailwind (`drop-shadow-md`) рисовались бы мимо уровней возвышения.
+ */
+export const RESET = ['--color-*', '--radius-*', '--text-*', '--shadow-*', '--drop-shadow-*', '--inset-shadow-*', '--text-shadow-*'];
 
 /**
  * Значение половины превью значка: ссылка «тема.роль» (`light.surface-container-low`). Числом её не

@@ -19,17 +19,19 @@ export const CLASS_AFTER = `(?=$|[\\s'"\`}),;\\\\]|:(?=[a-z])`
 
 // Утилиты словаря темы ([UI-82]): цвет, радиус (`rounded` со стороной или углом), размер текста и тень —
 // `text` и `shadow` уже в цветовых. Именованное значение — bg-surface2, border-danger/30, -text-fg!,
-// rounded-2xl, text-2xl; радиус без ступени — rounded, rounded-t. Произвольное значение — только там, где
-// у словаря есть ступень: размер текста (text-[11px], text-[0.9em], text-(length:--x)), радиус и тень
-// (rounded-[28px], shadow-[…]). Произвольный цвет (bg-[var(--x)], text-(--x)) не берётся: его и пишут,
-// когда роли нет, а hex в нём ловит сторож литералов (shared/ui/themeTokens.test.ts).
+// rounded-2xl, text-2xl; радиус без ступени — rounded, rounded-t (только в строке: вне неё это имя
+// переменной или свойства JSX). Произвольное значение — у радиуса, тени и текста: радиус и тень
+// (rounded-[28px], shadow-[…]) — отказ всегда, текст — когда Tailwind ставит им размер (text-[11px],
+// text-[calc(…)], text-(length:--x)), а не цвет (text-[var(--x)], text-(--x)): что из двух, решает
+// движок (theme-classes-lib.mjs). Произвольный цвет прочих утилит (bg-[var(--x)]) не берётся: его и
+// пишут, когда роли нет, а hex в нём ловит сторож литералов (shared/ui/themeTokens.test.ts).
 export const RADIUS_UTILITY = 'rounded(?:-(?:tl|tr|br|bl|ss|se|es|ee|t|r|b|l|s|e))?';
+const BARE_RADIUS = new RegExp(`^${RADIUS_UTILITY}$`);
 const ARBITRARY = '(?:\\[[^\\]\\s]+\\]|\\([^)\\s]+\\))';
 const CANDIDATE = new RegExp(`${CLASS_BEFORE}!?-?(`
   + `(?:${COLOR_UTILITIES}|${RADIUS_UTILITY})-[a-z0-9][\\w-]*(?:\\/[\\w.]+)?`
   + `|${RADIUS_UTILITY}`
-  + `|(?:${RADIUS_UTILITY}|(?:drop-)?shadow)-${ARBITRARY}`
-  + `|text-(?:\\[(?:length:)?[\\d.]+[a-z%]*\\]|\\(length:[^)\\s]+\\))`
+  + `|(?:${RADIUS_UTILITY}|(?:drop-|inset-|text-)?shadow|text)-${ARBITRARY}`
   + `)!?${CLASS_AFTER}`, 'gm');
 
 // Знак перед `/`, после которого тот открывает регулярное выражение, а не делит: `(`, `=`, `,`, `!`…
@@ -189,9 +191,14 @@ export function splitVariants(raw) {
 
 /** Утилиты словаря темы в тексте, где комментарии уже вырезаны (`stripComments`). */
 export function scanCandidates(text) {
+  let spans;
+  const inString = at => (spans ??= scanCode(text).strings.flat()).some(([from, to]) => from <= at && at < to);
   const found = [];
-  for (const m of text.matchAll(CANDIDATE))
+  for (const m of text.matchAll(CANDIDATE)) {
+    // Голый `rounded` — допустимое имя в JS: `{ value, rounded }`, `<SearchInput rounded />`.
+    if (BARE_RADIUS.test(m[1]) && !inString(m.index)) continue;
     found.push({ cls: m[1], line: text.slice(0, m.index).split('\n').length });
+  }
   return found;
 }
 

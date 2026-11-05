@@ -30,7 +30,8 @@ describe('тема MD3: словарь без старых имён ([UI-82])', 
   it('слой Tailwind сбрасывает цвет, радиус, текст и тень до ролей и шкал', () => {
     const tailwind = generate(theme)['md3-tailwind.css'];
     const head = tailwind.slice(0, tailwind.indexOf('--color-primary:'));
-    for (const ns of ['--color-*', '--radius-*', '--text-*', '--shadow-*']) expect(head).toContain(`${ns}: initial;`);
+    for (const ns of ['--color-*', '--radius-*', '--text-*', '--shadow-*', '--drop-shadow-*', '--inset-shadow-*', '--text-shadow-*'])
+      expect(head).toContain(`${ns}: initial;`);
   });
 
   it('псевдонимов нет: файла старых имён генератор не пишет, старое имя и палитра Tailwind не рисуются', () => {

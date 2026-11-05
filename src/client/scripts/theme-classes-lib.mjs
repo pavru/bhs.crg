@@ -52,19 +52,24 @@ export async function loadDesign(css, base) {
   return design;
 }
 
-/** Произвольное значение — в скобках: `text-[11px]`, `rounded-(--x)`. */
-const isArbitrary = cls => /[[(]/.test(cls);
+/**
+ * Класс в словаре: Tailwind его порождает, и значение не произвольное. Произвольное у радиуса и тени —
+ * отказ всегда; у `text-` — только когда это размер: `text-[var(--x)]` Tailwind читает цветом, а
+ * `text-[calc(…)]` и `text-(length:--x)` — размером, и различает их сам движок, а не перечень функций CSS.
+ */
+const inDictionary = (cls, css) => css != null
+  && (!/[[(]/.test(cls) || (/^text-[[(]/.test(cls) && !/\bfont-size:/.test(css)));
 
 /**
  * Дизайн-система по index.css клиента. Возвращает проверку: какие из классов вне словаря темы — Tailwind
- * их не порождает или они с произвольным значением (такие кандидаты отдаёт только `themeCandidates`).
+ * их не порождает или они с произвольным значением там, где у словаря есть ступень (`inDictionary`).
  */
 export async function loadThemeCheck(indexCssPath) {
   const design = await loadDesign(await readFile(indexCssPath, 'utf8'), dirname(indexCssPath));
   const known = new Map();
   return classes => {
     const fresh = [...new Set(classes)].filter(c => !known.has(c));
-    design.candidatesToCss(fresh).forEach((out, i) => known.set(fresh[i], out != null && !isArbitrary(fresh[i])));
+    design.candidatesToCss(fresh).forEach((out, i) => known.set(fresh[i], inDictionary(fresh[i], out)));
     return classes.filter(c => !known.get(c));
   };
 }
@@ -89,10 +94,11 @@ export function nearestRole(cls) {
     const utility = body.slice(0, -name.length - 1);
     const restricted = Object.entries(RESTRICTED).find(([key, re]) => pair[key] && re.test(utility));
     if (restricted) return pair[restricted[0]];
-    return `${utility}-${pair.to}${tail}`;
+    // Своя прозрачность у пары (`fg-disabled → on-surface/38`) — главнее прозрачности класса.
+    return `${utility}-${pair.to}${pair.to.includes('/') ? '' : tail}`;
   }
   if (/^rounded/.test(body)) return 'ступень формы: rounded-xs, -sm, -md, -lg, -xl, rounded-full, rounded-none (docs/UI.md, «Форма и возвышение»)';
-  if (/^(?:drop-)?shadow/.test(body)) return 'уровень возвышения: shadow-elevation-1…5 (docs/UI.md, «Форма и возвышение»)';
+  if (/^(?:drop-|inset-|text-)?shadow/.test(body)) return 'уровень возвышения: shadow-elevation-1…5 (docs/UI.md, «Форма и возвышение»)';
   if (/^text-(?:\[|\(length:|(?:xs|sm|base|lg|\d?xl)$)/.test(body)) return 'роль текста: text-body-medium, text-body-small, text-label-small, text-title-small… (docs/UI.md, «Текст»)';
   return 'роль цвета MD3: text-on-surface, bg-surface-container, border-outline-variant, text-primary… (src/theme/md3-theme.json; docs/UI.md, «Цвет»)';
 }
