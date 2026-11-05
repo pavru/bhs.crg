@@ -7,6 +7,7 @@ import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
+import { ListItem } from '@/shared/ui/ListItem';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Banner } from '@/shared/ui/Banner';
 import { Card } from '@/shared/ui/Card';
@@ -99,19 +100,16 @@ export function RolesPage() {
     setError('');
   }
 
+  // Строка MD3 ([UI-84]): пользователи и число прав — вторая строка, пометка «системная» — замыкающая.
   const row = (r: AppRole) => (
-    <button key={r.name} onClick={() => pick(r.name)}
-      className={`state-layer w-full text-left px-3 py-2 rounded-md ${
-        r.name === selected?.name ? 'bg-primary-container' : ''}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-body-medium text-on-surface truncate">{r.title}</span>
-        <RoleBadge role={r} />
-      </div>
-      <div className="text-label-small text-on-surface-variant mt-0.5 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1"><Icon icon={Group} size={18} />{r.users}</span>
-        <span>прав: {r.permissions.length}</span>
-      </div>
-    </button>
+    <ListItem key={r.name} onClick={() => pick(r.name)} selected={r.name === selected?.name} headline={r.title}
+      trailing={r.system ? <RoleBadge role={r} /> : undefined}
+      supporting={(
+        <span className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1"><Icon icon={Group} size={18} />{r.users}</span>
+          <span>прав: {r.permissions.length}</span>
+        </span>
+      )} />
   );
 
   return (
@@ -130,8 +128,8 @@ export function RolesPage() {
           {/* Своя прокрутка у каждого слота — правило этого shell: он раздаёт высоту, но не
               прокручивает. Без неё растут обе колонки сразу, и панель «Сохранить», приклеенная к
               низу detail, уезжает за край экрана вместе со списком ролей. */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
-            {isLoading ? <div className="px-3 py-2 text-body-medium text-on-surface-variant">Загрузка…</div> : roles.map(row)}
+          <div className="flex-1 min-h-0 overflow-y-auto pb-3">
+            {isLoading ? <div className="px-4 py-2text-body-medium text-on-surface-variant">Загрузка…</div> : roles.map(row)}
           </div>
         </>
       }

@@ -6,6 +6,10 @@ import { buildRows, ENTRYPOINT } from './userLibTree';
 import type { UserLibFile, UserLibError, UserLibWarning } from '@/shared/api/typstUserLib';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { ListItem } from '@/shared/ui/ListItem';
+import { listDepthPad } from '@/shared/ui/listDepth';
+import type { IconDef } from '@/shared/ui/icons/types';
+import type { ReactNode } from 'react';
 
 /**
  * Список файлов библиотеки (issue #473).
@@ -45,10 +49,9 @@ export function UserLibFileList({
     <div className="flex-1 min-h-0 overflow-y-auto pb-2">
       <NavSection label="Точка входа" />
       <FileRow
-        label={ENTRYPOINT} depth={0} icon={<Icon icon={Login} size={18} />}
+        label={ENTRYPOINT} depth={0} icon={Login} supporting="Подключает всё, что ниже"
         active={selected === ENTRYPOINT} dirty={dirty.has(ENTRYPOINT)}
         errors={errorsBy.get(ENTRYPOINT) ?? 0} warnings={warningsBy.get(ENTRYPOINT) ?? 0}
-        title="Подключает всё, что ниже"
         onClick={() => onSelect(ENTRYPOINT)}
       />
 
@@ -58,24 +61,22 @@ export function UserLibFileList({
       </div>
 
       {files.length === 0 ? (
-        <p className="px-3 py-2 text-body-small text-on-surface-variant">
+        <p className="px-4 py-2 text-body-small text-on-surface-variant">
           Пока всё в одном файле. Создайте файл, чтобы вынести часть функций.
         </p>
       ) : rows.map(row => row.kind === 'folder' ? (
         /* «+» на папке — то же правило, что у заголовка секции, уровнем ниже: «создать в этом
            контейнере». Кебаб был бы хуже — единственный пункт под безликим глифом и лишний клик.
            Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
-        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-body-small text-on-surface-variant"
-          style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
-          <Icon icon={Folder} size={18} className="shrink-0" />
+        <div key={`d:${row.path}`}
+          className={`flex items-center gap-4 min-h-12 ${listDepthPad(row.depth)} pr-2 text-title-small text-on-surface-variant`}>
+          <Icon icon={Folder} size={24} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
-          <IconButton label={`Создать файл в «${row.path}»`}
-            className="-my-1.5 opacity-0 group-hover/dir:opacity-100 focus-visible:opacity-100"
-            onClick={() => onCreate(row.path)} icon={Add} />
+          <IconButton label={`Создать файл в «${row.path}»`} onClick={() => onCreate(row.path)} icon={Add} />
         </div>
       ) : (
         <FileRow
-          key={row.path} label={row.label} depth={row.depth} icon={<Icon icon={CodeBlocks} size={18} />}
+          key={row.path} label={row.label} depth={row.depth} icon={CodeBlocks}
           active={selected === row.path} dirty={dirty.has(row.path)}
           errors={errorsBy.get(row.path) ?? 0} warnings={warningsBy.get(row.path) ?? 0}
           title={row.path}
@@ -92,30 +93,29 @@ export function UserLibFileList({
   );
 }
 
-function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, onClick, actions }: {
-  label: string; depth: number; icon: React.ReactNode; active: boolean; dirty: boolean;
-  errors: number; warnings: number; title?: string; onClick: () => void; actions?: React.ReactNode;
+/**
+ * Строка файла — `ListItem` ([UI-84], sharedui-md3-18) с отступом `depth` и «⋮» соседом цели, видным без
+ * наведения. Полный путь — подсказкой `title` обрезанной подписи.
+ */
+function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, supporting, onClick, actions }: {
+  label: string; depth: number; icon: IconDef; active: boolean; dirty: boolean;
+  errors: number; warnings: number; title?: string; supporting?: string; onClick: () => void; actions?: ReactNode;
 }) {
   return (
-    <div className={`state-layer group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : ''}`}>
-      <Tooltip content={title}>
-        <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-          className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-body-medium"
-          style={{ paddingLeft: `${0.75 + depth}rem` }}>
-          <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
-          <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
-          {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
+    <ListItem icon={icon} headline={label} title={title} supporting={supporting} depth={depth} selected={active}
+      onClick={onClick} action={actions}
+      trailing={(errors > 0 || warnings > 0 || dirty) && (
+        <>
+          {/* Ошибка может прилететь из файла, который сейчас закрыт — значок на его строке
               единственное место, где её видно. */}
           {errors > 0 && (
-            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-error"><Icon icon={ErrorIcon} size={18} /></span></Tooltip>
+            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 flex text-error"><Icon icon={ErrorIcon} size={18} /></span></Tooltip>
           )}
           {errors === 0 && warnings > 0 && (
-            <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><Icon icon={Warning} size={18} /></span></Tooltip>
+            <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 flex text-warning"><Icon icon={Warning} size={18} /></span></Tooltip>
           )}
           {dirty && <Tooltip content="Не сохранено"><span className="shrink-0 h-1.5 w-1.5 rounded-full bg-on-surface-variant" /></Tooltip>}
-        </button>
-      </Tooltip>
-      {actions && <span className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">{actions}</span>}
-    </div>
+        </>
+      )} />
   );
 }

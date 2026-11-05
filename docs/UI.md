@@ -815,14 +815,17 @@ split-кнопки, подменю, «⋮» окна во весь экран. �
   нативной подсказке `title` (как у `DetailTitle`; `Tooltip` у каждой строки реестра — лишняя цена и двойное
   имя для диктора) — и только у обрезанной: обрезку меряет `fullTextIfCut` на наведении. Вторая строка — `body-medium` `on-surface-variant`,
   замыкающий текст — `label-small`, число в хвосте — `CountText` (`label-medium`, [UI-45]); ведущий знак —
-  24 (`icon`) или миниатюра (`leading`), не оба.
+  24 (`icon`) или миниатюра (`leading`), не оба. Знак тихий — тоном строки; цвет по смыслу (`text-error`,
+  `text-primary`) — `iconTone`, и на выбранной тоже. Пустой хвост (`trailing={cond && …}` при ложном `cond`)
+  слота не рисует. Объяснение строки, нужное и с клавиатуры, — `hint`: подсказка у цели, а не внутри неё.
 - **Выбранная** — `secondary-container` / `on-secondary-container` и `aria-current`; число у неё —
   `CountText onContainer="secondary"`. Наведение, нажатие и фокус — слоем `state-layer` с добавкой
   `state-layer-row` у строки.
 - **Одна цель, одна роль**: `onClick` (кнопка) или `to` (ссылка) — пункт, открывающий карточку, переход вглубь
   или отбор. `ref` и `data-testid` — на цели. Действие (`IconButton`, `RowActionsMenu`) — `action`, флажок —
   `leadingAction`: соседи цели, а не вложенный интерактив, и видны всегда — на касании наведения нет.
-  Нажатие и фокус цели зажигают слой и кольцо всей строки, действия — только у действия.
+  Нажатие и фокус цели зажигают слой и кольцо всей строки, действия — только у действия; наведение на соседа
+  зажигает его, а не строку.
 - **Сворачиваемая группа** — `ListGroupHeader`: подзаголовок `title-small` `on-surface-variant` целью не ниже 48
   с шевроном и `aria-expanded`, число перед шевроном, «⋮» группы — `action`. Выбранным не бывает; строки
   группы — без отступа (вариант Б макетов 214e220b). Несворачиваемый заголовок группы — `NavSection`
@@ -1274,8 +1277,9 @@ Expressive, как и split-кнопка ([UI-83], В7 от 31.10.2026).
   храповик, правило `list-row` ([UI-84]), область по умолчанию, по синтаксическому дереву
   (`scripts/ui-ratchet-lists.mjs`). Не строка: открытое меню (`data-[state=open]:`), подложка наведения с
   прозрачностью (`hover:bg-primary-container/70`), заливка без условия, пометка (`span`). Выход — `ListItem`,
-  `ListGroupHeader`, `NavItem`. Уровень заведён по факту (24) — строки экранов переводит sharedui-md3-18 PR 2,
-  остаток — `sharedui-md3-21-pick-lists`; только опускается.
+  `ListGroupHeader`, `NavItem`. Уровень заведён по факту (24), строки экранов переведены sharedui-md3-18 PR 2 —
+  остаток 7 (`ComplexFields`, `RefPickerModal`, `BaseCandidatePicker`, `ScopeGroupList`) ведёт
+  `sharedui-md3-21-pick-lists`; только опускается.
 - Белое на сплошной заливке — `text-white`, `ring-white`, `bg-white` вместе с `bg-primary` /
   `bg-error` / `bg-success` / `bg-warning` (и старыми `bg-brand`, `bg-danger`, и переменной роли
   `bg-[var(--md-sys-color-primary)]`) — тот же храповик, правило `white-on-fill` (#1462),

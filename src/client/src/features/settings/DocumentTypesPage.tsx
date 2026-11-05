@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, ChevronRight, Description, Folder, Widgets } from '@/shared/ui/icons';
+import { Add, Description, Widgets } from '@/shared/ui/icons';
+import { ListItem } from '@/shared/ui/ListItem';
+import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
+import { CountText } from '@/shared/ui/CountText';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -11,7 +14,7 @@ import { useListDocumentTypes, useCreateDocumentType } from '@/shared/api/docume
 import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useTypeEditorRegistry } from './typeEditorRegistry';
-import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -200,7 +203,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   const searching = query.trim().length > 0;
   // Строку выбранного типа подкручиваем в видимую часть: раскрыть группу мало — на длинном списке
   // цель программного перехода (#784) осталась бы ниже сгиба, то есть снова «не видно, где ты».
-  const activeRow = useRef<HTMLButtonElement | null>(null);
+  const activeRow = useRef<HTMLElement | null>(null);
   useEffect(() => { activeRow.current?.scrollIntoView({ block: 'nearest' }); }, [selectedId]);
   const selectedGroup = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
   const groupKey = (g: string) => g === selectedGroup ? `${selectedId}:${g}` : g;
@@ -215,17 +218,11 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
 
   const typeRow = (t: DocumentType) => {
     const active = t.id === selectedId;
-    const icon = t.kind === 'Composite' ? Widgets : Description;
+    // Строка MD3 ([UI-84]): во всю ширину колонки, 48, выбранная — secondary-container; число полей — CountText.
     return (
-      <button key={t.id} type="button" onClick={() => onSelect(t.id)}
-        ref={active ? activeRow : undefined}
-        aria-current={active ? 'true' : undefined}
-        className={`state-layer w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left ${
-          active ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-        <Icon icon={icon} size={18} className="shrink-0" />
-        <span className="flex-1 truncate text-body-medium">{t.name}</span>
-        <span className="text-body-small text-on-surface-variant shrink-0">{fieldCount(t, allDocTypes)}</span>
-      </button>
+      <ListItem key={t.id} onClick={() => onSelect(t.id)} ref={active ? activeRow : undefined} selected={active}
+        icon={t.kind === 'Composite' ? Widgets : Description} headline={t.name}
+        trailing={<CountText onContainer={active && 'secondary'}>{fieldCount(t, allDocTypes)}</CountText>} />
     );
   };
 
@@ -239,15 +236,15 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   return (
     <>
       <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
+      <div className="flex-1 overflow-y-auto pb-3">
         {outside && (
           <>
-            <div className="px-3 pt-3 pb-1 text-title-small text-on-surface-variant">Открыт, вне поиска</div>
+            <NavSection label="Открыт, вне поиска" />
             {typeRow(outside)}
           </>
         )}
         {groupOrder.length === 0 && (
-          <p className="px-3 py-6 text-center text-body-medium text-on-surface-variant">
+          <p className="px-4 py-6 text-center text-body-medium text-on-surface-variant">
             {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
           </p>
         )}
@@ -256,14 +253,9 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
           const open = searching || groupOpen(g);
           return (
             <div key={g || '__ungrouped__'}>
-              <button type="button" onClick={() => toggleGroup(g)}
-                aria-expanded={open}
-                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-title-small text-on-surface-variant">
-                <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-                <Icon icon={Folder} size={18} className="shrink-0" />
-                <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>
-                <span className="opacity-70">{items.length}</span>
-              </button>
+              {/* Группа — подзаголовок с шевроном (вариант Б макетов 214e220b), строки под ним без отступа. */}
+              <ListGroupHeader label={g || 'Без группы'} open={open} onToggle={() => toggleGroup(g)}
+                count={<CountText>{items.length}</CountText>} />
               {open && items.map(typeRow)}
             </div>
           );

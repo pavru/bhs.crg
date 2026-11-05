@@ -19,6 +19,9 @@ import { carriesFiles } from '@/shared/ui/fileDrop';
 import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { ListItem } from '@/shared/ui/ListItem';
+import { CountText } from '@/shared/ui/CountText';
+import type { IconDef } from '@/shared/ui/icons/types';
 import { Card } from '@/shared/ui/Card';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
@@ -31,31 +34,31 @@ const sourcesLabel = (n: number) => `${ruCount(n, 'источник', 'исто�
 /** Пункт рейла набора (issue #210, рейл-по-файлу): иконка формата ИЛИ спиннер (идёт распознавание) +
  *  имя (2 строки: имя + «формат · N источников»), amber-точка при устаревших источниках, подсветка как
  *  у каталога. Статус в рейле — спокойный: только спиннер/точка, без текста (один факт — один раз). */
-function FileNavItem({ icon, label, secondary, count, active, recognizing, stale, level, onClick }: {
-  icon: ReactNode; label: string; secondary?: string; count?: number; active?: boolean;
+/**
+ * Строка рейла наборов — `ListItem` ([UI-84], sharedui-md3-18). Полная подпись обрезанного имени — подсказкой
+ * `title` самой строки, только при обрезке.
+ */
+function FileNavItem({ icon, label, secondary, count, active = false, recognizing, stale, level, onClick }: {
+  icon: IconDef; label: string; secondary?: string; count?: number; active?: boolean;
   recognizing?: boolean; stale?: boolean; level?: ReactNode; onClick: () => void;
 }) {
+  const lead = recognizing ? { leading: <CircularProgress size={24} className="shrink-0 text-primary" /> } : { icon };
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`state-layer w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left ${
-        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
-      <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
-        {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className={`block truncate text-body-medium ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
-        {/* Чип уровня — в начале подписи, а не в хвосте строки (issue #721): в хвосте он отнимал
-            ширину у имени, а трёх «Данные системы» подряд без уровня не различить вовсе. */}
-        {(secondary || level) && (
-          <span className="flex items-center gap-1.5 text-label-small text-on-surface-variant">
-            {level}
-            {secondary && <span className="truncate">{secondary}</span>}
-          </span>
-        )}
-      </span>
-      {stale && <Tooltip content="Есть устаревшие источники — распознайте набор заново"><span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" /></Tooltip>}
-      {count != null && <span className="text-body-small text-on-surface-variant tabular-nums shrink-0">{count}</span>}
-    </button>
+    <ListItem {...lead} onClick={onClick} selected={active} headline={label}
+      // Чип уровня — в начале второй строки, а не в хвосте строки (issue #721): в хвосте он отнимал
+      // ширину у имени, а трёх «Данные системы» подряд без уровня не различить вовсе.
+      supporting={(secondary || level) && (
+        <span className="flex items-center gap-1.5 min-w-0">
+          {level}
+          {secondary && <span className="truncate">{secondary}</span>}
+        </span>
+      )}
+      trailing={(stale || count != null) && (
+        <>
+          {stale && <Tooltip content="Есть устаревшие источники — распознайте набор заново"><span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" /></Tooltip>}
+          {count != null && <CountText onContainer={active && 'secondary'}>{count}</CountText>}
+        </>
+      )} />
   );
 }
 
@@ -369,11 +372,11 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
       ) : (
         <div className="flex gap-5 items-start">
           {/* Рейл файлов */}
-          <aside className="w-56 shrink-0 sticky top-0 self-start space-y-0.5">
-            <FileNavItem icon={<Icon icon={GridView} size={18} />} label="Все наборы" count={files.length}
+          <aside className="w-56 shrink-0 sticky top-0 self-start">
+            <FileNavItem icon={GridView} label="Все наборы" count={files.length}
               active={isAll} onClick={() => setSelected(ALL)} />
             {files.map(f => (
-              <FileNavItem key={f.id} icon={<Icon icon={Description} size={18} />} label={f.name}
+              <FileNavItem key={f.id} icon={Description} label={f.name}
                 secondary={`${DATA_SET_FORMAT_LABELS[f.format]} · ${sourcesLabel(f.sources.length)}`}
                 active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
                 onClick={() => setSelected(f.id)} />
@@ -395,7 +398,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                   </span>
                 </button>
                 {inheritedOpen && inheritedFiles.map(f => (
-                  <FileNavItem key={f.id} icon={<Icon icon={Description} size={18} />} label={f.name}
+                  <FileNavItem key={f.id} icon={Description} label={f.name}
                     secondary={`${DATA_SET_FORMAT_LABELS[f.format]} · ${sourcesLabel(f.sources.length)}`}
                     active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
                     level={<LevelChip file={f} />}

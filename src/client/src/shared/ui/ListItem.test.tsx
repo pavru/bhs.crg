@@ -11,6 +11,10 @@ import { Description } from './icons';
 
 afterEach(cleanup);
 
+// Охрана ухода по ссылке — подменена: проверяется, что щелчок до неё доходит.
+const guard = vi.hoisted(() => vi.fn());
+vi.mock('./NavigationGuard', () => ({ useGuardedNavClick: () => () => guard }));
+
 const classes = (el: Element) => el.className.split(/\s+/);
 
 describe('ListItem', () => {
@@ -108,6 +112,47 @@ describe('ListItem', () => {
     expect(target.tagName).toBe('A');
     expect(target.getAttribute('href')).toBe('/costs/invoices/1');
     expect(target.querySelector('svg')!.getAttribute('width')).toBe('24');
+  });
+
+  it('trailing false и пустая строка — слота нет (cond && … у вызывающих), 0 — есть', () => {
+    render(<>
+      <ListItem data-testid="f" headline="a" trailing={false} onClick={() => {}} />
+      <ListItem data-testid="e" headline="b" trailing="" onClick={() => {}} />
+      <ListItem data-testid="z" headline="c" trailing={0} onClick={() => {}} />
+    </>);
+    expect(screen.getByTestId('f').querySelectorAll('.text-label-small')).toHaveLength(0);
+    expect(screen.getByTestId('e').querySelectorAll('.text-label-small')).toHaveLength(0);
+    expect(screen.getByTestId('z').querySelector('.text-label-small')!.textContent).toBe('0');
+  });
+
+  it('hint — подсказка цели: описание у цели и показ по фокусу с клавиатуры', () => {
+    render(<ListItem data-testid="row" headline="17" hint="Счёт оплачен и из очереди ушёл" onClick={() => {}} />);
+    const target = screen.getByTestId('row');
+    expect(target.getAttribute('aria-description')).toBe('Счёт оплачен и из очереди ушёл');
+    expect(target.hasAttribute('data-li-target')).toBe(true);
+  });
+
+  it('hint у ссылки не снимает охрану перехода: щелчок подсказки и охрана — оба', () => {
+    guard.mockClear();
+    render(<MemoryRouter><ListItem data-testid="row" headline="Счёт" to="/costs/invoices/1" hint="Подсказка" /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId('row'));
+    expect(guard).toHaveBeenCalledOnce();
+  });
+
+  it('iconTone — цвет знака и на выбранной; без него знак тоном строки', () => {
+    render(<>
+      <ListItem data-testid="acc" headline="a" icon={Description} iconTone="text-error" selected onClick={() => {}} />
+      <ListItem data-testid="q" headline="b" icon={Description} selected onClick={() => {}} />
+    </>);
+    expect(screen.getByTestId('acc').querySelector('svg')!.getAttribute('class')).toContain('text-error');
+    expect(screen.getByTestId('q').querySelector('svg')!.getAttribute('class')).toContain('text-on-secondary-container');
+  });
+
+  it('соседи цели помечены data-li-side — их наведение гасит слой строки (state-layer-row)', () => {
+    render(<ListItem data-testid="row" headline="Шаблон" onClick={() => {}}
+      leadingAction={<input type="checkbox" aria-label="Участвует" />} action={<button type="button">⋮</button>} />);
+    const sides = screen.getByTestId('row').parentElement!.querySelectorAll(':scope > [data-li-side]');
+    expect(sides).toHaveLength(2);
   });
 
   it('depth — 16 на уровень', () => {

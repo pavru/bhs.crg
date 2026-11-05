@@ -4,9 +4,9 @@
   "src/client/e2e/seed.mjs": 564,
   "src/client/src/features/document-sets/catalog/index.tsx": 630,
   "src/client/src/features/document-sets/editor/DataSetsTab.tsx": 670,
-  "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 650,
+  "src/client/src/features/document-sets/editor/RequisitesTab.tsx": 648,
   "src/client/src/features/document-sets/fields/ComplexFields.tsx": 718,
-  "src/client/src/features/settings/PrimitiveTypesPage.tsx": 554,
+  "src/client/src/features/settings/PrimitiveTypesPage.tsx": 550,
   "src/server/BHS.CRG.Infrastructure/Backup/BackupService.Restore.cs": 636,
   "src/server/BHS.CRG.Infrastructure/DataSets/DataSetSourceService.cs": 508,
   "src/server/BHS.CRG.Tests/Integration/BackupServiceTests.RoundTrip.cs": 629

@@ -22,6 +22,7 @@ import {
 import { groupByModule, hiddenSummary, type HiddenRecognitionProfile } from '@/shared/api/recognitionProfileGroups';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { ListItem } from '@/shared/ui/ListItem';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Banner } from '@/shared/ui/Banner';
 
@@ -380,19 +381,16 @@ export function RecognitionProfilesPage() {
   // остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор неоткуда.
   const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
 
+  // Строка MD3 ([UI-84]): вид и сводка — вторая строка, пометки «обновился» и «изменён» — замыкающие.
   const row = (p: RecognitionProfile) => (
-    <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
-      className={`state-layer w-full text-left px-3 py-2 rounded-md ${
-        selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
-      <span className="flex items-center gap-1.5">
-        <span className="text-body-medium truncate flex-1 min-w-0">{p.name}</span>
-        {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
-        {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>}
-      </span>
-      <span className="block text-body-small text-on-surface-variant truncate">
-        {p.kindInfo.label} · {profileSummary(p)}{p.isBuiltIn ? '' : ' · свой'}
-      </span>
-    </button>
+    <ListItem key={p.id} onClick={() => { ld.showDetail(); setSelectedId(p.id); }} selected={selected?.id === p.id}
+      headline={p.name} supporting={`${p.kindInfo.label} · ${profileSummary(p)}${p.isBuiltIn ? '' : ' · свой'}`}
+      trailing={(p.builtInOutdated || p.isModified) && (
+        <>
+          {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
+          {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>}
+        </>
+      )} />
   );
 
   return (
@@ -418,7 +416,7 @@ export function RecognitionProfilesPage() {
         nav={
           <div className="flex flex-col min-h-0">
             <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Профиль, вид или модуль…" /></div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
+            <div className="flex-1 min-h-0 overflow-y-auto pb-2">
               {outsideFilter && (
                 <>
                   <NavSection label="Открыт, вне поиска" />
@@ -432,7 +430,7 @@ export function RecognitionProfilesPage() {
                 </Fragment>
               ))}
               {filtered.length === 0 && (
-                <p className="text-body-medium text-on-surface-variant px-3 py-2">
+                <p className="text-body-medium text-on-surface-variant px-4 py-2">
                   {profilesFailed
                     ? 'Не удалось получить список профилей'
                     : emptyText(loaded?.length === 0, !!outsideFilter)}

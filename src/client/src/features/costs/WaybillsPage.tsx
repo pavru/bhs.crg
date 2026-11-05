@@ -31,6 +31,7 @@ import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilter
 import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { ListItem } from '@/shared/ui/ListItem';
 
 const PARAM = 'waybill';
 
@@ -231,41 +232,43 @@ export function WaybillsPage() {
 }
 
 function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boolean; onClick: () => void }) {
+  // Строка MD3 ([UI-84]), как у счёта: номер — подпись, состояние и дата — замыкающий текст, стройка и значки —
+  // вторая часть. Тихие слова своего цвета не ставят — берут тон второй строки (на выбранной — on-secondary-container).
   return (
-    <button type="button" onClick={onClick}
-      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ` +
-        `state-layer ${active ? 'bg-primary-container' : ''}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-body-medium text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
-        {item.issuedOn && <span className="text-body-small text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
-        <div className="flex-1" />
-        <span className={`text-body-small shrink-0 ${item.state === 'Posted' ? 'text-success' : 'text-on-surface-variant'}`}>
-          {item.state === 'Posted' ? 'проведена' : 'черновик'}
+    <ListItem onClick={onClick} selected={active}
+      headline={item.number ?? 'без номера'}
+      trailing={(
+        <span className="flex flex-col items-end">
+          <span className={item.state === 'Posted' ? 'text-success' : ''}>{item.state === 'Posted' ? 'проведена' : 'черновик'}</span>
+          {item.issuedOn && <span>{formatDate(item.issuedOn)}</span>}
         </span>
-      </div>
-      <div className="flex items-center gap-2 mt-0.5">
-        <span className={`text-body-small truncate ${item.constructionName ? 'text-on-surface-variant' : item.constructionId ? 'text-error' : 'text-on-surface-variant'}`}>
-          {item.constructionName ?? (item.constructionId ? MISSING.construction : 'стройка не выбрана')}
-        </span>
-        <div className="flex-1" />
-        {/* Ноль не показываем: число «0» у каждой строки читается как шум. */}
-        {item.unmatched > 0 && (
-          <Tooltip content={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
-            <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
-              <Icon icon={Checklist} size={18} />{item.unmatched}
-            </span>
-          </Tooltip>
-        )}
-      </div>
-      {/* Исправленная после закрытия — видимой строкой с днём и причиной (D6, D10): на телефоне подсказка не
-          открывается, а без пометки накладная закрытого месяца выглядела бы такой, какой её закрыли. */}
-      {item.correctedAfterClosing && (
-        <div className="flex items-center gap-1 mt-0.5 text-body-small text-on-surface-variant" data-testid="waybill-corrected">
-          <Icon icon={HistoryIcon} size={18} className="shrink-0" aria-hidden />
-          <span className="truncate">{correctionMarkText(item.correctedAfterClosing)}</span>
-        </div>
       )}
-    </button>
+      supporting={(
+        <span className="flex flex-col">
+          <span className="flex items-center gap-2">
+            <span className={`truncate ${!item.constructionName && item.constructionId ? 'text-error' : ''}`}>
+              {item.constructionName ?? (item.constructionId ? MISSING.construction : 'стройка не выбрана')}
+            </span>
+            <span className="flex-1" />
+            {/* Ноль не показываем: число «0» у каждой строки читается как шум. */}
+            {item.unmatched > 0 && (
+              <Tooltip content={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
+                <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
+                  <Icon icon={Checklist} size={18} />{item.unmatched}
+                </span>
+              </Tooltip>
+            )}
+          </span>
+          {/* Исправленная после закрытия — видимой строкой с днём и причиной (D6, D10): на телефоне подсказка не
+              открывается, а без пометки накладная закрытого месяца выглядела бы такой, какой её закрыли. */}
+          {item.correctedAfterClosing && (
+            <span className="flex items-center gap-1 mt-0.5 text-body-small" data-testid="waybill-corrected">
+              <Icon icon={HistoryIcon} size={18} className="shrink-0" aria-hidden />
+              <span className="truncate">{correctionMarkText(item.correctedAfterClosing)}</span>
+            </span>
+          )}
+        </span>
+      )} />
   );
 }
 

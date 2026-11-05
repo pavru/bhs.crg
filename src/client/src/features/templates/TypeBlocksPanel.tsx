@@ -3,9 +3,9 @@ import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
+import { ListItem } from '@/shared/ui/ListItem';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronRight, CodeBlocks, ErrorIcon, KeyboardArrowDown, LockIcon, Login, Warning } from '@/shared/ui/icons';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Точка входа — её импортирует шаблон; модули лежат в подпапке `typeblocks/`. */
 const ENTRYPOINT = 'typeblocks.typ';
@@ -80,18 +80,16 @@ export function TypeBlocksPanel() {
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex">
-          <div className="w-56 shrink-0 border-r border-outline-variant overflow-y-auto py-1">
+          {/* Строки — ListItem ([UI-84]): что делает точка входа — её второй строкой, а не подсказкой; полный
+              путь модуля — подсказкой `title` обрезанной подписи. */}
+          <div className="w-56 shrink-0 border-r border-outline-variant overflow-y-auto pb-1">
             <NavSection label="Точка входа" />
-            <FileRow
-              label={ENTRYPOINT} icon={<Icon icon={Login} size={18} />} title="Импортирует модули и диспетч по типу"
-              active={current?.path === ENTRYPOINT} onClick={() => setSelected(ENTRYPOINT)}
-            />
+            <ListItem icon={Login} headline={ENTRYPOINT} supporting="Импортирует модули и диспетч по типу"
+              selected={current?.path === ENTRYPOINT} onClick={() => setSelected(ENTRYPOINT)} />
             <NavSection label={`Модули типов (${modules.length})`} />
             {modules.map(f => (
-              <FileRow
-                key={f.path} label={f.path.replace(/^typeblocks\//, '')} icon={<Icon icon={CodeBlocks} size={18} />}
-                title={f.path} active={current?.path === f.path} onClick={() => setSelected(f.path)}
-              />
+              <ListItem key={f.path} icon={CodeBlocks} headline={f.path.replace(/^typeblocks\//, '')} title={f.path}
+                selected={current?.path === f.path} onClick={() => setSelected(f.path)} />
             ))}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
@@ -164,22 +162,5 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
         </ul>
       )}
     </div>
-  );
-}
-
-function FileRow({ label, icon, title, active, onClick }: {
-  label: string; icon: React.ReactNode; title?: string; active: boolean; onClick: () => void;
-}) {
-  return (
-    <Tooltip content={title}>
-      <button
-        type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-        className={`state-layer w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-body-medium
-                    ${active ? 'bg-primary-container' : ''}`}
-      >
-        <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
-        <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
-      </button>
-    </Tooltip>
   );
 }

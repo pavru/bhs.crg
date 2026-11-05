@@ -89,22 +89,25 @@
 
 ## 2. PR 2: строки экранов
 
-- [ ] 2.1 Реестры `costs`: `InvoiceListRow` (обе строки, многострочная вторая часть растёт, `ref` для
+- [x] 2.1 Реестры `costs`: `InvoiceListRow` (обе строки, многострочная вторая часть растёт, `ref` для
   `scrollIntoView`, `data-testid=invoice-row` на цели) и строка `WaybillsPage` → `ListItem` с `supporting`;
   черта `border-b` снимается [UI-84]. Порядок с `costs-invoice-screen-10-layout` и `core-org-short-name` —
   кто второй, тот переносит. Проверка — `InvoiceListRow` vitest зелёный; `invoices-smoke`, `costs-smoke`
   зелёные; строка с готовностью и сканом выше 64 и не обрезана
-- [ ] 2.2 Настройки: `DocumentTypesPage` (строка — `ListItem`, группа — `ListGroupHeader`, обёртки `px-2` и
+  Сделано 05.11.2026: строка счёта — номер подписью, сумма и дата замыкающим текстом, остальное второй частью; «ушёл из отбора» — `ListItem` с подсказкой у второй строки. Живой замер: строка с готовностью и сканом — 96, не обрезана; vitest — `ref` и `invoice-row` на цели.
+- [x] 2.2 Настройки: `DocumentTypesPage` (строка — `ListItem`, группа — `ListGroupHeader`, обёртки `px-2` и
   `space-y-0.5` сняты), `PrimitiveTypesPage`, `PrintProfilesPage` (миниатюра — `leading`),
   `RecognitionProfilesPage`, `RolesPage`, `BugReportsPage` → `ListItem` [UI-84]. Проверка — vitest экранов
   зелёный; `types-smoke`, `settings-smoke`, `print-profiles-checks`, `pages-smoke` зелёные; живая проверка:
   строка выбранного типа во всю ширину колонки, 48, `secondary-container`; у примитивного типа с пояснением —
   не ниже 64
-- [ ] 2.3 Наборы и каталог: `FileNavItem` (`DataSetsResource`, чип уровня — в `supporting`, `title` вместо
+  Сделано 05.11.2026. Живой замер: выбранный тип 48 × 319 при колонке 319, без скругления, фон `secondary-container`; примитив с пояснением — 64. e2e 21/21, `print-profiles-checks` зелёный.
+- [x] 2.3 Наборы и каталог: `FileNavItem` (`DataSetsResource`, чип уровня — в `supporting`, `title` вместо
   своего), `TypeNavItem` (`CatalogResource`, профиль уровня — знак `primary` без заливки) → `ListItem`
   [UI-84]. Проверка — vitest `DataSetsResource` и каталога зелёный; `field-mapping-smoke`, `routing-smoke`
   зелёные
-- [ ] 2.4 Редактор комплекта и шаблонов [UI-84]: разделы реквизитов (`RequisitesTab`, заголовок «Разделы» —
+  Сделано 05.11.2026: знак — символом 24, число — `CountText`; профиль уровня — знак `primary`, без своей заливки.
+- [x] 2.4 Редактор комплекта и шаблонов [UI-84]: разделы реквизитов (`RequisitesTab`, заголовок «Разделы» —
   `NavSection`), `TypeBlocksPanel` → `ListItem`; шаблоны генерации (`GenerationTab`) — `ListItem` с
   `leadingAction` (`Checkbox` — участие), строка выбирает шаблон для параметров (`selected` вместо
   `border-l-2`), Р8; `TemplateSidebar` — группа `ListGroupHeader` с «⋮», версии `ListItem` с «⋮», выбрана
@@ -112,29 +115,36 @@
   без наведения. Проверка — vitest редактора зелёный (сценарий флажка: флажок не меняет выбранный, строка не
   меняет флажок); `fields-smoke`, `document-preview-checks`, `pages-smoke` зелёные; в `TemplateSidebar` ровно
   одна `aria-current`
+  Сделано 05.11.2026: строки шаблонов генерации вынесены в `GenerationTemplateRows` (тест сценария флажка); «Удалить шаблон со всеми версиями» и «Дублировать» — в «⋮» заголовка группы. Живой замер: в `TemplateSidebar` одна `aria-current` — у версии, «⋮» видны без наведения. `document-preview-checks` зелёный.
 - [x] 2.5 «Добавить раздел» (`ConstructionDetail`) и «Добавить комплект» (`SectionDetail`) — `Button
   variant="text"` со знаком `add` (Р4). Проверка — vitest уровня зелёный; правило `icon-button` не выросло
   Сделано в PR 1 (#1769) по находке ревью: колонки уровня потеряли поля-обёртки, и прежние кнопки вышли
   из сетки строк. Знак — в 16 от края, как у строк (`pl-1` + отступ кнопки со знаком 12).
-- [ ] 2.6 Уровень `list-row` опущен тем же PR до остатка вне change (Л4: списки выбора и списки карточки);
+- [x] 2.6 Уровень `list-row` опущен тем же PR до остатка вне change (Л4: списки выбора и списки карточки);
   остаток назван в описании PR и в задаче 4.1b зонтика (`sharedui-md3-21-pick-lists`). Проверка — `npm run
   ui:ratchet` зелёный, в `ui-baseline.json` у `list-row` только файлы вне перечня
+  Сделано 05.11.2026: `list-row` 24 → 7 — `ComplexFields` 3, `RefPickerModal` 2, `BaseCandidatePicker`, `ScopeGroupList`; названо в описании PR 2 и в 4.1b зонтика.
 
 ## 3. Внешние носители
 
-- [ ] 3.1 Снимки до и после (зонтик 5.2): типы документов, реестр счетов, набор данных, комплект (колонка
+- [x] 3.1 Снимки до и после (зонтик 5.2): типы документов, реестр счетов, набор данных, комплект (колонка
   панелей), редактор шаблонов — обе темы, 1366×768 и 375 px — артефакт со ссылкой в описании PR 2. Проверка —
   ссылка в описании PR
+  Сделано 05.11.2026: артефакт https://claude.ai/artifact/WBwQrQJDEh8Bjg8XmVEPom (шесть экранов, обе темы, 1366 и 375; «до» — master ebf43f6d).
 - [ ] 3.2 `/design-sync` после слияния PR 2: `ListItem` в дизайн-системе «BHS.CRG UI», `NavItem` — новый вид.
   Состояние `.design-sync/` — в основной копии (D12). Проверка — отметка в зонтике (3.8)
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run ui:ratchet`, `npm run lint:ratchet` — зелёные
-- [ ] 4.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
+- [x] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run ui:ratchet`, `npm run lint:ratchet` — зелёные
+  PR 2, 05.11.2026: tsc, vitest 3639, ui:ratchet, lint:ratchet 0 — зелёные.
+- [x] 4.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
   — зелёные (`ui-ratchet-lib.mjs` у порога; копия правил агентов совпадает)
-- [ ] 4.3 Весь `npm run -s test:e2e:ci` зелёный в каждом PR (зонтик 5.1) — описание PR
-- [ ] 4.4 Оба PR — с меткой `version:minor`; `<Version>` не правится
+  PR 2, 05.11.2026: зелёные (уровни `PrimitiveTypesPage` 550 и `RequisitesTab` 648 опущены).
+- [x] 4.3 Весь `npm run -s test:e2e:ci` зелёный в каждом PR (зонтик 5.1) — описание PR
+  PR 1 — 21/21 (#1769); PR 2 — 21/21 на пересозданной базе, 05.11.2026.
+- [x] 4.4 Оба PR — с меткой `version:minor`; `<Version>` не правится
+  #1769 и PR 2 — с меткой `version:minor`.
 
 ## Workflow follow-up
 

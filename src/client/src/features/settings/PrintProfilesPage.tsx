@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { ListItem } from '@/shared/ui/ListItem';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell } from '@/shared/ui/ListDetailShell';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
@@ -71,11 +72,11 @@ export function PrintProfilesPage() {
         }
         overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка…</div> : undefined}
         nav={
-          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5" data-testid="print-profiles-list">
+          <div className="flex-1 min-h-0 overflow-y-auto pt-2 pb-3" data-testid="print-profiles-list">
             {profiles.map(p => (
               <ProfileRow key={p.id} profile={p} active={selected?.id === p.id} onClick={() => open(p.id)} />
             ))}
-            {isError && <p className="text-body-medium text-on-surface-variant px-3 py-2">Не удалось получить список профилей</p>}
+            {isError && <p className="text-body-medium text-on-surface-variant px-4 py-2">Не удалось получить список профилей</p>}
           </div>
         }
         detail={selected
@@ -104,21 +105,13 @@ export function PrintProfilesPage() {
 }
 
 function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; active: boolean; onClick: () => void }) {
+  // Строка MD3 ([UI-84]): миниатюра листа — ведущий узел, сводка — вторая строка, пометка «изменён» — замыкающая.
   return (
-    <button type="button" onClick={onClick} aria-current={active || undefined}
-      className={`state-layer w-full flex items-center gap-3 text-left px-3 py-2 rounded-md ${
-        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
-      <SheetSketch paper={profile.paper} orientation={profile.orientation} fit={profile.fit} margins={profile.margins} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span className="text-body-medium truncate min-w-0 flex-1" title={profile.name}>{profile.name}</span>
-          {isModified(profile) && (
-            <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>
-          )}
-        </span>
-        <span className="block text-body-small text-on-surface-variant truncate">{profileSummary(profile)}</span>
-      </span>
-    </button>
+    <ListItem onClick={onClick} selected={active} headline={profile.name} supporting={profileSummary(profile)}
+      leading={<SheetSketch paper={profile.paper} orientation={profile.orientation} fit={profile.fit} margins={profile.margins} />}
+      trailing={isModified(profile) && (
+        <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>
+      )} />
   );
 }
 
