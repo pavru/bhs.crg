@@ -88,7 +88,7 @@
 
 ## 1. PR 1: строка варианта, сторож, окна выбора
 
-- [ ] 1.1 `shared/ui/listRow.tsx` и `ListOption` по Р1 [UI-87]: общий помощник отступов, высот и ролей текста
+- [x] 1.1 `shared/ui/listRow.tsx` и `ListOption` по Р1 [UI-87]: общий помощник отступов, высот и ролей текста
   (`listRowBox`, `ListRowBody`) — его берут `ListOption` и `ListItem`, вид `ListItem` не меняется. `ListOption`:
   `div role="option"` с `id`, без `tabIndex`; формы `list` (48 / 64, `body-large`, пояснение второй строкой) и
   `menu` (40 мышью, 48 на касании, `label-large`, пояснение замыкающим текстом, перенос подписи);
@@ -98,11 +98,11 @@
   замыкающего края с `tabIndex=-1`. Тест: фокус остаётся в поле, активный залит, `aria-selected` только у
   текущего, `action` не выбирает вариант, архивный не выбирается, обе формы своей высоты. Проверка — тест
   зелёный
-- [ ] 1.2 `ListItem` по Р3 [UI-84]: ветка `Target` с `passive: true` (без слоя нажатия и `data-li-target`,
+- [x] 1.2 `ListItem` по Р3 [UI-84]: ветка `Target` с `passive: true` (без слоя нажатия и `data-li-target`,
   соседи сохраняют `data-li-side`) и проп `checked` (заливка выбранного без `aria-current`). Тест: две
   отмеченные строки, ни одной `aria-current`; строка `passive` не кнопка и без `state-layer-row`; без цели и
   без `passive` тип не собирается. Проверка — тест зелёный
-- [ ] 1.3 Сторож Р5 в `scripts/ui-ratchet-lists.mjs` [UI-84]: `role="option"` вне `shared/ui` — атрибутом и
+- [x] 1.3 Сторож Р5 в `scripts/ui-ratchet-lists.mjs` [UI-84]: `role="option"` вне `shared/ui` — атрибутом и
   литералом в ветке выражения; заливка в `const` той же функции — инициализатор подмешан до проверки `STATE`;
   один счёт на элемент. Тесты модуля:
   - `PickerOption` с `tone` считается, и один раз;

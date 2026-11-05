@@ -57,6 +57,8 @@
     "features/costs/SupplierMatchNote.tsx": 3
   },
   "list-row": {
+    "features/costs/InvoicePlaceField.tsx": 1,
+    "features/costs/PickerRows.tsx": 1,
     "features/document-sets/fields/BaseCandidatePicker.tsx": 1,
     "features/document-sets/fields/ComplexFields.tsx": 3,
     "features/document-sets/fields/RefPickerModal.tsx": 2,
