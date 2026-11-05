@@ -9,7 +9,7 @@
   Сверено 05.11.2026: 17 слит и заархивирован (#1765, 05.11.2026), срок — 19.11.2026; `legacy-class`,
   `legacy-radius`, `legacy-shadow`, `legacy-type` — ноль. `notice-plaque` 8 и `hand-card` 8 стоят только в
   файлах экрана счёта: их вынес в эпик `costs-invoice-screen` владелец (зонтик, 4.1), 20 их не держит
-- [ ] 0.2 Макеты не нужны: вид не меняется (зонтик, D10). Снимки ключевых экранов «до» сняты на
+- [x] 0.2 Макеты не нужны: вид не меняется (зонтик, D10). Снимки ключевых экранов «до» сняты на
   master перед PR. Проверка — снимки в описании PR
 
 ## 1. Сторож словаря темы
@@ -32,7 +32,7 @@
   `bg-brand` и `text-fg1`; `theme-classes.test.mjs` зелёный
 - [x] 2.3 Сторож срабатывает: во временный файл экрана вписаны `text-fg1`, `bg-gray-500`, `rounded-2xl`,
   `shadow-lg` — сторож называет каждый; файл удалён [UI-82]. Проверка — вывод в описании PR
-- [ ] 2.4 Снимки ключевых экранов «после» совпадают со снимками «до» в обеих темах на 1366×768 и 375 px
+- [x] 2.4 Снимки ключевых экранов «после» совпадают со снимками «до» в обеих темах на 1366×768 и 375 px
   (зонтик, 5.2) [UI-82]. Проверка — пары снимков в описании PR
 
 ## 3. Правила храповика
@@ -53,20 +53,24 @@
   `_adherence.oxlintrc.json` — на новый словарь; `/design-sync` из основной копии (`.design-sync/`
   копируется в worktree и обратно, D12) [UI-82]. Проверка — в README нет `text-fg`, `bg-base`,
   «Fluent 2 scale»; превью без lucide
-- [ ] 4.3 Снимки `docs/images` (31 файл) пересняты харнессом на сиде стенда; PDF инструкций пересобран
+- [x] 4.3 Снимки `docs/images` (31 файл) пересняты харнессом на сиде стенда; PDF инструкций пересобран
   (`cd docs/tools && npm run pdf`). Проверка — ссылки `USER_GUIDE.md` и `ADMIN_GUIDE.md` ведут на новые
   снимки; ревью подписей
+  Переснято 05.11.2026 на чистом посеве стенда (`e2e/seed.mjs` дважды — второй проход сеет счета), без
+  данных живых прогонов; светлая тема, 1440×900, `a-settings` и `u-profile` — 1440×1400. Накладную посев не
+  заводит — кадр `u-waybill` набран черновиком; строк у посевного счёта нет — `u-invoice-lines` показывает
+  раздел строк пустым
 
 ## 5. Верификация
 
-- [ ] 5.1 Финал эпика (зонтик, 5.3): в `src/` нет `--f-`, `lucide-react`, старых имён классов; правила
+- [x] 5.1 Финал эпика (зонтик, 5.3): в `src/` нет `--f-`, `lucide-react`, старых имён классов; правила
   `legacy-*`, `lucide-import`, `raw-state`, `dark-variant` — на нуле или сняты. Проверка —
   `rg -- "--f-|lucide-react" src/` пуст; `npm run ui:ratchet`
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — зелёные
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy|FullyQualifiedName~BrandIcon"`
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — зелёные
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy|FullyQualifiedName~BrandIcon"`
   — зелёный (копия правил; сторож «сервер ↔ палитра» из 01)
-- [ ] 5.5 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 5.5 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
-- [ ] 5.6 Весь `npm run -s test:e2e:ci` зелёный (зонтик, 5.1); список проверок 5.1–5.5 — в описании PR
+- [x] 5.6 Весь `npm run -s test:e2e:ci` зелёный (зонтик, 5.1); список проверок 5.1–5.5 — в описании PR
 - [ ] 5.7 PR с меткой `version:minor`
