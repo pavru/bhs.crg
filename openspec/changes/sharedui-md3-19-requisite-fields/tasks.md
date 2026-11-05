@@ -99,38 +99,47 @@
 
 ## 2. PR 2: `raw-field` видит вынесенный класс
 
-- [ ] 2.1 `scripts/ui-ratchet-inputs.mjs`: раскрытие вызова функции файла и импорта константы или функции
+- [x] 2.1 `scripts/ui-ratchet-inputs.mjs`: раскрытие вызова функции файла и импорта константы или функции
   из модуля `src/` (алиас `@/` и относительный путь, подбор `.ts`/`.tsx`/`index`, именованные реэкспорты),
   защита от циклов по ключу `модуль#имя` (design D3) [UI-69]. Чтение модулей передаётся в правило
   (`countViolations(text, {dir, file, read})` → `rule.count(text, file, read)`, с диска читает
   `ui-ratchet.mjs`), кеш — `WeakMap` по функции чтения; логика — в `ui-ratchet-inputs.mjs`, не в lib.
   Проверка — тест: `className={cls}` с `cls = f()` из соседнего модуля считается; пакет вне `src/` — нет;
   цикл импортов не зависает; одноимённые константы двух модулей не путаются
-- [ ] 2.2 `FIELD_CLS` (`shared/filter/fieldClass.ts`) — объявленное исключение с причиной в правиле, ключом
+  Сделано 06.11.2026. Функция раскрывается только вызовом (`f(` в тексте): компонент, названный в классе по
+  имени, — не класс. Ключ `seen` у вызова свой (`модуль#имя()`): имя, увиденное значением, функцией ещё не
+  раскрыто. Попутно: значение-псевдоним (`const other = cls`) теперь раскрывается тоже.
+- [x] 2.2 `FIELD_CLS` (`shared/filter/fieldClass.ts`) — объявленное исключение с причиной в правиле, ключом
   «модуль + имя экспорта» (D4) [UI-69]. Проверка — тест: поле с импортированным `FIELD_CLS` не считается;
   `import { FIELD_CLS as X }` — тоже нет; своя локальная `const FIELD_CLS = 'border …'` считается;
   `` `${FIELD_CLS} border-b` `` считается; другая импортированная константа с `border` — считается. Тест с
   `FIELD_CLS` без импорта переписан
-- [ ] 2.3 Прогон расширенного правила по `src/`: перечень найденного сверх замера design (4 в
+  Сделано 06.11.2026: `ALLOWED` в `ui-ratchet-inputs.mjs`; строка теста без импорта стала «неизвестное имя — не рамка»
+- [x] 2.3 Прогон расширенного правила по `src/`: перечень найденного сверх замера design (4 в
   `PrimitiveInput` — уже переведены в PR 1, 3 с `FIELD_CLS` — исключение). Новое переводится тем же PR
   или объявляется исключением с причиной; уровень не растёт. Проверка — перечень и время
   `npm run ui:ratchet` до и после — в описании PR
-- [ ] 2.4 `docs/UI.md`, абзац о `raw-field`: правило видит класс из функции и другого модуля, `FIELD_CLS` —
+  Сделано 06.11.2026: сверх замера — ничего, `raw-field` 0. С выключенным исключением правило находит ровно три
+  места `FIELD_CLS` (`FieldBuilder.tsx`, `ConditionEditor.tsx`, `RowFilterValue.tsx` — последний через свою
+  константу-шаблон). Время `npm run ui:ratchet`: 3,7 с до, 3,5 с после
+- [x] 2.4 `docs/UI.md`, абзац о `raw-field`: правило видит класс из функции и другого модуля, `FIELD_CLS` —
   объявленное исключение (строки «константа другого модуля правилу не видна» больше нет); слепые места
   названы — класс, пришедший пропом, и `export *`. Если меняется
   перечень правил храповика в `CLAUDE.md` — та же правка в `AGENTS.md` тем же коммитом. Проверка — ревью PR;
   `AgentRulesCopyTests` зелёный
+  Сделано 06.11.2026; перечень правил в `CLAUDE.md` не менялся — `AGENTS.md` не тронут
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (в том числе
-  `scripts/ui-ratchet-inputs.test.mjs`)
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` — `raw-field` не вырос; `npm run lint:ratchet` — без роста
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (в том числе
+  `scripts/ui-ratchet-inputs.test.mjs`). 06.11.2026: 3676/3676
+- [x] 3.2 `cd src/client && npm run ui:ratchet` — `raw-field` не вырос; `npm run lint:ratchet` — без роста.
+  06.11.2026: `raw-field` 0, линт 0
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
   (`RequisitesTab.tsx`, `ui-ratchet-inputs.mjs` и его тест — ниже 500 строк кода или не выше своего уровня)
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
-  — зелёный, если трогались `CLAUDE.md` / `AGENTS.md`
-- [ ] 3.5 PR с кодом — метки `version:minor` и `ui`
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"`
+  — зелёный, если трогались `CLAUDE.md` / `AGENTS.md` (не трогались; прогон зелёный)
+- [x] 3.5 PR с кодом — метки `version:minor` и `ui` (PR 0 #1774, PR 1 #1775, PR 2)
 
 ## Workflow follow-up
 

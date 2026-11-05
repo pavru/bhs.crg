@@ -23,7 +23,7 @@
 //   node scripts/ui-ratchet.mjs            — проверить
 //   node scripts/ui-ratchet.mjs --update   — переписать базовый уровень по факту
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { RULES, countViolations, compare, normalize, dirsToScan, scopeNote, defaultScopeNote, ROOT } from './ui-ratchet-lib.mjs';
@@ -46,10 +46,17 @@ const sources = dir => dir === ROOT
     .map(f => dir + '/' + String(f).replaceAll('\\', '/')).filter(code);
 const dirs = dirsToScan(RULES, readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name));
 
+// Модули других файлов для правил, которые раскрывают импорт (`raw-field`, D3 sharedui-md3-19): путь от src/ →
+// текст или null. Одна функция на прогон — по ней правило кеширует разобранные модули.
+const read = path => {
+  const full = join(srcRoot, path);
+  return existsSync(full) && statSync(full).isFile() ? readFileSync(full, 'utf8') : null;
+};
+
 const actual = {};
 for (const dir of dirs)
   for (const file of sources(dir))
-    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { dir, file })))
+    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { dir, file, read })))
       (actual[rule] ??= {})[file] = n;
 
 const sum = level => Object.fromEntries(RULES.map(r =>
