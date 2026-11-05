@@ -10,9 +10,10 @@
 // внутри компонента клетки — уже окно или пикер, а не клетка. Нарушение считается файлу с колонками — правило
 // видит один файл за раз; отказ называет компонент.
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { importBase, moduleCandidates } from './ui-ratchet-imports.mjs';
 
 /** Поля, которым тело `EditGrid` отдаёт размер клетки само: им вредит только чужой размер. */
 const PLACED = new Set(['TextField', 'Select', 'SuggestField', 'NumberInput', 'PlaceSelect']);
@@ -87,12 +88,14 @@ function declarationOf(sf, name) {
   return null;
 }
 
-/** Модуль на диске по пути импорта — только `features/`: поля и примитивы `shared/` свой вид держат сами. */
+/**
+ * Модуль на диске по пути импорта — только `features/`: поля и примитивы `shared/` свой вид держат сами. Путь
+ * разрешается так же, как у `raw-field` (ui-ratchet-imports.mjs).
+ */
 function resolveImport(spec, file) {
-  const base = spec.startsWith('@/') ? join(SRC, spec.slice(2))
-    : spec.startsWith('.') && file ? join(dirname(join(SRC, file)), spec) : null;
-  if (!base || !base.replaceAll('\\', '/').includes('/src/features/')) return null;
-  return ['.tsx', '.ts', '/index.tsx', '/index.ts'].map(ext => base + ext).find(existsSync) ?? null;
+  const base = importBase(spec, file || null);
+  if (base == null || !base.startsWith('features/')) return null;
+  return moduleCandidates(base).map(p => join(SRC, p)).find(existsSync) ?? null;
 }
 
 /** Где объявлен компонент клетки: в этом же файле или в импортированном модуле `features/`. */
