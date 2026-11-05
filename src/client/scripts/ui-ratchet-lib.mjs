@@ -683,10 +683,11 @@ export function scopeNote(rule) {
  * `dir` — каталог src/, из которого файл (`ROOT` — его корень), `file` — путь от src/: считаются только
  * правила, которые его смотрят (`watches`).
  */
-export function countViolations(text, { dir = 'features', file } = {}) {
+export function countViolations(text, { dir = 'features', file, read } = {}) {
   const counts = {};
   for (const rule of RULES.filter(r => watches(r, dir, file))) {
-    const n = rule.count ? rule.count(text, file) : text.match(rule.pattern)?.length ?? 0;
+    // `read` (путь от src/ → текст или null) — модули других файлов для `raw-field`; с диска читает ui-ratchet.mjs.
+    const n = rule.count ? rule.count(text, file, read) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }
   return counts;

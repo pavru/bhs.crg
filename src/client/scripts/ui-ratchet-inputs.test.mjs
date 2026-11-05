@@ -80,7 +80,145 @@ describe('храповик интерфейса: raw-field', () => {
       '<TextField label="Имя" className="border" />',
       "const quiet = 'px-2 text-body-medium';",
       '<input className={quiet} />',
-      '<input className={FIELD_CLS} />',
+      // Имя, которого нет ни в файле, ни в импортах, — не рамка: раскрывать нечего.
+      '<input className={unknownCls} />',
     ].join('\n'))).toEqual({});
+  });
+});
+
+// Класс из функции файла и из другого модуля (D3 sharedui-md3-19): модули — фикстуры по пути от src/, их отдаёт
+// функция чтения, как ui-ratchet.mjs с диска.
+const reader = files => path => files[path] ?? null;
+const fieldsIn = (text, files, file = 'features/x/Screen.tsx') =>
+  countAll(text, { dir: 'features', file, read: reader(files) })['raw-field'] ?? 0;
+
+describe('храповик интерфейса: raw-field видит класс из функции и другого модуля', () => {
+  it('функция файла — вызов в className и константа-вызов; функция без вызова — не класс', () => {
+    expect(fields([
+      "function boxCls(err) { if (err) return 'border border-error'; return 'border border-outline'; }",
+      "const arrow = (w: string) => `${w} border-b`;",
+      '<input className={boxCls(invalid)} />',
+      "const cls = arrow('w-full');",
+      '<textarea className={cls} />',
+      // Компонент по имени — не класс: раскрывается только вызов.
+      'function Frame() { return <div className="border" />; }',
+      '<input className={Frame ? "px-2" : ""} />',
+    ].join('\n'))).toEqual({ 'raw-field': 2 });
+  });
+
+  it('className={cls}, где cls = f() из соседнего модуля, — красный; по алиасу, относительно и через index', () => {
+    const files = {
+      'features/x/boxes.ts': "export function f() { return 'h-10 border border-outline'; }\nexport const quiet = 'px-2';",
+      'shared/kit/index.ts': "export { inner as box } from './inner';",
+      'shared/kit/inner.tsx': "const base = 'border px-3';\nexport const inner = (dense) => dense ? base : base + ' h-14';",
+    };
+    expect(fieldsIn([
+      "import { f, quiet } from './boxes';",
+      "import { box as kitBox } from '@/shared/kit';",
+      'const cls = f();',
+      '<input className={cls} />',
+      '<input className={kitBox(true)} />',
+      '<input className={quiet} />',
+    ].join('\n'), files)).toBe(2);
+  });
+
+  it('пакет вне src/ не раскрывается; одноимённые константы двух модулей не путаются', () => {
+    const files = {
+      'features/x/a.ts': "export const cls = 'px-2';",
+      'features/x/b.ts': "const cls = 'border';\nexport const other = cls;",
+      'pkg': "export const PKG = 'border';",
+      'pkg.ts': "export const PKG = 'border';",
+    };
+    expect(fieldsIn([
+      "import { PKG } from 'pkg';",
+      "import { cls } from './a';",
+      '<input className={PKG} />',
+      '<input className={cls} />',
+    ].join('\n'), files)).toBe(0);
+    expect(fieldsIn("import { other } from './b';\n<input className={other} />", files)).toBe(1);
+  });
+
+  it('слово класса — не имя: импорт `grid` не делает рамкой строку "grid gap-2" (ревью PR #1776)', () => {
+    const files = { 'features/x/layout.ts': "export const grid = 'border border-outline';\nexport const border = 'px-2';" };
+    expect(fieldsIn([
+      "import { grid, border } from './layout';",
+      '<input className="grid gap-2" />',
+      // Переменная по имени `border` — не класс: рамка ищется в строках.
+      '<input className={border} />',
+    ].join('\n'), files)).toBe(0);
+    expect(fieldsIn("import { grid } from './layout';\n<input className={grid} />", files)).toBe(1);
+  });
+
+  it('вызов с типом и необязательный вызов — тоже вызов', () => {
+    expect(fields([
+      "function box<T>(v: T) { return 'border px-2'; }",
+      '<input className={box<string>(v)} />',
+      '<input className={box?.(v)} />',
+    ].join('\n'))).toEqual({ 'raw-field': 2 });
+  });
+
+  it('свойство объекта, импорт по умолчанию и пространства имён — раскрываются', () => {
+    const files = {
+      'features/x/styles.ts': "export const styles = { input: 'border px-2', quiet: 'px-2', box: () => 'border-b' };",
+      'features/x/box.ts': "export default function box() { return 'border'; }",
+      'features/x/plain.ts': "const cls = 'border';\nexport default cls;",
+    };
+    expect(fields("const styles = { input: 'h-10 border' };\n<input className={styles.input} />")).toEqual({ 'raw-field': 1 });
+    expect(fieldsIn([
+      "import { styles } from './styles';",
+      "import * as s from './styles';",
+      "import box from './box';",
+      "import plain from './plain';",
+      '<input className={styles.input} />',
+      '<input className={styles.quiet} />',
+      '<input className={s.styles.box()} />',
+      '<input className={box()} />',
+      '<input className={plain} />',
+    ].join('\n'), files)).toBe(3);
+  });
+
+  it('локальный экспорт под другим именем и бочка, переэкспортирующая импорт', () => {
+    const files = {
+      'features/x/inner.ts': "const raw = 'border px-3';\nexport { raw as box };",
+      'features/x/index.ts': "import { box } from './inner';\nexport { box };\nexport { box as alias };",
+    };
+    expect(fieldsIn("import { box } from './inner';\n<input className={box} />", files)).toBe(1);
+    expect(fieldsIn("import { box, alias } from '@/features/x';\n<input className={box} />\n<input className={alias} />", files)).toBe(2);
+  });
+
+  it('цикл импортов не зависает', () => {
+    const files = {
+      'features/x/a.ts': "import { b } from './b';\nexport const a = `${b} px-2`;",
+      'features/x/b.ts': "import { a } from './a';\nexport const b = `${a} py-1`;",
+    };
+    expect(fieldsIn("import { a } from './a';\n<input className={a} />", files)).toBe(0);
+  });
+});
+
+describe('храповик интерфейса: FIELD_CLS — объявленное исключение (D4)', () => {
+  const files = {
+    'shared/filter/fieldClass.ts': "export const FIELD_CLS = 'h-10 px-3 rounded-xs border border-outline';\nexport const OTHER = 'border';",
+  };
+  const at = text => fieldsIn(text, files, 'shared/filter/Screen.tsx');
+
+  it('импортированная FIELD_CLS — не считается, и под другим именем тоже', () => {
+    expect(at("import { FIELD_CLS } from './fieldClass';\n<input className={`${FIELD_CLS} w-30`} />")).toBe(0);
+    expect(at("import { FIELD_CLS as X } from '@/shared/filter/fieldClass';\n<input className={X} />")).toBe(0);
+  });
+
+  it('своя локальная FIELD_CLS, добавленная рамка и другая константа того модуля — считаются', () => {
+    expect(at("const FIELD_CLS = 'border px-2';\n<input className={FIELD_CLS} />")).toBe(1);
+    expect(at("import { FIELD_CLS } from './fieldClass';\n<input className={`${FIELD_CLS} border-b`} />")).toBe(1);
+    expect(at("import { OTHER } from './fieldClass';\n<input className={OTHER} />")).toBe(1);
+  });
+
+  it('производная коробка внутри модуля исключения — без своей рамки не считается (ревью PR #1776)', () => {
+    const derived = {
+      'shared/filter/fieldClass.ts': "export const FIELD_CLS = 'h-10 border';\nexport const WIDE = `${FIELD_CLS} w-full`;"
+        + "\nexport const FRAMED = `${FIELD_CLS} border-b`;",
+    };
+    const inFilter = text => fieldsIn(text, derived, 'shared/filter/Screen.tsx');
+    expect(inFilter("import { WIDE } from './fieldClass';\n<input className={WIDE} />")).toBe(0);
+    expect(inFilter("import { FRAMED } from './fieldClass';\n<input className={FRAMED} />")).toBe(1);
   });
 });
