@@ -49,10 +49,10 @@
   почему» — все отступления D8 с причиной и решением владельца (В5, В7, В8 и др.), без слова «MD3» рядом;
   «Кто сторожит» — сторож словаря и оставшиеся правила [UI-82]. Проверка — `rg -i "fluent|--f-" docs/UI.md`
   находит только историю перехода и `legacy-token`; `cd docs/tools && npm run toc` — оглавление верно
-- [ ] 4.2 Дизайн-система «BHS.CRG UI»: README («Styling idiom») и `conventions.md` — только словарь MD3;
+- [x] 4.2 Дизайн-система «BHS.CRG UI»: README («Styling idiom») и `conventions.md` — только словарь MD3;
   `_adherence.oxlintrc.json` — на новый словарь; `/design-sync` из основной копии (`.design-sync/`
   копируется в worktree и обратно, D12) [UI-82]. Проверка — в README нет `text-fg`, `bg-base`,
-  «Fluent 2 scale»; превью без lucide
+  «Fluent 2 scale»; превью без lucide. Сделан владельцем 05.11.2026 после слияния #1766 (якорь b0b93e9663e6)
 - [x] 4.3 Снимки `docs/images` (31 файл) пересняты харнессом на сиде стенда; PDF инструкций пересобран
   (`cd docs/tools && npm run pdf`). Проверка — ссылки `USER_GUIDE.md` и `ADMIN_GUIDE.md` ведут на новые
   снимки; ревью подписей
@@ -73,4 +73,4 @@
 - [x] 5.5 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный
 - [x] 5.6 Весь `npm run -s test:e2e:ci` зелёный (зонтик, 5.1); список проверок 5.1–5.5 — в описании PR
-- [ ] 5.7 PR с меткой `version:minor`
+- [x] 5.7 PR с меткой `version:minor` — #1766 (`version:minor`, `ui`), слит 05.11.2026 (ebcd66a6, 2.72.0)
