@@ -67,7 +67,7 @@
 ## Макеты
 
 Три варианта в Claude Design — проект «Split-кнопка «Сохранить» · sharedui-split-button», лист
-[«Split-кнопка»](https://claude.ai/design/p/87996c8e-7e01-4377-9025-b685a20e89aa?file=Split-%D0%BA%D0%BD%D0%BE%D0%BF%D0%BA%D0%B0.html)
+[«Split-кнопка»](https://claude.ai/artifact/1mVQCYrqBaJMKcGQFZ5c1e?file=Split-%D0%BA%D0%BD%D0%BE%D0%BF%D0%BA%D0%B0.html)
 (30.10.2026). Все три — на месте: панель редактора шаблона в высоте кнопки 40 px, покой, наведение,
 меню открыто, идёт сохранение, историческая версия; светлая и тёмная темы. Кнопки на листе живые.
 

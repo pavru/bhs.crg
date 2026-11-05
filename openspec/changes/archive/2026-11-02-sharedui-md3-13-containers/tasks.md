@@ -15,7 +15,7 @@
   правило `hand-card`) — комментарием к задаче, по `docs/UI.md` «Новый экран: порядок». Проверка —
   ссылка на разбор в описании PR 1
   Сделано 01.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/2ca30933-cd85-452d-9e7a-2dae1cb62e3e?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/KAGz512CaW4jLHcPdGGWRp?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Дизайнер по В8: крестик оставить (35 окон без подвала, на телефоне он штатный), filled одна; главный
   риск — слой над окном в тёмной теме без рамки (`surface-container` темнее окна). Архитектор: вопрос
   над окном — вложенный Radix Dialog; действие в шапке на телефоне требует нового свойства у ~80 окон;
@@ -36,12 +36,12 @@
   и раздела, пикер без подвала, ответ «Понятно», окно во весь экран, шаг окна на 375 px, кликабельная
   карточка:
   - (А) MD3 буквально — без крестика, действие в шапке full-screen, слой `surface-container` —
-    https://claude.ai/design/p/2ca30933-cd85-452d-9e7a-2dae1cb62e3e?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    https://claude.ai/artifact/KAGz512CaW4jLHcPdGGWRp?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) MD3 и названные отступления — крестик справа, на телефоне действия в подвале, слой
     `surface-container-highest` —
-    https://claude.ai/design/p/2ca30933-cd85-452d-9e7a-2dae1cb62e3e?file=%D0%91+-+MD3+%D0%B8+%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5+%D0%BE%D1%82%D1%81%D1%82%D1%83%D0%BF%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.html
+    https://claude.ai/artifact/KAGz512CaW4jLHcPdGGWRp?file=%D0%91+-+MD3+%D0%B8+%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5+%D0%BE%D1%82%D1%81%D1%82%D1%83%D0%BF%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.html
   - (В) подвал полосой, рамка у слоёв, карточка профиля —
-    https://claude.ai/design/p/2ca30933-cd85-452d-9e7a-2dae1cb62e3e?file=%D0%92+-+%D0%9F%D0%BE%D0%B4%D0%B2%D0%B0%D0%BB+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%BE%D0%B9+%D0%B8+%D1%80%D0%B0%D0%BC%D0%BA%D0%B0+%D1%83+%D1%81%D0%BB%D0%BE%D1%91%D0%B2.html
+    https://claude.ai/artifact/KAGz512CaW4jLHcPdGGWRp?file=%D0%92+-+%D0%9F%D0%BE%D0%B4%D0%B2%D0%B0%D0%BB+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%BE%D0%B9+%D0%B8+%D1%80%D0%B0%D0%BC%D0%BA%D0%B0+%D1%83+%D1%81%D0%BB%D0%BE%D1%91%D0%B2.html
 - [x] 0.4 Выбор владельца: вариант макета и решение В8 (крестик в шапке, filled среди действий) записаны
   в зонтик (`tasks.md`, 0.1) с датой. Проверка — у В8 стоят дата и выбор
   Сделано 01.11.2026. Выбор владельца — **А «MD3 буквально»**: крестика у окна нет, окну без подвала —

@@ -2,7 +2,7 @@
 
 Дочерний change зонтика `sharedui-md3-00-epic`, общая архитектура — `../sharedui-md3-00-epic/design.md`
 (D6, D7, D8, D9, D10, D11, D12). Вид — решение владельца В8 от 01.11.2026: вариант **А «MD3
-буквально»** (макеты https://claude.ai/design/p/2ca30933-cd85-452d-9e7a-2dae1cb62e3e), граница узкого
+буквально»** (макеты https://claude.ai/artifact/KAGz512CaW4jLHcPdGGWRp), граница узкого
 экрана — 768.
 
 ## Why

@@ -14,7 +14,7 @@
   телефона в `phoneLayout.ts`) — комментарием к задаче (`docs/UI.md` «Новый экран: порядок»). Проверка —
   ссылка в описании PR 1
   Сделано 03.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/70788b18-6b3a-4350-88de-caa087ec88ff?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/WAXw9Td8QbU695er64khqf?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Context в design.md отстал: индикаторы рейла и нижней навигации с заливкой знака, `panelLink` на
   `secondary-container` и слое состояния, `MICRO_HEADING` `title-small`, `PrimaryFab` (56, 16,
   `primary-container`, уровень 3), заголовок-кнопка со слоем состояния, палитра 28 / поле 56, цели 48 ([UI-68]) —
@@ -46,13 +46,13 @@
   строк / без FAB: А 7 / 6, Б 8 / 6, В 8 / 7:
   - (А) MD3 буквально — полоса 64, search bar 56 до 720, заголовок в рабочей области, угол 16, пункт 48,
     столбец списка `surface` с чертой —
-    https://claude.ai/design/p/70788b18-6b3a-4350-88de-caa087ec88ff?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    https://claude.ai/artifact/WAXw9Td8QbU695er64khqf?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) Тонкая полоса — полоса 48, поиск 40 до 480, угол 12, пункт 40, столбец списка `surface-container` —
     отступления D8 —
-    https://claude.ai/design/p/70788b18-6b3a-4350-88de-caa087ec88ff?file=%D0%91+-+%D0%A2%D0%BE%D0%BD%D0%BA%D0%B0%D1%8F+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%B0.html
+    https://claude.ai/artifact/WAXw9Td8QbU695er64khqf?file=%D0%91+-+%D0%A2%D0%BE%D0%BD%D0%BA%D0%B0%D1%8F+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%B0.html
   - (В) Заголовок в полосе — полоса 64 с заголовком и действиями страницы, поиск 48 шириной 360,
     переключатель пространства в подпанели, список list-detail — часть рамки, угол у подробностей —
-    https://claude.ai/design/p/70788b18-6b3a-4350-88de-caa087ec88ff?file=%D0%92+-+%D0%97%D0%B0%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%BE%D0%BA+%D0%B2+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%B5.html
+    https://claude.ai/artifact/WAXw9Td8QbU695er64khqf?file=%D0%92+-+%D0%97%D0%B0%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%BE%D0%BA+%D0%B2+%D0%BF%D0%BE%D0%BB%D0%BE%D1%81%D0%B5.html
 - [x] 0.4 Выбор владельца записан в зонтик с датой; перенесён `/opsx:update sharedui-md3-15-shell` —
   высоты шапки и поиска, сценарии [UI-79]; высоты ниже MD3 — в отступления D8. Проверка —
   `openspec validate sharedui-md3-15-shell --strict`
