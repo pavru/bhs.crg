@@ -33,7 +33,7 @@ export function ListGroupHeader({ label, title, count, lead, open, onToggle, act
         {count != null && <span className="shrink-0">{count}</span>}
         <Icon icon={open ? KeyboardArrowUp : KeyboardArrowDown} size={24} className="shrink-0" />
       </button>
-      {action && <span className="shrink-0 flex items-end pr-2">{action}</span>}
+      {action && <span data-li-side="" className="shrink-0 flex items-end pr-2">{action}</span>}
     </div>
   );
 }

@@ -759,18 +759,18 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               const isActive = item.key === activeItem.key;
               const stats = sectionStats(item.fields);
               const broken = brokenInFields(item.fields);
-              // Тихий знак на выбранной — цветом текста её контейнера, а не on-surface-variant.
-              let icon = Circle, iconCls = isActive ? 'text-on-secondary-container' : 'text-on-surface-variant';
+              // Знак без цвета — тихий: тон строки берёт ListItem (на выбранной — цвет текста контейнера).
+              let icon = Circle, iconTone: string | undefined;
               // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
-              if (broken > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
-              else if (showValidation && stats.missing > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
-              else if (stats.total > 0 && stats.filled === stats.total) { icon = CheckCircle; iconCls = 'text-primary'; }
-              else if (isActive) { icon = RadioButtonChecked; iconCls = 'text-primary'; }
+              if (broken > 0) { icon = ErrorIcon; iconTone = 'text-error'; }
+              else if (showValidation && stats.missing > 0) { icon = ErrorIcon; iconTone = 'text-error'; }
+              else if (stats.total > 0 && stats.filled === stats.total) { icon = CheckCircle; iconTone = 'text-primary'; }
+              else if (isActive) { icon = RadioButtonChecked; iconTone = 'text-primary'; }
               else if (stats.filled > 0) icon = RadioButtonChecked;
-              // Строка MD3 ([UI-84]): знак состояния раздела — ведущий узел, счётчики — замыкающие.
+              // Строка MD3 ([UI-84]): знак состояния раздела — ведущий, счётчики — замыкающие.
               return (
                 <ListItem key={item.key} onClick={() => setActiveKey(item.key)} selected={isActive}
-                  leading={<Icon icon={icon} size={24} className={`shrink-0 ${iconCls}`} />} headline={item.title}
+                  icon={icon} iconTone={iconTone} headline={item.title}
                   trailing={<><BrokenCount nav count={broken} className="shrink-0" />
                     <ValueIssueCount count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
                     {stats && <CountText onContainer={isActive && 'secondary'}>{stats.filled}/{stats.total}</CountText>}</>} />

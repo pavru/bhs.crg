@@ -370,17 +370,16 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
  *  документные типы (внешний каталог) — приглушённая иконка; счётчик tabular. */
 /**
  * Строка рейла типов — `ListItem` ([UI-84], sharedui-md3-18). Знак красится по смыслу строки: профиль уровня —
- * `primary` (без своей заливки: выбранным его делает только `selected`), тип документа — `warning`; у выбранной
- * — цвет текста её контейнера.
+ * `primary` (без своей заливки: выбранным его делает только `selected`), тип документа — `warning`; прочие —
+ * тихие, тоном строки.
  */
 function TypeNavItem({ icon, label, count, active = false, doc, muted, profile, onClick }: {
   icon?: IconDef; label: string; count?: number; active?: boolean; doc?: boolean; muted?: boolean;
   profile?: boolean; onClick: () => void;
 }) {
-  const tone = active ? 'text-on-secondary-container' : profile ? 'text-primary' : doc ? 'text-warning' : 'text-on-surface-variant';
   return (
     <ListItem onClick={onClick} selected={active} title={label}
-      leading={icon && <Icon icon={icon} size={24} className={`shrink-0 ${tone}`} />}
+      icon={icon} iconTone={profile ? 'text-primary' : doc ? 'text-warning' : undefined}
       headline={muted ? <span className="italic">{label}</span> : label}
       trailing={count != null ? <CountText onContainer={active && 'secondary'}>{count}</CountText> : undefined} />
   );

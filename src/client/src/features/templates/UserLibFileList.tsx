@@ -7,6 +7,7 @@ import type { UserLibFile, UserLibError, UserLibWarning } from '@/shared/api/typ
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
 import { ListItem } from '@/shared/ui/ListItem';
+import { listDepthPad } from '@/shared/ui/listDepth';
 import type { IconDef } from '@/shared/ui/icons/types';
 import type { ReactNode } from 'react';
 
@@ -67,8 +68,8 @@ export function UserLibFileList({
         /* «+» на папке — то же правило, что у заголовка секции, уровнем ниже: «создать в этом
            контейнере». Кебаб был бы хуже — единственный пункт под безликим глифом и лишний клик.
            Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
-        <div key={`d:${row.path}`} className="flex items-center gap-2 min-h-12 pr-2 text-title-small text-on-surface-variant"
-          style={{ paddingLeft: `${1 + row.depth}rem` }}>
+        <div key={`d:${row.path}`}
+          className={`flex items-center gap-4 min-h-12 ${listDepthPad(row.depth)} pr-2 text-title-small text-on-surface-variant`}>
           <Icon icon={Folder} size={24} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
           <IconButton label={`Создать файл в «${row.path}»`} onClick={() => onCreate(row.path)} icon={Add} />

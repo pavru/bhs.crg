@@ -45,16 +45,18 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   // Срок оплаты — под любым отбором (C4, issue #1080): просроченный счёт помечен без чьего-либо действия.
   const due = rowDue(item);
 
-  // Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы.
+  // Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. Имя — прямо текстом
+  // подписи, без своей обёртки с обрезкой: тогда обрезку меряет сама подпись, и полное имя приходит в `title`.
+  // Что это имя файла, а не номер, объясняет подсказка знака.
   const byFile = !item.number && !!item.scanFileName;
   const headline = byFile
     ? (
-      <Tooltip content="Номера ещё нет — это имя файла счёта">
-        <span className="inline-flex items-center gap-1 max-w-full align-bottom">
-          <Icon icon={DocumentScanner} size={18} className="shrink-0" aria-hidden />
-          <span className="truncate">{item.scanFileName}</span>
-        </span>
-      </Tooltip>
+      <>
+        <Tooltip content="Номера ещё нет — это имя файла счёта">
+          <span className="inline-flex align-text-bottom mr-1"><Icon icon={DocumentScanner} size={18} aria-hidden /></span>
+        </Tooltip>
+        {item.scanFileName}
+      </>
     )
     : (item.number ?? 'без номера');
 
@@ -162,7 +164,7 @@ const TONE = { quiet: '', danger: 'text-error', warning: 'text-warning' } as con
  * ушёл из-под отбора, список не знает (исправили, отклонили, оплатили в закрытый период) — поэтому
  * слова нейтральные, без «исправлено» (ревью PR #1241).
  *
- * Подсказка — у второй строки: цель строки — кнопка внутри `ListItem`, обернуть её снаружи нечем.
+ * Почему строка осталась — подсказкой цели (`hint`): видна и наведением, и фокусом с клавиатуры.
  */
 export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
   number: string | null;
@@ -175,14 +177,13 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
   return (
     <ListItem onClick={onClick} data-testid={exit ? 'row-exit' : undefined} selected={active}
       headline={number || 'без номера'}
+      hint={exit
+        ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
+        : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}
       supporting={(
-        <Tooltip content={exit
-            ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
-            : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
-          <span className="inline-flex items-center gap-1">
-            <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
-          </span>
-        </Tooltip>
+        <span className="inline-flex items-center gap-1">
+          <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
+        </span>
       )} />
   );
 }
