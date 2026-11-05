@@ -9,7 +9,7 @@ import { LAYER_SURFACE } from './menuClasses';
 
 /** Пропы поля с подсказкой — общие для обоих источников (`SuggestField`). */
 export interface SuggestFieldBaseProps
-  extends Omit<TextFieldProps, 'value' | 'onChange' | 'role' | 'autoComplete' | 'trailing'> {
+  extends Omit<TextFieldProps, 'value' | 'onChange' | 'role' | 'autoComplete' | 'trailing' | 'trailingMark'> {
   value: string;
   onChange: (value: string) => void;
   /**

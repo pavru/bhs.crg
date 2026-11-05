@@ -1,6 +1,6 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity, type FieldTrailingProps } from './fieldBox';
 
 /**
  * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Рамку с настоящим вырезом,
@@ -11,17 +11,13 @@ import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity } from '
  * держится всплывание метки в режиме `raise="auto"`. Своя подсказка в пустом поле — только у плотного и
  * клетки: подписи в вырезе у них нет, и всплывать нечему.
  */
-export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'placeholder'> {
+interface TextFieldOwnProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'placeholder'> {
   label: string;
   error?: string;
   /** Красная рамка без сообщения (сообщение об ошибке рисует вызывающий код). */
   invalid?: boolean;
   /** Вспомогательный текст под полем (напр. пример ввода) — скрывается при наличии error. */
   hint?: string;
-  /** Правый адорнмент (например «глаз» пароля). */
-  trailing?: ReactNode;
-  /** В хвосте перед кнопкой — ещё знак 18 (замок запертого поля, [UI-86]): отступ текста шире. */
-  trailingMark?: boolean;
   /**
    * Поле формы 56 (по умолчанию), плотное 40 без выреза или клетка сетки правки — [UI-69], [UI-78], см.
    * `fieldBox`. Не задан — размер места: в теле `EditGrid` это клетка.
@@ -36,6 +32,12 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
    */
   children?: ReactNode;
 }
+
+/**
+ * Хвост (`FieldTrailingProps`): `trailing` — правый адорнмент (например «глаз» пароля); `trailingMark` — перед
+ * кнопкой хвоста ещё знак 18 (замок запертого поля, [UI-86]), только вместе с `trailing`.
+ */
+export type TextFieldProps = TextFieldOwnProps & FieldTrailingProps;
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
   { label, error, invalid, hint, trailing, trailingMark, density: own, placeholder, className = '', containerClassName = '', id, required,

@@ -1,6 +1,6 @@
-import { forwardRef, useId, useState, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useId, useState, type TextareaHTMLAttributes } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldDescribedBy, fieldEnd } from './fieldBox';
+import { fieldDescribedBy, fieldEnd, type FieldTrailingProps } from './fieldBox';
 
 /**
  * MD3 outlined-поле для многострочного текста (issue #574) — тот же `OutlinedField`, что у
@@ -16,22 +16,22 @@ import { fieldDescribedBy, fieldEnd } from './fieldBox';
  * ЦЕНТРУ поля, а у области в три строки центр — это середина текста. Фокус поэтому приходит пропом,
  * как у даты и пикеров.
  */
-export interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface TextAreaFieldOwnProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   error?: string;
   /** Красная рамка без сообщения (сообщение об ошибке рисует вызывающий код). */
   invalid?: boolean;
   /** Вспомогательный текст под полем — скрывается при наличии error. */
   hint?: string;
-  /**
-   * Правый адорнмент — знаки и кнопка значения из источника ([UI-86]). Слот оболочки стоит по первой строке,
-   * а не посреди области, и текст всех строк уступает ему место справа: хвост — не плавающий над текстом знак.
-   */
-  trailing?: ReactNode;
-  /** В хвосте перед кнопкой — ещё знак 18 (замок запертого поля): отступ текста шире. */
-  trailingMark?: boolean;
   containerClassName?: string;
 }
+
+/**
+ * Хвост (`FieldTrailingProps`) — знаки и кнопка значения из источника ([UI-86]); `trailingMark` — перед кнопкой
+ * ещё знак 18 (замок запертого поля). Слот оболочки стоит по первой строке, а не посреди области, и текст всех
+ * строк уступает ему место справа: хвост — не плавающий над текстом знак.
+ */
+export type TextAreaFieldProps = TextAreaFieldOwnProps & FieldTrailingProps;
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(function TextAreaField(
   { label, error, invalid, hint, trailing, trailingMark, className = '', containerClassName = '', id, required, rows = 3,
@@ -58,12 +58,15 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
             первого ребёнка схлопывался с её отступом — уходил НАРУЖУ. Вниз сдвигалось всё поле
             вместе с меткой, а первая строка оставалась прижатой к ней: метка заходила на текст на
             5 px (#1356, замер на живой странице).
-          Padding не схлопывается: прокручиваемая область начинается на 16 px ниже верха рамки. */}
-      <div className="pt-4">
+          Padding не схлопывается: прокручиваемая область начинается на 16 px ниже верха рамки.
+          Место хвоста — тоже padding обёртки, а не области: полоса прокрутки рисуется у края самой
+          `<textarea>`, и при отступе внутри неё она уходила бы под кнопку хвоста — щелчок по стрелке
+          прокрутки попадал бы в кнопку. Без хвоста отступ остаётся у области, как был. */}
+      <div className={`pt-4 ${trailing ? fieldEnd('form', { trailing: true, trailingMark }) : ''}`}>
         <textarea
           ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
           aria-invalid={invalid || !!error || undefined}
-          className={`block w-full rounded-xs bg-transparent pl-4 ${fieldEnd('form', { trailing: !!trailing, trailingMark })} pb-2 text-body-large text-on-surface ` +
+          className={`block w-full rounded-xs bg-transparent pl-4 ${trailing ? 'pr-1' : fieldEnd('form')} pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}

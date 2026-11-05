@@ -2,17 +2,11 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { ICON_BUTTON_XS } from './buttonClasses';
 import { Icon } from './Icon';
 import { ErrorIcon } from './icons';
-import { cellLine, FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
+import { cellLine, fieldLabelRest, FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
 import { Tooltip } from './Tooltip';
 
-// Ширина метки в покое (`raise="auto"`) — до текста: левый край 0.75rem и правый отступ текста из `fieldBox`
-// за вычетом её px-1. Всплывшая — до рамки. Строками целиком: Tailwind собирает классы по тексту файла.
-const REST_WIDTH = 'max-w-[calc(100%-1.5rem-var(--field-mark,0px))]';
-const REST_WIDTH_TRAILING = 'max-w-[calc(100%-3.25rem-var(--field-mark,0px))] '
-  + 'pointer-coarse:max-w-[calc(100%-3.75rem-var(--field-mark,0px))]';
-// Хвост со знаком перед кнопкой (`trailingMark`) — на 22 px шире: знак 18 и зазор 4.
-const REST_WIDTH_TRAILING_MARK = 'max-w-[calc(100%-4.625rem-var(--field-mark,0px))] '
-  + 'pointer-coarse:max-w-[calc(100%-5.125rem-var(--field-mark,0px))]';
+// Ширина метки в покое (`raise="auto"`) — до текста, её даёт `fieldLabelRest` той же таблицей, что и отступ
+// текста. Всплывшая — до рамки. Строкой целиком: Tailwind собирает классы по тексту файла.
 const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placeholder-shown)]:max-w-[calc(100%-1.5rem)]';
 
 /**
@@ -108,12 +102,14 @@ export interface OutlinedFieldProps {
   /**
    * Правый адорнмент (например «глаз» пароля). Хвост — место XS ([UI-68], sharedui-md3-10): кнопка-иконка
    * в нём 32 при мыши и 40 при касании — класс места ставит обёртка, экран размера не пишет. Отступ текста
-   * под хвост держит само поле — `fieldBox(density, { trailing: true })`.
+   * под хвост держит само поле: однострочное — `fieldBox(density, { trailing: true })`, многострочная
+   * область — `fieldEnd` у своей обёртки. Подпись в покое оболочка сама кончает до хвоста (`fieldLabelRest`).
    */
   trailing?: ReactNode;
   /**
    * В хвосте перед кнопкой стоит ещё знак 18 — замок запертого поля рядом с кнопкой привязки ([UI-86]).
    * Ширину хвоста оболочка из разметки не выводит: ей нужно знать её до отрисовки, для подписи в покое.
+   * Место — строка `markButton` таблицы `TRAIL` в `fieldBox`; знак и кнопка — фрагментом (`FieldTrailingProps`).
    */
   trailingMark?: boolean;
   /** Хвост живёт внутри контрола (календарь даты): знак ошибки оболочка отдаёт ему `FieldMarkContext`. */
@@ -168,7 +164,7 @@ export function OutlinedField({
   // Метка в покое стоит на месте текста и кончается там же, где он: справа знак ошибки и хвост. Наверху,
   // в вырезе, ей ничего не мешает — там ограничение одно, рамка.
   const labelWidth = !auto ? 'max-w-[calc(100%-1.5rem)]'
-    : `${!trailing ? REST_WIDTH : trailingMark ? REST_WIDTH_TRAILING_MARK : REST_WIDTH_TRAILING} ${RAISED_WIDTH}`;
+    : `${fieldLabelRest({ trailing: !!trailing, trailingMark })} ${RAISED_WIDTH}`;
 
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
