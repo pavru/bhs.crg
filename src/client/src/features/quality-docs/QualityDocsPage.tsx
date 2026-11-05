@@ -182,7 +182,7 @@ export function QualityDocsPage() {
           </>
         )}
         {!validUntilKnown && (
-          <p className="text-label-small text-warning px-3 py-2 leading-snug">
+          <p className="text-label-small text-warning px-4 py-2 leading-snug">
             Срок действия документов системе неизвестен: ни одно поле типа не помечено тэгом
             «срок действия». Поэтому состояния «просрочен» и «истекает» не считаются — и по той же
             причине просроченные документы не прячутся из подсказок.

@@ -112,10 +112,11 @@ export function SectionDetail() {
           );
         })}
         {canAddSet && (
-          <button type="button" onClick={() => setAddSetOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-body-medium text-primary hover:bg-primary-container transition-colors">
-            <Icon icon={Add} size={18} className="shrink-0" /> Добавить комплект
-          </button>
+          // Действие в колонке — кнопка text, а не строка (Р4 md3-18): строка цвета primary читалась бы выбранной.
+          // pl-1 и отступ кнопки со знаком (12) дают знаку те же 16 от края, что у знаков строк.
+          <div className="pl-1 py-1">
+            <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>
+          </div>
         )}
       </>}
       {panels.ownNav('Этот раздел')}

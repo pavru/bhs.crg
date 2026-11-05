@@ -63,19 +63,41 @@ describe('ListItem', () => {
     render(<ListItem data-testid="row" headline="Роль" onClick={() => {}} />);
     const target = screen.getByTestId('row');
     expect(target.hasAttribute('data-li-target')).toBe(true);
-    expect(classes(target.parentElement!)).toContain('state-layer-row');
+    expect(classes(target.parentElement!)).toEqual(expect.arrayContaining(['state-layer', 'state-layer-row']));
     expect(target.className).not.toContain('state-layer');
     expect(target.className).not.toContain('focus-ring');
   });
 
-  it('полная подпись — в title: строкой сама подпись, узлом — переданный title', () => {
+  it('полная подпись — в title, и только у обрезанной: меряется на наведении', () => {
     render(<>
       <ListItem headline="Запись реестра документов (протоколы измерений)" onClick={() => {}} />
       <ListItem headline={<b>Счёт 12</b>} title="Счёт 12 от 01.11.2026" onClick={() => {}} />
+      <ListItem headline="Каталог" onClick={() => {}} />
     </>);
-    expect(screen.getByText('Запись реестра документов (протоколы измерений)').getAttribute('title'))
-      .toBe('Запись реестра документов (протоколы измерений)');
-    expect(screen.getByText('Счёт 12').parentElement!.getAttribute('title')).toBe('Счёт 12 от 01.11.2026');
+    const cut = (el: HTMLElement, scroll: number, client: number) => {
+      Object.defineProperty(el, 'scrollWidth', { configurable: true, value: scroll });
+      Object.defineProperty(el, 'clientWidth', { configurable: true, value: client });
+      fireEvent.pointerEnter(el);
+      return el;
+    };
+    const long = screen.getByText('Запись реестра документов (протоколы измерений)');
+    expect(long.hasAttribute('title')).toBe(false);
+    expect(cut(long, 420, 200).getAttribute('title')).toBe('Запись реестра документов (протоколы измерений)');
+    expect(cut(screen.getByText('Счёт 12').parentElement!, 300, 200).getAttribute('title')).toBe('Счёт 12 от 01.11.2026');
+    expect(cut(screen.getByText('Каталог'), 80, 200).hasAttribute('title')).toBe(false);
+    // Окно шире стало — подсказка снимается.
+    expect(cut(long, 420, 480).hasAttribute('title')).toBe(false);
+  });
+
+  it('вторая строка 0 — строка: и рисуется, и даёт 64; пустая — ни того, ни другого', () => {
+    render(<>
+      <ListItem data-testid="zero" headline="a" supporting={0} onClick={() => {}} />
+      <ListItem data-testid="empty" headline="b" supporting="" onClick={() => {}} />
+    </>);
+    expect(classes(screen.getByTestId('zero'))).toContain('min-h-16');
+    expect(screen.getByTestId('zero').textContent).toContain('0');
+    expect(classes(screen.getByTestId('empty'))).toContain('min-h-12');
+    expect(screen.getByTestId('empty').querySelectorAll('.text-body-medium')).toHaveLength(0);
   });
 
   it('ref и data-testid — на цели; to — ссылка', () => {

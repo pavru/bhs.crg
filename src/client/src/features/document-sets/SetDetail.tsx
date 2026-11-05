@@ -193,7 +193,7 @@ export function SetDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto pb-3">
+    <div className="flex-1 overflow-y-auto pt-2 pb-3">
       <NavItem icon={Description} label="Документы" count={set.instances.length}
         active={activePanel === 'documents'} onClick={() => goPanel('documents')} />
       <NavSection label="Этот комплект" />

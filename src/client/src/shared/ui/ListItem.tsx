@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Icon } from './Icon';
 import type { IconDef } from './icons/types';
 import { useGuardedNavClick } from './NavigationGuard';
+import { fullTextIfCut } from './fullTextIfCut';
 
 /** Отступ по глубине дерева — 16 на уровень (D8, `UserLibFileList`). Классом целиком: Tailwind не соберёт
  *  имя, склеенное из частей. */
@@ -12,7 +13,12 @@ type Target =
   | { onClick: () => void; to?: never }
   | { to: string; onClick?: never };
 
-export type ListItemProps = Target & {
+/** Ведущий слот — знак или узел, не оба: второй молча пропал бы. */
+type Lead =
+  | { /** Ведущий знак — 24 (Л5). */ icon?: IconDef; leading?: never }
+  | { /** Ведущий узел вместо знака (миниатюра листа) — внутри цели, неинтерактивный. */ leading?: ReactNode; icon?: never };
+
+export type ListItemProps = Target & Lead & {
   /** Подпись — `body-large`, в одну строку с многоточием. */
   headline: ReactNode;
   /** Полный текст подписи для подсказки `title` при обрезке (Р6). По умолчанию — сама подпись, если она строка. */
@@ -20,10 +26,6 @@ export type ListItemProps = Target & {
   /** Вторая строка — `body-medium` роли `on-surface-variant`. Строкой — в одну строчку с многоточием; узлом —
    *  как есть: многострочное содержимое (строка счёта) растит строку, а не режется. */
   supporting?: ReactNode;
-  /** Ведущий знак — 24 (Л5). */
-  icon?: IconDef;
-  /** Ведущий узел вместо знака (миниатюра листа) — внутри цели, неинтерактивный. */
-  leading?: ReactNode;
   /** Интерактивный ведущий элемент (флажок участия) — сосед цели перед ней, а не внутри кнопки. */
   leadingAction?: ReactNode;
   /** Замыкающий текст, число (`CountText`), пометка (`StatusText`), шеврон — внутри цели. */
@@ -47,23 +49,27 @@ export type ListItemProps = Target & {
  * Строки руками в экранах считает правило храповика `list-row`.
  *
  * <p>Цель одна — `onClick` (кнопка) или `to` (ссылка) — и тянется на всю строку; `action` и `leadingAction` —
- * её соседи, а не вложенный интерактив. Слой состояния и кольцо фокуса — у строки (`state-layer-row`):
+ * её соседи, а не вложенный интерактив. Слой состояния и кольцо фокуса — у строки (`state-layer` с добавкой `state-layer-row`):
  * наведение — по всей строке, нажатие и фокус — по цели. Обрезанная подпись — полностью в нативной
- * подсказке `title` (исключение правила `native-title`, как у `DetailTitle`).</p>
+ * подсказке `title` (как у `DetailTitle`), и только когда она в самом деле обрезана: обрезку меряют на
+ * наведении, а не при каждой отрисовке, — подсказка у неурезанной подписи повторяла бы её же.</p>
  */
 export function ListItem({ headline, title, supporting, icon, leading, leadingAction, trailing, action, selected = false,
   depth = 0, ref, 'data-testid': testId, className = '', ...target }: ListItemProps) {
   const tone = selected ? 'text-on-secondary-container' : 'text-on-surface-variant';
+  // Одно условие и для высоты, и для второй строки: 0 — строка, пустое — нет.
+  const twoLine = supporting != null && supporting !== false && supporting !== '';
+  const full = title ?? (typeof headline === 'string' ? headline : undefined);
   const pad = `${leadingAction ? 'pl-2' : DEPTH_PAD[Math.min(depth, DEPTH_PAD.length - 1)]} ${action ? 'pr-2' : 'pr-4'}`;
-  const cls = `flex-1 min-w-0 flex items-center gap-4 ${pad} py-2 ${supporting ? 'min-h-16' : 'min-h-12'} text-left cursor-pointer focus:outline-none`;
+  const cls = `flex-1 min-w-0 flex items-center gap-4 ${pad} py-2 ${twoLine ? 'min-h-16' : 'min-h-12'} text-left cursor-pointer focus:outline-none`;
   const body = (
     <>
       {icon ? <Icon icon={icon} size={24} className={`shrink-0 ${tone}`} /> : leading}
       <span className="flex-1 min-w-0 flex flex-col">
-        <span className="truncate text-body-large" title={title ?? (typeof headline === 'string' ? headline : undefined)}>
+        <span className="truncate text-body-large" onPointerEnter={full ? fullTextIfCut(full) : undefined}>
           {headline}
         </span>
-        {supporting != null && (
+        {twoLine && (
           <span className={`text-body-medium ${tone} ${typeof supporting === 'string' ? 'truncate' : ''}`}>{supporting}</span>
         )}
       </span>
@@ -73,7 +79,7 @@ export function ListItem({ headline, title, supporting, icon, leading, leadingAc
   // Цель — кнопка или ссылка; ссылка на неё приходит общим типом, сужается здесь.
   const common = { ref: ref as Ref<HTMLButtonElement & HTMLAnchorElement>, className: cls, 'data-li-target': '', 'data-testid': testId, 'aria-current': selected ? 'true' as const : undefined };
   return (
-    <div className={`flex items-stretch w-full state-layer-row ${
+    <div className={`flex items-stretch w-full state-layer state-layer-row ${
       selected ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'} ${className}`}>
       {leadingAction && <span className="shrink-0 flex items-center pl-2">{leadingAction}</span>}
       {target.to !== undefined

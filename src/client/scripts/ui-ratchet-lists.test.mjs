@@ -18,7 +18,9 @@ describe('храповик интерфейса: list-row', () => {
       // выбор вариантом aria-current — условие уже в классе
       '<a className="state-layer flex aria-current:bg-secondary-container">Роль</a>',
       '<li className="state-layer data-[selected=true]:bg-secondary-container">Профиль</li>',
-    ].join(' '))).toBe(5);
+      // ?? — тоже условие
+      "<div className={`state-layer ${selectedCls ?? 'bg-secondary-container'}`}>Набор</div>",
+    ].join(' '))).toBe(6);
     expect(RULES.find(r => r.id === 'list-row').instead).toContain('ListItem');
   });
 

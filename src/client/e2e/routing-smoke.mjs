@@ -183,18 +183,22 @@ try {
     const target = page.getByTestId('ld-nav').locator('button[aria-current="true"]', { hasText: 'Каталог' }).first();
     await target.waitFor({ timeout: 5000 });
     const m = await target.evaluate(el => {
-      const row = el.parentElement, nav = el.closest('[data-testid=ld-nav]');
+      // Ширина — против прокручиваемого родителя строки, а не колонки: полоса прокрутки у длинного списка
+      // законно съедает своё. Сам родитель обязан идти во всю колонку.
+      const row = el.parentElement, list = row.parentElement, nav = el.closest('[data-testid=ld-nav]');
       const probe = document.createElement('div');
       probe.className = 'bg-secondary-container';
       document.body.append(probe);
       const want = getComputedStyle(probe).backgroundColor;
       probe.remove();
       return { bg: getComputedStyle(row).backgroundColor, want, height: row.getBoundingClientRect().height,
-        rowWidth: row.getBoundingClientRect().width, navWidth: nav.clientWidth, radius: getComputedStyle(row).borderRadius };
+        rowWidth: row.getBoundingClientRect().width, listWidth: list.clientWidth, listOuter: list.getBoundingClientRect().width,
+        navWidth: nav.clientWidth, radius: getComputedStyle(row).borderRadius };
     });
     if (m.bg !== m.want) throw new Error(`выбранный пункт на ${m.bg}, а не secondary-container (${m.want})`);
     if (m.height < 48) throw new Error(`выбранный пункт высотой ${m.height}, ниже 48`);
-    if (Math.abs(m.rowWidth - m.navWidth) > 1) throw new Error(`строка ${m.rowWidth} px при колонке ${m.navWidth} px — не во всю ширину`);
+    if (Math.abs(m.rowWidth - m.listWidth) > 1 || Math.abs(m.listOuter - m.navWidth) > 1)
+      throw new Error(`строка ${m.rowWidth} px в списке ${m.listWidth} px (снаружи ${m.listOuter}) при колонке ${m.navWidth} px — не во всю ширину`);
     if (parseFloat(m.radius) > 0) throw new Error(`у строки скругление ${m.radius} — пилюля вместо прямоугольника`);
   });
 

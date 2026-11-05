@@ -13,13 +13,13 @@ const FILL = /(?<![\w:/-])bg-(?:primary|secondary)-container(?![\w/-])/;
 // Заливка выбранного вариантом состояния — условие уже в самом классе. Открытое меню (`data-[state=open]:`) — не выбор.
 const VARIANT_FILL = /(?:aria-current|aria-selected|data-\[(?!state=open\])[^\]]*\]):bg-(?:primary|secondary)-container(?![\w/-])/;
 
-/** Заливка выбранного стоит в ветке условия (`a ? '…' : ''`, `a && '…'`) внутри выражения `className`. */
+/** Заливка выбранного стоит в ветке условия (`a ? '…' : ''`, `a && '…'`, `a ?? '…'`) внутри выражения `className`. */
 function conditionalFill(init) {
   let found = false;
   const visit = (node, underCondition) => {
     if (found) return;
     const cond = underCondition || ts.isConditionalExpression(node)
-      || (ts.isBinaryExpression(node) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken].includes(node.operatorToken.kind));
+      || (ts.isBinaryExpression(node) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind));
     if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)
       || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && cond && FILL.test(node.text)) found = true;
     ts.forEachChild(node, child => visit(child, cond));
