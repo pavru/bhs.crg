@@ -1,28 +1,10 @@
-// Счёт словаря MD3 для храповика интерфейса (эпик sharedui-md3): старые имена цвета, самодельные
-// состояния и вариант тёмной темы. Отдельно от ui-ratchet-lib.mjs: там правила по разметке, здесь —
+// Счёт словаря MD3 для храповика интерфейса (эпик sharedui-md3): самодельные состояния, вариант тёмной
+// темы, форма, возвышение и текст вне шкал. Старые имена цвета, сырую палитру и свой размер текста
+// храповик не считает с финала перехода (sharedui-md3-20): класс вне словаря темы не проходит сторож
+// theme-classes.test.mjs. Отдельно от ui-ratchet-lib.mjs: там правила по разметке, здесь —
 // по классам в строках кода, и словарь растёт с каждым ребёнком эпика.
 
-import { COLOR_UTILITIES, classTokens, scanCandidates, stripComments } from './class-scan.mjs';
-import classMap from './md3-class-map.json' with { type: 'json' };
-
-// Старые имена цвета (правило `legacy-class`) — псевдонимы из описания темы и имена карты md3:migrate:
-// снятый псевдоним (warning-border, stroke-subtle) класса больше не даёт, и пришедший из старой ветки
-// `border-warning-border` молча рисовал бы рамку цветом текста. Длинные — первыми.
-const LEGACY = Object.entries(classMap.names).filter(([k, v]) => !k.startsWith('//') && v.same).map(([k, v]) => [k, v.to]);
-const LEGACY_NAMES = [...new Set(Object.keys(classMap.names).filter(k => !k.startsWith('//')))]
-  .sort((a, b) => b.length - a.length).join('|');
-const LEGACY_CLASS = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${LEGACY_NAMES})(?:/[\\w.]+)?$`);
-const LEGACY_VAR = new RegExp(`var\\(--color-(?:${LEGACY_NAMES})\\)`, 'g');
-
-/** Совет правила `legacy-class`: старое имя → роль того же цвета. */
-export const LEGACY_HINT = LEGACY.filter(([, to]) => typeof to === 'string').map(([k, to]) => `${k} → ${to}`).join(', ');
-
-/** Старые имена цвета классом и `var(--color-…)` вне комментариев — см. правило `legacy-class`. */
-export function countLegacyClasses(source) {
-  const text = stripComments(source);
-  const classes = scanCandidates(text).filter(c => LEGACY_CLASS.test(c.cls) && !/^text-base(?:\/|$)/.test(c.cls));
-  return classes.length + (text.match(LEGACY_VAR)?.length ?? 0);
-}
+import { classTokens, stripComments } from './class-scan.mjs';
 
 /**
  * Сырое состояние вместо слоя MD3 — см. правило `raw-state`: подложка чёрным или белым с прозрачностью

@@ -37,10 +37,10 @@
 
 ## 3. Правила храповика
 
-- [ ] 3.1 Сняты `legacy-class`, `palette`, `text-size` в `ui-ratchet-lib.mjs`, их фикстуры — в
+- [x] 3.1 Сняты `legacy-class`, `palette`, `text-size` в `ui-ratchet-lib.mjs`, их фикстуры — в
   `ui-ratchet.test.mjs`, записи — в `ui-baseline.json`; `legacy-token` остаётся [UI-82]. Проверка —
   `ui-ratchet.test.mjs` зелёный; фикстура `var(--f-shadow28)` краснит `legacy-token`
-- [ ] 3.2 `CLAUDE.md` и `AGENTS.md` — перечень правил храповика интерфейса без снятых правил, со сторожем
+- [x] 3.2 `CLAUDE.md` и `AGENTS.md` — перечень правил храповика интерфейса без снятых правил, со сторожем
   словаря, одним коммитом [UI-82]. Проверка — `AgentRulesCopyTests` зелёный
 
 ## 4. Документы и дизайн-система

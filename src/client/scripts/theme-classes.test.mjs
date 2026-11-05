@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { themeCandidates } from './class-scan.mjs';
+import { stripComments, themeCandidates } from './class-scan.mjs';
 import { loadThemeCheck, nearestRole } from './theme-classes-lib.mjs';
 
 // Сторож словаря темы ([UI-82]; до финала MD3 — сторож цветовых классов, issue #1362): почему так —
@@ -135,6 +135,38 @@ describe('словарь темы: отказ называет роль', () => 
     expect(nearestRole('shadow-lg')).toMatch(/^уровень возвышения/);
     expect(nearestRole('text-[11px]')).toMatch(/^роль текста/);
     expect(nearestRole('bg-gray-500')).toMatch(/^роль цвета MD3/);
+  });
+});
+
+/**
+ * Переменные пространств имён темы (`var(--color-brand)`, `var(--radius-lg)`) вне слоя темы и вне своего
+ * файла — `файл:строка переменная`. Сброшенное имя не определено нигде, и `var()` молча отдаёт пустое:
+ * до финала это держал `legacy-class` храповика, теперь — сторож словаря. Своя переменная файла
+ * (`--text-scale-factor` слоя текста просмотрщика) — его дело.
+ */
+const THEME_VAR = /var\(\s*(--(?:color|radius|text|shadow)-[\w-]+)/g;
+const themeVars = new Set([...readFileSync(join(srcRoot, 'theme', 'md3-tailwind.css'), 'utf8')
+  .matchAll(/^\s*(--[\w-]+):/gm)].map(m => m[1]));
+const unknownVars = (file, source) => {
+  const text = stripComments(source);
+  const own = new Set([...text.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+  return [...text.matchAll(THEME_VAR)].filter(m => !themeVars.has(m[1]) && !own.has(m[1]))
+    .map(m => `src/${file}:${text.slice(0, m.index).split('\n').length} ${m[1]}`);
+};
+
+describe('словарь темы: переменные', () => {
+  it('сброшенное имя — отказ; роль, ступень и своя переменная файла — нет', () => {
+    expect(unknownVars('shared/ui/x.css', '.a { outline: 2px solid var(--color-brand); color: var(--color-primary); }\n'
+      + '.b { border-radius: var(--radius-lg); --text-k: 2; font-size: calc(var(--text-k) * 1px); }  /* var(--color-fg1) */'))
+      .toEqual(['src/shared/ui/x.css:1 --color-brand']);
+  });
+
+  it('в клиенте нет переменных вне словаря темы', () => {
+    const files = readdirSync(srcRoot, { recursive: true }).map(f => String(f).replaceAll('\\', '/'))
+      .filter(f => /\.(?:tsx?|jsx?|css)$/.test(f) && !f.startsWith('theme/'));
+    expect(files.flatMap(f => unknownVars(f, readFileSync(join(srcRoot, f), 'utf8'))),
+      'Переменная вне словаря темы — var() отдаёт пустое. Цвет — var(--color-<роль>) или --md-sys-color-<роль>:\n'
+      + 'docs/UI.md, «Цвет».').toEqual([]);
   });
 });
 
