@@ -7,6 +7,7 @@ import { IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { SideSheet } from '@/shared/ui/SideSheet';
+import { useKeyScroll } from '@/shared/ui/useKeyScroll';
 import { apiError } from '@/shared/utils/apiError';
 import { isNotFound, useNomenclature } from '@/shared/api/invoices';
 import { useNomenclatureCard, type NomenclatureCard } from '@/shared/api/nomenclatureCard';
@@ -201,9 +202,6 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   // Удалённую или убранную в архив за время показа в строку не выбрать — кнопки в подвале шага нет.
   const openedCard = useNomenclatureCard(opened?.id ?? null);
   const openedPickable = !(openedCard.isError && isNotFound(openedCard.error)) && !openedCard.data?.archived;
-  // В поле зрения выделение ведёт только стрелка: строка, выделенная мышью, под ней и так видна, а
-  // прокрутка из-под курсора сдвигала бы список, и он полз бы сам.
-  const byKeys = useRef(false);
 
   // Наименование — как отправлено на сервер: по нему же подсвечиваются слова в карточке.
   const source = trimText(from.name);
@@ -260,7 +258,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   function keys(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      byKeys.current = true;
+      byKeys();
       selection.step(e.key === 'ArrowDown' ? 1 : -1);
       return;
     }
@@ -270,12 +268,9 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
     }
   }
 
-  // Выделенная стрелкой строка — в поле зрения: без этого стрелка уводила бы выделение за край списка.
+  // Выделенная стрелкой строка — в поле зрения; выделенная мышью под ней и так видна (useKeyScroll).
   const activeOption = selection.index >= 0 && selection.active ? optionId(selection.active) : undefined;
-  useLayoutEffect(() => {
-    if (activeOption && byKeys.current) document.getElementById(activeOption)?.scrollIntoView({ block: 'nearest' });
-    byKeys.current = false;
-  }, [activeOption]);
+  const byKeys = useKeyScroll(activeOption);
 
   const plate = <LinePlate from={from} line={line} />;
   // Сравнение со строкой — у любой позиции: артикул и единицу сверяет карточка по тэгам полей, слова — сервер.
@@ -284,6 +279,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
     : undefined);
   const option = (row: PickerRow) => (
     <PickerOption key={row.id} row={row} id={optionId(row.id)} active={row.id === selection.active}
+      current={!!current?.id && row.id === current.id}
       enter={!narrow && enterable && row.id === selection.active} narrow={narrow} kinds={kinds}
       onChoose={choose} onHover={selection.hover} />
   );

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useKeyScroll } from '@/shared/ui/useKeyScroll';
 import { Icon } from '@/shared/ui/Icon';
 import { Database, Description, LinkIcon, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
@@ -43,10 +44,11 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
   // Единый порядок для клавиатурной навигации (issue #107 F5): proxy-группа, затем базовые.
   const ordered = [...proxyCands, ...baseCands];
 
+  const byKeys = useKeyScroll(ordered.length ? `bcp-opt-${active}` : undefined);
   function pick(c: BaseCandidate) { onSelect(c); onOpenChange(false); }
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, ordered.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); byKeys(); setActive(a => Math.min(a + 1, ordered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); byKeys(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); const c = ordered[active]; if (c) pick(c); }
   }
 
@@ -59,8 +61,6 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
   // Две группы — два listbox, каждый подписан своим заголовком (Р7): заголовок внутри listbox был бы его
   // запрещённым ребёнком. Поле поиска показывает на тот, где стоит активный.
   const activeList = active < proxyCands.length ? 'bcp-proxy' : 'bcp-base';
-  // Активный — на виду: список прокручивается, и подсветка ушла бы за край.
-  useEffect(() => { document.getElementById(`bcp-opt-${active}`)?.scrollIntoView?.({ block: 'nearest' }); }, [active]);
 
   return (
     <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль" nothingToLose>

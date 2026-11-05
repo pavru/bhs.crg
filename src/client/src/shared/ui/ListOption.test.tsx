@@ -70,6 +70,9 @@ describe('ListOption', () => {
     expect(archived.textContent).toContain('в архиве');
     fireEvent.click(archived);
     expect(onChoose).toHaveBeenCalledTimes(1);
+    // Наведение не делает архивный активным: Enter в поле выбрал бы его.
+    fireEvent.mouseMove(archived);
+    expect(classes(archived)).not.toContain('bg-secondary-container');
   });
 
   it('действие внутри варианта не выбирает его и не берёт фокус', () => {

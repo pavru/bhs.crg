@@ -292,8 +292,8 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
 
 /**
  * Похожая позиция — строка списка `ListItem` ([UI-87], sharedui-md3-21): у шага нет поля, которое вело бы
- * варианты стрелками, поэтому строка — цель с фокусом, а не вариант `ListOption`. Наведённая — «карточка
- * этой строки открыта» (`selected`): справа её карточка.
+ * варианты стрелками, поэтому строка — цель с фокусом, а не вариант `ListOption`. Наведённая или в фокусе —
+ * «карточка этой строки открыта» (`selected`, `aria-current`): справа её карточка.
  */
 function Row({ position, why, action, onPick, active = false, onHover }: {
   position: NomenclaturePosition;
@@ -307,7 +307,8 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   // Архивную выбрать нельзя — сервер её в новую строку не примет; но показать обязаны: иначе её
   // заведут заново.
   return (
-    <div className="-mx-4" onMouseMove={active ? undefined : onHover}>
+    // Карточка справа — за мышью и за фокусом с клавиатуры: Tab до строки показывает её так же, как наведение.
+    <div className="-mx-4" onMouseMove={active ? undefined : onHover} onFocus={active ? undefined : onHover}>
       {position.archived
         ? <ListItem passive {...content} trailing={<>{position.type}<span>в архиве</span></>} />
         : <ListItem {...content} selected={active} onClick={() => onPick(position.id, position.name)}

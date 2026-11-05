@@ -30,10 +30,16 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-// jsdom не прокручивает: подменяем, чтобы видеть, ЧТО поле просит показать.
+// jsdom не прокручивает: подменяем, чтобы видеть, ЧТО поле просит показать. Имя пункта — без скрытого от
+// диктора (число разделов), иначе сверка шла бы по началу строки и пропускала бы «Комарова 36а».
 const scrolled: string[] = [];
+const spoken = (el: Element) => {
+  const copy = el.cloneNode(true) as Element;
+  copy.querySelectorAll('[aria-hidden]').forEach(n => n.remove());
+  return copy.textContent ?? '';
+};
 beforeAll(() => {
-  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.textContent ?? ''); };
+  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(spoken(this)); };
 });
 
 const at = (construction: string, section: string | null = null): Place => ({ construction, section, article: null });
@@ -132,7 +138,7 @@ describe('поле «стройка / раздел» в шапке счёта', 
     fireEvent.keyDown(search(), { key: 'End' });
     expect(scrolled.at(-1)).toBe('Склад');
     fireEvent.keyDown(search(), { key: 'Home' });
-    expect(scrolled.at(-1)).toMatch(/^Комарова 36/);
+    expect(scrolled.at(-1)).toBe('Комарова 36');
   });
 
   it('справочник ещё грузится — «…», а не «Ничего не найдено»', () => {

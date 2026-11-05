@@ -62,6 +62,11 @@ describe('храповик интерфейса: list-row', () => {
     // const из другой функции — названный пропуск
     expect(rows(`const tone = a ? 'bg-secondary-container' : 'state-layer';
       function Row() { return <button className={\`w-full \${tone}\`}>x</button>; }`)).toBe(0);
+    // одноимённый const вложенной функции — другая переменная: строка с тоном из пропов не считается
+    expect(rows(`function List({ tone, rows }) {
+      const item = r => { const tone = r.on ? 'bg-secondary-container' : 'state-layer'; return tone; };
+      return <button className={\`w-full state-layer \${tone}\`}>{rows.map(item)}</button>;
+    }`)).toBe(0);
   });
 
   it('вариант из shared/ui и role другого значения — не считаются', () => {

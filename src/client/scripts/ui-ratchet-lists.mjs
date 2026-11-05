@@ -48,7 +48,9 @@ function constInits(element, expr) {
   while (fn && !ts.isFunctionLike(fn)) fn = fn.parent;
   if (!fn || names.size === 0) return [];
   const out = [];
+  // Только своя функция: одноимённый `const` соседнего обработчика или вложенного компонента — другая переменная.
   const visit = node => {
+    if (node !== fn && ts.isFunctionLike(node)) return;
     if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name) && names.has(node.name.text)
       && ts.isVariableDeclarationList(node.parent) && (node.parent.flags & ts.NodeFlags.Const)) out.push(node.initializer);
     ts.forEachChild(node, visit);

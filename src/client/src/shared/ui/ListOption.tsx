@@ -17,7 +17,8 @@ export type ListOptionProps = ListRowContent & {
   /** Текущее значение поля: галочка у замыкающего края (П2), `aria-selected` и для диктора «сейчас» — описанием,
    *  а не в имени: имя варианта остаётся его подписью. */
   current?: boolean;
-  /** Архивный вариант: в списке, с пометкой «в архиве», не выбирается. */
+  /** Архивный вариант: в списке, с пометкой «в архиве», не выбирается и наведением активным не становится.
+   *  Стрелки поля его обходят — это дело того, кто ведёт список. */
   disabled?: boolean;
   /** Надпись над подписью (`label-small` роли `primary`) — «Лучшее совпадение». Только в форме `list`. */
   overline?: ReactNode;
@@ -61,7 +62,8 @@ export function ListOption({ id, form = 'list', active, current = false, disable
   return (
     <div id={id} role="option" aria-selected={current} aria-disabled={disabled || undefined} aria-description={[description, current && 'сейчас'].filter(Boolean).join(', ') || undefined}
       data-testid={testId} onMouseDown={keepFocus} onClick={disabled ? undefined : onChoose}
-      onMouseMove={onHover && !active ? onHover : undefined}
+      // Архивный активным не становится: Enter в поле выбрал бы то, что выбрать нельзя.
+      onMouseMove={onHover && !active && !disabled ? onHover : undefined}
       className={`flex items-stretch w-full select-none ${disabled ? 'disabled-content' : 'cursor-pointer state-layer'} ${fill}`}>
       <div className={box}>
         <ListRowBody form={form} filled={active} overline={form === 'list' ? overline : undefined}

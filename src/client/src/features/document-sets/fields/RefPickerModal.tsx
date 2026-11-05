@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useKeyScroll } from '@/shared/ui/useKeyScroll';
 import { Description, FileCopy } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
@@ -305,8 +306,7 @@ function RefPickerModalBody({
   // Свой listbox у каждой группы (Р7): поле поиска показывает на тот, где стоит активный вариант.
   const listboxOf = (o: RpOption | undefined) =>
     !o ? undefined : o.type === 'catalog' ? `rp-lb-c-${o.entry.scope}` : o.type === 'instance' ? 'rp-lb-i' : 'rp-lb-d';
-  // Активный — на виду: список прокручивается, и подсветка ушла бы за край.
-  useEffect(() => { document.getElementById(`rp-opt-${active}`)?.scrollIntoView?.({ block: 'nearest' }); }, [active]);
+  const byKeys = useKeyScroll(options.length ? `rp-opt-${active}` : undefined);
 
   function toCandidate(o: RpOption): Candidate {
     if (o.type === 'catalog') {
@@ -339,8 +339,8 @@ function RefPickerModalBody({
   }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, options.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); byKeys(); setActive(a => Math.min(a + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); byKeys(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); const o = options[active]; if (o) choose(o); }
   }
 

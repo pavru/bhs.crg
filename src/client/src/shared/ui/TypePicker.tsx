@@ -3,8 +3,9 @@ import { DIALOG_SCRIM, DIALOG_SURFACE } from './dialogSurface';
 import { Icon } from './Icon';
 import { Block, Search } from './icons';
 import { typeIcon } from './typeIcons';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { ListOption } from './ListOption';
+import { useKeyScroll } from './useKeyScroll';
 import { useHistoryLayer } from './historyLayers';
 
 /**
@@ -108,8 +109,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
   const noneVisible = !!noneOption && !q;
   const base = noneVisible ? 1 : 0;
   const total = base + flat.length;
-  // Активный — на виду: список прокручивается, и подсветка ушла бы за край.
-  useEffect(() => { document.getElementById(`${ids}-o${active}`)?.scrollIntoView?.({ block: 'nearest' }); }, [ids, active]);
+  const byKeys = useKeyScroll(total > 0 ? `${ids}-o${active}` : undefined);
 
 
 
@@ -121,8 +121,8 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
   function reveal() { setRevealed(true); input.current?.focus(); }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, total - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); byKeys(); setActive(a => Math.min(a + 1, total - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); byKeys(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') {
       e.preventDefault();
       if (noneVisible && active === 0) { chooseNone(); return; }

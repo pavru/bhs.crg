@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
+import { ListItem } from '@/shared/ui/ListItem';
 import { Description } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet } from '@/shared/api/commonData';
@@ -76,23 +76,14 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                 подписан постоянно, и пропадающая подпись делала два списка неодинаковыми там, где
                 они как раз про одно и то же (issue #751). */}
             <p className="text-title-small text-on-surface-variant mb-2">Документы комплекта</p>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            {/* Строки — ListItem, как у каталога над ними ([UI-84]): два списка одного окна выглядят одинаково. */}
+            <div className="-mx-4 max-h-48 overflow-y-auto">
               {filteredInstances.map(inst => {
                 const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
                 return (
-                  <button key={inst.id} onClick={() => selectInstance(inst)}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-body-medium text-left rounded-sm hover:bg-primary-container transition-colors">
-                    <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
-                    <span className="flex-1 min-w-0">
-                      <span className="block font-medium text-on-surface truncate">
-                        {inst.name || dt?.name || '—'}
-                      </span>
-                      {inst.name && (
-                        <span className="block text-body-small text-on-surface-variant truncate">{dt?.name}</span>
-                      )}
-                    </span>
-                    <DocumentStatusText status={inst.status} />
-                  </button>
+                  <ListItem key={inst.id} icon={Description} headline={inst.name || dt?.name || '—'}
+                    supporting={inst.name ? dt?.name : undefined} trailing={<DocumentStatusText status={inst.status} />}
+                    onClick={() => selectInstance(inst)} />
                 );
               })}
             </div>

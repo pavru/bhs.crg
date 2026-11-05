@@ -10,10 +10,12 @@ import { Refusal } from './NomenclatureCardPanel';
 import type { PickerRow } from './pickerCandidates';
 
 /** Строка списка окна выбора: кандидат, находка поиска или запись справочника ([UI-87], `ListOption` формы `list`). */
-export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, onHover }: {
+export function PickerOption({ row, id, active, current = false, enter, narrow, kinds, onChoose, onHover }: {
   row: PickerRow;
   id: string;
   active: boolean;
+  /** Позиция уже стоит в строке: галочка и `aria-selected` (П2, Р1). */
+  current?: boolean;
   /** Enter сейчас выберет эту строку — сказано на ней. */
   enter: boolean;
   narrow: boolean;
@@ -24,20 +26,19 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
 }) {
   // Лучшее совпадение — надписью, без своей заливки: подсвечена только активная строка. «Выбрать» на каждой
   // строке был шумом — Enter сказан только на активной.
-  const trailing = (
-    <>
-      {kinds && row.type && <span>{row.type}</span>}
-      {/* На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518). */}
-      {narrow && !row.best && <span className="text-body-small text-primary" aria-hidden>›</span>}
-      {enter && (
-        <kbd aria-hidden className="rounded-xs border border-outline-variant bg-surface px-1 font-mono text-label-small text-on-surface-variant">Enter</kbd>
-      )}
-    </>
-  );
+  // Пометки собираются списком: пустой — слота нет (фрагмент `present` считал бы содержимым).
+  const marks = [
+    kinds && row.type && <span key="type">{row.type}</span>,
+    // На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518).
+    narrow && !row.best && <span key="card" className="text-body-small text-primary" aria-hidden>›</span>,
+    enter && (
+      <kbd key="enter" aria-hidden className="rounded-xs border border-outline-variant bg-surface px-1 font-mono text-label-small text-on-surface-variant">Enter</kbd>
+    ),
+  ].filter(Boolean);
   return (
-    <ListOption id={id} active={active} overline={row.best ? 'Лучшее совпадение' : undefined}
+    <ListOption id={id} active={active} current={current} overline={row.best ? 'Лучшее совпадение' : undefined}
       headline={row.name ?? 'без названия'} supporting={row.why ?? undefined}
-      trailing={(kinds && row.type) || (narrow && !row.best) || enter ? trailing : undefined}
+      trailing={marks.length ? marks : undefined}
       onChoose={() => onChoose(row)} onHover={() => onHover(row.id)} />
   );
 }
