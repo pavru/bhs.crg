@@ -6,11 +6,13 @@ D8 (отступления), D9 (вид — через `shared/ui`), D10 (мак
 
 ## Context
 
-Сверено по коду master `c5d45c6e` (02.11.2026).
+Сверено по коду master `c5d45c6e` (02.11.2026), поправлено разбором 0.2 по `54ce24b4` (05.11.2026).
 
 **Каркас.** `ListDetailShell.tsx` держит колонку `w-80` (320; второй размер `w-64` объявлен, но ни один экран
-его не передаёт) на `surface-container-low` с чертой `outline-variant`. Его `NavItem` — пилюля `h-11
-rounded-full`, выбранный `primary-container`, подпись `body-medium`, знак 18. `NavItem` умеет больше вида:
+его не передаёт) на `surface` (с #1738, md3-15) с чертой `outline-variant`; стоит в 18 файлах `features/`. Его
+`NavItem` — пилюля `h-11 rounded-full`, выбранный `primary-container`, подпись `body-medium`, знак 18 —
+узлом `<Icon size={18}>` у всех 14 вызовов. `CountText onContainer` жёстко даёт `on-primary-container`.
+`NavItem` умеет больше вида:
 показывает карточку на узком месте (`ViewContext.showDetail`, #1355), не подсвечивает «ребёнка» с шевроном,
 несёт пометки `progress`, `alert`, `note` и число `CountText`. `NavSection` — `title-small`, `px-3 pt-3 pb-1`.
 
@@ -27,12 +29,12 @@ rounded-full`, выбранный `primary-container`, подпись `body-medi
 
 | № | Файл | Что | Сегодня |
 |---|---|---|---|
-| 1 | `shared/ui/ListDetailShell.tsx` — `NavItem` | разделы уровня, панели комплекта; 13 вызовов в 6 файлах (`SetDetail` 6, `ReconciliationsPage` 3, `QualityDocsPage` 2, `scopePanels`, `ConstructionDetail`, `SectionDetail`) | пилюля 44, `primary-container` |
-| 2 | `costs/InvoiceListRow.tsx` (две строки: счёт и «ушёл из отбора») | реестр счетов | прямоугольник `py-2`, черта `border-b`, две строки |
+| 1 | `shared/ui/ListDetailShell.tsx` — `NavItem` | разделы уровня, панели комплекта; 14 вызовов в 6 файлах (`SetDetail` 6, `ReconciliationsPage` 3, `QualityDocsPage` 2, `scopePanels`, `ConstructionDetail`, `SectionDetail`) | пилюля 44, `primary-container` |
+| 2 | `costs/InvoiceListRow.tsx` (две строки: счёт и «ушёл из отбора») | реестр счетов | прямоугольник `py-2`, черта `border-b`; до пяти строчек (номер·дата·сумма / поставщик и значки / место / готовность / скан), `scrollIntoView`, e2e `invoice-row` |
 | 3 | `costs/WaybillsPage.tsx` | реестр накладных | как 2 |
 | 4 | `datasets/DataSetsResource.tsx` — `FileNavItem` | наборы данных | `rounded-md py-1.5`, две строки, чип уровня |
 | 5 | `document-sets/catalog/CatalogResource.tsx` — `TypeNavItem` | типы каталога | `rounded-md h-9` |
-| 6 | `settings/DocumentTypesPage.tsx` — `typeRow` | типы документов | копия `NavItem` |
+| 6 | `settings/DocumentTypesPage.tsx` — `typeRow` и заголовок группы | типы документов | копия `NavItem`; группа — кнопка `aria-expanded` с шевроном, папкой и числом; обёртки `px-2`, `space-y-0.5` |
 | 7 | `settings/PrimitiveTypesPage.tsx` — `typeRow` | примитивные типы | `rounded-lg py-2`, две строки, пометка |
 | 8 | `settings/PrintProfilesPage.tsx` | профили печати | `rounded-md`, миниатюра листа ведущей |
 | 9 | `settings/RecognitionProfilesPage.tsx` | профили распознавания | `rounded-md py-2` |
@@ -40,13 +42,15 @@ rounded-full`, выбранный `primary-container`, подпись `body-medi
 | 11 | `settings/BugReportsPage.tsx` | сообщения об ошибках | `rounded-lg py-2`, две строки |
 | 12 | `templates/TypeBlocksPanel.tsx` | блоки типов в редакторе шаблонов | прямоугольник `py-1.5` |
 | 13 | `document-sets/editor/RequisitesTab.tsx` | разделы реквизитов | копия `NavItem`, знак состояния заполнения |
-| 14 | `document-sets/editor/GenerationTab.tsx` | шаблоны генерации | флажок ведущим, фокус чертой `border-l-2` |
+| 14 | `document-sets/editor/GenerationTab.tsx` | шаблоны генерации | строка — `<label>` с флажком (вся строка переключает участие, #316), фокус чертой `border-l-2` |
 
 Действия в колонке, а не строки: «Добавить раздел» (`ConstructionDetail`) и «Добавить комплект»
 (`SectionDetail`) — `<button>` `h-9 rounded-full text-primary`.
 
-Деревья — по ответу владельца (Л3): `templates/UserLibFileList.tsx` (отступ по глубине, действия при
-наведении), `templates/TemplateSidebar.tsx` (группа → версии, действия группы и версии).
+Деревья — в этом change (Л3): `templates/UserLibFileList.tsx` — настоящее дерево (отступ 16 на уровень,
+папка — неинтерактивный заголовок с «+», действия при наведении); `templates/TemplateSidebar.tsx` —
+раскрываемая группа «шаблон → версии», сегодня подсвечены и группа, и версия, действия при наведении
+(`opacity-0 group-hover`) — на касании их не видно.
 
 **Вне change**, названы, чтобы не искать снова:
 - подпанель — `panelLink`, `PageList`, `WorkspaceNav` (`sharedui-md3-15-shell`, drawer);
@@ -54,8 +58,14 @@ rounded-full`, выбранный `primary-container`, подпись `body-medi
   `BaseCandidatePicker`, `ScopeGroupList`, `InstancePickerModal`, `NewNomenclatureStep`, `LinkPickerModal`
   (Л4);
 - списки содержимого карточки — замечания сверки (`ReconciliationsPage`, строка находки), уведомления
-  (`NotificationList`), элементы массива (`ComplexFields`), оглавление формы (`fields/SectionRail`) — к
-  `sharedui-md3-17-screens`.
+  (`NotificationList`), элементы массива (`ComplexFields`), оглавление формы (`fields/SectionRail`).
+
+Оба — новый ребёнок зонтика `sharedui-md3-21-pick-lists` (задача 4.1b; `sharedui-md3-17-screens` закрыт
+05.11.2026). Узкие боковые колонки `DataSetsResource` (`w-56`) и `CatalogResource` (`w-48`) режут подпись
+сильнее 320 и не имеют узкой раскладки — их ширина вне change, видно на снимках 3.1.
+
+**Пересечения.** `InvoiceListRow` правят ещё `costs-invoice-screen-10-layout` (шапка списка, `switchTo`) и
+`core-org-short-name` (имя поставщика в строке): кто сливается вторым, тот и переносит правку на `ListItem`.
 
 ## Goals / Non-Goals
 
@@ -75,24 +85,40 @@ rounded-full`, выбранный `primary-container`, подпись `body-medi
 
 `ListItem` принимает `headline`, `supporting` (вторая строка), `leading` (узел: значок, миниатюра,
 `Checkbox`), `trailing` (узел: `StatusText`, `CountText`, шеврон) и `action` (отдельная цель — `IconButton`
-или `RowActionsMenu`). Высота выводится из `supporting`: нет — 48, есть — 64. Цель строки — `onClick`
-(кнопка) или `to` (ссылка); `selected` ставит `aria-current` и `secondary-container`.
+или `RowActionsMenu`). Высота выводится из `supporting` минимумом, а не `h-*`: нет — `min-h-12`, есть —
+`min-h-16`; многострочная вторая часть (`InvoiceListRow`) растёт. `headline` — узел, полный текст для `title`
+— отдельной строкой `title`. Цель строки — `onClick` (кнопка) или `to` (ссылка); `ref` и `data-*`
+пробрасываются на цель (`scrollIntoView`, e2e `invoice-row`); `selected` ставит `aria-current` и
+`secondary-container`. Интерактивный ведущий элемент (флажок `GenerationTab`) — слот `leadingAction`: сосед
+цели перед ней, а не `leading` внутри кнопки.
 
 Альтернатива — перечень вариантов («счёт», «тип», «профиль») — отвергнута: компонент знал бы экраны, и
 каждый новый список приносил бы вариант.
 
 ### Р2. Действие строки — соседом кнопки, а не внутри
 
-Контейнер строки — `div` с `state-layer`; цель строки — `button`/`a` во всю площадь, `action` — после неё в
-том же ряду. Вложенный интерактив в `<button>` — недопустимая разметка, а у `UserLibFileList` и
-`TemplateSidebar` действия уже есть. Слой состояния у контейнера, чтобы наведение на действие не гасило
-наведение строки.
+Контейнер строки — `div`; цель строки — `button`/`a` `flex-1` с отступами внутри (у строки `gap-0`, мёртвой
+полосы перед действием нет), `action` — после неё в том же ряду. Вложенный интерактив в `<button>` —
+недопустимая разметка, а у `UserLibFileList` и `TemplateSidebar` действия уже есть.
+
+Слой — новой утилитой `state-layer-row` в `index.css` (разбор Архитектора 05.11.2026): у `div` с
+`state-layer` строка теряет нажатие и фокус — `:focus-visible` случается у кнопки, а `:active` нарочно
+гасится, когда нажата вложенная кнопка, то есть сама цель (так уже сломаны `UserLibFileList` и
+`TemplateSidebar`). `state-layer-row`: наведение — по `:hover` контейнера; нажатие и фокус — по
+`:has(> [data-li-target]:is(:focus-visible, :active))`; кольцо `-inset` — у контейнера по тому же `:has`
+(внешнее кольцо срезала бы прокрутка колонки), у действия — его собственное. Растянутый `::after` отвергнут:
+спорит с `touch-target::after` у `IconButton`. Действие видно всегда — `opacity-0 group-hover` на касании
+прячет его вовсе.
 
 ### Р3. `NavItem` — обёртка над `ListItem`
 
-`NavItem` сохраняет свой API (его зовут 13 мест) и поведение: `showDetail` для пункта уровня, `filter`,
-шеврон «ребёнка», который не подсвечивается. Вид и разметку даёт `ListItem`. Пометки `progress`, `alert`,
-`note` и `count` — в `trailing`. Знак — в `leading`.
+`NavItem` сохраняет свой API (его зовут 14 мест) и поведение: `showDetail` для пункта уровня, `filter`,
+шеврон «ребёнка», который не подсвечивается (`selected={false}`, чтобы не протёк `aria-current`). Вид и
+разметку даёт `ListItem`. Пометки `progress`, `alert`, `note` и `count` — в `trailing`; `CountText` получает
+цвет выбранной строки `on-secondary-container` вместо `on-primary-container`. Одно изменение API: `icon`
+становится символом, а не узлом — размер 24 (Л5) задаёт обёртка, а 14 вызовов передают сегодня
+`<Icon size={18}>`. Селекторы e2e (`button[aria-current]`, `[data-testid=ld-nav] button`) держатся, пока
+цель — `button`; хрупок `rail-checks.mjs` (`getByRole('button').last()`) — любое `action` перехватит.
 
 Альтернатива — снять `NavItem` и перевести 13 мест на `ListItem` — отвергнута: правило «пункт уровня
 показывает карточку» живёт в одном месте, и разносить его по экранам — регресс #1355.
@@ -104,32 +130,61 @@ rounded-full`, выбранный `primary-container`, подпись `body-medi
 
 ### Р5. Правило `list-row` — своим модулем
 
-`ui-ratchet-lib.mjs` — 496 строк кода при пороге 500 (`FileSizeRatchet`), поэтому правило живёт в
+`ui-ratchet-lib.mjs` — 479 строк кода при пороге 500 (`FileSizeRatchet`), поэтому правило живёт в
 `scripts/ui-ratchet-lists.mjs` с тестом `ui-ratchet-lists.test.mjs`, по образцу `ui-ratchet-cards.mjs`:
-модуль экспортирует `listRules(countElements)`, lib подключает его одной строкой. Признак — элемент
-разметки (`button`, `a`, `div`, `label`, `li`) в `features/`:
+модуль экспортирует `listRules(countElements)`, lib подключает его одной строкой. Область — по умолчанию
+(вне `shared/ui`, #1469), а не `['features']`. Признак — элемент разметки (`button`, `a`, `div`, `label`,
+`li`):
 - с `state-layer` или `hover:bg-…`;
 - с условной заливкой выбранного: `bg-primary-container` или `bg-secondary-container` в ветке тернарного
-  выражения в `className`.
+  выражения в `className` или вариантом `aria-current:`, `aria-selected:`, `data-[…]:` (кроме
+  `data-[state=open]:`). Имя роли — с границами, как `SURFACE_FILL` в `ui-ratchet-cards.mjs`:
+  `(?<![\w:/-])bg-(primary|secondary)-container(?![\w/-])` — иначе ловится `hover:bg-primary-container/70`
+  (`BaseInstanceChip`).
 
 Не считаются: `data-[state=open]:bg-…` (открытое меню), `hover:bg-primary-container` без условия, заливка
-пометок (`span`), строки `DataGrid` (их рисует `shared/ui`). Уровень заводится по факту в PR 1 — ожидаемо
-около 17 (14 строк перечня, деревья, элементы массива `ComplexFields`); PR 2 опускает его до остатка вне
-change, остаток уходит в ноль в `sharedui-md3-17-screens`. Подсказка — `ListItem` (`shared/ui/ListItem`:
+пометок (`span`), строки `DataGrid` (их рисует `shared/ui`). Пропуск, который оставляем: заливка, собранная в
+переменную вне `className`. Уровень заводится по факту в PR 1 — прогоном признака около 24 (перечень,
+деревья и остаток `ComplexFields` ×3, `RefPickerModal` ×2, `BaseCandidatePicker`, `ScopeGroupList`); PR 2
+опускает его до остатка вне change, остаток уходит в ноль в `sharedui-md3-21-pick-lists`. Подсказка — `ListItem` (`shared/ui/ListItem`:
 `headline`, `supporting`, `leading`, `trailing`, `action`, `selected`), раздел `docs/UI.md` «Списки
 list-detail».
 
 Альтернатива — проверять одно `aria-current` — отвергнута: половина строк перечня его не ставит (счета,
 накладные, роли, профили распознавания).
 
-### Р6. Подсказка у обрезанной подписи
+### Р6. Подсказка у обрезанной подписи — нативный `title`
 
-Полный текст обрезанной подписи — подсказкой `Tooltip` только при обрезке (как у клеток таблицы,
-`sharedui-truncated-cell-tooltip`), а не нативным `title` (правило `native-title`). Если тот change ещё не
-слит, `ListItem` проверяет обрезку сам (`scrollWidth > clientWidth`) — и переходит на общий механизм, когда
-он появится.
+Полный текст обрезанной подписи — нативным `title` у подписи (`truncate`), как у `DetailTitle` и
+`FileNavItem`: это законное исключение правила `native-title` (`truncate` + повтор содержимого) и D4
+`sharedui-truncated-cell-tooltip` («для строк вне сеток — остаётся»). `Tooltip` у каждой строки длинного
+реестра — та цена, которую снимал #1394, и у `Tooltip` со строкой появилось бы `aria-description` — читалка
+произнесла бы имя дважды. Решено владельцем 05.11.2026 вместе с Л1 (разбор Архитектора).
+
+### Р7. Раскрываемая группа — `ListGroupHeader` (вариант Б)
+
+Заголовок сворачиваемой группы — `ListGroupHeader` в `shared/ui` рядом с `ListItem`: подзаголовок MD3
+(`title-small`, `on-surface-variant`, отступы 16 / 16 / 8) целью не ниже 48, шеврон `expand_less` /
+`expand_more` у замыкающего края, `aria-expanded`, число (`CountText`) перед шевроном, `action` — соседом
+(«⋮» группы шаблона). Выбранным не бывает. Строки группы — без отступа. Им пользуются `DocumentTypesPage`
+(группа типов) и `TemplateSidebar` (шаблон → версии; выбрана только версия, двойная подсветка снимается).
+Открытый тип свою группу раскрывает сам, как сегодня. Выбор владельца 05.11.2026 из трёх макетов
+(https://claude.ai/design/p/214e220b-c8a7-4f79-8a6b-ed4b8f2ab57c): А — группа без сворачивания и версии в
+карточке (тянет переделку шапки редактора), В — строка-родитель с отступом (родитель и ребёнок сливаются в
+колонке 256).
+
+### Р8. `GenerationTab` — флажок соседом цели
+
+Строка шаблона генерации — `ListItem` со слотом `leadingAction` (`Checkbox` — участие шаблона) и целью
+«выбрать шаблон для параметров» (`selected` вместо черты `border-l-2`). Поведение #316 «щелчок по всей строке
+переключает участие» сменяется: флажок — своё, строка — своё. Решение владельца 05.11.2026.
 
 ## Решения владельца, нужные до кода (задача 0.3)
+
+**Приняты 05.11.2026** (разбор Дизайнера и Архитектора — задача 0.2): Л1 = (а), полное имя — нативным `title`
+(Р6); Л2 = 48; Л3 — в этом change, раскрываемая группа — вариант Б (Р7), `UserLibFileList` — `ListItem` с
+`depth`; Л4 — вне change, к `sharedui-md3-21-pick-lists`; Л5 = 24, `icon` у `NavItem` — символом (Р3).
+Сверх Л-вопросов — `GenerationTab`, флажок соседом цели (Р8). Записано в зонтик (задача 3.8).
 
 - **Л1. Подпись `body-large` в колонке 320.** Дизайнер предупреждал: подпись 16 режет имена (типы документов,
   наборы данных). Варианты: (а) как в А — `body-large`, многоточие и подсказка, колонка 320; (б) колонка 360
@@ -165,9 +220,9 @@ list-detail».
 
 ## Migration Plan
 
-- **PR 1:** `ListItem`, `NavItem` и `NavSection` на нём, фон колонки `ListDetailShell`, правило `list-row`
-  с уровнем по факту, `docs/UI.md`, перечень правил в `CLAUDE.md` и `AGENTS.md`. Экраны с `NavItem` меняются
-  сами.
-- **PR 2:** строки перечня 2–14, действия «Добавить…», деревья — по Л3; уровень `list-row` опускается тем же
-  PR.
+- **PR 1:** `ListItem`, `ListGroupHeader`, утилита `state-layer-row`, `NavItem` и `NavSection` на них,
+  `CountText` на выбранной строке, правило `list-row` с уровнем по факту, `docs/UI.md`, перечень правил в
+  `CLAUDE.md` и `AGENTS.md`. Экраны с `NavItem` меняются сами (плюс `icon` символом в 14 вызовах).
+- **PR 2:** строки перечня 2–14, действия «Добавить…», группы типов и шаблонов (Р7), дерево `UserLibFileList`,
+  `GenerationTab` (Р8); уровень `list-row` опускается тем же PR.
 - Откат — revert PR: данных и сервера change не трогает.
