@@ -118,11 +118,11 @@
   «›» — у нелучших на узком окне. `NomenclaturePicker`, `PointMatchDialogs`, `ResourceMatchDialog` проверены
   вживую (стрелки, Enter, мышь после покоя). Замер на 1366×768: сколько вариантов видно с открытым листом —
   в описании PR. Проверка — три окна на стенде, лучшее не залито, когда активен другой
-- [ ] 1.5 `InvoicePlaceField` на `ListOption form="menu"` [UI-87]: 40 мышью, 48 на нижнем листе телефона;
+- [x] 1.5 `InvoicePlaceField` на `ListOption form="menu"` [UI-87]: 40 мышью, 48 на нижнем листе телефона;
   активный — `secondary-container`; текущее место — галочкой (П2), `aria-selected` уже его; шаг к объектам
   стройки — `action`, без `hover:bg-primary-container`; длинное имя переносится. Проверка — шаг не выбирает
   место и не уводит фокус из поля; тесты `InvoicePlaceField` зелёные
-- [ ] 1.6 `RefPickerModal`, `BaseCandidatePicker` — варианты на `ListOption form="list"`; `ScopeGroupList` —
+- [x] 1.6 `RefPickerModal`, `BaseCandidatePicker` — варианты на `ListOption form="list"`; `ScopeGroupList` —
   структура Р7: заголовок уровня — `ListGroupHeader` вне listbox (Tab до него доходит), у каждой группы свой
   `role="listbox"` с `aria-labelledby`, поле поиска — `aria-controls` на listbox активного варианта; записи —
   `ListOption` при `asOptions`, иначе `ListItem` [UI-87]. Свёрнутая группа стрелкам не отдаётся

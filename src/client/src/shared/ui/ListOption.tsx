@@ -13,7 +13,8 @@ export type ListOptionProps = ListRowContent & {
   form?: ListRowForm;
   /** Активный вариант — его выберет Enter в поле поиска: заливка `secondary-container`. */
   active: boolean;
-  /** Текущее значение поля: галочка у замыкающего края (П2) и `aria-selected`. */
+  /** Текущее значение поля: галочка у замыкающего края (П2), `aria-selected` и для диктора «сейчас» — описанием,
+   *  а не в имени: имя варианта остаётся его подписью. */
   current?: boolean;
   /** Архивный вариант: в списке, с пометкой «в архиве», не выбирается. */
   disabled?: boolean;
@@ -51,13 +52,13 @@ export function ListOption({ id, form = 'list', active, current = false, disable
     <>
       {disabled && <span>в архиве</span>}
       {trailing}
-      {current && <><Icon icon={Check} size={24} /><span className="sr-only">сейчас</span></>}
+      {current && <Icon icon={Check} size={24} />}
     </>
   );
   const marked = disabled || present(trailing) || current;
   const fill = active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface';
   return (
-    <div id={id} role="option" aria-selected={current} aria-disabled={disabled || undefined} aria-description={description}
+    <div id={id} role="option" aria-selected={current} aria-disabled={disabled || undefined} aria-description={[description, current && 'сейчас'].filter(Boolean).join(', ') || undefined}
       data-testid={testId} onMouseDown={keepFocus} onClick={disabled ? undefined : onChoose}
       onMouseMove={onHover && !active ? onHover : undefined}
       className={`flex items-stretch w-full select-none ${disabled ? 'disabled-content' : 'cursor-pointer state-layer'} ${fill}`}>

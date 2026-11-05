@@ -346,7 +346,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               чтение не дошло бы до кнопки и читало бы оговорку вариантом выбора. */}
           <div onMouseLeave={selection.leave} className="space-y-3">
             {searching ? (
-              <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-2 space-y-0.5">
+              <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-4">
                 {results.map(option)}
               </div>
             ) : (
@@ -354,7 +354,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                 <CandidatesBlock asked={question !== null} answer={candidates} rows={picked.rows.length}
                   more={picked.more} current={current} headingId={headingId}>
                   {picked.rows.length > 0 && (
-                    <div id={listId} role="listbox" aria-labelledby={headingId} className="-mx-2 space-y-0.5">
+                    <div id={listId} role="listbox" aria-labelledby={headingId} className="-mx-4">
                       {picked.rows.map(option)}
                     </div>
                   )}
@@ -365,7 +365,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                     <h4 id={allHeadingId} className="text-body-small font-medium text-on-surface-variant">
                       Остальные позиции справочника ({directory.length})
                     </h4>
-                    <div id={allId} role="listbox" aria-labelledby={allHeadingId} className="-mx-2 space-y-0.5">
+                    <div id={allId} role="listbox" aria-labelledby={allHeadingId} className="-mx-4">
                       {directory.map(option)}
                     </div>
                   </div>

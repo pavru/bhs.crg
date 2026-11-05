@@ -53,8 +53,10 @@ describe('ListOption', () => {
     render(<Picker onChoose={() => {}} />);
     const options = screen.getAllByRole('option');
     expect(options.map(o => o.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
-    expect(options[2].textContent).toContain('сейчас');
-    expect(options[0].textContent).not.toContain('сейчас');
+    expect(options[2].getAttribute('aria-description')).toBe('сейчас');
+    expect(options[2].querySelector('svg')).not.toBeNull();
+    expect(options[0].hasAttribute('aria-description')).toBe(false);
+    expect(screen.getByRole('option', { name: 'Труба' })).toBe(options[2]);
   });
 
   it('нажатие выбирает и не уводит фокус; архивный — «в архиве», не выбирается', () => {

@@ -74,7 +74,7 @@ describe('поле «стройка / раздел» в шапке счёта', 
   it('«›» открывает разделы: «вся стройка» первым, раздел выбирается со стройкой', () => {
     const onPick = show({ kind: 'none' });
     open();
-    const chevron = screen.getByRole('option', { name: 'Комарова 36' }).nextElementSibling as HTMLElement;
+    const chevron = screen.getByRole('option', { name: 'Комарова 36' }).querySelector('button')!;
     fireEvent.click(chevron);
     expect(screen.getByRole('listbox', { name: 'Разделы стройки «Комарова 36»' })).toBeTruthy();
     expect(groups()).toEqual([['Комарова 36', ['— вся стройка —', '5 эт.', '4 эт.']]]);
@@ -85,8 +85,8 @@ describe('поле «стройка / раздел» в шапке счёта', 
   it('у стройки без разделов и у статьи «›» нет', () => {
     show({ kind: 'none' });
     open();
-    expect(screen.getByRole('option', { name: 'Ленина 5' }).nextElementSibling).toBeNull();
-    expect(screen.getByRole('option', { name: 'Склад' }).nextElementSibling).toBeNull();
+    expect(screen.getByRole('option', { name: 'Ленина 5' }).querySelector('button')).toBeNull();
+    expect(screen.getByRole('option', { name: 'Склад' }).querySelector('button')).toBeNull();
   });
 
   it('стрелки с клавиатуры: вправо — разделы, влево — назад, Enter — выбор', () => {
@@ -112,7 +112,7 @@ describe('поле «стройка / раздел» в шапке счёта', 
   it('после «›» и «‹» фокус остаётся в поле набора — клавиши продолжают работать', () => {
     show({ kind: 'none' });
     open();
-    const chevron = screen.getByRole('option', { name: 'Комарова 36' }).nextElementSibling as HTMLElement;
+    const chevron = screen.getByRole('option', { name: 'Комарова 36' }).querySelector('button')!;
     // Кнопка не забирает фокус на нажатии мыши: событие отменено.
     expect(fireEvent.mouseDown(chevron)).toBe(false);
     fireEvent.click(chevron);
@@ -132,7 +132,7 @@ describe('поле «стройка / раздел» в шапке счёта', 
     fireEvent.keyDown(search(), { key: 'End' });
     expect(scrolled.at(-1)).toBe('Склад');
     fireEvent.keyDown(search(), { key: 'Home' });
-    expect(scrolled.at(-1)).toBe('Комарова 36');
+    expect(scrolled.at(-1)).toMatch(/^Комарова 36/);
   });
 
   it('справочник ещё грузится — «…», а не «Ничего не найдено»', () => {
