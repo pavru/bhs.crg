@@ -132,6 +132,9 @@
 - [ ] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
   «в архиве», активная — `secondary-container` вместо `surface-container`. Проверка — стенд: шаг новой
   номенклатуры с похожими и архивной
+  _Отступление (PR 1, 06.11.2026):_ строки — `ListItem`, а не `ListOption`. У шага нет поля, которое вело бы
+  их стрелками, и вариант без фокуса оставил бы клавиатуре нечем выбрать похожую позицию. Наведённая —
+  `selected` (справа её карточка), архивная — `passive` с «в архиве»; вид — как у формы `list`.
 - [x] 1.8 По П5 (да) — `SuggestBox` на `ListOption form="menu"` (40 вместо `min-h-8`), `TypePicker` на
   `ListOption form="list"` с `aria-activedescendant` вместо кнопки внутри `option` (Р6). Поведение прежнее,
   правка ARIA у `TypePicker` и пересечения с `work-22-web-entry-ui`, `sharedui-date-input-back-layer` названы в
