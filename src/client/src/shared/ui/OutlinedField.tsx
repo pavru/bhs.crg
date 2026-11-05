@@ -188,9 +188,12 @@ export function OutlinedField({
       <div className={`relative ${hover} ${disabledFrame} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
         <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
-            и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет. */}
+            и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет.
+            `min-w-0` обязателен: у fieldset по умолчанию `min-inline-size: min-content`, и всплывшая
+            подпись (legend без переноса) растягивала рамку на всю длину текста — в узкой ячейке формы
+            (две колонки на телефоне) рамка вылезала за поле и заходила на соседнее (sharedui-md3-19). */}
         {!cell && <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 ${dense ? 'top-0' : 'top-[-5px]'} m-0 rounded-xs border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
+          className={`pointer-events-none absolute inset-x-0 bottom-0 ${dense ? 'top-0' : 'top-[-5px]'} m-0 min-w-0 rounded-xs border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
           {!dense && (
             <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-body-small invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
               <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>

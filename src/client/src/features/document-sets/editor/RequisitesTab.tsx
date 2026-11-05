@@ -15,6 +15,8 @@ import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
+import { BoundStateHint, LockedFieldNote } from './FieldStateNotes';
+import { boundStateText } from './boundStateText';
 import { ContainerFieldBinding } from './ContainerFieldBinding';
 import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, candidateName, SuggestOwner, type BaseCandidate } from '../fields';
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
@@ -66,30 +68,6 @@ function SourceBoundDocField(
       </span>
     </div>
   );
-}
-
-/// Подсказка о состоянии связанного скалярного поля без значения (issue #67): грузится / источник
-/// недоступен / источник не дал значения — чтобы пустой read-only бокс не выглядел как «немой».
-/**
- * Подпись под запертым полем — словами, а не одним значком у заголовка.
- *
- * Значок говорит «что-то с этим полем не так, как с соседним», но не говорит ЧТО, а наведение
- * мышью — не способ узнать: читают-то глазами. Инструкция администратора обещает эту подпись во
- * всех трёх формах по схеме, и обещание должно быть верным во всех трёх (issue #958).
- */
-function LockedFieldNote() {
-  return (
-    <p className="text-label-small text-on-surface-variant mt-0.5 flex items-center gap-1">
-      <LockedFieldIcon />{LOCKED_HINT}
-    </p>
-  );
-}
-
-function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }) {
-  const text = loading ? 'Загрузка значения из источника…'
-    : error ? 'Источник недоступен — проверьте в «Источниках»'
-    : 'Источник не дал значения';
-  return <p className="text-label-small text-on-surface-variant mt-0.5 italic">{text}</p>;
 }
 
 // Стабильный пустой дефолт для загружающихся списочных запросов. КРИТИЧНО (issue #305): `= []` в
@@ -478,9 +456,20 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           const constraintError = constraintErrors[field.key];
           const hasError = missing || !!constraintError;
           const wide = isWideField(field);
+          // Значение из источника и под замком — поле только для чтения с подписью в вырезе, как у
+          // редактируемых ([UI-86], вариант А, 05.11.2026). Подписи над полем у него нет: имя примитива,
+          // пояснение замка и состояние источника — подсказкой поля, ошибка — на её месте, а замок и
+          // происхождение — в хвосте. Флажок не меняется: подписывает он себя сам, справа.
+          const recognized = recognizedBoundFields.has(field.key);
+          const stale = staleBoundFields.has(field.key);
+          const originId = `${instance.id}-${field.key}-origin`;
+          const fixedHint = [primitiveDef?.name, locked ? LOCKED_HINT : null,
+            boundEmpty ? boundStateText(previewingBindings, hasBindingError) : null].filter(Boolean).join(' · ') || undefined;
+          const fixedError = missing ? 'Обязательное поле' : constraintError || undefined;
 
           if (wide) {
             const isContainer = field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array';
+            const fixedText = field.type === 'text' && (bound || locked);
             return (
               <div key={field.key} className="col-span-2 relative group">
                 {/* Per-field привязка контейнерного поля «линза» (issue #296, фаза 2a) — модалка в углу. */}
@@ -492,10 +481,11 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 )}
                 {/* Текст подписывает себя сам (issue #574): подпись живёт в вырезе рамки, как у
                     соседних однострочных полей. Своя подпись здесь дала бы вторую — над полем.
-                    Кроме привязанного к источнику: там контрол read-only и подпись сверху идёт
-                    вместе с бейджем привязки — как и у простых полей ниже. */}
+                    Привязанный и запертый текст — тоже ([UI-86]): замок и знак происхождения у него в
+                    хвосте поля. Счётчики подписи тексту не нужны: битых ссылок в тексте не бывает, а
+                    расхождение с типом и так названо под полем (`ValueIssueHint`). */}
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array'
-                  && !(field.type === 'text' && !bound && !locked) && !(locked && isContainer) && (
+                  && field.type !== 'text' && !(locked && isContainer) && (
                   <label className="block text-body-small font-medium text-on-surface-variant mb-1 pr-5">
                     {field.title}
                     {/* У запертого поля ни звёздочки, ни «опц.»: и то и другое — указание тому, кто
@@ -506,9 +496,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     </>}
                     <BrokenCount count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueCount count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
-                    {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
-                        признак происхождения им нужен ровно так же: связанное текстовое поле
-                        read-only, и узнать, что значение прочитано со скана, иначе неоткуда. */}
+                    {/* Широкие поля (картинка, файл, ссылка на документ) подписываются здесь, и
+                        признак происхождения им нужен ровно так же: связанное поле read-only, и
+                        узнать, что значение прочитано со скана, иначе неоткуда. */}
                     {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
                         <SourceOriginIcon
@@ -571,17 +561,29 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                         setValues(prev => ({ ...prev, ...updates }));
                       },
                     } : undefined} />
+                ) : fixedText ? (
+                  // Своей кнопки привязки у широкого текста нет (её не было и до [UI-86]), поэтому в
+                  // хвосте — сам знак происхождения, а не кнопка, слитая с ним.
+                  <PrimitiveInput field={field} value={displayValue} label={field.title} readOnly
+                    onChange={() => {}} invalid={hasError} hint={fixedHint} error={fixedError}
+                    trailing={locked || recognized || stale ? <>
+                      {locked && <LockedFieldIcon />}
+                      {(recognized || stale) && <SourceOriginIcon id={originId}
+                        origin={recognized ? 'Recognized' : undefined} stale={stale} staleReason={staleReasonOf(field.key)} />}
+                    </> : undefined}
+                    trailingMark={locked && (recognized || stale)}
+                    describedBy={recognized || stale ? originId : undefined} />
                 ) : (
-                  <PrimitiveInput field={field} value={displayValue}
-                    label={field.type === 'text' && !bound && !locked ? field.title : undefined}
+                  <PrimitiveInput field={field} value={displayValue} label={field.title}
                     onChange={v => setValue(field.key, v, primitiveDef)}
-                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)}
-                    readOnly={bound || locked} />
+                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} />
                 )}
-                {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
-                {locked && <LockedFieldNote />}
-                {missing && <p className="text-body-small text-error mt-1">Обязательное поле</p>}
-                {!missing && constraintError && <p className="text-body-small text-error mt-1">{constraintError}</p>}
+                {!fixedText && <>
+                  {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+                  {locked && <LockedFieldNote />}
+                  {missing && <p className="text-body-small text-error mt-1">Обязательное поле</p>}
+                  {!missing && constraintError && <p className="text-body-small text-error mt-1">{constraintError}</p>}
+                </>}
                 {/* Расхождение с типом (issue #644) — после ошибок формы: те про текущий ввод, это
                     про сохранённое значение, чаще всего пришедшее не отсюда. */}
                 {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} />}
@@ -589,66 +591,61 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
             );
           }
 
-          // Простые поля (string/number/date/enum/boolean/primitive). Редактируемые — MD3 floating-label
-          // (G1); привязанные к источнику (read-only, с бейджем) — оставляем label-сверху.
+          // Простые поля (string/number/date/enum/boolean/primitive) — MD3 floating-label (G1), у
+          // привязанных к источнику и запертых тоже ([UI-86]).
+          const fixed = bound || locked;
+          const checkbox = field.type === 'boolean';
+          // Per-field привязка «линза» (issue #296, фаза 1) — привязать/изменить/отвязать. Запертому полю
+          // источник не назначается — «линзы» у него нет. Но если привязка ДОСТАЛАСЬ ему от прежней версии
+          // типа (замок модуль объявляет поверх живых данных), линзу показываем: иначе единственный выход —
+          // снять привязку — оказался бы закрыт, а поле навсегда заполнялось бы источником вместо модуля.
+          // У поля только для чтения линза — в хвосте и слита со знаком происхождения (D7 sharedui-md3-19):
+          // в углу ячейки она накрыла бы хвост. У редактируемого поля и флажка — в углу, как была.
+          const lens = (!locked || bound) && (
+            <FieldSourceBinding instanceId={instance.id} setId={setId} field={field}
+              scalarFields={scalarSchemaFields} bindings={dsBindings}
+              origin={fixed && !checkbox
+                ? { recognized, stale, staleReason: staleReasonOf(field.key), describeId: originId } : undefined} />
+          );
           return (
             <div key={field.key} className="col-span-1 min-w-0 relative group">
-              {/* Per-field привязка «линза» (issue #296, фаза 1): иконка в углу — привязать/изменить/отвязать. */}
-              {/* Запертому полю источник не назначается — «линзы» у него нет. Но если привязка
-                  ДОСТАЛАСЬ ему от прежней версии типа (замок модуль объявляет поверх живых данных),
-                  линзу показываем: иначе единственный выход — снять привязку — оказался бы закрыт,
-                  а поле навсегда заполнялось бы источником вместо модуля. */}
-              {(!locked || bound) && (
-              <div className="absolute top-0.5 right-0.5 z-10">
-                <FieldSourceBinding instanceId={instance.id} setId={setId} field={field}
-                  scalarFields={scalarSchemaFields} bindings={dsBindings} />
-              </div>
-              )}
-              {bound || locked ? (
-                <>
-                  {/* Флажок подписывает себя сам — текстом справа от квадратика. Своя подпись
-                      сверху дала бы ВТОРУЮ, слово в слово: у read-only флажка так и выходило. */}
-                  {field.type !== 'boolean' && (
-                  <label className="block text-body-small font-medium text-on-surface-variant mb-1 pr-5">
-                    {field.title}
-                    {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" />
-                      : field.required && <span className="ml-0.5 text-error">*</span>}
-                    {primitiveDef && <span className="ml-1 text-label-small text-on-surface-variant font-normal">· {primitiveDef.name}</span>}
-                    {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
-                      <span className="ml-1 inline-block align-text-bottom">
-                        <SourceOriginIcon
-                          origin={recognizedBoundFields.has(field.key) ? 'Recognized' : undefined}
-                          stale={staleBoundFields.has(field.key)}
-                          staleReason={staleReasonOf(field.key)} />
-                      </span>
-                    )}
-                  </label>
+              {lens && (!fixed || checkbox) && <div className="absolute top-0.5 right-0.5 z-10">{lens}</div>}
+              {fixed && checkbox ? (
+                <span className="flex items-center gap-1.5">
+                  <PrimitiveInput field={field} value={displayValue} label={field.title}
+                    onChange={v => setValue(field.key, v, primitiveDef)}
+                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly />
+                  {/* У флажка признаки становятся рядом с его собственной подписью: хвоста, где они
+                      стоят у остальных типов, у него нет. */}
+                  {locked && <LockedFieldIcon />}
+                  {(recognized || stale) && (
+                    <SourceOriginIcon origin={recognized ? 'Recognized' : undefined}
+                      stale={stale} staleReason={staleReasonOf(field.key)} />
                   )}
-                  <span className="flex items-center gap-1.5">
-                    <PrimitiveInput field={field} value={displayValue}
-                      onChange={v => setValue(field.key, v, primitiveDef)}
-                      invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly />
-                    {/* У флажка признаки становятся рядом с его собственной подписью: подписи
-                        сверху, где они стоят у остальных типов, здесь нет. */}
-                    {field.type === 'boolean' && locked && <LockedFieldIcon />}
-                    {field.type === 'boolean' && (recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
-                      <SourceOriginIcon
-                        origin={recognizedBoundFields.has(field.key) ? 'Recognized' : undefined}
-                        stale={staleBoundFields.has(field.key)}
-                        staleReason={staleReasonOf(field.key)} />
-                    )}
-                  </span>
-                </>
+                </span>
+              ) : fixed ? (
+                // Больше двух знаков в хвосте нет: замок и кнопка привязки, которая сама называет
+                // происхождение. Её пояснение диктор слышит вместе с полем.
+                <PrimitiveInput field={field} value={displayValue} label={field.title} readOnly
+                  onChange={v => setValue(field.key, v, primitiveDef)}
+                  invalid={hasError} hint={fixedHint} error={fixedError}
+                  primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)}
+                  trailing={<>{locked && <LockedFieldIcon />}{bound && lens}</>}
+                  trailingMark={locked && bound} describedBy={bound ? originId : undefined} />
               ) : (
                 <PrimitiveInput field={field} value={displayValue} label={field.title}
                   hint={primitiveDef ? primitiveDef.name : undefined}
                   onChange={v => setValue(field.key, v, primitiveDef)}
                   invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} />
               )}
-              {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
-              {locked && <LockedFieldNote />}
-              {missing && <p className="text-label-small text-error mt-0.5">Обязательное поле</p>}
-              {!missing && constraintError && <p className="text-label-small text-error mt-0.5">{constraintError}</p>}
+              {checkbox && <>
+                {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+                {locked && <LockedFieldNote />}
+              </>}
+              {(!fixed || checkbox) && <>
+                {missing && <p className="text-label-small text-error mt-0.5">Обязательное поле</p>}
+                {!missing && constraintError && <p className="text-label-small text-error mt-0.5">{constraintError}</p>}
+              </>}
               {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
             </div>
           );
