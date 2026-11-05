@@ -16,7 +16,7 @@
   комментарием к задаче (`docs/UI.md`, «Новый экран: порядок», шаг 1). Проверка — ссылка на разбор в
   задаче.
   Сделано 01.11.2026. Сводка — лист «0 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Дизайнер рекомендует по одному со знаком у ошибки, а badge — только на знаке и вкладке; число у подписи
   — текст с тоном (отменяет [UI-45]). Архитектор о виде не спорит: очередь в провайдере, ошибки среди
   ожидающих первыми, потолок и срок годности ожидающих, PR 0 «только имена». Находки, меняющие план, —
@@ -51,11 +51,11 @@
 
   Badge (error) на знаке, вкладке и пункте навигации, banner и подсказки — одинаковы на всех трёх листах:
   - (А) MD3 целиком: по одному без знака, `StatusText`, число у подписи текстом —
-    https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c?file=%D0%90+-+MD3+%D1%86%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%BC.html
+    https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH?file=%D0%90+-+MD3+%D1%86%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%BC.html
   - (Б) по одному, ошибка со знаком, `StatusText`, число у подписи текстом цвета роли —
-    https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c?file=%D0%91+-+%D0%B7%D0%BD%D0%B0%D0%BA+%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B8+%D0%B8+%D1%87%D0%B8%D1%81%D0%BB%D0%BE+%D1%81+%D1%82%D0%BE%D0%BD%D0%BE%D0%BC.html
+    https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH?file=%D0%91+-+%D0%B7%D0%BD%D0%B0%D0%BA+%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B8+%D0%B8+%D1%87%D0%B8%D1%81%D0%BB%D0%BE+%D1%81+%D1%82%D0%BE%D0%BD%D0%BE%D0%BC.html
   - (В) стопка до трёх с цветом ошибки, пометка и счётчик — пилюли по [UI-45] —
-    https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c?file=%D0%92+-+%D1%81%D1%82%D0%BE%D0%BF%D0%BA%D0%B0+%D0%B8+%D0%BF%D0%B8%D0%BB%D1%8E%D0%BB%D0%B8.html
+    https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH?file=%D0%92+-+%D1%81%D1%82%D0%BE%D0%BF%D0%BA%D0%B0+%D0%B8+%D0%BF%D0%B8%D0%BB%D1%8E%D0%BB%D0%B8.html
 - [x] 0.4 Выбор владельца (pavru) и решение В9 записаны в зонтике с датой; решение по счётчику
   ([UI-45] против MD3-badge) — там же. Выбор перенесён в `design.md` и [UI-71]…[UI-74] через
   `/opsx:update sharedui-md3-12-feedback`. Проверка — `openspec validate sharedui-md3-12-feedback --strict`;
@@ -227,5 +227,5 @@
   https://claude.ai/artifact/SAEFG9d4ZGfW69XBF7vd32; ссылка — в описаниях #1717, #1718, #1719.
 - [x] 3.6 PR 1 и PR 2 — с меткой `version:minor`, PR 0 «только имена» — без неё. В описании каждого —
   макет, выбранный вариант (А) и ссылка
-  https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c.
+  https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH.
   Сделано 01.11.2026: метки сверены; в описания #1717 и #1718 макет и выбор дописаны после слияния.

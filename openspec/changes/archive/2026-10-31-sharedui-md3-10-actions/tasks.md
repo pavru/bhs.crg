@@ -14,7 +14,7 @@
 - [x] 0.2 Разбор с Дизайнером и Архитектором (слой `shared/ui`) — комментарием к задаче (`docs/UI.md`,
   «Новый экран: порядок», шаг 1). Проверка — ссылка на разбор в задаче.
   Сделано 31.10.2026. Сводка — лист «0 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/d79801d4-00b7-4eb6-8ee7-d68506dbe64c?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/QEDNhW2sbFUVvuGYXU3QbH?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Оба независимо рекомендуют (Б): кнопка-иконка 32 (размер XS M3 Expressive, знак 20) только в
   клетках `DataGrid`/`EditGrid` и только при мыши; размер ставит CSS-переменная сетки. Находки,
   меняющие план (своё в `shared/ui`: `RowActionsMenu`, крестик `EditGrid`, `MoveButtons`; проп `icon`
@@ -35,9 +35,9 @@
 
   Проверка — ссылки на три макета в задаче.
   Сделано 31.10.2026, проект «Действия MD3 — кнопки, чипы, сегменты (В7)»:
-  - (А) https://claude.ai/design/p/d79801d4-00b7-4eb6-8ee7-d68506dbe64c?file=%D0%90+-+40+%D0%B2%D0%B5%D0%B7%D0%B4%D0%B5.html
-  - (Б) https://claude.ai/design/p/d79801d4-00b7-4eb6-8ee7-d68506dbe64c?file=%D0%91+-+XS+32+%D0%B2+%D0%BA%D0%BB%D0%B5%D1%82%D0%BA%D0%B0%D1%85.html
-  - (В) https://claude.ai/design/p/d79801d4-00b7-4eb6-8ee7-d68506dbe64c?file=%D0%92+-+dense+32+%D0%B2+%D0%BF%D0%B0%D0%BD%D0%B5%D0%BB%D1%8F%D1%85.html
+  - (А) https://claude.ai/artifact/QEDNhW2sbFUVvuGYXU3QbH?file=%D0%90+-+40+%D0%B2%D0%B5%D0%B7%D0%B4%D0%B5.html
+  - (Б) https://claude.ai/artifact/QEDNhW2sbFUVvuGYXU3QbH?file=%D0%91+-+XS+32+%D0%B2+%D0%BA%D0%BB%D0%B5%D1%82%D0%BA%D0%B0%D1%85.html
+  - (В) https://claude.ai/artifact/QEDNhW2sbFUVvuGYXU3QbH?file=%D0%92+-+dense+32+%D0%B2+%D0%BF%D0%B0%D0%BD%D0%B5%D0%BB%D1%8F%D1%85.html
 - [x] 0.4 Выбор владельца (pavru) и решение В7 записаны в зонтике с датой (записано 31.10.2026: Б). Выбор перенесён в `design.md`
   и [UI-68] через `/opsx:update sharedui-md3-10-actions`. Проверка —
   `openspec validate sharedui-md3-10-actions --strict`; в design назван макет и вариант.

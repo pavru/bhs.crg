@@ -16,7 +16,7 @@
 
 ## 2. Экран (макеты П6)
 
-- [ ] 2.1 Раунд П6 (общий с `plan-26`): три варианта вкладки «План против факта» в Claude Design, выбор
+- [ ] 2.1 Раунд П6 (общий с `plan-26`): три варианта вкладки «План против факта» в Claude (артефакты типа «Design»), выбор
   владельца; ссылку вписать сюда [COST-21]. Проверка — ссылка на выбранный вариант в `design.md`
 - [ ] 2.2 `shared/api/estimateVsCosts.ts` и вкладка `features/costs/EstimateVsCosts.tsx` в `SiteCostsPage.tsx` на `DataGrid`;
   состояния колонки словами [COST-21]. Проверка — vitest: `hidden` — подпись с правом; `not-in-estimate` —
