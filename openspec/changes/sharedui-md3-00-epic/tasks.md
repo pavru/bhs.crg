@@ -282,11 +282,14 @@
   `ui-ratchet-empty-level.test.mjs`, `docs/UI.md`, перечень правил в `CLAUDE.md` / `AGENTS.md` и архив
   `2026-11-05-sharedui-md3-17-screens` одним PR. `raw-field`, `legacy-radius`, `legacy-shadow`, `legacy-type` —
   ноль во всём `src/`; `notice-plaque` 8 и `hand-card` 8 — только файлы экрана счёта
-- [ ] 4.1a `sharedui-md3-19-requisite-fields` (2–3) — значение реквизита из источника и под замком: пять
+- [x] 4.1a `sharedui-md3-19-requisite-fields` (2–3) — значение реквизита из источника и под замком: пять
   сырых полей `fieldInputClass` в `PrimitiveInput` → поле `shared/ui` по варианту владельца [UI-86];
   `raw-field` видит класс из функции и другого модуля, `FIELD_CLS` — объявленное исключение [UI-69]. Вынесен
   из 4.1 решением владельца 05.11.2026 (заметка к задаче 3.1 md3-17). Раздел 0 — три макета и выбор
   владельца. 4.2 не блокирует: в `fieldInputClass` нет псевдонимов. Проверка — change заархивирован.
+  Закрыт 06.11.2026: вариант А (подпись в вырезе, знаки в хвосте), PR 0 — хвост поля в `shared/ui` (#1774),
+  PR 1 — поле реквизита (#1775), PR 2 — `raw-field` по дереву разбора с импортами (#1776); `/design-sync` —
+  владелец 06.11.2026; архив `2026-11-06-sharedui-md3-19-requisite-fields`.
 - [ ] 4.1b `sharedui-md3-21-pick-lists` (1–2) — остаток правила `list-row` после `sharedui-md3-18-lists`:
   списки выбора в окнах (`role="option"`, listbox с клавиатурой комбобокса — `PickerRows`,
   `InvoicePlaceField`, `RefPickerModal`, `BaseCandidatePicker`, `ScopeGroupList`, `InstancePickerModal`,
