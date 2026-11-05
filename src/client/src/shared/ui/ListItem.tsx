@@ -2,7 +2,8 @@ import type { MouseEvent, ReactNode, Ref } from 'react';
 import { Tooltip } from './Tooltip';
 import { Link } from 'react-router';
 import { useGuardedNavClick } from './NavigationGuard';
-import { ListRowBody, listRowBox, present, type ListRowContent } from './listRow';
+import { ListRowBody } from './listRow';
+import { listRowBox, present, type ListRowContent } from './listRowBox';
 
 
 type Target =

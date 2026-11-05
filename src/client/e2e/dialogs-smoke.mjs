@@ -651,7 +651,7 @@ await check('quality-picker-keeps-chosen-search-type-across-close', async () => 
   await typeTrigger(dlg).first().click();
   await settled(page);
   const picker = page.locator('[role=dialog]').last();
-  const options = await picker.locator('button')
+  const options = await picker.getByRole('option')
     .evaluateAll(els => els.map(e => e.innerText.split(/\r?\n/)[0].trim()).filter(Boolean));
   const other = options.find(o => o !== firstType && /письмо|Декларация|Паспорт|Сертификат/i.test(o));
   if (!other) throw new Error(`второго типа в пикере нет: ${options.slice(0, 12).join(' | ')}`);

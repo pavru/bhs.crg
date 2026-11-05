@@ -3,7 +3,8 @@ import { IconButton } from './Button';
 import { Icon } from './Icon';
 import { Check } from './icons';
 import type { IconDef } from './icons/types';
-import { ListRowBody, listRowBox, present, type ListRowContent, type ListRowForm } from './listRow';
+import { ListRowBody } from './listRow';
+import { listRowBox, present, type ListRowContent, type ListRowForm } from './listRowBox';
 
 export type ListOptionProps = ListRowContent & {
   /** Адрес варианта — его называет `aria-activedescendant` поля поиска. */

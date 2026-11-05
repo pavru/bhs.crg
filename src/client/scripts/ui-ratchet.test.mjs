@@ -123,8 +123,9 @@ describe('храповик интерфейса: счёт', () => {
   });
 
   it('свои вкладки по ARIA', () => {
+    // role="option" — не вкладка; его считает list-row (вариант выбора руками, sharedui-md3-21).
     expect(countViolations('<div role="tablist"><button role="tab" aria-selected={on}>A</button></div> <div role="option" />'))
-      .toEqual({ tabs: 2 });
+      .toEqual({ tabs: 2, 'list-row': 1 });
   });
 
   /** Белое на светлой заливке тёмной темы (issue #1462): пара литералов — где бы ни стояла. */

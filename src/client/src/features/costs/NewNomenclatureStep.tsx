@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/shared/ui/Button';
+import { ListItem } from '@/shared/ui/ListItem';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -271,7 +272,7 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
 
   return (
     <div className="space-y-1">{head}
-      <div onMouseLeave={leave} className="space-y-0.5">
+      <div onMouseLeave={leave}>
         {hits.map(hit => (
           <Row key={hit.position.id} position={hit.position} why={hit.why} action="Это она" onPick={onPick}
             active={hit.position.id === active} onHover={() => hover(hit.position.id)} />
@@ -289,6 +290,11 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
   );
 }
 
+/**
+ * Похожая позиция — строка списка `ListItem` ([UI-87], sharedui-md3-21): у шага нет поля, которое вело бы
+ * варианты стрелками, поэтому строка — цель с фокусом, а не вариант `ListOption`. Наведённая — «карточка
+ * этой строки открыта» (`selected`): справа её карточка.
+ */
 function Row({ position, why, action, onPick, active = false, onHover }: {
   position: NomenclaturePosition;
   why?: string;
@@ -297,26 +303,15 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   active?: boolean;
   onHover?: () => void;
 }) {
-  const label = (
-    <>
-      <span className="text-body-medium text-on-surface truncate">{position.name ?? 'без названия'}</span>
-      {why && <span className="text-label-small text-on-surface-variant truncate">{why}</span>}
-      <span className="text-label-small text-on-surface-variant shrink-0">{position.type}</span>
-    </>
-  );
+  const content = { headline: position.name ?? 'без названия', supporting: why };
   // Архивную выбрать нельзя — сервер её в новую строку не примет; но показать обязаны: иначе её
   // заведут заново.
-  if (position.archived) return (
-    <div onMouseMove={active ? undefined : onHover}
-      className={`px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
-      {label}<span className="ml-auto text-label-small text-on-surface-variant shrink-0">в архиве</span>
-    </div>
-  );
   return (
-    <button type="button" onClick={() => onPick(position.id, position.name)}
-      onMouseMove={active ? undefined : onHover}
-      className={`state-layer w-full text-left px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
-      {label}<span className="ml-auto text-body-small text-primary shrink-0">{action}</span>
-    </button>
+    <div className="-mx-4" onMouseMove={active ? undefined : onHover}>
+      {position.archived
+        ? <ListItem passive {...content} trailing={<>{position.type}<span>в архиве</span></>} />
+        : <ListItem {...content} selected={active} onClick={() => onPick(position.id, position.name)}
+            trailing={<>{position.type}<span className="text-body-small text-primary">{action}</span></>} />}
+    </div>
   );
 }

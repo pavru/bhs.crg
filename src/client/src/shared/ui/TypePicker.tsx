@@ -3,8 +3,8 @@ import { DIALOG_SCRIM, DIALOG_SURFACE } from './dialogSurface';
 import { Icon } from './Icon';
 import { Block, Search } from './icons';
 import { typeIcon } from './typeIcons';
-import { useMemo, useRef, useState } from 'react';
-import { Tooltip } from './Tooltip';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ListOption } from './ListOption';
 import { useHistoryLayer } from './historyLayers';
 
 /**
@@ -50,6 +50,7 @@ export function TypePicker(props: TypePickerProps) {
 function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Выберите тип', noneOption, onSelectNone, aside }: TypePickerProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  const ids = useId();
   const [revealed, setRevealed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -107,6 +108,8 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
   const noneVisible = !!noneOption && !q;
   const base = noneVisible ? 1 : 0;
   const total = base + flat.length;
+  // Активный — на виду: список прокручивается, и подсветка ушла бы за край.
+  useEffect(() => { document.getElementById(`${ids}-o${active}`)?.scrollIntoView?.({ block: 'nearest' }); }, [ids, active]);
 
 
 
@@ -130,6 +133,14 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
     }
   }
 
+  // Адреса вариантов и их listbox: поле поиска называет активный и список, где он стоит.
+  const optionId = (i: number) => `${ids}-o${i}`;
+  const listOf = (i: number) => {
+    if (noneVisible && i === 0) return `${ids}-none`;
+    let left = i - base;
+    for (const g of sections) { if (left < g.items.length) return `${ids}-${g.key}`; left -= g.items.length; }
+    return undefined;
+  };
   let idx = base - 1; // сквозной индекс строки типа (после none-строки, если она есть); ++idx даёт base
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
@@ -145,51 +156,44 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
+              role="combobox" aria-expanded aria-controls={listOf(active)} aria-activedescendant={total > 0 ? optionId(active) : undefined}
               className="h-12 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-variant" />
             <kbd className="rounded-xs border border-outline-variant px-1 text-label-small text-on-surface-variant">Esc</kbd>
           </div>
-          <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
+          {/* Варианты — ListOption формы `list` ([UI-87]): фокус в поле поиска, активный — `aria-activedescendant`.
+              У каждой группы свой listbox, подписанный её заголовком (Р7); заголовок — не вариант. */}
+          <div className="overflow-y-auto py-2">
             {noneVisible && (
-              <li role="option" aria-selected={active === 0}>
-                <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body-medium ${
-                    active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
-                  <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
-                  <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
-                </button>
-              </li>
+              <div role="listbox" id={`${ids}-none`} aria-label={title}>
+                <ListOption id={optionId(0)} icon={Block} headline={noneOption!.label} active={active === 0}
+                  onHover={() => setActive(0)} onChoose={chooseNone} />
+              </div>
             )}
             {/* Пусто, но выход есть — «Ничего не найдено» было бы неправдой: найдено, но в стороне. */}
             {flat.length === 0 ? (
-              !noneVisible && !asideHidden && <li className="px-3 py-6 text-center text-body-medium text-on-surface-variant">Ничего не найдено</li>
+              !noneVisible && !asideHidden && <p className="px-3 py-6 text-center text-body-medium text-on-surface-variant">Ничего не найдено</p>
             ) : sections.map(g => (
-              <li key={g.key}>
+              <div key={g.key}>
                 {g.heading && (
-                  <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-body-small font-medium text-on-surface-variant">{g.heading}</div>
+                  <div className="mt-2 border-t border-outline-variant px-4 pt-3 pb-1 text-body-small font-medium text-on-surface-variant">{g.heading}</div>
                 )}
-                <div className="px-3 pt-2 pb-1 text-title-small text-on-surface-variant">{g.label}</div>
-                <ul>
+                <div id={`${ids}-${g.key}-h`} className="px-4 pt-2 pb-1 text-title-small text-on-surface-variant">{g.label}</div>
+                <div role="listbox" id={`${ids}-${g.key}`} aria-labelledby={`${ids}-${g.key}-h`}>
                   {g.items.map(t => {
                     const i = ++idx;
-                    const icon = typeIcon(t);
                     const code = t.code.trim();
                     const showCode = !!code && code.toLowerCase() !== t.name.trim().toLowerCase();
                     return (
-                      <li key={`${g.key}:${t.id}`} role="option" aria-selected={i === active}>
-                        <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
-                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body-medium ${
-                            i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
-                          <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
-                          <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
-                          {showCode && <span className={`text-label-small font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{code}</span>}
-                        </button>
-                      </li>
+                      <ListOption key={`${g.key}:${t.id}`} id={optionId(i)} icon={typeIcon(t)} headline={t.name}
+                        title={showCode ? `${t.name} (${code})` : t.name} active={i === active}
+                        trailing={showCode && <span className="font-mono">{code}</span>}
+                        onHover={() => setActive(i)} onChoose={() => choose(t)} />
                     );
                   })}
-                </ul>
-              </li>
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
           {asideHidden && aside && (
             <div className="shrink-0 border-t border-outline-variant p-2">
               <button type="button" onClick={reveal}

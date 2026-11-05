@@ -132,15 +132,15 @@
 - [ ] 1.7 `NewNomenclatureStep` (`Row`) на `ListOption form="list"` [UI-87]: архивная — `disabled` с пометкой
   «в архиве», активная — `secondary-container` вместо `surface-container`. Проверка — стенд: шаг новой
   номенклатуры с похожими и архивной
-- [ ] 1.8 По П5 (да) — `SuggestBox` на `ListOption form="menu"` (40 вместо `min-h-8`), `TypePicker` на
+- [x] 1.8 По П5 (да) — `SuggestBox` на `ListOption form="menu"` (40 вместо `min-h-8`), `TypePicker` на
   `ListOption form="list"` с `aria-activedescendant` вместо кнопки внутри `option` (Р6). Поведение прежнее,
   правка ARIA у `TypePicker` и пересечения с `work-22-web-entry-ui`, `sharedui-date-input-back-layer` названы в
   описании PR. Проверка — их тесты зелёные
-- [ ] 1.9 `docs/UI.md`: раздел «Списки выбора» рядом со «Списки list-detail» — `ListOption`, форма по
+- [x] 1.9 `docs/UI.md`: раздел «Списки выбора» рядом со «Списки list-detail» — `ListOption`, форма по
   контейнеру (окно — `list`, слой под полем — `menu`), пометки вместо заливок, галочка текущего значения,
   действие внутри варианта, группы Р7; строка в таблице «Язык формы». Перечень правил храповика в `CLAUDE.md`
   и `AGENTS.md` (описание `list-row`, уровень) — одним коммитом. Проверка — `AgentRulesCopyTests`
-- [ ] 1.10 Уровень `list-row` опущен тем же PR на окна 1–6. Проверка — `npm run ui:ratchet` зелёный,
+- [x] 1.10 Уровень `list-row` опущен тем же PR на окна 1–6. Проверка — `npm run ui:ratchet` зелёный,
   в `ui-baseline.json` у `list-row` только файлы перечня Б
 
 ## 2. PR 2: списки карточки, `list-row` в ноль
