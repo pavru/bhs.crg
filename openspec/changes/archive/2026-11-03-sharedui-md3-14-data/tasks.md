@@ -15,7 +15,7 @@
 - [x] 0.3 Разбор с Дизайнером и Архитектором (переменные плотности в `dataTable.ts`, класс клетки
   правки) — комментарием к задаче (`docs/UI.md` «Новый экран: порядок»). Проверка — ссылка в описании PR 1
   Сделано 02.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/2d7f81d4-5708-4674-87a1-fac3ddc04e33?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/Mhef6nK6QQ7vYUjgSJMyAb?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Дизайнер: сильнее всего бьёт по окнам с жёсткой высотой (`PurgeDialog` max-h-56 — было 7 строк, станет 4;
   так же `PurgeBatchDialog`, сверка вставки, `PaymentPostingTable`, `UnplacedReads`); реестр теряет треть
   строк (11 → 8 на 768), строки счёта почти не теряют (строка уже 49); выбор только заливкой прячет пометку
@@ -39,11 +39,11 @@
   перечня — лист массива документа (`sheet` 40), доска состояний строки и клетки, счётчик видимых строк и
   переключатель высоты 768 / 650 (окно браузера):
   - (А) Data table буквально — 56/48 и 48/40, выбор заливкой, итог без черты, поле без черты в покое —
-    https://claude.ai/design/p/2d7f81d4-5708-4674-87a1-fac3ddc04e33?file=%D0%90+-+Data+table+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    https://claude.ai/artifact/Mhef6nK6QQ7vYUjgSJMyAb?file=%D0%90+-+Data+table+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) Рабочий реестр — 48/40 и на странице (правка D7), шапка на заливке, выбор чертой, поле на подложке —
-    https://claude.ai/design/p/2d7f81d4-5708-4674-87a1-fac3ddc04e33?file=%D0%91+-+%D0%A0%D0%B0%D0%B1%D0%BE%D1%87%D0%B8%D0%B9+%D1%80%D0%B5%D0%B5%D1%81%D1%82%D1%80.html
+    https://claude.ai/artifact/Mhef6nK6QQ7vYUjgSJMyAb?file=%D0%91+-+%D0%A0%D0%B0%D0%B1%D0%BE%D1%87%D0%B8%D0%B9+%D1%80%D0%B5%D0%B5%D1%81%D1%82%D1%80.html
   - (В) По месту — D7 как есть, выбор заливкой и чертой, итог с чертой, черта поля `outline`, окно растёт —
-    https://claude.ai/design/p/2d7f81d4-5708-4674-87a1-fac3ddc04e33?file=%D0%92+-+%D0%9F%D0%BE+%D0%BC%D0%B5%D1%81%D1%82%D1%83.html
+    https://claude.ai/artifact/Mhef6nK6QQ7vYUjgSJMyAb?file=%D0%92+-+%D0%9F%D0%BE+%D0%BC%D0%B5%D1%81%D1%82%D1%83.html
 - [x] 0.5 Выбор владельца записан; перенесён `/opsx:update sharedui-md3-14-data` — высоты, роли шапки и
   сценарии [UI-78] по выбранному макету и В5. Проверка — `openspec validate sharedui-md3-14-data --strict`
   Сделано 02.11.2026. Выбор владельца — **А «Data table буквально»**: страница 56 / 48, окно и лист 48 / 40

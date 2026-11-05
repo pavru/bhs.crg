@@ -12,7 +12,7 @@
 - [x] 0.2 Разбор с Дизайнером (и с Архитектором — хук темы Monaco в `shared/ui`) — комментарием к задаче
   (`docs/UI.md` «Новый экран: порядок»). Проверка — ссылка в описании PR 1
   Сделано 03.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/7a545ca1-74dd-4f61-b42c-0c395b147b27?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/REo494CzkurtKJAkjM7xXy?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Context в design.md отстал (сверен до детей 10–14): панель уже 48 с `IconButton` 40 и `Chip menu` +
   `Menu dense`, лист уже по [UI-18] (`viewer/sheet.css`, через `data-theme`), холст `surface-container-low`,
   «сегодня» уже обводкой, слой календаря — `LAYER_SURFACE`, `TimeField` уже на `OutlinedField` (2.3 почти
@@ -44,14 +44,14 @@
   - (А) MD3 буквально — docked 64 одной плоскостью с холстом, поле «3 / 12», календарь docked дословно
     (месяц и год списком, `surface-container-high`, уровень 3, строка 48), редактор `surface` с системными
     ролями; 512 / 100 %, 377 / 81 %; 440; срезан на 18 —
-    https://claude.ai/design/p/7a545ca1-74dd-4f61-b42c-0c395b147b27?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    https://claude.ai/artifact/REo494CzkurtKJAkjM7xXy?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) Плотно — панель 48, холст тоном ниже, «из 12» снаружи, календарь сетками на общем слое уровня 2,
     редактор «колодцем» с `success` / `warning`; 528 / 100 %, 393 / 85 %; 432; срезан на 10 —
-    https://claude.ai/design/p/7a545ca1-74dd-4f61-b42c-0c395b147b27?file=%D0%91+-+%D0%9F%D0%BB%D0%BE%D1%82%D0%BD%D0%BE.html
+    https://claude.ai/artifact/REo494CzkurtKJAkjM7xXy?file=%D0%91+-+%D0%9F%D0%BB%D0%BE%D1%82%D0%BD%D0%BE.html
   - (В) Плавающая панель — пилюля 56 над листом, в узкой колонке масштаб и поворот в «⋮», календарь со
     строкой 40 при мыши, редактор «бумагой» `surface-container-lowest`; 576 / 100 %, 441 / 80 %; 384;
     входит (запас 38) —
-    https://claude.ai/design/p/7a545ca1-74dd-4f61-b42c-0c395b147b27?file=%D0%92+-+%D0%9F%D0%BB%D0%B0%D0%B2%D0%B0%D1%8E%D1%89%D0%B0%D1%8F+%D0%BF%D0%B0%D0%BD%D0%B5%D0%BB%D1%8C.html
+    https://claude.ai/artifact/REo494CzkurtKJAkjM7xXy?file=%D0%92+-+%D0%9F%D0%BB%D0%B0%D0%B2%D0%B0%D1%8E%D1%89%D0%B0%D1%8F+%D0%BF%D0%B0%D0%BD%D0%B5%D0%BB%D1%8C.html
   На 633 календарь в окне «Оплата» срезан у всех трёх (86 / 78 / 30) — потолок высоты по доступному месту
   нужен при любом выборе.
 - [x] 0.4 Выбор владельца записан в зонтик с датой; перенесён `/opsx:update sharedui-md3-16-surfaces` —

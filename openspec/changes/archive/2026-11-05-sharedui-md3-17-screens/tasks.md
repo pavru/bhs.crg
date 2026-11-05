@@ -13,7 +13,7 @@
   какие места сводятся к готовому компоненту, а какие меняют раскладку. Перечень — комментарием к задаче,
   разбор с Дизайнером. Проверка — у каждого раздела перечень с пометкой «компонент» или «макет»
   Сделано 03.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/design/p/4f525fa0-00c5-414a-9ec5-3e1d42d90a72?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  https://claude.ai/artifact/WJ8QAATJ9CX7VMMUhkVkgJ?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Все 145 мест открыты в коде. Компонент / макет: PR 1 — 34 / 8 (с `LoginPage`), PR 2 — 18 / 6, PR 3 — 21 / 15,
   PR 4 — 17 / 3, PR 5 — 7 / 0; ещё 16 мест экрана счёта → PR 5 (их переписывают `costs-invoice-screen-10`,
   `-11`, `-13`; 11 сам сводит `StaleInvoiceNotice` к листу состояния). Сверх правил «макет» —
@@ -46,14 +46,14 @@
   отвергнуты; перенесено `/opsx:update` в proposal, design (таблица Р1–Р9, PR 0), spec и задачи ниже:
   - (А) MD3 буквально — banner в начале области, ошибка у поля, input chip, медиа с галкой, кликабельная
     карточка, контекстная шапка выбора, `SideSheet` 400; форме на 1366 — 598 px вместо 432 —
-    https://claude.ai/design/p/4f525fa0-00c5-414a-9ec5-3e1d42d90a72?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    https://claude.ai/artifact/WJ8QAATJ9CX7VMMUhkVkgJ?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) На месте — banner у причины (отступление от `docs/UI.md`), `Card filled`, `TextAreaField readOnly`,
     поле с кнопками в хвосте, нижняя панель выбора, supporting pane; форме — 432, как сейчас —
-    https://claude.ai/design/p/4f525fa0-00c5-414a-9ec5-3e1d42d90a72?file=%D0%91+-+%D0%9D%D0%B0+%D0%BC%D0%B5%D1%81%D1%82%D0%B5.html
+    https://claude.ai/artifact/WJ8QAATJ9CX7VMMUhkVkgJ?file=%D0%91+-+%D0%9D%D0%B0+%D0%BC%D0%B5%D1%81%D1%82%D0%B5.html
   - (В) Тише — текст со знаком у причины, «запись есть в архиве» — окном, «подпись — значение» без рамки,
     строка списка вместо плитки, `DataGrid` вместо карточек строек, предпросмотр — modal-лист по кнопке;
     форме — 998 —
-    https://claude.ai/design/p/4f525fa0-00c5-414a-9ec5-3e1d42d90a72?file=%D0%92+-+%D0%A2%D0%B8%D1%88%D0%B5.html
+    https://claude.ai/artifact/WJ8QAATJ9CX7VMMUhkVkgJ?file=%D0%92+-+%D0%A2%D0%B8%D1%88%D0%B5.html
 
 ## 0б. PR 0: компоненты `shared/ui` (design, «PR 0»)
 

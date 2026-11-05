@@ -311,8 +311,11 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   (`bg-primary`, `text-on-surface`; описание темы — `src/client/src/theme/md3-theme.json`, файлы
   темы пишет `npm run md3:theme`), шкала радиусов и теней. Новый экран сверяется с ним (issue #1348).
   ⚠️ **Новый экран, компонент или заметная переделка взаимодействия — сначала три макета в Claude
-  Design и выбор владельца, потом код** (issue #1545). Порядок, исключения и что делать без доступа к
-  Claude Design — [docs/UI.md](docs/UI.md#новый-экран-порядок).
+  (артефакты типа «Design») и выбор владельца, потом код** (issue #1545). Дизайн-система —
+  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/UPzvpNJpoqNWsGWMAXCYQh); пока `/design-sync` не
+  пишет в Claude, она заморожена на 2.74.0, и для компонентов новее макет опирается на код и `.d.ts`.
+  Порядок, исключения и что делать без доступа к артефактам Claude —
+  [docs/UI.md](docs/UI.md#новый-экран-порядок).
 - `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
   и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
   ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:
