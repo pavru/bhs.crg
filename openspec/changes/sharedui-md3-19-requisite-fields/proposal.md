@@ -70,8 +70,11 @@
 ## Impact
 
 - Клиент: `features/document-sets/fields/PrimitiveInput.tsx`, `fields/constants.ts`
-  (`fieldInputClass`), `editor/RequisitesTab.tsx` (подписи над полем у строк 496 и 609 — при варианте А
-  уходят; файл в `file-size-baseline.json` на 650 — расти ему нельзя).
+  (`fieldInputClass`), `editor/RequisitesTab.tsx` (подписи над полем у строк 496 и 609 уходят — выбран
+  вариант А, 05.11.2026; файл в `file-size-baseline.json` на 648 — расти ему нельзя), `editor/FieldSourceBinding.tsx`
+  и `SourceBindingTrigger.tsx` (кнопка привязки в хвосте поля, слитая со знаком происхождения).
+- `shared/ui` (PR 0): `TextAreaField.tsx` (`trailing`), `fieldBox.ts` (второй размер хвоста), `TextField.tsx`;
+  после — `/design-sync`.
 - Храповик: `scripts/ui-ratchet-inputs.mjs` и его тест, `ui-baseline.json`; `docs/UI.md` — абзац о
   `raw-field` (сегодня в нём «константа другого модуля правилу не видна»).
 - Живые прогоны: `fields-smoke`, `document-preview-checks`, `pages-smoke` — вид привязанного и запертого

@@ -100,3 +100,69 @@ describe('OutlinedField: знак ошибки', () => {
     expect(marks()[0].querySelector('svg')!.getAttribute('width')).toBe('20');
   });
 });
+
+describe('OutlinedField: хвост значения из источника ([UI-86])', () => {
+  const lock = <span data-testid="lock" />;
+  const button = <IconButton label="Привязка к источнику" icon={Close} />;
+
+  it('у многострочного поля хвост в слоте по первой строке, а место ему держит обёртка, не область', () => {
+    render(<TextAreaField label="Предмет договора" readOnly value="Выполнение работ" onChange={() => {}}
+      trailing={button} />);
+    const slot = screen.getByRole('button', { name: 'Привязка к источнику' }).closest('div')!;
+    expect(classes(slot)).toContain('top-7');
+    // Отступ внутри области сдвинул бы текст, но не полосу прокрутки: она осталась бы под кнопкой хвоста.
+    const area = screen.getByLabelText('Предмет договора');
+    expect(classes(area.parentElement!)).toContain('pr-[calc(2.75rem+var(--field-mark,0px))]');
+    expect(classes(area)).toContain('pr-1');
+    expect(classes(area)).not.toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+  });
+
+  it('многострочное поле без хвоста — прежний отступ', () => {
+    render(<TextAreaField label="Комментарий" />);
+    const area = screen.getByLabelText('Комментарий');
+    expect(classes(area)).toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+    expect(classes(area.parentElement!).filter(Boolean)).toEqual(['pt-4']);
+  });
+
+  it('знак перед кнопкой расширяет место хвоста — у строки и у многострочного поля', () => {
+    render(<>
+      <TextField label="Номер в журнале" readOnly value="ЖР-2026-0042" onChange={() => {}}
+        trailing={<>{lock}{button}</>} trailingMark />
+      <TextAreaField label="Предмет" readOnly value="—" onChange={() => {}} trailing={<>{lock}{button}</>} trailingMark />
+    </>);
+    const line = classes(screen.getByLabelText('Номер в журнале'));
+    const area = classes(screen.getByLabelText('Предмет').parentElement!);
+    for (const own of [line, area]) {
+      expect(own).toContain('pr-[calc(4.125rem+var(--field-mark,0px))]');
+      expect(own).toContain('pointer-coarse:pr-[calc(4.625rem+var(--field-mark,0px))]');
+    }
+  });
+
+  it('подпись в покое кончается до хвоста со знаком', () => {
+    const { container } = render(<TextField label="Номер" trailing={<>{lock}{button}</>} trailingMark />);
+    expect(classes(container.querySelector('label')!)).toContain('max-w-[calc(100%-4.625rem-var(--field-mark,0px))]');
+  });
+
+  it('trailingMark без хвоста — ошибка типов, а в разметке не резервирует места', () => {
+    // @ts-expect-error знак перед кнопкой бывает только при самом хвосте (FieldTrailingProps)
+    render(<TextField label="ИНН" trailingMark />);
+    expect(classes(screen.getByLabelText('ИНН'))).toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+  });
+
+  it('знак ошибки, знак и кнопка — соседи в слоте по порядку, с зазором слота', () => {
+    render(<TextField label="Номер" readOnly value="ЖР-1" onChange={() => {}} error="Нет в журнале"
+      trailing={<>{lock}{button}</>} trailingMark />);
+    const mark = marks()[0];
+    const lockEl = screen.getByTestId('lock');
+    const btn = screen.getByRole('button', { name: 'Привязка к источнику' });
+    const slot = mark.parentElement!;
+    // Зазор между ними ставит слот (`gap-1`), а он работает, только если знак и кнопка — его flex-элементы:
+    // обёртка хвоста прозрачна для раскладки (`contents`). Своя обёртка у вызывающего сняла бы зазор, и
+    // хвост вышел бы из рассчитанных 66.
+    expect(classes(slot)).toContain('gap-1');
+    expect(classes(lockEl.parentElement!)).toContain('contents');
+    expect(lockEl.parentElement!.parentElement).toBe(slot);
+    expect(mark.compareDocumentPosition(lockEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(lockEl.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
