@@ -100,3 +100,46 @@ describe('OutlinedField: знак ошибки', () => {
     expect(marks()[0].querySelector('svg')!.getAttribute('width')).toBe('20');
   });
 });
+
+describe('OutlinedField: хвост значения из источника ([UI-86])', () => {
+  const lock = <span data-testid="lock" />;
+  const button = <IconButton label="Привязка к источнику" icon={Close} />;
+
+  it('у многострочного поля хвост в слоте по первой строке, и текст уступает ему место', () => {
+    render(<TextAreaField label="Предмет договора" readOnly value="Выполнение работ" onChange={() => {}}
+      trailing={button} />);
+    const slot = screen.getByRole('button', { name: 'Привязка к источнику' }).closest('div')!;
+    expect(classes(slot)).toContain('top-7');
+    const area = classes(screen.getByLabelText('Предмет договора'));
+    expect(area).toContain('pr-[calc(2.75rem+var(--field-mark,0px))]');
+    expect(area).not.toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+  });
+
+  it('многострочное поле без хвоста — прежний отступ', () => {
+    render(<TextAreaField label="Комментарий" />);
+    expect(classes(screen.getByLabelText('Комментарий'))).toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+  });
+
+  it('знак перед кнопкой расширяет место хвоста — у строки и у многострочного поля', () => {
+    render(<>
+      <TextField label="Номер в журнале" readOnly value="ЖР-2026-0042" onChange={() => {}}
+        trailing={<>{lock}{button}</>} trailingMark />
+      <TextAreaField label="Предмет" readOnly value="—" onChange={() => {}} trailing={<>{lock}{button}</>} trailingMark />
+    </>);
+    for (const name of ['Номер в журнале', 'Предмет']) {
+      const own = classes(screen.getByLabelText(name));
+      expect(own).toContain('pr-[calc(4.125rem+var(--field-mark,0px))]');
+      expect(own).toContain('pointer-coarse:pr-[calc(4.625rem+var(--field-mark,0px))]');
+    }
+  });
+
+  it('подпись в покое кончается до хвоста со знаком', () => {
+    const { container } = render(<TextField label="Номер" trailing={<>{lock}{button}</>} trailingMark />);
+    expect(classes(container.querySelector('label')!)).toContain('max-w-[calc(100%-4.625rem-var(--field-mark,0px))]');
+  });
+
+  it('trailingMark без хвоста ничего не меняет', () => {
+    render(<TextField label="ИНН" trailingMark />);
+    expect(classes(screen.getByLabelText('ИНН'))).toContain('pr-[calc(1rem+var(--field-mark,0px))]');
+  });
+});

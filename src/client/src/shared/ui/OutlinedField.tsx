@@ -10,6 +10,9 @@ import { Tooltip } from './Tooltip';
 const REST_WIDTH = 'max-w-[calc(100%-1.5rem-var(--field-mark,0px))]';
 const REST_WIDTH_TRAILING = 'max-w-[calc(100%-3.25rem-var(--field-mark,0px))] '
   + 'pointer-coarse:max-w-[calc(100%-3.75rem-var(--field-mark,0px))]';
+// Хвост со знаком перед кнопкой (`trailingMark`) — на 22 px шире: знак 18 и зазор 4.
+const REST_WIDTH_TRAILING_MARK = 'max-w-[calc(100%-4.625rem-var(--field-mark,0px))] '
+  + 'pointer-coarse:max-w-[calc(100%-5.125rem-var(--field-mark,0px))]';
 const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placeholder-shown)]:max-w-[calc(100%-1.5rem)]';
 
 /**
@@ -108,6 +111,11 @@ export interface OutlinedFieldProps {
    * под хвост держит само поле — `fieldBox(density, { trailing: true })`.
    */
   trailing?: ReactNode;
+  /**
+   * В хвосте перед кнопкой стоит ещё знак 18 — замок запертого поля рядом с кнопкой привязки ([UI-86]).
+   * Ширину хвоста оболочка из разметки не выводит: ей нужно знать её до отрисовки, для подписи в покое.
+   */
+  trailingMark?: boolean;
   /** Хвост живёт внутри контрола (календарь даты): знак ошибки оболочка отдаёт ему `FieldMarkContext`. */
   markInside?: boolean;
   /** Классы внешней обёртки (поле + подпись под ним). */
@@ -117,7 +125,7 @@ export interface OutlinedFieldProps {
 
 export function OutlinedField({
   label, required, invalid, error, hint, hintId, raise = 'auto', focused, htmlFor, labelId,
-  readOnly, density = 'form', trailing, markInside, containerClassName = '', children,
+  readOnly, density = 'form', trailing, trailingMark, markInside, containerClassName = '', children,
 }: OutlinedFieldProps) {
   const bad = !!error || invalid;
   // Подпись в вырезе есть только у поля формы; у плотного и клетки она для диктора, а под полем места нет.
@@ -160,7 +168,7 @@ export function OutlinedField({
   // Метка в покое стоит на месте текста и кончается там же, где он: справа знак ошибки и хвост. Наверху,
   // в вырезе, ей ничего не мешает — там ограничение одно, рамка.
   const labelWidth = !auto ? 'max-w-[calc(100%-1.5rem)]'
-    : `${trailing ? REST_WIDTH_TRAILING : REST_WIDTH} ${RAISED_WIDTH}`;
+    : `${!trailing ? REST_WIDTH : trailingMark ? REST_WIDTH_TRAILING_MARK : REST_WIDTH_TRAILING} ${RAISED_WIDTH}`;
 
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.

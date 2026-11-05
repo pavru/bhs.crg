@@ -1,6 +1,6 @@
-import { forwardRef, useId, useState, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useId, useState, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldDescribedBy } from './fieldBox';
+import { fieldDescribedBy, fieldEnd } from './fieldBox';
 
 /**
  * MD3 outlined-поле для многострочного текста (issue #574) — тот же `OutlinedField`, что у
@@ -23,11 +23,18 @@ export interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaE
   invalid?: boolean;
   /** Вспомогательный текст под полем — скрывается при наличии error. */
   hint?: string;
+  /**
+   * Правый адорнмент — знаки и кнопка значения из источника ([UI-86]). Слот оболочки стоит по первой строке,
+   * а не посреди области, и текст всех строк уступает ему место справа: хвост — не плавающий над текстом знак.
+   */
+  trailing?: ReactNode;
+  /** В хвосте перед кнопкой — ещё знак 18 (замок запертого поля): отступ текста шире. */
+  trailingMark?: boolean;
   containerClassName?: string;
 }
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(function TextAreaField(
-  { label, error, invalid, hint, className = '', containerClassName = '', id, required, rows = 3,
+  { label, error, invalid, hint, trailing, trailingMark, className = '', containerClassName = '', id, required, rows = 3,
     onFocus, onBlur, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
@@ -41,6 +48,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
       raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
+      trailing={trailing} trailingMark={trailingMark}
     >
       {/* Отступ под метку — padding ОБЁРТКИ, а не самого поля и не его margin.
           - Не padding `<textarea>`: она обрезает содержимое по padding-box, и при прокрутке строки
@@ -55,7 +63,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
         <textarea
           ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
           aria-invalid={invalid || !!error || undefined}
-          className={`block w-full rounded-xs bg-transparent pl-4 pr-[calc(1rem+var(--field-mark,0px))] pb-2 text-body-large text-on-surface ` +
+          className={`block w-full rounded-xs bg-transparent pl-4 ${fieldEnd('form', { trailing: !!trailing, trailingMark })} pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}

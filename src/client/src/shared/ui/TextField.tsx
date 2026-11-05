@@ -20,6 +20,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   hint?: string;
   /** Правый адорнмент (например «глаз» пароля). */
   trailing?: ReactNode;
+  /** В хвосте перед кнопкой — ещё знак 18 (замок запертого поля, [UI-86]): отступ текста шире. */
+  trailingMark?: boolean;
   /**
    * Поле формы 56 (по умолчанию), плотное 40 без выреза или клетка сетки правки — [UI-69], [UI-78], см.
    * `fieldBox`. Не задан — размер места: в теле `EditGrid` это клетка.
@@ -36,7 +38,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, error, invalid, hint, trailing, density: own, placeholder, className = '', containerClassName = '', id, required,
+  { label, error, invalid, hint, trailing, trailingMark, density: own, placeholder, className = '', containerClassName = '', id, required,
     children, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
@@ -50,14 +52,15 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   return (
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      readOnly={rest.readOnly} density={density} htmlFor={inputId} trailing={trailing} containerClassName={containerClassName}
+      readOnly={rest.readOnly} density={density} htmlFor={inputId} trailing={trailing} trailingMark={trailingMark}
+      containerClassName={containerClassName}
     >
       {/* В клетке подписи у оболочки нет — имя полю даёт `aria-label`. Неверное — `aria-invalid`, а не одна красная
           рамка: рамку диктор не прочтёт (ревью PR #1760). */}
       <input
         ref={ref} id={inputId} aria-label={density === 'cell' ? label : undefined} placeholder={density === 'form' ? ' ' : placeholder ?? ' '} required={required} aria-describedby={described}
         aria-invalid={invalid || !!error || undefined}
-        className={`peer w-full rounded-xs bg-transparent text-on-surface ${fieldBox(density, { trailing: !!trailing })} ` +
+        className={`peer w-full rounded-xs bg-transparent text-on-surface ${fieldBox(density, { trailing: !!trailing, trailingMark })} ` +
           `outline-none disabled-content ${className}`}
         {...rest}
       />

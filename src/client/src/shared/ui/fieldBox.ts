@@ -42,6 +42,27 @@ const BOX = {
   },
 } as const;
 const END_TRAILING = 'pr-[calc(2.75rem+var(--field-mark,0px))] pointer-coarse:pr-[calc(3.25rem+var(--field-mark,0px))]';
+/**
+ * Хвост со знаком перед кнопкой ([UI-86]): замок 18 и зазор 4 до кнопки места XS — ещё 22 к 44 и 52.
+ * Знак, а не вторая кнопка: две кнопки в хвосте поля — уже панель действий, ей место не в поле.
+ */
+const END_TRAILING_MARK = 'pr-[calc(4.125rem+var(--field-mark,0px))] pointer-coarse:pr-[calc(4.625rem+var(--field-mark,0px))]';
+
+/** Хвост поля: есть ли он и стоит ли в нём перед кнопкой ещё знак 18 (замок запертого поля). */
+export interface FieldTrailing {
+  trailing?: boolean;
+  /** Перед кнопкой хвоста — знак 18. Без `trailing` не значит ничего. */
+  trailingMark?: boolean;
+}
+
+/**
+ * Правый отступ текста поля — без высоты и роли текста. Для контрола, которому рамку `fieldBox` не взять
+ * (многострочная область растёт по строкам), но место под хвост и знак ошибки нужно то же.
+ */
+export function fieldEnd(density: FieldDensity = 'form', { trailing = false, trailingMark = false }: FieldTrailing = {}) {
+  if (!trailing) return BOX[density].end;
+  return trailingMark ? END_TRAILING_MARK : END_TRAILING;
+}
 
 /** Место знака ошибки с зазором до хвоста: знак 24 у поля формы, 20 у плотного и клетки, плюс 4. */
 export const MARK_SPACE: Record<FieldDensity, string> = { form: '28px', dense: '24px', cell: '24px' };
@@ -60,11 +81,10 @@ export function cellLine({ focused = false, bad = false }: { focused?: boolean; 
 /**
  * Высота, отступы и роль текста контрола на оболочке ([UI-69]): 56 и `body-large` у поля формы, 40 и
  * `body-medium` у плотного и клетки (у клетки отступы теснее — `px-2`, как у самой клетки). `trailing` — у поля есть хвост в слоте оболочки (кнопка, стрелка выбора):
- * правый отступ тогда держит и его.
+ * правый отступ тогда держит и его; `trailingMark` — перед кнопкой хвоста ещё знак (см. `fieldEnd`).
  */
-export function fieldBox(density: FieldDensity = 'form', { trailing = false }: { trailing?: boolean } = {}) {
-  const box = BOX[density];
-  return `${box.box} ${trailing ? END_TRAILING : box.end}`;
+export function fieldBox(density: FieldDensity = 'form', tail: FieldTrailing = {}) {
+  return `${BOX[density].box} ${fieldEnd(density, tail)}`;
 }
 
 /**
