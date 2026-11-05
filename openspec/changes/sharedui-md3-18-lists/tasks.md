@@ -52,7 +52,7 @@
 
 ## 1. PR 1: `ListItem`, `NavItem` и правило
 
-- [ ] 1.1 `shared/ui/ListItem.tsx` по Р1–Р2 [UI-84]: прямоугольник во всю ширину, отступы 16, `gap` 16;
+- [x] 1.1 `shared/ui/ListItem.tsx` по Р1–Р2 [UI-84]: прямоугольник во всю ширину, отступы 16, `gap` 16;
   `min-h-12` без `supporting` и `min-h-16` с ним (Л2); `headline` `body-large` `on-surface` с `title` (Р6),
   `supporting` `body-medium` `on-surface-variant` (узел — многострочный растёт), замыкающий текст
   `label-small`; ведущий знак 24 (Л5); `selected` — `secondary-container` / `on-secondary-container` и
@@ -60,30 +60,32 @@
   цели; `depth` — 16 на уровень (D8); утилита `state-layer-row` в `index.css` — слой и кольцо `-inset` строки
   по `:has(> [data-li-target]…)`. Проверка — новый `ListItem.test.tsx`: высоты по классам, `aria-current`
   только у выбранной, `action` и `leadingAction` не внутри `button`, `title` у подписи, `ref` на цели
-- [ ] 1.1a `shared/ui/ListGroupHeader.tsx` по Р7 [UI-84]: подзаголовок `title-small` `on-surface-variant`
+- [x] 1.1a `shared/ui/ListGroupHeader.tsx` по Р7 [UI-84]: подзаголовок `title-small` `on-surface-variant`
   целью не ниже 48, шеврон `expand_less` / `expand_more`, `aria-expanded`, число, `action` соседом; без
   выбора. Проверка — тест: `aria-expanded` меняется, `aria-current` нет никогда, `action` не внутри `button`
-- [ ] 1.2 `NavItem` и `NavSection` на `ListItem` (Р3) [UI-84]: поведение прежнее — `showDetail` у пункта
+- [x] 1.2 `NavItem` и `NavSection` на `ListItem` (Р3) [UI-84]: поведение прежнее — `showDetail` у пункта
   уровня, `filter` оставляет список, шеврон не подсвечивается (`selected={false}`); пометки и число — в
   `trailing`, `CountText` на выбранной — `on-secondary-container`; `icon` — символом 24 в 14 вызовах.
   `NavSection` — `title-small` `on-surface-variant`, отступы 16 / 16 / 8. Проверка — `listDetailView.test.tsx`
   и `primitives.test.tsx` зелёные, классы переписаны вручную вместе с отрицательными
   (`not.toContain('bg-primary-container')`)
-- [ ] 1.3 Правило `list-row` (Р5) [UI-84]: модуль `scripts/ui-ratchet-lists.mjs` с `listRules(countElements)`,
+- [x] 1.3 Правило `list-row` (Р5) [UI-84]: модуль `scripts/ui-ratchet-lists.mjs` с `listRules(countElements)`,
   подключение одной строкой в `ui-ratchet-lib.mjs`, область по умолчанию (вне `shared/ui`), подсказка —
   `ListItem`; тест `scripts/ui-ratchet-lists.test.mjs` — положительные случаи (строка счёта, `typeRow`, `div`
   дерева, `aria-current:bg-secondary-container`) и отрицательные (`ListItem`, `NavItem`,
   `data-[state=open]:`, `hover:bg-primary-container/70` — `BaseInstanceChip`, пометка `span`); уровень в
   `ui-baseline.json` — по факту, около 24 (`npm run ui:ratchet:update` осознанно). Проверка — `npm run
   ui:ratchet` зелёный, тест модуля зелёный; `FileSizeRatchet` — `ui-ratchet-lib.mjs` не перешагнул 500 строк
-- [ ] 1.4 `docs/UI.md`: строка «Строка списка — `ListItem`» в таблице «Язык формы» и раздел «Списки
+- [x] 1.4 `docs/UI.md`: строка «Строка списка — `ListItem`» в таблице «Язык формы» и раздел «Списки
   list-detail» (вид А, роли, действие соседом и видно всегда, `ListGroupHeader`, `NavItem` — для разделов
   уровня, `title` у подписи, правило `list-row`); перечень правил храповика в `CLAUDE.md` и `AGENTS.md` —
   одним коммитом. Проверка — `AgentRulesCopyTests` зелёный
-- [ ] 1.5 Живая проверка: на экране уровня (раздел стройки) выбранный пункт `NavItem` — фон
+- [x] 1.5 Живая проверка: на экране уровня (раздел стройки) выбранный пункт `NavItem` — фон
   `secondary-container`, высота не ниже 48, строка во всю ширину `ld-nav` — в `pages-smoke` или
   `routing-smoke`. Проверка — новая проверка зелёная на стенде; весь `npm run -s test:e2e:ci` зелёный
   (`ListDetailShell` в 18 файлах — правка каркаса, весь список)
+  Сделано 05.11.2026: `routing-smoke` → `level-nav-item-is-md3-list-row` (фон, высота, ширина колонки, без
+  скругления); весь `test:e2e:ci` на стенде (API 5063, клиент 4177, своя база и бакет) — 21/21.
 
 ## 2. PR 2: строки экранов
 
@@ -110,8 +112,10 @@
   без наведения. Проверка — vitest редактора зелёный (сценарий флажка: флажок не меняет выбранный, строка не
   меняет флажок); `fields-smoke`, `document-preview-checks`, `pages-smoke` зелёные; в `TemplateSidebar` ровно
   одна `aria-current`
-- [ ] 2.5 «Добавить раздел» (`ConstructionDetail`) и «Добавить комплект» (`SectionDetail`) — `Button
+- [x] 2.5 «Добавить раздел» (`ConstructionDetail`) и «Добавить комплект» (`SectionDetail`) — `Button
   variant="text"` со знаком `add` (Р4). Проверка — vitest уровня зелёный; правило `icon-button` не выросло
+  Сделано в PR 1 (#1769) по находке ревью: колонки уровня потеряли поля-обёртки, и прежние кнопки вышли
+  из сетки строк. Знак — в 16 от края, как у строк (`pl-1` + отступ кнопки со знаком 12).
 - [ ] 2.6 Уровень `list-row` опущен тем же PR до остатка вне change (Л4: списки выбора и списки карточки);
   остаток назван в описании PR и в задаче 4.1b зонтика (`sharedui-md3-21-pick-lists`). Проверка — `npm run
   ui:ratchet` зелёный, в `ui-baseline.json` у `list-row` только файлы вне перечня

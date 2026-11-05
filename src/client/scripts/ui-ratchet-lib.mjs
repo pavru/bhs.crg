@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip, isSegmentRow } from './ui-ratchet-pills.mjs';
 import { cardRules } from './ui-ratchet-cards.mjs';
+import { listRules } from './ui-ratchet-lists.mjs';
 import { plaqueRules } from './ui-ratchet-plaque.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { inputRules } from './ui-ratchet-inputs.mjs';
@@ -117,6 +118,8 @@ export const RULES = [
   // Плашка-сообщение — notice-plaque (ui-ratchet-plaque.mjs), карточка руками — hand-card (ui-ratchet-cards.mjs).
   ...plaqueRules(countElements),
   ...cardRules(countElements),
+  // Строка списка руками — list-row (ui-ratchet-lists.mjs).
+  ...listRules(countElements),
   // Кнопки — icon-button, button-size, dense-scope, split-button (ui-ratchet-buttons.mjs).
   ...buttonRules(countElements),
   {

@@ -76,6 +76,16 @@ body {
   &:is(:where(.group):hover *) { --_s: var(--md-sys-state-hover); }
   &:is(:where(.group):focus-visible *, :where(.group):active *) { --_s: var(--md-sys-state-pressed); }
 }
+/* Добавка к state-layer у строки списка с действием ([UI-84], `shared/ui/ListItem`: `state-layer
+   state-layer-row`): цель строки — кнопка-ребёнок с `data-li-target`, а действие («⋮», флажок) — её сосед.
+   Наведение, отключённое и прочее даёт сам слой, но нажатие и фокус случаются у кнопки, а нажатие вложенной
+   кнопки слой гасит нарочно — то есть гас бы от собственной цели. Добавка возвращает их по цели: нажатие и
+   фокус — только у цели, кольцо — внутрь, у всей строки (снаружи его срезала бы прокрутка колонки). Фокус и
+   нажатие действия остаются у самого действия. */
+@utility state-layer-row {
+  &:has(> [data-li-target]:is(:focus-visible, :active)) { --_s: var(--md-sys-state-pressed); }
+  &:has(> [data-li-target]:focus-visible) { outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-inset); }
+}
 
 /* Кольцо фокуса с клавиатуры — одно на весь клиент: 3 px secondary, отступ 2 px (выбор владельца
    29.10.2026, вариант А листа sharedui-md3-05) — значения один раз, в переменных ниже. Щелчок мышью

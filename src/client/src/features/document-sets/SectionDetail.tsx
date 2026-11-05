@@ -95,27 +95,28 @@ export function SectionDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+    <div className="flex-1 overflow-y-auto pb-3">
       {panels.workNav}
       <HiddenByWorkspace module="id" what="Комплекты раздела" />
       {idOn && <>
         <NavSection label="Комплекты" />
-        {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет комплектов</p>}
+        {section.documentSets.length === 0 && <p className="px-4 py-2 text-body-medium text-on-surface-variant">Нет комплектов</p>}
         {section.documentSets.map(ds => {
           const p = problemOf(problems, ds.id);
           const done = planOf(plan, ds.id);
           return (
-            <NavItem key={ds.id} icon={<Icon icon={FolderOpen} size={18} />} label={ds.name} count={ds.documentCount ?? 0} chevron
+            <NavItem key={ds.id} icon={FolderOpen} label={ds.name} count={ds.documentCount ?? 0} chevron
               progress={done?.percent ?? null} progressTitle={planTitle(done)}
               alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
               onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
           );
         })}
         {canAddSet && (
-          <button type="button" onClick={() => setAddSetOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-body-medium text-primary hover:bg-primary-container transition-colors">
-            <Icon icon={Add} size={18} className="shrink-0" /> Добавить комплект
-          </button>
+          // Действие в колонке — кнопка text, а не строка (Р4 md3-18): строка цвета primary читалась бы выбранной.
+          // pl-1 и отступ кнопки со знаком (12) дают знаку те же 16 от края, что у знаков строк.
+          <div className="pl-1 py-1">
+            <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>
+          </div>
         )}
       </>}
       {panels.ownNav('Этот раздел')}

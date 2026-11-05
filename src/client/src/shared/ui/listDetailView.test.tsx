@@ -46,7 +46,7 @@ function Page({ filter }: { filter?: boolean }) {
     <MemoryRouter>
       <span data-testid="view">{view.view}</span>
       <ListDetailShell title="Документы" view={view} detail={<div />}
-        nav={<NavItem icon={null} label="Пункт" filter={filter} onClick={() => {}} />} />
+        nav={<NavItem label="Пункт" filter={filter} onClick={() => {}} />} />
     </MemoryRouter>
   );
 }

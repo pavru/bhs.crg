@@ -193,21 +193,21 @@ export function SetDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
-      <NavItem icon={<Icon icon={Description} size={18} />} label="Документы" count={set.instances.length}
+    <div className="flex-1 overflow-y-auto pt-2 pb-3">
+      <NavItem icon={Description} label="Документы" count={set.instances.length}
         active={activePanel === 'documents'} onClick={() => goPanel('documents')} />
       <NavSection label="Этот комплект" />
-      <NavItem icon={<Icon icon={Database} size={18} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      <NavItem icon={<Icon icon={Table} size={18} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
-      <NavItem icon={<Icon icon={Group} size={18} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+      <NavItem icon={Database} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
+      <NavItem icon={Table} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      <NavItem icon={Group} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
       {/* План — рядом с ресурсами комплекта, а не в настройках: сколько документов должно быть,
           решают там же, где их и заводят. */}
-      <NavItem icon={<Icon icon={Target} size={18} />} label="План"
+      <NavItem icon={Target} label="План"
         progress={plan?.own.percent ?? null}
         active={activePanel === 'plan'} onClick={() => goPanel('plan')} />
       {/* Проблемы живут здесь, а не в разделе «Сверка»: комплект — тот уровень, где их разбирают. */}
       {canReconcile && (
-        <NavItem icon={<Icon icon={Warning} size={18} />} label="Проблемы"
+        <NavItem icon={Warning} label="Проблемы"
           count={problems?.needsAttention || undefined}
           active={activePanel === 'issues'} onClick={() => goPanel('issues')} />
       )}

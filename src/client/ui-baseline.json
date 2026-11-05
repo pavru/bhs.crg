@@ -56,6 +56,27 @@
     "features/costs/LostReferencesNote.tsx": 1,
     "features/costs/SupplierMatchNote.tsx": 3
   },
+  "list-row": {
+    "features/costs/InvoiceListRow.tsx": 2,
+    "features/costs/WaybillsPage.tsx": 1,
+    "features/datasets/DataSetsResource.tsx": 1,
+    "features/document-sets/catalog/CatalogResource.tsx": 1,
+    "features/document-sets/editor/GenerationTab.tsx": 1,
+    "features/document-sets/editor/RequisitesTab.tsx": 1,
+    "features/document-sets/fields/BaseCandidatePicker.tsx": 1,
+    "features/document-sets/fields/ComplexFields.tsx": 3,
+    "features/document-sets/fields/RefPickerModal.tsx": 2,
+    "features/document-sets/fields/ScopeGroupList.tsx": 1,
+    "features/settings/BugReportsPage.tsx": 1,
+    "features/settings/DocumentTypesPage.tsx": 1,
+    "features/settings/PrimitiveTypesPage.tsx": 1,
+    "features/settings/PrintProfilesPage.tsx": 1,
+    "features/settings/RecognitionProfilesPage.tsx": 1,
+    "features/settings/RolesPage.tsx": 1,
+    "features/templates/TemplateSidebar.tsx": 2,
+    "features/templates/TypeBlocksPanel.tsx": 1,
+    "features/templates/UserLibFileList.tsx": 1
+  },
   "icon-button": {
     "shared/ui/DataGrid.tsx": 1,
     "shared/ui/DateInput.tsx": 1,

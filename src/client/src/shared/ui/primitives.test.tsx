@@ -157,12 +157,28 @@ describe('CountText и Badge', () => {
 
 describe('NavItem: число и отметки', () => {
   const shownNumber = (props: Partial<Parameters<typeof NavItem>[0]>) =>
-    render(<NavItem icon={null} label="Раздел" onClick={() => {}} {...props} />).container.querySelector('.tabular-nums')!;
+    render(<NavItem label="Раздел" onClick={() => {}} {...props} />).container.querySelector('.tabular-nums')!;
 
-  it('count — CountText; у выбранного пункта цветом его контейнера', () => {
+  it('count — CountText; у выбранного пункта цветом его контейнера — secondary-container ([UI-84])', () => {
     expect(shownNumber({ count: 5 }).className).toContain('text-on-surface-variant');
     cleanup();
-    expect(shownNumber({ count: 5, active: true }).className).toContain('text-on-primary-container');
+    expect(shownNumber({ count: 5, active: true }).className).toContain('text-on-secondary-container');
+  });
+
+  it('выбранный пункт — строка ListItem на secondary-container, не пилюля primary-container; ребёнок с шевроном не выбран', () => {
+    render(<>
+      <NavItem label="Каталог" active onClick={() => {}} />
+      <NavItem label="Раздел 1" active chevron count={3} onClick={() => {}} />
+    </>);
+    const sel = screen.getByRole('button', { name: /Каталог/ });
+    expect(sel.getAttribute('aria-current')).toBe('true');
+    const row = sel.parentElement!.className;
+    expect(row).toContain('bg-secondary-container');
+    expect(row).not.toContain('bg-primary-container');
+    expect(sel.className).not.toContain('rounded-full');
+    const child = screen.getByRole('button', { name: /Раздел 1/ });
+    expect(child.hasAttribute('aria-current')).toBe(false);
+    expect(child.parentElement!.className).not.toContain('bg-secondary-container');
   });
 
   it('progress — пометка: 100 % success, иначе neutral', () => {

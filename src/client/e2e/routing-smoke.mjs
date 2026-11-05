@@ -172,6 +172,36 @@ try {
     }
   });
 
+  // ── Пункт раздела уровня — строка списка MD3 ([UI-84], sharedui-md3-18) ──────
+  // Вид меряется в браузере, а не по классам: классы проверяет vitest, а здесь — что строка в самом деле
+  // доехала до колонки — во всю её ширину, не ниже 48 и на secondary-container, а не пилюлей primary-container.
+  await check('level-nav-item-is-md3-list-row', async () => {
+    const site = (await callApi(page, 'GET', '/constructions')).body[0];
+    if (!site) throw new Error('строек нет — нужны демо-данные');
+    await page.goto(`${BASE}/document-sets/${site.id}/catalog`);
+    await settled(page);
+    const target = page.getByTestId('ld-nav').locator('button[aria-current="true"]', { hasText: 'Каталог' }).first();
+    await target.waitFor({ timeout: 5000 });
+    const m = await target.evaluate(el => {
+      // Ширина — против прокручиваемого родителя строки, а не колонки: полоса прокрутки у длинного списка
+      // законно съедает своё. Сам родитель обязан идти во всю колонку.
+      const row = el.parentElement, list = row.parentElement, nav = el.closest('[data-testid=ld-nav]');
+      const probe = document.createElement('div');
+      probe.className = 'bg-secondary-container';
+      document.body.append(probe);
+      const want = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return { bg: getComputedStyle(row).backgroundColor, want, height: row.getBoundingClientRect().height,
+        rowWidth: row.getBoundingClientRect().width, listWidth: list.clientWidth, listOuter: list.getBoundingClientRect().width,
+        navWidth: nav.clientWidth, radius: getComputedStyle(row).borderRadius };
+    });
+    if (m.bg !== m.want) throw new Error(`выбранный пункт на ${m.bg}, а не secondary-container (${m.want})`);
+    if (m.height < 48) throw new Error(`выбранный пункт высотой ${m.height}, ниже 48`);
+    if (Math.abs(m.rowWidth - m.listWidth) > 1 || Math.abs(m.listOuter - m.navWidth) > 1)
+      throw new Error(`строка ${m.rowWidth} px в списке ${m.listWidth} px (снаружи ${m.listOuter}) при колонке ${m.navWidth} px — не во всю ширину`);
+    if (parseFloat(m.radius) > 0) throw new Error(`у строки скругление ${m.radius} — пилюля вместо прямоугольника`);
+  });
+
   // ── useSearchParams: query читается страницей ───────────────────────────────
   // Страница подтверждения адреса без email/token не ходит на сервер вовсе, а с ними —
   // ходит. Считаем запросы, а не текст: сообщение об ошибке у обоих случаев одно и то же,

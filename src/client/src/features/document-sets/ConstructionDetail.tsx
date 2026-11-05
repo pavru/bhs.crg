@@ -84,25 +84,26 @@ export function ConstructionDetail() {
   );
 
   const nav = (
-    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+    <div className="flex-1 overflow-y-auto pb-3">
       {panels.workNav}
       <NavSection label="Разделы" />
-      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет разделов</p>}
+      {construction.sections.length === 0 && <p className="px-4 py-2 text-body-medium text-on-surface-variant">Нет разделов</p>}
       {construction.sections.map(s => {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);
         return (
-          <NavItem key={s.id} icon={<Icon icon={Layers} size={18} />} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
+          <NavItem key={s.id} icon={Layers} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
             progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
         );
       })}
       {canEdit && (
-        <button type="button" onClick={() => setAddSectionOpen(true)}
-          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-body-medium text-primary hover:bg-primary-container transition-colors">
-          <Icon icon={Add} size={18} className="shrink-0" /> Добавить раздел
-        </button>
+        // Действие в колонке — кнопка text, а не строка (Р4 md3-18): строка цвета primary читалась бы выбранной.
+        // pl-1 и отступ кнопки со знаком (12) дают знаку те же 16 от края, что у знаков строк.
+        <div className="pl-1 py-1">
+          <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+        </div>
       )}
       {panels.ownNav('Эта стройка')}
     </div>
