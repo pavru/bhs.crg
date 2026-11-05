@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadDesign } from './color-classes-lib.mjs';
+import { loadDesign } from './theme-classes-lib.mjs';
 import { themeDir } from './md3-theme.mjs';
 
 // Сторож утилит состояния MD3 (sharedui-md3-05, [UI-64] [UI-65]): тем же движком Tailwind и тем же

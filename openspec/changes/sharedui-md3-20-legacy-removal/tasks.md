@@ -2,16 +2,19 @@
 
 ## 0. До кода
 
-- [ ] 0.1 Предусловия сверены: `sharedui-md3-17-screens` слит и заархивирован; уровни `legacy-class`,
+- [x] 0.1 Предусловия сверены: `sharedui-md3-17-screens` слит и заархивирован; уровни `legacy-class`,
   `legacy-radius`, `legacy-shadow`, `legacy-type`, `notice-plaque`, `hand-card` в `ui-baseline.json` —
   пусты. Срок отмечен в зонтике: PR открыт не позже двух недель после архива 17 (зонтик, 4.2). Проверка —
-  `npm run ui:ratchet`, дата архива 17 и дата PR в описании
+  `npm run ui:ratchet`, дата архива 17 и дата PR в описании.
+  Сверено 05.11.2026: 17 слит и заархивирован (#1765, 05.11.2026), срок — 19.11.2026; `legacy-class`,
+  `legacy-radius`, `legacy-shadow`, `legacy-type` — ноль. `notice-plaque` 8 и `hand-card` 8 стоят только в
+  файлах экрана счёта: их вынес в эпик `costs-invoice-screen` владелец (зонтик, 4.1), 20 их не держит
 - [ ] 0.2 Макеты не нужны: вид не меняется (зонтик, D10). Снимки ключевых экранов «до» сняты на
   master перед PR. Проверка — снимки в описании PR
 
 ## 1. Сторож словаря темы
 
-- [ ] 1.1 `color-classes-lib.mjs` → `theme-classes-lib.mjs`: тот же токенизатор `CANDIDATE`, утилиты
+- [x] 1.1 `color-classes-lib.mjs` → `theme-classes-lib.mjs`: тот же токенизатор `CANDIDATE`, утилиты
   `rounded`, `text` (размер), `shadow` вместе с цветом; подсказка — ближайшая роль по
   `md3-class-map.json` [UI-82]. Проверка — `theme-classes.test.mjs` зелёный на текущем коде (ноль
   нарушений до сброса)

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadDeclarations } from './color-classes-lib.mjs';
+import { loadDeclarations } from './theme-classes-lib.mjs';
 import { generate, readTheme, resolve, themeDir } from './md3-theme.mjs';
 import { contrast, contrastFailures } from './md3-contrast.mjs';
 

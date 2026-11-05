@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { COLOR_UTILITIES } from './class-scan.mjs';
-import { loadDeclarations } from './color-classes-lib.mjs';
+import { loadDeclarations } from './theme-classes-lib.mjs';
 import { clientRoot, compile, formatReport, migrateFiles, migrateText, sourceFiles } from './md3-migrate.mjs';
 import { countLegacyClasses } from './ui-ratchet-md3.mjs';
 import classMap from './md3-class-map.json' with { type: 'json' };

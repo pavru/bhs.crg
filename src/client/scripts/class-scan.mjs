@@ -1,5 +1,5 @@
-// Разбор цветовых классов в тексте файла — без Tailwind: им пользуются и сторож цветовых классов
-// (color-classes-lib.mjs, там же — почему сверка идёт движком Tailwind), и храповик интерфейса,
+// Разбор классов в тексте файла — без Tailwind: им пользуются и сторож словаря темы
+// (theme-classes-lib.mjs, там же — почему сверка идёт движком Tailwind), и храповик интерфейса,
 // которому движок не нужен.
 
 export const COLOR_UTILITIES = [
@@ -17,10 +17,20 @@ export const CLASS_BEFORE = `(?<=^|[\\s'"\`:{(.])`;
 export const CLASS_AFTER = `(?=$|[\\s'"\`}),;\\\\]|:(?=[a-z])`
   + `|\\.(?!(?:svg|png|jpe?g|gif|webp|ico|css|[cm]?[jt]sx?|json|md|pdf|typ)(?![\\w-])))`;
 
-// Утилита с именованным значением: bg-surface2, border-danger/30, -text-fg!. Произвольные значения
-// (bg-[var(--x)], text-(--x)) не проверяются: их и пишут, когда токена нет.
-const CANDIDATE = new RegExp(
-  `${CLASS_BEFORE}!?-?((?:${COLOR_UTILITIES})-[a-z][\\w-]*(?:\\/[\\w.]+)?)!?${CLASS_AFTER}`, 'gm');
+// Утилиты словаря темы ([UI-82]): цвет, радиус (`rounded` со стороной или углом), размер текста и тень —
+// `text` и `shadow` уже в цветовых. Именованное значение — bg-surface2, border-danger/30, -text-fg!,
+// rounded-2xl, text-2xl; радиус без ступени — rounded, rounded-t. Произвольное значение — только там, где
+// у словаря есть ступень: размер текста (text-[11px], text-[0.9em], text-(length:--x)), радиус и тень
+// (rounded-[28px], shadow-[…]). Произвольный цвет (bg-[var(--x)], text-(--x)) не берётся: его и пишут,
+// когда роли нет, а hex в нём ловит сторож литералов (shared/ui/themeTokens.test.ts).
+export const RADIUS_UTILITY = 'rounded(?:-(?:tl|tr|br|bl|ss|se|es|ee|t|r|b|l|s|e))?';
+const ARBITRARY = '(?:\\[[^\\]\\s]+\\]|\\([^)\\s]+\\))';
+const CANDIDATE = new RegExp(`${CLASS_BEFORE}!?-?(`
+  + `(?:${COLOR_UTILITIES}|${RADIUS_UTILITY})-[a-z0-9][\\w-]*(?:\\/[\\w.]+)?`
+  + `|${RADIUS_UTILITY}`
+  + `|(?:${RADIUS_UTILITY}|(?:drop-)?shadow)-${ARBITRARY}`
+  + `|text-(?:\\[(?:length:)?[\\d.]+[a-z%]*\\]|\\(length:[^)\\s]+\\))`
+  + `)!?${CLASS_AFTER}`, 'gm');
 
 // Знак перед `/`, после которого тот открывает регулярное выражение, а не делит: `(`, `=`, `,`, `!`…
 const REGEX_AFTER = /^$|[(,=:[!&|?{};+\-*%~^]/;
@@ -177,7 +187,7 @@ export function splitVariants(raw) {
   return { cls: raw.slice(start).replace(/^!|!$/g, ''), variants };
 }
 
-/** Цветовые утилиты в тексте, где комментарии уже вырезаны (`stripComments`). */
+/** Утилиты словаря темы в тексте, где комментарии уже вырезаны (`stripComments`). */
 export function scanCandidates(text) {
   const found = [];
   for (const m of text.matchAll(CANDIDATE))
@@ -185,5 +195,5 @@ export function scanCandidates(text) {
   return found;
 }
 
-/** Цветовые утилиты в коде файла (не в комментариях): класс без вариантов и номер строки. */
-export const colorCandidates = source => scanCandidates(stripComments(source));
+/** Утилиты словаря темы в коде файла (не в комментариях): класс без вариантов и номер строки. */
+export const themeCandidates = source => scanCandidates(stripComments(source));
