@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { SchemaField } from '@/shared/api/schema';
 import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
-import { formatDateInMask } from '@/shared/format/format';
 import { IconButton } from '@/shared/ui/Button';
 import { Close } from '@/shared/ui/icons';
 import { PrimitiveInput } from './PrimitiveInput';
+
+/** Язык пользователя — подменяемый: дата только для чтения обязана перейти на новую маску без перезагрузки. */
+let locale = 'ru-RU';
+vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/hooks/useLocale')>()),
+  useLocale: () => [locale, () => {}, 'idle'],
+}));
 
 /**
  * Значение реквизита из источника и под замком — поле `shared/ui` только для чтения ([UI-86], вариант А):
@@ -16,7 +22,7 @@ import { PrimitiveInput } from './PrimitiveInput';
 beforeAll(() => {
   globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); locale = 'ru-RU'; });
 
 const field = (type: SchemaField['type'], over: Partial<SchemaField> = {}): SchemaField =>
   ({ key: 'Поле', title: 'Поле', type, required: true, ...over }) as SchemaField;
@@ -33,9 +39,9 @@ const cases: [string, SchemaField, unknown, Partial<Parameters<typeof PrimitiveI
   ['примитив-строка', field('primitive', { typeId: 'p' }), 'Д-42', { primitiveTypeDef: primitive('string') }, 'Д-42'],
   ['строка', field('string'), 'ООО «Ромашка»', {}, 'ООО «Ромашка»'],
   ['число', field('number'), 12.5, {}, '12.5'],
-  ['дата — готовым текстом', field('date'), '2026-05-12', {}, formatDateInMask('2026-05-12')],
+  ['дата — готовым текстом в маске языка', field('date'), '2026-05-12', {}, '12.05.2026'],
   ['примитив-дата — по точности типа', field('primitive', { typeId: 'p' }), '2026-05-12',
-    { primitiveTypeDef: primitive('date', { datePrecision: 'month' }) }, formatDateInMask('2026-05-12', 'month')],
+    { primitiveTypeDef: primitive('date', { datePrecision: 'month' }) }, '05.2026'],
 ];
 
 describe('PrimitiveInput: поле только для чтения ([UI-86])', () => {
@@ -77,6 +83,15 @@ describe('PrimitiveInput: поле только для чтения ([UI-86])', 
       error="Обязательное поле" trailing={<IconButton label="Привязка к источнику" icon={Close} />} />);
     expect(screen.getByRole('button', { name: 'Привязка к источнику' })).toBeDefined();
     expect(screen.getByText('Обязательное поле')).toBeDefined();
+  });
+
+  it('дата только для чтения переходит на маску нового языка без перезагрузки формы', () => {
+    const input = (l: string) => { locale = l; return <PrimitiveInput field={field('date')} value="2026-07-01" label="Дата"
+      onChange={() => {}} invalid={false} readOnly />; };
+    const { rerender } = render(input('ru-RU'));
+    expect((screen.getByRole('textbox', { name: 'Дата' }) as HTMLInputElement).value).toBe('01.07.2026');
+    rerender(input('en-US'));
+    expect((screen.getByRole('textbox', { name: 'Дата' }) as HTMLInputElement).value).toBe('07/01/2026');
   });
 
   it('без подписи — ошибка типов', () => {

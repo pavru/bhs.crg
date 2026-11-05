@@ -567,7 +567,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   <PrimitiveInput field={field} value={displayValue} label={field.title} readOnly
                     onChange={() => {}} invalid={hasError} hint={fixedHint} error={fixedError}
                     trailing={locked || recognized || stale ? <>
-                      {locked && <LockedFieldIcon />}
+                      {locked && <LockedFieldIcon described />}
                       {(recognized || stale) && <SourceOriginIcon id={originId}
                         origin={recognized ? 'Recognized' : undefined} stale={stale} staleReason={staleReasonOf(field.key)} />}
                     </> : undefined}
@@ -630,7 +630,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   onChange={v => setValue(field.key, v, primitiveDef)}
                   invalid={hasError} hint={fixedHint} error={fixedError}
                   primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)}
-                  trailing={<>{locked && <LockedFieldIcon />}{bound && lens}</>}
+                  trailing={<>{locked && <LockedFieldIcon described />}{bound && lens}</>}
                   trailingMark={locked && bound} describedBy={bound ? originId : undefined} />
               ) : (
                 <PrimitiveInput field={field} value={displayValue} label={field.title}

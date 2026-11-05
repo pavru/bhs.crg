@@ -14,12 +14,20 @@ import { TextField } from '@/shared/ui/TextField';
  * <p>Значок, а не текст: подпись поля и так несёт звёздочку обязательности, бейджи битых ссылок и
  * расхождений, а в сетке по две колонки ширина у значения отнимается в первую очередь.</p>
  */
-export function LockedFieldIcon({ className = '' }: { className?: string }) {
+export function LockedFieldIcon({ className = '', described = false }: {
+  className?: string;
+  /**
+   * Пояснение замка уже прочтено вместе с полем — его подсказкой ([UI-86]). Тогда значок для диктора
+   * немой: иначе «Заполняет модуль — вручную не правится» звучало бы дважды (ревью PR #1775). Глазам
+   * подсказка наведением остаётся.
+   */
+  described?: boolean;
+}) {
   return (
     // Подсказка на обёртке, а не на самой иконке: `title` у SVG-глифа браузер показывает не везде,
     // а `aria-label` слышит только вспомогательное средство — глазами подсказку тоже надо получить.
     <Tooltip content={LOCKED_HINT}>
-      <span aria-label={LOCKED_HINT} role="img"
+      <span {...(described ? { 'aria-hidden': true } : { 'aria-label': LOCKED_HINT, role: 'img' })}
         className={`inline-block shrink-0 text-on-surface-variant ${className}`}>
         <Icon icon={LockIcon} size={18} />
       </span>

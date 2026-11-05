@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ruToISO } from '@/shared/utils/date';
-import { formatDateInMask } from '@/shared/format/format';
+import { inMask } from '@/shared/format/dateMask';
+import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
@@ -30,9 +31,11 @@ function dateForDisplay(value: string): string {
  * Дата только для чтения — готовым текстом в записи маски поля (D7 sharedui-md3-19), а не `DateField`:
  * своего хвоста у поля даты нет (знак ошибки стоит в его поле ввода), а готовый текст и копируется
  * целиком. Нераспознаваемое значение показываем как есть — по той же причине, что `dateForDisplay`.
+ * Язык — из `useLocale`, как у `DateInput`: смени его человек при открытой форме, дата из источника
+ * обязана перейти на новую маску вместе с редактируемыми (ревью PR #1775).
  */
-function shownDate(value: string, precision: DatePrecision = 'day') {
-  return formatDateInMask(dateForDisplay(value), precision);
+function shownDate(value: string, locale: string, precision: DatePrecision = 'day') {
+  return inMask(dateForDisplay(value), resolveLocale(locale), precision);
 }
 
 /**
@@ -80,6 +83,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   // Подсказка по введённому ранее (issue #1533): только в форме записи, назвавшей тип-владелец, и
   // только у поля, которое правило `Suggestable` подсказывает. Иначе — прежнее поле, адрес не зовётся.
   const source = useSuggestSource(field);
+  const [locale] = useLocale();
   // Знак перед кнопкой тип поля пускает только вместе с самим хвостом.
   const tail: FieldTrailingProps = trailing != null && trailingMark ? { trailing, trailingMark: true } : { trailing };
   /** Поле только для чтения с готовым значением — строка, число, перечисление, дата. */
@@ -135,7 +139,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     const typeHint = hint ?? primitiveTypeDef.description;
     if (bt === 'date') {
       const { datePrecision: prec = 'day', minDate: min, maxDate: max } = primitiveTypeDef.constraints;
-      if (readOnly) return shown(shownDate(strVal, prec), typeHint);
+      if (readOnly) return shown(shownDate(strVal, locale, prec), typeHint);
       return <DateField label={label} required={askRequired} hint={typeHint} invalid={invalid}
         value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} min={min} max={max} />;
     }
@@ -147,7 +151,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       invalid={invalid} onChange={e => onCh(e.target.value)} />;
   }
   if (field.type === 'date') {
-    if (readOnly) return shown(shownDate(strVal));
+    if (readOnly) return shown(shownDate(strVal, locale));
     return <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
       value={dateForDisplay(strVal)} onChange={v => onChange(v)} />;
   }

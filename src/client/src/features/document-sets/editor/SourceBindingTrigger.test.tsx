@@ -34,6 +34,20 @@ describe('SourceBindingTrigger в хвосте поля', () => {
     expect(svgOf('Привязка к источнику').getAttribute('class')).toContain('text-primary');
   });
 
+  it('колонку назначил сам источник — кнопка не обещает изменить или отвязать (ревью PR #1775)', () => {
+    // Поле заполняет источник (`materializeMapping`), а своей привязки у документа нет: окно привязки
+    // предложит только привязать, и кнопка называет именно это.
+    render(<>
+      <SourceBindingTrigger locked={false} isBound={false} onOpen={() => {}}
+        origin={{ recognized: false, stale: false, describeId: 'm1' }} />
+      <SourceBindingTrigger locked isBound={false} onOpen={() => {}}
+        origin={{ recognized: false, stale: false, describeId: 'm2' }} />
+    </>);
+    expect(screen.getByRole('button', { name: 'Привязать к источнику' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Привязка к источнику' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Снять привязку к источнику' })).toBeNull();
+  });
+
   it('пояснение происхождения лежит под ид, на который сошлётся поле', () => {
     render(<SourceBindingTrigger locked={false} isBound onOpen={() => {}}
       origin={{ recognized: true, stale: false, describeId: 'origin-1' }} />);
