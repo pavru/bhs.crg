@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORM_BESIDE_FILE, fileWanted, placeOf, positionOf } from './invoicePlace';
+import { FILE_WIDTH_CSS, FORM_BESIDE_FILE, fileWanted, placeBand, placeOf, positionOf } from './invoicePlace';
 
 /** Место по контейнеру (costs-invoice-screen-10-layout, D-10.3, ТЗ COST-6.3). Окно минус рейл 80. */
 
@@ -37,6 +37,20 @@ describe('placeOf', () => {
   it('список — пока форме остаётся не меньше 940', () => {
     expect(placeOf(1260, false).list).toBe(true);
     expect(placeOf(1259, false).list).toBe(false);
+  });
+});
+
+describe('placeBand — замер перерисовывает страницу только на смене места (ревью PR #1787)', () => {
+  it('внутри полосы место одно, на пороге — другое', () => {
+    expect(placeBand(1286)).toBe(placeBand(1368));
+    expect(placeBand(1100)).toBe(placeBand(1000));
+    // Файл рядом — с 1161; без файла список встаёт с 1260.
+    expect(placeBand(1161)).not.toBe(placeBand(1160));
+    expect(placeBand(1260)).not.toBe(placeBand(1259));
+  });
+
+  it('ширина панели файла — та же доля и те же края, что у placeOf', () => {
+    expect(FILE_WIDTH_CSS).toBe('clamp(420px, 38%, 520px)');
   });
 });
 

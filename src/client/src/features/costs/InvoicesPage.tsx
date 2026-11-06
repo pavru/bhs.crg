@@ -46,7 +46,7 @@ import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { InvoiceFileButton } from './InvoiceFileButton';
 import { FromFileButton, InvoiceListHeader, InvoiceStepper } from './InvoicePageChrome';
 import { pageActions, useWorkWidth } from './invoicePageModel';
-import { fileWanted, placeOf, positionOf } from './invoicePlace';
+import { FILE_WIDTH_CSS, fileWanted, placeOf, positionOf } from './invoicePlace';
 import { K, PARSED, REJECTED, asInput } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
 import {
@@ -587,9 +587,10 @@ export function InvoicesPage() {
                 gone={gone} onClose={() => closeGone(opened.id)}
               />
               {/* Ширина панели — по месту (D-10.3): 38 % рабочей области, от 420 до 520. Форма — главное,
-                  файл — опора, и рядом он стоит, только пока форме остаётся не меньше 720. */}
+                  файл — опора, и рядом он стоит, только пока форме остаётся не меньше 720. Задаёт её CSS:
+                  замер ширины между сменами места устаревает нарочно (`useWorkWidth`). */}
               {place.file === 'beside' && (
-                <aside aria-label="Файл счёта" style={{ width: place.fileWidth }}
+                <aside aria-label="Файл счёта" style={{ width: FILE_WIDTH_CSS }}
                   className="shrink-0 border-l border-outline-variant flex flex-col min-h-0">
                   <InvoiceScanPanel
                     invoiceId={opened.id}

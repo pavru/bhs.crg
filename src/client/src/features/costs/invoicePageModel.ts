@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { placeBand } from './invoicePlace';
 import { CalendarClock, LinkIcon, NoteAdd, Sell } from '@/shared/ui/icons';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
 
@@ -8,13 +9,18 @@ import type { RowAction } from '@/shared/ui/RowActionsMenu';
  * Ширина рабочей области — меряет `ResizeObserver` контейнера страницы, а не окно (D-10.3): подпанель,
  * масштаб браузера и полосы оболочки окна не знают. До первого замера — окно без рейла 80: первый кадр
  * не рисует «узко» на широком экране.
+ *
+ * <p>⚠️ Ширина меняется только на смене места (`placeBand`), а не на каждом тике (ревью PR #1787): форма
+ * с сорока строками иначе перерисовывалась бы десятки раз в секунду, пока тянут край окна. Внутри полосы
+ * число устаревает нарочно — ширину панели файла задаёт CSS (`FILE_WIDTH_CSS`), а не оно.</p>
  */
 export function useWorkWidth(): [(el: HTMLElement | null) => void, number] {
   const [width, setWidth] = useState(() => Math.max(0, window.innerWidth - 80));
   const ref = useCallback((el: HTMLElement | null) => {
     if (!el || typeof ResizeObserver === 'undefined') return;
-    setWidth(el.getBoundingClientRect().width);
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const take = (next: number) => setWidth(prev => (placeBand(prev) === placeBand(next) ? prev : next));
+    take(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => take(entry.contentRect.width));
     observer.observe(el);
     return () => observer.disconnect();
   }, []);

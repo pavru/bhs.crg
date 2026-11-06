@@ -234,7 +234,9 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
 
     const count = async () => (await h.api('GET', '/costs/invoices')).length;
     const was = await count();
-    await page.getByRole('button', { name: 'Новый счёт', exact: true }).first().click();
+    // Списка рядом нет (файл рядом) — «Новый счёт» в «⋮» сводки (D-10.8).
+    await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
+    await page.getByRole('menuitem', { name: 'Новый счёт' }).click();
     const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await h.named('«Новый счёт» не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
     await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();

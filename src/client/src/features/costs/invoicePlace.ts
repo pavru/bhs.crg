@@ -41,6 +41,22 @@ export function placeOf(workWidth: number, fileWanted: boolean): InvoicePlace {
   return { list, file, fileWidth };
 }
 
+/**
+ * Ширина панели файла — правилом CSS от её строки (форма и панель), а не числом из замера: тогда замер
+ * перерисовывает страницу только на смене места (`placeBand`), а не на каждом тике `ResizeObserver` (ревью
+ * PR #1787). Строка панели — вся рабочая область: при файле рядом списка нет.
+ */
+export const FILE_WIDTH_CSS = `clamp(${FILE_MIN}px, ${FILE_SHARE * 100}%, ${FILE_MAX}px)`;
+
+/**
+ * Полоса ширины, внутри которой место одно и то же — при файле и без него. Сменилась полоса — сменилось
+ * место; внутри неё точная ширина странице не нужна.
+ */
+export function placeBand(workWidth: number): string {
+  const wanted = placeOf(workWidth, true);
+  return `${wanted.file}|${wanted.list}|${placeOf(workWidth, false).list}`;
+}
+
 /** Причина «поверх» — словами подсказки кнопки «Файл» (ТЗ COST-6.2, «Узкий экран»). */
 export const FILE_OVER_REASON = `Файл откроется поверх формы: рядом форме нужно не меньше ${FORM_BESIDE_FILE} px`;
 
