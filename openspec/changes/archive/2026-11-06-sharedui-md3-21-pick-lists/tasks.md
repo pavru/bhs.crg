@@ -206,17 +206,28 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run ui:ratchet`, `npm run lint:ratchet` — зелёные
+- [x] 4.1 `cd src/client && npx tsc -b`, `npm test`, `npm run ui:ratchet`, `npm run lint:ratchet` — зелёные
   в каждом PR. Проверка — описание PR
-- [ ] 4.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
+  - Описания #1780 (3696 тестов), #1781 (3707), #1782 (3709); проверка «Frontend» зелёная во всех трёх.
+- [x] 4.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
   — зелёные (`ComplexFields.tsx`, `RefPickerModal.tsx` не выросли; копия правил агентов совпадает). Проверка —
   описание PR
-- [ ] 4.3 Весь `npm run -s test:e2e:ci` зелёный в каждом PR (зонтик 5.1): затронут `shared/ui`. Проверка —
+  - Описания #1780 и #1781; проверка «Backend» зелёная во всех трёх PR. Уровень `ComplexFields.tsx` 718 → 658,
+    `RefPickerModal.tsx` в `file-size-baseline.json` не менялся (дифф 2f888f93..master).
+- [x] 4.3 Весь `npm run -s test:e2e:ci` зелёный в каждом PR (зонтик 5.1): затронут `shared/ui`. Проверка —
   описание PR
-- [ ] 4.4 Перечень закрыт целиком, а не только счётчиком (Р5): `rg 'role="option"' src/client/src/features`
+  - Работа «Живые прогоны (браузер)» зелёная в #1780, #1781 и #1782; локально на изолированном стенде — 21 из 21
+    (описание #1781).
+- [x] 4.4 Перечень закрыт целиком, а не только счётчиком (Р5): `rg 'role="option"' src/client/src/features`
   пусто; в файлах перечня нет `hover:bg-primary-container` у строк и условной заливки выбранного
   `surface-container` / `surface`. Проверка — вывод команд в описании PR 2
-- [ ] 4.5 Оба PR — с меткой `version:minor`; `<Version>` не правится. Проверка — метки PR
+  - Сверено на master 42bcdc6c, после всех трёх PR. `role="option"` в `features/` — одно место, и это доккоммент
+    `RefPickerArchive.tsx` («строки — НЕ варианты выбора»), а не атрибут. Условной заливки `bg-surface` /
+    `bg-surface-container` в 14 файлах перечня (с `ArrayItemRow.tsx`) нет. `hover:bg-primary-container` — три
+    кнопки, не строки: «Выбрать базовый экземпляр или роль…» (`BaseCandidatePicker`), «Добавить строку» и
+    «Выбрать из каталога» (`ComplexFields`). Это кнопки, собранные руками, вне задачи 4.4.
+- [x] 4.5 Оба PR — с меткой `version:minor`; `<Version>` не правится. Проверка — метки PR
+  - #1780 и #1781 — `version:minor` (2.78.0, 2.79.0); #1782 раздела 3 — PATCH без метки (2.79.1).
 
 ## Workflow follow-up
 
