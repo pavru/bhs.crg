@@ -14,7 +14,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { ListItem } from '@/shared/ui/ListItem';
+import { LIST_CONTAINER, ListItem } from '@/shared/ui/ListItem';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -74,7 +74,6 @@ export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
     provenanceSummary(f.provenance.right) && `справа: ${provenanceSummary(f.provenance.right)}`,
     f.decision && `${DECISION_LABELS[f.decision.kind]}${f.decision.note ? ` — ${f.decision.note}` : ''}${f.decision.decidedBy ? ` (${f.decision.decidedBy})` : ''}`,
   ].filter(Boolean);
-  const values = `${num(f.leftValue)} / ${num(f.rightValue)}`;
   return (
     <ListItem passive className="border-b border-outline-variant"
       leadingAction={slot && (
@@ -87,15 +86,14 @@ export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
       )}
       headline={f.label}
       // Статус — первым во второй строке, а не ведущим узлом: на 375 подпись статуса с флажком, значениями и
-      // «Разобрать» оставляли названию одну букву, а провенанс переносился по слову (снимки 3.1). По той же
-      // причине на телефоне значения — во второй строке за статусом, у края — только с `sm`.
+      // «Разобрать» оставляли названию одну букву, а провенанс переносился по слову (снимки 3.1). Значения на узком
+      // списке уходят под эту строку сами — по `LIST_CONTAINER` у списка находок.
       supporting={<span className="flex flex-wrap items-center gap-x-3">
         <FindingStatus f={f} />
-        <span className="sm:hidden tabular-nums text-on-surface">{values}</span>
         {parts.map(t => <span key={t}>{t}</span>)}
       </span>}
       // Значения — то, ради чего находка: своим кеглем `body-medium`, а не мелким текстом замыкающего слота.
-      trailing={<span className="hidden sm:inline tabular-nums text-body-medium">{values}</span>}
+      trailing={<span className="tabular-nums text-body-medium">{`${num(f.leftValue)} / ${num(f.rightValue)}`}</span>}
       action={<Button variant="text" onClick={() => onDecide(f)}>{f.decision ? 'Изменить' : 'Разобрать'}</Button>} />
   );
 }
@@ -342,7 +340,7 @@ export function ReconciliationsPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className={`flex-1 min-h-0 overflow-y-auto ${LIST_CONTAINER}`}>
         {findingsLoading && <p className="px-4 py-3 text-body-medium text-on-surface-variant">Загрузка…</p>}
         {!findingsLoading && shown.length === 0 && (
           <p className="px-4 py-3 text-body-medium text-on-surface-variant">

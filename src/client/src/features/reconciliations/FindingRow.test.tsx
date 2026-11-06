@@ -30,12 +30,13 @@ describe('FindingRow', () => {
     expect(screen.getByText('Кабель ВВГ 3×2,5').closest('button')).toBeNull();
   });
 
-  it('значения — своим кеглем body-medium у края с sm, на телефоне — во второй строке', () => {
+  it('значения — один раз, замыкающим слотом своим кеглем body-medium: под пояснение их уводит список, а не экран', () => {
     row();
-    const [inLine, atEdge] = screen.getAllByText('120 / 118');
-    expect(atEdge.className).toContain('text-body-medium');
-    expect(atEdge.className).toContain('hidden sm:inline');
-    expect(inLine.className).toContain('sm:hidden');
+    const values = screen.getByText('120 / 118');
+    expect(values.className).toContain('text-body-medium');
+    expect(values.className).not.toMatch(/(^|\s)(sm|md|hidden)/);
+    // Слот — сосед подписи в обёртке, которая на узком списке переносит его под пояснение (ListItem.test).
+    expect(values.parentElement!.parentElement!.className).toContain('@max-md/list:flex-wrap');
   });
 
   it('несвязываемая строка в списке со связываемыми — пустое место под флажок, подписи в одном столбце', () => {
