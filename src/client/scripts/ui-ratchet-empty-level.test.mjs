@@ -18,8 +18,7 @@ const FIXTURES = {
 // Экран счёта: notice-plaque и hand-card доводит до нуля эпик costs-invoice-screen (задачи 4.7 у -10 и
 // 4.4 у -11). Список только сокращается; новый файл в нём — место, которое храповик обязан был остановить.
 const INVOICE_SCREEN = [
-  'features/costs/InvoiceDeleteDialog.tsx', 'features/costs/InvoiceForm.tsx', 'features/costs/InvoiceLinesTable.tsx',
-  'features/costs/InvoicePartyNote.tsx', 'features/costs/InvoicePayment.tsx', 'features/costs/InvoiceRecognitionNote.tsx',
+  'features/costs/InvoiceDeleteDialog.tsx', 'features/costs/InvoicePartyNote.tsx', 'features/costs/InvoiceRecognitionNote.tsx',
   'features/costs/InvoiceScanPanel.tsx', 'features/costs/InvoiceTwinNotes.tsx', 'features/costs/LostReferencesNote.tsx',
   'features/costs/StaleInvoiceNotice.tsx', 'features/costs/SupplierMatchNote.tsx',
 ];

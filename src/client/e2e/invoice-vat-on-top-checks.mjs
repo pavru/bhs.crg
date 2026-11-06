@@ -25,7 +25,6 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
       await cell('Наименование в счёте', row).fill(`Кабель без НДС ${stamp}-${row}`);
       await cell('Количество', row).fill(quantity);
       await cell('Цена', row).fill('500');
-      await cell('Ставка НДС', row).fill('22');
       await page.getByRole('button', { name: 'выбрать позицию' }).first().click();
       await page.getByPlaceholder('часть наименования').fill(stamp);
       await page.getByRole('option', { name: cable }).click();
@@ -45,6 +44,9 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
       .catch(() => { throw new Error('после подсказки фокус не на флажке'); });
     await cell('Цена без НДС', 1).waitFor({ timeout: 5_000 })
       .catch(() => { throw new Error('колонка цены не подписана «без НДС»'); });
+    // Ставка строки — колонкой только сверху (costs-invoice-screen-10-layout, D-10.10): в режиме «в том
+    // числе» НДС строки называет сверка. Подсказка выше узнала режим по НДС шапки, без ставок.
+    for (const row of [1, 2]) await cell('Ставка НДС', row).fill('22');
     await strip().waitFor({ timeout: 5_000 })
       .catch(() => { throw new Error('после флажка сверка не сказала «сходится с суммой к оплате»'); });
   });

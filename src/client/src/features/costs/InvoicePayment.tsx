@@ -3,6 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { LockIcon, Payments, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
+import { Banner } from '@/shared/ui/Banner';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
@@ -21,6 +22,7 @@ import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { mayMarkPaid, payHold } from './invoicePrimary';
 
 /**
  * Оплата счёта в форме (задача C5, issue #1082): отметка, расклад по периодам, отмена — и полоса
@@ -38,14 +40,15 @@ function invoiceTitle(view: InvoiceView): string {
   return `счёт ${number ? `№ ${number}` : 'без номера'}${date ? ` от ${formatDate(date)}` : ''}`;
 }
 
-/** Полоса запертого счёта: причина словами сервера и что именно нельзя. */
+/**
+ * Сообщение запертого счёта: причина словами сервера и что именно нельзя. Сообщение об области — `Banner`
+ * (выбор А `sharedui-md3-17`; costs-invoice-screen-10-layout, D-10.9), до индикатора состояния (11).
+ */
 export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   const can = useCan();
 
   return (
-    <div role="note" className="flex items-start gap-2 rounded-md border border-outline-variant bg-surface-container px-3 py-2
-      text-body-small text-on-surface-variant">
-      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
+    <Banner tone="info" icon={LockIcon} urgent={false}>
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
         {/* Путь исправления (E2, PR 6b-1) называем тому, у кого есть кнопка «Исправить», — остальным он закрыт. */}
@@ -62,41 +65,55 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
           <> Закрытие отменяют на странице <Link to="/periods" className="underline">«Учётный период»</Link>.</>
         )}
       </span>
-    </div>
+    </Banner>
   );
 }
 
+/**
+ * «Отметить оплату» — в шапке части «Сроки и оплата» (costs-invoice-screen-10-layout, как в Г): видна и у
+ * свёрнутой части. Нет её у оплаченного, отклонённого и без права оплаты (`mayMarkPaid`); у разобранного
+ * неоплаченного оплата — основное действие сводки, и вторую кнопку форма не рисует.
+ *
+ * <p>Окна оплаты у кнопки своего нет (ревью PR #1786): его держит форма, одно на оба входа, — иначе два
+ * пути к одному окну жили бы каждый со своей копией условий.</p>
+ */
+export function InvoicePayButton({ view, dirty, onPay }: {
+  view: InvoiceView;
+  /** В форме есть несохранённое — в шапке ИЛИ в строках (D-10.7): оплата считается по сохранённому счёту. */
+  dirty: boolean;
+  onPay: () => void;
+}) {
+  const can = useCan();
+  if (!mayMarkPaid(view, can.permission('costs.invoice.pay'))) return null;
+  return (
+    <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
+      title={payHold(dirty) ?? undefined} onClick={onPay}>
+      Отметить оплату
+    </Button>
+  );
+}
+
+/** Тело части «Сроки и оплата» об оплате: почему оплатить нельзя — или как счёт оплачен. */
 export function InvoicePayment({ view, dirty }: {
   view: InvoiceView;
-  /** В форме есть несохранённые правки: оплата считается по сохранённому счёту. */
+  /** В форме есть несохранённое — в шапке ИЛИ в строках (D-10.7). */
   dirty: boolean;
 }) {
   const can = useCan();
   const canPay = can.permission('costs.invoice.pay');
-  const [dialog, setDialog] = useState<null | 'pay' | 'cancel' | 'posting'>(null);
+  const [dialog, setDialog] = useState<null | 'cancel' | 'posting'>(null);
   const payment = view.payment;
   const locked = payment.lockedBy !== null;
   // Отмена оплаты запертого — правом оплаты И правом исправления (E2, issue #1100, spec v3.3 п. 1.5).
-  // Без второго кнопки нет вовсе: почему счёт не правится, говорит полоса над формой.
+  // Без второго кнопки нет вовсе: почему счёт не правится, говорит сообщение над частями.
   const canCancel = canPay && (!locked || can.permission('costs.invoice.correct'));
 
   if (!payment.paid) {
-    // У отклонённого оплаты нет вовсе, а не «кнопка и причина отказа»: действие невыполнимо, пока счёт
-    // не вернули в черновик, и о состоянии уже говорит чип в шапке.
+    // У отклонённого оплаты нет вовсе, а не «кнопка и причина отказа».
     if (!canPay || view.requisites[K.state] === REJECTED) return null;
-
-    return (
-      <div className="flex items-center gap-2 flex-wrap text-body-small">
-        <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
-          onClick={() => setDialog('pay')}>
-          Отметить оплату
-        </Button>
-        {/* Причина — рядом и видимая: приглушённая кнопка сама о ней молчит. */}
-        {dirty && <span className="text-on-surface-variant">сохраните правки счёта: оплата считается по сохранённому</span>}
-        {!dirty && payment.refusal && <span className="text-warning">оплатить нельзя: {payment.refusal}</span>}
-        {dialog === 'pay' && <PayDialog view={view} onDone={() => setDialog(null)} />}
-      </div>
-    );
+    // Причина — видимая: приглушённая кнопка сама о ней молчит.
+    if (dirty) return <p className="text-body-small text-on-surface-variant">Сохраните правки счёта: оплата считается по сохранённому.</p>;
+    return payment.refusal ? <p className="text-body-small text-warning">Оплатить нельзя: {payment.refusal}</p> : null;
   }
 
   return (

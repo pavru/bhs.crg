@@ -60,7 +60,7 @@
 
 - [ ] 3.1 Удалены или сведены к пунктам плашки 1–21, 35, 38 таблицы D-11.2: `InvoiceGoneNotice`,
   `StaleInvoiceNotice` (шапка и строки), `RereadFailedNotice` на странице, `NotInRailNotice`,
-  `InvoiceLockNote`, «только чтение», справочник не прочитан, `InvoiceRecognitionNote` (сбой, «не пришло»,
+  `InvoiceLockNote` (уже `Banner` — 10, D-10.9), «только чтение», справочник не прочитан, `InvoiceRecognitionNote` (сбой, «не пришло»,
   «по прежнему виду»), `InvoiceTwinNotes`, `LostReferencesNote`, `SupplierMatchNote` [COST-6.4]. Уровни
   `notice-plaque` и `hand-card` этих файлов в `ui-baseline.json` опущены этим PR (в CI `ui:ratchet` падает,
   если уровень выше достигнутого). Проверка — vitest формы: при всех сообщениях сразу в форме не больше
@@ -90,7 +90,8 @@
   подсказки у полей убраны, «Верно» у режима осталось [COST-6.4]. Проверка — vitest `statusOf` и формы.
 - [ ] 4.3 Полоса сверки — только числа, без фразы о расхождении и «сохранить всё равно можно» (41)
   [COST-6.4]. Проверка — `invoice-lines-smoke`: в полосе числа и тон, фраза — в пункте перечня.
-- [ ] 4.4 Правило храповика `notice-plaque` по `features/costs` — до нуля (к 05.11.2026 — 8 мест: `InvoiceForm`,
+- [ ] 4.4 Правило храповика `notice-plaque` по `features/costs` — до нуля (к 05.11.2026 — 8 мест: ~~`InvoiceForm`~~ —
+  снято `costs-invoice-screen-10-layout` PR 1, 06.11.2026: «Справочник организаций не прочитан» стал `Banner`, D-10.9;
   `InvoiceDeleteDialog`, `InvoicePartyNote`, `InvoiceRecognitionNote`, `InvoiceTwinNotes` 2, `LostReferencesNote`,
   `StaleInvoiceNotice`), и `hand-card` в заметках — `InvoiceRecognitionNote`, `LostReferencesNote`,
   `SupplierMatchNote` 3 — до нуля: заметка уходит в перечень листа или становится `Banner`, карточка — `Card`

@@ -1,20 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { CheckCircle, Save, Undo } from '@/shared/ui/icons';
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Button } from '@/shared/ui/Button';
+import { Divider } from '@/shared/ui/Divider';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
-  useConfirmInvoiceFields, useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode,
+  useConfirmInvoiceFields, useReplaceInvoiceLines, type InvoiceView, type VatMode,
 } from '@/shared/api/invoices';
-import { K, PARSED, REJECTED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoiceFields';
+import { K, PARSED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import { SupplierMatchNote } from './SupplierMatchNote';
 import {
-  applyOffer, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
+  applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
@@ -24,12 +24,12 @@ import {
   modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
-import { AllocationSummary } from './LineAllocation';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { InvoiceReadinessLine } from './InvoiceReadinessLine';
 import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
 import { useCorrecting } from './useCorrectionDraft';
+import type { LinesStep } from './invoiceSave';
 
 const blank = (value: string) => value.trim() || null;
 
@@ -45,25 +45,24 @@ const blank = (value: string) => value.trim() || null;
  * «разобран», а не при сохранении: наименования в бумаге — слова поставщика, и сопоставить их может
  * только человек или таблица соответствий (C3).</p>
  *
- * <p>⚠️ <b>«Разобран» не отключается, даже когда заведомо откажет.</b> Приглушённая кнопка молчит о
- * причине, а причин много (нет строк, ждут позиции, не заполнено обязательное, не сходится разноска),
- * и знает их сервер. Поэтому кнопка живая, а отказ приезжает от сервера с перечнем строк и полей.
- * С issue #1291 причины видны и ДО нажатия — строкой готовности под кнопкой; перечень пуст — кнопка
- * становится главной.
- * У отклонённого счёта кнопки нет вовсе — на её месте «Вернуть в черновик»: условие тут одно, оно на
- * экране, и невыполнимое действие не показывают (issue #1284).</p>
+ * <p><b>Своей кнопки записи у строк нет</b> (costs-invoice-screen-10-layout, D-10.7): шапку и строки пишет
+ * одна «Сохранить» в сводке, шапка раньше строк. Таблица отдаёт ей свой шаг — `saverRef`. «Разобран» и
+ * «Вернуть в черновик» — тоже в сводке; под таблицей остаются сверка и строка готовности (до 11).</p>
  *
  * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed, supplierName = null }: {
+export function InvoiceLinesTable({
+  view, locked, readOnly = false, onDirty, headerDirty = false, supplierName = null, saverRef, compact = false,
+}: {
   view: InvoiceView;
   /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
   supplierName?: string | null;
-  /** Переход «разобран» идёт через страницу (issue #1293): она запирает форму на время записи и
-   *  решает, вести ли к следующему счёту очереди. Отказ записи возвращается сюда же. */
-  onParsed?: (send: () => Promise<unknown>) => Promise<unknown>;
+  /** Сюда таблица кладёт свой шаг записи — его зовёт «Сохранить» сводки после шапки (D-10.7). */
+  saverRef?: MutableRefObject<LinesStep | null>;
+  /** Плотный вид — рядом список счетов: уже колонки, высоты прежние (D-10.10). */
+  compact?: boolean;
   /** Есть ли несохранённые правки строк: о них обязан сказать диалог удаления счёта (issue #1282). */
   onDirty?: (dirty: boolean) => void;
   /** Счёт заперт закрытым периодом: строки только читаются, действий над ними нет — убраны, а не
@@ -126,7 +125,6 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   }
 
   const replace = useReplaceInvoiceLines();
-  const state = useInvoiceState();
   const confirm = useConfirmInvoiceFields();
   const toast = useSnackbar();
 
@@ -232,24 +230,28 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     }
   }
 
+  // Колонки, которых в таблице по умолчанию нет (D-10.10): НДС строки и примечание. Ни ввести примечание,
+  // ни поправить НДС строки, неверно прочитанный со скана, иначе было бы негде (ревью PR #1786) — их
+  // включает чип над таблицей. Колонка примечания, раз показанная, не пропадает у человека под курсором,
+  // когда он стирает последнее: она держится до выключения чипа, а с набранным примечанием не выключается.
+  const hasNote = drafts.some(draft => draft.note.trim() !== '');
+  const [noteOn, setNoteOn] = useState(hasNote);
+  if (hasNote && !noteOn) setNoteOn(true);
+  const [vatOn, setVatOn] = useState(false);
+
   const sums = totals(drafts, mode);
   const strip = reconcile(sums, view.requisites[K.vat], view.requisites[K.total], formatMoney);
   const parsed = view.requisites[K.state] === PARSED;
-  const rejected = view.requisites[K.state] === REJECTED;
   // Запертому счёту (закрытый период, удалён) строки готовности нет вовсе: «Разобран» ему откажет замок,
   // каким бы ни был перечень, и «всё готово» было бы неправдой. Права — отдельно: пункт без права виден.
   const readiness = locked ? null : readinessItems(view, {
     edit: !readOnly, allocate: hasPermission(access, 'costs.allocation.edit'),
   });
-  // Главной кнопка становится только по СОХРАНЁННОМУ: с несохранённой правкой рядом переход прошёл бы
-  // по прежнему состоянию, а правка осталась бы на экране несохранённой.
-  const settled = readiness?.length === 0 && !dirty && !headerDirty;
-
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
     offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
-    onAllocating: setAllocating, onEdit: edit,
+    onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
   });
 
   function edit(key: string, patch: Partial<LineDraft>) {
@@ -274,11 +276,22 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     setDirty(true);
   }
 
-  async function save() {
+  /**
+   * Шаг записи строк в очереди «Сохранить» (D-10.7). `after` — вид из ответа шапки, записанной этим же
+   * нажатием: основа о нём ещё не знает, а версия у счёта одна.
+   */
+  async function save(after: InvoiceView | null): Promise<boolean> {
+    // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
+    const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
+    const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
     try {
       const saved = await base.save(seen => replace.mutateAsync({
-        id: view.id, seen, lines: toPayload(drafts, mode), vatMode: mode,
-      }));
+        id: view.id, seen, lines: toPayload(sent.drafts, mode), vatMode: mode,
+      }), after);
+      if (sent.dropped > 0)
+        toast.info(`Поставщик сменился: у ${sent.dropped === 1 ? 'одной строки' : `${sent.dropped} строк`} позиция была `
+          + 'подставлена из запомненного за прежним. Позиция оставлена, пометка «запомнено» снята, за новым поставщиком '
+          + 'выбор не запомнен.');
       // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
       // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
       setDrafts(toDrafts(saved.lines, vatModeOf(saved)));
@@ -288,27 +301,27 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
       // следующих счетов этого поставщика — молча это делать нельзя.
       const notice = memoryNotice(saved.memory);
       if (notice) toast[notice.variant](notice.text);
+      return true;
     } catch (e) {
       toast.apiError(e, 'Строки не сохранены');
+      return false;
     }
   }
-
-  async function move(to: 'parsed' | 'draft') {
-    // Переход утверждает то, что человек видит: версию называет вид на экране.
-    // Возврат отклонённого — решение о счёте, как и отклонение: о нём говорят вслух. Вход у возврата
-    // один, этот (ревью PR #1290): второй, в меню «Ещё», жил своей мутацией и своими правилами.
-    try {
-      const send = () => state.mutateAsync({ id: view.id, seen: view.version, to });
-      await (to === 'parsed' && onParsed ? onParsed(send) : send());
-      if (rejected) toast.success('Счёт возвращён в черновик.');
-    }
-    catch (e) { toast.apiError(e, to === 'parsed' ? 'Счёт не разобран' : 'Счёт не возвращён в черновик'); }
-  }
+  // Шаг отдаётся очереди свежим — слойным эффектом, как колбэк охраны ухода: замыкание помнит строки.
+  // Запертым строкам и исправлению своей записи нет: у исправления запись одна, своя.
+  //
+  // ⚠️ Снимает шаг только СВОЙ (ревью PR #1787): при перемонтировании по `key={correction.generation}`
+  // уборка прежней таблицы идёт ПОСЛЕ слойного эффекта новой и обнулила бы уже отданный ею шаг.
+  const own = useRef<LinesStep | null>(null);
+  useLayoutEffect(() => {
+    own.current = still || correcting ? null : save;
+    if (saverRef) saverRef.current = own.current;
+  });
+  useEffect(() => () => { if (saverRef && saverRef.current === own.current) saverRef.current = null; }, [saverRef]);
 
   return (
-    <section className="space-y-3" data-readiness="lines">
+    <div className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-body-medium font-medium text-on-surface-variant">Строки счёта</h2>
         {/* Где менять нельзя (заперт без исправления, нет права), флажка нет: «сверху» говорит пометка, «в том
             числе» — обычный случай, о нём молчат заголовки колонок. Исправление режим меняет (#1498). */}
         {still
@@ -322,13 +335,13 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         <div className="flex-1" />
         {!still && (
           <>
+            <Chip selected={vatOn} onClick={() => setVatOn(on => !on)}>НДС строк</Chip>
+            <Chip selected={noteOn} disabled={noteOn && hasNote}
+              title={noteOn && hasNote ? 'У строк есть примечания — колонку не спрятать' : undefined}
+              onClick={() => setNoteOn(on => !on)}>
+              Примечание
+            </Chip>
             <InvoiceLinesPaste mode={mode} onAdd={add} />
-            {!correcting && (
-              <Button variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
-                loading={replace.isPending} onClick={save}>
-                Сохранить строки
-              </Button>
-            )}
           </>
         )}
       </div>
@@ -360,7 +373,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           onApply={applyReady} />
       )}
 
-      <EditGrid label="Строки счёта" numbered rows={drafts} rowKey={draft => draft.key} minWidth="min-w-[70rem]"
+      <EditGrid label="Строки счёта" numbered rows={drafts} rowKey={draft => draft.key}
         empty={(
           <>
             Строк нет. Черновик живёт и без них — заведите их с клавиатуры или вставьте таблицу из
@@ -372,47 +385,19 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         onRemove={still ? undefined : draft => remove(draft.key)}
         columns={columns} />
 
-      <ReconciliationStrip sums={sums} strip={strip} unsaved={dirty}
-        matched={drafts.filter(d => d.matchedBy !== null).length}
-        hint={!still && !correcting && !dirty ? savedExplains(view) : null}
-        onHint={to => switchMode(to, true)} />
-
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
-        {still || correcting ? null : parsed || rejected
-          ? (
-            <Button variant="outlined" icon={<Icon icon={Undo} size={18} />} loading={state.isPending}
-              onClick={() => move('draft')}>
-              Вернуть в черновик
-            </Button>
-          )
-          : (
-            // Перечень пуст — «Разобран» становится главным действием: условия выполнены, осталось решение.
-            <Button variant={settled ? 'filled' : 'outlined'} icon={<Icon icon={CheckCircle} size={18} />}
-              loading={state.isPending} onClick={() => move('parsed')}>
-              Разобран
-            </Button>
-          )}
-        {/* У разобранного — тоже, если разноска не сходится: счёт, разобранный до F1 (#1085), разноски
-            не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
-        {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
-          && <AllocationSummary allocation={view.allocation} />}
-        <span className="text-body-small text-on-surface-variant">
-          {rejected
-            ? 'Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.'
-            : parsed
-            ? view.allocation.allocated
-              ? 'Счёт разобран: строки есть, у всех позиция, обязательные поля заполнены, разноска сходится.'
-              : 'Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.'
-            : readiness !== null
-            ? 'Разобран — это утверждение человека, что счёт сверен с бумагой.'
-            : 'Разобран — это утверждение человека, что счёт сверен с бумагой. Условия проверит сервер '
-              + 'и назовёт, чего не хватает.'}
-        </span>
+      {/* Сверка — липкой строкой под таблицей, пока таблица в окне (D1, ТЗ COST-6.2): у сорока строк она
+          видна, где бы ни стояла прокрутка. Без своей рамки — черта сверху (`Divider`). Рядом — строка
+          готовности до «Разобран» (до индикатора 11). */}
+      <div className="sticky bottom-0 z-10 bg-surface pb-2" data-testid="invoice-reconciliation">
+        <Divider />
+        <ReconciliationStrip sums={sums} strip={strip} unsaved={dirty}
+          matched={drafts.filter(d => d.matchedBy !== null).length}
+          hint={!still && !correcting && !dirty ? savedExplains(view) : null}
+          onHint={to => switchMode(to, true)} />
+        {/* Чего не хватает до «Разобран» — не нажимая (issue #1291). У разобранного и отклонённого строки нет. */}
+        {readiness !== null && <InvoiceReadinessLine items={readiness} unsaved={dirty || headerDirty} />}
       </div>
-      {/* Чего не хватает до «Разобран» — не нажимая (issue #1291). У разобранного и отклонённого строки нет. */}
-      {readiness !== null && <InvoiceReadinessLine items={readiness} unsaved={dirty || headerDirty} />}
-    </section>
+    </div>
   );
 }
 
@@ -443,8 +428,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   // а флажок, поставленный зря, — ровно этот случай (ревью PR #1508).
   const offer = hint ? modeHint(hint) : null;
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-outline-variant
-      bg-surface-container px-3 py-2 text-body-small">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 py-2 text-body-small">
       <span className="text-on-surface-variant">Строк: <b>{sums.count}</b></span>
 
       {sums.withoutNomenclature > 0 && (

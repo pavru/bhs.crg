@@ -87,16 +87,22 @@ export function useDraftBase<S = string>(
    * равна названной, и повтор был бы той же правкой второй раз — отказ уходит наружу как есть.</p>
    *
    * @param send получает версию и, на повторе, свежий вид — шапка кладёт правки поверх него.
+   * @param after вид из ответа ПРЕДЫДУЩЕЙ записи той же очереди (строки после шапки, D-10.7): форма его
+   *   ещё не перерисовала, и основа о нём не знает. Моя часть в нём та же — запись идёт с его версией;
+   *   другая — с прежней, и сервер откажет, как отказал бы и без очереди.
    */
-  async function save<T>(send: (seen: string, fresh: InvoiceView | null) => Promise<T>): Promise<T> {
+  async function save<T>(
+    send: (seen: string, fresh: InvoiceView | null) => Promise<T>, after?: InvoiceView | null,
+  ): Promise<T> {
+    const first = after ? stepBase(step.base, after.version, signatureOf(after), true, options.same).base : step.base;
     try {
-      return await send(step.base.version, null);
+      return await send(first.version, null);
     } catch (refusal) {
       if (!isConflict(refusal)) throw refusal;
 
       const fresh = await readFresh(view.id);
-      const seen = stepBase(step.base, fresh.version, signatureOf(fresh), true, options.same).base.version;
-      if (seen !== fresh.version || seen === step.base.version) throw refusal;
+      const seen = stepBase(first, fresh.version, signatureOf(fresh), true, options.same).base.version;
+      if (seen !== fresh.version || seen === first.version) throw refusal;
       return await send(seen, fresh);
     }
   }

@@ -40,8 +40,14 @@ describe('сборка реквизитов на отправку', () => {
 });
 
 describe('блоки формы', () => {
-  it('шапка — первая и в ней то, что названо в ТЗ', () => {
-    expect(BLOCKS[0].fields).toEqual([K.supplier, K.number, K.date, K.total, K.vat]);
+  it('первая часть — «Кто и сколько»: плательщик рядом с поставщиком (COST-6.2)', () => {
+    expect(BLOCKS[0].fields).toEqual([K.supplier, K.payer, K.number, K.date, K.total, K.vat]);
+  });
+
+  it('«Оплата» и «Состояние» полями не показываются — их двигают действия', () => {
+    const all = BLOCKS.flatMap(b => [...b.fields]);
+    expect(all).not.toContain(K.state);
+    expect(all).not.toContain(K.payment);
   });
 
   it('каждое поле стоит ровно в одном блоке', () => {
@@ -53,12 +59,12 @@ describe('блоки формы', () => {
     const unconfirmed = [K.supplier, K.number, K.dueDate];
 
     expect(unconfirmedInBlock(BLOCKS[0], unconfirmed)).toEqual([K.supplier, K.number]);
-    expect(unconfirmedInBlock(BLOCKS[2], unconfirmed)).toEqual([K.dueDate]);
+    expect(unconfirmedInBlock(BLOCKS[1], unconfirmed)).toEqual([K.dueDate]);
   });
 
   it('в блоке без меток перечень пуст — кнопке там не место', () => {
     // Пустой перечень сервер отвергает: предлагать действие, которое заведомо откажет, — обман.
-    expect(unconfirmedInBlock(BLOCKS[1], [K.number])).toEqual([]);
+    expect(unconfirmedInBlock(BLOCKS[2], [K.number])).toEqual([]);
   });
 
   it('правка снимает метку сразу, не дожидаясь сохранения', () => {

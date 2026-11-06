@@ -7,7 +7,6 @@
   },
   "fixed-width": {
     "features/catalog/LoginPage.tsx": 2,
-    "features/costs/InvoiceLinesTable.tsx": 1,
     "features/costs/InvoicePartyNote.tsx": 2,
     "features/costs/InvoicesPage.tsx": 2,
     "features/costs/LineMatchChip.tsx": 2,
@@ -41,7 +40,6 @@
   },
   "notice-plaque": {
     "features/costs/InvoiceDeleteDialog.tsx": 1,
-    "features/costs/InvoiceForm.tsx": 1,
     "features/costs/InvoicePartyNote.tsx": 1,
     "features/costs/InvoiceRecognitionNote.tsx": 1,
     "features/costs/InvoiceTwinNotes.tsx": 2,
@@ -49,8 +47,6 @@
     "features/costs/StaleInvoiceNotice.tsx": 1
   },
   "hand-card": {
-    "features/costs/InvoiceLinesTable.tsx": 1,
-    "features/costs/InvoicePayment.tsx": 1,
     "features/costs/InvoiceRecognitionNote.tsx": 1,
     "features/costs/InvoiceScanPanel.tsx": 1,
     "features/costs/LostReferencesNote.tsx": 1,

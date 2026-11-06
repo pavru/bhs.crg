@@ -601,3 +601,24 @@ export function createChecks() {
   }
   return { check, skip, summarize };
 }
+
+/**
+ * Раскрыть свёрнутые части формы счёта (costs-invoice-screen-10-layout, D-10.2): заполненная часть
+ * открывается свёрнутой в строку-итог, и поле в ней не найти по подписи, пока часть не раскрыта. Прогон,
+ * который проверяет не свёртку, а то, что в части, раскрывает их все — как сделал бы человек.
+ */
+export async function expandInvoiceParts(page) {
+  // Сначала — сама форма: раскрывать нечего, пока счёт не открылся.
+  await page.getByTestId('invoice-header').first().waitFor({ timeout: 10_000 });
+  const collapsed = page.getByRole('button', { name: /^Развернуть «/ });
+  for (let left = 10; left > 0 && await collapsed.count(); left--) await collapsed.first().click();
+}
+
+/**
+ * Пункт «⋮» сводки счёта (D-10.6): файл, распознавание, переходы, исправление, удаление — в меню, а не
+ * кнопками. Меню называется «Ещё».
+ */
+export async function invoiceMenu(page, item) {
+  await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
+  await page.getByRole('menuitem', { name: item }).click();
+}

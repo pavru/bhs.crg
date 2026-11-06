@@ -77,6 +77,17 @@ export function InvoicesPage() {
       return next;
     }, { replace: true });
   };
+  const guard = useNavigationGuard();
+  /**
+   * Смена счёта по строке списка, ссылке двойника и полосе загрузки (D-10.7) — через ту же охрану ухода,
+   * что уход по ссылке: форма с несохранённым спрашивает своим вопросом и сама решает, уходить ли. Без
+   * этого щелчок по соседнему счёту перемонтировал форму, и набранное пропадало без вопроса.
+   */
+  const switchTo = (id: string) => {
+    if (id === selected) { ld.showDetail(); return; }
+    const go = () => setSelected(id);
+    if (!guard?.attempt(go)) go();
+  };
   const [query, setQuery] = useState('');
   // Отбор списка — ОДНО состояние (ревью PR #1304): чип очереди либо «только счета этой загрузки»
   // (issue #1294). Двух сразу не бывает по устройству, а не по дисциплине вызовов: чип считает
@@ -178,7 +189,6 @@ export function InvoicesPage() {
   const alive = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const navigate = useNavigate();
-  const guard = useNavigationGuard();
   // Идёт запись выхода из очереди и выбор следующего счёта: форма на это время заперта (`inert`).
   // «Несохранённое» знает только о шапке и строках, а набрать можно и в оплате, и в разноске, — и
   // смена счёта стёрла бы это молча. Запертая форма закрывает весь класс разом, не перечисляя мест.
@@ -255,11 +265,20 @@ export function InvoicesPage() {
     return true;
   }
 
-  async function addDraft() {
+  /**
+   * Сначала охрана ухода, потом запись (ревью PR #1786): спроси она после — отказ «Отмена» оставлял бы
+   * заведённый черновик сиротой, а у файла ещё и снятые отбор и поиск.
+   */
+  const guarded = (act: () => void) => { if (!guard?.attempt(act)) act(); };
+
+  function addDraft() { guarded(() => void createDraft()); }
+
+  async function createDraft() {
     try {
       // Пустой черновик — осознанно: счёт заводят, чтобы приложить скан и разобрать его, и требовать
       // реквизиты до того, как человек увидел бумагу, — это требовать угадать.
       const created = await create.mutateAsync({});
+      // Охрана уже спросила: второй раз, через `switchTo`, она спросила бы о форме, которую человек отпустил.
       setSelected(created.id);
     } catch (e) { toast.apiError(e, 'Черновик не заведён'); }
   }
@@ -268,7 +287,9 @@ export function InvoicesPage() {
    * Счёт из скана (issue #1077): черновик заводится всегда, когда файл годен, распознавание идёт в
    * фоне. Отказ распознавания — не отказ этого действия: о нём говорит полоса в открытом счёте.
    */
-  async function addFromScan(file: File) {
+  function addFromScan(file: File) { guarded(() => void createFromScan(file)); }
+
+  async function createFromScan(file: File) {
     try {
       const created = await fromScan.mutateAsync(file);
       // Поиск снимается: у счёта без номера и поставщика ему не за что зацепиться — открылся бы счёт,
@@ -389,7 +410,7 @@ export function InvoicesPage() {
           <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
             // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
             onOnly={() => { setQuery(''); setFilter('upload'); }}
-            onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={setSelected} />
+            onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={switchTo} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-body-small text-warning" role="status">
@@ -427,12 +448,12 @@ export function InvoicesPage() {
             )}
             {rows.map(({ item, left, exit }) => left ? (
               // Номер — у открытого счёта: строка списка осталась снимком до правки.
-              <InvoiceLeftRow key={item.id} onClick={() => setSelected(item.id)}
+              <InvoiceLeftRow key={item.id} onClick={() => switchTo(item.id)}
                 exit={exit} active={item.id === selected}
                 number={shown?.id === item.id ? asInput(shown.requisites[K.number]) : item.number} />
             ) : (
               <InvoiceListRow key={item.id} item={item} active={item.id === selected} queue={queue}
-                onClick={() => setSelected(item.id)} />
+                onClick={() => switchTo(item.id)} />
             ))}
             {/* Запертые — строкой, а не кнопкой: открыть их можно, исправить нельзя. Под пустым списком
                 о них уже сказано словами пустого состояния. Числа не пришли — так и говорим: молчание
@@ -488,7 +509,8 @@ export function InvoicesPage() {
                 view={opened.data}
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
-                onOpenInvoice={setSelected}
+                onOpenInvoice={switchTo}
+                compactLines
                 onExit={(how, send, otherwise) => exiting(
                   opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
                 focusHeader={led === opened.id}

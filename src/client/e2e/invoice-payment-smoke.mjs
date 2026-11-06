@@ -38,7 +38,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-payment-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn, expandInvoiceParts, invoiceMenu } from './harness.mjs';
 
 
 const browser = await launchBrowser();
@@ -114,6 +114,8 @@ async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number) }).first().click();
   await settled(page);
+  // Заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout, D-10.2).
+  await expandInvoiceParts(page);
 }
 
 const today = (await api('GET', '/periods')).today;
@@ -136,7 +138,7 @@ await invoice(broken, 100, 150);
 await check('refusal-is-shown-instead-of-the-form', async () => {
   await open(broken);
   const note = await page.locator('main').innerText();
-  if (!/оплатить нельзя: сумма строк .* расходится/.test(note))
+  if (!/оплатить нельзя: сумма строк .* расходится/i.test(note))
     throw new Error('рядом с кнопкой оплаты причина отказа не названа');
 
   await page.getByRole('button', { name: 'Отметить оплату' }).click();
@@ -547,17 +549,19 @@ await check('admin-corrects-locked-invoice', async () => {
   page.on('response', listen);
   try {
     await open(lockedNumber);
-    await page.getByRole('button', { name: 'Исправить', exact: true }).click();
+    // «Исправить» — пункт «⋮» сводки, «Проверить исправление…» — её основное действие (D-10.6).
+    await invoiceMenu(page, 'Исправить');
     const bar = page.getByTestId('correction-bar');
     await bar.waitFor({ timeout: 10_000 });
-    const verify = bar.getByRole('button', { name: 'Проверить исправление…' });
+    await expandInvoiceParts(page);
+    const verify = page.getByTestId('invoice-header').getByRole('button', { name: 'Проверить исправление…' });
     if (await verify.isEnabled()) throw new Error('проверка доступна без причины и правок');
 
     await page.getByLabel('Назначение', { exact: true }).fill('исправлено прогоном');
     // И строку: у неё своей записи в исправлении нет — набранное обязано уехать тем же телом.
-    await page.getByLabel('Примечание, строка 1').fill('примечание исправления');
-    if (await page.getByRole('button', { name: 'Сохранить строки', exact: true }).count())
-      throw new Error('в исправлении у строк осталась своя кнопка записи');
+    await page.getByLabel('Наименование в счёте, строка 1').fill('Услуга прогона, исправлено');
+    if (await page.getByRole('button', { name: 'Сохранить', exact: true }).count())
+      throw new Error('в исправлении осталась обычная «Сохранить» — запись у исправления одна');
     // Режим НДС исправление меняет (#1498): флажок на месте, а не пометкой «только чтение».
     const mode = page.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' });
     if (!(await mode.count()) || !(await mode.isEnabled())) throw new Error('в исправлении нет флажка «Цены без НДС, НДС сверху»');
@@ -584,7 +588,8 @@ await check('admin-corrects-locked-invoice', async () => {
     await page.getByText(/Исправление записано: версия 1 ушла в историю/).first().waitFor({ timeout: 10_000 });
     if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
 
-    // История на форме (PR 6b-2): записанное исправление видно сразу — с версией и причиной.
+    // История на форме (PR 6b-2): записанное исправление — в части «История» (свёрнута, как всегда).
+    await expandInvoiceParts(page);
     const history = page.getByRole('region', { name: 'Исправления' });
     const row = history.getByRole('row').filter({ hasText: 'опечатка в назначении' });
     await row.waitFor({ timeout: 10_000 });
@@ -599,8 +604,8 @@ await check('admin-corrects-locked-invoice', async () => {
   const view = await api('GET', `/costs/invoices/${lockedId}`);
   if (view.requisites['Назначение'] !== 'исправлено прогоном')
     throw new Error(`назначение после исправления — «${view.requisites['Назначение']}»`);
-  if (view.lines[0]?.note !== 'примечание исправления')
-    throw new Error(`примечание строки после исправления — «${view.lines[0]?.note}»: строки не уехали с исправлением`);
+  if (view.lines[0]?.supplierText !== 'Услуга прогона, исправлено')
+    throw new Error(`наименование строки после исправления — «${view.lines[0]?.supplierText}»: строки не уехали с исправлением`);
   if (view.payment.lockedBy === null) throw new Error('после исправления счёт перестал быть запертым');
 });
 

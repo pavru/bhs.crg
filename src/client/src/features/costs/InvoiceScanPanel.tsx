@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Description, Download, OpenInFull, OpenInNew, RotateRight, UploadFile } from '@/shared/ui/icons';
+import { Description, Download, OpenInFull, OpenInNew, RotateRight } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
@@ -282,35 +282,26 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
 }
 
 /** Приложить или заменить файл счёта. Кнопкой, а не полем формы: файл уезжает своим адресом. */
-export function ScanUploadButton({ hasScan, busy, onPick }: {
-  hasScan: boolean; busy: boolean; onPick: (file: File) => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-  // Предлагается то, что потом будет чем показать или прочитать: Excel и Word сами не
-  // показываются, но стоят рядом с формой видом для чтения (issue #1270). Пока реестра нет, выбор
-  // не сужается: вид всё равно определит сервер, а пустой `accept` у кнопки — меньшее зло, чем
-  // кнопка, которая ждёт.
+/**
+ * Скрытый выбор файла счёта — «Приложить файл…» / «Заменить файл…» в «⋮» сводки (D-10.6). Предлагается то,
+ * что потом будет чем показать или прочитать: Excel и Word сами не показываются, но стоят рядом с формой
+ * видом для чтения (issue #1270). Пока реестра нет, выбор не сужается: вид всё равно определит сервер.
+ */
+export const ScanFileInput = forwardRef<HTMLInputElement, { onPick: (file: File) => void }>(function ScanFileInput({ onPick }, ref) {
   const kinds = useFileKinds();
   const offered = [...new Set([...shownKinds(kinds.data), ...recognizedKinds(kinds.data)])];
   const accept = acceptOf(offered) || undefined;
-
   return (
-    <>
-      <Button variant="outlined" loading={busy} icon={<Icon icon={UploadFile} size={18} />}
-        onClick={() => input.current?.click()}>
-        {hasScan ? 'Заменить файл' : 'Приложить файл'}
-      </Button>
-      <input ref={input} type="file" className="hidden" accept={accept}
-        onChange={e => {
-          const file = e.target.files?.[0];
-          // Значение сбрасываем: иначе выбор ТОГО ЖЕ файла второй раз не вызовет события, и повтор
-          // после неудачной загрузки выглядел бы как «кнопка не работает».
-          e.target.value = '';
-          if (file) onPick(file);
-        }} />
-    </>
+    <input ref={ref} type="file" className="hidden" accept={accept} aria-label="Файл счёта"
+      onChange={e => {
+        const file = e.target.files?.[0];
+        // Значение сбрасываем: иначе выбор ТОГО ЖЕ файла второй раз не вызовет события, и повтор
+        // после неудачной загрузки выглядел бы как «кнопка не работает».
+        e.target.value = '';
+        if (file) onPick(file);
+      }} />
   );
-}
+});
 
 /** Ждут дольше трёх секунд — уже не «загружается», и об этом стоит сказать. */
 function useSlow(waiting: boolean) {

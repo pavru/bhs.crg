@@ -65,7 +65,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-view-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption, railSection } from './harness.mjs';
+import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption, railSection, expandInvoiceParts } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
@@ -680,6 +680,8 @@ try {
     // Открытый счёт назван в адресе, а пункт «Счета» ведёт на адрес БЕЗ счёта: с несохранённой
     // правкой форма спрашивает, а не закрывается вместе с ней.
     const edited = 'правка без сохранения';
+    // «Назначение» — в части «Ещё», а заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout).
+    await expandInvoiceParts(page);
     await page.getByLabel('Назначение').fill(edited);
     await page.getByRole('link', { name: 'Счета', exact: true }).click();
     const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });

@@ -3,7 +3,7 @@ import type { InvoiceView } from '@/shared/api/invoices';
 import { canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle } from './invoiceDelete';
 
 function view(over: {
-  requisites?: Record<string, unknown>; paid?: boolean; lines?: { parts: number }[];
+  requisites?: Record<string, unknown>; paid?: boolean; lines?: { parts: number }[]; book?: number;
 } = {}): InvoiceView {
   return {
     id: 'i1', version: '7',
@@ -12,6 +12,7 @@ function view(over: {
     lines: (over.lines ?? []).map(line => ({ allocation: { parts: Array(line.parts).fill({}) } })),
     duplicates: [],
     sameFile: [],
+    book: over.book,
   } as unknown as InvoiceView;
 }
 
@@ -20,6 +21,11 @@ const refusal = (status: number, error: string) => ({ response: { status, data: 
 describe('canDelete', () => {
   it('черновик без оплаты удаляет тот, кто правит счета', () => {
     expect(canDelete(view(), true)).toBe(true);
+  });
+
+  it('у черновика с книгой исправлений действия нет — сервер ответил бы 409', () => {
+    expect(canDelete(view({ book: 2 }), true)).toBe(false);
+    expect(canDelete(view({ book: 0 }), true)).toBe(true);
   });
 
   it('без права правки действия нет', () => {

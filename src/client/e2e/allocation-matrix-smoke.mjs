@@ -31,7 +31,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/allocation-matrix-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, shownValue, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, shownValue, until, expandInvoiceParts } from './harness.mjs';
 import { sitePickerChecks } from './site-picker-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -103,6 +103,9 @@ async function invoice(number, lines, total) {
 async function openMatrix(target, number, button) {
   await target.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await target.getByRole('button', { name: new RegExp(number) }).first().click();
+  await target.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+  // «Разноска» разнесённого счёта открывается свёрнутой (costs-invoice-screen-10-layout, D-10.2).
+  await expandInvoiceParts(target);
   await target.getByRole('button', { name: button }).click();
   const dialog = target.getByRole('dialog', { name: 'Разноска по объектам' });
   await dialog.waitFor({ timeout: 10_000 });
@@ -215,6 +218,8 @@ await check('invoice-goes-to-article', async () => {
   await page.setViewportSize({ width: 1500, height: 1000 });
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number) }).first().click();
+  await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+  await expandInvoiceParts(page);
   const select = page.getByLabel('Объект счёта', { exact: true });
 
   // Статья — в своей группе: «Склад» среди строек читался бы стройкой.
@@ -245,6 +250,8 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
   const open = async number => {
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
+    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    await expandInvoiceParts(page);
     return page.getByLabel('Объект счёта', { exact: true });
   };
   const outside = async select => (await listOptions(select)).groups['Вне строек'] ?? [];
@@ -284,6 +291,7 @@ await check('header-section-without-matrix', async () => {
   const id = await invoice(number, [{ supplierText: 'Кабель на этаж', unit: 'м', quantity: 4, price: 2 }], 8);
 
   await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
+  await expandInvoiceParts(page);
   const select = page.getByLabel('Объект счёта', { exact: true });
   const written = () => page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`)
     && r.request().method() === 'PUT' && r.ok(), { timeout: 10_000 });

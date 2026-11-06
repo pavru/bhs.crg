@@ -1,35 +1,40 @@
 import { useState } from 'react';
-import { Block, Delete } from '@/shared/ui/icons';
+import { Block, Delete, Undo } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useFreshInvoice, useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
-import { K, REJECTED } from './invoiceFields';
+import { K, PARSED, REJECTED } from './invoiceFields';
 import { rejectInvoice, type RejectOutcome } from './invoiceReject';
 import { useInvoiceDelete } from './invoiceDelete';
 
 /**
- * Меню «Ещё» в шапке формы счёта (issue #1284): редкие действия над счётом целиком.
+ * «⋮» сводки счёта (issue #1284; costs-invoice-screen-10-layout, D-10.6): действия над счётом целиком,
+ * которые не основное действие. Порядок: файл («Приложить/Заменить файл…», «Распознать файл»), переходы
+ * («Вернуть в черновик», «Отклонить…»), «Исправить», под чертой — «Удалить счёт…».
  *
- * <p>Действий два. «Отклонить…» — у счёта, по которому ещё можно передумать платить. «Удалить счёт…»
- * (issue #1282) — под чертой и только у черновика без оплаты: удаление — для заведённого по ошибке и
- * для дубля, а настоящий счёт, по которому не платим, отклоняют. Действие, которое сервер заведомо
- * откажется выполнить, не показывается вовсе: оплаченный счёт сначала лишают оплаты, и кнопка для
- * этого стоит строкой ниже. Меню без пунктов не рисуется — у оплаченного и у отклонённого его нет.</p>
+ * <p>«Удалить счёт…» (issue #1282) — только у черновика без оплаты и без книги исправлений: удаление —
+ * для заведённого по ошибке и для дубля, а настоящий счёт, по которому не платим, отклоняют. Действие,
+ * которое сервер заведомо откажется выполнить, не показывается вовсе. Меню без пунктов не рисуется.</p>
  *
- * <p><b>«Вернуть в черновик» здесь нет</b> (ревью PR #1290): у возврата вход один — кнопка под
- * строками счёта, та же, что возвращает разобранный. Второй вход в меню жил своей мутацией и своими
- * правилами: кнопки не знали о нажатии друг друга, и отказ у них звучал по-разному.</p>
+ * <p><b>«Вернуть в черновик»</b> — у разобранного и отклонённого: оба перехода назад отсюда, одной мутацией
+ * (ревью PR #1290: второй вход жил своей мутацией и своими правилами). Возврат отклонённого — решение о
+ * счёте, как и отклонение: о нём говорят вслух.</p>
  *
- * <p><b>Несохранённые правки шапки отклонению не мешают.</b> Они лежат поверх вида счёта и переход
+ * <p><b>Несохранённые правки шапки переходам не мешают.</b> Они лежат поверх вида счёта и переход
  * состояния переживают: «Состояние» человек не правит, и основа черновика переезжает на новую версию
- * молча (см. `useDraftBase`). Запрет «сначала сохраните» стоял здесь по ошибке — и только здесь.</p>
- *
- * <p>Меню, а не кнопка рядом с «Сохранить»: «Отклонить» — решение о документе, а не шаг его
- * заполнения, и рядом с «Разобран» читалось бы как его пара.</p>
+ * молча (см. `useDraftBase`).</p>
  */
-export function InvoiceMoreMenu({ view, onRejected }: {
+export function InvoiceMoreMenu({ view, canChange, file, recognize, correct, onRejected }: {
   view: InvoiceView;
+  /** Переходы состояния доступны: счёт не заперт, не в исправлении, право вводить счета есть. */
+  canChange: boolean;
+  /** «Приложить/Заменить файл…» — `null`, когда менять файл нельзя. */
+  file?: RowAction | null;
+  /** «Распознать файл» — `null`, когда распознавать нечего. */
+  recognize?: RowAction | null;
+  /** «Исправить» — у запертого счёта тому, у кого есть право исправления. */
+  correct?: RowAction | null;
   /** Отклонение идёт через страницу (issue #1293): под отбором очереди она ведёт к следующему счёту и
    *  говорит об этом сама, иначе зовёт `say`. Обещание кончается ответом на запись, а не переходом:
    *  диалог не ждёт перечитывания списка, и сбой перехода не читается как «счёт не отклонён». */
@@ -42,12 +47,25 @@ export function InvoiceMoreMenu({ view, onRejected }: {
   const askDelete = useInvoiceDelete();
 
   const rejected = view.requisites[K.state] === REJECTED;
+  const parsed = view.requisites[K.state] === PARSED;
   const number = String(view.requisites[K.number] || 'без номера');
   const label = `Счёт № ${number}`;
 
+  async function toDraft() {
+    try {
+      await state.mutateAsync({ id: view.id, seen: view.version, to: 'draft' });
+      if (rejected) toast.success('Счёт возвращён в черновик.');
+    } catch (e) { toast.apiError(e, 'Счёт не возвращён в черновик'); }
+  }
+
   const actions: RowAction[] = [];
-  if (!rejected && !view.payment.paid)
+  if (file) actions.push(file);
+  if (recognize) actions.push(recognize);
+  if (canChange && (parsed || rejected))
+    actions.push({ key: 'draft', label: 'Вернуть в черновик', icon: Undo, loading: state.isPending, onSelect: () => void toDraft() });
+  if (canChange && !rejected && !view.payment.paid)
     actions.push({ key: 'reject', label: 'Отклонить…', icon: Block, onSelect: () => setAsking(true) });
+  if (correct) actions.push(correct);
   if (askDelete)
     actions.push({
       key: 'delete', label: 'Удалить счёт…', icon: Delete, danger: true,
@@ -70,7 +88,7 @@ export function InvoiceMoreMenu({ view, onRejected }: {
               <li>отметить оплату по нему нельзя;</li>
               <li>строки, разноска и файл остаются как есть.</li>
             </ul>
-            <p>Передумали — «Вернуть в черновик» под строками счёта.</p>
+            <p>Передумали — «Вернуть в черновик» в меню «⋮» счёта.</p>
           </div>
         )}
         onConfirm={() => {

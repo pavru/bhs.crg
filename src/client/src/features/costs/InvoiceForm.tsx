@@ -1,86 +1,88 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { DoneAll, EditNote, Save, StarShine, Warning } from '@/shared/ui/icons';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { EditNote, LockIcon, StarShine, UploadFile, Visibility } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { TextField } from '@/shared/ui/TextField';
-import { DateField } from '@/shared/ui/DateField';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { Banner } from '@/shared/ui/Banner';
+import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
+import type { RowAction } from '@/shared/ui/RowActionsMenu';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
+import { formatDate, formatDateTime } from '@/shared/format/format';
 import {
-  useAttachInvoiceScan, useConfirmInvoiceFields, useUpdateInvoice,
+  useAttachInvoiceScan, useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, UNCONFIRMED_HINT, asInput, catalogRef, fromInput,
-  isMarked, moneyInput, refEntryId, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
-  type InvoiceBlock,
+  BLOCKS, K, PARSED, REJECTED, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
 } from './invoiceFields';
-import { formatDate } from '@/shared/format/format';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
-import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness';
+import { goTo, readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
-import { InvoiceLockNote, InvoicePayment } from './InvoicePayment';
+import { InvoiceLockNote, InvoicePayButton, InvoicePayment, PayDialog } from './InvoicePayment';
 import type { QueueExit } from './invoiceQueues';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { InvoiceDeleteProvider, InvoiceGoneNotice } from './InvoiceDeleteDialog';
 import { InvoiceTwinNotes } from './InvoiceTwinNotes';
 import { LostReferencesNote } from './LostReferencesNote';
-import { LOST } from './lostReferences';
-import { withArchiveWord } from '@/shared/ui/archive';
-import { ScanUploadButton } from './InvoiceScanPanel';
-import { InvoiceFieldScan } from './InvoiceFieldScan';
-import { InvoiceDueField } from './InvoiceDueField';
-import { deferralNote, hints, shippedBeforeIssued } from './invoiceDue';
-import { RecognitionBanner, RecognitionChip, RecognitionNotes, RecognitionStart } from './InvoiceRecognitionNote';
+import { ScanFileInput } from './InvoiceScanPanel';
+import { RecognitionBanner, RecognitionChip, RecognitionNotes } from './InvoiceRecognitionNote';
+import { useRecognitionAction } from './recognitionAction';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
-import { explainedByRecognition } from './recognition';
+import { explainedByRecognition, hasRecognitionNotes } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
-import { StatusText } from '@/shared/ui/StatusText';
 import { CorrectionBar } from './CorrectionBar';
 import { CorrectionHistory } from './CorrectionHistory';
-import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
+import { CorrectionContext, useCorrectionDraft } from './useCorrectionDraft';
 import { mayCorrect } from './correction';
-import { ExtraField, UnshownExtras } from './InvoiceExtraFields';
-import { InvoiceExtrasProvider, useExtraField, useInvoiceExtras } from './invoiceExtras';
+import { UnshownExtras } from './InvoiceExtraFields';
+import { InvoiceExtrasProvider, useInvoiceExtras } from './invoiceExtras';
+import { AllocationSummary } from './LineAllocation';
+import { BlockFields, ConfirmBlock } from './InvoiceFormFields';
+import { InvoicePart } from './InvoicePart';
+import {
+  PART_ORDER, PART_TITLE, PartRevealContext, attentionOf, initiallyOpen, partLine, partOfTarget, type PartExtra, type PartId,
+} from './invoiceParts';
+import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
+import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
+import { useInvoiceSave } from './invoiceSave';
 
 /**
- * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
+ * Форма ввода счёта (задача C1, issue #1076; раскладка — costs-invoice-screen-10-layout, вариант Г, ТЗ
+ * COST-6.2).
  *
- * <p><b>Шапка не прокручивается</b>: поставщик, номер, дата и сумма к оплате видны всегда, что бы
- * человек ни листал ниже. Это набросок заказчика почти дословно.</p>
+ * <p><b>Неподвижна только сводка</b> (≤ 64): номер, пометки, поставщик · дата · сумма, «Сохранить», одно
+ * основное действие и «⋮». Всё остальное — одной прокруткой частей в порядке работы: «Кто и сколько»,
+ * сообщения, «Строки», «Разноска», «Сроки и оплата», «Ещё», «История». Заполненная часть открывается
+ * свёрнутой в строку-итог (`invoiceParts`).</p>
  *
  * <p><b>Сохранение не блокируется ничем.</b> Ни пустых обязательных полей, ни строк: черновик обязан
- * сохраняться и попадать в реестр со сроком, а строки, ждущие номенклатуры, — это счётчик и отбор
- * «Разобрать», а не препятствие. Поэтому у кнопки нет условия, кроме «есть что сохранять».</p>
+ * сохраняться и попадать в реестр со сроком. Шапку и строки пишет одна кнопка, шапка раньше строк
+ * (`invoiceSave`, D-10.7).</p>
  *
  * <p><b>Метки «распознано, не подтверждено»</b> приходят с сервера и переживают повторное открытие
- * черновика — в этом весь их смысл: черновик создаёт фоновая задача, а человек открывает его потом.
- * Конец у метки двойной: правка поля снимает её с этого поля, «Всё верно» — со всего блока.</p>
- */
-/**
- * ⚠️ Правки прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ: страница передаёт `key={view.id}`. Не эффект
- * со сбросом состояния — он рисует лишний кадр с чужими правками, и в этом кадре номер одного счёта
- * стоит в форме другого.
+ * черновика. Конец у метки двойной: правка поля снимает её с этого поля, «Всё верно» — со всей части.</p>
+ *
+ * <p>⚠️ Правки прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ: страница передаёт `key={view.id}`. Не эффект
+ * со сбросом состояния — он рисует лишний кадр с чужими правками.</p>
  */
 export function InvoiceForm({
-  view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onExit, onUnsaved, focusHeader = false,
+  view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onExit, onUnsaved,
+  focusHeader = false, nav, fromFile, file, compactLines = false,
 }: {
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
    *  форму на время записи и выбора следующего счёта и говорит о переходе. `otherwise` зовётся, когда
    *  сама страница ничего не сказала. Обещание кончается ответом на запись. */
   onExit?: <T>(how: QueueExit, send: () => Promise<T>, otherwise: (result: T) => void) => Promise<T>;
-  /** Сюда привёл переход от соседнего счёта очереди: кнопка, на которой стоял фокус, исчезла вместе
-   *  с прежней формой, и без переноса он падает в начало страницы. */
+  /** Сюда привёл переход от соседнего счёта очереди: фокус — на сводку, а не в начало страницы. */
   focusHeader?: boolean;
-  /** Есть ли в форме несохранённое — в шапке или в строках. Страница спрашивает об этом в тот миг,
-   *  когда собирается сменить счёт, а не в миг нажатия (ревью PR #1303). Обязана быть стабильной. */
+  /** Есть ли в форме несохранённое — в шапке, в строках или в исправлении. Страница спрашивает об этом
+   *  в тот миг, когда собирается сменить счёт (ревью PR #1303). Обязана быть стабильной. */
   onUnsaved?: (unsaved: boolean) => void;
   /** Счёт удалили, пока он был открыт (issue #1282): набранное остаётся, действий записи нет. */
   gone?: boolean;
@@ -88,16 +90,23 @@ export function InvoiceForm({
   onClose: () => void;
   organizations: CostsOrganization[];
   /** Отказ чтения справочника организаций, если он был. ⚠️ Пустой список и «справочник не
-   *  прочитан» — разные вещи: сервер их различает нарочно, и терять это различие на клиенте нельзя. */
+   *  прочитан» — разные вещи: сервер их различает нарочно. */
   organizationsError?: unknown;
   onOpenInvoice: (id: string) => void;
-  /** Замена панели скана на узком экране — рисует страница, она знает ширину. */
+  /** Замена панели файла, когда рядом ей места нет, — рисует страница, она знает место. */
   scanSlot?: ReactNode;
+  /** Слоты сводки — их наполняет страница (D-10.3, D-10.4): «‹ N из M ›», «Счёт из файла», «Файл». */
+  nav?: ReactNode;
+  fromFile?: ReactNode;
+  file?: ReactNode;
+  /** Рядом список счетов — таблица строк в плотном виде (D-10.10). */
+  compactLines?: boolean;
 }) {
   const [edits, setEdits] = useState<Record<string, unknown>>({});
   const update = useUpdateInvoice();
   const confirm = useConfirmInvoiceFields();
   const attach = useAttachInvoiceScan();
+  const state = useInvoiceState();
   const toast = useSnackbar();
   const correction = useCorrectionDraft();
 
@@ -105,24 +114,21 @@ export function InvoiceForm({
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
   const [linesDirty, setLinesDirty] = useState(false);
-  const unsaved = dirty || linesDirty || correction.dirty;
+  // Несохранённое ОДНО (D-10.7): шапка или строки. Им гаснут «Разобран» и оплата, его спрашивает уход.
+  const unsaved = dirty || linesDirty;
+  const held = unsaved || correction.dirty;
   const header = useRef<HTMLDivElement>(null);
   // Один раз, при открытии: форма перемонтируется на каждый счёт.
   useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
   // Закрытая форма несохранённого не держит: без снятия страница помнила бы правки счёта, которого
   // на экране уже нет.
   useEffect(() => {
-    onUnsaved?.(unsaved);
+    onUnsaved?.(held);
     return () => onUnsaved?.(false);
-  }, [unsaved, onUnsaved]);
+  }, [held, onUnsaved]);
 
-  // Правки шапки лежат поверх вида (issue #1176). Вид обновился, а поля, которые человек правит,
-  // остались прежними — правки в силе. Изменили именно их — поле на экране показывает набранное, а не
-  // чужое значение, и сохранение затёрло бы то, чего человек не видел: это и есть «устарело».
-  //
-  // ⚠️ Подпись — реквизиты ЦЕЛИКОМ, а «моя часть» — сравнение: только по полям, которые человек правит.
-  // Подпись из одних правленых полей менялась бы с первой же правкой, без смены версии, — основа её не
-  // запоминала, и следующая чужая правка строк читалась бы как правка шапки (ревью PR #1208).
+  // Правки шапки лежат поверх вида (issue #1176): «моя часть» — только поля, которые человек правит
+  // (ревью PR #1208), подпись — реквизиты целиком.
   const base = useDraftBase(view, of => of.requisites, dirty, {
     same: (a, b) => Object.keys(edits).every(key => JSON.stringify(a[key]) === JSON.stringify(b[key])),
   });
@@ -133,13 +139,8 @@ export function InvoiceForm({
   }
 
   const scan = useMemo(() => scanOf(view), [view]);
-  // Распознавание скана (issue #1077). Вид, пришедший перечитыванием после исхода, — правка
-  // распознавания, а не чужая: набранное остаётся и переносится на него без полосы «устарело»,
-  // прочитанное для этих полей предлагается под ними.
-  //
-  // ⚠️ Принимается не «всё, что пришло этим перечитыванием», а только объяснимое распознаванием: поле
-  // было пустым и легло с меткой. Скан читается десятки секунд, и сохранённое за это время соседом
-  // приходит тем же перечитыванием — его правка по-прежнему даёт «устарело».
+  // Распознавание скана (issue #1077): вид, пришедший перечитыванием после исхода, — правка
+  // распознавания, а не чужая, если её объясняет распознавание (поле было пустым и легло с меткой).
   const watch = useRecognitionWatch(view.id, scan !== null && !gone);
   const byScan = base.stale && watch.accepted === view.version
     && explainedByRecognition(edits, base.signature, view);
@@ -147,71 +148,140 @@ export function InvoiceForm({
 
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
   const closed = view.payment.lockedBy !== null;
-  // Без права вводить счета (бухгалтер) форма читается так же, как запертая: действий записи нет вовсе,
-  // а не «есть и откажут» — каждое из них ответило бы 403 (N1, issue #1102). Разноска и оплата — свои
-  // права, их это не касается.
-  // Счёта больше нет — то же чтение: сохранять некуда, и каждое действие ответило бы «не найден».
+  // Без права вводить счета форма читается так же, как запертая (N1, issue #1102). Счёта больше нет —
+  // то же чтение: сохранять некуда.
   const can = useCan();
   const mayEdit = can.permission('costs.invoice.edit');
   const canEdit = mayEdit && !gone;
-  // Запертый счёт правится ИСПРАВЛЕНИЕМ (E2, issue #1100, PR 6b-1): та же форма, переключённая на месте, —
-  // причина, версия и книга, всё одним телом. Кнопка — тому, у кого и правка, и право исправления;
-  // остальным о режиме ни слова.
+  const canPay = can.permission('costs.invoice.pay');
+  const allocate = can.permission('costs.allocation.edit');
+  // Запертый счёт правится ИСПРАВЛЕНИЕМ (E2, issue #1100): та же форма, переключённая на месте.
   const correctable = mayCorrect(view, can.permission, gone);
   const correcting = correction.active && !gone;
   const locked = (closed && !correcting) || !canEdit;
-  // Всё, что пишет само, в исправлении убрано: запись у него одна (скан, распознавание, «Ещё», «Сохранить»).
+  // Всё, что пишет само, в исправлении убрано: запись у него одна.
   const quiet = locked || correcting;
 
-  // Поля, дописанные в тип «Счёт» (issue #1482), — блок «Дополнительно».
+  // Поля, дописанные в тип «Счёт» (issue #1482), — в части «Ещё».
   const extras = useInvoiceExtras(view.documentTypeId);
-  // Пока схема читается, «форма не показывает» — неправда: поле вот-вот встанет в «Дополнительно», а «Всё
-  // верно» этой строки подтвердило бы значение, которого человек не видел (ревью PR #1506).
   const orphanMarks = extras.loading ? [] : unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
+  const extraKeys = extras.block?.fields;
+  // Что части знают от формы: поля типа — в «Ещё», метки вне блоков и замечания — в конце «Кто и сколько».
+  const partMore: PartExtra = {
+    extra: extraKeys ?? [],
+    attention: orphanMarks.length > 0 || (!quiet && hasRecognitionNotes(watch.recognition)),
+  };
 
-  // Уход из раздела с несохранёнными правками спрашивает (G4, issue #1097). Открытый счёт назван в
-  // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с
-  // правками — молча. Пока выбор жил в состоянии экрана, тот же щелчок не делал ничего.
+  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже (D-10.7): прежде охрана видела
+  // только шапку, и уход молча уносил набранные строки (#1653).
   const [leave, setLeave] = useState<(() => void) | null>(null);
-  useLeaveGuard((dirty || correction.dirty) && !gone, proceed => setLeave(() => proceed));
+  useLeaveGuard(held && !gone, proceed => setLeave(() => proceed));
 
-  /** @returns сохранилось ли: уходить со страницы после отказа нельзя — правки бы пропали. */
-  async function save(): Promise<boolean> {
+  /** Шаг шапки в очереди записи: вид из ответа или `null` — отказ, о нём уже сказано. */
+  async function saveHeader(): Promise<InvoiceView | null> {
     try {
-      // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает
-      // таким, каким оно лежит сейчас, а не каким было на экране минуту назад.
-      await base.save((seen, fresh) => update.mutateAsync({
+      // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким,
+      // каким оно лежит сейчас.
+      const saved = await base.save((seen, fresh) => update.mutateAsync({
         id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, edits),
       }));
       setEdits({});
-      return true;
+      return saved;
     } catch (e) {
-      // Текст отказа — ОТ СЕРВЕРА (`apiError` и заведён для этого): он называет поле и причину
-      // («поле такое-то заперто», «не число»), а своя формулировка была бы пересказом, который
-      // разойдётся с сервером на первом же новом отказе.
+      // Текст отказа — ОТ СЕРВЕРА: он называет поле и причину.
       toast.apiError(e, 'Счёт не сохранён');
-      return false;
+      return null;
     }
   }
+  const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader });
 
-  async function confirmBlock(block: InvoiceBlock) {
-    const fields = unconfirmedInBlock(block, view.unconfirmed);
+  // Части: раскрыты незаполненные — решено при открытии счёта, дальше сворачивает только человек.
+  const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }, partMore));
+  const toggle = (part: PartId) => setOpen(prev => ({ ...prev, [part]: !prev[part] }));
+  // Метка, пришедшая после открытия (распознавание кончилось, поля типа дочитались), часть РАСКРЫВАЕТ: «Всё
+  // верно (N)» в шапке свёрнутой части подтверждало бы значения, которых человек не видел (ревью PR #1786).
+  // Только раскрывает: свернул человек часть с уже стоявшей меткой — это его решение.
+  const attention = attentionOf(view, { edits, linesDirty }, partMore);
+  const attended = useRef(attention);
+  useEffect(() => {
+    const fresh = PART_ORDER.filter(part => attention[part] && !attended.current[part]);
+    attended.current = attention;
+    if (fresh.length > 0) setOpen(prev => ({ ...prev, ...Object.fromEntries(fresh.map(part => [part, true])) }));
+  });
+  // Строка готовности ведёт к месту в свёрнутой части: часть раскрывается, затем — к месту.
+  const reveal = useCallback((target: ReadinessTarget) => {
+    const part = partOfTarget(target, extraKeys);
+    setOpen(prev => (part && !prev[part] ? { ...prev, [part]: true } : prev));
+    requestAnimationFrame(() => goTo(target));
+  }, [extraKeys]);
+  const nameOf = (key: string) => {
+    const id = refEntryId(value(key));
+    if (id === null) return null;
+    return organizations.find(o => o.id === id)?.name
+      ?? (id === refEntryId(view.requisites[key]) ? view.references?.[key === K.supplier ? 'supplierName' : 'payerName'] ?? null : null);
+  };
+  const lineOf = (part: PartId) => partLine(part, view, { edits, linesDirty }, nameOf);
+
+  async function confirmFields(fields: string[]) {
     if (fields.length === 0) return;
     try { await confirm.mutateAsync({ id: view.id, seen: view.version, fields }); }
     catch (e) { toast.apiError(e, 'Метки не сняты'); }
   }
 
-  // Граница формы для «Показать все стройки» (issue #1219): объект счёта, разноска строк и матрица —
-  // одна форма; раскрыли в одном списке — раскрыты все, до ухода к другому счёту (форма с ключом).
+  // ── Основное действие сводки (D-10.6) ─────────────────────────────────────────────────────────────
+  const readiness = closed ? null : readinessItems(view, { edit: canEdit, allocate });
+  const kind = primaryOf(view, { edit: canEdit, pay: canPay }, { correcting, gone });
+  const [paying, setPaying] = useState(false);
+  const [checkable, setCheckable] = useState<{ ready: boolean; check: () => void } | null>(null);
+  const onCheckable = useCallback((next: { ready: boolean; check: () => void } | null) => setCheckable(next), []);
+
+  async function parse() {
+    try {
+      const send = () => state.mutateAsync({ id: view.id, seen: view.version, to: 'parsed' as const });
+      await (onExit ? onExit('parsed', send, () => {}) : send());
+    } catch (e) { toast.apiError(e, 'Счёт не разобран'); }
+  }
+
+  const primary: SummaryPrimary | null = kind === 'parsed'
+    ? { kind, hold: parsedHold(readiness, unsaved), loading: state.isPending, onClick: () => void parse() }
+    : kind === 'pay'
+      ? { kind, hold: payHold(unsaved), onClick: () => setPaying(true) }
+      : kind === 'check'
+        ? { kind, hold: checkable?.ready ? null : 'Назовите причину и измените счёт — тогда исправление можно проверить', onClick: () => checkable?.check() }
+        : null;
+
+  // ── «⋮» сводки ────────────────────────────────────────────────────────────────────────────────────
+  const fileInput = useRef<HTMLInputElement>(null);
+  const recognize = useRecognitionAction(view.id, watch.recognition, view.lines.length === 0);
+  // К запертому счёту файл приложить можно, заменить — нельзя: замена удалила бы документ закрытого
+  // периода. Пока файл читается, заменить его нельзя (сервер откажет). Причина — подсказкой у пункта.
+  const fileAction: RowAction | null = !canEdit || correcting ? null
+    : closed && scan !== null
+      ? { key: 'file', label: 'Заменить файл…', icon: UploadFile, disabled: true, hint: 'Нельзя: документ закрытого периода' }
+      : watch.running
+        ? { key: 'file', label: 'Заменить файл…', icon: UploadFile, disabled: true, hint: 'Файл распознаётся — заменить можно после исхода' }
+        : { key: 'file', label: scan !== null ? 'Заменить файл…' : 'Приложить файл…', icon: UploadFile, loading: attach.isPending,
+          onSelect: () => fileInput.current?.click() };
+
+  const who = BLOCKS[0];
+  const terms = BLOCKS[1];
+  const more: InvoiceBlock[] = [BLOCKS[2], ...(extras.block ? [extras.block] : [])];
+  const fieldProps = {
+    view, edits, organizations, locked, organizationsUnread: organizationsError != null, value, set,
+  };
+  const parsed = view.requisites[K.state] === PARSED;
+  const rejected = view.requisites[K.state] === REJECTED;
+
   return (
     <SiteRevealScope>
     <CorrectionContext.Provider value={correction}>
     <RecognitionContext.Provider value={quiet ? undefined : watch.recognition}>
-    <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
+    <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={unsaved} reading={watch.running}
       organizations={organizations} onDeleted={onClose}>
     <InvoiceExtrasProvider value={extras.byKey}>
+    <PartRevealContext.Provider value={reveal}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-      <LeaveGuardDialog open={leave !== null} saving={update.isPending}
+      <LeaveGuardDialog open={leave !== null} saving={queue.saving}
         onCancel={() => setLeave(null)}
         onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
         onSave={async () => {
@@ -219,138 +289,145 @@ export function InvoiceForm({
           setLeave(null);
           // Исправление обычным сохранением не пишется: сервер откажет «заперт». Путь у него один.
           if (correcting) toast.info('Исправление записывается кнопкой «Проверить исправление…» — после проверки.');
-          else if (await save()) go?.();
+          else if (await queue.save()) go?.();
         }} />
-      {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-outline-variant bg-surface px-5 py-3 space-y-3 outline-none"
-        ref={header} tabIndex={-1} role="group" data-testid="invoice-header"
-        aria-label={`Счёт № ${asInput(view.requisites[K.number]) || 'без номера'}`}>
-        {gone && <InvoiceGoneNotice onClose={onClose} />}
-        {!gone && base.stale && !watch.settling && !byScan && !correcting
-          && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
-        <div className="flex items-center gap-2 flex-wrap">
-          <StateChip text={asInput(view.requisites[K.state])} />
-          <StateChip text={view.payment.paid && view.payment.paidOn
+      <ScanFileInput ref={fileInput} onPick={picked => {
+        attach.mutateAsync({ id: view.id, seen: view.version, file: picked }).catch(e => toast.apiError(e, 'Файл не приложен'));
+      }} />
+      {paying && <PayDialog view={view} onDone={() => setPaying(false)} />}
+
+      {/* ── Сводка: единственная неподвижная часть ──────────────────────────────────────────────── */}
+      <InvoiceSummary ref={header} number={asInput(view.requisites[K.number])}
+        meta={summaryMeta(view, savedSupplierName(view, organizations))}
+        states={<>
+          <StateText text={asInput(view.requisites[K.state])} />
+          <StateText text={view.payment.paid && view.payment.paidOn
             ? `Оплачен ${formatDate(view.payment.paidOn)}` : asInput(view.requisites[K.payment])} />
-          {closed && <StateChip text="Заперт" />}
+          {closed && <StatusText tone="quiet" icon={LockIcon}>Заперт</StatusText>}
           <RecognitionChip recognition={watch.recognition} />
           {view.unconfirmed.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-body-small text-warning">
-              <Icon icon={StarShine} size={18} /> распознано, не подтверждено: {view.unconfirmed.length}
-            </span>
+            <StatusText tone="warning" icon={StarShine} title="Распознано, не подтверждено — сверьте с файлом">
+              со скана: {view.unconfirmed.length}
+            </StatusText>
           )}
-          <div className="flex-1" />
-          {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
-              закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
-          {!mayEdit && <span className="text-body-small text-on-surface-variant">Только чтение: права вводить счета нет</span>}
-          {canEdit && closed && scan !== null && (
-            <span className="text-body-small text-on-surface-variant">Файл заменить нельзя: документ закрытого периода</span>
-          )}
-          {/* Пока скан читается, заменить его нельзя (сервер откажет): прочитанное легло бы в счёт с
-              другой бумагой. Кнопки нет, причина названа. */}
-          {canEdit && watch.running && (
-            <span className="text-body-small text-on-surface-variant">Файл распознаётся — заменить можно после исхода</span>
-          )}
-          {!quiet && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
-          {canEdit && !correcting && !watch.running && !(closed && scan !== null) && (
-            <ScanUploadButton hasScan={scan !== null} busy={attach.isPending}
-              onPick={file => {
-                attach.mutateAsync({ id: view.id, seen: view.version, file }).catch(e => toast.apiError(e, 'Файл не приложен'));
-              }} />
-          )}
-          {correctable && !correcting && (
-            <Button variant="outlined" icon={<Icon icon={EditNote} size={18} />} onClick={correction.start}>
-              Исправить
-            </Button>
-          )}
-          {!quiet && (
-            <Button variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
-              loading={update.isPending} onClick={save}>
-              Сохранить
-            </Button>
-          )}
-          {!quiet && <InvoiceMoreMenu view={view} onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />}
-        </div>
+          {!mayEdit && <StatusText tone="quiet" icon={Visibility} title="Права вводить счета нет">Только чтение</StatusText>}
+        </>}
+        nav={nav} fromFile={fromFile} file={file}
+        save={quiet ? null : { unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }}
+        primary={primary}
+        menu={(
+          <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize}
+            correct={correctable && !correcting ? { key: 'correct', label: 'Исправить', icon: EditNote, onSelect: correction.start } : null}
+            onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />
+        )} />
 
-        {view.payment.lockedBy !== null && <InvoiceLockNote lockedBy={view.payment.lockedBy} />}
-        {correcting && <CorrectionBar view={view} draft={correction} edits={edits} onResetHeader={reread} />}
-        {!gone && <InvoicePayment view={view} dirty={dirty} />}
+      {/* ── Части: одна прокрутка ───────────────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto bg-surface-container-low" data-testid="invoice-scroll">
+        <div className="px-4 py-4 space-y-3">
+          {gone && <InvoiceGoneNotice onClose={onClose} />}
+          {correcting && <CorrectionBar view={view} draft={correction} edits={edits} onResetHeader={reread} onCheckable={onCheckable} />}
 
-        {organizationsError != null && (
-          <div className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
-            px-3 py-2 text-body-small text-on-error-container">
-            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-            <span>
-              Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
-              Поставщика и плательщика выбрать не из чего — остальные поля правятся и сохраняются.
-              ⚠️ Это НЕ «организаций нет»: их список сюда не доехал.
-            </span>
-          </div>
-        )}
-
-        {!closed && !gone && (
-          <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
-            onRetryRead={watch.retry} canEdit={canEdit} />
-        )}
-        <LostReferencesNote view={view} locked={gone ? 'gone' : closed && !correcting ? (correctable ? 'correct' : 'closed') : null} />
-        <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
-        {scanSlot}
-
-        {/* Три колонки, а не пять (ревью PR #1508): пять полей в ряд сжимали поставщика до пятой части
-            формы, а рядом со сканом — до нечитаемого. */}
-        <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-3"
-          view={view} edits={edits} organizations={organizations} locked={locked}
-          organizationsUnread={organizationsError != null} value={value} set={set}
-          onConfirm={confirmBlock} confirming={confirm.isPending} />
-
-        {/* Объект — в шапке, без прокрутки (ТЗ COST-6.2): для большинства счетов разноска на нём и
-            заканчивается. */}
-        <InvoiceObject view={view} locked={closed || gone} />
-      </div>
-
-      {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
-        {!quiet && <RecognitionNotes recognition={watch.recognition} />}
-        {[...BLOCKS.slice(1), ...(extras.block ? [extras.block] : [])].map(block => (
-          <section key={block.id} className="space-y-3">
-            <BlockFields block={block} columns="sm:grid-cols-2" titled
-              view={view} edits={edits} organizations={organizations} locked={locked}
-              organizationsUnread={organizationsError != null} value={value} set={set}
-              onConfirm={confirmBlock} confirming={confirm.isPending} />
-          </section>
-        ))}
-
-        <UnshownExtras extras={extras} />
-        {/* Метки у полей, которых форма не показывает (вид без поля ввода, схема не прочитана, поля нет в
-            типе): править их здесь нечем — снимает только «Всё верно» этой строки. */}
-        {orphanMarks.length > 0 && (
-          <div className="flex items-center gap-3">
-            <p className="flex-1 text-body-small text-warning">
-              Распознано, не подтверждено — у полей, которых форма не показывает:{' '}
-              {orphanMarks.map(key => `«${extras.unshown.find(u => u.field.key === key)?.field.title || key}»`).join(', ')}.
-              Сверьте их по скану.
-            </p>
-            {!quiet && (
-              <Button variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirm.isPending}
-                onClick={() => confirmBlock({ id: 'unshown', title: '', fields: orphanMarks })}>
-                Всё верно ({orphanMarks.length})
-              </Button>
+          <InvoicePart title={PART_TITLE.who.title} step={1} open={open.who} onToggle={() => toggle('who')} line={lineOf('who')}
+            actions={<ConfirmBlock blocks={[who]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
+            <BlockFields block={who} {...fieldProps} />
+            {!quiet && <RecognitionNotes recognition={watch.recognition} />}
+            {/* Метки у полей, которых форма не показывает: править их здесь нечем — снимает только «Всё верно». */}
+            {orphanMarks.length > 0 && (
+              <div className="flex items-center gap-3">
+                <p className="flex-1 text-body-small text-warning">
+                  Распознано, не подтверждено — у полей, которых форма не показывает:{' '}
+                  {orphanMarks.map(key => `«${extras.unshown.find(u => u.field.key === key)?.field.title || key}»`).join(', ')}.
+                  Сверьте их по скану.
+                </p>
+                {!quiet && (
+                  <Button variant="text" loading={confirm.isPending} onClick={() => void confirmFields(orphanMarks)}>
+                    Всё верно ({orphanMarks.length})
+                  </Button>
+                )}
+              </div>
             )}
-          </div>
-        )}
+          </InvoicePart>
 
-        <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-          supplierName={savedSupplierName(view, organizations)}
-          headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
+          {/* Сообщения — между первой частью и строками (D-10.9): первый этап без прокрутки при любом их
+              числе. Сводит их в индикатор ребёнок 11. */}
+          {!gone && base.stale && !watch.settling && !byScan && !correcting
+            && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
+          {organizationsError != null && (
+            <Banner tone="error">
+              Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}. Поставщика и
+              плательщика выбрать не из чего — остальные поля правятся и сохраняются. Это не «организаций нет»:
+              их список сюда не доехал.
+            </Banner>
+          )}
+          {!closed && !gone && (
+            <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
+              onRetryRead={watch.retry} canEdit={canEdit} />
+          )}
+          <LostReferencesNote view={view} locked={gone ? 'gone' : closed && !correcting ? (correctable ? 'correct' : 'closed') : null} />
+          <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
+          {closed && <InvoiceLockNote lockedBy={view.payment.lockedBy ?? ''} />}
+          {scanSlot}
 
-        <p className="text-body-small text-on-surface-variant">
-          Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
-          по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
-        </p>
+          <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
+            <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
+              supplierName={savedSupplierName(view, organizations)} headerDirty={dirty} saverRef={queue.lines} compact={compactLines} />
+          </InvoicePart>
 
-        <CorrectionHistory view={view} gone={gone} />
+          {/* «Объект» — здесь, после строк (решение владельца Э1): весь счёт на объект — одним выбором. */}
+          <InvoicePart title={PART_TITLE.allocation.title} step={3} open={open.allocation} onToggle={() => toggle('allocation')}
+            line={lineOf('allocation')}>
+            <InvoiceObject view={view} locked={closed || gone} />
+            {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
+              && <AllocationSummary allocation={view.allocation} />}
+            {/* Что значит состояние для денег — словами (ревью PR #1787): строки-итога «не разнесён» мало,
+                а сводка говорит только пометкой. */}
+            {rejected && (
+              <p className="text-body-small text-on-surface-variant">
+                Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.
+              </p>
+            )}
+            {parsed && !view.allocation.allocated && view.lines.length > 0 && (
+              <p className="text-body-small text-warning">
+                Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.
+              </p>
+            )}
+            <p className="text-body-small text-on-surface-variant">
+              Объект той же стройки пишется сразу; несколько объектов или другая стройка — матрица с предпросмотром.
+              Строку по отдельности — колонка «Разноска» в строках.
+            </p>
+          </InvoicePart>
+
+          <InvoicePart title={PART_TITLE.terms.title} step={4} open={open.terms} onToggle={() => toggle('terms')} line={lineOf('terms')}
+            actions={<>
+              <ConfirmBlock blocks={[terms]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />
+              {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
+            </>}>
+            <BlockFields block={terms} {...fieldProps} />
+            {!gone && <InvoicePayment view={view} dirty={unsaved} />}
+          </InvoicePart>
+
+          <InvoicePart title={PART_TITLE.more.title} open={open.more} onToggle={() => toggle('more')} line={lineOf('more')}
+            actions={<ConfirmBlock blocks={more} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
+            <BlockFields block={BLOCKS[2]} {...fieldProps} />
+            {/* Поля, дописанные в тип «Счёт» (issue #1482), — своим подразделом: их ведёт заказчик, не модуль. */}
+            {extras.block && (
+              <section aria-labelledby={`${view.id}-extra`} className="space-y-2">
+                <h4 id={`${view.id}-extra`} className="text-title-small text-on-surface-variant">{extras.block.title}</h4>
+                <BlockFields block={extras.block} {...fieldProps} />
+              </section>
+            )}
+            <UnshownExtras extras={extras} />
+          </InvoicePart>
+
+          {(view.book ?? 0) > 0 && !gone && (
+            <InvoicePart title={PART_TITLE.history.title} open={open.history} onToggle={() => toggle('history')} line={lineOf('history')}>
+              <CorrectionHistory view={view} gone={gone} />
+            </InvoicePart>
+          )}
+        </div>
       </div>
     </div>
+    </PartRevealContext.Provider>
     </InvoiceExtrasProvider>
     </InvoiceDeleteProvider>
     </RecognitionContext.Provider>
@@ -359,209 +436,11 @@ export function InvoiceForm({
   );
 }
 
-function BlockFields({
-  block, columns, titled, view, edits, organizations, organizationsUnread, value, set,
-  onConfirm, confirming, locked,
-}: {
-  block: InvoiceBlock; columns: string; titled?: boolean; locked: boolean;
-  view: InvoiceView; edits: Record<string, unknown>; organizations: CostsOrganization[];
-  organizationsUnread: boolean;
-  value: (key: string) => unknown; set: (key: string, next: unknown) => void;
-  onConfirm: (block: InvoiceBlock) => void; confirming: boolean;
-}) {
-  const marks = unconfirmedInBlock(block, view.unconfirmed);
-  // В исправлении поля открыты, но то, что пишет само («Всё верно», прочитанное со скана), — нет.
-  const correcting = useCorrecting() !== null;
-  const quiet = locked || correcting;
+const STATE_TONE: Record<string, StatusTone> = { [PARSED]: 'success', [REJECTED]: 'error', 'Оплачен': 'success' };
 
-  return (
-    <>
-      {(titled || marks.length > 0) && (
-        <div className="flex items-center gap-3">
-          {titled && <h2 className="text-body-medium font-medium text-on-surface-variant">{block.title}</h2>}
-          <div className="flex-1" />
-          {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
-              действие, которое заведомо откажет, — обман. */}
-          {marks.length > 0 && !quiet && (
-            <Button variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirming}
-              onClick={() => onConfirm(block)}>
-              Всё верно ({marks.length})
-            </Button>
-          )}
-        </div>
-      )}
-      <div className={`grid grid-cols-1 ${columns} gap-3`}>
-        {block.fields.map(key => (
-          <div key={key} className="min-w-0" {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}>
-            <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
-              organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
-            {!quiet && (
-              <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={set} organizations={organizations} />
-            )}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, locked }: {
-  fieldKey: string; view: InvoiceView; edits: Record<string, unknown>;
-  /** Счёт заперт закрытым периодом: поля только читаются. Читаются, а не отключены — приглушённое
-   *  поле выглядит пустым, а причину называет полоса вверху. */
-  locked: boolean;
-  organizations: CostsOrganization[]; organizationsUnread: boolean;
-  value: (key: string) => unknown; set: (key: string, next: unknown) => void;
-}) {
-  const marked = isMarked(fieldKey, view.unconfirmed, edits);
-  const hint = marked ? UNCONFIRMED_HINT : undefined;
-  // Обязательное для «Разобран» — пометкой у подписи (issue #1291). Перечень присылает сервер.
-  const required = isRequired(view, fieldKey);
-  const current = value(fieldKey);
-  const extra = useExtraField(fieldKey);
-
-  // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
-  // подтвердил. Красная рамка звала бы чинить то, что, скорее всего, верно.
-  const frame = marked ? 'rounded-sm ring-1 ring-warning' : '';
-
-  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} hint={hint} frame={frame} />;
-
-  switch (fieldKey) {
-    case K.supplier:
-    case K.payer: {
-      const entryId = refEntryId(current);
-
-      // Ссылка есть, а записи нет — организацию удалили. Radix показал бы такое значение
-      // ПЛЕЙСХОЛДЕРОМ «Выберите организацию», то есть соврал бы: поле выглядело бы незаполненным, и
-      // человек, ничего не трогая, сохранил бы счёт со ссылкой в пустоту. Реестр в том же случае
-      // честно пишет «организация удалена» — форма обязана говорить то же самое.
-      //
-      // Потерю называет СЕРВЕР (issue #1184), и только у значения, которое лежит в счёте: сравнение со
-      // списком организаций показывало «удалена» у живого поставщика, пока список грузится. Старый
-      // сервер состояния не присылает — тогда судим по списку, как раньше.
-      const side = fieldKey === K.supplier ? 'supplier' : 'payer';
-      const state = view.references?.[side];
-      const storedId = refEntryId(view.requisites[fieldKey]);
-      const stored = entryId !== null && entryId === storedId;
-      // Организация, стоящая в счёте, в архиве (issue #1185). В списке на выбор её нет, название
-      // едет с самим счётом. Пункт держится за СОХРАНЁННЫМ значением, а не за текущим: заменил,
-      // передумал — вернул; сервер стоявшую ссылку принимает. После сохранения с другой он исчезнет.
-      const kept = state === 'archived' && storedId !== null
-        ? { id: storedId, name: withArchiveWord(view.references?.[`${side}Name`] ?? 'организация', true) }
-        : null;
-      const archived = kept !== null && entryId === kept.id && !organizations.some(o => o.id === kept.id);
-      const lost = entryId !== null && (view.references
-        ? stored && state === 'lost'
-        : !organizationsUnread && !organizations.some(o => o.id === entryId));
-      // Запись есть, но в списке организаций её нет — перевели в другой вид. Не потеря, но и молчать
-      // нельзя: без своего пункта Radix показал бы плейсхолдер, и поле со ссылкой выглядело бы пустым
-      // (ревью PR #1211). Пока список не пришёл (он пуст), судить не о чем.
-      const foreign = entryId !== null && !lost && !archived
-        && organizations.length > 0 && !organizations.some(o => o.id === entryId);
-      const title = fieldKey === K.supplier ? 'Поставщик' : 'Плательщик';
-
-      // Запертый счёт: выбор заменён полем для чтения, как у остальных, — отключённый выбор приглушён
-      // и читается как «здесь ничего нет».
-      if (locked)
-        return (
-          <TextField label={title} readOnly onChange={() => {}}
-            value={organizationsUnread ? 'справочник не прочитан'
-              : entryId === null ? '' : archived ? kept.name
-              : organizations.find(o => o.id === entryId)?.name ?? (lost ? LOST.organization : foreign ? LOST.movedOrganization : '')} />
-        );
-
-      return (
-        <div className={frame}>
-          <Select label={title} required={required}
-            disabled={organizationsUnread}
-            hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
-              : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
-              : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново'
-              : archived ? 'Запись в архиве. Счёт сохраняется как есть; после замены выбрать её заново будет нельзя'
-              : hint}
-            value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
-            onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
-            {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
-                отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
-            <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
-            {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
-            {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
-            {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
-                вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
-            {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
-            {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </Select>
-        </div>
-      );
-    }
-
-    case K.dueDate:
-      return <InvoiceDueField view={view} edits={edits} current={current} set={set} locked={locked}
-        hint={hint} required={required} frame={frame} />;
-
-    case K.date:
-    case K.shippedOn:
-      return (
-        <div className={frame}>
-          <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
-            hint={hints(hint, fieldKey === K.shippedOn && shippedBeforeIssued(current, value(K.date))
-              ? 'Отгрузка раньше даты счёта — проверьте дату: от неё считается срок' : null)}
-            readOnly={locked}
-            onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
-        </div>
-      );
-
-    case K.state:
-    case K.payment:
-      // Показано, но не правится: состояния двигают действия, а не форма. Отключённым полем НЕ
-      // делаем — приглушённое поле читается как «здесь ничего нет».
-      return (
-        <div className={frame}>
-          <TextField label={LABELS[fieldKey]} readOnly value={asInput(current)}
-            hint="Двигают действия, не форма" onChange={() => {}} />
-        </div>
-      );
-
-    default: {
-      const money = fieldKey === K.total || fieldKey === K.vat;
-      const numeric = money || fieldKey === K.deferral;
-      return (
-        <div className={frame}>
-          {/* У отсрочки — взята ли она из условий поставщика (ТЗ COST-9.2): иначе подставленное число
-              выглядело бы вписанным руками, а расхождение с условиями — незаметным. */}
-          <TextField label={LABELS[fieldKey] ?? fieldKey} readOnly={locked} required={required}
-            hint={fieldKey === K.deferral ? hints(hint, deferralNote(view, edits)) : hint}
-            value={money ? moneyInput(current) : asInput(current)}
-            inputMode={numeric ? 'decimal' : undefined}
-            onChange={e => set(fieldKey, fromInput(e.target.value))} />
-        </div>
-      );
-    }
-  }
-}
-
-/** Значение пункта «не выбрано»: пустую строку Radix не принимает, а ссылку снимать чем-то надо. */
-const NOT_CHOSEN = 'не-выбрано';
-
-const LABELS: Record<string, string> = {
-  [K.number]: 'Номер',
-  [K.date]: 'Дата',
-  [K.supplier]: 'Поставщик',
-  [K.payer]: 'Плательщик',
-  [K.basis]: 'Основание',
-  [K.purpose]: 'Назначение',
-  [K.total]: 'Сумма к оплате',
-  [K.vat]: 'В том числе НДС',
-  [K.shippedOn]: 'Дата отгрузки',
-  [K.deferral]: 'Отсрочка, дней',
-  [K.dueDate]: 'Оплатить до',
-  [K.state]: 'Состояние',
-  [K.payment]: 'Оплата',
-};
-
-function StateChip({ text }: { text: string }) {
+function StateText({ text }: { text: string }) {
   if (!text) return null;
-  return <StatusText>{text}</StatusText>;
+  return <StatusText tone={STATE_TONE[text] ?? (text.startsWith('Оплачен') ? 'success' : 'neutral')}>{text}</StatusText>;
 }
 
 /** Скан из реквизитов — значение файлового поля общего контракта. */
@@ -576,8 +455,8 @@ function scanOf(view: InvoiceView): { fileName: string | null; mimeType: string 
 }
 
 /**
- * Поставщик, СОХРАНЁННЫЙ в шапке, — названием: для плашки окна выбора позиции (issue #1517). Строки
- * пишутся отдельно от шапки, и запомненное сверяется с лежащим поставщиком, а не с набранным.
+ * Поставщик, СОХРАНЁННЫЙ в шапке, — названием: для сводки и плашки окна выбора позиции (issue #1517).
+ * Запомненное сверяется с лежащим поставщиком, а не с набранным.
  */
 function savedSupplierName(view: InvoiceView, organizations: CostsOrganization[]): string | null {
   const id = refEntryId(view.requisites[K.supplier]);
