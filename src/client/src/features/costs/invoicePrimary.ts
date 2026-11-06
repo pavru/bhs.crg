@@ -10,6 +10,14 @@ import type { ReadinessItem } from './invoiceReadiness';
  */
 
 /**
+ * Можно ли отметить оплату: есть право, счёт не оплачен и не отклонён. Одно условие на оба входа — кнопку
+ * части «Сроки и оплата» и основное действие сводки (ревью PR #1786).
+ */
+export function mayMarkPaid(view: InvoiceView, canPay: boolean): boolean {
+  return canPay && !view.payment.paid && view.requisites[K.state] !== REJECTED;
+}
+
+/**
  * Основное действие по состоянию и праву — одно на экран, filled:
  * - черновик — «Разобран» (право вводить счета);
  * - разобранный неоплаченный — «Отметить оплату…» (право оплаты);
@@ -27,7 +35,7 @@ export function primaryOf(
   if (mode.correcting) return 'check';
   const state = view.requisites[K.state];
   if (state === REJECTED) return null;
-  if (state === PARSED) return !view.payment.paid && can.pay ? 'pay' : null;
+  if (state === PARSED) return mayMarkPaid(view, can.pay) ? 'pay' : null;
   // Запертый черновик «Разобран» не пройдёт: замок сильнее любого перечня.
   if (view.payment.lockedBy !== null) return null;
   return can.edit ? 'parsed' : null;

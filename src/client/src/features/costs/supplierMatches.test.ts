@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import {
-  applyOffer, cancelMatch, lineKey, matchTrouble, memoryFate, memoryNotice, pending, pickByHand, usable,
+  applyOffer, cancelMatch, dropForeignMarks, lineKey, matchTrouble, memoryFate, memoryNotice, pending, pickByHand, usable,
   type MatchOffer,
 } from './supplierMatches';
 
@@ -154,5 +154,24 @@ describe('слова', () => {
     expect(matchTrouble({ ...match, state: 'changed' })).toContain('другую позицию');
     expect(matchTrouble({ ...match, state: 'gone' })).toContain('забыли');
     expect(matchTrouble({ ...match, state: 'foreign' })).toContain('другого поставщика');
+  });
+});
+
+describe('смена поставщика тем же «Сохранить»', () => {
+  it('новая пометка снимается, позиция остаётся, за новым поставщиком не запоминается', () => {
+    const pasted = draft(applyOffer(offer));
+    const { drafts, dropped } = dropForeignMarks([pasted], []);
+    expect(dropped).toBe(1);
+    expect(drafts[0]).toMatchObject({ nomenclatureId: 'n-1', matchedBy: null, match: null, remember: false });
+    expect(toPayload(drafts, 'Included')[0]).toMatchObject({ matchedBy: null, remember: false });
+  });
+
+  it('пометка, что у строки уже лежала, остаётся: сервер её не сверяет', () => {
+    const line = saved({ nomenclatureId: 'n-1', match: { id: 'm-1', by: 'name', state: 'current', source: 'x', rememberedAt: null, rememberedBy: null } });
+    const kept = { ...toDrafts([line], 'Included')[0] };
+    expect(kept.matchedBy).toBe('m-1');
+    const { drafts, dropped } = dropForeignMarks([kept], [line]);
+    expect(dropped).toBe(0);
+    expect(drafts[0]).toBe(kept);
   });
 });

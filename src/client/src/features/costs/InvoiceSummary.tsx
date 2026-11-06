@@ -81,7 +81,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
         {save && (
           <Narrow>
             <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
-              loading={save.saving} onClick={save.onSave} />
+              loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
           </Narrow>
         )}
         {fromFile}
@@ -94,11 +94,13 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
             </Button>
           </Wide>
         )}
-        {/* Значок неактивен без подсказки: причину на узком месте называет строка готовности у сверки. */}
+        {/* Причина неактивного значка — его подсказкой, как у кнопки с подписью (ревью PR #1786): строка
+            готовности у сверки стоит в части «Строки», а та бывает свёрнута. Неактивный значок с подсказкой
+            остаётся наводимым (`aria-disabled`, `Tooltip`). */}
         {primary && action && (
           <Narrow>
             <IconButton variant="filled" icon={action.icon} label={action.label} disabled={primary.hold !== null}
-              loading={primary.loading} onClick={primary.onClick} />
+              loading={primary.loading} onClick={primary.onClick} title={primary.hold ?? undefined} />
           </Narrow>
         )}
         {menu}

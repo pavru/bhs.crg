@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { Button } from '@/shared/ui/Button';
 import { Divider } from '@/shared/ui/Divider';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -13,7 +14,7 @@ import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/suppl
 import { apiError } from '@/shared/utils/apiError';
 import { SupplierMatchNote } from './SupplierMatchNote';
 import {
-  applyOffer, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
+  applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
@@ -229,6 +230,15 @@ export function InvoiceLinesTable({
     }
   }
 
+  // Колонки, которых в таблице по умолчанию нет (D-10.10): НДС строки и примечание. Ни ввести примечание,
+  // ни поправить НДС строки, неверно прочитанный со скана, иначе было бы негде (ревью PR #1786) — их
+  // включает чип над таблицей. Колонка примечания, раз показанная, не пропадает у человека под курсором,
+  // когда он стирает последнее: она держится до выключения чипа, а с набранным примечанием не выключается.
+  const hasNote = drafts.some(draft => draft.note.trim() !== '');
+  const [noteOn, setNoteOn] = useState(hasNote);
+  if (hasNote && !noteOn) setNoteOn(true);
+  const [vatOn, setVatOn] = useState(false);
+
   const sums = totals(drafts, mode);
   const strip = reconcile(sums, view.requisites[K.vat], view.requisites[K.total], formatMoney);
   const parsed = view.requisites[K.state] === PARSED;
@@ -241,7 +251,7 @@ export function InvoiceLinesTable({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
     offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
-    onAllocating: setAllocating, onEdit: edit, compact,
+    onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
   });
 
   function edit(key: string, patch: Partial<LineDraft>) {
@@ -271,10 +281,17 @@ export function InvoiceLinesTable({
    * нажатием: основа о нём ещё не знает, а версия у счёта одна.
    */
   async function save(after: InvoiceView | null): Promise<boolean> {
+    // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
+    const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
+    const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
     try {
       const saved = await base.save(seen => replace.mutateAsync({
-        id: view.id, seen, lines: toPayload(drafts, mode), vatMode: mode,
+        id: view.id, seen, lines: toPayload(sent.drafts, mode), vatMode: mode,
       }), after);
+      if (sent.dropped > 0)
+        toast.info(`Поставщик сменился: у ${sent.dropped === 1 ? 'одной строки' : `${sent.dropped} строк`} позиция была `
+          + 'подставлена из запомненного за прежним. Позиция оставлена, пометка «запомнено» снята, за новым поставщиком '
+          + 'выбор не запомнен.');
       // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
       // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
       setDrafts(toDrafts(saved.lines, vatModeOf(saved)));
@@ -292,8 +309,15 @@ export function InvoiceLinesTable({
   }
   // Шаг отдаётся очереди свежим — слойным эффектом, как колбэк охраны ухода: замыкание помнит строки.
   // Запертым строкам и исправлению своей записи нет: у исправления запись одна, своя.
-  useLayoutEffect(() => { if (saverRef) saverRef.current = still || correcting ? null : save; });
-  useEffect(() => () => { if (saverRef) saverRef.current = null; }, [saverRef]);
+  //
+  // ⚠️ Снимает шаг только СВОЙ (ревью PR #1787): при перемонтировании по `key={correction.generation}`
+  // уборка прежней таблицы идёт ПОСЛЕ слойного эффекта новой и обнулила бы уже отданный ею шаг.
+  const own = useRef<LinesStep | null>(null);
+  useLayoutEffect(() => {
+    own.current = still || correcting ? null : save;
+    if (saverRef) saverRef.current = own.current;
+  });
+  useEffect(() => () => { if (saverRef && saverRef.current === own.current) saverRef.current = null; }, [saverRef]);
 
   return (
     <div className="space-y-3" data-readiness="lines">
@@ -309,7 +333,17 @@ export function InvoiceLinesTable({
             </span>
           )}
         <div className="flex-1" />
-        {!still && <InvoiceLinesPaste mode={mode} onAdd={add} />}
+        {!still && (
+          <>
+            <Chip selected={vatOn} onClick={() => setVatOn(on => !on)}>НДС строк</Chip>
+            <Chip selected={noteOn} disabled={noteOn && hasNote}
+              title={noteOn && hasNote ? 'У строк есть примечания — колонку не спрятать' : undefined}
+              onClick={() => setNoteOn(on => !on)}>
+              Примечание
+            </Chip>
+            <InvoiceLinesPaste mode={mode} onAdd={add} />
+          </>
+        )}
       </div>
 
       {/* Метка — текстом, а не одной рамкой: цвет не может быть единственным носителем смысла. */}

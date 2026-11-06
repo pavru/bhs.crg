@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
-import { BLOCKS, K, asInput, isMarked, refEntryId } from './invoiceFields';
+import { BLOCKS, K, PARSED, REJECTED, asInput, isMarked, refEntryId } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 import type { ReadinessTarget } from './invoiceReadiness';
 
@@ -13,7 +13,9 @@ import type { ReadinessTarget } from './invoiceReadiness';
  * ОДИН раз, при открытии счёта: запись не схлопывает часть у человека под руками.</p>
  *
  * <p>⚠️ Свёрнутая часть не прячет того, что требует решения: метка «со скана, не проверено» и ошибка
- * значения держат часть раскрытой, как бы полно она ни была заполнена.</p>
+ * значения держат часть раскрытой, как бы полно она ни была заполнена. Метка, пришедшая ПОСЛЕ открытия
+ * (распознавание кончилось при открытой форме), часть раскрывает (`attentionOf`, ревью PR #1786):
+ * сворачивает по-прежнему только человек.</p>
  */
 
 export type PartId = 'who' | 'lines' | 'allocation' | 'terms' | 'more' | 'history';
@@ -38,6 +40,20 @@ export interface PartDraft {
   /** Строки правлены и не сохранены. */
   linesDirty: boolean;
 }
+
+/**
+ * Что о форме знает только она: поля, дописанные в тип «Счёт» (их рисует «Ещё», issue #1482), и то, что
+ * «Кто и сколько» показывает сверх своих полей — метки у полей, которых форма не показывает, и замечания
+ * распознавания.
+ */
+export interface PartExtra {
+  /** Ключи полей, дописанных в тип «Счёт». */
+  extra: readonly string[];
+  /** В конце «Кто и сколько» стоит то, что требует решения: метки вне блоков, замечания распознавания. */
+  attention: boolean;
+}
+
+const NO_EXTRA: PartExtra = { extra: [], attention: false };
 
 /** Обязательное «Кто и сколько»: без них первый этап не пройден. НДС — нет: его на бумаге бывает ноль. */
 const WHO_REQUIRED = [K.supplier, K.payer, K.number, K.date, K.total] as const;
@@ -68,40 +84,59 @@ function needsDecision(view: InvoiceView, draft: PartDraft, fields: readonly str
     || (fields.includes(K.payer) && view.references?.payer === 'lost' && !(K.payer in draft.edits));
 }
 
+/**
+ * Где сейчас стоит то, что требует решения: метка, пункт готовности о поле, удалённая запись. Части
+ * без своих полей (строки, разноска, история) — `false`: их раскрытость решает заполненность.
+ */
+export function attentionOf(view: InvoiceView, draft: PartDraft, more: PartExtra = NO_EXTRA): Record<PartId, boolean> {
+  return {
+    who: needsDecision(view, draft, fieldsOf('who')) || more.attention,
+    lines: false,
+    allocation: false,
+    terms: needsDecision(view, draft, fieldsOf('terms')),
+    more: needsDecision(view, draft, [...fieldsOf('more'), ...more.extra]),
+    history: false,
+  };
+}
+
 /** Заполнена ли часть — таблица D-10.2. Чистая: её и проверяют тесты. */
-export function partFilled(part: PartId, view: InvoiceView, draft: PartDraft): boolean {
+export function partFilled(part: PartId, view: InvoiceView, draft: PartDraft, more: PartExtra = NO_EXTRA): boolean {
   switch (part) {
     case 'who':
       return WHO_REQUIRED.every(key => given(key, valueOf(view, draft, key)))
-        && !needsDecision(view, draft, fieldsOf('who'));
+        && !attentionOf(view, draft, more).who;
     case 'lines':
       return view.lines.length > 0 && view.lines.every(line => line.nomenclatureId !== null) && !draft.linesDirty;
     case 'allocation':
       return view.allocation.allocated;
     case 'terms':
-      return given(K.dueDate, valueOf(view, draft, K.dueDate)) && !needsDecision(view, draft, fieldsOf('terms'));
-    // «Ещё» и «История» открываются свёрнутыми — кроме «Ещё» с меткой со скана: метку прятать нельзя.
+      return given(K.dueDate, valueOf(view, draft, K.dueDate)) && !attentionOf(view, draft, more).terms;
+    // «Ещё» и «История» открываются свёрнутыми — кроме «Ещё» с меткой со скана или пунктом готовности, и у
+    // полей, дописанных в тип, тоже: метку прятать нельзя.
     case 'more':
-      return !needsDecision(view, draft, fieldsOf('more'));
+      return !attentionOf(view, draft, more).more;
     case 'history':
       return true;
   }
 }
 
 /** Какие части раскрыты при открытии счёта: незаполненные. */
-export function initiallyOpen(view: InvoiceView, draft: PartDraft): Record<PartId, boolean> {
-  return Object.fromEntries(PART_ORDER.map(part => [part, !partFilled(part, view, draft)])) as Record<PartId, boolean>;
+export function initiallyOpen(view: InvoiceView, draft: PartDraft, more: PartExtra = NO_EXTRA): Record<PartId, boolean> {
+  return Object.fromEntries(PART_ORDER.map(part => [part, !partFilled(part, view, draft, more)])) as Record<PartId, boolean>;
 }
 
-/** Часть, которой принадлежит поле шапки: к ней ведёт строка готовности. */
-export function partOfField(key: string): PartId | null {
+/**
+ * Часть, которой принадлежит поле шапки: к ней ведёт строка готовности. Поле, дописанное в тип «Счёт», —
+ * в «Ещё» (`extra`): без этого пункт о нём не раскрыл бы часть, и щелчок по нему ничего бы не делал.
+ */
+export function partOfField(key: string, extra: readonly string[] = []): PartId | null {
   const block = BLOCKS.find(b => b.fields.includes(key));
-  return block ? (block.id as PartId) : null;
+  return block ? (block.id as PartId) : extra.includes(key) ? 'more' : null;
 }
 
 /** Часть, в которой стоит место строки готовности. */
-export function partOfTarget(target: ReadinessTarget): PartId | null {
-  return target.place === 'field' ? partOfField(target.key) : target.place === 'lines' ? 'lines' : 'allocation';
+export function partOfTarget(target: ReadinessTarget, extra: readonly string[] = []): PartId | null {
+  return target.place === 'field' ? partOfField(target.key, extra) : target.place === 'lines' ? 'lines' : 'allocation';
 }
 
 /**
@@ -143,7 +178,9 @@ export function partLine(part: PartId, view: InvoiceView, draft: PartDraft, name
       return [`строк: ${view.lines.length}`, waiting > 0 && `ждут позиции: ${waiting}`].filter(Boolean).join(' · ');
     }
     case 'allocation':
-      return view.allocation.allocated ? 'разноска сходится' : view.lines.length === 0 ? 'после строк' : 'не разнесён';
+      if (view.requisites[K.state] === REJECTED) return 'отклонён — в затраты не входит';
+      return view.allocation.allocated ? 'разноска сходится' : view.lines.length === 0 ? 'после строк'
+        : view.requisites[K.state] === PARSED ? 'разобран до разноски — деньги ни к одной стройке не отнесены' : 'не разнесён';
     case 'terms': {
       const due = day(value(K.dueDate));
       const paid = view.payment.paid

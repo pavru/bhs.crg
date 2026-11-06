@@ -169,4 +169,46 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await page.locator('button', { hasText: new RegExp(`${invoice.number} от`) }).first().click();
     await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
   });
+
+  // Свёрнутая часть тело прячет, а не размонтирует (ревью PR #1787): черновик строк держит таблица, и
+  // свёртка «Строк» молча выбрасывала набранное, оставляя «Сохранить» гореть над пустым местом. И «Новый
+  // счёт» спрашивает о несохранённом ДО записи (ревью PR #1786): «Отмена» не оставляет сироты.
+  await check('экран счёта: свёртка «Строк» правку строки не теряет, «Новый счёт» спрашивает до записи', async () => {
+    await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
+    await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
+    const name = page.getByLabel('Наименование в счёте, строка 2', { exact: true });
+    await name.fill('Правка до свёртки');
+    await page.getByRole('button', { name: 'Свернуть «Строки»' }).click();
+    if (await name.isVisible()) throw new Error('свёрнутая часть «Строки» тело показывает');
+    await page.getByRole('button', { name: 'Развернуть «Строки»' }).click();
+    if ((await name.inputValue()) !== 'Правка до свёртки')
+      throw new Error(`свёртка «Строк» выбросила набранное: «${await name.inputValue()}»`);
+
+    const count = async () => (await h.api('GET', '/costs/invoices')).length;
+    const was = await count();
+    await page.getByRole('button', { name: 'Новый счёт', exact: true }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await h.named('«Новый счёт» не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
+    await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
+    await page.waitForTimeout(500);
+    if ((await count()) !== was) throw new Error('«Новый счёт» завёл черновик до вопроса — после «Отмена» он остался сиротой');
+    if ((await name.inputValue()) !== 'Правка до свёртки') throw new Error('после «Отмена» набранное пропало');
+  });
+
+  // Примечание вводится чипом над таблицей (ревью PR #1786): колонка «только когда примечания есть» не
+  // давала его ввести вовсе, а стёртое последнее убирало колонку у человека под курсором.
+  await check('экран счёта: «Примечание» включается чипом и не пропадает, когда стёрто последнее', async () => {
+    const note = page.getByLabel('Примечание, строка 1', { exact: true });
+    if (await note.count()) throw new Error('колонка «Примечание» видна без примечаний и без чипа');
+    await page.getByRole('button', { name: 'Примечание', exact: true }).click();
+    await note.fill('с доставкой');
+    await note.fill('');
+    if (!(await note.isVisible())) throw new Error('стёртое последнее примечание убрало колонку');
+    if (!(await note.evaluate(el => el === document.activeElement))) throw new Error('стёртое примечание увело фокус из поля');
+    // Уходим, не сохраняя.
+    await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' }).catch(() => {});
+    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    if (await dialog.isVisible().catch(() => false)) await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
+  });
 }

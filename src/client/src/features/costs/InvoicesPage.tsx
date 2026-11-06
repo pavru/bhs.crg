@@ -265,12 +265,21 @@ export function InvoicesPage() {
     return true;
   }
 
-  async function addDraft() {
+  /**
+   * Сначала охрана ухода, потом запись (ревью PR #1786): спроси она после — отказ «Отмена» оставлял бы
+   * заведённый черновик сиротой, а у файла ещё и снятые отбор и поиск.
+   */
+  const guarded = (act: () => void) => { if (!guard?.attempt(act)) act(); };
+
+  function addDraft() { guarded(() => void createDraft()); }
+
+  async function createDraft() {
     try {
       // Пустой черновик — осознанно: счёт заводят, чтобы приложить скан и разобрать его, и требовать
       // реквизиты до того, как человек увидел бумагу, — это требовать угадать.
       const created = await create.mutateAsync({});
-      switchTo(created.id);
+      // Охрана уже спросила: второй раз, через `switchTo`, она спросила бы о форме, которую человек отпустил.
+      setSelected(created.id);
     } catch (e) { toast.apiError(e, 'Черновик не заведён'); }
   }
 
@@ -278,7 +287,9 @@ export function InvoicesPage() {
    * Счёт из скана (issue #1077): черновик заводится всегда, когда файл годен, распознавание идёт в
    * фоне. Отказ распознавания — не отказ этого действия: о нём говорит полоса в открытом счёте.
    */
-  async function addFromScan(file: File) {
+  function addFromScan(file: File) { guarded(() => void createFromScan(file)); }
+
+  async function createFromScan(file: File) {
     try {
       const created = await fromScan.mutateAsync(file);
       // Поиск снимается: у счёта без номера и поставщика ему не за что зацепиться — открылся бы счёт,
@@ -286,7 +297,7 @@ export function InvoicesPage() {
       // (issue #1292), и выбрасывать человека из рабочей очереди незачем.
       if (queue !== 'parsing') setQueue(null);
       setQuery('');
-      switchTo(created.invoice.id);
+      setSelected(created.invoice.id);
     } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
   }
 

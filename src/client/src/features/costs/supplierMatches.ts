@@ -133,6 +133,28 @@ export function pickByHand(id: string, name: string | null): Partial<LineDraft> 
 }
 
 /**
+ * Шапка тем же нажатием «Сохранить» сменила поставщика (D-10.7, ревью PR #1786): НОВЫЕ пометки
+ * «запомнено» взяты из памяти прежнего, и сервер их отвергнет («это соответствие другого поставщика») —
+ * уже после записи шапки. Позиция у таких строк остаётся выбранной, пометка снимается, и за новым
+ * поставщиком выбор не запоминается: его делала память прежнего, а не человек.
+ *
+ * <p>Пометки, которые у строки уже лежали, сервер не сверяет — их не трогаем.</p>
+ */
+export function dropForeignMarks(drafts: readonly LineDraft[], saved: readonly InvoiceLineView[]): {
+  drafts: LineDraft[]; dropped: number;
+} {
+  let dropped = 0;
+  const next = drafts.map(draft => {
+    if (draft.matchedBy === null) return draft;
+    const was = draft.id ? saved.find(line => line.id === draft.id)?.match?.id ?? null : null;
+    if (was === draft.matchedBy) return draft;
+    dropped += 1;
+    return { ...draft, matchedBy: null, match: null, offer: null, remember: false };
+  });
+  return { drafts: next, dropped };
+}
+
+/**
  * Что станет с выбором при сохранении — тем же правилом, что на сервере: запоминается выбор человека,
  * и только когда он новость (новая строка либо сменились позиция или ключ).
  */
