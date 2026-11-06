@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRef } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { ListItem } from './ListItem';
+import { LIST_CONTAINER, ListItem } from './ListItem';
 import { ListGroupHeader } from './ListGroupHeader';
 import { Description } from './icons';
 
@@ -123,6 +123,22 @@ describe('ListItem', () => {
     expect(screen.getByTestId('f').querySelectorAll('.text-label-small')).toHaveLength(0);
     expect(screen.getByTestId('e').querySelectorAll('.text-label-small')).toHaveLength(0);
     expect(screen.getByTestId('z').querySelector('.text-label-small')!.textContent).toBe('0');
+  });
+
+  it('узкий список (LIST_CONTAINER) уводит замыкающий слот под пояснение: решает ширина списка, не экрана', () => {
+    expect(LIST_CONTAINER).toBe('@container/list');
+    render(<ListItem data-testid="r" headline="Кабель" supporting="слева: строка 3" trailing="120 / 118"
+      onClick={() => {}} action={<button type="button">Разобрать</button>} />);
+    const slot = screen.getByText('120 / 118');
+    const text = screen.getByText('Кабель').parentElement!;
+    const pair = slot.parentElement!;
+    // Подпись и слот — соседи одной обёртки; действие строки — вне её, у края всегда.
+    expect(text.parentElement).toBe(pair);
+    expect(pair.className).toContain('@max-md/list:flex-wrap');
+    expect(text.className).toContain('@max-md/list:basis-full');
+    expect(pair.contains(screen.getByRole('button', { name: 'Разобрать' }))).toBe(false);
+    // Варианты — по именованному контейнеру: без списка с LIST_CONTAINER слот всегда справа.
+    expect(pair.className).not.toMatch(/(^|\s)(sm|md|max-sm|max-md):/);
   });
 
   it('hint — подсказка цели: описание у цели и показ по фокусу с клавиатуры', () => {

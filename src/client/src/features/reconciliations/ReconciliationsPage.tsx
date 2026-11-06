@@ -14,7 +14,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { ListItem } from '@/shared/ui/ListItem';
+import { LIST_CONTAINER, ListItem } from '@/shared/ui/ListItem';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -84,11 +84,16 @@ export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
             : <span aria-hidden className="size-4.5" />}
         </span>
       )}
-      leading={<FindingStatus f={f} />}
       headline={f.label}
-      supporting={parts.length > 0 && <span className="flex flex-wrap gap-x-3">{parts.map(t => <span key={t}>{t}</span>)}</span>}
+      // Статус — первым во второй строке, а не ведущим узлом: на 375 подпись статуса с флажком, значениями и
+      // «Разобрать» оставляли названию одну букву, а провенанс переносился по слову (снимки 3.1). Значения на узком
+      // списке уходят под эту строку сами — по `LIST_CONTAINER` у списка находок.
+      supporting={<span className="flex flex-wrap items-center gap-x-3">
+        <FindingStatus f={f} />
+        {parts.map(t => <span key={t}>{t}</span>)}
+      </span>}
       // Значения — то, ради чего находка: своим кеглем `body-medium`, а не мелким текстом замыкающего слота.
-      trailing={<span className="tabular-nums text-body-medium">{num(f.leftValue)} / {num(f.rightValue)}</span>}
+      trailing={<span className="tabular-nums text-body-medium">{`${num(f.leftValue)} / ${num(f.rightValue)}`}</span>}
       action={<Button variant="text" onClick={() => onDecide(f)}>{f.decision ? 'Изменить' : 'Разобрать'}</Button>} />
   );
 }
@@ -335,7 +340,7 @@ export function ReconciliationsPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className={`flex-1 min-h-0 overflow-y-auto ${LIST_CONTAINER}`}>
         {findingsLoading && <p className="px-4 py-3 text-body-medium text-on-surface-variant">Загрузка…</p>}
         {!findingsLoading && shown.length === 0 && (
           <p className="px-4 py-3 text-body-medium text-on-surface-variant">
