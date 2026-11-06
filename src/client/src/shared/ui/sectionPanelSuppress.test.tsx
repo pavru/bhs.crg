@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useState } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState, type ReactElement } from 'react';
+import { act, cleanup, fireEvent, render as renderBare, screen } from '@testing-library/react';
+import { Link, MemoryRouter } from 'react-router';
 import { SectionPanelDrawer } from './SectionRail';
 import { SuppressSectionPanelContext, useSectionPanel, useSuppressSectionPanel } from './sectionPanelSuppress';
 
@@ -12,6 +13,9 @@ import { SuppressSectionPanelContext, useSectionPanel, useSuppressSectionPanel }
 
 afterEach(cleanup);
 
+/** Drawer закрывается состоявшимся переходом — ему нужен роутер. */
+const render = (ui: ReactElement) => renderBare(<MemoryRouter initialEntries={['/invoices?invoice=1']}>{ui}</MemoryRouter>);
+
 /** Оболочка в миниатюре: подпанель в раскладке, drawer поверх и страница, которая подавляет. */
 function Shell({ expand, page }: { expand: () => void; page: boolean }) {
   const panel = useSectionPanel({ has: true, wanted: true, expand });
@@ -20,7 +24,7 @@ function Shell({ expand, page }: { expand: () => void; page: boolean }) {
       {panel.shown && <nav data-testid="in-layout">подпанель</nav>}
       <button type="button" onClick={panel.show}>Показать панель</button>
       <SectionPanelDrawer open={panel.drawer} onClose={panel.closeDrawer} title="Учёт затрат">
-        <a href="#invoices">Счета</a>
+        <Link to="/invoices">Счета</Link>
       </SectionPanelDrawer>
       <SuppressSectionPanelContext.Provider value={panel.suppress}>
         {page && <Page />}

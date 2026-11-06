@@ -383,6 +383,12 @@ export function InvoicesPage() {
     onArticles: () => setArticlesOpen(true), onMatches: () => setMatchesOpen(true),
     onTerms: () => setTermsOpen(true), onNew: () => void addDraft(),
   });
+  const batchBar = (
+    <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
+      // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
+      onOnly={() => { setQuery(''); setFilter('upload'); }}
+      onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={switchTo} />
+  );
   const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`;
   const fromFile = (variant: 'tonal' | 'standard') => canEdit
     ? <FromFileButton variant={variant} loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
@@ -449,10 +455,7 @@ export function InvoicesPage() {
             // Под очередью и отбором загрузки рейл не урезается (#1221) — и отбора «Стройки» там нет.
             // Под поиском число — сколько скрытых нашёл бы он: иначе оно звало бы искать там, где нет.
             sites={filter === null ? <SitesFilter hidden={sites.foundHidden} /> : undefined} />
-          <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
-            // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
-            onOnly={() => { setQuery(''); setFilter('upload'); }}
-            onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={switchTo} />
+          {listShown && batchBar}
           <div className="flex-1 overflow-y-auto">
             {doubt && (
               <p className="px-3 py-1.5 text-body-small text-warning" role="status">
@@ -540,6 +543,9 @@ export function InvoicesPage() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col" inert={leading}>
+            {/* Списка нет (файл рядом или места мало) — полоса загрузки встаёт над формой: непринятый файл с
+                причиной обязан дожить до взгляда (issue #1093), а говорить об итоге больше негде. */}
+            {!listShown && batchBar}
             {sites.openHidden && <NotInRailNotice onShowAll={sites.showAll} />}
             {opened.rereadFailed != null && (
               <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}

@@ -106,7 +106,7 @@ export async function invoiceScanChecks(page, check, h) {
       () => failure.getByRole('button', { name: 'Оригинал', exact: true }).waitFor({ timeout: 5_000 }));
   });
 
-  await check('PDF-скан на 1100 px: «Открыть файл» — просмотрщик поверх формы, новой вкладки нет', async () => {
+  await check('PDF-скан на 1100 px: «Файл» — просмотрщик поверх формы, новой вкладки нет', async () => {
     const number = `СЧ-У${h.stamp}`;
     const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Узкий экран') });
     await h.attachScan(created.id, h.officeFile('converter-reference.pdf'), 'Скан.pdf', PDF_TYPE);
@@ -121,8 +121,11 @@ export async function invoiceScanChecks(page, check, h) {
     page.on('popup', onPopup);
     await page.setViewportSize({ width: 1100, height: 1000 });
     try {
-      await page.getByText('не меньше 1280').waitFor({ timeout: 10_000 });
-      await page.getByRole('button', { name: 'Открыть файл', exact: true }).click();
+      // Рабочая область 1020: файлу 420, форме 600 — рядом места нет (D-10.3), панель уходит, и «Файл» в
+      // сводке открывает файл поверх формы.
+      await h.named('панель файла осталась рядом на 1100',
+        () => page.getByRole('complementary', { name: 'Файл счёта' }).waitFor({ state: 'detached', timeout: 10_000 }));
+      await page.getByTestId('invoice-header').getByRole('button', { name: 'Файл', exact: true }).click();
       const dialog = page.getByRole('dialog');
       await h.named('просмотрщик поверх формы не открылся', () => dialog.waitFor({ timeout: 15_000 }));
       const sheet = dialog.getByRole('region', { name: 'Скан.pdf' }).getByRole('group', { name: /^Страница 1 из / });

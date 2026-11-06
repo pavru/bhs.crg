@@ -683,7 +683,10 @@ try {
     // «Назначение» — в части «Ещё», а заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout).
     await expandInvoiceParts(page);
     await page.getByLabel('Назначение').fill(edited);
-    await page.getByRole('link', { name: 'Счета', exact: true }).click();
+    // Пока открыт счёт, подпанели раздела нет (costs-invoice-screen-10-layout, D-10.5): пункт «Счета» —
+    // в ней же, открытой поверх формы.
+    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+    await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
     const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await ask.waitFor({ timeout: 5000 })
       .catch(() => { throw new Error('пункт «Счета» закрыл счёт с несохранённой правкой, не спросив'); });
