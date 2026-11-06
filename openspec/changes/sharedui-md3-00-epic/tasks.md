@@ -290,7 +290,7 @@
   Закрыт 06.11.2026: вариант А (подпись в вырезе, знаки в хвосте), PR 0 — хвост поля в `shared/ui` (#1774),
   PR 1 — поле реквизита (#1775), PR 2 — `raw-field` по дереву разбора с импортами (#1776); `/design-sync` —
   владелец 06.11.2026; архив `2026-11-06-sharedui-md3-19-requisite-fields`.
-- [ ] 4.1b `sharedui-md3-21-pick-lists` (1–2) — остаток правила `list-row` после `sharedui-md3-18-lists`:
+- [x] 4.1b `sharedui-md3-21-pick-lists` (1–2) — остаток правила `list-row` после `sharedui-md3-18-lists`:
   списки выбора в окнах (`role="option"`, listbox с клавиатурой комбобокса — `PickerRows`,
   `InvoicePlaceField`, `RefPickerModal`, `BaseCandidatePicker`, `ScopeGroupList`, `InstancePickerModal`,
   `NewNomenclatureStep`, `LinkPickerModal`) и списки содержимого карточки (`ComplexFields`, замечания сверки,
@@ -298,6 +298,13 @@
   Заведён решением владельца 05.11.2026 (Л4 md3-18): `sharedui-md3-17-screens`, куда это шло, закрыт.
   Уровень после md3-18 PR 2 — 7: `ComplexFields` 3, `RefPickerModal` 2, `BaseCandidatePicker`, `ScopeGroupList`.
   После 3.8. Проверка — change заархивирован.
+  Закрыт 06.11.2026: выбор владельца — П1 = В «по контейнеру» (`ListOption` с `form` `list` / `menu`), П2 —
+  галочка 24, П3 = (б) пилюля 48, П4 = (а) точка и вес текста, П5 — да (макеты WS1vWJpd1wKUgEdNweodNA). Раздел 0 —
+  #1779, PR 1 — #1780 (варианты выбора на `ListOption`, сторож `list-row` видит `role="option"` и заливку в
+  переменной), PR 2 — #1781 (списки карточки на `ListItem`, `list-row` — 0), раздел 3 — #1782 (снимки
+  H2dxbRXuQKKB1mDE2uyesS, `LIST_CONTAINER` — замыкающий слот под пояснением на узком списке); `/design-sync` —
+  владелец 06.11.2026; архив `2026-11-06-sharedui-md3-21-pick-lists`, требования [UI-87] и [UI-84] — в
+  `openspec/specs/sharedui`.
   Change заведён 06.11.2026 (только планирование): перечень — 13 мест, а не 7. `PickerOption` (три окна)
   прячет заливку в переменную, ещё пять красят строку заливкой, которой правило не видит. Поэтому сторож
   расширяется: `role="option"` руками и заливка в переменной. PR — два. Раздел 0: разбор, три макета строки
