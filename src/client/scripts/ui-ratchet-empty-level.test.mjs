@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compare, countViolations } from './ui-ratchet-lib.mjs';
 
-// Пустой уровень шести правил ([UI-81], sharedui-md3-17 PR 5б). Отдельно от ui-ratchet.test.mjs — тот у
+// Пустой уровень семи правил ([UI-81], sharedui-md3-17 PR 5б; list-row — sharedui-md3-21 PR 2). Отдельно от ui-ratchet.test.mjs — тот у
 // порога FileSizeRatchet. На нуле уровень пуст, и первое же место в любом файле — красное: проверяем, что
 // каждое правило до него дотягивается, а не только то, что уровень сейчас чист.
 const FIXTURES = {
@@ -12,6 +12,7 @@ const FIXTURES = {
   'legacy-radius': '<div className="rounded-2xl" />',
   'legacy-shadow': '<div className="shadow-sm" />',
   'legacy-type': '<p className="text-xs" />',
+  'list-row': '<div role="option" className="px-3 py-1.5">Стройка</div>',
 };
 
 // Экран счёта: notice-plaque и hand-card доводит до нуля эпик costs-invoice-screen (задачи 4.7 у -10 и
@@ -32,9 +33,9 @@ describe('храповик интерфейса: пустой уровень (sh
     expect(compare({}, actualOf(text)).worse).toContainEqual({ rule, file, was: 0, now: 1 });
   });
 
-  it('уровень: четыре правила пусты, notice-plaque и hand-card — только в файлах экрана счёта', () => {
+  it('уровень: пять правил пусты, notice-plaque и hand-card — только в файлах экрана счёта', () => {
     const baseline = JSON.parse(readFileSync(new URL('../ui-baseline.json', import.meta.url), 'utf8'));
-    for (const rule of ['raw-field', 'legacy-type', 'legacy-radius', 'legacy-shadow']) expect(baseline[rule], rule).toEqual({});
+    for (const rule of ['raw-field', 'legacy-type', 'legacy-radius', 'legacy-shadow', 'list-row']) expect(baseline[rule], rule).toEqual({});
     for (const rule of ['notice-plaque', 'hand-card'])
       expect(Object.keys(baseline[rule]).filter(f => !INVOICE_SCREEN.includes(f)), rule).toEqual([]);
   });
