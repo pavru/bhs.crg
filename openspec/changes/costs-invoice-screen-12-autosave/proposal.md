@@ -57,18 +57,23 @@
   - `useInvoiceSave` (из 10) становится очередью автосохранения;
   - правятся `InvoiceForm.tsx`, `InvoiceSummary.tsx` (носитель, «Изменить»), `InvoiceLinesTable.tsx`
     (уход из строки, режим НДС), `draftBase.ts`, `InvoicesPage.tsx` (`switchTo` дописывает), `InvoicePayment.tsx`;
-  - новые — вид для чтения разобранного (части без полей) и предпросмотр режима НДС;
-  - `shared/ui/NavigationGuard` — вопрос «запись не дошла».
+  - новые — вид для чтения разобранного (части без полей ввода — по решению Э15 (зонтик, 0.1)) и
+    предпросмотр режима НДС;
+  - вопрос «Запись не дошла — уйти без неё?» — `ConfirmDialog` (`confirmLabel` «Уйти без записи»,
+    `cancelLabel` «Остаться») или новый вид `shared/ui/LeaveGuardDialog.tsx`: у того текст зашит
+    («Несохранённые изменения», «Не сохранять», «Сохранить и перейти»). `useLeaveGuard`
+    (`shared/ui/NavigationGuard.ts`) не меняется — его `onLeave(proceed)` зовёт `flush()`.
 - **Сервер:** не меняется.
-- **Предусловия** — слиты пять change строк:
-  - `costs-invoice-lines-leave-guard` (#1653);
-  - `costs-invoice-line-computed-amount` (#1654);
-  - `costs-invoice-line-delete-allocation` (#1655);
-  - `costs-invoice-lines-save-race` (#1656);
-  - `costs-invoice-lines-unsaved-supplier` (#1657).
-
-  Слит и `core-journal-series` — свёртка журнала: без неё автосохранение засыпало бы журнал записями «Счёт
-  изменён». Слит ребёнок 10.
+- **Предусловия:**
+  - `core-journal-series` — **слит** (#1669, #1670), архив #1671 от 28.10.2026. Свёртка журнала: без неё
+    автосохранение засыпало бы журнал записями «Счёт изменён»;
+  - ждут — пять change строк (открыты, ни одна задача не отмечена на 06.11.2026):
+    - `costs-invoice-lines-leave-guard` (#1653);
+    - `costs-invoice-line-computed-amount` (#1654);
+    - `costs-invoice-line-delete-allocation` (#1655);
+    - `costs-invoice-lines-save-race` (#1656);
+    - `costs-invoice-lines-unsaved-supplier` (#1657);
+  - ждёт — ребёнок 10.
 - **Документы:** ТЗ — абзац [COST-6.5]; `docs/USER_GUIDE.md` — «как счёт сохраняется», «Изменить».
 - **PR:** два, оба с меткой `version:minor`. Макет — «Экран счёта · критический пересмотр», вариант Г, лист
-  0, раздел 3.2.
+  0, раздел 3.2 — https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF.
