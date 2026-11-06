@@ -74,6 +74,7 @@ export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
     provenanceSummary(f.provenance.right) && `справа: ${provenanceSummary(f.provenance.right)}`,
     f.decision && `${DECISION_LABELS[f.decision.kind]}${f.decision.note ? ` — ${f.decision.note}` : ''}${f.decision.decidedBy ? ` (${f.decision.decidedBy})` : ''}`,
   ].filter(Boolean);
+  const values = `${num(f.leftValue)} / ${num(f.rightValue)}`;
   return (
     <ListItem passive className="border-b border-outline-variant"
       leadingAction={slot && (
@@ -84,11 +85,17 @@ export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
             : <span aria-hidden className="size-4.5" />}
         </span>
       )}
-      leading={<FindingStatus f={f} />}
       headline={f.label}
-      supporting={parts.length > 0 && <span className="flex flex-wrap gap-x-3">{parts.map(t => <span key={t}>{t}</span>)}</span>}
+      // Статус — первым во второй строке, а не ведущим узлом: на 375 подпись статуса с флажком, значениями и
+      // «Разобрать» оставляли названию одну букву, а провенанс переносился по слову (снимки 3.1). По той же
+      // причине на телефоне значения — во второй строке за статусом, у края — только с `sm`.
+      supporting={<span className="flex flex-wrap items-center gap-x-3">
+        <FindingStatus f={f} />
+        <span className="sm:hidden tabular-nums text-on-surface">{values}</span>
+        {parts.map(t => <span key={t}>{t}</span>)}
+      </span>}
       // Значения — то, ради чего находка: своим кеглем `body-medium`, а не мелким текстом замыкающего слота.
-      trailing={<span className="tabular-nums text-body-medium">{num(f.leftValue)} / {num(f.rightValue)}</span>}
+      trailing={<span className="hidden sm:inline tabular-nums text-body-medium">{values}</span>}
       action={<Button variant="text" onClick={() => onDecide(f)}>{f.decision ? 'Изменить' : 'Разобрать'}</Button>} />
   );
 }

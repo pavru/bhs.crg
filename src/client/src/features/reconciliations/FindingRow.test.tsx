@@ -30,15 +30,25 @@ describe('FindingRow', () => {
     expect(screen.getByText('Кабель ВВГ 3×2,5').closest('button')).toBeNull();
   });
 
-  it('значения — своим кеглем body-medium, а не мелким текстом края', () => {
+  it('значения — своим кеглем body-medium у края с sm, на телефоне — во второй строке', () => {
     row();
-    expect(screen.getByText('120 / 118').className).toContain('text-body-medium');
+    const [inLine, atEdge] = screen.getAllByText('120 / 118');
+    expect(atEdge.className).toContain('text-body-medium');
+    expect(atEdge.className).toContain('hidden sm:inline');
+    expect(inLine.className).toContain('sm:hidden');
   });
 
   it('несвязываемая строка в списке со связываемыми — пустое место под флажок, подписи в одном столбце', () => {
     row({ linkable: false });
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(document.querySelector('[aria-hidden][class~="size-4.5"]')).not.toBeNull();
+  });
+
+  it('статус — первым во второй строке рядом с провенансом, а не ведущим узлом: на 375 названию остаётся ширина', () => {
+    row({ f: finding({ provenance: { left: { sourceId: 's', column: 'Количество', rows: [3] }, right: null } }) });
+    const line = screen.getByText('слева: Количество, строк 1').parentElement!;
+    expect(line.textContent).toMatch(/^Расхождение/);
+    expect(line.contains(screen.getByText('Кабель ВВГ 3×2,5'))).toBe(false);
   });
 
   it('в списке нечего связывать — места под флажок нет', () => {
