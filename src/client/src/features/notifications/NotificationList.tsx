@@ -1,10 +1,12 @@
 import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
-import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, KeyboardArrowDown, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
+import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { formatDayTime } from '@/shared/format/format';
-import { IconButton } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
+import { BASE, HEIGHT, LABEL, padding, variantClass } from '@/shared/ui/buttonClasses';
+import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
 import {
   useHealth,
   useMarkNotificationRead, useMarkAllNotificationsRead,
@@ -52,6 +54,9 @@ const SEVERITY: Record<NotificationSeverity, { icon: IconDef; color: string; bg:
   Error:   { icon: ErrorIcon,   color: 'text-on-error-container', bg: 'bg-error-container' },
 };
 
+/** Вид tonal-кнопки со знаком у ссылки наружу. */
+const LINK_BUTTON = `${BASE} touch-target rounded-full ${HEIGHT} ${LABEL} whitespace-nowrap ${padding('tonal', { leading: true })} ${variantClass('tonal')}`;
+
 function relTime(iso: string): string {
   const d = new Date(iso);
   const s = (Date.now() - d.getTime()) / 1000;
@@ -69,41 +74,35 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   const meta = SEVERITY[n.severity];
   const icon = meta.icon;
   return (
-    <div className={`group flex gap-3.5 pl-5 pr-3 py-4 transition-colors ${n.isRead ? '' : 'bg-secondary-container'}`}>
+    // Непрочитанное — точкой `primary` и весом подписи (П4 = а, [UI-84]): фон у всех один, цвет выбора остаётся
+    // за выбором. Кегль один (16/24) — строка при прочтении не прыгает.
+    <div className="flex gap-3.5 pl-5 pr-3 py-4">
       <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${meta.bg}`}>
         <Icon icon={icon} size={20} className={meta.color} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-body-medium font-medium text-on-surface truncate">{n.title}</p>
-          {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />}
+          <p className={`${n.isRead ? 'text-body-large' : 'text-title-medium'} text-on-surface truncate`}>{n.title}</p>
+          {!n.isRead && <span role="img" aria-label="не прочитано" className="shrink-0 size-2 rounded-full bg-primary" />}
         </div>
         <p className="text-body-medium text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
-          <a
-            href={n.linkUrl} target="_blank" rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
-          >
-            <Icon icon={OpenInNew} size={18} /> {n.linkLabel ?? 'Открыть'}
+          // Ссылка наружу — `a` с видом tonal-кнопки: у `Button` нет ссылочной формы, а вкладку открывает браузер.
+          <a href={n.linkUrl} target="_blank" rel="noreferrer" className={`mt-2 ${LINK_BUTTON}`}>
+            <Icon icon={OpenInNew} size={18} />{n.linkLabel ?? 'Открыть'}
           </a>
         ) : isDownloadLink(n.linkUrl) ? (
-          <button
-            type="button"
-            onClick={() => { void openResult(n.linkUrl!); }}
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
-          >
-            <Icon icon={Download} size={18} /> {n.linkLabel ?? 'Открыть результат'}
-          </button>
+          <Button variant="tonal" className="mt-2" icon={<Icon icon={Download} size={18} />}
+            onClick={() => { void openResult(n.linkUrl!); }}>
+            {n.linkLabel ?? 'Открыть результат'}
+          </Button>
         ) : (
           // Уведомления — сигнал, а не рабочее место: уходя на экран, закрываем его за собой.
           <Popover.Close asChild>
-            <button
-              type="button"
-              onClick={() => navigate(n.linkUrl!)}
-              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
-            >
-              <Icon icon={ArrowForward} size={18} /> {n.linkLabel ?? 'Открыть'}
-            </button>
+            <Button variant="tonal" className="mt-2" icon={<Icon icon={ArrowForward} size={18} />}
+              onClick={() => navigate(n.linkUrl!)}>
+              {n.linkLabel ?? 'Открыть'}
+            </Button>
           </Popover.Close>
         ))}
         <div className="flex items-center gap-2 mt-2 text-body-small text-on-surface-variant">
@@ -117,8 +116,8 @@ function NotificationRow({ n }: { n: NotificationDto }) {
         {!n.isRead && (
           <IconButton label="Отметить прочитанным" onClick={() => markRead.mutate(n.id)} icon={Check} />
         )}
-        <IconButton label="Удалить" danger onClick={() => dismiss.mutate(n.id)}
-          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity" icon={Close} />
+        {/* Видно всегда: на касании наведения нет, и удалить было бы нечем. */}
+        <IconButton label="Удалить" danger onClick={() => dismiss.mutate(n.id)} icon={Close} />
       </div>
     </div>
   );
@@ -154,16 +153,11 @@ function HealthNote() {
     : `не в норме: ${bad.length} из ${health.length}`;
   return (
     <div className="shrink-0 border-b border-outline-variant">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-body-medium state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
-        <Icon icon={MonitorHeart} size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
-        {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
-        <span className="flex-1 min-w-0">
-          <span className="font-medium text-on-surface">Состояние системы:</span>{' '}
-          <span className={down ? 'text-error' : 'text-warning'}>{summary}</span>
-        </span>
-        <Icon icon={KeyboardArrowDown} size={18} className={`shrink-0 text-on-surface-variant transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+      {/* Заголовок группы — общий ListGroupHeader ([UI-84]); подпись переносится, а не обрезается: обрезанным
+          оказывалось как раз имя сервиса — то, ради чего строка. */}
+      <ListGroupHeader open={open} onToggle={() => setOpen(v => !v)} wrap
+        lead={<Icon icon={MonitorHeart} size={24} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />}
+        label={<>Состояние системы: <span className={down ? 'text-error' : 'text-warning'}>{summary}</span></>} />
       {open && (
         <div className="pl-5 pr-4 pb-2">
           {health.map(c => {

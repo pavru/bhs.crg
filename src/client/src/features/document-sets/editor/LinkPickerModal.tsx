@@ -25,6 +25,7 @@ import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { ListItem } from '@/shared/ui/ListItem';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 
 interface LinkPickerModalProps {
@@ -183,34 +184,26 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 </Button>
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
-                {visible.map(({ d, expired, validUntil, score }) => (
-                  <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-primary-container transition-colors">
-                    <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
-                      <Icon icon={VerifiedUser} size={18} className={expired ? 'text-on-surface-variant shrink-0' : 'text-primary shrink-0'} />
-                      {/* Номер документа рядом с именем (issue #588): два сертификата в библиотеке
-                          назывались одинаково, а внутри были разные номера, органы и области
-                          продукции — по имени человек выбирал вслепую. */}
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-body-medium text-on-surface truncate">{d.displayName}</span>
-                        {/* Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом
-                            (да ещё в другом формате) читалась бы как два разных срока. */}
-                        {docNumberOf(d, allDocTypes) && (
-                          <span className="block text-label-small text-on-surface-variant truncate">№ {docNumberOf(d, allDocTypes)}</span>
-                        )}
-                      </span>
-                      {queryTokens.length > 0 && score > 0 && (
-                        <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(score * 100)}%</span>
-                      )}
-                      {validUntil && <span className={`text-label-small shrink-0 ${expired ? 'text-error' : 'text-on-surface-variant'}`}>
+              // Строки — ListItem во всю ширину окна ([UI-84]), без своей рамки: цель — выбрать документ, скан — действие у края.
+              <div className="-mx-4 max-h-80 overflow-y-auto">
+                {visible.map(({ d, expired, validUntil, score }) => {
+                  // Номер документа рядом с именем (issue #588): два сертификата в библиотеке назывались одинаково,
+                  // а внутри были разные номера, органы и области продукции — по имени человек выбирал вслепую.
+                  // Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом читалась бы как два срока.
+                  const no = docNumberOf(d, allDocTypes);
+                  const match = queryTokens.length > 0 && score > 0 ? `совпадение ${Math.round(score * 100)} %` : '';
+                  return (
+                    <ListItem key={d.id} icon={VerifiedUser} iconTone={expired ? undefined : 'text-primary'}
+                      headline={d.displayName} supporting={[no && `№ ${no}`, match].filter(Boolean).join(' · ')}
+                      trailing={validUntil && <span className={expired ? 'text-error' : undefined}>
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
-                    </button>
-                    {d.scanBlobPath && (
-                      <IconButton label="Просмотр скана (в новой вкладке)"
-                        onClick={() => void openAttachment(d.scanBlobPath!)} icon={Visibility} />
-                    )}
-                  </div>
-                ))}
+                      onClick={() => onPick(d)}
+                      action={d.scanBlobPath && (
+                        <IconButton label="Просмотр скана (в новой вкладке)"
+                          onClick={() => void openAttachment(d.scanBlobPath!)} icon={Visibility} />
+                      )} />
+                  );
+                })}
               </div>
             )}
         </TabPanel>
@@ -242,23 +235,24 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
           {searchError && <p className="text-body-medium text-error">{searchError}</p>}
           {results && results.length === 0 && <p className="text-body-medium text-on-surface-variant py-3 text-center">Ничего не найдено.</p>}
           {results && results.length > 0 && (
-            <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
+            // Найденное — строки без своей цели (`passive`, [UI-84]): страница открывается ссылкой-подписью, взять в
+            // библиотеку — кнопка у края; «В библиотеку» — tonal: filled в окне одна, «Найти».
+            <div className="-mx-4 max-h-80 overflow-y-auto">
               {results.map(c => (
-                <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{SEARCH_SOURCE_LABEL[c.source] ?? c.source}</span>
-                  <div className="flex-1 min-w-0">
-                    <a href={c.url} target="_blank" rel="noreferrer"
-                      className="text-body-medium text-primary hover:underline flex items-center gap-1">
-                      <span className="truncate">{c.title || c.url}</span><Icon icon={OpenInNew} size={18} className="shrink-0" />
-                    </a>
-                    {c.snippet && <p className="text-body-small text-on-surface-variant line-clamp-2">{c.snippet}</p>}
-                  </div>
-                  <Button variant="filled" onClick={() => importAndLink(c)}
+                <ListItem key={c.url} passive icon={Language} title={c.title ? `${c.title}
+${c.url}` : c.url}
+                  headline={<a href={c.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    {c.title || c.url}<Icon icon={OpenInNew} size={18} className="inline align-text-bottom ml-1" />
+                  </a>}
+                  supporting={<>
+                    <span className="block">{SEARCH_SOURCE_LABEL[c.source] ?? c.source}</span>
+                    {c.snippet && <span className="block line-clamp-2">{c.snippet}</span>}
+                  </>}
+                  action={<Button variant="tonal" onClick={() => importAndLink(c)}
                     loading={importingUrl === c.url} disabled={importingUrl !== null}
-                    icon={<Icon icon={Download} size={18} />} className="shrink-0">
+                    icon={<Icon icon={Download} size={18} />}>
                     В библиотеку
-                  </Button>
-                </div>
+                  </Button>} />
               ))}
             </div>
           )}

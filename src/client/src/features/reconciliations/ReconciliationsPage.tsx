@@ -14,6 +14,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { ListItem } from '@/shared/ui/ListItem';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -55,43 +56,39 @@ function num(v: number | null): string {
   return v == null ? '—' : String(Math.round(v * 1000) / 1000);
 }
 
-function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
+/**
+ * Находка сверки — строка списка без своей цели ([UI-84], sharedui-md3-21): «Разобрать» — действие у края, видно
+ * без наведения (на касании наведения нет). Флажок «для связывания» — ведущий сосед; у строк, которым связывать
+ * нечего, его место пустое, чтобы подписи стояли в один столбец.
+ */
+function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
   f: Finding; onDecide: (f: Finding) => void;
-  linkable: boolean; checked: boolean; onToggle: () => void;
+  linkable: boolean;
+  /** В списке есть что связывать — у каждой строки место под флажок. */
+  slot: boolean;
+  checked: boolean; onToggle: () => void;
 }) {
-  const left = f.provenance.left;
-  const right = f.provenance.right;
+  // Провенанс: без него находку нельзя проверить глазами по документу.
+  const parts = [
+    provenanceSummary(f.provenance.left) && `слева: ${provenanceSummary(f.provenance.left)}`,
+    provenanceSummary(f.provenance.right) && `справа: ${provenanceSummary(f.provenance.right)}`,
+    f.decision && `${DECISION_LABELS[f.decision.kind]}${f.decision.note ? ` — ${f.decision.note}` : ''}${f.decision.decidedBy ? ` (${f.decision.decidedBy})` : ''}`,
+  ].filter(Boolean);
   return (
-    <div className="px-3 py-2 border-b border-outline-variant state-layer group">
-      <div className="flex items-center gap-2">
-        {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
-        {linkable && (
-          <Checkbox checked={checked} onChange={onToggle}
-            aria-label={`Выбрать «${f.label}» для связывания`} />
-        )}
-        <FindingStatus f={f} />
-        <span className="flex-1 truncate text-body-medium text-on-surface" title={f.label}>{f.label}</span>
-        <span className="text-body-medium tabular-nums text-on-surface-variant shrink-0">
-          {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
+    <ListItem passive className="border-b border-outline-variant"
+      leadingAction={slot && (
+        <span className="flex ml-2 mr-1">
+          {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
+          {linkable
+            ? <Checkbox checked={checked} onChange={onToggle} aria-label={`Выбрать «${f.label}» для связывания`} />
+            : <span aria-hidden className="size-4.5" />}
         </span>
-        <Button variant="text" onClick={() => onDecide(f)}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0">
-          {f.decision ? 'Изменить' : 'Разобрать'}
-        </Button>
-      </div>
-      <div className="flex items-center gap-3 mt-0.5 text-label-small text-on-surface-variant">
-        {/* Провенанс: без него находку нельзя проверить глазами по документу. */}
-        {provenanceSummary(left) && <span>слева: {provenanceSummary(left)}</span>}
-        {provenanceSummary(right) && <span>справа: {provenanceSummary(right)}</span>}
-        {f.decision && (
-          <span className="text-on-surface-variant">
-            {DECISION_LABELS[f.decision.kind]}
-            {f.decision.note ? ` — ${f.decision.note}` : ''}
-            {f.decision.decidedBy ? ` (${f.decision.decidedBy})` : ''}
-          </span>
-        )}
-      </div>
-    </div>
+      )}
+      leading={<FindingStatus f={f} />}
+      headline={f.label}
+      supporting={parts.length > 0 && <span className="flex flex-wrap gap-x-3">{parts.map(t => <span key={t}>{t}</span>)}</span>}
+      trailing={<span className="tabular-nums">{num(f.leftValue)} / {num(f.rightValue)}</span>}
+      action={<Button variant="text" onClick={() => onDecide(f)}>{f.decision ? 'Изменить' : 'Разобрать'}</Button>} />
   );
 }
 
@@ -213,6 +210,7 @@ export function ReconciliationsPage() {
 
   const attentionCount = findings.filter(needsAttention).length;
   const shown = onlyAttention ? findings.filter(needsAttention) : findings;
+  const anyLinkable = shown.some(isUnmatched);
 
   async function onRun() {
     if (!selectedId) return;
@@ -347,7 +345,7 @@ export function ReconciliationsPage() {
         )}
         {shown.map(f => (
           <FindingRow key={f.id} f={f} onDecide={setDeciding}
-            linkable={isUnmatched(f)}
+            linkable={isUnmatched(f)} slot={anyLinkable}
             checked={linking.includes(f.id)}
             onToggle={() => setLinking(prev => prev.includes(f.id)
               ? prev.filter(x => x !== f.id)
