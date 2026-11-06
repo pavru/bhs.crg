@@ -33,7 +33,7 @@ import { ScanFileInput } from './InvoiceScanPanel';
 import { RecognitionBanner, RecognitionChip, RecognitionNotes } from './InvoiceRecognitionNote';
 import { useRecognitionAction } from './recognitionAction';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
-import { explainedByRecognition } from './recognition';
+import { explainedByRecognition, hasRecognitionNotes } from './recognition';
 import { SiteRevealScope } from '@/shared/siteFilter/SiteOptions';
 import { CorrectionBar } from './CorrectionBar';
 import { CorrectionHistory } from './CorrectionHistory';
@@ -44,7 +44,9 @@ import { InvoiceExtrasProvider, useInvoiceExtras } from './invoiceExtras';
 import { AllocationSummary } from './LineAllocation';
 import { BlockFields, ConfirmBlock } from './InvoiceFormFields';
 import { InvoicePart } from './InvoicePart';
-import { PART_TITLE, PartRevealContext, initiallyOpen, partLine, partOfTarget, type PartId } from './invoiceParts';
+import {
+  PART_ORDER, PART_TITLE, PartRevealContext, attentionOf, initiallyOpen, partLine, partOfTarget, type PartExtra, type PartId,
+} from './invoiceParts';
 import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
 import { useInvoiceSave } from './invoiceSave';
@@ -163,6 +165,12 @@ export function InvoiceForm({
   // Поля, дописанные в тип «Счёт» (issue #1482), — в части «Ещё».
   const extras = useInvoiceExtras(view.documentTypeId);
   const orphanMarks = extras.loading ? [] : unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
+  const extraKeys = extras.block?.fields;
+  // Что части знают от формы: поля типа — в «Ещё», метки вне блоков и замечания — в конце «Кто и сколько».
+  const partMore: PartExtra = {
+    extra: extraKeys ?? [],
+    attention: orphanMarks.length > 0 || (!quiet && hasRecognitionNotes(watch.recognition)),
+  };
 
   // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже (D-10.7): прежде охрана видела
   // только шапку, и уход молча уносил набранные строки (#1653).
@@ -188,14 +196,24 @@ export function InvoiceForm({
   const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader });
 
   // Части: раскрыты незаполненные — решено при открытии счёта, дальше сворачивает только человек.
-  const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }));
+  const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }, partMore));
   const toggle = (part: PartId) => setOpen(prev => ({ ...prev, [part]: !prev[part] }));
+  // Метка, пришедшая после открытия (распознавание кончилось, поля типа дочитались), часть РАСКРЫВАЕТ: «Всё
+  // верно (N)» в шапке свёрнутой части подтверждало бы значения, которых человек не видел (ревью PR #1786).
+  // Только раскрывает: свернул человек часть с уже стоявшей меткой — это его решение.
+  const attention = attentionOf(view, { edits, linesDirty }, partMore);
+  const attended = useRef(attention);
+  useEffect(() => {
+    const fresh = PART_ORDER.filter(part => attention[part] && !attended.current[part]);
+    attended.current = attention;
+    if (fresh.length > 0) setOpen(prev => ({ ...prev, ...Object.fromEntries(fresh.map(part => [part, true])) }));
+  });
   // Строка готовности ведёт к месту в свёрнутой части: часть раскрывается, затем — к месту.
   const reveal = useCallback((target: ReadinessTarget) => {
-    const part = partOfTarget(target);
+    const part = partOfTarget(target, extraKeys);
     setOpen(prev => (part && !prev[part] ? { ...prev, [part]: true } : prev));
     requestAnimationFrame(() => goTo(target));
-  }, []);
+  }, [extraKeys]);
   const nameOf = (key: string) => {
     const id = refEntryId(value(key));
     if (id === null) return null;
@@ -360,6 +378,18 @@ export function InvoiceForm({
             <InvoiceObject view={view} locked={closed || gone} />
             {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
               && <AllocationSummary allocation={view.allocation} />}
+            {/* Что значит состояние для денег — словами (ревью PR #1787): строки-итога «не разнесён» мало,
+                а сводка говорит только пометкой. */}
+            {rejected && (
+              <p className="text-body-small text-on-surface-variant">
+                Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.
+              </p>
+            )}
+            {parsed && !view.allocation.allocated && view.lines.length > 0 && (
+              <p className="text-body-small text-warning">
+                Счёт разобран до разноски по стройкам. Пока строки не разнесены, его деньги не относятся ни к одной стройке.
+              </p>
+            )}
             <p className="text-body-small text-on-surface-variant">
               Объект той же стройки пишется сразу; несколько объектов или другая стройка — матрица с предпросмотром.
               Строку по отдельности — колонка «Разноска» в строках.
@@ -369,7 +399,7 @@ export function InvoiceForm({
           <InvoicePart title={PART_TITLE.terms.title} step={4} open={open.terms} onToggle={() => toggle('terms')} line={lineOf('terms')}
             actions={<>
               <ConfirmBlock blocks={[terms]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />
-              {!gone && <InvoicePayButton view={view} dirty={unsaved} primary={kind === 'pay'} />}
+              {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
             </>}>
             <BlockFields block={terms} {...fieldProps} />
             {!gone && <InvoicePayment view={view} dirty={unsaved} />}

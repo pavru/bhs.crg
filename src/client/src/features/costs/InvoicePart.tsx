@@ -13,7 +13,8 @@ import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
  * свойства у `Card` не заводится — до второго потребителя. Поэтому карточка — `flush`, без своей шапки,
  * и обе полосы рисует часть.</p>
  *
- * <p>Свёрнутая часть тела не рисует. Кнопка свёртки называет действие («Свернуть «Строки»») и
+ * <p>Свёрнутая часть тело ПРЯЧЕТ, а не размонтирует (ревью PR #1787): в теле живёт состояние — черновик
+ * строк держит сама таблица, — и свёртка «Строк» иначе молча выбрасывала бы несохранённые правки. Кнопка свёртки называет действие («Свернуть «Строки»») и
  * держит `aria-expanded` — читалка слышит и что будет, и что сейчас.</p>
  */
 export function InvoicePart({ title, step, line, open, onToggle, actions, children, testId }: {
@@ -52,9 +53,9 @@ export function InvoicePart({ title, step, line, open, onToggle, actions, childr
           )}
           <IconButton label={`${open ? 'Свернуть' : 'Развернуть'} «${title}»`}
             icon={open ? KeyboardArrowUp : KeyboardArrowDown}
-            aria-expanded={open} aria-controls={open ? bodyId : undefined} onClick={onToggle} />
+            aria-expanded={open} aria-controls={bodyId} onClick={onToggle} />
         </div>
-        {open && <div id={bodyId} className="flex flex-col gap-3 px-4 pb-4">{children}</div>}
+        <div id={bodyId} hidden={!open} className="flex flex-col gap-3 px-4 pb-4">{children}</div>
       </section>
     </Card>
   );

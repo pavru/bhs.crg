@@ -22,6 +22,7 @@ import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { mayMarkPaid, payHold } from './invoicePrimary';
 
 /**
  * Оплата счёта в форме (задача C5, issue #1082): отметка, расклад по периодам, отмена — и полоса
@@ -70,27 +71,25 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
 
 /**
  * «Отметить оплату» — в шапке части «Сроки и оплата» (costs-invoice-screen-10-layout, как в Г): видна и у
- * свёрнутой части. Нет её у оплаченного, отклонённого и без права оплаты; у разобранного неоплаченного
- * оплата — основное действие сводки, и вторая кнопка не нужна (`primary`).
+ * свёрнутой части. Нет её у оплаченного, отклонённого и без права оплаты (`mayMarkPaid`); у разобранного
+ * неоплаченного оплата — основное действие сводки, и вторую кнопку форма не рисует.
+ *
+ * <p>Окна оплаты у кнопки своего нет (ревью PR #1786): его держит форма, одно на оба входа, — иначе два
+ * пути к одному окну жили бы каждый со своей копией условий.</p>
  */
-export function InvoicePayButton({ view, dirty, primary = false }: {
+export function InvoicePayButton({ view, dirty, onPay }: {
   view: InvoiceView;
   /** В форме есть несохранённое — в шапке ИЛИ в строках (D-10.7): оплата считается по сохранённому счёту. */
   dirty: boolean;
-  primary?: boolean;
+  onPay: () => void;
 }) {
   const can = useCan();
-  const [open, setOpen] = useState(false);
-  if (!can.permission('costs.invoice.pay') || view.payment.paid || view.requisites[K.state] === REJECTED || primary) return null;
+  if (!mayMarkPaid(view, can.permission('costs.invoice.pay'))) return null;
   return (
-    <>
-      <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
-        title={dirty ? 'Сначала сохраните правки: оплата считается по сохранённому счёту' : undefined}
-        onClick={() => setOpen(true)}>
-        Отметить оплату
-      </Button>
-      {open && <PayDialog view={view} onDone={() => setOpen(false)} />}
-    </>
+    <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
+      title={payHold(dirty) ?? undefined} onClick={onPay}>
+      Отметить оплату
+    </Button>
   );
 }
 

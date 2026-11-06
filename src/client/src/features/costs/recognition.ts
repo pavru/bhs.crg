@@ -256,6 +256,15 @@ export function pickOrder(candidates: InvoicePartyCandidate[]): InvoicePartyCand
   return [...candidates.filter(c => !c.archived), ...candidates.filter(c => c.archived)];
 }
 
+/**
+ * Есть ли у распознавания замечания — их блок стоит в конце «Кто и сколько» и держит часть раскрытой
+ * (ревью PR #1786): свёрнутая прятала бы их до раскрытия руками.
+ */
+export function hasRecognitionNotes(recognition: InvoiceRecognition | undefined): boolean {
+  if (recognition?.state !== 'done') return false;
+  return recognition.notes.length > 0 || unusedLinesNote(recognition) !== null || (recognition.unplaced?.length ?? 0) > 0;
+}
+
 /** Над таблицей строк: распознанные строки, которые в счёт не легли. */
 export function unusedLinesNote(recognition: InvoiceRecognition | undefined): string | null {
   const count = recognition?.state === 'done' ? recognition.lines?.length ?? 0 : 0;

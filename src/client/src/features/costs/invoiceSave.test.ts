@@ -32,6 +32,12 @@ describe('saveInOrder', () => {
     expect(await saveInOrder(async () => viewAt('v2'), async () => false)).toBe(false);
   });
 
+  it('строки грязные, а шага нет — отказ, и шапка не пишется', async () => {
+    const header = vi.fn(async () => viewAt('v2'));
+    expect(await saveInOrder(header, 'missing')).toBe(false);
+    expect(header).not.toHaveBeenCalled();
+  });
+
   it('нечего писать — сохранено', async () => {
     expect(await saveInOrder(null, null)).toBe(true);
   });

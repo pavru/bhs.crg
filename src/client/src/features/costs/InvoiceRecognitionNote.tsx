@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import { useInvoiceDelete } from './invoiceDelete';
-import { failureNote, unusedLinesNote, type FieldOffer } from './recognition';
+import { failureNote, hasRecognitionNotes, unusedLinesNote, type FieldOffer } from './recognition';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { UnplacedReads } from './UnplacedReads';
 
@@ -104,11 +104,10 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
  * замечаний, но с колонкой «для наборов данных», иначе молчало бы.
  */
 export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognition | undefined }) {
-  const done = recognition?.state === 'done';
-  const notes = done ? recognition.notes : [];
+  if (!hasRecognitionNotes(recognition) || recognition?.state !== 'done') return null;
+  const notes = recognition.notes;
   const lines = unusedLinesNote(recognition);
-  const unplaced = done ? recognition.unplaced : null;
-  if (notes.length === 0 && !lines && !unplaced?.length) return null;
+  const unplaced = recognition.unplaced;
   return (
     <section className="space-y-1 text-body-small">
       <h2 className="text-body-medium font-medium text-on-surface-variant">Замечания распознавания</h2>
