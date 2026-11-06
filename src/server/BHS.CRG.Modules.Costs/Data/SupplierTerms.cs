@@ -48,7 +48,7 @@ public sealed class SupplierTerms
     {
         DeferralDays = deferralDays;
         UpdatedBy = by;
-        UpdatedByName = byName is { Length: > SupplierMatch.ByNameLength } ? byName[..SupplierMatch.ByNameLength] : byName;
+        UpdatedByName = SupplierMatch.NameSnapshot(byName);
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

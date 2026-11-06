@@ -171,6 +171,20 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by_name");
+
+                    b.Property<string>("UpdatedVia")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("updated_via");
+
                     b.Property<string>("VatMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

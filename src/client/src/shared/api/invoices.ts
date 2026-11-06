@@ -243,6 +243,12 @@ export interface PaymentView {
   lockedBy: string | null;
   /** Учётные месяцы счёта — «09.2026», по возрастанию. */
   periods: string[];
+  /**
+   * Род причины `refusal` (COST-6.4): `amount` — нет суммы к оплате, `discrepancy` — сумма строк не
+   * сходится, `rejected` — счёт отклонён; `null` — оплатить можно. По нему видно, что причина уже названа
+   * пунктом готовности с `payment` в `blocks`. Старый сервер поля не присылает.
+   */
+  refusalKind?: 'amount' | 'discrepancy' | 'rejected' | null;
 }
 
 /**
@@ -263,6 +269,18 @@ export interface InvoiceReadinessGap {
    * человека.
    */
   vatExplains?: 'onTop' | 'included' | null;
+  /**
+   * Чему пункт мешает (COST-6.4): `parsed` — всегда, `payment` — у неоплаченного счёта, когда пункт чинит
+   * ту же причину, по которой откажет оплата. Одно расхождение — один пункт. Старый сервер поля не присылает.
+   */
+  blocks?: ('parsed' | 'payment')[];
+}
+
+/** Автор последней записи счёта (COST-6.4). */
+export interface InvoiceAuthor {
+  via: 'user' | 'recognition' | 'system';
+  name: string | null;
+  mine: boolean;
 }
 
 export interface InvoiceReadiness {
@@ -304,10 +322,24 @@ export interface InvoiceView {
    * трогает; `byRule` — что дало бы правило сейчас (`null` — считать не из чего). Сам срок — реквизит
    * «Срок». Старый сервер поля не присылает.
    */
-  /** Срок по правилу (C4, issue #1080); `supplierDeferral` — отсрочка в условиях поставщика счёта. */
-  due?: { manual: boolean; byRule: string | null; supplierDeferral?: number | null };
+  /** Срок по правилу (C4, issue #1080); `supplierDeferral` — отсрочка в условиях поставщика счёта.
+   *  `daysLeft` и `overdue` (COST-9.1) — «осталось дней» и «просрочен» тем же правилом и от того же
+   *  «сегодня» в поясе компании, что строка реестра: клиент их не считает. */
+  due?: {
+    manual: boolean;
+    byRule: string | null;
+    supplierDeferral?: number | null;
+    daysLeft?: number | null;
+    overdue?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
+  /**
+   * Кто записал счёт последним (COST-6.4): род записи, имя на момент записи (только у `user`) и «это вы».
+   * `null` — автор неизвестен (счёт записан до этого поля или восстановлен из старой копии): тогда
+   * экран называет только время. Старый сервер поля не присылает.
+   */
+  updatedBy?: InvoiceAuthor | null;
   /**
    * Записей в книге проводок счёта (E2, PR 6b-2): больше нуля — у формы есть секция «Исправления».
    * Старый сервер поля не присылает — секции нет.

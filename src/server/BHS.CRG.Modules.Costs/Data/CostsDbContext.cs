@@ -1,5 +1,6 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Data;
@@ -16,8 +17,33 @@ namespace BHS.CRG.Modules.Costs.Data;
 /// модуля в ней. Ровно это и включается на чистой и на рабочей базе, и ровно это переживает
 /// выключение модуля.</para>
 /// </summary>
-public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : ModuleDbContext(options)
+/// <param name="user">Кто действует — автор записи счёта (<see cref="InvoiceAuthor" />). Необязателен:
+/// контекст без контейнера (фабрика миграций, тесты) пишет автором <c>system</c>, а не чужое имя.</param>
+public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IModuleUser? user = null)
+    : ModuleDbContext(options)
 {
+    /// <summary>
+    /// Род записи, который назвала связка записи сама (<see cref="InvoiceAuthor.Recognition" /> у слияния
+    /// распознавания); <c>null</c> — по тому, кто действует. Ставит и снимает <c>InvoiceDesk</c>.
+    /// </summary>
+    internal string? WritingVia { get; private set; }
+
+    /// <summary>
+    /// Писать от имени <paramref name="via" /> до конца области. Область, а не свойство с ручным сбросом:
+    /// вложенная запись возвращает прежний род, а не стирает его (ревью PR #1790).
+    /// </summary>
+    internal IDisposable Writing(string via)
+    {
+        var outer = WritingVia;
+        WritingVia = via;
+        return new Restore(this, outer);
+    }
+
+    private sealed class Restore(CostsDbContext db, string? outer) : IDisposable
+    {
+        public void Dispose() => db.WritingVia = outer;
+    }
+
     /// <summary>Имя схемы. То же, что объявлено модулем (<c>CostsModule.Schema</c>) — ядро сверяет.</summary>
     public const string SchemaName = "costs";
 
@@ -81,6 +107,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
     /// </summary>
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
     {
+        InvoiceAuthor.Stamp(ChangeTracker, user, WritingVia);
         try
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
@@ -93,6 +120,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        InvoiceAuthor.Stamp(ChangeTracker, user, WritingVia);
         try
         {
             return base.SaveChanges(acceptAllChangesOnSuccess);
@@ -264,6 +292,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         // Поставщика тот же вопрос находит по ix_invoices_duplicate — он там первый.
         invoice.HasIndex(i => i.PayerId).HasDatabaseName("ix_invoices_payer").HasFilter("payer_id IS NOT NULL");
 
+        InvoiceAuthor.Map(builder);
         MapLines(builder);
         SupplierMatch.Map(builder);
         Data.SupplierTerms.Map(builder);

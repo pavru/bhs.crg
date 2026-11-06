@@ -272,6 +272,32 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Equal(1220m, read.GetProperty("lines")[0].GetProperty("amount").GetDecimal());
     }
 
+    /// <summary>
+    /// Автор последней записи (COST-6.4, Э4) уезжает в копию и возвращается тем же; копия старше колонок
+    /// автора восстанавливается с пустым автором — «неизвестно», а не «никто» и не тот, кто восстанавливал.
+    /// </summary>
+    [Fact]
+    public async Task Автор_записи_возвращается_из_копии_а_из_старой_копии_пуст()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        var author = (await ReadAsync(client, invoice)).GetProperty("updatedBy").GetRawText();
+        Assert.Contains(InvoiceAuthor.User, author);
+
+        var (archive, manifest) = await ExportAsync();
+        await ForgetInvoicesAsync();
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(author, (await ReadAsync(client, invoice)).GetProperty("updatedBy").GetRawText());
+
+        var former = Copy(manifest, ("invoices", "updated_by"), ("invoices", "updated_by_name"), ("invoices", "updated_via"));
+        await ForgetInvoicesAsync();
+        report = await ImportAsync(former);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(JsonValueKind.Null, (await ReadAsync(client, invoice)).GetProperty("updatedBy").ValueKind);
+    }
+
     /// <summary>Архив из манифеста без названных колонок — так выглядит копия, снятая до их миграции.</summary>
     private static MemoryStream Copy(BackupManifest manifest, params (string Table, string Column)[] without)
     {

@@ -288,6 +288,52 @@ public class PaymentPostingTests
         Assert.Null(PaymentPosting.Refusal(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
     }
 
+    /// <summary>
+    /// Род отказа (COST-6.4) — на тех же случаях и из того же правила, что текст: текст строится по роду,
+    /// и разойтись они не могут. Тексты — прежние, слово в слово: их читают человек и тесты адресов.
+    /// </summary>
+    [Fact]
+    public void Род_отказа_оплаты_назван_тем_же_правилом_что_текст()
+    {
+        var none = PaymentPosting.Balance([First], [], null, Rouble);
+        Assert.Equal(PaymentRefusal.Amount, PaymentPosting.RefusalKind(Invoice(null), none));
+        Assert.Equal("у счёта не указана сумма к оплате", PaymentPosting.Refusal(Invoice(null), none));
+        // Нуль — не сумма: правило оплаты держало это и до рода.
+        Assert.Equal(PaymentRefusal.Amount, PaymentPosting.RefusalKind(Invoice(0m), PaymentPosting.Balance([First], [], 0m, Rouble)));
+
+        var off = PaymentPosting.Balance([First], [], 40_500m, Rouble);
+        Assert.Equal(PaymentRefusal.Discrepancy, PaymentPosting.RefusalKind(Invoice(40_500m), off));
+        var gap = off.Discrepancy!.Value;
+        Assert.Equal(
+            $"сумма строк {40_500m - gap:0.00} расходится с суммой к оплате {40_500m:0.00} на {Math.Abs(gap):0.00} " +
+            $"(допуск {off.Tolerance:0.00})",
+            PaymentPosting.Refusal(Invoice(40_500m), off));
+
+        Assert.Null(PaymentPosting.RefusalKind(Invoice(40_000.50m), PaymentPosting.Balance([First], [], 40_000.50m, Rouble)));
+        Assert.Null(PaymentPosting.RefusalKind(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
+    }
+
+    /// <summary>
+    /// Отклонён — раньше денег, одним правилом у ответа оплаты и у готовности (ревью PR #1790): отклонённому
+    /// с расхождением род — <c>rejected</c>, и текст строится по нему же.
+    /// </summary>
+    [Fact]
+    public void Отклонённый_с_расхождением_назван_отклонённым_и_родом_и_текстом()
+    {
+        var off = PaymentPosting.Balance([First], [], 40_500m, Rouble);
+        var rejected = Invoice(40_500m);
+        rejected.Reject();
+
+        Assert.Equal(PaymentRefusal.Rejected, PaymentRefusal.Of(rejected, off));
+        Assert.Equal(PaymentRefusal.Rejected, PaymentRefusal.Of(rejected, off.Discrepancy, off.WithinTolerance));
+        Assert.Equal("счёт отклонён", PaymentRefusal.Text(rejected, off));
+
+        var draft = Invoice(40_500m);
+        Assert.Equal(PaymentRefusal.Discrepancy, PaymentRefusal.Of(draft, off));
+        Assert.Equal(PaymentPosting.Refusal(draft, off), PaymentRefusal.Text(draft, off));
+        Assert.Null(PaymentRefusal.Text(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
+    }
+
     [Fact]
     public void Запирает_любая_закрытая_учётная_дата_а_неоплаченный_счёт_не_заперт_ничем()
     {

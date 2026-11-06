@@ -58,7 +58,7 @@ public enum InvoicePaymentState
 /// ядро не знает. Целость ссылки проверяется чтением (<c>IModuleCatalog</c>), а копия и
 /// восстановление их сохраняют (A2b, issue #1073).</para>
 /// </summary>
-public sealed class Invoice
+public sealed partial class Invoice
 {
     /// <summary>
     /// Предел длины номера — тот же, что у колонки базы, и живёт ОДНИМ числом нарочно.
@@ -438,7 +438,7 @@ public sealed class Invoice
     ///
     /// <para>⚠️ <b>Отклонённый счёт не оплачивают</b> — его возвращают в черновик: оплата отклонённого
     /// в затраты не вошла бы, и отметка стояла бы без денег. Причину человеку называет связка записи
-    /// (<c>InvoiceDesk.Unpayable</c>) — раньше и подробнее; здесь то же правило стоит последней дверью,
+    /// (<see cref="PaymentRefusal.Text" />) — раньше и подробнее; здесь то же правило стоит последней дверью,
     /// парой к <see cref="Reject" /> (ревью PR #1290).</para>
     /// </summary>
     public void Pay(DateOnly paidOn, string? document, Guid? by)
