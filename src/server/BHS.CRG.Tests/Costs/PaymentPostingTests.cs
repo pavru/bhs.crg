@@ -313,6 +313,27 @@ public class PaymentPostingTests
         Assert.Null(PaymentPosting.RefusalKind(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
     }
 
+    /// <summary>
+    /// Отклонён — раньше денег, одним правилом у ответа оплаты и у готовности (ревью PR #1790): отклонённому
+    /// с расхождением род — <c>rejected</c>, и текст строится по нему же.
+    /// </summary>
+    [Fact]
+    public void Отклонённый_с_расхождением_назван_отклонённым_и_родом_и_текстом()
+    {
+        var off = PaymentPosting.Balance([First], [], 40_500m, Rouble);
+        var rejected = Invoice(40_500m);
+        rejected.Reject();
+
+        Assert.Equal(PaymentRefusal.Rejected, PaymentRefusal.Of(rejected, off));
+        Assert.Equal(PaymentRefusal.Rejected, PaymentRefusal.Of(rejected, off.Discrepancy, off.WithinTolerance));
+        Assert.Equal("счёт отклонён", PaymentRefusal.Text(rejected, off));
+
+        var draft = Invoice(40_500m);
+        Assert.Equal(PaymentRefusal.Discrepancy, PaymentRefusal.Of(draft, off));
+        Assert.Equal(PaymentPosting.Refusal(draft, off), PaymentRefusal.Text(draft, off));
+        Assert.Null(PaymentRefusal.Text(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
+    }
+
     [Fact]
     public void Запирает_любая_закрытая_учётная_дата_а_неоплаченный_счёт_не_заперт_ничем()
     {

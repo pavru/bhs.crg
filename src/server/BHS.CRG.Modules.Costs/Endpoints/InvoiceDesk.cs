@@ -123,15 +123,8 @@ public sealed partial class InvoiceDesk(
     /// </summary>
     public async Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct)
     {
-        db.WritingVia = InvoiceAuthor.Recognition;
-        try
-        {
-            return await WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
-        }
-        finally
-        {
-            db.WritingVia = null;
-        }
+        using var _ = db.Writing(InvoiceAuthor.Recognition);
+        return await WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
     }
 
     private Task<T> WriteAsync<T>(
@@ -406,8 +399,8 @@ public sealed partial class InvoiceDesk(
         var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total, tolerance);
 
         if (invoice.Payment != InvoicePaymentState.Paid)
-            return new PaymentView(false, null, null, null, Unpayable(invoice, balance), null, [],
-                UnpayableKind(invoice, balance));
+            return new PaymentView(false, null, null, null, PaymentRefusal.Text(invoice, balance), null, [],
+                PaymentRefusal.Of(invoice, balance));
 
         var boundaries = await periods.BoundariesAsync(ct);
         var locked = ClosedPeriodGuard.NeedOf(invoice, parts, boundaries);
@@ -419,12 +412,4 @@ public sealed partial class InvoiceDesk(
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
             locked is null ? null : PaymentViews.Text(locked, known), [.. months.Select(m => PaymentViews.Month(m.Month))]);
     }
-
-    /// <summary>Почему неоплаченный счёт оплатить нельзя — тем же правилом, что откажет запись.</summary>
-    internal static string? Unpayable(Invoice invoice, AllocationBalance balance) =>
-        invoice.State == InvoiceState.Rejected ? "счёт отклонён" : PaymentPosting.Refusal(invoice, balance);
-
-    /// <summary>Род той же причины (<see cref="PaymentRefusal" />) — тем же порядком: отклонён раньше денег.</summary>
-    internal static string? UnpayableKind(Invoice invoice, AllocationBalance balance) =>
-        invoice.State == InvoiceState.Rejected ? PaymentRefusal.Rejected : PaymentPosting.RefusalKind(invoice, balance);
 }

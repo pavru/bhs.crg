@@ -217,7 +217,7 @@ public static class PaymentEndpoints
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
         var math = lines.Select(InvoiceAllocations.Line).ToList();
 
-        var refusal = InvoiceDesk.Unpayable(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance));
+        var refusal = PaymentRefusal.Text(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance));
         var late = paidOn > today
             ? $"дата платежа {paidOn:dd.MM.yyyy} в будущем: сегодня {today:dd.MM.yyyy}"
             : null;

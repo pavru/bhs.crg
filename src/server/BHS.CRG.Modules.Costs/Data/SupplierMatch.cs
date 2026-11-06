@@ -44,6 +44,13 @@ public sealed class SupplierMatch
     /// <summary>Предел имени запомнившего — как у отображаемого имени учётной записи.</summary>
     public const int ByNameLength = 256;
 
+    /// <summary>
+    /// Снимок имени автора записи — одним правилом у всех записей модуля, которые его хранят
+    /// (соответствия, условия поставщика, автор счёта): длиннее колонки — обрезается, а не отказывает.
+    /// </summary>
+    internal static string? NameSnapshot(string? name) =>
+        name is { Length: > ByNameLength } ? name[..ByNameLength] : name;
+
     /// <summary>Для EF.</summary>
     private SupplierMatch() { }
 
@@ -109,7 +116,7 @@ public sealed class SupplierMatch
         SourceText = source;
         NomenclatureId = nomenclatureId;
         UpdatedBy = by;
-        UpdatedByName = byName is { Length: > ByNameLength } ? byName[..ByNameLength] : byName;
+        UpdatedByName = NameSnapshot(byName);
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

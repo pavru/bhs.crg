@@ -20,7 +20,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// не меняется никогда. Пункту с признаком место у флажка режима, а не у «Суммы к оплате».</param>
 /// <param name="Blocks">Чему пункт мешает (COST-6.4): <c>parsed</c> — всегда, <c>payment</c> — только у
 /// неоплаченного счёта и только у пункта, который чинит ту же причину, по которой откажет оплата
-/// (<see cref="PaymentPosting.RefusalKind(Invoice, AllocationBalance)" />). По нему индикатор называет одно
+/// (<see cref="PaymentRefusal.Of(Invoice, decimal?, bool)" />). По нему индикатор называет одно
 /// расхождение одним пунктом, а не пунктом и причиной отказа оплаты рядом.</param>
 public sealed record InvoiceReadinessGap(
     string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null, string? VatExplains = null,
@@ -78,14 +78,19 @@ public sealed class InvoiceReadiness
     /// Мешает ли пункт оплате. Род причины берётся у правила оплаты, а не списком видов: правило меняется,
     /// и список молча отстал бы (design D2).
     ///
-    /// <para>⚠️ Пункт поля «Итого» появляется, только когда сумма к оплате обязательна для «Разобран»
-    /// (change <c>costs-invoice-screen-01-parsed-amount</c>). До того род <c>amount</c> пунктом готовности не
-    /// покрыт, и причину отказа оплаты индикатор называет отдельно — это правда, а не дефект.</para>
+    /// <para>Род <c>amount</c> чинит любой пункт у «Итого», а не только пункт пустого поля: нулевая сумма
+    /// к оплате для поля пустой не считается, и при строках пунктом стоит расхождение (<c>total</c>) — а
+    /// чинится оно той же суммой (ревью PR #1790).</para>
+    ///
+    /// <para>⚠️ Пункт пустого поля «Итого» появляется, только когда сумма к оплате обязательна для
+    /// «Разобран» (change <c>costs-invoice-screen-01-parsed-amount</c>). До того у счёта без суммы род
+    /// <c>amount</c> пунктом готовности не покрыт, и причину отказа оплаты индикатор называет отдельно — это
+    /// правда, а не дефект.</para>
     /// </summary>
     private bool BlocksPayment(InvoiceReadinessGap gap) => _payment switch
     {
         PaymentRefusal.Discrepancy => gap.Kind == "total",
-        PaymentRefusal.Amount => gap.Kind == "field" && gap.Field == InvoiceRequisites.TotalKey,
+        PaymentRefusal.Amount => gap.Kind is "field" or "total" && gap.Field == InvoiceRequisites.TotalKey,
         _ => false,
     };
 
@@ -106,7 +111,7 @@ public sealed class InvoiceReadiness
         {
             _payment = invoice.Payment == InvoicePaymentState.Paid
                 ? null
-                : PaymentPosting.RefusalKind(invoice, allocation.Discrepancy, allocation.WithinTolerance),
+                : PaymentRefusal.Of(invoice, allocation.Discrepancy, allocation.WithinTolerance),
         };
         var label = InvoiceEndpoints.Label(invoice);
 

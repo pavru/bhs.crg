@@ -34,9 +34,10 @@ public static class InvoiceAuthor
     /// </summary>
     /// <param name="via">Род записи, названный связкой (<see cref="Recognition" />); <c>null</c> — по
     /// тому, кто действует: человек — <see cref="User" />, никто — <see cref="System" />.</param>
+    /// <remarks>Изменения находит сам <see cref="ChangeTracker.Entries{TEntity}" /> (он зовёт
+    /// <c>DetectChanges</c>), а поставленного здесь автора — сохранение следом: отдельный проход не нужен.</remarks>
     internal static void Stamp(ChangeTracker tracker, IModuleUser? user, string? via)
     {
-        tracker.DetectChanges();
         foreach (var entry in tracker.Entries<Invoice>())
         {
             if (!Written(entry)) continue;
@@ -85,7 +86,7 @@ public sealed partial class Invoice
     internal void WrittenBy(Guid? by, string? name, string via)
     {
         UpdatedBy = by;
-        UpdatedByName = name is { Length: > InvoiceAuthor.NameLength } ? name[..InvoiceAuthor.NameLength] : name;
+        UpdatedByName = SupplierMatch.NameSnapshot(name);
         UpdatedVia = via;
     }
 }

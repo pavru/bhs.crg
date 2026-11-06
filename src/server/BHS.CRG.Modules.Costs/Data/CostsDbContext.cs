@@ -26,7 +26,23 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
     /// Род записи, который назвала связка записи сама (<see cref="InvoiceAuthor.Recognition" /> у слияния
     /// распознавания); <c>null</c> — по тому, кто действует. Ставит и снимает <c>InvoiceDesk</c>.
     /// </summary>
-    internal string? WritingVia { get; set; }
+    internal string? WritingVia { get; private set; }
+
+    /// <summary>
+    /// Писать от имени <paramref name="via" /> до конца области. Область, а не свойство с ручным сбросом:
+    /// вложенная запись возвращает прежний род, а не стирает его (ревью PR #1790).
+    /// </summary>
+    internal IDisposable Writing(string via)
+    {
+        var outer = WritingVia;
+        WritingVia = via;
+        return new Restore(this, outer);
+    }
+
+    private sealed class Restore(CostsDbContext db, string? outer) : IDisposable
+    {
+        public void Dispose() => db.WritingVia = outer;
+    }
 
     /// <summary>Имя схемы. То же, что объявлено модулем (<c>CostsModule.Schema</c>) — ядро сверяет.</summary>
     public const string SchemaName = "costs";

@@ -132,6 +132,25 @@ public class InvoiceStateFactsTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(HttpStatusCode.BadRequest, (await PayRawAsync(client, invoice, await TodayAsync())).StatusCode);
     }
 
+    /// <summary>
+    /// Нулевая сумма к оплате при строках: поле «Итого» пустым не считается, и пунктом стоит расхождение —
+    /// он и мешает оплате, родом <c>amount</c>. Одна починка — один пункт (ревью PR #1790).
+    /// </summary>
+    [Fact]
+    public async Task Нулевая_сумма_при_строках_одним_пунктом_у_Итого()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await TotalAsync(client, invoice, 0m);
+
+        var view = await ReadAsync(client, invoice);
+        Assert.Equal(PaymentRefusal.Amount, Kind(view));
+        var blocking = Assert.Single(Gaps(view), g => Blocks(g).Contains(InvoiceReadiness.Payment));
+        Assert.Equal("total", blocking.GetProperty("kind").GetString());
+        Assert.Equal("Итого", blocking.GetProperty("field").GetString());
+    }
+
     /// <summary>Отклонённый: род — <c>rejected</c>, тем же порядком, что отказ записи оплаты.</summary>
     [Fact]
     public async Task Отклонённый_назван_своим_родом()
@@ -199,6 +218,28 @@ public class InvoiceStateFactsTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(before.GetProperty("version").GetString(), after.GetProperty("version").GetString());
         Assert.Equal(before.GetProperty("updatedBy").GetRawText(), after.GetProperty("updatedBy").GetRawText());
         Assert.True(after.GetProperty("updatedBy").GetProperty("mine").GetBoolean());
+    }
+
+    /// <summary>
+    /// «Сохранить» шапку без правок — не запись: ни версия, ни автор не двигаются, и сосед не видит ложного
+    /// «изменил» (ревью PR #1790).
+    /// </summary>
+    [Fact]
+    public async Task Сохранение_шапки_без_правок_не_меняет_ни_версию_ни_автора()
+    {
+        var (a, _) = await SignInAsync("Admin");
+        var (b, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(a, complete: true);
+        var before = await ReadAsync(a, invoice);
+
+        await ReadAsync(b, invoice);
+        await OkAsync(await b.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = before.GetProperty("requisites") }));
+
+        var after = await ReadAsync(a, invoice);
+        Assert.Equal(before.GetProperty("version").GetString(), after.GetProperty("version").GetString());
+        Assert.Equal(before.GetProperty("updatedAt").GetString(), after.GetProperty("updatedAt").GetString());
+        Assert.Equal(before.GetProperty("updatedBy").GetRawText(), after.GetProperty("updatedBy").GetRawText());
     }
 
     /// <summary>Правка строк — тоже запись счёта: автор — тот, кто сохранил строки.</summary>

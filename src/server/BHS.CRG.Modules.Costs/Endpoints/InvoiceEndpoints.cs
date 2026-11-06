@@ -237,6 +237,11 @@ public static class InvoiceEndpoints
         if (termed && !changed.Contains(InvoiceRequisites.DeferralKey))
             changed = [.. changed, InvoiceRequisites.DeferralKey];
 
+        // Ничего не изменилось — счёт не трогается: ни время правки, ни версия, ни автор. Иначе «Сохранить»
+        // без правок (или повтор того же автосохранения) давал бы соседу ложное «изменил» (COST-6.4; ревью
+        // PR #1790) — так же, как пустой переход в черновик.
+        if (changed.Count == 0) return changed;
+
         // Правка — всегда человек: метки ни правка, ни исправление не принимают, то есть фоновому
         // заполнению сюда дороги нет.
         invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);
