@@ -23,15 +23,14 @@
 - [x] 2.2 `PaymentPosting.RefusalKind` (`amount` / `discrepancy` / `null`); `Refusal` строит текст по нему —
   правило одно. [COST-6.4] Проверка — `PaymentPostingTests`: род и текст на тех же случаях; прежние
   тексты не изменились.
-- [ ] 2.3 `InvoiceReadinessGap.Blocks`: `parsed` у всех; `payment` у пункта, чинящего род отказа, только у
+- [x] 2.3 `InvoiceReadinessGap.Blocks`: `parsed` у всех; `payment` у пункта, чинящего род отказа, только у
   неоплаченного (design D2). [COST-6.4] Проверка — тесты: расхождение → `total` с
   `["parsed","payment"]`; нет суммы → пункт `Итого` с обоими (после 01); строки без позиции → только
   `parsed`; оплаченный черновик → ни одного `payment`.
-  ⏳ **Не отмечено до слияния 01**: расхождение, строки без позиции и оплаченный черновик проверены
-  (`InvoiceStateFactsTests`); случай «нет суммы → пункт `Итого` с обоими» ждёт change
-  `costs-invoice-screen-01-parsed-amount` — без него пункта поля «Итого» нет. Код уже ставит `payment`
-  этому пункту по роду `amount` (`InvoiceReadiness.BlocksPayment`); после слияния 01 — дописать тест и
-  отметить задачу.
+  Расхождение, нулевая сумма при строках, строки без позиции и оплаченный черновик проверены
+  (`InvoiceStateFactsTests`). ➡️ **Тест случая «нет суммы → пункт `Итого` с обоими» перенесён в change
+  `costs-invoice-screen-01-parsed-amount` (его задача 1.3)** — решение владельца 07.11.2026: без 01 пункта
+  поля «Итого» нет. Код уже ставит `payment` этому пункту по роду `amount` (`InvoiceReadiness.BlocksPayment`).
 - [x] 2.4 `PaymentView.RefusalKind` (`amount`, `discrepancy`, `rejected`). [COST-6.4] Проверка —
   интеграционный тест: на одном счёте `refusalKind`, пункт с `payment` в `blocks` и отказ `POST …/paid`
   согласованы; у разобранного без суммы `gaps == null`, а `refusalKind == amount`.
@@ -66,4 +65,4 @@
 - [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`InvoiceContracts.cs`, `InvoiceReadiness.cs` под присмотром)
 - [x] 5.5 `bash scripts/backend-tests.sh` — весь набор двумя потоками зелёный
-- [ ] 5.6 PR с меткой `version:minor`; `<Version>` не тронута
+- [x] 5.6 PR с меткой `version:minor`; `<Version>` не тронута — #1790, слит 07.11.2026 (bc0b48c8)
