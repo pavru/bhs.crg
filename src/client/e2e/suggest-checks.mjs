@@ -173,7 +173,7 @@ export async function suggestChecks({ page, check, stamp, api }) {
     });
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
-    await page.getByRole('button', { name: 'Сохранить строки' }).waitFor({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Добавить строку' }).waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Добавить строку' }).click();
     await page.getByRole('button', { name: 'выбрать позицию' }).first().click();
     await page.getByRole('button', { name: 'Завести новую позицию…' }).click();

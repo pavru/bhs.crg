@@ -39,7 +39,8 @@ export async function extraFieldChecks({ browser, check, skip, seat, invoiceId, 
   try {
     await login(admin);
     const page = seat.page;
-    const section = () => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Дополнительно', exact: true }) });
+    // Дописанные поля — подразделом «Дополнительно» части «Ещё» (costs-invoice-screen-10-layout).
+    const section = () => page.getByRole('region', { name: 'Дополнительно', exact: true });
 
     let clean = false;
     await check('invoice-type-schema-is-editable', async () => { clean = await placeField(admin, false); });

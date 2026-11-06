@@ -16,10 +16,12 @@ export const DRAFT = 'Черновик';
 /**
  * Можно ли удалить — то же условие, что проверит сервер. Действие, которое сервер заведомо откажется
  * выполнить, не показывается вовсе (правило экрана): у разобранного, отклонённого и оплаченного пункта
- * нет, а путь к удалению называет руководство.
+ * нет, а путь к удалению называет руководство. У черновика с книгой исправлений — тоже нет: сервер
+ * отвечает ему 409 (`InvoiceDeletion`), книга закрытого периода насовсем не удаляется
+ * (costs-invoice-screen-10-layout, задача 2.4).
  */
 export const canDelete = (view: InvoiceView, canEdit: boolean): boolean =>
-  canEdit && view.requisites[K.state] === DRAFT && !view.payment.paid;
+  canEdit && view.requisites[K.state] === DRAFT && !view.payment.paid && (view.book ?? 0) === 0;
 
 /** Имя файла счёта; `null` — файл не приложен. */
 export function fileNameOf(view: InvoiceView): string | null {

@@ -99,30 +99,6 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
 }
 
 /**
- * «Распознать скан» — у счёта, чей скан приложен, а распознавание не запускалось (скан приложили к
- * счёту, заведённому руками). Нельзя — причина словами сервера, а не молчание.
- */
-export function RecognitionStart({ invoiceId, recognition, explain }: {
-  invoiceId: string; recognition: InvoiceRecognition | undefined;
-  /** Называть ли причину, когда распознать нельзя. У счёта со строками она была бы шумом в каждой
-   *  шапке («счёт уже не черновик»); у пустого счёта со сканом — единственное объяснение, почему
-   *  кнопки нет. */
-  explain: boolean;
-}) {
-  const start = useStartRecognition();
-  const toast = useSnackbar();
-  if (recognition?.state !== 'none') return null;
-  if (!recognition.canStart)
-    return explain && recognition.whyNot ? <span className="text-body-small text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;
-  return (
-    <Button variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
-      onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
-      Распознать файл
-    </Button>
-  );
-}
-
-/**
  * Замечания распознавания, строки, которые в счёт не легли, и прочитанное без места в счёте (#1484) —
  * первым блоком прокручиваемой части. Блок показан и ради одного непустого списка: распознавание без
  * замечаний, но с колонкой «для наборов данных», иначе молчало бы.

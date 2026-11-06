@@ -7,7 +7,7 @@
 // ⚠️ Избранное хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленное избранное
 // урезало бы им выбор строек. Поэтому настройки сбрасываются в finally — адресом, а не через экран.
 
-import { BASE, listGroups, listOptions, pickOption, pickSites, shownValue } from './harness.mjs';
+import { BASE, listGroups, listOptions, pickOption, pickSites, shownValue, expandInvoiceParts } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 const REVEAL = /^Показать все стройки \(ещё \d+\)…$/;
@@ -82,6 +82,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       elsewhere = { id, number };
       // По ссылке: в рейле под фильтром этого счёта нет (#1221).
       await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
+      await expandInvoiceParts(page);
       const select = page.getByLabel('Объект счёта', { exact: true });
       await select.waitFor({ timeout: 10_000 });
       const shown = await shownValue(select);
@@ -117,6 +118,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const number = `МТР-ТСТ-${stamp}`;
       const id = await invoice(number, [{ supplierText: 'Кабель уходит из рейла', unit: 'м', quantity: 3, price: 2 }], 6);
       await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
+      await expandInvoiceParts(page);
       await page.getByRole('button', { name: new RegExp(number) }).first().waitFor({ timeout: 10_000 });
       const select = page.getByLabel('Объект счёта', { exact: true });
       // Выход оставляет список открытым — следующий пункт выбирается в нём же.

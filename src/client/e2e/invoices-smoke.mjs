@@ -22,8 +22,11 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { readFileSync } from 'node:fs';
-import { BASE, launchBrowser, login, createChecks, named, settled, watchRequests } from './harness.mjs';
+import {
+  BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
+} from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
+import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 
@@ -95,14 +98,14 @@ const supplierId = organizations[0].id;
 /**
  * Открыть счёт списка по номеру и дождаться формы.
  *
- * ⚠️ Кнопка ищется ТОЧНЫМ совпадением имени: на форме их две — «Сохранить» у шапки и
- * «Сохранить строки» у таблицы строк (C2, issue #1078). По подстроке находились бы обе, и прогон
- * падал бы строгим режимом Playwright, виня форму.
+ * Кнопка «Сохранить» — одна, в сводке (costs-invoice-screen-10-layout, D-10.7): она пишет и шапку, и
+ * строки. Заполненные части открываются свёрнутыми — проверки этого прогона не про свёртку и раскрывают их.
  */
 async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
   await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+  await expandInvoiceParts(page);
 }
 
 /**
@@ -308,6 +311,7 @@ try {
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
     await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+    await expandInvoiceParts(page);
     await page.getByText('Похоже на дубликат').waitFor({ timeout: 10_000 });
 
     // Сохранение НЕ заблокировано: правка проходит при живой оговорке.
@@ -322,6 +326,7 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
     await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+    await expandInvoiceParts(page);
 
     const saved = await page.getByLabel('Назначение').inputValue();
     if (saved !== 'Правка при дубликате')
@@ -329,6 +334,9 @@ try {
 
     // Ссылка ведёт на ТОТ счёт — узнаём его по назначению, оно у счетов разное.
     await page.locator('button', { hasText: new RegExp(`${number} от`) }).first().click();
+    // «Назначение» — в части «Ещё», а она открывается свёрнутой.
+    await page.waitForTimeout(500);
+    await expandInvoiceParts(page);
     await named('ссылка не открыла тот счёт', () => page.waitForFunction(
       () => Array.from(document.querySelectorAll('input')).some(i => i.value === 'Счёт первый'),
       null, { timeout: 10_000 }));
@@ -522,10 +530,14 @@ try {
       throw new Error(`оригинал сохраняется под именем «${download.suggestedFilename()}», а не как Excel`);
 
     if (press) {
-      await page.getByRole('button', { name: 'Распознать файл' }).click();
-      // Исход — любой, кроме «идёт»: кнопки запуска больше нет, а отказ об образе не назван.
-      await named('распознавание не дало исхода',
-        () => page.getByRole('button', { name: 'Распознать файл' }).waitFor({ state: 'detached', timeout: 60_000 }));
+      // «Распознать файл» — пункт «⋮» сводки (D-10.6).
+      await invoiceMenu(page, 'Распознать файл');
+      // Исход — любой, кроме «идёт»: распознавание кончилось, а отказ об образе не назван.
+      await named('распознавание не дало исхода', () => until(async () => {
+        const state = (await api('GET', `/costs/invoices/${created.id}/recognition`)).state;
+        return state === 'done' || state === 'failed';
+      }, { timeout: 60_000, every: 500 }));
+      await page.waitForTimeout(2500);
       if ((await page.getByText('не приведён к читаемому виду').count()) !== 0)
         throw new Error('распознавание отказало из-за образа, хотя образ построен');
     }
@@ -538,6 +550,8 @@ try {
 
   // Раскладка вида по профилю печати (issue #1456) — своим модулем, с помощниками этого прогона.
   await invoiceLayoutChecks(page, check, { api, requisites, open, attachScan, named, officeFile, UNKNOWN_TYPE, stamp });
+  // Раскладка экрана по варианту Г (costs-invoice-screen-10-layout) — на четырёх размерах ноутбука.
+  await invoiceScreenLayoutChecks(page, check, { api, requisites, attachScan, named, stamp, BASE });
 
   // ── 10. Файл под паролем ПРИЛОЖЕН, а причина названа словами (issue #1270) ──────────────────────
   //
@@ -553,10 +567,14 @@ try {
     const refused = page.getByTestId('image-refused');
     await named('панель не говорит, что вид не построен', () => refused.waitFor({ timeout: 60_000 }));
     await named('в панели причина (пароль) не названа', () => refused.getByText(/парол/).waitFor({ timeout: 5_000 }));
+    // «Распознать файл» — пункт «⋮» сводки: у файла под паролем он неактивен и называет причину (D-10.6).
+    await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
     await named('у формы причина (пароль) не названа',
-      () => page.getByText(/Не распознаётся: .*парол/).waitFor({ timeout: 10_000 }));
-    if ((await page.getByRole('button', { name: 'Распознать файл' }).count()) !== 0)
-      throw new Error('у файла под паролем есть кнопка «Распознать файл» — она ответила бы отказом');
+      () => page.getByRole('menu').getByText(/Не распознаётся: .*парол/).waitFor({ timeout: 10_000 }));
+    const start = page.getByRole('menuitem', { name: /Распознать файл/ });
+    if (await start.getAttribute('aria-disabled') !== 'true' && await start.getAttribute('data-disabled') === null)
+      throw new Error('у файла под паролем «Распознать файл» доступно — оно ответило бы отказом');
+    await page.keyboard.press('Escape');
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 15_000 }),
@@ -606,13 +624,13 @@ try {
     if (await page.getByRole('button', { name: 'Отметить оплату' }).count())
       throw new Error('у отклонённого счёта предложено «Отметить оплату» — сервер на это отвечает отказом');
 
-    // Меню «Ещё» у отклонённого нет вовсе: единственное его действие здесь невыполнимо, а возврат
-    // живёт одним входом — кнопкой под строками.
-    if (await page.getByRole('button', { name: 'Ещё', exact: true }).count())
-      throw new Error('у отклонённого счёта осталось меню «Ещё» — предложить в нём нечего');
+    // У отклонённого в «⋮» нет «Отклонить…» — а возврат стоит там же (D-10.6), одним входом.
+    await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
+    if (await page.getByRole('menuitem', { name: 'Отклонить…' }).count())
+      throw new Error('у отклонённого счёта в меню осталось «Отклонить…»');
     await Promise.all([
       page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/draft`) && r.ok()),
-      page.getByRole('button', { name: 'Вернуть в черновик' }).click(),
+      page.getByRole('menuitem', { name: 'Вернуть в черновик' }).click(),
     ]);
     await named('чип состояния не вернулся к «Черновик»',
       () => page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 }));

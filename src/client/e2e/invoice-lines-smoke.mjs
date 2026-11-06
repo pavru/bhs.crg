@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-lines-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
@@ -123,7 +123,10 @@ async function invoice(number, total = 10_000, vat = undefined) {
 async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
-  await page.getByRole('button', { name: 'Сохранить строки' }).waitFor({ timeout: 10_000 });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+  // Заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout, D-10.2) — проверки здесь
+  // о строках, а не о свёртке.
+  await expandInvoiceParts(page);
 }
 
 /** Заполнить клетку строки — по подписи, которую видит и человек с экранного чтения. */
@@ -157,7 +160,8 @@ async function addRow(number) {
 async function saveLines() {
   const answered = page.waitForResponse(
     r => r.request().method() === 'PUT' && r.url().endsWith('/lines'), { timeout: 15_000 });
-  await page.getByRole('button', { name: 'Сохранить строки' }).click();
+  // Одна «Сохранить» в сводке пишет и шапку, и строки (D-10.7); шапка здесь не тронута — уходят строки.
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   const answer = await answered;
   if (!answer.ok()) throw new Error(`строки не сохранились: ${answer.status()}`);
 }
@@ -243,11 +247,11 @@ try {
     await saveLines();
   });
 
-  // ── 4. «Разобран» отказывает, пока строка ждёт позиции, и НАЗЫВАЕТ строку ────
+  // ── 4. «Разобран» неактивна, пока строка ждёт позиции, и НАЗЫВАЕТ причину ────
   //
-  // Кнопка при этом не приглушена нарочно: приглушённая молчит о причине, а причин пять, и знает их
-  // сервер. Проверяется именно отказ с объяснением.
-  await check('«Разобран» отказывает, пока строка ждёт позиции, и называет строку', async () => {
+  // С costs-invoice-screen-10-layout (ТЗ COST-6.2) кнопка в сводке неактивна, пока готовность по
+  // сохранённому не пуста, а подсказка называет пункты — нажимать, чтобы узнать причину, не нужно.
+  await check('«Разобран» неактивна, пока строка ждёт позиции, и называет, чего не хватает', async () => {
     const number = `СЧ-О${stamp}`;
     await invoice(number);
     await open(number);
@@ -256,18 +260,23 @@ try {
     await cell('Наименование в счёте', 1).fill('Позиции нет — ждёт разбора');
     await cell('Количество', 1).fill('1');
     await cell('Цена', 1).fill('100');
+    const parsed = page.getByRole('button', { name: 'Разобран', exact: true });
+    // Несохранённое — первая причина: перечень о сохранённом.
+    if ((await parsed.getAttribute('aria-description') ?? '').search(/сохраните правки/) < 0)
+      throw new Error(`при несохранённых строках «Разобран» не назвал причину «сохраните правки»: «${await parsed.getAttribute('aria-description')}»`);
     await saveLines();
 
-    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
-
-    // Текст отказа читаем ЦЕЛИКОМ и сверяем сами. Ждать его через getByText нельзя строгим режимом:
-    // тост живёт в двух узлах — видимом и объявлении для чтения с экрана. А главное, так провал
-    // говорит, ЧТО пришло вместо ожидаемого: «таймаут» о причине отказа не сообщает ничего.
-    const toasts = page.locator('[role="region"][aria-label*="Notification"], ol').first();
-    await toasts.getByText(/Счёт .*:/).first().waitFor({ timeout: 10_000 });
-    const said = (await toasts.innerText()).replace(/\s+/g, ' ');
-    if (!/строка 1/.test(said))
-      throw new Error(`отказ не назвал строку, пришло: «${said.slice(0, 220)}»`);
+    await page.waitForFunction(() => {
+      const button = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Разобран');
+      return /До «Разобран» осталось: .*позиции/.test(button?.getAttribute('aria-description') ?? '');
+    }, null, { timeout: 10_000 }).catch(async () => {
+      throw new Error(`«Разобран» не назвал строку без позиции: «${await parsed.getAttribute('aria-description')}»`);
+    });
+    if ((await parsed.getAttribute('aria-disabled')) !== 'true')
+      throw new Error('«Разобран» активна, хотя строка ждёт позиции');
+    // Строка готовности под таблицей называет саму строку.
+    const said = (await page.getByTestId('invoice-readiness').innerText()).replace(/\s+/g, ' ');
+    if (!/позиции/.test(said)) throw new Error(`строка готовности не назвала строку без позиции: «${said}»`);
   });
 
   // ── 5. Позиция выбирается, строка разносится — и счёт разбирается ────────────
@@ -307,7 +316,7 @@ try {
     await saveLines();
     await remains(['осталось', 'разноска'], ['строки', 'сохраните правки']);
 
-    // Не разнесено — «Разобран» отказывает, и форма говорит об этом до нажатия.
+    // Не разнесено — «Разобран» неактивна, и форма говорит об этом до нажатия.
     // ⚠️ Именно ждём, а не считаем сразу: сохранение строк возвращает управление по ответу PUT, а
     // подпись рисуется из сводки разноски, которую форма перечитывает СЛЕДОМ. Мгновенный подсчёт
     // состязался с этим чтением и через раз проигрывал — проверка краснела на исправной форме.
@@ -315,11 +324,8 @@ try {
       .waitFor({ timeout: 10_000 })
       .catch(() => { throw new Error('у формы не сказано, что строка не разнесена'); });
 
-    const refused = page.waitForResponse(
-      r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });
-    await page.getByRole('button', { name: 'Разобран', exact: true }).click();
-    if ((await refused).status() !== 400)
-      throw new Error('«Разобран» прошёл у счёта, строка которого не разнесена по стройкам');
+    if ((await page.getByRole('button', { name: 'Разобран', exact: true }).getAttribute('aria-disabled')) !== 'true')
+      throw new Error('«Разобран» активна у счёта, строка которого не разнесена по стройкам');
 
     // Разноска — через диалог строки: стройка из посева, всё количество.
     await page.getByRole('button', { name: 'Разноска, строка 1' }).click();
@@ -339,13 +345,12 @@ try {
     await page.getByRole('button', { name: 'Разобран', exact: true }).click();
     if (!(await passed).ok())
       throw new Error('строка готовности сказала «всё готово», а «Разобран» отказал');
-    // Состояние показано человеку словом — оно же и признак перехода.
-    await page.getByRole('button', { name: 'Вернуть в черновик' }).waitFor({ timeout: 10_000 });
+    // Состояние показано человеку словом в сводке — оно же и признак перехода.
+    await page.getByTestId('invoice-header').getByText('Разобран', { exact: true }).waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('после перехода сводка не сказала, что счёт разобран'); });
     // У разобранного вопрос «чего не хватает» не стоит: строки нет.
     await readiness.waitFor({ state: 'detached', timeout: 10_000 })
       .catch(() => { throw new Error('у разобранного счёта осталась строка готовности'); });
-    if ((await page.getByText('Счёт разобран', { exact: false }).count()) === 0)
-      throw new Error('после перехода на форме не сказано, что счёт разобран');
   });
 
   // ── 6. Отбор «Разобрать» показывает недоведённые счета и называет, чего им не хватает ──
@@ -419,11 +424,15 @@ try {
       throw new Error(`не сказано «${text}»; на экране: `
         + (await page.locator('[role="status"]').allInnerTexts()).join(' | '));
     });
-    const isReady = () => page.getByTestId('invoice-readiness').filter({ hasText: 'Всё готово' })
-      .waitFor({ timeout: 10_000 }).catch(async () => {
+    // Готовый счёт открывается свёрнутым (D-10.2): строка готовности — в части «Строки».
+    // Раскрываем, пока не появится: после перехода форма следующего счёта дорисовывается не сразу.
+    const isReady = async () => { await until(async () => {
+      await expandInvoiceParts(page);
+      if (!(await page.getByTestId('invoice-readiness').filter({ hasText: 'Всё готово' }).count())) throw new Error('ещё нет');
+    }, { timeout: 10_000, every: 300 }).catch(async () => {
         throw new Error('подготовленный черновик не готов к «Разобран» — проверять переход не на чем: '
           + (await page.getByTestId('invoice-readiness').innerText().catch(() => 'строки готовности нет')));
-      });
+      }); };
     const trace = async (id, word) => {
       const traces = await page.getByTestId('row-exit').allInnerTexts();
       if (traces.length !== 1 || !traces[0].includes(names[id]) || !traces[0].includes(word))
@@ -452,12 +461,12 @@ try {
     // Путь назад — действие в сообщении: открывается тот самый, уже разобранный.
     await page.getByRole('button', { name: 'Вернуться' }).click();
     await opened(firstId).catch(() => { throw new Error('«Вернуться» не открыло разобранный счёт'); });
-    await page.getByRole('button', { name: 'Вернуть в черновик' }).waitFor({ timeout: 10_000 });
+    await page.getByTestId('invoice-header').getByText('Разобран', { exact: true }).waitFor({ timeout: 10_000 });
 
     // «Отклонить» ведёт так же, а след называет причину своим словом.
     await page.getByRole('button', { name: new RegExp(names[secondId]) }).first().click();
     await opened(secondId);
-    await page.getByRole('button', { name: 'Ещё' }).click();
+    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Отклонить…' }).click();
     await page.getByRole('button', { name: 'Отклонить счёт' }).click();
     await left(secondId).catch(() => { throw new Error('после «Отклонить» следующий счёт очереди не открылся'); });
@@ -492,7 +501,7 @@ try {
 
     const [refusal] = await Promise.all([
       page.waitForResponse(r => r.url().endsWith(lines) && r.request().method() === 'PUT'),
-      page.getByRole('button', { name: 'Сохранить строки' }).click(),
+      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
     ]);
     if (refusal.status() !== 409) throw new Error(`устаревшие строки записались: ответ ${refusal.status()}`);
 
@@ -521,7 +530,7 @@ try {
       { requisites: { ...seenByNeighbour.requisites, 'Назначение': 'правка соседа' } });
     await Promise.all([
       saved(lines).catch(() => { throw new Error('правка шапки соседом отказала сохранению строк'); }),
-      page.getByRole('button', { name: 'Сохранить строки' }).click(),
+      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
     ]);
     await noNotice('сосед правил шапку, я — строки');
 

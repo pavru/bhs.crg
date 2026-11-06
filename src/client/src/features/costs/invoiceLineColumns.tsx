@@ -53,6 +53,8 @@ export interface InvoiceLineContext {
   /** Диалог разноски строки открыт или закрыт — пока открыт, таблица не пересобирается. */
   onAllocating: (open: boolean) => void;
   onEdit: (key: string, patch: Partial<LineDraft>) => void;
+  /** Плотный вид — рядом список счетов: «Разноска» уже (D-10.10). Высоты строк те же. */
+  compact?: boolean;
 }
 
 /**
@@ -62,8 +64,7 @@ export interface InvoiceLineContext {
 export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<LineDraft>[] {
   const { view, still, mode } = ctx;
   // Сверху цена и сумма строки — без НДС, и подпись обязана это сказать: её же читает читалка («Цена без
-  // НДС, строка 2»). Колонки «с НДС» нет нарочно — колонок и так двенадцать; сумма с НДС видна в сверке
-  // и в разноске.
+  // НДС, строка 2»). Колонки «с НДС» нет нарочно — сумма с НДС видна в сверке и в разноске.
   const net = mode === 'OnTop' ? ' без НДС' : '';
   const saved = (draft: LineDraft) => view.lines.find(line => line.id === draft.id);
 
@@ -113,7 +114,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
 
   const columns: EditGridColumn<LineDraft>[] = [
     {
-      key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-64',
+      key: 'nomenclature', label: 'Позиция номенклатуры',
       cell: (draft, index) => (still ? <LockedPosition draft={draft} /> : (
         // Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
         // только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
@@ -140,17 +141,19 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
           })} />
       )),
     },
-    text('supplierText', 'Наименование в счёте', 'w-56', 'supplierText', { keyField: true }),
-    text('supplierCode', 'Артикул', 'w-24', 'supplierCode', { keyField: true }),
-    text('unit', 'Единица', 'w-16', 'unit'),
-    text('quantity', 'Количество', 'w-20', 'quantity', { numeric: true }),
-    text('price', `Цена${net}`, 'w-24', 'price', { numeric: true }),
-    text('vatRate', 'Ставка НДС', 'w-16', 'vatRate', { numeric: true }),
-    text('vatAmount', 'Сумма НДС', 'w-24', 'vatAmount', { numeric: true, computed: d => preview(d, mode).vat }),
-    text('amount', `Сумма${net}`, 'w-28', 'amount', { numeric: true, computed: d => preview(d, mode).amount }),
-    text('note', 'Примечание', 'w-40', 'note'),
+    nameColumn(),
+    text('quantity', 'Количество', 'w-16', 'quantity', { numeric: true }),
+    text('unit', 'Единица', 'w-13', 'unit'),
+    text('price', `Цена${net}`, 'w-22', 'price', { numeric: true }),
+    // Ставка строки нужна только сверху: без неё пункт готовности о ставке не исправить на месте. В режиме
+    // «в том числе» НДС строки называет сверка, а не колонка (D-10.10).
+    ...(mode === 'OnTop' ? [text('vatRate', 'Ставка НДС', 'w-16', 'vatRate', { numeric: true })] : []),
+    text('amount', `Сумма${net}`, 'w-25', 'amount', { numeric: true, computed: d => preview(d, mode).amount }),
+    // Примечание — колонкой, только когда оно у строк есть: таблица обязана помещаться без прокрутки вбок, а
+    // примечание пишут редко. Набранное не прячется.
+    ...(ctx.drafts.some(d => d.note.trim()) ? [text('note', 'Примечание', 'w-40', 'note')] : []),
     {
-      key: 'allocation', label: 'Разноска', width: 'w-32',
+      key: 'allocation', label: 'Разноска', width: ctx.compact ? 'w-24' : 'w-29',
       cell: (draft, index) => (
         <LineAllocationCell view={view} line={saved(draft)} number={index + 1}
           blocked={still ? null : ctx.blocked} locked={still ? ctx.allocationLocked : false}
@@ -158,6 +161,37 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
       ),
     },
   ];
+  /**
+   * Наименование в счёте и артикул подписью в той же клетке (D-10.10): обе — ключ строки, и правятся рядом.
+   * Отдельная колонка артикула не помещалась бы без прокрутки вбок на 1280.
+   */
+  function nameColumn(): EditGridColumn<LineDraft> {
+    return {
+      key: 'supplierText', label: 'Наименование в счёте',
+      cell: (draft, index) => {
+        if (still)
+          return (
+            <span>
+              {draft.supplierText || '—'}
+              {draft.supplierCode && <span className="text-body-small text-on-surface-variant"> · {draft.supplierCode}</span>}
+            </span>
+          );
+        return (
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="flex-1 min-w-0">
+              <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${index + 1}`}
+                onChange={next => editKey(draft, { supplierText: next })} onBlur={() => keyLeft(draft)} />
+            </div>
+            <div className="w-20 shrink-0">
+              <Cell value={draft.supplierCode} label={`Артикул, строка ${index + 1}`} placeholder="артикул"
+                onChange={next => editKey(draft, { supplierCode: next })} onBlur={() => keyLeft(draft)} />
+            </div>
+          </div>
+        );
+      },
+    };
+  }
+
   return columns.map(column => withShortHeader(column, mode));
 }
 

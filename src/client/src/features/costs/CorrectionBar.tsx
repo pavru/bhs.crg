@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, EditNote, Logout, SearchCheck } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -33,13 +33,18 @@ const status = (error: unknown) => (error as { response?: { status?: number } })
  * обычно»; версия сменилась — «перечитайте»; та же версия — устарел предпросмотр (полночь, закрыли
  * период, сменили допуск), и он пересчитывается сам, а записать пересчитанное человек решает снова.</p>
  */
-export function CorrectionBar({ view, draft, edits, onResetHeader }: {
+export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable }: {
   view: InvoiceView;
   draft: CorrectionDraft;
   /** Правки шапки — они живут в форме: поля шапки в обоих режимах одни и те же. */
   edits: Readonly<Record<string, unknown>>;
   /** Выбросить правки шапки: отмена, запись, «Перечитать счёт». */
   onResetHeader: () => void;
+  /**
+   * «Проверить исправление…» — основное действие сводки (costs-invoice-screen-10-layout, D-10.6): полоса
+   * своей кнопки не рисует, а отдаёт, можно ли проверять, и сам вызов. Без него кнопка — на полосе.
+   */
+  onCheckable?: (checkable: { ready: boolean; check: () => void } | null) => void;
 }) {
   const toast = useSnackbar();
   const previewing = usePreviewCorrection();
@@ -85,6 +90,15 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
     setOpen(true);
     void ask();
   }
+  // Вызов — через ссылку: сводка держит его между рендерами, а замыкание помнит прежнюю версию.
+  const checkRef = useRef(check);
+  useLayoutEffect(() => { checkRef.current = check; });
+  const ready = readyToCheck(content) && !stale && view.payment.lockedBy !== null;
+  useEffect(() => {
+    if (!onCheckable) return;
+    onCheckable({ ready, check: () => checkRef.current() });
+    return () => onCheckable(null);
+  }, [onCheckable, ready]);
 
   /** Что значит отказ — по свежему виду счёта; `null` — отказ не 409 или счёт не перечитался. */
   async function conflict(e: unknown) {
@@ -139,10 +153,12 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
           hint="Ляжет в версию счёта и в журнал: через год исправление объяснит только она"
           onChange={e => draft.setReason(e.target.value)} />
         <Button variant="text" icon={<Icon icon={Close} size={18} />} onClick={cancel}>Отменить исправление</Button>
-        <Button variant="filled" icon={<Icon icon={SearchCheck} size={18} />} disabled={!readyToCheck(content) || stale}
-          onClick={check}>
-          Проверить исправление…
-        </Button>
+        {!onCheckable && (
+          <Button variant="filled" icon={<Icon icon={SearchCheck} size={18} />} disabled={!readyToCheck(content) || stale}
+            onClick={check}>
+            Проверить исправление…
+          </Button>
+        )}
       </div>
       {open && (
         <CorrectionPreviewDialog preview={previewing.data} pending={previewing.isPending} error={previewing.error}

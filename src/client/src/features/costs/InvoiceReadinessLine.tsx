@@ -1,6 +1,8 @@
 import { Icon } from '@/shared/ui/Icon';
 import { CheckCircle, Checklist } from '@/shared/ui/icons';
+import { useContext } from 'react';
 import { goTo, type ReadinessItem } from './invoiceReadiness';
+import { PartRevealContext } from './invoiceParts';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
@@ -19,6 +21,8 @@ export function InvoiceReadinessLine({ items, unsaved }: {
   /** В форме есть несохранённые правки — шапки или строк. */
   unsaved: boolean;
 }) {
+  // В форме — через часть: место может стоять в свёрнутой части, и та сначала раскрывается.
+  const reveal = useContext(PartRevealContext) ?? goTo;
   const stale = unsaved
     ? <span className="text-on-surface-variant"> Строка — о сохранённом счёте: сохраните правки, и она обновится.</span>
     : null;
@@ -42,7 +46,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
             {item.target
               ? (
                 <button type="button" className="text-primary hover:underline"
-                  onClick={() => { if (item.target) goTo(item.target); }}>
+                  onClick={() => { if (item.target) reveal(item.target); }}>
                   {item.label}
                 </button>
               )

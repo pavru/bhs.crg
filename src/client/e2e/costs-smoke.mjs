@@ -31,7 +31,9 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/costs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText } from './harness.mjs';
+import {
+  BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText, expandInvoiceParts,
+} from './harness.mjs';
 import { extraFieldChecks } from './invoice-extra-field-checks.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
@@ -88,7 +90,10 @@ async function visit(seat, screen, path) {
 /** Счёт — по идентификатору в адресе, а не щелчком в списке: номер прогона на стенде может повториться. */
 async function openInvoice(seat, id, screen = 'счёт') {
   await visit(seat, screen, `/invoices?invoice=${id}`);
-  await seat.page.getByText('Строки счёта').first().waitFor({ timeout: 10_000 });
+  await seat.page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+  // Заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout, D-10.2).
+  await expandInvoiceParts(seat.page);
+  await seat.page.getByRole('table', { name: 'Строки счёта' }).waitFor({ timeout: 10_000 });
 }
 
 /** Сумма счёта прогона в «Реестре счетов» — клетка под заголовком «Сумма», а не любая клетка строки. */
@@ -503,8 +508,8 @@ async function readerPart() {
     await absent(reader, ['Новый счёт']);
 
     await openInvoice(reader, invoiceId, 'счёт: чтение');
-    await reader.page.getByText('Только чтение: права вводить счета нет').waitFor({ timeout: 10_000 });
-    await absent(reader, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл']);
+    await reader.page.getByTestId('invoice-header').getByText('Только чтение', { exact: true }).waitFor({ timeout: 10_000 });
+    await absent(reader, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл', 'Ещё']);
     if (await reader.page.getByLabel('Объект счёта', { exact: true }).count())
       throw new Error('руководителю виден выбор «Объект счёта» — права на разноску у роли нет');
 
@@ -608,7 +613,7 @@ async function accountantPart() {
       throw new Error('у бухгалтера нет «Нового счёта» — право правки счетов у роли есть');
 
     await openInvoice(accountant, invoiceId, 'счёт: правка');
-    if (await accountant.page.getByText('Только чтение: права вводить счета нет').count())
+    if (await accountant.page.getByTestId('invoice-header').getByText('Только чтение', { exact: true }).count())
       throw new Error('форма счёта называет себя «Только чтение» — право правки счетов у бухгалтера есть');
     await accountant.page.getByLabel('Объект счёта', { exact: true }).first().waitFor({ timeout: 10_000 });
   });
