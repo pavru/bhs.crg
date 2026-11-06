@@ -167,17 +167,29 @@ public static class PaymentPosting
     /// — не остаток, а несведённый счёт. Допуск тот же, что у «разобран» (ТЗ COST-13), и число одно.
     /// Счёт без строк сверять не с чем — его сумма целиком лежит в остатке или в разноске суммой.</para>
     /// </summary>
-    public static string? Refusal(Invoice invoice, AllocationBalance balance)
-    {
-        if (invoice.Total is not { } total || total == 0)
-            return "у счёта не указана сумма к оплате";
+    public static string? Refusal(Invoice invoice, AllocationBalance balance) =>
+        RefusalKind(invoice, balance) switch
+        {
+            PaymentRefusal.Amount => "у счёта не указана сумма к оплате",
+            PaymentRefusal.Discrepancy =>
+                $"сумма строк {invoice.Total!.Value - balance.Discrepancy!.Value:0.00} расходится с суммой к оплате " +
+                $"{invoice.Total!.Value:0.00} на {Math.Abs(balance.Discrepancy!.Value):0.00} (допуск {balance.Tolerance:0.00})",
+            _ => null,
+        };
 
-        if (!balance.WithinTolerance && balance.Discrepancy is { } gap)
-            return $"сумма строк {total - gap:0.00} расходится с суммой к оплате {total:0.00} на {Math.Abs(gap):0.00} " +
-                   $"(допуск {balance.Tolerance:0.00})";
+    /// <summary>
+    /// Род причины <see cref="Refusal" /> (<see cref="PaymentRefusal" />): <c>amount</c> — суммы к оплате нет,
+    /// <c>discrepancy</c> — сумма строк не сходится, <c>null</c> — оплатить можно. Текст строится по роду, так
+    /// что правило одно: готовность спрашивает его же, ставя пункту «мешает оплате» (COST-6.4).
+    /// </summary>
+    public static string? RefusalKind(Invoice invoice, AllocationBalance balance) =>
+        RefusalKind(invoice, balance.Discrepancy, balance.WithinTolerance);
 
-        return null;
-    }
+    /// <summary>То же по готовым числам баланса — у того, кто держит сводку разноски, а не сам баланс.</summary>
+    public static string? RefusalKind(Invoice invoice, decimal? discrepancy, bool withinTolerance) =>
+        invoice.Total is not { } total || total == 0 ? PaymentRefusal.Amount
+        : !withinTolerance && discrepancy is not null ? PaymentRefusal.Discrepancy
+        : null;
 
     public static AllocationBalance Balance(
         IEnumerable<AllocationLine> lines, IEnumerable<InvoiceAllocation> parts, decimal? total,

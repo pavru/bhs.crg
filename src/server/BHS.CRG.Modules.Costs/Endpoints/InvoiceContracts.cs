@@ -81,7 +81,10 @@ public sealed record InvoiceView(
     VatMode VatMode,
     // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
     // чтение счёта о запоминании не знает, и ноль там читался бы как «ничего не запомнилось».
-    InvoiceMatchMemory? Memory = null);
+    InvoiceMatchMemory? Memory = null,
+    // Кто записал счёт последним (COST-6.4, Э4); пусто — неизвестно. Ставит связка ответа (InvoiceDesk):
+    // признак «это вы» зависит от того, кто читает.
+    InvoiceAuthorView? UpdatedBy = null);
 
 /// <summary>
 /// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184, #1185): <c>present</c>,
@@ -172,10 +175,17 @@ public sealed record InvoiceListItem(
 /// смена настройки записанные сроки не пересчитывает (решение владельца 14.10.2026).</param>
 /// <param name="SupplierDeferral">Отсрочка в условиях поставщика счёта (ТЗ COST-9.2); <c>null</c> —
 /// условий нет. Форма говорит у поля «Отсрочка», взята ли она из условий или отличается от них.</param>
-public sealed record InvoiceDueView(bool Manual, DateOnly? ByRule, int? SupplierDeferral = null)
+/// <param name="DaysLeft">«Осталось дней» (ТЗ COST-9.1) — тем же правилом и от того же «сегодня» в поясе
+/// компании, что строка реестра (<see cref="InvoiceListItem.DaysLeft" />). Пусто — счёт оплаты не ждёт
+/// либо срок не определён. Считает сервер: клиентское «сегодня» расходилось бы с реестром на полночи.</param>
+/// <param name="Overdue">«Просрочен» — тем же правилом; у оплаченного и без срока не бывает.</param>
+public sealed record InvoiceDueView(
+    bool Manual, DateOnly? ByRule, int? SupplierDeferral = null, int? DaysLeft = null, bool Overdue = false)
 {
-    public static InvoiceDueView Of(Invoice invoice, InvoiceDueRule rule, int? supplierDeferral) =>
-        new(invoice.DueDateManual, rule.DueOf(invoice.ShippedOn, invoice.DeferralDays), supplierDeferral);
+    /// <param name="today">«Сегодня» в поясе компании — спрошено один раз на сборку ответа.</param>
+    public static InvoiceDueView Of(Invoice invoice, InvoiceDueRule rule, int? supplierDeferral, DateOnly today) =>
+        new(invoice.DueDateManual, rule.DueOf(invoice.ShippedOn, invoice.DeferralDays), supplierDeferral,
+            (int?)InvoiceDue.DaysLeftOf(invoice, today), InvoiceDue.OverdueOf(invoice, today) == true);
 }
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>

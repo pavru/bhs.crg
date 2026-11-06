@@ -58,7 +58,7 @@ public enum InvoicePaymentState
 /// ядро не знает. Целость ссылки проверяется чтением (<c>IModuleCatalog</c>), а копия и
 /// восстановление их сохраняют (A2b, issue #1073).</para>
 /// </summary>
-public sealed class Invoice
+public sealed partial class Invoice
 {
     /// <summary>
     /// Предел длины номера — тот же, что у колонки базы, и живёт ОДНИМ числом нарочно.

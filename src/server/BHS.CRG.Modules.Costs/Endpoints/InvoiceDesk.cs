@@ -117,9 +117,22 @@ public sealed partial class InvoiceDesk(
     /// Вместо сверки — СЛИЯНИЕ: звавший читает счёт уже под замком (он приходит свежим) и обязан
     /// писать только то, что человеку не мешает. От одновременной правки по-прежнему защищает версия
     /// строки при сохранении: кто записал вторым, получает отказ целиком.</para>
+    ///
+    /// <para>Автор такой записи — распознавание (<see cref="InvoiceAuthor.Recognition" />), а не тот, кто
+    /// поставил задачу: поля положил не он (COST-6.4).</para>
     /// </summary>
-    public Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct) =>
-        WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
+    public async Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct)
+    {
+        db.WritingVia = InvoiceAuthor.Recognition;
+        try
+        {
+            return await WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
+        }
+        finally
+        {
+            db.WritingVia = null;
+        }
+    }
 
     private Task<T> WriteAsync<T>(
         Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, WhenLocked whenLocked, string? reason,
@@ -376,8 +389,10 @@ public sealed partial class InvoiceDesk(
             lost,
             records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
             readiness,
-            InvoiceDueView.Of(invoice, await DueRuleAsync(ct), await SupplierDeferralAsync(invoice.SupplierId, ct)),
-            await SupplierMatching.MarkedAsync(db, lines, ct)), readiness);
+            InvoiceDueView.Of(invoice, await DueRuleAsync(ct), await SupplierDeferralAsync(invoice.SupplierId, ct),
+                await clock.TodayAsync(ct)),
+            await SupplierMatching.MarkedAsync(db, lines, ct)) with { UpdatedBy = InvoiceAuthorView.Of(invoice, user.Id) },
+            readiness);
     }
 
     /// <summary>
@@ -391,7 +406,8 @@ public sealed partial class InvoiceDesk(
         var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total, tolerance);
 
         if (invoice.Payment != InvoicePaymentState.Paid)
-            return new PaymentView(false, null, null, null, Unpayable(invoice, balance), null, []);
+            return new PaymentView(false, null, null, null, Unpayable(invoice, balance), null, [],
+                UnpayableKind(invoice, balance));
 
         var boundaries = await periods.BoundariesAsync(ct);
         var locked = ClosedPeriodGuard.NeedOf(invoice, parts, boundaries);
@@ -407,4 +423,8 @@ public sealed partial class InvoiceDesk(
     /// <summary>Почему неоплаченный счёт оплатить нельзя — тем же правилом, что откажет запись.</summary>
     internal static string? Unpayable(Invoice invoice, AllocationBalance balance) =>
         invoice.State == InvoiceState.Rejected ? "счёт отклонён" : PaymentPosting.Refusal(invoice, balance);
+
+    /// <summary>Род той же причины (<see cref="PaymentRefusal" />) — тем же порядком: отклонён раньше денег.</summary>
+    internal static string? UnpayableKind(Invoice invoice, AllocationBalance balance) =>
+        invoice.State == InvoiceState.Rejected ? PaymentRefusal.Rejected : PaymentPosting.RefusalKind(invoice, balance);
 }

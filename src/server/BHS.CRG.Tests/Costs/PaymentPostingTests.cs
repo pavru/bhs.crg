@@ -288,6 +288,31 @@ public class PaymentPostingTests
         Assert.Null(PaymentPosting.Refusal(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
     }
 
+    /// <summary>
+    /// Род отказа (COST-6.4) — на тех же случаях и из того же правила, что текст: текст строится по роду,
+    /// и разойтись они не могут. Тексты — прежние, слово в слово: их читают человек и тесты адресов.
+    /// </summary>
+    [Fact]
+    public void Род_отказа_оплаты_назван_тем_же_правилом_что_текст()
+    {
+        var none = PaymentPosting.Balance([First], [], null, Rouble);
+        Assert.Equal(PaymentRefusal.Amount, PaymentPosting.RefusalKind(Invoice(null), none));
+        Assert.Equal("у счёта не указана сумма к оплате", PaymentPosting.Refusal(Invoice(null), none));
+        // Нуль — не сумма: правило оплаты держало это и до рода.
+        Assert.Equal(PaymentRefusal.Amount, PaymentPosting.RefusalKind(Invoice(0m), PaymentPosting.Balance([First], [], 0m, Rouble)));
+
+        var off = PaymentPosting.Balance([First], [], 40_500m, Rouble);
+        Assert.Equal(PaymentRefusal.Discrepancy, PaymentPosting.RefusalKind(Invoice(40_500m), off));
+        var gap = off.Discrepancy!.Value;
+        Assert.Equal(
+            $"сумма строк {40_500m - gap:0.00} расходится с суммой к оплате {40_500m:0.00} на {Math.Abs(gap):0.00} " +
+            $"(допуск {off.Tolerance:0.00})",
+            PaymentPosting.Refusal(Invoice(40_500m), off));
+
+        Assert.Null(PaymentPosting.RefusalKind(Invoice(40_000.50m), PaymentPosting.Balance([First], [], 40_000.50m, Rouble)));
+        Assert.Null(PaymentPosting.RefusalKind(Invoice(100m), PaymentPosting.Balance([], [], 100m, Rouble)));
+    }
+
     [Fact]
     public void Запирает_любая_закрытая_учётная_дата_а_неоплаченный_счёт_не_заперт_ничем()
     {

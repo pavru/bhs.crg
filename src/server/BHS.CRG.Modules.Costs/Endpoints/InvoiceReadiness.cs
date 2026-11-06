@@ -18,8 +18,13 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <c>"onTop"</c> (похоже, цены в строках без НДС: «сверху» стоит поставить), <c>"included"</c> (похоже,
 /// цены уже с НДС: «сверху» поставлено зря), <c>null</c> — не объясняет. Подсказка, не решение: режим сам
 /// не меняется никогда. Пункту с признаком место у флажка режима, а не у «Суммы к оплате».</param>
+/// <param name="Blocks">Чему пункт мешает (COST-6.4): <c>parsed</c> — всегда, <c>payment</c> — только у
+/// неоплаченного счёта и только у пункта, который чинит ту же причину, по которой откажет оплата
+/// (<see cref="PaymentPosting.RefusalKind(Invoice, AllocationBalance)" />). По нему индикатор называет одно
+/// расхождение одним пунктом, а не пунктом и причиной отказа оплаты рядом.</param>
 public sealed record InvoiceReadinessGap(
-    string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null, string? VatExplains = null);
+    string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null, string? VatExplains = null,
+    IReadOnlyList<string>? Blocks = null);
 
 /// <summary>
 /// Готовность счёта к «Разобран» в ответе чтения (issue #1291).
@@ -56,8 +61,33 @@ public sealed class InvoiceReadiness
     private readonly List<(InvoiceReadinessGap Gap, int Group)> _gaps = [];
     private readonly List<(string Text, bool Conflict)> _refusals = [];
 
+    /// <summary>Род отказа оплаты; <c>null</c> — оплатить можно либо вопрос не стоит (счёт оплачен).</summary>
+    private string? _payment;
+
+    /// <summary>Шаг «Разобран» — ему мешает каждый пункт.</summary>
+    public const string Parsed = "parsed";
+
+    /// <summary>Шаг «Оплата» — ему мешает пункт, чинящий причину отказа оплаты.</summary>
+    public const string Payment = "payment";
+
     /// <summary>Чего не хватает. Пусто — счёт готов.</summary>
-    public IReadOnlyList<InvoiceReadinessGap> Gaps => [.. _gaps.Select(g => g.Gap)];
+    public IReadOnlyList<InvoiceReadinessGap> Gaps =>
+        [.. _gaps.Select(g => g.Gap with { Blocks = BlocksPayment(g.Gap) ? [Parsed, Payment] : [Parsed] })];
+
+    /// <summary>
+    /// Мешает ли пункт оплате. Род причины берётся у правила оплаты, а не списком видов: правило меняется,
+    /// и список молча отстал бы (design D2).
+    ///
+    /// <para>⚠️ Пункт поля «Итого» появляется, только когда сумма к оплате обязательна для «Разобран»
+    /// (change <c>costs-invoice-screen-01-parsed-amount</c>). До того род <c>amount</c> пунктом готовности не
+    /// покрыт, и причину отказа оплаты индикатор называет отдельно — это правда, а не дефект.</para>
+    /// </summary>
+    private bool BlocksPayment(InvoiceReadinessGap gap) => _payment switch
+    {
+        PaymentRefusal.Discrepancy => gap.Kind == "total",
+        PaymentRefusal.Amount => gap.Kind == "field" && gap.Field == InvoiceRequisites.TotalKey,
+        _ => false,
+    };
 
     public bool Ready => _gaps.Count == 0;
 
@@ -71,7 +101,13 @@ public sealed class InvoiceReadiness
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
         IReadOnlySet<Guid> lost, AllocationSummaryView allocation)
     {
-        var found = new InvoiceReadiness();
+        // Оплаченному «мешает оплате» не ставится: вопрос об оплате у него не стоит.
+        var found = new InvoiceReadiness
+        {
+            _payment = invoice.Payment == InvoicePaymentState.Paid
+                ? null
+                : PaymentPosting.RefusalKind(invoice, allocation.Discrepancy, allocation.WithinTolerance),
+        };
         var label = InvoiceEndpoints.Label(invoice);
 
         found.Fields(invoice, label);
