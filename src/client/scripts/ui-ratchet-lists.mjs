@@ -82,7 +82,7 @@ export const listRules = countElements => [
     // Строка списка руками ([UI-84]): у каждого экрана своя пилюля или прямоугольник, своя высота и заливка
     // выбранного; и вариант выбора руками ([UI-87]) — `role="option"`, нарисовать его правильно нельзя (D9).
     // Область по умолчанию (#1469) — shared/ui рисует сам ListItem и ListOption. Экраны переведены в md3-18 PR 2,
-    // остаток (списки выбора в окнах, списки карточки) — в sharedui-md3-21; уровень только опускается.
+    // списки выбора в окнах и списки карточки — в sharedui-md3-21; уровень 0 (сторожит ui-ratchet-empty-level.test.mjs).
     count: text => countElements(text, isListRow),
     instead: 'строка списка — ListItem (shared/ui/ListItem: headline, supporting, icon, leading, trailing, action, selected, checked, onClick, to или passive); вариант выбора под полем поиска — ListOption (shared/ui/ListOption: form list в окне, menu в слое под полем; active, current, disabled, action); группа — ListGroupHeader; пункт раздела уровня — NavItem (docs/UI.md, «Списки list-detail» и «Списки выбора»)',
   },

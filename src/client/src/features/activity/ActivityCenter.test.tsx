@@ -137,6 +137,19 @@ describe('кнопка активности', () => {
     expect(clearAll).toHaveBeenCalled();
   });
 
+  it('непрочитанное — точка и title-medium, прочитанное — body-large; фон один, «Удалить» видно без наведения', async () => {
+    items = [note('1'), note('2', 'Info', true)];
+    const dialog = await open();
+    const unread = within(dialog).getByText('Уведомление 1');
+    const read = within(dialog).getByText('Уведомление 2');
+    expect(unread.className).toContain('text-title-medium');
+    expect(read.className).toContain('text-body-large');
+    expect(within(unread.parentElement!).getByRole('img', { name: 'не прочитано' })).toBeTruthy();
+    expect(within(read.parentElement!).queryByRole('img', { name: 'не прочитано' })).toBeNull();
+    expect(dialog.querySelector('.bg-secondary-container')).toBeNull();
+    for (const del of within(dialog).getAllByRole('button', { name: 'Удалить' })) expect(del.className).not.toContain('opacity-0');
+  });
+
   it('состояние системы в норме — строки нет', async () => {
     health = [component('db', 'База данных', 'Up'), component('s3', 'Хранилище', 'Up')];
     expect(within(await open()).queryByText(/Состояние системы/)).toBeNull();

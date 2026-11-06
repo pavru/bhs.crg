@@ -1,3 +1,6 @@
+import { Badge } from '@/shared/ui/Badge';
+import { MICRO_HEADING, panelLink } from '@/shared/ui/panelLink';
+
 export interface RailSection {
   key: string;
   title: string;
@@ -8,9 +11,11 @@ export interface RailSection {
 
 /**
  * Rail разделов формы (issue #102 P3). В full-screen-редакторе (issue #189) — постоянная
- * развёрнутая панель навигации с подписями разделов, sticky слева (места достаточно). Раньше
- * (в тесной модалке, #110) была свёрнута до полоски-с-точками с раскрытием по наведению —
- * теперь развёрнута обратно.
+ * развёрнутая панель навигации с подписями разделов, sticky слева (места достаточно).
+ *
+ * <p>Пункт — пилюля 48, как строка подпанели (`panelLink`, П3 = б, [UI-84]): у оглавления и подпанели одна роль —
+ * «куда перейти». Текущий — `secondary-container` с `aria-current`; «не заполнено» — точка `Badge`, словом —
+ * для диктора.</p>
  */
 export function SectionRail({ sections, isActive, onSelect }: {
   sections: RailSection[];
@@ -18,19 +23,15 @@ export function SectionRail({ sections, isActive, onSelect }: {
   onSelect: (key: string) => void;
 }) {
   return (
-    <nav aria-label="Разделы" className="hidden lg:block w-56 shrink-0 self-start sticky top-0 space-y-0.5">
-      <div className="text-body-small font-medium text-on-surface-variant px-2.5 pb-1">Разделы</div>
+    <nav aria-label="Разделы" className="hidden lg:block w-56 shrink-0 self-start sticky top-0">
+      <div className={MICRO_HEADING}>Разделы</div>
       {sections.map(section => (
         <button key={section.key} type="button" onClick={() => onSelect(section.key)}
           aria-current={isActive(section.key) ? 'true' : undefined}
-          className={`w-full flex items-center gap-2 text-left text-body-medium px-2.5 py-1.5 rounded-md
-            ${isActive(section.key) ? 'bg-surface text-on-surface font-medium' : 'text-on-surface-variant state-layer hover:text-on-surface'}`}>
+          className={`w-full gap-2 text-left ${panelLink(isActive(section.key))}`}>
           <span className="flex-1 truncate">{section.title}</span>
-          {section.missing && <>
-            <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" aria-hidden="true" />
-            <span className="sr-only">не заполнено</span>
-          </>}
-          <span className="text-body-small text-on-surface-variant shrink-0">{section.count}</span>
+          {section.missing && <><Badge className="shrink-0" /><span className="sr-only">не заполнено</span></>}
+          <span className="shrink-0">{section.count}</span>
         </button>
       ))}
     </nav>

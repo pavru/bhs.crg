@@ -56,9 +56,7 @@
     "features/costs/LostReferencesNote.tsx": 1,
     "features/costs/SupplierMatchNote.tsx": 3
   },
-  "list-row": {
-    "features/document-sets/fields/ComplexFields.tsx": 3
-  },
+  "list-row": {},
   "icon-button": {
     "shared/ui/DataGrid.tsx": 1,
     "shared/ui/DateInput.tsx": 1,

@@ -36,11 +36,11 @@ import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
 import { RefPickerModal } from './RefPickerModal';
-import { ArchivedRefMark } from './ArchivedRefs';
+import { ArrayItemRow, type ArrayItemView } from './ArrayItemRow';
 import { RefTile } from './RefTile';
 import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
-import { BROKEN_LABEL, BrokenRefChip, BrokenRefNote } from './BrokenRef';
+import { BrokenRefChip } from './BrokenRef';
 import { ArrayTableModal } from './ArrayTableModal';
 import {
   isRowEmpty, filledVariants, overfilledNote, isVariantFilled, unionSummary,
@@ -294,17 +294,6 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
     );
   }
 
-  /**
-   * Признак выбора для строки, у которой фон уже занят (битая ссылка — danger-плитка).
-   *
-   * <p>Иначе выбранная битая строка отличалась бы от невыбранной одним чекбоксом в 14 пикселей,
-   * при том что шапка говорит «Выбрано: 3», а удаление пачкой её и правда унесёт. Ровно то
-   * «удалить вслепую», ради которого выбор снимается при сворачивании списка.</p>
-   */
-  function selectedRing(i: number) {
-    return selected.has(i) ? 'ring-1 ring-inset ring-primary' : '';
-  }
-
   /** Обвязка строки: приём перетаскиваемой строки на своё место + подсветка цели. */
   function dropTarget(i: number) {
     return {
@@ -329,6 +318,24 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
   function rowSummary(row: Record<string, unknown>) {
     return objectSummary(row, subFields, typeDefs);
+  }
+
+  /** Вид строки массива — ссылка, битая ссылка, ссылка-вариант union'а или сводка (рисует `ArrayItemRow`). */
+  function itemView(item: unknown, i: number): ArrayItemView {
+    const path = markPath(i);
+    if (isFieldRef(item)) return { kind: 'ref', ref: item, broken: !!path && !!brokenPaths?.has(path) };
+    const row = item as Record<string, unknown>;
+    // Строка union'а, чей единственный вариант — ссылка (issue #747). Без этой ветки она ушла бы в rowSummary
+    // как обычный объект: сводка вернула бы голое displayName, и строка потеряла бы и признак ссылки, и вариант.
+    const wrapped = unionRef(row);
+    // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics), а не по индексу
+    // строки: проверь мы только «Поле[0]», удалённая цель показалась бы здоровой ссылкой.
+    if (wrapped) return { kind: 'union-ref', ref: wrapped.ref, label: wrapped.label,
+      broken: !!path && !!brokenPaths?.has(`${path}.${wrapped.key}`) };
+    // Строка union'а, где заполнен не один вариант (issue #756): unionRef выше требует ровно одного, и без
+    // пометки строка рисовалась бы обычной сводкой — без признака, что открыть её значит потерять часть данных.
+    // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
+    return { kind: 'summary', summary: rowSummary(row), extraVariants: isUnionComposite ? filledVariants(row, subFields) : [] };
   }
 
   return (
@@ -388,93 +395,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
       {!collapsed && allItems.length > 0 && (
         <div ref={listRef} className="divide-y divide-surface-container">
           {allItems.map((item, i) => {
-            if (isFieldRef(item)) {
-              const path = markPath(i);
-              const itemBroken = !!path && !!brokenPaths?.has(path);
-              if (itemBroken) {
-                return (
-                  <div key={i}>
-                    <div {...dropTarget(i)}
-                      className={`flex items-center gap-2 px-3 py-2 ${selectedRing(i)}`}>
-                      {rowChrome(i, true)}
-                      <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
-                      <span className={`flex-1 text-body-medium truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
-                      <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} iconClassName="text-error" />
-                    </div>
-                    <BrokenRefNote compact />
-                  </div>
-                );
-              }
-              return (
-                <div key={i} {...dropTarget(i)}
-                  className={`state-layer flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : ''}`}>
-                  {rowChrome(i)}
-                  <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
-                  <span className="flex-1 text-body-medium text-warning truncate">{item.displayName}</span>
-                  <ArchivedRefMark value={item} />
-                  <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
-                </div>
-              );
-            }
-            const row = item as Record<string, unknown>;
-
-            // Строка union'а, чей единственный вариант — ссылка (issue #747). Без этой ветки она
-            // ушла бы в rowSummary как обычный объект: сводка вернула бы голое displayName, и
-            // строка потеряла бы и признак ссылки, и вариант — на вид обычные данные, которых на
-            // самом деле нет. Рисуем тем же языком, что соседние ref-строки, плюс метка варианта.
-            const wrapped = unionRef(row);
-            if (wrapped) {
-              // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics),
-              // а не по индексу строки: проверь мы только «Поле[0]», удалённая цель показалась бы
-              // здоровой ссылкой — ровно та потеря признака, ради которой заведена эта ветка.
-              const wrappedPath = markPath(i);
-              const wrappedBroken = !!wrappedPath
-                && !!brokenPaths?.has(`${wrappedPath}.${wrapped.key}`);
-              return (
-                <div key={i}>
-                <div {...dropTarget(i)}
-                  className={`state-layer flex items-center gap-2 px-3 py-2 ${wrappedBroken
-                    ? selectedRing(i)
-                    : selected.has(i) ? 'bg-primary-container' : ''}`}>
-                  {rowChrome(i, wrappedBroken)}
-                  <Icon icon={LinkIcon} size={18} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
-                  <span className={`flex-1 text-body-medium truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
-                  <ArchivedRefMark value={wrapped.ref} />
-                  <span className="text-label-small text-on-surface-variant shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
-                  {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
-                  <IconButton label="Редактировать" onClick={() => setRowModal(i)} icon={Edit} />
-                  <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
-                </div>
-                {wrappedBroken && <BrokenRefNote compact />}
-                </div>
-              );
-            }
-
-            // Строка union'а, где заполнен не один вариант (issue #756). До этой ветки она доходит
-            // именно потому, что ключей больше одного: unionRef выше требует ровно одного и
-            // возвращает null, так что строка рисовалась обычной сводкой — без единого признака,
-            // что открыть её значит потерять часть данных.
-            const extraVariants = isUnionComposite ? filledVariants(row, subFields) : [];
-
-            // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
+            const view = itemView(item, i);
             return (
-              <div key={i} {...dropTarget(i)}
-                className={`state-layer flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : ''}`}>
-                {rowChrome(i)}
-                <button type="button" onClick={() => setRowModal(i)}
-                  className="flex-1 text-left text-body-medium text-on-surface-variant hover:text-on-surface truncate">
-                  {rowSummary(row)}
-                </button>
-                {extraVariants.length > 1 && (
-                  <Tooltip content={overfilledNote(extraVariants)}>
-                    <span className="flex items-center gap-1 text-label-small text-warning shrink-0" role="img" aria-label={overfilledNote(extraVariants)}>
-                      <Icon icon={Warning} size={18} /> вариантов: {extraVariants.length}
-                    </span>
-                  </Tooltip>
-                )}
-                <IconButton label="Редактировать" onClick={() => setRowModal(i)} icon={Edit} />
-                <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
-              </div>
+              <ArrayItemRow key={i} view={view} index={i} checked={selected.has(i)}
+                chrome={rowChrome(i, view.kind !== 'summary' && view.broken)}
+                drop={dropTarget(i)} onEdit={() => setRowModal(i)} onRemove={() => removeItem(i)} />
             );
           })}
         </div>
