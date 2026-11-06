@@ -149,20 +149,20 @@
   - **«Удалить» у черновика с книгой** (5.2) — в `invoice-payment-smoke`, после открытия периода: книга там
     настоящая (исправление закрытого периода), заводить её отдельно в прогоне раскладки дороже.
 
-- [ ] 5.3 Снимки «после» PR 2 на четырёх размерах с названием макета и вариантом. Проверка — описание
+- [x] 5.3 Снимки «после» PR 2 на четырёх размерах с названием макета и вариантом. Проверка — описание
   PR 2.
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный.
-- [ ] 6.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (одна filled на
+- [x] 6.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный.
+- [x] 6.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (одна filled на
   экран; правило `fixed-width`: у `InvoicesPage` — 2, `w-[40%] max-w-[620px] min-w-[340px]`, у
   `InvoiceLinesTable` — 1, `min-w-[70rem]`; оба уходят, уровень опущен тем же PR).
-- [ ] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный; `--filter "FullyQualifiedName~InvoiceDeletion"` — зелёный (сервер не менялся).
-- [ ] 6.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke` (с
+- [x] 6.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke` (с
   `invoice-layout-checks`, `invoice-scan-checks` и новым `invoice-screen-layout-checks`),
   `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-vat-on-top-checks`. Оболочка правится, поэтому
   весь список `npm run -s test:e2e:ci` зелёный (зонтик 3.1).
-- [ ] 6.5 Каждый PR — с меткой `version:minor`, названием макета и варианта и снимками до и после;
+- [x] 6.5 Каждый PR — с меткой `version:minor`, названием макета и варианта и снимками до и после;
   `<Version>` не тронут.
