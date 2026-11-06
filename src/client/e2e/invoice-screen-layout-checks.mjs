@@ -12,8 +12,20 @@
 // ⚠️ Подпанель раздела у пользователя ОТКРЫТА — так было в разборе Дизайнера. Выбор — настройка человека
 // на сервере: прогон ставит её и возвращает прежнюю в finally, иначе соседние прогоны шли бы с ней.
 
+import { expandInvoiceParts } from './harness.mjs';
+
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
 export const LAPTOPS = [[1366, 768], [1280, 720], [1366, 650], [1024, 768]];
+
+/**
+ * Место файла по `placeOf` (D-10.3) у черновика с метками: рабочая область — окно без рейла 80 (подпанель при
+ * открытом счёте скрыта), панель — 38 % от 420 до 520, рядом — пока форме остаётся 720. Списка при файле
+ * рядом нет; на 1024 файл поверх, и списка нет тоже. Числа — те же, что в `invoicePlace.test.ts`.
+ */
+const FILE_BESIDE = { 1366: 489, 1280: 456, 1024: null };
+
+/** Пять полей первого этапа (ответ 4 листа 0) — в окне без прокрутки на 1366×650. */
+const FIRST_STAGE = ['Поставщик', 'Плательщик', 'Номер', 'Дата', 'Сумма к оплате'];
 
 const LINES = 40;
 
@@ -68,12 +80,44 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
         await h.named('сводки счёта нет', () => summary.waitFor({ timeout: 10_000 }));
         await page.getByText('Похоже на дубликат').first().waitFor({ timeout: 10_000 });
 
-        // Подпанель раздела у пользователя открыта (D10): проверка идёт при ней, а не на пустой оболочке.
-        if (width >= 1200 && !(await page.getByTestId('rail').getAttribute('data-panel')))
-          throw new Error('подпанель раздела не открыта — проверка шла бы не в том окружении');
+        // Подпанель раздела у пользователя открыта (D10), но при открытом счёте её нет (D-10.5): место
+        // отдано форме и файлу, а выбор человека не тронут — он вернётся с закрытием счёта (проверка ниже).
+        if (await page.getByTestId('rail').getAttribute('data-panel'))
+          throw new Error('подпанель раздела при открытом счёте не скрыта');
+
+        // Список и файл — по месту (D-10.3): файл рядом заданной ширины или (1024) нет его; списка нет.
+        const aside = page.getByRole('complementary', { name: 'Файл счёта' });
+        const beside = FILE_BESIDE[width];
+        if (beside === null) {
+          if (await aside.count()) throw new Error('на 1024 файл встал рядом — форме осталось бы меньше 720');
+        } else {
+          const panel = await box(aside, `панели файла рядом (${width})`);
+          if (Math.abs(panel.width - beside) > 1) throw new Error(`панель файла ${Math.round(panel.width)} px, ждали ${beside}`);
+          if (width - 80 - panel.width < 720) throw new Error(`форме рядом с файлом осталось ${Math.round(width - 80 - panel.width)} px`);
+        }
+        if (await page.getByTestId('ld-nav').isVisible()) throw new Error('список стоит рядом с формой, хотя места ему нет');
+        await h.named('«‹ N из M ›» в сводке нет', () => summary.getByRole('group', { name: 'Счета отбора' }).waitFor({ timeout: 5_000 }));
 
         const head = await box(summary, 'сводки');
         if (head.height > 64.5) throw new Error(`неподвижная часть ${Math.round(head.height)} px — больше 64`);
+
+        // Перенесённые из 3.4 (PR 1): пять полей первого этапа — в окне на 1366×650, таблица строк без
+        // прокрутки вбок на 1366×768.
+        if (width === 1366 && height === 650)
+          for (const name of FIRST_STAGE) {
+            const field = await box(page.getByLabel(name, { exact: true }).first(), `поля «${name}»`);
+            if (field.y < head.y + head.height - 1 || field.y + field.height > height + 1)
+              throw new Error(`поле «${name}» первого этапа вне окна на 1366×650`);
+          }
+        if (width === 1366 && height === 768) {
+          await expandInvoiceParts(page);
+          const sideways = await page.getByRole('table', { name: 'Строки счёта' }).evaluate(table => {
+            for (let el = table; el; el = el.parentElement)
+              if (getComputedStyle(el).overflowX !== 'visible' && el.scrollWidth > el.clientWidth + 1) return el.scrollWidth - el.clientWidth;
+            return 0;
+          });
+          if (sideways > 0) throw new Error(`таблица строк прокручивается вбок на ${sideways} px на 1366×768`);
+        }
 
         // Страница вбок не прокручивается — прокручивается только таблица, если ей мало места.
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -143,8 +187,12 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
           throw new Error(`поле под фокусом вне окна или под сводкой: ${Math.round(focused.top)}–${Math.round(focused.bottom)}`);
       });
     }
+    await placeChecks(page, check, h, invoice);
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
+    await page.keyboard.press('Escape').catch(() => {});
+    // «Файл» пишет выбор на сервер — возвращаем «открыт», как без выбора.
+    await h.api('PUT', '/account/settings', { invoiceFile: 'open' }).catch(e => console.log('  ! выбор «Файл» не возвращён:', e.message));
     await railPreference(h, before).catch(e => console.log('  ! выбор подпанели не возвращён:', e.message));
   }
 
@@ -186,7 +234,9 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
 
     const count = async () => (await h.api('GET', '/costs/invoices')).length;
     const was = await count();
-    await page.getByRole('button', { name: 'Новый счёт', exact: true }).first().click();
+    // Списка рядом нет (файл рядом) — «Новый счёт» в «⋮» сводки (D-10.8).
+    await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
+    await page.getByRole('menuitem', { name: 'Новый счёт' }).click();
     const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await h.named('«Новый счёт» не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
     await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -210,5 +260,105 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' }).catch(() => {});
     const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     if (await dialog.isVisible().catch(() => false)) await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
+  });
+}
+
+/**
+ * Место по контейнеру (D-10.3 – D-10.5, D-10.8; ТЗ COST-6.3): «Файл» на 1366 открывает список, на 1024 —
+ * слой поверх с набранным под ним, «›» на 1280 ведёт к соседнему счёту отбора, справочники — в «⋮» сводки,
+ * а подпанель раздела возвращается с закрытием счёта и открывается поверх, не меняя раскладки.
+ */
+async function placeChecks(page, check, h, invoice) {
+  const go = async (width, height) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
+    await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
+  };
+  const file = () => page.getByTestId('invoice-header').getByRole('button', { name: 'Файл', exact: true });
+  const aside = () => page.getByRole('complementary', { name: 'Файл счёта' });
+
+  await check('экран счёта 1366: «Файл» закрывает панель — встаёт список; открывает — список уходит', async () => {
+    await go(1366, 768);
+    await aside().waitFor({ timeout: 5_000 });
+    await file().click();
+    await aside().waitFor({ state: 'detached', timeout: 5_000 });
+    await h.named('список не встал слева при закрытом файле', () => page.getByTestId('ld-nav').waitFor({ state: 'visible', timeout: 5_000 }));
+    const form = await box(page.getByTestId('invoice-header'), 'сводки');
+    if (form.width < 940) throw new Error(`форме рядом со списком ${Math.round(form.width)} px — меньше 940`);
+    await file().click();
+    await aside().waitFor({ timeout: 5_000 });
+    if (await page.getByTestId('ld-nav').isVisible()) throw new Error('файл открыт, а список остался');
+  });
+
+  await check('экран счёта 1024: «Файл» — поверх формы, причина в подсказке; Esc возвращает к набранному', async () => {
+    await go(1024, 768);
+    await expandInvoiceParts(page);
+    const name = page.getByLabel('Наименование в счёте, строка 1', { exact: true });
+    await name.fill('Набрано до файла');
+    await file().hover();
+    await h.named('подсказка «Файл» не назвала, почему поверх', () => page.getByRole('tooltip')
+      .filter({ hasText: /поверх формы: рядом форме нужно не меньше 720/ }).first().waitFor({ timeout: 5_000 }));
+    await file().click();
+    // Файл стенда — «не читается как PDF»: слой встаёт и называет это сам; поверх — то, чем показан файл.
+    const layer = page.getByRole('dialog');
+    await h.named('файл не открылся поверх формы', () => layer.first().waitFor({ timeout: 10_000 }));
+    if (await aside().count()) throw new Error('на 1024 файл встал рядом');
+    await page.keyboard.press('Escape');
+    await layer.first().waitFor({ state: 'detached', timeout: 5_000 });
+    if ((await name.inputValue()) !== 'Набрано до файла') throw new Error(`после Esc набранное пропало: «${await name.inputValue()}»`);
+    await name.fill('Строка раскладки 1');
+  });
+
+  await check('экран счёта 1280: списка нет, «›» ведёт к соседнему счёту отбора, «‹» — обратно', async () => {
+    await go(1280, 720);
+    const steps = page.getByTestId('invoice-header').getByRole('group', { name: 'Счета отбора' });
+    await steps.waitFor({ timeout: 5_000 });
+    if (await page.getByTestId('ld-nav').isVisible()) throw new Error('на 1280 список стоит рядом с формой');
+    const next = steps.getByRole('button', { name: 'Следующий счёт' });
+    const prev = steps.getByRole('button', { name: 'Предыдущий счёт' });
+    const [there, back] = (await next.isEnabled()) ? [next, prev] : [prev, next];
+    if (!(await there.isEnabled())) throw new Error('обе стрелки неактивны — в отборе один счёт?');
+    await there.click();
+    await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') !== id, invoice.id, { timeout: 5_000 })
+      .catch(() => { throw new Error('стрелка не открыла соседний счёт'); });
+    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    await back.click();
+    await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') === id, invoice.id, { timeout: 5_000 })
+      .catch(() => { throw new Error('обратная стрелка не вернула к счёту'); });
+  });
+
+  await check('экран счёта 1280: шапки страницы нет, «Условия поставщиков» — из «⋮» сводки', async () => {
+    await go(1280, 720);
+    if (await page.getByRole('heading', { level: 1, name: 'Счета на оплату' }).isVisible())
+      throw new Error('при открытом счёте шапка страницы осталась');
+    await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
+    await page.getByRole('menuitem', { name: 'Условия поставщиков' }).click();
+    const dialog = page.getByRole('dialog');
+    await h.named('«Условия поставщиков» не открылись', () => dialog.first().waitFor({ timeout: 5_000 }));
+    await page.keyboard.press('Escape');
+    await dialog.first().waitFor({ state: 'detached', timeout: 5_000 });
+  });
+
+  await check('экран счёта: «Показать панель» — поверх, раскладка и выбор не меняются; «N из M» возвращает подпанель', async () => {
+    await go(1366, 768);
+    const rail = page.getByTestId('rail');
+    const formBefore = await box(page.getByTestId('invoice-header'), 'сводки');
+    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+    const drawer = page.getByTestId('section-panel-drawer');
+    await h.named('подпанель не открылась поверх', () => drawer.waitFor({ timeout: 5_000 }));
+    if (await rail.getAttribute('data-panel')) throw new Error('подпанель встала в раскладку, а не поверх');
+    const formUnder = await box(page.getByTestId('invoice-header'), 'сводки');
+    if (Math.abs(formUnder.x - formBefore.x) > 1 || Math.abs(formUnder.width - formBefore.width) > 1)
+      throw new Error('подпанель поверх сдвинула форму');
+    if ((await h.api('GET', '/account/settings'))?.rail !== 'expanded') throw new Error('подпанель поверх переписала выбор человека');
+    await page.keyboard.press('Escape');
+    await drawer.waitFor({ state: 'detached', timeout: 5_000 });
+    // «N из M» закрывает счёт и показывает список; подпанель возвращается такой, какой была.
+    await page.getByTestId('invoice-header').getByRole('group', { name: 'Счета отбора' })
+      .getByRole('button', { name: /из \d+/ }).click();
+    await page.waitForFunction(() => !new URLSearchParams(location.search).get('invoice'), null, { timeout: 5_000 })
+      .catch(() => { throw new Error('«N из M» не закрыл счёт'); });
+    await page.getByTestId('section-panel').waitFor({ timeout: 5_000 })
+      .catch(() => { throw new Error('после закрытия счёта подпанель не вернулась'); });
   });
 }

@@ -224,6 +224,23 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Панель файла счёта (costs-invoice-screen-10-layout, ТЗ COST-6.3) — как подпанель: едет за человеком,
+    /// значение вне двух известных — отказ.
+    /// </summary>
+    [Fact]
+    public async Task Закрытая_панель_файла_счёта_приезжает_на_другую_машину_а_чужое_значение_отвергается()
+    {
+        var email = await CreateUserAsync();
+        var first = await SignInAsync(email);
+        (await first.PutAsJsonAsync("/api/account/settings", new { invoiceFile = "closed" })).EnsureSuccessStatusCode();
+
+        var refused = await first.PutAsJsonAsync("/api/account/settings", new { invoiceFile = "over" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal("closed", (await SettingsAsync(await SignInAsync(email)))["invoiceFile"]);
+    }
+
+    /// <summary>
     /// Избранное — GUID через запятую, не больше двадцати (#1217). Двадцать первая стройка, повтор,
     /// пустой элемент, пробелы и вольная форма GUID — отказ: сохранённые, они дали бы клиенту на
     /// другом компьютере список, в котором одна стройка числится дважды или не находится вовсе.

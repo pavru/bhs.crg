@@ -235,25 +235,8 @@ try {
     if (left !== 1) throw new Error(`осталось меток ${left}, ожидалась одна — у «Оплатить до»`);
   });
 
-  // ── 4. Скан открывается РЯДОМ, а на узком экране честно заменяется ──────────
-  await check('скан показан рядом с формой, а ниже 1280 замена названа причиной', async () => {
-    const number = `СЧ-С${stamp}`;
-    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'Со сканом') });
-    await attachScan(created.id);
-
-    await open(number);
-    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
-
-    await page.setViewportSize({ width: 1100, height: 1000 });
-    await page.getByText('не меньше 1280').waitFor({ timeout: 10_000 });
-    if ((await page.getByRole('button', { name: 'Открыть во вкладке' }).count()) !== 0)
-      throw new Error('панель скана осталась на экране уже 1280');
-
-    await page.setViewportSize({ width: 1500, height: 1000 });
-    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
-  });
-
-  // Скан на своём просмотрщике (issue #1491): фото, поддельный PDF, узкий экран — своим модулем.
+  // ── 4. Скан рядом с формой, а без места рядом «Файл» называет причину — в `invoice-scan-checks`. ──
+  // Скан на своём просмотрщике (issue #1491): место рядом, фото, поддельный PDF, узкий экран — своим модулем.
   await invoiceScanChecks(page, check, { api, requisites, open, attachScan, named, officeFile, stamp });
 
   // ── 5. Поставщика можно СНЯТЬ ───────────────────────────────────────────────
@@ -372,7 +355,10 @@ try {
     if (!said.startsWith(BAD_FILE.note) || /не настроено|недоступно/.test(said))
       throw new Error(`в форме отказ не о файле: «${said}»`);
 
-    // Строка списка: номера нет — стоит имя файла, под ним причина.
+    // Строка списка: номера нет — стоит имя файла, под ним причина. У черновика со сбоем файл открыт рядом,
+    // и списка тогда нет (costs-invoice-screen-10-layout, D-10.3): «Файл» закрывает панель — список встаёт.
+    const file = page.getByTestId('invoice-header').getByRole('button', { name: 'Файл', exact: true });
+    await file.click();
     const row = page.locator('button', { hasText: fileName });
     await named('в строке списка отказ о файле не назван',
       () => row.getByText(BAD_FILE.row).waitFor({ timeout: 15_000 }));
@@ -381,6 +367,7 @@ try {
     await page.getByRole('button', { name: /^Не распознано/ }).click();
     await named('под отбором «Не распознано» счёта нет', () => row.waitFor({ timeout: 10_000 }));
     await page.getByRole('button', { name: /^Не распознано/ }).click();
+    // Файл остаётся закрытым: проверки загрузки ниже смотрят список. Выбор возвращает проверка 8а.
   });
 
   // ── 8. Несколько сканов разом: по черновику на файл, непринятый НАЗВАН (issue #1093) ────────────
@@ -479,6 +466,9 @@ try {
       () => page.getByTestId('invoice-delete-body').getByText(/Останется счёт .* — с тем же файлом\./).waitFor({ timeout: 5_000 }));
     await page.getByRole('button', { name: 'Не удалять' }).click();
   });
+  // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
+  await api('PUT', '/account/settings', { invoiceFile: 'open' });
+  await page.evaluate(() => localStorage.setItem('crg-invoice-file', 'open'));
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
   //

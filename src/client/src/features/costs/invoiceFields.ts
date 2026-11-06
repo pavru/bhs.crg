@@ -163,19 +163,6 @@ export function extraBlock(shown: readonly SchemaField[]): InvoiceBlock | null {
   return shown.length > 0 ? { id: 'extra', title: 'Дополнительно', fields: shown.map(f => f.key) } : null;
 }
 
-/**
- * Показывать ли скан РЯДОМ с формой.
- *
- * Минимальная ширина экрана — 1280 (решение владельца 28.09.2026). Ниже панель не показывается, и
- * вместо её молчаливого исчезновения форма даёт честную замену — кнопку «Открыть скан» с названной
- * причиной. Молчаливое исчезновение читается как «скана нет».
- */
-export const SCAN_BESIDE_MIN_WIDTH = 1280;
-
-export function scanFitsBeside(viewportWidth: number): boolean {
-  return viewportWidth >= SCAN_BESIDE_MIN_WIDTH;
-}
-
 /** Ссылка на запись справочника — так её хранит ядро. */
 export function catalogRef(entryId: string): Record<string, unknown> {
   return { $ref: 'catalog', entryId };

@@ -24,7 +24,8 @@ import { PrimaryFabContext, usePrimaryFabState } from '@/shared/ui/primaryFabCon
 import { FAB_CLEARANCE, snackbarLift } from '@/shared/ui/phoneLayout';
 import { useSnackbarPlace } from '@/shared/ui/snackbarPlace';
 import { primaryActionAt } from '@/shared/ui/paletteActions';
-import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
+import { SectionPanel, SectionPanelDrawer, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
+import { SuppressSectionPanelContext, useSectionPanel } from '@/shared/ui/sectionPanelSuppress';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
@@ -70,7 +71,10 @@ function Shell() {
   const active = activeRail(pathname, [...allWork, ...settings]);
   const activeDef = active ? railDef(active) : null;
   const panelSection = activeDef && panelAt(pathname, activeDef) ? activeDef : null;
-  const panelShown = !!panelSection && panelWanted;
+  // Страница может подавить подпанель (открытый счёт, D-10.5): выбор человека тогда не пишется, а «Показать
+  // панель» открывает её поверх, drawer'ом.
+  const panel = useSectionPanel({ has: !!panelSection, wanted: panelWanted, expand: () => setRail('expanded') });
+  const panelShown = panel.shown;
   const favoriteSites = useFavoriteSitesGroup();
   // Избранные стройки — быстрым переходом к карточке (#1432): шапка их больше не показывает.
   const panelGroups = panelSection
@@ -125,11 +129,17 @@ function Shell() {
       <aside ref={railRef} data-testid="rail" data-panel={panelShown || undefined}
         className="shrink-0 hidden md:flex">
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
-          onShowPanel={() => setRail('expanded')} />
-        {panelShown && (
+          onShowPanel={panel.show} />
+        {panelShown && panelSection && (
           <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')} groups={panelGroups} />
         )}
       </aside>
+      {panelSection && (
+        <SectionPanelDrawer open={panel.drawer} onClose={panel.closeDrawer} title={panelSection.title}>
+          {/* «Скрыть» в drawer закрывает его и только: выбор человека подавленная подпанель не меняет. */}
+          <SectionPanel def={panelSection} outside={outside} onHide={panel.closeDrawer} groups={panelGroups} />
+        </SectionPanelDrawer>
+      )}
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} anchorRef={searchRef} />
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
@@ -147,7 +157,7 @@ function Shell() {
         <header className="h-16 shrink-0 max-md:bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
-          {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
+          {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={panel.show} /></span>}
           {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
               обёртки: при одном модуле его нет, и обёртка пустой строкой ложилась бы под шапку. */}
           <WorkspaceSwitcher />
@@ -174,7 +184,9 @@ function Shell() {
           <div className="flex-1 overflow-auto">
             <SectionMenuContext.Provider value={sectionMenu}>
               <PrimaryFabContext.Provider value={fabState.report}>
-                <Outlet />
+                <SuppressSectionPanelContext.Provider value={panel.suppress}>
+                  <Outlet />
+                </SuppressSectionPanelContext.Provider>
               </PrimaryFabContext.Provider>
             </SectionMenuContext.Provider>
           </div>

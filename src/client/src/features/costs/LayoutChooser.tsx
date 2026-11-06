@@ -1,8 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
-import { Icon } from '@/shared/ui/Icon';
-import { Check, Close, Print } from '@/shared/ui/icons';
+import { Close, Print } from '@/shared/ui/icons';
 import { useId, useState } from 'react';
-import { useRadioGroup } from '@/shared/ui/useRadioGroup';
+import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -82,34 +81,23 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
 }
 
 /**
- * Профили — радиогруппой по APG: одна остановка Tab, стрелки переводят выбор. Пометки: «по умолчанию»
- * — у системного, «сейчас» — у профиля показанного вида.
+ * Профили — `RadioGroup` MD3 ([UI-69], Э17): одна остановка Tab, стрелки переводят выбор. Пометки: «по
+ * умолчанию» — у системного, «сейчас» — у профиля показанного вида; под подписью — что задаёт профиль.
  */
 function Choices({ profiles, shown, value, onPick }: {
   profiles: readonly PrintProfile[]; shown: string | undefined; value: string | undefined;
   onPick: (id: string) => void;
 }) {
-  const radios = useRadioGroup(profiles.map(p => p.id), value, onPick);
   return (
-    <div role="radiogroup" aria-label="Профиль печати" onKeyDown={radios.onKeyDown} className="-mx-2 space-y-0.5">
-      {profiles.map((p, i) => {
-        const checked = p.id === value;
+    <RadioGroup aria-label="Профиль печати" value={value} onChange={onPick}
+      items={profiles.map(p => {
         const marks = [p.isSystem && 'по умолчанию', p.id === shown && 'сейчас'].filter(Boolean).join(' · ');
-        return (
-          <button key={p.id} {...radios.item(i)} type="button" role="radio"
-            aria-checked={checked} onClick={() => onPick(p.id)}
-            className="w-full flex items-start gap-2 px-2 py-1.5 rounded-sm text-left state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <Icon icon={Check} size={18} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
-            <span className="min-w-0 flex-1">
-              <span className="flex items-baseline gap-2">
-                <span className={`text-body-medium truncate ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{p.name}</span>
-                {marks && <span className="text-body-small text-on-surface-variant shrink-0">{marks}</span>}
-              </span>
-              <span className="block text-body-small text-on-surface-variant truncate">{profileSummary(p)}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
+        return {
+          value: p.id,
+          label: p.name,
+          description: <span className="block truncate">{profileSummary(p)}</span>,
+          trailing: marks ? <span className="shrink-0 pl-2 text-body-small text-on-surface-variant">{marks}</span> : undefined,
+        };
+      })} />
   );
 }

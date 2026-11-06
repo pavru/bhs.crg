@@ -182,12 +182,14 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
             </span>
           );
         return (
-          <div className="flex items-center gap-1 min-w-0">
+          // Клетка уже 160 px (форма рядом с файлом на 1280) — артикула нет: поле 80 px оставило бы
+          // наименованию 20. Его видно и правят на месте шире — с закрытым файлом или окном шире.
+          <div className="@container flex items-center gap-1 min-w-0">
             <div className="flex-1 min-w-0">
               <Cell value={draft.supplierText} label={`Наименование в счёте, строка ${index + 1}`}
                 onChange={next => editKey(draft, { supplierText: next })} onBlur={() => keyLeft(draft)} />
             </div>
-            <div className="w-20 shrink-0">
+            <div className="hidden @[10rem]:block w-20 shrink-0">
               <Cell value={draft.supplierCode} label={`Артикул, строка ${index + 1}`} placeholder="артикул"
                 onChange={next => editKey(draft, { supplierCode: next })} onBlur={() => keyLeft(draft)} />
             </div>

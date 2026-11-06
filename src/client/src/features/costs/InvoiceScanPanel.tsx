@@ -1,16 +1,15 @@
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Description, Download, OpenInFull, OpenInNew, RotateRight } from '@/shared/ui/icons';
+import { Description, Download, OpenInNew, RotateRight } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
-import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
+import { useInvoiceImage } from '@/shared/api/invoiceImage';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
-import { PdfViewer, PdfViewerOverlay } from '@/shared/ui/viewer/PdfViewer';
+import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { acceptOf, fileShownAs, nameShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
-import { useSnackbar } from '@/shared/ui/Snackbar';
-import { BuiltImage, Centered as Note, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
+import { BuiltImage, Centered as Note, OriginalButton, RefusedImage } from './InvoiceFileImage';
 import { saveScan } from './scanView';
 
 /**
@@ -163,120 +162,6 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
           </Note>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * Замена панели на узком экране — ЧЕСТНАЯ, с названной причиной (решение владельца 28.09.2026).
- *
- * Молчаливое исчезновение панели читается как «файла нет»: человек видит форму без бумаги и не знает,
- * то ли файл не приложен, то ли система его не показывает.
- *
- * Файл открывается просмотрщиком ПОВЕРХ формы, а не вкладкой (issue #1491, D4 зонтика viewer): окно,
- * открытое после загрузки, блокировщик всплывающих окон резал молча, а на Android 14 и ниже вкладка с
- * PDF — это скачивание. Слой от жеста не зависит, поэтому байты грузятся после нажатия. Форма под
- * слоем остаётся с набранным. Для Excel и Word поверх формы встаёт вид для чтения — с оговоркой
- * строкой над листом: во вкладке её не было бы.
- */
-export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
-  invoiceId: string; blobPath: string | null; fileName: string | null; width: number;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  // Что стоит в слое. Держится и после закрытия: иначе закрывающееся окно мигнуло бы «загружается».
-  const [shown, setShown] = useState<{ key: string; source: Blob | null; title: string; reading: boolean } | null>(null);
-  const kinds = useFileKinds();
-  const toast = useSnackbar();
-  const image = useInvoiceImage(invoiceId, blobPath);
-  const built = image.data?.state === 'built';
-  const refused = image.data?.state === 'refused' ? image.data : null;
-  const fileKey = `${invoiceId}|${blobPath ?? ''}`;
-  const name = fileName ?? 'Файл счёта';
-  // Какое открытие слоя последнее. Ответ прежнего — и удача, и отказ — слоя не трогает: иначе вид для
-  // чтения, отказавший после закрытия, закрыл бы уже открытый поверх формы файл.
-  const latest = useRef(0);
-
-  const openReading = () => {
-    const asked = ++latest.current;
-    // Вид — всегда PDF: слой встаёт сразу, «загружается», и вид приходит в него по готовности.
-    preloadPdfViewer();
-    setShown({ key: `${fileKey}|view`, source: null, title: `${name} — вид для чтения`, reading: true });
-    setOpen(true);
-    loadInvoiceImage(invoiceId)
-      .then(source => { if (latest.current === asked) setShown(now => (now ? { ...now, source } : now)); })
-      .catch(e => {
-        if (latest.current !== asked) return;
-        setOpen(false);
-        toast.apiError(e, 'Вид для чтения не открыт');
-      });
-  };
-
-  const openFile = async () => {
-    const asked = ++latest.current;
-    // PDF по имени — ядро просмотрщика грузится вместе с файлом, а не после него.
-    if (nameShownAs(kinds.data, fileName) === 'pdf') preloadPdfViewer();
-    setBusy(true);
-    try {
-      const { blob, mimeType } = await loadInvoiceScan(invoiceId);
-      // Реестра нет (не пришёл или запрос встал) — спрашиваем ещё раз, прямо сейчас.
-      const info = kinds.data ?? (await kinds.refetch()).data;
-      // Файл, который показать нечем, не открывается — скачивается (issue #1265). Так же и файл, про
-      // который узнать не удалось, — но тогда причина названа: иначе PDF, вдруг ушедший в загрузки
-      // вместо показа, выглядел бы как поломка кнопки.
-      if (!info) {
-        saveScan(blob, fileName, mimeType, info);
-        toast.info('Файл скачан, а не открыт: список видов файлов с сервера не пришёл, и чем его показать, неизвестно.');
-      } else if (fileShownAs(info, mimeType) === 'download') saveScan(blob, fileName, mimeType, info);
-      else if (latest.current === asked) {
-        setShown({ key: fileKey, source: blob, title: name, reading: false });
-        setOpen(true);
-      }
-    } catch (e) { toast.apiError(e, 'Файл не открыт'); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-outline-variant bg-surface-container px-3 py-2">
-      <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0 mt-0.5" />
-      <div className="min-w-0 flex-1">
-        {refused
-          ? (
-            <p className="text-body-small text-on-surface-variant">
-              Файл приложен, но вид для чтения не построен. {refused.reason}
-              {refused.aboutFile ? ' Показать и распознать его нельзя.' : ' Дело не в файле — откройте счёт позже.'}
-            </p>
-          )
-          : (
-            <p className="text-body-small text-on-surface-variant">
-              Файл приложен, но рядом с формой он не показывается: для двух панелей нужна ширина
-              не меньше 1280 пикселей, а здесь {width}.
-            </p>
-          )}
-        {built && <p className="text-body-small text-on-surface-variant">Откроется вид для чтения — {IMAGE_CAVEAT}.</p>}
-        {(built || refused) && (
-          <div className="flex gap-2 mt-1">
-            {built && (
-              <Button variant="text" icon={<Icon icon={OpenInFull} size={18} />} onClick={openReading}>
-                Открыть вид для чтения
-              </Button>
-            )}
-            <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Скачать оригинал" />
-          </div>
-        )}
-        {!built && !refused && (
-          <Button variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Icon icon={OpenInFull} size={18} />}
-            onClick={() => void openFile()}>
-            Открыть файл
-          </Button>
-        )}
-      </div>
-      {shown && (
-        <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}
-          title={shown.title} rememberZoomAs="invoice-overlay"
-          note={shown.reading ? <span data-testid="image-caveat">Вид для чтения — {IMAGE_CAVEAT}.</span> : undefined}
-          actions={<OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />} />
-      )}
     </div>
   );
 }

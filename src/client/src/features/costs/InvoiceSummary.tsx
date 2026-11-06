@@ -57,21 +57,22 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   return (
     <div ref={ref} tabIndex={-1} role="group" aria-label={title} data-testid="invoice-header"
       className="@container h-16 shrink-0 min-w-0 border-b border-outline-variant bg-surface outline-none">
-      <div className="h-full flex items-center gap-2 @xl:gap-3 px-3 @xl:px-4">
+      <div className="h-full flex items-center gap-2 @3xl:gap-3 px-3 @3xl:px-4">
         {nav}
-        <div className="flex-1 min-w-16 @xl:min-w-32 flex flex-col justify-center">
+        <div className="flex-1 min-w-16 @3xl:min-w-32 flex flex-col justify-center">
+          {/* Сжимаются сначала пометки состояния, номер — последним: по нему счёт узнают. */}
           <div className="flex items-center gap-2 min-w-0">
-            <h2 className="shrink min-w-0 truncate text-title-medium text-on-surface"
+            <h2 className="shrink-0 max-w-full truncate text-title-medium text-on-surface"
               onPointerEnter={fullTextIfCut(title)}>
               {number || 'Без номера'}
             </h2>
-            <div className="min-w-0 flex items-center overflow-hidden">{states}</div>
+            <div className="flex-1 min-w-0 flex items-center overflow-hidden">{states}</div>
           </div>
           <p className="truncate text-body-small text-on-surface-variant" onPointerEnter={fullTextIfCut(meta)}>{meta}</p>
         </div>
         {indicator}
         {save && (
-          <Wide>
+          <Wide at="3xl">
             <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`}>
               Сохранить
@@ -79,7 +80,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           </Wide>
         )}
         {save && (
-          <Narrow>
+          <Narrow at="3xl">
             <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
           </Narrow>
@@ -87,7 +88,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
         {fromFile}
         {file}
         {primary && action && (
-          <Wide>
+          <Wide at="xl">
             <Button variant="filled" icon={<Icon icon={action.icon} size={18} />} disabled={primary.hold !== null}
               loading={primary.loading} onClick={primary.onClick} title={primary.hold ?? undefined}>
               {action.label}
@@ -98,7 +99,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
             готовности у сверки стоит в части «Строки», а та бывает свёрнута. Неактивный значок с подсказкой
             остаётся наводимым (`aria-disabled`, `Tooltip`). */}
         {primary && action && (
-          <Narrow>
+          <Narrow at="xl">
             <IconButton variant="filled" icon={action.icon} label={action.label} disabled={primary.hold !== null}
               loading={primary.loading} onClick={primary.onClick} title={primary.hold ?? undefined} />
           </Narrow>
@@ -109,11 +110,18 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   );
 });
 
-/** Подпись кнопки — от 576 px сводки; уже — значок (`Narrow`). Скрытая копия выпадает и из дерева доступности. */
-function Wide({ children }: { children: ReactNode }) {
-  return <span className="hidden @xl:contents">{children}</span>;
+/**
+ * Подпись кнопки — с ширины сводки `at`, уже — значок (`Narrow`). Основному действию подпись нужнее всего:
+ * это главное, что человек делает со счётом, и словом оно читается без наведения, — поэтому ему 576 (форма
+ * рядом с файлом на 1280 — 744), «Сохранить» — 768. Причину неактивного называет подсказка и у значка. Скрытая копия выпадает и из дерева доступности.
+ */
+const WIDE = { xl: 'hidden @xl:contents', '3xl': 'hidden @3xl:contents' } as const;
+const NARROW = { xl: 'contents @xl:hidden', '3xl': 'contents @3xl:hidden' } as const;
+
+function Wide({ at, children }: { at: keyof typeof WIDE; children: ReactNode }) {
+  return <span className={WIDE[at]}>{children}</span>;
 }
 
-function Narrow({ children }: { children: ReactNode }) {
-  return <span className="contents @xl:hidden">{children}</span>;
+function Narrow({ at, children }: { at: keyof typeof NARROW; children: ReactNode }) {
+  return <span className={NARROW[at]}>{children}</span>;
 }

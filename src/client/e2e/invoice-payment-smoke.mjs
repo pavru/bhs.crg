@@ -72,6 +72,8 @@ const ru = iso => iso.split('-').reverse().join('.');
 
 let site = null;
 let closedThrough = null;
+/** Исправленный счёт закрытого периода: после открытия периода он — черновик с книгой (2.4). */
+let corrected = null;
 
 try {
 await login(page);
@@ -607,6 +609,7 @@ await check('admin-corrects-locked-invoice', async () => {
   if (view.lines[0]?.supplierText !== 'Услуга прогона, исправлено')
     throw new Error(`наименование строки после исправления — «${view.lines[0]?.supplierText}»: строки не уехали с исправлением`);
   if (view.payment.lockedBy === null) throw new Error('после исправления счёт перестал быть запертым');
+  corrected = lockedId;
 });
 
 }
@@ -617,6 +620,33 @@ await check('admin-corrects-locked-invoice', async () => {
     await check('own-closure-is-reopened', () => api('POST', '/periods/reopen', {
       contour: 'construction', constructionId: site.id, ifMatch: closedThrough, reason: 'живой прогон оплаты счёта',
     }));
+  // «Удалить» у черновика с книгой исправлений не предлагается (costs-invoice-screen-10-layout, 2.4): сервер
+  // отказал бы 409. Книга здесь настоящая — исправление выше; период открыт, и оплату можно снять.
+  if (site && closedThrough && corrected)
+    await check('черновик с книгой исправлений: «Удалить счёт…» в «⋮» не предлагается', async () => {
+      const send = path => page.evaluate(async ([id, path]) => {
+        const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+        const seen = await (await fetch(`/api/costs/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+        const body = path === 'unpaid' ? JSON.stringify({ reason: 'живой прогон: книга у черновика' }) : undefined;
+        const res = await fetch(`/api/costs/invoices/${id}/${path}`, {
+          method: 'POST', body,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'If-Match': `"${seen.version}"` },
+        });
+        if (!res.ok) throw new Error(`${path} → ${res.status} ${(await res.text()).slice(0, 200)}`);
+      }, [corrected, path]);
+      await send('unpaid');
+      await send('draft');
+      const view = await api('GET', `/costs/invoices/${corrected}`);
+      if (!view.book) throw new Error(`у черновика нет книги исправлений (book = ${view.book}) — проверять нечего`);
+      await page.goto(`${BASE}/invoices?invoice=${corrected}`, { waitUntil: 'networkidle' });
+      const header = page.getByTestId('invoice-header');
+      await header.getByText(/^Черновик/).first().waitFor({ timeout: 10_000 });
+      await header.getByRole('button', { name: 'Ещё' }).click();
+      await page.getByRole('menu').waitFor({ timeout: 5_000 });
+      const offered = await page.getByRole('menuitem', { name: /Удалить счёт/ }).count();
+      await page.keyboard.press('Escape');
+      if (offered) throw new Error('у черновика с книгой исправлений «⋮» предлагает «Удалить счёт…» — сервер ответит 409');
+    });
   await browser.close();
 }
 
