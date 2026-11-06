@@ -4,8 +4,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { formatDayTime } from '@/shared/format/format';
-import { Button, IconButton } from '@/shared/ui/Button';
-import { BASE, HEIGHT, LABEL, padding, variantClass } from '@/shared/ui/buttonClasses';
+import { Button, IconButton, LinkButton } from '@/shared/ui/Button';
 import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
 import {
   useHealth,
@@ -54,9 +53,6 @@ const SEVERITY: Record<NotificationSeverity, { icon: IconDef; color: string; bg:
   Error:   { icon: ErrorIcon,   color: 'text-on-error-container', bg: 'bg-error-container' },
 };
 
-/** Вид tonal-кнопки со знаком у ссылки наружу. */
-const LINK_BUTTON = `${BASE} touch-target rounded-full ${HEIGHT} ${LABEL} whitespace-nowrap ${padding('tonal', { leading: true })} ${variantClass('tonal')}`;
-
 function relTime(iso: string): string {
   const d = new Date(iso);
   const s = (Date.now() - d.getTime()) / 1000;
@@ -87,10 +83,9 @@ function NotificationRow({ n }: { n: NotificationDto }) {
         </div>
         <p className="text-body-medium text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
-          // Ссылка наружу — `a` с видом tonal-кнопки: у `Button` нет ссылочной формы, а вкладку открывает браузер.
-          <a href={n.linkUrl} target="_blank" rel="noreferrer" className={`mt-2 ${LINK_BUTTON}`}>
-            <Icon icon={OpenInNew} size={18} />{n.linkLabel ?? 'Открыть'}
-          </a>
+          <LinkButton href={n.linkUrl} variant="tonal" className="mt-2" icon={<Icon icon={OpenInNew} size={18} />}>
+            {n.linkLabel ?? 'Открыть'}
+          </LinkButton>
         ) : isDownloadLink(n.linkUrl) ? (
           <Button variant="tonal" className="mt-2" icon={<Icon icon={Download} size={18} />}
             onClick={() => { void openResult(n.linkUrl!); }}>

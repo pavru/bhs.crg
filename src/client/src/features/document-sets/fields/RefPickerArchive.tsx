@@ -70,7 +70,9 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
       {/* Строки без своей цели (`passive`): действие — кнопка у края, сама строка не нажимается ([UI-84]). */}
       <div className="-mx-4 max-h-40 overflow-y-auto">
         {entries.map(entry => (
-          <ListItem key={entry.id} passive icon={Archive} headline={entry.displayName}
+          // Подпись приглушена: запись не выбирается, и на прокрученном списке заголовка раздела уже не видно.
+          <ListItem key={entry.id} passive icon={Archive} title={entry.displayName}
+            headline={<span className="text-on-surface-variant">{entry.displayName}</span>}
             action={canReturn && (
               <Button variant="text" icon={<Icon icon={Unarchive} size={18} />}
                 loading={unarchive.isPending && unarchive.variables?.id === entry.id}

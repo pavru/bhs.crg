@@ -61,7 +61,7 @@ function num(v: number | null): string {
  * без наведения (на касании наведения нет). Флажок «для связывания» — ведущий сосед; у строк, которым связывать
  * нечего, его место пустое, чтобы подписи стояли в один столбец.
  */
-function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
+export function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
   f: Finding; onDecide: (f: Finding) => void;
   linkable: boolean;
   /** В списке есть что связывать — у каждой строки место под флажок. */
@@ -87,7 +87,8 @@ function FindingRow({ f, onDecide, linkable, slot, checked, onToggle }: {
       leading={<FindingStatus f={f} />}
       headline={f.label}
       supporting={parts.length > 0 && <span className="flex flex-wrap gap-x-3">{parts.map(t => <span key={t}>{t}</span>)}</span>}
-      trailing={<span className="tabular-nums">{num(f.leftValue)} / {num(f.rightValue)}</span>}
+      // Значения — то, ради чего находка: своим кеглем `body-medium`, а не мелким текстом замыкающего слота.
+      trailing={<span className="tabular-nums text-body-medium">{num(f.leftValue)} / {num(f.rightValue)}</span>}
       action={<Button variant="text" onClick={() => onDecide(f)}>{f.decision ? 'Изменить' : 'Разобрать'}</Button>} />
   );
 }

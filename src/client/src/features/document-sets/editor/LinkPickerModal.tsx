@@ -241,8 +241,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
               {results.map(c => (
                 <ListItem key={c.url} passive icon={Language} title={c.title ? `${c.title}
 ${c.url}` : c.url}
-                  headline={<a href={c.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                    {c.title || c.url}<Icon icon={OpenInNew} size={18} className="inline align-text-bottom ml-1" />
+                  // Знак новой вкладки — вне обрезки: у длинного заголовка многоточие съело бы его первым.
+                  headline={<a href={c.url} target="_blank" rel="noreferrer"
+                    className="inline-flex max-w-full items-center gap-1 align-bottom text-primary hover:underline">
+                    <span className="truncate">{c.title || c.url}</span><Icon icon={OpenInNew} size={18} className="shrink-0" />
                   </a>}
                   supporting={<>
                     <span className="block">{SEARCH_SOURCE_LABEL[c.source] ?? c.source}</span>

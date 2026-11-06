@@ -50,7 +50,7 @@ export function ArrayItemRow({ view, index, chrome, drop, checked, onEdit, onRem
   const remove = <IconButton label={`Удалить строку ${index + 1}`} danger onClick={onRemove} icon={Delete}
     iconClassName={broken ? 'text-error' : undefined} />;
   // ✎ у ссылки-варианта оставлен: это единственный вход сменить вариант и снять ссылку.
-  const edit = <IconButton label="Редактировать" onClick={onEdit} icon={Edit} />;
+  const editAndRemove = <span className="flex items-center"><IconButton label="Редактировать" onClick={onEdit} icon={Edit} />{remove}</span>;
   const lead = <span className="flex items-center gap-1">{chrome}</span>;
 
   if (view.kind === 'summary') {
@@ -65,23 +65,26 @@ export function ArrayItemRow({ view, index, chrome, drop, checked, onEdit, onRem
               </span>
             </Tooltip>
           )}
-          action={<span className="flex items-center">{edit}{remove}</span>} />
+          action={editAndRemove} />
       </div>
     );
   }
 
   // Ссылка — строка без своей цели (`passive`): открывать у неё нечего. Битая — знак и подпись роли `error`;
   // отмеченная битая — той же заливкой, что прочие отмеченные (Р3): кольцо 1 px `primary` путалось с фокусом.
+  // Приём перетаскивания — только на самой строке: пояснение под битой ссылкой целью не подсвечивается.
   return (
-    <div {...drop}>
-      <ListItem passive leadingAction={lead} checked={checked} icon={LinkIcon} iconTone={broken ? 'text-error' : undefined}
-        headline={broken ? <span className={BROKEN_LABEL}>{view.ref.displayName}</span> : view.ref.displayName}
-        title={view.ref.displayName}
-        trailing={(archived || view.kind === 'union-ref') && <>
-          {archived && <ArchivedMark />}
-          {view.kind === 'union-ref' && <span className="truncate max-w-40">{view.label}</span>}
-        </>}
-        action={view.kind === 'union-ref' ? <span className="flex items-center">{edit}{remove}</span> : remove} />
+    <div>
+      <div {...drop}>
+        <ListItem passive leadingAction={lead} checked={checked} icon={LinkIcon} iconTone={broken ? 'text-error' : undefined}
+          headline={broken ? <span className={BROKEN_LABEL}>{view.ref.displayName}</span> : view.ref.displayName}
+          title={view.ref.displayName}
+          trailing={(archived || view.kind === 'union-ref') && <>
+            {archived && <ArchivedMark />}
+            {view.kind === 'union-ref' && <span className="truncate max-w-40">{view.label}</span>}
+          </>}
+          action={view.kind === 'union-ref' ? editAndRemove : remove} />
+      </div>
       {broken && <BrokenRefNote compact />}
     </div>
   );

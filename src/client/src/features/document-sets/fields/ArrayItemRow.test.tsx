@@ -6,7 +6,7 @@ import { ArrayItemRow, type ArrayItemView } from './ArrayItemRow';
 
 /** Строка поля-массива на `ListItem` ([UI-84], sharedui-md3-21 Р3, Р9). */
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const ref: FieldRef = { $ref: 'catalog', entryId: 'e1', displayName: 'ООО «Монтаж»' };
 const drop = { onDragOver: vi.fn(), onDrop: vi.fn() };
@@ -50,7 +50,12 @@ describe('ArrayItemRow', () => {
     const fill = fillOf('ООО «Монтаж»');
     expect(fill.className).toContain('bg-secondary-container');
     expect(document.querySelector('.ring-primary')).toBeNull();
-    expect(fill.parentElement!.children.length).toBeGreaterThan(1); // BrokenRefNote под строкой
+    // Пояснение — под строкой, но вне цели перетаскивания: рамка цели обводит только строку.
+    const dropZone = fill.parentElement!;
+    expect(dropZone.children).toHaveLength(1);
+    expect(dropZone.nextElementSibling).not.toBeNull();
+    fireEvent.dragOver(dropZone.nextElementSibling!);
+    expect(drop.onDragOver).not.toHaveBeenCalled();
   });
 
   it('ссылка-вариант union — вариант справа и ✎ для смены варианта', () => {

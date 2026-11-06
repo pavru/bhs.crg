@@ -73,6 +73,28 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     : <Tooltip content={title} name={!labelled}>{button}</Tooltip>;
 });
 
+/**
+ * Ссылка наружу видом common button: адрес открывает новая вкладка браузера, а не обработчик — `window.open`
+ * закрыт линтом (#1494), и у ссылки остаются «открыть в новой вкладке» и адрес при наведении. Вид, отступы и
+ * состояния — те же, что у `Button`.
+ */
+export function LinkButton({ href, variant = 'text', icon, className = '', children }: {
+  href: string;
+  variant?: ButtonVariant;
+  /** Ведущая иконка, 18 px. */
+  icon?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer"
+      className={`${BASE} touch-target rounded-full ${LABEL} ${HEIGHT} whitespace-nowrap ${padding(variant, { leading: !!icon })} ${variantClass(variant)} ${className}`}>
+      {icon}
+      {children}
+    </a>
+  );
+}
+
 export type IconButtonVariant = 'standard' | 'filled' | 'tonal' | 'outlined';
 
 /** Переключатель заливает знак — значит, знак обязан иметь вариант с заливкой (`FilledIconDef`). */
