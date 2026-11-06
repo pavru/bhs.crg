@@ -235,32 +235,8 @@ try {
     if (left !== 1) throw new Error(`осталось меток ${left}, ожидалась одна — у «Оплатить до»`);
   });
 
-  // ── 4. Скан открывается РЯДОМ, а без места рядом «Файл» называет причину ────
-  //
-  // Место — по рабочей области (costs-invoice-screen-10-layout, D-10.3): форме рядом с файлом нужно 720.
-  // Окно 1100 даёт 1020: файлу 420, форме 600 — панель уходит, а подсказка «Файл» говорит, почему.
-  await check('скан показан рядом с формой, а без места рядом «Файл» называет причину', async () => {
-    const number = `СЧ-С${stamp}`;
-    const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'Со сканом') });
-    await attachScan(created.id);
-
-    await open(number);
-    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
-
-    try {
-      await page.setViewportSize({ width: 1100, height: 1000 });
-      await named('панель скана осталась рядом, хотя форме места нет', () => page.getByRole('button', { name: 'Открыть во вкладке' })
-        .waitFor({ state: 'detached', timeout: 10_000 }));
-      await page.getByTestId('invoice-header').getByRole('button', { name: 'Файл', exact: true }).hover();
-      await named('подсказка «Файл» не назвала причину', () => page.getByRole('tooltip')
-        .filter({ hasText: /не меньше 720/ }).first().waitFor({ timeout: 5_000 }));
-    } finally {
-      await page.setViewportSize({ width: 1500, height: 1000 });
-    }
-    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
-  });
-
-  // Скан на своём просмотрщике (issue #1491): фото, поддельный PDF, узкий экран — своим модулем.
+  // ── 4. Скан рядом с формой, а без места рядом «Файл» называет причину — в `invoice-scan-checks`. ──
+  // Скан на своём просмотрщике (issue #1491): место рядом, фото, поддельный PDF, узкий экран — своим модулем.
   await invoiceScanChecks(page, check, { api, requisites, open, attachScan, named, officeFile, stamp });
 
   // ── 5. Поставщика можно СНЯТЬ ───────────────────────────────────────────────

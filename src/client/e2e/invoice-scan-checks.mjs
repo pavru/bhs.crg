@@ -48,6 +48,31 @@ async function watchFirstSheet(page) {
 }
 
 export async function invoiceScanChecks(page, check, h) {
+  // Скан открывается РЯДОМ, а без места рядом «Файл» называет причину (проверка 4 `invoices-smoke`).
+  //
+  // Место — по рабочей области (costs-invoice-screen-10-layout, D-10.3): форме рядом с файлом нужно 720.
+  // Окно 1100 даёт 1020: файлу 420, форме 600 — панель уходит, а подсказка «Файл» говорит, почему.
+  await check('скан показан рядом с формой, а без места рядом «Файл» называет причину', async () => {
+    const number = `СЧ-С${h.stamp}`;
+    const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Со сканом') });
+    await h.attachScan(created.id);
+
+    await h.open(number);
+    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
+
+    try {
+      await page.setViewportSize({ width: 1100, height: 1000 });
+      await h.named('панель скана осталась рядом, хотя форме места нет', () => page.getByRole('button', { name: 'Открыть во вкладке' })
+        .waitFor({ state: 'detached', timeout: 10_000 }));
+      await page.getByTestId('invoice-header').getByRole('button', { name: 'Файл', exact: true }).hover();
+      await h.named('подсказка «Файл» не назвала причину', () => page.getByRole('tooltip')
+        .filter({ hasText: /не меньше 720/ }).first().waitFor({ timeout: 5_000 }));
+    } finally {
+      await page.setViewportSize({ width: 1500, height: 1000 });
+    }
+    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
+  });
+
   await check('фото счёта — режимом картинки: декодировано под CSP, без нумерации страниц', async () => {
     const number = `СЧ-Ф${h.stamp}`;
     const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Фото счёта') });
