@@ -69,8 +69,8 @@ import { useInvoiceSave } from './invoiceSave';
  * со сбросом состояния — он рисует лишний кадр с чужими правками.</p>
  */
 export function InvoiceForm({
-  view, organizations, organizationsError, onOpenInvoice, scanSlot, gone = false, onClose, onExit, onUnsaved,
-  focusHeader = false, nav, fromFile, file, compactLines = false,
+  view, organizations, organizationsError, onOpenInvoice, gone = false, onClose, onExit, onUnsaved,
+  focusHeader = false, nav, fromFile, file, pageActions, compactLines = false,
 }: {
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
@@ -91,12 +91,12 @@ export function InvoiceForm({
    *  прочитан» — разные вещи: сервер их различает нарочно. */
   organizationsError?: unknown;
   onOpenInvoice: (id: string) => void;
-  /** Замена панели файла, когда рядом ей места нет, — рисует страница, она знает место. */
-  scanSlot?: ReactNode;
   /** Слоты сводки — их наполняет страница (D-10.3, D-10.4): «‹ N из M ›», «Счёт из файла», «Файл». */
   nav?: ReactNode;
   fromFile?: ReactNode;
   file?: ReactNode;
+  /** Действия страницы в «⋮» сводки, когда списка нет (D-10.8). */
+  pageActions?: RowAction[];
   /** Рядом список счетов — таблица строк в плотном виде (D-10.10). */
   compactLines?: boolean;
 }) {
@@ -298,7 +298,7 @@ export function InvoiceForm({
         save={quiet ? null : { unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }}
         primary={primary}
         menu={(
-          <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize}
+          <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize} page={pageActions}
             correct={correctable && !correcting ? { key: 'correct', label: 'Исправить', icon: EditNote, onSelect: correction.start } : null}
             onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />
         )} />
@@ -348,7 +348,6 @@ export function InvoiceForm({
           <LostReferencesNote view={view} locked={gone ? 'gone' : closed && !correcting ? (correctable ? 'correct' : 'closed') : null} />
           <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
           {closed && <InvoiceLockNote lockedBy={view.payment.lockedBy ?? ''} />}
-          {scanSlot}
 
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
             <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}

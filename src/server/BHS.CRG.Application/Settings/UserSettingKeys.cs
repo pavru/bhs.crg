@@ -104,8 +104,16 @@ public static class UserSettingKeys
     /// </summary>
     public static readonly UserSettingKey Rail = new("rail", 16, OneOf: ["expanded", "collapsed"]);
 
+    /// <summary>
+    /// Панель файла рядом с формой счёта открыта или закрыта (costs-invoice-screen-10-layout, ТЗ COST-6.3):
+    /// «Файл» в сводке помнит, как человек оставил. Ключа нет — открыта. У черновика с метками «со скана»
+    /// или сбоем распознавания она открыта всегда — это решает клиент, а не ключ. Список закрыт, как у
+    /// подпанели.
+    /// </summary>
+    public static readonly UserSettingKey InvoiceFile = new("invoiceFile", 8, OneOf: ["open", "closed"]);
+
     public static readonly IReadOnlyList<UserSettingKey> All =
-        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail];
+        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail, InvoiceFile];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>

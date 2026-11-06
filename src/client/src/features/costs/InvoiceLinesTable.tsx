@@ -339,7 +339,10 @@ export function InvoiceLinesTable({
           onApply={applyReady} />
       )}
 
-      <EditGrid label="Строки счёта" numbered rows={drafts} rowKey={draft => draft.key}
+      {/* Колонки с шириной — 492 px, две текстовые делят остаток (D-10.10): таблица шириной с часть «Строки»
+          и вбок не прокручивается от 640 px — форма рядом с файлом на 1280 шире. Уже — прокручивается
+          только сама таблица. */}
+      <EditGrid label="Строки счёта" numbered fill minWidth="min-w-160" rows={drafts} rowKey={draft => draft.key}
         empty={(
           <>
             Строк нет. Черновик живёт и без них — заведите их с клавиатуры или вставьте таблицу из

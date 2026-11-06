@@ -19,7 +19,7 @@ const FIXTURES = {
 // 4.4 у -11). Список только сокращается; новый файл в нём — место, которое храповик обязан был остановить.
 const INVOICE_SCREEN = [
   'features/costs/InvoiceDeleteDialog.tsx', 'features/costs/InvoicePartyNote.tsx', 'features/costs/InvoiceRecognitionNote.tsx',
-  'features/costs/InvoiceScanPanel.tsx', 'features/costs/InvoiceTwinNotes.tsx', 'features/costs/LostReferencesNote.tsx',
+  'features/costs/InvoiceTwinNotes.tsx', 'features/costs/LostReferencesNote.tsx',
   'features/costs/StaleInvoiceNotice.tsx', 'features/costs/SupplierMatchNote.tsx',
 ];
 

@@ -81,7 +81,7 @@ const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), button:not([
 
 export function EditGrid<Row>({
   columns, rows, rowKey, label, numbered = false, add, onRemove, removeLabel, empty = 'Строк нет',
-  framed = true, className = '', minWidth = '', rowData, sheet = false, selected, drag,
+  framed = true, className = '', minWidth = '', fill = false, rowData, sheet = false, selected, drag,
 }: {
   columns: EditGridColumn<Row>[];
   rows: Row[];
@@ -117,6 +117,12 @@ export function EditGrid<Row>({
    * прокручивается вбок, а не сжимает поля до нечитаемых.
    */
   minWidth?: string;
+  /**
+   * Колонки без ширины делят остаток места (`table-fixed`), а не растягивают таблицу по своему содержимому:
+   * таблица шириной с карточку, пока карточка не уже `minWidth`. Иначе поле ввода в клетке со своей
+   * собственной шириной (~200 px) раздвигало сетку шире формы — таблица счёта, D-10.10.
+   */
+  fill?: boolean;
   /** Атрибуты `data-*` строки — якорь, по которому к строке ведёт ссылка из перечня («строка 3»). */
   rowData?: (row: Row, index: number) => Record<`data-${string}`, string>;
 }) {
@@ -208,7 +214,7 @@ export function EditGrid<Row>({
             или в окне, открытом из клетки: поле в шапке колонки — плотное с рамкой (В5). */}
         <FieldDensityContext.Provider value={null}>
         <table ref={table} aria-label={label} onKeyDown={onKeyDown}
-          className={`${dtTable} ${sized ? dtTableSized : ''} ${minWidth}`}>
+          className={`${dtTable} ${sized ? dtTableSized : fill ? 'table-fixed' : ''} ${minWidth}`}>
           <thead>
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}

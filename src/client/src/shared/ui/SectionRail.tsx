@@ -1,4 +1,5 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { LeftPanelClose, LeftPanelOpen } from './icons';
@@ -11,6 +12,8 @@ import type { NavItem, RailId, RailSectionDef } from '@/shared/ui/navConfig';
 import type { PanelGroup, RailSection } from '@/shared/ui/railSections';
 import { IconButton } from './Button';
 import { Tooltip } from './Tooltip';
+import { DIALOG_SCRIM } from './dialogSurface';
+import { useHistoryLayer } from './historyLayers';
 
 /**
  * Рейл разделов рабочего стола (issue #1429), по образцу MD3 navigation rail: значок и под ним
@@ -136,5 +139,32 @@ export function SectionPanel({ def, groups, outside, onHide }: {
 export function ShowPanelButton({ onShow }: { onShow: () => void }) {
   return (
     <IconButton label="Показать панель раздела" onClick={onShow} aria-expanded={false} icon={LeftPanelOpen} />
+  );
+}
+
+/**
+ * Подпанель поверх страницы — модальный drawer MD3 (costs-invoice-screen-10-layout, D-10.5, решение Э11):
+ * пока страница подавляет подпанель (открыт счёт), «Показать панель» открывает её здесь, с затемнением, а
+ * не в раскладке. Раскладка формы и место файла не меняются, выбор человека не пишется. Закрывается Esc,
+ * щелчком вне и выбором пункта — переход по ссылке уводит со страницы, и drawer ему не нужен.
+ */
+export function SectionPanelDrawer({ open, onClose, title, children }: {
+  open: boolean; onClose: () => void; title: string; children: ReactNode;
+}) {
+  // «Назад» закрывает drawer, а не уводит со страницы под ним — с формой и набранным.
+  useHistoryLayer(open, () => { onClose(); return true; });
+  return (
+    <Dialog.Root open={open} onOpenChange={next => { if (!next) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={DIALOG_SCRIM} />
+        <Dialog.Content aria-describedby={undefined} data-modal-state="free" data-testid="section-panel-drawer"
+          // Выбор пункта закрывает: щелчок по ссылке внутри — тот же переход, что в раскладке.
+          onClickCapture={e => { if ((e.target as HTMLElement).closest('a')) onClose(); }}
+          className="fixed inset-y-0 left-0 z-50 flex rounded-r-lg bg-surface-container-low shadow-elevation-1 focus:outline-none">
+          <Dialog.Title className="sr-only">{title}</Dialog.Title>
+          {children}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

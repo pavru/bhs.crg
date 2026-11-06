@@ -25,7 +25,7 @@ import { useInvoiceDelete } from './invoiceDelete';
  * состояния переживают: «Состояние» человек не правит, и основа черновика переезжает на новую версию
  * молча (см. `useDraftBase`).</p>
  */
-export function InvoiceMoreMenu({ view, canChange, file, recognize, correct, onRejected }: {
+export function InvoiceMoreMenu({ view, canChange, file, recognize, correct, page = [], onRejected }: {
   view: InvoiceView;
   /** Переходы состояния доступны: счёт не заперт, не в исправлении, право вводить счета есть. */
   canChange: boolean;
@@ -35,6 +35,8 @@ export function InvoiceMoreMenu({ view, canChange, file, recognize, correct, onR
   recognize?: RowAction | null;
   /** «Исправить» — у запертого счёта тому, у кого есть право исправления. */
   correct?: RowAction | null;
+  /** Действия страницы, когда списка нет (D-10.8): «Новый счёт» и справочники — после действий над счётом. */
+  page?: RowAction[];
   /** Отклонение идёт через страницу (issue #1293): под отбором очереди она ведёт к следующему счёту и
    *  говорит об этом сама, иначе зовёт `say`. Обещание кончается ответом на запись, а не переходом:
    *  диалог не ждёт перечитывания списка, и сбой перехода не читается как «счёт не отклонён». */
@@ -66,6 +68,7 @@ export function InvoiceMoreMenu({ view, canChange, file, recognize, correct, onR
   if (canChange && !rejected && !view.payment.paid)
     actions.push({ key: 'reject', label: 'Отклонить…', icon: Block, onSelect: () => setAsking(true) });
   if (correct) actions.push(correct);
+  actions.push(...page);
   if (askDelete)
     actions.push({
       key: 'delete', label: 'Удалить счёт…', icon: Delete, danger: true,

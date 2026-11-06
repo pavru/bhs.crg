@@ -7,7 +7,8 @@ import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
-import { ScanTooNarrow } from './InvoiceScanPanel';
+import { InvoiceFileButton } from './InvoiceFileButton';
+import { FILE_OVER_REASON } from './invoicePlace';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 vi.mock('@/shared/ui/viewer/viewerGate', () => ({ preloadPdfViewer: vi.fn() }));
@@ -28,8 +29,9 @@ vi.mock('@/shared/ui/viewer/PdfViewer', () => ({
 }));
 
 /**
- * Файл счёта на экране уже 1280 px (issue #1491, [COST-6.2]): открывается просмотрщиком поверх формы,
- * ни в одной ветке не новым окном; файл, который показать нечем, скачивается.
+ * «Файл» сводки, когда рядом с формой места нет (issue #1491, [COST-6.2], costs-invoice-screen-10-layout
+ * D-10.3): открывается просмотрщиком поверх формы, ни в одной ветке не новым окном; файл, который показать
+ * нечем, скачивается. Рядом место есть — кнопка открывает и закрывает панель.
  */
 
 const KINDS: FileKindsInfo = {
@@ -79,18 +81,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function shown(fileName = 'Счёт 417') {
+function shown(fileName = 'Счёт 417', file: 'over' | 'beside' | 'closed' = 'over', onToggle = () => {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <SnackbarProvider>
-        <ScanTooNarrow invoiceId="i1" blobPath="files/a" fileName={fileName} width={1100} />
+        <InvoiceFileButton invoiceId="i1" blobPath="files/a" fileName={fileName} file={file} onToggle={onToggle} />
       </SnackbarProvider>
     </QueryClientProvider>,
   );
 }
 
 const openFile = async () => {
-  const button = await screen.findByRole('button', { name: 'Открыть файл' });
+  const button = await screen.findByRole('button', { name: 'Файл' });
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
   fireEvent.click(button);
 };
@@ -98,7 +100,9 @@ const openFile = async () => {
 describe('узкий экран: файл поверх формы', () => {
   it('причина названа; PDF открыт поверх формы, ключ — счёт и файл', async () => {
     shown();
-    expect(await screen.findByText(/не меньше 1280 пикселей, а здесь 1100/)).toBeTruthy();
+    const button = await screen.findByRole('button', { name: 'Файл' });
+    fireEvent.pointerEnter(button);
+    expect(FILE_OVER_REASON).toMatch(/не меньше 720 px/);
     await openFile();
     const dialog = await screen.findByRole('dialog', { name: 'Счёт 417' });
     expect(dialog.getAttribute('data-key')).toBe('i1|files/a');
@@ -133,7 +137,7 @@ describe('узкий экран: файл поверх формы', () => {
   it('вид для чтения — поверх формы сразу, с оговоркой; байты приходят в слой', async () => {
     imageState = 'built';
     shown();
-    fireEvent.click(await screen.findByRole('button', { name: 'Открыть вид для чтения' }));
+    await openFile();
     const dialog = screen.getByRole('dialog', { name: 'Счёт 417 — вид для чтения' });
     expect(dialog.textContent).toContain('вёрстка может отличаться, документ — оригинал');
     await waitFor(() => expect(dialog.textContent).toContain('байты'));
@@ -146,10 +150,9 @@ describe('узкий экран: файл поверх формы', () => {
     imageState = 'built';
     readings = [];
     shown();
-    const reading = await screen.findByRole('button', { name: 'Открыть вид для чтения' });
-    fireEvent.click(reading);
+    await openFile();
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
-    fireEvent.click(reading);
+    fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
     await waitFor(() => expect(readings).toHaveLength(2));
 
     readings![1].resolve(new Blob(['%PDF']));
@@ -172,5 +175,22 @@ describe('узкий экран: файл поверх формы', () => {
     await openFile();
     await screen.findByRole('dialog');
     expect(preloadPdfViewer).not.toHaveBeenCalled();
+  });
+});
+
+describe('рядом с формой место есть', () => {
+  it('«Файл» открывает и закрывает панель, слоя поверх нет', async () => {
+    const onToggle = vi.fn();
+    shown('Счёт 417', 'closed', onToggle);
+    const button = await screen.findByRole('button', { name: 'Файл' });
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button);
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('панель открыта — кнопка нажата', async () => {
+    shown('Счёт 417', 'beside');
+    expect((await screen.findByRole('button', { name: 'Файл' })).getAttribute('aria-pressed')).toBe('true');
   });
 });

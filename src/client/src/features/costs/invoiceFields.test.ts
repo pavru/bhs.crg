@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  BLOCKS, K, READ_ONLY_KEYS, SCAN_BESIDE_MIN_WIDTH,
+  BLOCKS, K, READ_ONLY_KEYS,
   asInput, catalogRef, duplicateLabel, fromInput, refEntryId, sameFileLabel, twinsOf,
-  isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks, VAT_MODE_MARK,
+  isMarked, moneyInput, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks, VAT_MODE_MARK,
   extraBlock, extraFields,
 } from './invoiceFields';
 import type { SchemaField } from '@/shared/api/schema';
@@ -117,13 +117,6 @@ describe('поля, дописанные в тип «Счёт» (issue #1482)', 
   it('без дописанных полей блока нет — форма как раньше', () => {
     expect(extraBlock(extraFields([f(K.number, 'string'), f(K.total, 'number')]).shown)).toBeNull();
     expect(extraBlock([f('ЦентрЗатрат', 'string')])).toEqual({ id: 'extra', title: 'Дополнительно', fields: ['ЦентрЗатрат'] });
-  });
-});
-
-describe('скан рядом с формой', () => {
-  it('на 1280 — рядом, на 1279 — нет', () => {
-    expect(scanFitsBeside(SCAN_BESIDE_MIN_WIDTH)).toBe(true);
-    expect(scanFitsBeside(SCAN_BESIDE_MIN_WIDTH - 1)).toBe(false);
   });
 });
 

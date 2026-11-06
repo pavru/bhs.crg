@@ -8,7 +8,6 @@
   "fixed-width": {
     "features/catalog/LoginPage.tsx": 2,
     "features/costs/InvoicePartyNote.tsx": 2,
-    "features/costs/InvoicesPage.tsx": 2,
     "features/costs/LineMatchChip.tsx": 2,
     "features/costs/SiteCostsPage.tsx": 1,
     "features/costs/SupplierMatchesDialog.tsx": 2,
@@ -28,7 +27,6 @@
   "native-title": {},
   "native-checkbox": {},
   "native-radio": {
-    "features/costs/LayoutChooser.tsx": 1,
     "shared/siteFilter/SitesFilter.tsx": 1
   },
   "raw-field": {},
@@ -48,7 +46,6 @@
   },
   "hand-card": {
     "features/costs/InvoiceRecognitionNote.tsx": 1,
-    "features/costs/InvoiceScanPanel.tsx": 1,
     "features/costs/LostReferencesNote.tsx": 1,
     "features/costs/SupplierMatchNote.tsx": 3
   },

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
+import { useSuppressSectionPanel } from '@/shared/ui/sectionPanelSuppress';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
@@ -36,12 +38,16 @@ import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { NotInRailNotice, RailSitesEmpty } from './InvoiceRailSites';
 import { useRailSites } from './useRailSites';
 import {
-  afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
+  QUEUE_LABEL, afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
-import { InvoiceScanPanel, ScanTooNarrow } from './InvoiceScanPanel';
-import { K, asInput, scanFitsBeside } from './invoiceFields';
+import { InvoiceScanPanel } from './InvoiceScanPanel';
+import { InvoiceFileButton } from './InvoiceFileButton';
+import { FromFileButton, InvoiceListHeader, InvoiceStepper } from './InvoicePageChrome';
+import { pageActions, useWorkWidth } from './invoicePageModel';
+import { fileWanted, placeOf, positionOf } from './invoicePlace';
+import { K, PARSED, REJECTED, asInput } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
 import {
   aliveIds, forgetCreated, retryRejected, startBatch, uploadEmpty, uploadedOf, useScanBatch, type BatchPort,
@@ -95,7 +101,7 @@ export function InvoicesPage() {
   const [filter, setFilter] = useState<InvoiceQueue | 'upload' | null>(null);
   const queue = filter === 'upload' ? null : filter;
   const setQueue: (next: InvoiceQueue | null) => void = setFilter;
-  const wide = useWideEnoughForScan();
+  const [measure, workWidth] = useWorkWidth();
   const { data: access = NO_ACCESS } = useAccess();
   const [articlesOpen, setArticlesOpen] = useState(false);
   const [matchesOpen, setMatchesOpen] = useState(false);
@@ -338,8 +344,53 @@ export function InvoicesPage() {
   const scan = shown ? shown.requisites[K.scan] : null;
   const hasScan = scan != null && typeof scan === 'object';
 
+  // Место (D-10.3, ТЗ COST-6.3): пока открыт счёт, подпанели раздела нет (D-10.5), а список и файл встают
+  // по ширине рабочей области. Файл поверх формы — только по нажатию «Файл»: открытый сам, он закрывал бы
+  // форму при каждом открытии счёта на 1024.
+  useSuppressSectionPanel(selected !== null);
+  const [remembered, setRemembered] = useSyncedPreference('invoiceFile', 'crg-invoice-file', 'open');
+  const [chosen, setChosen] = useState<{ id: string; open: boolean } | null>(null);
+  const listed = invoices.data?.find(i => i.id === selected);
+  const draft = !!shown && shown.requisites[K.state] !== PARSED && shown.requisites[K.state] !== REJECTED;
+  const wanted = fileWanted({
+    hasFile: hasScan && !gone,
+    needsPaper: draft && (shown.unconfirmed.length > 0 || listed?.recognition?.state === 'failed'),
+    remembered: remembered !== 'closed',
+    chosen: chosen?.id === selected ? chosen.open : null,
+  });
+  const room = placeOf(workWidth, true).file === 'beside';
+  const place = placeOf(workWidth, wanted && room);
+  const listShown = opened.kind !== 'open' || place.list;
+  const toggleFile = () => {
+    if (!selected) return;
+    const open = place.file !== 'beside';
+    setChosen({ id: selected, open });
+    setRemembered(open ? 'open' : 'closed');
+  };
+  const position = selected ? positionOf(rows.map(r => r.item.id), selected) : null;
+  const filterName = filter === 'upload' ? 'Эта загрузка' : queue ? QUEUE_LABEL[queue] : 'Все';
+  const closeInvoice = () => {
+    const go = () => setParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete(INVOICE_RECORD.param);
+      return next;
+    }, { replace: true });
+    if (!guard?.attempt(go)) go();
+  };
+  const canEdit = hasPermission(access, 'costs.invoice.edit');
+  const actions = pageActions({
+    articles: hasPermission(access, 'costs.articles.edit'), edit: canEdit, creating: create.isPending,
+    onArticles: () => setArticlesOpen(true), onMatches: () => setMatchesOpen(true),
+    onTerms: () => setTermsOpen(true), onNew: () => void addDraft(),
+  });
+  const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`;
+  const fromFile = (variant: 'tonal' | 'standard') => canEdit
+    ? <FromFileButton variant={variant} loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
+    : null;
+
   return (
-    <ListDetailShell view={ld}
+    <div ref={measure} className="h-full">
+    <ListDetailShell view={ld} bare={selected !== null} navHidden={!listShown}
       title="Счета на оплату"
       subtitle="Черновик сохраняется без строк и сразу попадает в список"
       actions={
@@ -370,7 +421,7 @@ export function InvoicesPage() {
               </Button>
               {/* На телефоне это действие — плавающая кнопка (#1434): кнопка сама там прячется. */}
               <PrimaryActionButton action={PALETTE_ACTIONS.invoiceScan} loading={loading}
-                title={`Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`}
+                title={fromFileTitle}
                 onClick={() => scanInput.current?.click()} />
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
@@ -389,6 +440,8 @@ export function InvoicesPage() {
       }
       nav={
         <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>
+          {/* Счёт открыт — шапки страницы нет (D-10.8): заголовок и её действия встают над списком. */}
+          {selected !== null && <InvoiceListHeader fromFile={fromFile('tonal')} actions={actions} />}
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
@@ -499,21 +552,28 @@ export function InvoicesPage() {
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
                 onOpenInvoice={switchTo}
-                compactLines
+                compactLines={place.list || place.file === 'beside'}
+                nav={!place.list && position
+                  ? <InvoiceStepper position={position} filter={filterName} onGo={switchTo} onList={closeInvoice} />
+                  : undefined}
+                fromFile={fromFile('standard')}
+                file={hasScan && !gone
+                  ? <InvoiceFileButton invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
+                      fileName={fileProp(scan, 'fileName')} onToggle={toggleFile}
+                      file={!room ? 'over' : place.file === 'beside' ? 'beside' : 'closed'} />
+                  : undefined}
+                pageActions={place.list ? undefined : actions}
                 onExit={(how, send, otherwise) => exiting(
                   opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
                 focusHeader={led === opened.id}
                 onUnsaved={noteUnsaved}
                 gone={gone} onClose={() => closeGone(opened.id)}
-                scanSlot={hasScan && !wide && !gone
-                  ? <ScanTooNarrow invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
-                      fileName={fileProp(scan, 'fileName')} width={window.innerWidth} />
-                  : undefined}
               />
-              {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
-                  экране бумага не должна отъедать место у полей, которые правят. */}
-              {hasScan && wide && !gone && (
-                <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-outline-variant flex flex-col min-h-0">
+              {/* Ширина панели — по месту (D-10.3): 38 % рабочей области, от 420 до 520. Форма — главное,
+                  файл — опора, и рядом он стоит, только пока форме остаётся не меньше 720. */}
+              {place.file === 'beside' && (
+                <aside aria-label="Файл счёта" style={{ width: place.fileWidth }}
+                  className="shrink-0 border-l border-outline-variant flex flex-col min-h-0">
                   <InvoiceScanPanel
                     invoiceId={opened.id}
                     blobPath={fileProp(scan, 'blobPath')}
@@ -526,6 +586,7 @@ export function InvoicesPage() {
         )
       }
     />
+    </div>
   );
 }
 
@@ -540,23 +601,4 @@ function matches(item: InvoiceListItem, query: string): boolean {
 function fileProp(node: unknown, key: string): string | null {
   const value = (node as Record<string, unknown> | null)?.[key];
   return typeof value === 'string' ? value : null;
-}
-
-/**
- * Хватает ли ширины окна на скан РЯДОМ с формой (решение владельца 28.09.2026: минимум 1280).
- *
- * Слушаем `resize`, а не спрашиваем один раз: окно меняют мышью, и панель, появляющаяся только после
- * перезагрузки, выглядит как поломка. Начальное значение берём сразу — иначе первый кадр рисует «узко»
- * на широком экране, и панель мигает.
- */
-function useWideEnoughForScan(): boolean {
-  const [wide, setWide] = useState(() => scanFitsBeside(window.innerWidth));
-
-  useEffect(() => {
-    const onResize = () => setWide(scanFitsBeside(window.innerWidth));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  return wide;
 }

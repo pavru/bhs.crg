@@ -32,7 +32,7 @@ const NAV_WIDE: Record<string, string> = { 'w-80': '@2xl/ld:w-80', 'w-64': '@2xl
  * с карточки, а к ней возвращает пункт `NavItem` — так устроены страницы уровня (стройка, раздел,
  * комплект), где колонка — разделы уровня, а не список записей.
  */
-export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view, backLabel, ...header }:
+export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view, backLabel, navHidden = false, bare = false, ...header }:
   Omit<PageHeaderProps, 'title'> & {
   /** Строкой, а не узлом: им же названа колонка навигации для диктора. Остальные слоты шапки —
    *  те же, что у `PageHeader` (значок уровня, готовность по плану в `badge` — #796, крошки). */
@@ -49,6 +49,16 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
   view?: ListDetailView;
   /** Подпись кнопки возврата к колонке на узком месте; по умолчанию — «К списку». */
   backLabel?: string;
+  /**
+   * Колонки нет и на просторе: место решила страница (экран счёта, D-10.3 costs-invoice-screen-10-layout),
+   * и путь к списку — в карточке («‹ N из M ›»). Кнопки «К списку» тогда нет: путь назад уже есть.
+   */
+  navHidden?: boolean;
+  /**
+   * Шапки страницы нет на просторе (экран счёта при открытом счёте, D-10.8): её место отдано карточке, а
+   * заголовок и действия страница ставит в колонку. Уже 672 px шапка остаётся — в ней меню раздела телефона.
+   */
+  bare?: boolean;
 }) {
   const own = useListDetailView(OWN_START);
   const current = view ?? own;
@@ -57,22 +67,22 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
   useCoversPrimaryFab(onDetail);
   return (
     <div className="h-full flex flex-col @container/ld">
-      <PageHeader bar {...header} />
+      {bare ? <div className="@2xl/ld:hidden"><PageHeader bar {...header} /></div> : <PageHeader bar {...header} />}
       {overlay ?? (
         <ViewContext.Provider value={current}>
           <div className="flex-1 min-h-0 flex">
             <nav aria-label={header.title} data-testid="ld-nav"
               // Под концом списка — место для плавающей кнопки, пока она есть (#1434, `--fab-clearance`).
               className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-outline-variant flex flex-col bg-surface pb-[var(--fab-clearance,0px)] ${
-                onDetail ? '@max-2xl/ld:hidden' : ''}`}>
+                navHidden && onDetail ? 'hidden' : onDetail ? '@max-2xl/ld:hidden' : ''}`}>
               {nav}
             </nav>
             <div data-testid="ld-detail" className={`flex-1 min-w-0 min-h-0 flex flex-col ${onDetail ? '' : '@max-2xl/ld:hidden'}`}>
-              <button type="button" onClick={current.showList}
+              {!navHidden && <button type="button" onClick={current.showList}
                 className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-outline-variant text-body-medium font-medium text-primary state-layer focus-ring-inset">
                 <Icon icon={ArrowBack} size={18} className="shrink-0" />
                 {backLabel ?? 'К списку'}
-              </button>
+              </button>}
               {/* `*:min-w-0` — карточке, а не каждой странице: без него широкая таблица в карточке
                   растягивает её за экран (накладная на телефоне — 584 px при 375, #1557). Прокрутку
                   вбок берёт на себя рамка таблицы. */}
