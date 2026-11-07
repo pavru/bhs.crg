@@ -268,11 +268,105 @@ public sealed partial class InvoiceSameFileTests
 
             Assert.Equal(supplier, found.GetProperty("supplierId").GetGuid());
             Assert.Equal(JsonValueKind.Null, found.GetProperty("supplierName").ValueKind);
+            // «Не в архиве» справочник не утверждал: признак — «не знаем», а не false.
+            Assert.Equal(JsonValueKind.Null, found.GetProperty("supplierArchived").ValueKind);
         }
         finally
         {
             host.OrganizationRefsUnread = false;
         }
+    }
+
+    /// <summary>Запись поставщика удалена — названия нет, и архив его не известен: не «действующий».</summary>
+    [Fact]
+    public async Task Удалённый_поставщик_без_названия_и_признак_архива_не_известен()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var twin = await FromScanAsync(client, content, "Без записи.pdf");
+        var gone = Guid.NewGuid();
+        await SqlAsync($"UPDATE costs.invoices SET supplier_id = '{gone}' WHERE id = '{Id(twin)}'");
+
+        var found = (await AskAsync(client, Print(content)))[0].GetProperty("twins").EnumerateArray().Single();
+
+        Assert.Equal(gone, found.GetProperty("supplierId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, found.GetProperty("supplierName").ValueKind);
+        Assert.Equal(JsonValueKind.Null, found.GetProperty("supplierArchived").ValueKind);
+    }
+
+    /// <summary>Порт уникальности записей не обещает — повтор в его ответе не роняет ни вопрос, ни чтение счёта.</summary>
+    [Fact]
+    public async Task Повтор_записи_в_ответе_справочника_не_отказ()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var twin = await FromScanAsync(client, content, "Дважды названный.pdf");
+        var invoice = await FromScanAsync(client, content, "Дважды названный.pdf");
+        await SqlAsync($"UPDATE costs.invoices SET supplier_id = '{supplier}' WHERE id = '{Id(twin)}'");
+
+        host.OrganizationRefsTwice = true;
+        try
+        {
+            var found = (await AskAsync(client, Print(content)))[0].GetProperty("twins").EnumerateArray().First();
+            Assert.Equal("ООО «Кабель-Торг»", found.GetProperty("supplierName").GetString());
+            var view = await ReadAsync(client, Id(invoice));
+            Assert.Equal("ООО «Кабель-Торг»", view.GetProperty("sameFile")[0].GetProperty("supplierName").GetString());
+        }
+        finally
+        {
+            host.OrganizationRefsTwice = false;
+        }
+    }
+
+    /// <summary>
+    /// Чтение счёта зовёт справочник ОДИН раз на ответ — поставщиков двойников спрашивает тем же вызовом,
+    /// что свои стороны. Название действующего своего поставщика в ответ от этого не попадает: его форма
+    /// берёт из списка (ревью PR #1227).
+    /// </summary>
+    [Fact]
+    public async Task Чтение_счёта_с_двойниками_зовёт_справочник_один_раз()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var twin = await FromScanAsync(client, content, "Один вызов.pdf");
+        var invoice = await FromScanAsync(client, content, "Один вызов.pdf");
+        await SqlAsync($"UPDATE costs.invoices SET supplier_id = '{supplier}' WHERE id IN ('{Id(twin)}', '{Id(invoice)}')");
+        var before = host.OrganizationRefsCalls;
+
+        var view = await ReadAsync(client, Id(invoice));
+
+        Assert.Equal(before + 1, host.OrganizationRefsCalls);
+        Assert.Equal("ООО «Кабель-Торг»", view.GetProperty("sameFile")[0].GetProperty("supplierName").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("references").GetProperty("supplierName").ValueKind);
+    }
+
+    /// <summary>
+    /// Старшие копии файла недоверенные (путь сменился в обход приёма) и заняли весь запас поиска —
+    /// доверенные двойники всё равно названы: ответ «двойников нет» здесь соврал бы, и бросок не
+    /// предупредил бы о повторе.
+    /// </summary>
+    [Fact]
+    public async Task Недоверенные_старшие_копии_не_прячут_доверенных_двойников()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var margin = InvoiceSameFiles.Limit * 2;
+        var all = new List<Guid>();
+        for (var i = 0; i < margin + 3; i++)
+            all.Add(Id(await FromScanAsync(client, content, $"Копия {i}.pdf")));
+        var stale = string.Join(", ", all.Take(margin).Select(id => $"'{id}'"));
+        await SqlAsync($"UPDATE costs.invoices SET scan_blob_path = scan_blob_path || '.прежний' WHERE id IN ({stale})");
+
+        Assert.Equal(all.Skip(margin), Twins((await AskAsync(client, Print(content)))[0]));
+        Assert.Equal(all.Skip(margin).Take(2), SameFile(await ReadAsync(client, all[^1])));
+    }
+
+    /// <summary>У экземпляра имя — «Система»; строки «завёл: Система» быть не должно — снимка нет.</summary>
+    [Fact]
+    public void Счёт_без_человека_имени_заведшего_не_пишет()
+    {
+        Assert.Null(Invoice.Create(Guid.NewGuid(), null, "Система").CreatedByName);
+        Assert.Equal("Петров", Invoice.Create(Guid.NewGuid(), Guid.NewGuid(), "Петров").CreatedByName);
     }
 
     /// <summary>Без двойников справочник ядра не зовётся вовсе — ни вопросом, ни чтением счёта.</summary>

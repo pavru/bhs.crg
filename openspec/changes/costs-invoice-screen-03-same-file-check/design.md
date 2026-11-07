@@ -37,10 +37,13 @@
 
 ### D1. Поиск — один путь «по отпечаткам», «по счёту» его зовёт
 
-`InvoiceSameFiles.ByFingerprintsAsync(db, prints, except, ct)`: один запрос `WHERE scan_fingerprint IN
+`InvoiceSameFiles.TrustedAsync(db, prints, except, ct)`: один запрос `WHERE scan_fingerprint IN
 (…)` по индексу. Правило доверия печати — прежнее, в памяти. Предел — `Limit` на каждый отпечаток, запас
-×2. `FindAsync(db, invoice)` зовёт его с одним отпечатком и `except: invoice.Id`. Правило доверия и
-предел живут в одном месте.
+×2; отпечаток, чей запас целиком занят недоверенными строками, добирается вторым запросом без предела
+(ревью #1799): ответ «двойников нет» решает судьбу выгрузки. `FindAsync(db, invoice)` идёт тем же путём с
+одним отпечатком и `except: invoice.Id`. Правило доверия и предел живут в одном месте. Названий поиск не
+знает: их спрашивает зовущий (`SameFileTwins.Suppliers`) — вопрос сам, чтение счёта вместе со своими
+архивными сторонами, одним вызовом на ответ.
 
 *Отвергнуто:* второй, отдельный поиск для адреса. Два правила доверия разошлись бы при первой правке
 печати.
@@ -72,7 +75,7 @@
 
 | Поле | Источник |
 |---|---|
-| `SupplierId`, `SupplierName`, `SupplierArchived` | колонка `supplier_id`; название и архив — `IModuleCatalog.RefsAsync(CostsDirectories.Organization, ids)`, **один вызов на ответ и только если двойники есть**. Отказ справочника — `SupplierName = null` при `SupplierId` (правило `InvoiceContracts`) |
+| `SupplierId`, `SupplierName`, `SupplierArchived` | колонка `supplier_id`; название и архив — `IModuleCatalog.RefsAsync(CostsDirectories.Organization, ids)`, **один вызов на ответ и только если двойники есть** (у чтения счёта — тот же вызов, что о его архивных сторонах). Отказ справочника или удалённая запись — `SupplierName = null` и `SupplierArchived = null` при `SupplierId`: «не знаем», а не «не в архиве» |
 | `State`, `Payment` | колонки, словами сервера, как в `InvoiceListItem` |
 | `CreatedByName` | колонка `created_by_name` (D4) |
 | `Mine` | `created_by == user.Id` |
@@ -83,7 +86,8 @@
 ### D4. «Кто завёл» — снимок имени при заведении
 
 `Invoice.Create(typeId, user.Id, user.Name)` и колонка `created_by_name` (`NULL`, предел длины как у
-`SupplierMatch.ByNameLength`). Ставится в `FromScanAsync` и `CreateAsync`. У прежних счетов —
+`SupplierMatch.ByNameLength`). Ставится в `FromScanAsync` и `CreateAsync`, только у человека: у экземпляра
+`IModuleUser.Name` — «Система», и снимка нет (ревью #1799). У прежних счетов —
 `NULL`: строки «кто завёл» нет. `Mine` у них всё равно верный, по `created_by`.
 
 *Отвергнуто:* новый порт ядра «имена учётных записей». Он работал бы и для старых счетов, но расширял бы

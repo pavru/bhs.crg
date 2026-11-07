@@ -56,6 +56,12 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// </summary>
     public bool OrganizationRefsUnread { get; set; }
 
+    /// <summary>
+    /// Справочник отвечает о каждой организации ДВАЖДЫ — пока стоит: порт уникальности записей в ответе
+    /// не обещает, и читающий не вправе на неё полагаться. Тест ставит и обязан снять.
+    /// </summary>
+    public bool OrganizationRefsTwice { get; set; }
+
     /// <summary>Сколько раз спросили названия организаций — так тест видит, что справочник не звали.</summary>
     public int OrganizationRefsCalls => organizationRefsCalls;
 
@@ -189,12 +195,16 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             {
                 Interlocked.Increment(ref host.organizationRefsCalls);
                 if (host.OrganizationRefsUnread) return Task.FromResult<IReadOnlyList<ModuleCatalogRef>?>(null);
+                if (host.OrganizationRefsTwice) return TwiceAsync(inner.RefsAsync(entityType, ids, ct));
             }
 
             return host.RefsFailure is { } failure && entityType == CostsDirectories.Nomenclature
                 ? Task.FromException<IReadOnlyList<ModuleCatalogRef>?>(failure)
                 : inner.RefsAsync(entityType, ids, ct);
         }
+
+        private static async Task<IReadOnlyList<ModuleCatalogRef>?> TwiceAsync(Task<IReadOnlyList<ModuleCatalogRef>?> refs) =>
+            await refs is { } found ? [.. found, .. found] : null;
 
         public Task<ModuleCatalogFieldValues?> FieldValuesAsync(
             string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default) =>

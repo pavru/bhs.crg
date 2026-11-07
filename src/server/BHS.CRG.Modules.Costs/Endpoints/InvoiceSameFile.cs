@@ -18,6 +18,9 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="SupplierName">Название поставщика. <c>null</c> при <paramref name="SupplierId" /> — названия нет:
 /// справочник ядра не ответил либо запись поставщика удалена. Это «не знаем», а не «без поставщика»; что
 /// именно из двух — говорит форма самого счёта, окну повтора это не нужно.</param>
+/// <param name="SupplierArchived">Поставщик в архиве. <c>null</c> — не знаем: названия нет по той же причине,
+/// что и у <paramref name="SupplierName" />. Не <c>false</c>: «не в архиве» — утверждение, которого справочник
+/// не делал. Без поставщика — <c>false</c>: в архиве нечему быть.</param>
 /// <param name="State">Состояние документа словами сервера, как в реестре (<c>InvoiceListItem</c>).</param>
 /// <param name="Payment">Оплата словами сервера, как в реестре.</param>
 /// <param name="CreatedByName">Имя заведшего на момент заведения; <c>null</c> — счёт заведён до снимка
@@ -26,7 +29,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// прежних счетов имени нет вовсе.</param>
 public sealed record InvoiceSameFile(
     Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total, string? ScanFileName, DateTimeOffset CreatedAt,
-    Guid? SupplierId, string? SupplierName, bool SupplierArchived, string State, string Payment,
+    Guid? SupplierId, string? SupplierName, bool? SupplierArchived, string State, string Payment,
     string? CreatedByName, bool Mine);
 
 /// <summary>Ответ вопроса по отпечаткам — запись на каждый спрошенный отпечаток, в порядке вопроса.</summary>
@@ -85,73 +88,78 @@ public static class InvoiceSameFiles
     /// <summary>Длина отпечатка: SHA-256 шестнадцатеричной строкой.</summary>
     public const int FingerprintLength = 64;
 
-    /// <summary>Другие счета с тем же содержимым файла, от старшего к младшему.</summary>
-    internal static async Task<IReadOnlyList<InvoiceSameFile>> FindAsync(
-        CostsDbContext db, IModuleCatalog catalog, Guid? reader, Invoice invoice, CancellationToken ct)
-    {
-        if (invoice.TrustedFingerprint is not { } print) return [];
-        return (await ByFingerprintsAsync(db, catalog, reader, [print], except: invoice.Id, ct))[print];
-    }
+    /// <summary>
+    /// Двойники счёта по его файлу — найденные, но ещё не названные: названия поставщиков чтение счёта
+    /// берёт тем же вызовом справочника, что и названия своих архивных сторон (<see cref="SameFileTwins.Suppliers" />),
+    /// — один вызов на ответ, а не два.
+    /// </summary>
+    internal static async Task<SameFileTwins> FindAsync(CostsDbContext db, Invoice invoice, CancellationToken ct) =>
+        invoice.TrustedFingerprint is { } print
+            ? await TrustedAsync(db, [print], except: invoice.Id, ct)
+            : SameFileTwins.None;
 
     /// <summary>
     /// Двойники каждого отпечатка — одним запросом по индексу отпечатка, сколько бы их ни спросили
-    /// (COST-6.7). Это единственный поиск «того же файла»: чтение счёта (<see cref="FindAsync" />) зовёт
-    /// его с одним отпечатком, и правило доверия печати с пределом живут в одном месте.
+    /// (COST-6.7). Это единственный поиск «того же файла»: чтение счёта (<see cref="FindAsync" />) идёт
+    /// тем же путём с одним отпечатком, и правило доверия печати с пределом живут в одном месте.
     /// </summary>
     /// <param name="prints">Отпечатки в нижнем регистре, без повторов.</param>
     /// <param name="except">Счёт, который себе не двойник.</param>
-    /// <returns>Запись на каждый отпечаток из <paramref name="prints" />, в том числе пустую.</returns>
-    internal static async Task<IReadOnlyDictionary<string, IReadOnlyList<InvoiceSameFile>>> ByFingerprintsAsync(
-        CostsDbContext db, IModuleCatalog catalog, Guid? reader, IReadOnlyCollection<string> prints, Guid? except,
-        CancellationToken ct)
+    internal static async Task<SameFileTwins> TrustedAsync(
+        CostsDbContext db, IReadOnlyCollection<string> prints, Guid? except, CancellationToken ct)
     {
         var self = except ?? Guid.Empty;
+        var rows = await RowsAsync(db, prints, self, Margin, ct);
 
-        // Один запрос: отпечатки, которые у счетов есть (IN по индексу), и к каждому — его счета боковым
-        // подзапросом с пределом. Предел — на КАЖДЫЙ отпечаток, а не на ответ: бланк, загруженный сотню
-        // раз, не вправе вытеснить остальные файлы пакета. Запас сверх предела — на строки, которым верить
-        // нельзя: их отсеивает сверка ниже, уже в памяти. Проекцией, а не сущностями: счёт несёт реквизиты
-        // целиком, а нужны поля двойника.
-        // ⚠️ GroupBy(…).SelectMany(g => g.Take(n)) короче, но EF его не переводит — отказ при запросе.
-        var found = await db.Invoices.AsNoTracking()
+        // Запас выбран до конца, а доверенных меньше предела — старшие строки отпечатка недоверенные
+        // (путь файла сменился в обход приёма). Такой отпечаток добирается целиком, без предела: иначе
+        // ответ «двойников нет» прятал бы доверенных за недоверенными, и бросок не предупредил бы о
+        // повторе. Случай редкий — вторым запросом, а не запасом побольше у каждого.
+        var starved = rows.GroupBy(r => r.ScanFingerprint!)
+            .Where(g => g.Count() == Margin && g.Count(IsTrusted) < Limit)
+            .Select(g => g.Key).ToList();
+        if (starved.Count > 0)
+            rows = [.. rows.Where(r => !starved.Contains(r.ScanFingerprint!)),
+                .. await RowsAsync(db, starved, self, int.MaxValue, ct)];
+
+        return new SameFileTwins(rows.Where(IsTrusted)
+            .GroupBy(r => r.ScanFingerprint!)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Row>)[.. g.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id).Take(Limit)]));
+    }
+
+    /// <summary>Запас сверх предела — на строки, которым верить нельзя: их отсеивает сверка уже в памяти.</summary>
+    private const int Margin = Limit * 2;
+
+    private static bool IsTrusted(Row r) => Invoice.Trusted(r.ScanBlobPath, r.ScanFingerprint, r.ScanFingerprintSeal) is not null;
+
+    /// <summary>
+    /// Один запрос: отпечатки, которые у счетов есть (IN по индексу), и к каждому — его счета боковым
+    /// подзапросом с пределом. Предел — на КАЖДЫЙ отпечаток, а не на ответ: бланк, загруженный сотню раз,
+    /// не вправе вытеснить остальные файлы пакета. Проекцией, а не сущностями: счёт несёт реквизиты
+    /// целиком, а нужны поля двойника.
+    /// <para>⚠️ <c>GroupBy(…).SelectMany(g => g.Take(n))</c> короче, но EF его не переводит — отказ при запросе.</para>
+    /// </summary>
+    private static Task<List<Row>> RowsAsync(
+        CostsDbContext db, IReadOnlyCollection<string> prints, Guid self, int take, CancellationToken ct) =>
+        db.Invoices.AsNoTracking()
             .Where(i => i.ScanFingerprint != null && prints.Contains(i.ScanFingerprint))
             .Select(i => i.ScanFingerprint)
             .Distinct()
             .SelectMany(print => db.Invoices
                 .Where(i => i.ScanFingerprint == print && i.Id != self)
                 .OrderBy(i => i.CreatedAt).ThenBy(i => i.Id)
-                .Take(Limit * 2))
-            .Select(i => new
-            {
+                .Take(take))
+            .Select(i => new Row(
                 i.Id, i.Number, i.IssuedOn, i.Total, i.ScanFileName, i.CreatedAt, i.ScanBlobPath,
                 i.ScanFingerprint, i.ScanFingerprintSeal, i.SupplierId, i.State, i.Payment, i.CreatedBy,
-                i.CreatedByName,
-            })
+                i.CreatedByName))
             .ToListAsync(ct);
 
-        var trusted = found
-            .Where(i => Invoice.Trusted(i.ScanBlobPath, i.ScanFingerprint, i.ScanFingerprintSeal) is not null)
-            .GroupBy(i => i.ScanFingerprint!)
-            .ToDictionary(g => g.Key, g => g.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Take(Limit).ToList());
-
-        // Названия поставщиков — одним вопросом на ответ и только когда спрашивать есть о ком: без
-        // двойников чтение счёта к справочнику ядра не ходит вовсе.
-        var suppliers = trusted.Values.SelectMany(t => t).Select(i => i.SupplierId).OfType<Guid>().Distinct().ToList();
-        var names = suppliers.Count == 0
-            ? null
-            : (await catalog.RefsAsync(CostsDirectories.Organization, suppliers, ct))?.ToDictionary(r => r.Id);
-
-        return prints.ToDictionary(p => p, p => (IReadOnlyList<InvoiceSameFile>)(trusted.TryGetValue(p, out var twins)
-            ? [.. twins.Select(i =>
-            {
-                var supplier = i.SupplierId is { } id ? names?.GetValueOrDefault(id) : null;
-                return new InvoiceSameFile(i.Id, i.Number, i.IssuedOn, i.Total, i.ScanFileName, i.CreatedAt,
-                    i.SupplierId, supplier?.DisplayName, supplier?.Archived == true,
-                    InvoiceRequisites.Label(i.State), InvoiceRequisites.Label(i.Payment),
-                    i.CreatedByName, reader is { } r && i.CreatedBy == r);
-            })]
-            : []));
-    }
+    /// <summary>Строка двойника, как её читает поиск, — до сверки печати и до названия поставщика.</summary>
+    internal sealed record Row(
+        Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total, string? ScanFileName, DateTimeOffset CreatedAt,
+        string? ScanBlobPath, string? ScanFingerprint, string? ScanFingerprintSeal, Guid? SupplierId,
+        InvoiceState State, InvoicePaymentState Payment, Guid? CreatedBy, string? CreatedByName);
 
     /// <summary>
     /// Вопрос «нет ли уже счёта с этим файлом» — ДО выгрузки (COST-6.7, лист «Ф» 27.10.2026): браузер
@@ -165,21 +173,28 @@ public static class InvoiceSameFiles
         IModuleUser user, CancellationToken ct)
     {
         var prints = Parse(fingerprint);
-        var found = await ByFingerprintsAsync(db, catalog, user.Id, prints, except: null, ct);
-        return TypedResults.Ok<IReadOnlyList<SameFileAnswer>>([.. prints.Select(p => new SameFileAnswer(p, found[p]))]);
+        var found = await TrustedAsync(db, prints, except: null, ct);
+        // Названия поставщиков — одним вопросом на ответ и только когда спрашивать есть о ком: без
+        // двойников вопрос к справочнику ядра не ходит вовсе.
+        var names = found.Suppliers.Count == 0
+            ? null
+            : await catalog.RefsAsync(CostsDirectories.Organization, found.Suppliers, ct);
+        return TypedResults.Ok<IReadOnlyList<SameFileAnswer>>(
+            [.. prints.Select(p => new SameFileAnswer(p, found.Of(p, names, user.Id)))]);
     }
 
     /// <summary>
     /// Отпечатки вопроса — в нижний регистр и без повторов, в порядке вопроса. Отказ называет, что не так:
     /// клиент, получивший безымянный 400, не отличил бы свою ошибку от поломки сервера.
     /// </summary>
-    internal static IReadOnlyList<string> Parse(string[]? fingerprint)
+    internal static IReadOnlyList<string> Parse(string?[]? fingerprint)
     {
         if (fingerprint is not { Length: > 0 })
             throw new InvalidRequestException(
                 "Не назван ни один отпечаток файла: спросите параметром «fingerprint=…» хотя бы один.");
-        var bad = fingerprint.FirstOrDefault(p => !IsFingerprint(p));
-        if (bad is not null)
+        // По номеру, а не FirstOrDefault: тот не отличил бы «плохого нет» от «плохой — пустой элемент».
+        var at = Array.FindIndex(fingerprint, p => !IsFingerprint(p));
+        if (at >= 0 && (fingerprint[at] ?? "") is var bad)
             throw new InvalidRequestException(
                 $"«{(bad.Length > FingerprintLength ? bad[..FingerprintLength] + "…" : bad)}» — не отпечаток файла: " +
                 $"нужны {FingerprintLength} шестнадцатеричных знаков (SHA-256 содержимого).");
@@ -187,7 +202,7 @@ public static class InvoiceSameFiles
         // Предел — по РАЗНЫМ отпечаткам, после схлопывания повторов: пакет, где файл выбран дважды,
         // спрашивает о нём один раз, и отказ за повторы был бы отказом ни за что. Длину самого адреса
         // ограничивают прокси и сервер.
-        List<string> prints = [.. fingerprint.Select(p => p.ToLowerInvariant()).Distinct()];
+        List<string> prints = [.. fingerprint.Select(p => p!.ToLowerInvariant()).Distinct()];
         if (prints.Count > MaxFingerprints)
             throw new InvalidRequestException(
                 $"Отпечатков {prints.Count}, а за один вопрос принимается не больше {MaxFingerprints} — " +
@@ -198,4 +213,39 @@ public static class InvoiceSameFiles
 
     private static bool IsFingerprint(string? print) =>
         print is { Length: FingerprintLength } && print.All(Uri.IsHexDigit);
+}
+
+/// <summary>
+/// Двойники, найденные по отпечаткам и сверенные с печатью, — но ещё не названные. Поставщиков называет
+/// тот, кто зовёт справочник: вопрос до выгрузки — сам, чтение счёта — вместе со своими сторонами.
+/// </summary>
+internal sealed class SameFileTwins(IReadOnlyDictionary<string, IReadOnlyList<InvoiceSameFiles.Row>> twins)
+{
+    public static readonly SameFileTwins None = new(new Dictionary<string, IReadOnlyList<InvoiceSameFiles.Row>>());
+
+    /// <summary>Поставщики всех двойников, без повторов. Пусто — справочник спрашивать не о ком.</summary>
+    public IReadOnlyList<Guid> Suppliers { get; } =
+        [.. twins.Values.SelectMany(t => t).Select(r => r.SupplierId).OfType<Guid>().Distinct()];
+
+    /// <summary>Есть ли у отпечатка доверенные двойники.</summary>
+    public bool Any(string print) => twins.ContainsKey(print);
+
+    /// <summary>Двойники отпечатка, от старшего к младшему; у отпечатка без двойников — пусто.</summary>
+    /// <param name="names">Ответ справочника на <see cref="Suppliers" /> (может нести и другие записи);
+    /// <c>null</c> — справочник не прочитан.</param>
+    /// <param name="reader">Кто спрашивает — для <see cref="InvoiceSameFile.Mine" />.</param>
+    public IReadOnlyList<InvoiceSameFile> Of(string? print, IReadOnlyList<ModuleCatalogRef>? names, Guid? reader)
+    {
+        if (print is null || !twins.TryGetValue(print, out var rows)) return [];
+        // Порт уникальности записей в ответе не обещает: повтор идентификатора — не повод ронять чтение счёта.
+        var known = names?.DistinctBy(n => n.Id).ToDictionary(n => n.Id);
+        return [.. rows.Select(r =>
+        {
+            var supplier = r.SupplierId is { } id ? known?.GetValueOrDefault(id) : null;
+            return new InvoiceSameFile(r.Id, r.Number, r.IssuedOn, r.Total, r.ScanFileName, r.CreatedAt,
+                r.SupplierId, supplier?.DisplayName, r.SupplierId is null ? false : supplier?.Archived,
+                InvoiceRequisites.Label(r.State), InvoiceRequisites.Label(r.Payment),
+                r.CreatedByName, reader is { } me && r.CreatedBy == me);
+        })];
+    }
 }

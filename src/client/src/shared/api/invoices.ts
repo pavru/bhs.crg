@@ -37,7 +37,11 @@ export interface InvoiceSameFile extends InvoiceDuplicate {
    * «Не знаем», а не «без поставщика».
    */
   supplierName: string | null;
-  supplierArchived: boolean;
+  /**
+   * Поставщик в архиве. `null` — не знаем, по той же причине, что и пустое `supplierName`: «не в архиве»
+   * справочник не утверждал. Без поставщика — `false`.
+   */
+  supplierArchived: boolean | null;
   /** Состояние документа словами сервера, как в реестре («Черновик», «Разобран», «Отклонён»). */
   state: string;
   /** Оплата словами сервера, как в реестре («Не оплачен», «Оплачен»). */

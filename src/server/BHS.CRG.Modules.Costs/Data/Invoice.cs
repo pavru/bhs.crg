@@ -267,7 +267,10 @@ public sealed partial class Invoice
     /// </summary>
     /// <param name="authorName">Имя заведшего — снимком на момент заведения (COST-6.7): окно повтора файла
     /// называет, кто завёл двойника. Обязательным параметром, а не свойством «потом»: путей заведения
-    /// два, и третий забыл бы.</param>
+    /// два, и третий забыл бы.
+    /// <para>Пишется только у человека (<paramref name="author" /> есть): у экземпляра имя — «Система»
+    /// (<c>IModuleUser.Name</c>), а строка «завёл: Система» в окне повтора выдавала бы экземпляр за
+    /// пользователя.</para></param>
     public static Invoice Create(Guid documentTypeId, Guid? author, string? authorName) => new()
     {
         Id = Guid.CreateVersion7(),
@@ -275,7 +278,7 @@ public sealed partial class Invoice
         State = InvoiceState.Draft,
         Payment = InvoicePaymentState.Unpaid,
         CreatedBy = author,
-        CreatedByName = SupplierMatch.NameSnapshot(authorName),
+        CreatedByName = author is null ? null : SupplierMatch.NameSnapshot(authorName),
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
     };

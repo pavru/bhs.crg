@@ -42,7 +42,20 @@ public class ScanLimitsAgreeTests
     {
         var match = System.Text.RegularExpressions.Regex.Match(Screen, @"export const MAX_FILES = (\d+);");
         Assert.True(match.Success, "В scanBatch.ts не найден предел пакета MAX_FILES.");
-        Assert.Equal(int.Parse(match.Groups[1].Value), InvoiceSameFiles.MaxFingerprints);
+        Assert.Equal(InvoiceSameFiles.MaxFingerprints, int.Parse(match.Groups[1].Value));
+    }
+
+    /// <summary>
+    /// Клиентская функция вопроса делит перечень на части по своему пределу: окажись он больше
+    /// серверного — каждая часть получала бы 400 целиком.
+    /// </summary>
+    [Fact]
+    public void Части_вопроса_клиента_по_пределу_сервера()
+    {
+        var api = File.ReadAllText(Path.Combine(RepoRoot(), "src", "client", "src", "shared", "api", "invoiceSameFile.ts"));
+        var match = System.Text.RegularExpressions.Regex.Match(api, @"export const MAX_FINGERPRINTS = (\d+);");
+        Assert.True(match.Success, "В invoiceSameFile.ts не найден предел части вопроса MAX_FINGERPRINTS.");
+        Assert.Equal(InvoiceSameFiles.MaxFingerprints, int.Parse(match.Groups[1].Value));
     }
 
     private static string RepoRoot()

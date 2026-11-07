@@ -8,8 +8,8 @@
 
 ## 1. PR 1 — вопрос по отпечаткам, поля двойника, «кто завёл»
 
-- [x] 1.1 `InvoiceSameFiles.ByFingerprintsAsync` (один `IN` по индексу, доверие печати, `Limit` на
-  отпечаток); `FindAsync` зовёт его (design D1). [COST-6.7] Проверка — `InvoiceSameFileTests`
+- [x] 1.1 `InvoiceSameFiles.TrustedAsync` (один `IN` по индексу, доверие печати, `Limit` на
+  отпечаток); `FindAsync` идёт им же (design D1). [COST-6.7] Проверка — `InvoiceSameFileTests`
   прежние зелёные; новый тест: недоверенная печать не попадает ни в `sameFile`, ни в ответ по
   отпечатку.
 - [x] 1.2 `Invoice.Create(typeId, user.Id, user.Name)`, колонка `created_by_name`; миграция
