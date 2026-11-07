@@ -61,7 +61,7 @@ export type StatusAction = { label: string; short?: string } & (
   | { kind: 'delete'; reason: DeleteReason }
   | {
     kind: 'close' | 'reread' | 'retry-view' | 'retry-orgs' | 'recognize' | 'retry-recognition'
-      | 'confirm-marks' | 'confirm-hidden-marks' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
+      | 'confirm-marks' | 'confirm-hidden-marks' | 'show-scan' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
   });
 
 /** Чему пункт мешает — пометкой «мешает: Разобран · оплата». */
@@ -130,6 +130,8 @@ export interface StatusInput {
     shippedEarly?: boolean;
     /** Метки у полей, которых форма не показывает (46): их снимает только «Всё верно». */
     hiddenMarks?: readonly string[];
+    /** Файл счёта есть: «Показать на скане» — у пунктов о метках, а не в поле (D-11.4, вариант А, [UI-88]). */
+    canShowScan?: boolean;
     /** Подписи дописанных в тип полей с метками; поля модуля подписаны `FIELD_LABEL`. */
     markTitles?: Readonly<Record<string, string>>;
     /** Исправление закрытого периода идёт. */
@@ -357,13 +359,16 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // ── Проверьте ───────────────────────────────────────────────────────────────────────────────────────
   twinItems(view, can.delete).forEach(add);
 
+  // Сверяют метки с файлом: знак в поле действий не имеет ([UI-88]), показ файла — здесь, у пункта. Вторым: в листе
+  // справа одно действие — «Всё верно», а «Показать на скане» — сама строка, как «Открыть» у двойника.
+  const showScan: StatusAction[] = form.canShowScan ? [{ kind: 'show-scan', label: 'Показать на скане' }] : [];
   if (form.marks.length > 0) {
     const names = form.marks.map(key => `«${FIELD_LABEL[key] ?? form.markTitles?.[key] ?? key}»`).join(', ');
     add({
       key: 'marks', level: 'check', text: `${marksText(form.marks.length)}: ${names}`,
       detail: 'Сверьте их с файлом: правка поля снимает метку с него, «Всё верно» — со всех.',
-      actions: editable && !closed && !form.correcting
-        ? [{ kind: 'confirm-marks', label: `Всё верно (${form.marks.length})` }] : [],
+      actions: [...(editable && !closed && !form.correcting
+        ? [{ kind: 'confirm-marks' as const, label: `Всё верно (${form.marks.length})` }] : []), ...showScan],
     });
   }
 
@@ -375,8 +380,8 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
       key: 'marks-hidden', level: 'check',
       text: `${marksText(hidden.length)} у полей, которых форма не показывает: ${names}`,
       detail: 'Править их здесь нечем: сверьте значения по файлу, «Всё верно» снимет метки.',
-      actions: editable && !closed && !form.correcting
-        ? [{ kind: 'confirm-hidden-marks', label: `Всё верно (${hidden.length})` }] : [],
+      actions: [...(editable && !closed && !form.correcting
+        ? [{ kind: 'confirm-hidden-marks' as const, label: `Всё верно (${hidden.length})` }] : []), ...showScan],
     });
   }
 

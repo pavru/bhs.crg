@@ -377,7 +377,7 @@ export function InvoicesPage() {
     setChosen({ id: selected, open });
     setRemembered(open ? 'open' : 'closed');
   };
-  // «Показать на скане» у метки поля (11, D-11.4): закрытый файл — открыть рядом или поверх, открытый рядом —
+  // «Показать на скане» у пункта перечня о метках (11, D-11.4): закрытый файл — открыть рядом или поверх, открытый рядом —
   // перевести фокус в его панель.
   const fileShow = useRef<FileShow>(null);
   const filePane = useRef<HTMLElement>(null);

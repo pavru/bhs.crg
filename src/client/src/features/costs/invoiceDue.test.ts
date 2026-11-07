@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceView } from '@/shared/api/invoices';
-import { deferralNote, dueState, hints, rowDue, shippedBeforeIssued } from './invoiceDue';
+import { deferralNote, dueState, rowDue, shippedBeforeIssued } from './invoiceDue';
 
 function view(due: string | null, manual: boolean, byRule: string | null): InvoiceView {
   return { requisites: { Срок: due }, due: { manual, byRule } } as unknown as InvoiceView;
@@ -43,14 +43,6 @@ describe('dueState', () => {
 
   it('старый сервер признаков не прислал — форма молчит', () => {
     expect(dueState({ requisites: {} } as unknown as InvoiceView, {}, false)).toEqual({ note: null, offerRule: false });
-  });
-});
-
-describe('hints', () => {
-  it('показывает все подсказки, а не первую', () => {
-    expect(hints('Распознано, не подтверждено', 'Отгрузка раньше даты счёта')).toBe('Распознано, не подтверждено · Отгрузка раньше даты счёта');
-    expect(hints(undefined, null)).toBeUndefined();
-    expect(hints(null, 'одна')).toBe('одна');
   });
 });
 

@@ -9,21 +9,22 @@ import type { InvoiceView } from '@/shared/api/invoices';
 import { BLOCKS, K, UNCONFIRMED_HINT } from './invoiceFields';
 import { BlockFields } from './InvoiceFormFields';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
-import { SCAN_MARK_SPOKEN } from './InvoiceFieldScan';
+import { SCAN_NOTE } from '@/shared/ui/fieldBox';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() } }));
 vi.mock('@/shared/ui/viewer/viewerGate', () => ({ preloadPdfViewer: vi.fn() }));
 vi.mock('@/shared/ui/viewer/PdfViewer', () => ({ PdfViewer: () => null, PdfViewerOverlay: () => null }));
 
 /**
- * Метка «со скана, не проверено» в поле (costs-invoice-screen-11, задача 4.1, D-11.4, ТЗ COST-6.4): у поля на
- * `TextField` — кнопка хвоста «Показать на скане» вместо рамки и строки подсказки, подпись для диктора с
- * припиской. Поставщик, плательщик и даты ждут change `sharedui-*` (4.1a) — у них прежняя подсказка.
+ * Метка «со скана, не проверено» в поле (costs-invoice-screen-11, задачи 4.1 и 4.1a, D-11.4, ТЗ COST-6.4): общий
+ * знак хвоста `fromScan` ([UI-88]) вместо рамки и строки подсказки — у всех полей шапки, на `TextField`, `Select` и
+ * `DateField`; подпись для диктора с припиской. Кнопки в поле нет: «Показать на скане» — у пункта перечня о метках.
  */
 
 afterEach(cleanup);
 
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const scanMarks = () => document.querySelectorAll('[data-field-scan-mark]');
 
 function view(unconfirmed: string[]): InvoiceView {
   return {
@@ -33,52 +34,50 @@ function view(unconfirmed: string[]): InvoiceView {
   } as unknown as InvoiceView;
 }
 
-function fields(v: InvoiceView, onShowScan?: () => void) {
-  const value = (key: string) => v.requisites[key];
+function fields(v: InvoiceView, edits: Record<string, unknown> = {}) {
   render(
     <QueryClientProvider client={client()}>
       {/* Запертый: под полем нет строк распознавания — проверяется сама метка. */}
-      <BlockFields block={BLOCKS[0]} view={v} edits={{}} organizations={[]} organizationsUnread={false}
-        value={value} set={() => {}} locked onShowScan={onShowScan} />
+      <BlockFields block={BLOCKS[0]} view={v} edits={edits} organizations={[]} organizationsUnread={false}
+        value={key => v.requisites[key]} set={() => {}} locked />
     </QueryClientProvider>,
   );
 }
 
-describe('метка «со скана» в поле на TextField (4.1)', () => {
-  it('кнопка хвоста «Показать на скане» открывает файл; рамки и подсказки нет; диктор слышит приписку', () => {
-    const show = vi.fn();
-    fields(view([K.number, K.total]), show);
-    const marks = screen.getAllByRole('button', { name: 'Показать на скане' });
-    expect(marks).toHaveLength(2);
-    fireEvent.click(marks[0]);
-    expect(show).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('textbox', { name: `Номер ${SCAN_MARK_SPOKEN}` })).toBeTruthy();
+describe('метка «со скана» в поле — общим знаком хвоста (4.1, 4.1a)', () => {
+  it('у полей на TextField — знак, без кнопки, рамки и подсказки; диктор слышит приписку', () => {
+    fields(view([K.number, K.total]));
+    expect(scanMarks()).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Показать на скане' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: `Номер (${SCAN_NOTE})` })).toBeTruthy();
     expect(screen.queryByText(UNCONFIRMED_HINT)).toBeNull();
     expect(document.querySelector('.ring-warning')).toBeNull();
   });
 
-  it('правка снимает метку — поле без метки и без приписки', () => {
-    const v = view([K.number]);
-    render(
-      <QueryClientProvider client={client()}>
-        <BlockFields block={BLOCKS[0]} view={v} edits={{ [K.number]: '418' }} organizations={[]} organizationsUnread={false}
-          value={key => v.requisites[key]} set={() => {}} locked onShowScan={() => {}} />
-      </QueryClientProvider>,
-    );
-    expect(screen.queryByRole('button', { name: 'Показать на скане' })).toBeNull();
+  it('правка снимает метку — поле без знака и без приписки', () => {
+    fields(view([K.number]), { [K.number]: '418' });
+    expect(scanMarks()).toHaveLength(0);
     expect(screen.getByRole('textbox', { name: 'Номер' })).toBeTruthy();
   });
 
-  it('без файла — прежняя рамка с подсказкой: показать нечего, а метка видна', () => {
-    fields(view([K.number]));
-    expect(screen.queryByRole('button', { name: 'Показать на скане' })).toBeNull();
-    expect(screen.getByText(UNCONFIRMED_HINT)).toBeTruthy();
+  it('у поставщика (Select) — знак и приписка в имени выбора (4.1a)', () => {
+    const v = view([K.supplier]);
+    render(
+      <QueryClientProvider client={client()}><SnackbarProvider>
+        <BlockFields block={BLOCKS[0]} view={v} edits={{}} organizations={[{ id: 'o1', name: 'ООО Поставщик' }] as never}
+          organizationsUnread={false} value={key => v.requisites[key]} set={() => {}} locked={false} />
+      </SnackbarProvider></QueryClientProvider>,
+    );
+    expect(scanMarks()).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: `Поставщик (${SCAN_NOTE})` })).toBeTruthy();
+    expect(screen.queryByText(UNCONFIRMED_HINT)).toBeNull();
   });
 
-  it('дата ждёт change sharedui (4.1a): у неё прежняя подсказка, кнопки нет', () => {
-    fields(view([K.date]), () => {});
-    expect(screen.queryByRole('button', { name: 'Показать на скане' })).toBeNull();
-    expect(screen.getByText(UNCONFIRMED_HINT)).toBeTruthy();
+  it('у даты (DateField) — тот же знак вместо рамки и подсказки (4.1a)', () => {
+    fields(view([K.date]));
+    expect(scanMarks()).toHaveLength(1);
+    expect(screen.queryByText(UNCONFIRMED_HINT)).toBeNull();
+    expect(document.querySelector('.ring-warning')).toBeNull();
   });
 });
 

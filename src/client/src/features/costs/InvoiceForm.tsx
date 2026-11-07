@@ -105,7 +105,7 @@ export function InvoiceForm({
   nav?: ReactNode;
   fromFile?: ReactNode;
   file?: ReactNode;
-  /** Показать файл счёта — метка «со скана» в хвосте поля (11, D-11.4). Нет — файла нет. */
+  /** Показать файл счёта — «Показать на скане» у пунктов перечня о метках (11, D-11.4). Нет — файла нет. */
   onShowFile?: () => void;
   /** Действия страницы в «⋮» сводки, когда списка нет (D-10.8). */
   pageActions?: RowAction[];
@@ -277,10 +277,10 @@ export function InvoiceForm({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
     onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
-    onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks),
+    onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), onShowScan: onShowFile,
     onConfirmHiddenMarks: () => void confirmFields(orphanMarks), reveal,
     form: {
-      gone, correcting, marks, hiddenMarks: orphanMarks, markTitles,
+      gone, correcting, marks, hiddenMarks: orphanMarks, markTitles, canShowScan: onShowFile !== undefined,
       shippedEarly: shippedBeforeIssued(value(K.shippedOn), value(K.date)),
       orgsFailed: organizationsError != null ? apiError(organizationsError, 'сервер отказал') : null,
       extrasFailed: extras.error != null ? apiError(extras.error, 'сервер отказал') : null,
@@ -309,7 +309,7 @@ export function InvoiceForm({
   const terms = BLOCKS[1];
   const more: InvoiceBlock[] = [BLOCKS[2], ...(extras.block ? [extras.block] : [])];
   const fieldProps = {
-    view, edits, organizations, locked, organizationsUnread: organizationsError != null, value, set, onShowScan: onShowFile,
+    view, edits, organizations, locked, organizationsUnread: organizationsError != null, value, set,
   };
   const parsed = view.requisites[K.state] === PARSED;
   const rejected = view.requisites[K.state] === REJECTED;

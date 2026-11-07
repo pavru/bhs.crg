@@ -248,6 +248,19 @@ describe('statusOf — места и права (1.4)', () => {
     expect(ro.items.find(i => i.key === 'marks-hidden')!.actions).toEqual([]);
   });
 
+  it('«Показать на скане» — у пунктов о метках, после «Всё верно» и при файле; без права остаётся только оно (D-11.4, вариант А)', () => {
+    const show = { kind: 'show-scan', label: 'Показать на скане' };
+    const s = statusOf(input(view(), { marks: ['Номер'], hiddenMarks: ['КодПроекта'], canShowScan: true }));
+    expect(s.items.find(i => i.key === 'marks')!.actions).toMatchObject([{ kind: 'confirm-marks' }, show]);
+    expect(s.items.find(i => i.key === 'marks-hidden')!.actions).toMatchObject([{ kind: 'confirm-hidden-marks' }, show]);
+
+    const ro = statusOf(input(view(), { marks: ['Номер'], canShowScan: true, can: { ...CAN, edit: false } }));
+    expect(ro.items.find(i => i.key === 'marks')!.actions).toEqual([show]);
+
+    const noFile = statusOf(input(view(), { marks: ['Номер'] }));
+    expect(noFile.items.find(i => i.key === 'marks')!.actions.map(a => a.kind)).toEqual(['confirm-marks']);
+  });
+
   it('отгрузка раньше даты счёта — «Проверьте», «К полю» даты отгрузки; по набранному в форме (32)', () => {
     const shipped = (v: InvoiceView, form: Partial<StatusInput['form']> = {}) =>
       statusOf(input(v, { shippedEarly: true, ...form })).items.find(i => i.key === 'shipped-early');

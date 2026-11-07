@@ -109,8 +109,9 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
         // прокрутки вбок на 1366×768.
         if (width === 1366 && height === 650)
           for (const name of FIRST_STAGE) {
-            // У поля с меткой «со скана» подпись для диктора с припиской (11, D-11.4) — имя то же, хвост свой.
-            const label = new RegExp(`^${name}( \\(со скана, не проверено\\))?$`);
+            // У поля с меткой «со скана» подпись с припиской для диктора ([UI-88], 11 D-11.4): она в `<label>` отдельным
+            // блоком `sr-only`, и в тексте подписи пробела перед ней нет — имя то же, хвост свой.
+            const label = new RegExp(`^${name}\\s?(\\(со скана, не проверено\\))?$`);
             const field = await box(page.getByLabel(label).first(), `поля «${name}»`);
             if (field.y < head.y + head.height - 1 || field.y + field.height > height + 1)
               throw new Error(`поле «${name}» первого этапа вне окна на 1366×650`);

@@ -29,6 +29,8 @@ export interface StatusHandlers {
   onConfirmMarks: () => void;
   /** «Всё верно» у меток полей, которых форма не показывает. */
   onConfirmHiddenMarks: () => void;
+  /** «Показать на скане» у пунктов о метках: открыть файл счёта (`InvoiceFileButton.showRef`). */
+  onShowScan?: () => void;
   reveal: (place: ReadinessTarget) => void;
   /** Остальное — как в `StatusInput.form`, без отчётов частей. */
   form: Omit<StatusInput['form'], 'stale' | 'matches' | 'rereadFailed' | 'hiddenByFilter'>;
@@ -79,6 +81,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
       case 'retry-recognition': h.onRetryRecognition(); return;
       case 'confirm-marks': h.onConfirmMarks(); return;
       case 'confirm-hidden-marks': h.onConfirmHiddenMarks(); return;
+      case 'show-scan': h.onShowScan?.(); return;
       case 'apply-matches': lines?.acts.current.apply(); return;
       case 'retry-matches': lines?.acts.current.retry(); return;
       case 'retry-extras': h.onRetryExtras(); return;
