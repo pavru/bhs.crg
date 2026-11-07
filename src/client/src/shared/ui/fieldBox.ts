@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 /**
  * Размер поля на оболочке `OutlinedField` ([UI-69], sharedui-md3-11): высота, отступы и роль текста — у
@@ -47,8 +47,10 @@ const BOX = {
  * здесь, а не пара констант по файлам. Строками целиком: Tailwind собирает классы по тексту файла.
  *
  * - `button` — кнопка места XS: `right-2` + 32 (при касании 40) + 4 = 44 и 52.
- * - `markButton` — знак 18 и зазор 4 перед кнопкой ([UI-86], замок запертого поля): ещё 22 — 66 и 74. Знак,
- *   а не вторая кнопка: две кнопки в хвосте поля — уже панель действий, ей место не в поле.
+ * - `markButton` — знак 18 и зазор 4 перед кнопкой ([UI-86], замок запертого поля; знак «со скана» [UI-88]):
+ *   ещё 22 — 66 и 74. Знак, а не вторая кнопка: две кнопки в хвосте поля — уже панель действий, ей место не в поле.
+ * - `mark` — один знак «со скана» без кнопки ([UI-88]): `right-2` + 18 + 4 = 30. Знак не кнопка — при касании
+ *   место то же.
  */
 const TRAIL = {
   button: {
@@ -59,14 +61,22 @@ const TRAIL = {
     end: 'pr-[calc(4.125rem+var(--field-mark,0px))] pointer-coarse:pr-[calc(4.625rem+var(--field-mark,0px))]',
     rest: 'max-w-[calc(100%-4.625rem-var(--field-mark,0px))] pointer-coarse:max-w-[calc(100%-5.125rem-var(--field-mark,0px))]',
   },
+  mark: {
+    end: 'pr-[calc(1.875rem+var(--field-mark,0px))]',
+    rest: 'max-w-[calc(100%-2.375rem-var(--field-mark,0px))]',
+  },
 } as const;
 /** Подпись в покое у поля без хвоста — до текста (отступ поля формы 1rem + 0.5rem). */
 const REST_NO_TRAIL = 'max-w-[calc(100%-1.5rem-var(--field-mark,0px))]';
 
-/** Хвост поля для расчёта места: есть ли он и стоит ли в нём перед кнопкой ещё знак 18. */
+/**
+ * Хвост поля для расчёта места: есть ли он, стоит ли в нём перед кнопкой ещё знак 18 и есть ли знак «со скана»
+ * ([UI-88]) — он тоже знак 18, с кнопкой хвоста или без неё.
+ */
 export interface FieldTrailing {
   trailing?: boolean;
   trailingMark?: boolean;
+  fromScan?: boolean;
 }
 
 /**
@@ -74,13 +84,17 @@ export interface FieldTrailing {
  * самом хвосте: `trailingMark` без `trailing` — ошибка типов, а не тихо зарезервированное пустое место.
  * Знак и кнопку передают фрагментом, соседями: зазор между ними ставит слот оболочки (`gap-1`), своя
  * обёртка его сняла бы, и хвост вышел бы уже рассчитанного места.
+ *
+ * `fromScan` — значение со скана, не проверено ([UI-88]): знак ставит оболочка. Рядом с замком (`trailingMark`)
+ * его не бывает — знаков в хвосте не больше двух ([UI-86]): у полей это держит тип, у оболочки, которую зовут и
+ * напрямую, — `useFieldScan` и она сама (знака при замке не рисует).
  */
 export type FieldTrailingProps =
-  | { trailing?: ReactNode; trailingMark?: false }
-  | { trailing: ReactNode; trailingMark: true };
+  | { trailing?: ReactNode; trailingMark?: false; fromScan?: boolean }
+  | { trailing: ReactNode; trailingMark: true; fromScan?: false };
 
-const trailOf = ({ trailing = false, trailingMark = false }: FieldTrailing) =>
-  !trailing ? null : TRAIL[trailingMark ? 'markButton' : 'button'];
+const trailOf = ({ trailing = false, trailingMark = false, fromScan = false }: FieldTrailing) =>
+  trailing ? TRAIL[trailingMark || fromScan ? 'markButton' : 'button'] : fromScan ? TRAIL.mark : null;
 
 /**
  * Правый отступ текста поля — без высоты и роли текста. Для контрола, которому рамку `fieldBox` не взять
@@ -93,6 +107,44 @@ export function fieldEnd(density: FieldDensity = 'form', tail: FieldTrailing = {
 /** Ширина подписи поля формы в покое (`raise="auto"`): кончается до знака ошибки и хвоста. */
 export function fieldLabelRest(tail: FieldTrailing = {}) {
   return trailOf(tail)?.rest ?? REST_NO_TRAIL;
+}
+
+/**
+ * Приписка «со скана» к имени поля для диктора ([UI-88]) — одна на все поля. Оболочка кладёт её скрытым текстом
+ * в подпись, только связанную с контролом (`<label for>`, `aria-labelledby`): несвязанная никому имени не даёт, и
+ * диктор, читая подряд, услышал бы приписку дважды. Где имя даёт свойство контрола — группа сегментов даты,
+ * клетка сетки, — имя строит `useFieldScan`.
+ */
+export const SCAN_NOTE = 'со скана, не проверено';
+
+/** Имя поля для `aria-label`: подпись и, у значения со скана, приписка `SCAN_NOTE`. */
+export function fieldName(label: string, fromScan = false) {
+  return fromScan ? `${label} (${SCAN_NOTE})` : label;
+}
+
+/**
+ * Пометка «со скана» у поля на оболочке ([UI-88]) — один вход на все поля: что отдать оболочке, имя для диктора и
+ * снятие правкой. Поле без этого хука пометки не получает вовсе — так её нельзя поставить наполовину (знак есть, а
+ * имя без приписки). Поля, которые её ставят, перечисляет сторож в `fieldScanMark.test.tsx`.
+ *
+ * - `fromScan` — оболочке. Ложно рядом с замком (`trailingMark`: знаков в хвосте не больше двух, [UI-86]) и после
+ *   первой правки значения человеком: подсказка знака обещает «Правка снимает метку», и держит обещание поле, не
+ *   дожидаясь экрана. Пометка возвращается, когда экран снимет `fromScan` и поставит снова.
+ * - `name` — для `aria-label` там, где имя даёт свойство контрола (клетка, группа сегментов даты). Без подписи —
+ *   `undefined`, а не пустая строка: пустой `aria-label` отнял бы у контрола и запасное имя из содержимого.
+ * - `edited(changed)` — из обработчика правки человеком; `changed` — значение и правда другое (поле даты отдаёт
+ *   и прежнее: дописывает сегмент при уходе).
+ */
+export function useFieldScan(label: string | undefined, fromScan = false, trailingMark = false) {
+  const [edited, setEdited] = useState(false);
+  const [seen, setSeen] = useState(fromScan);
+  if (seen !== fromScan) { setSeen(fromScan); setEdited(false); }
+  const shown = fromScan && !trailingMark && !edited;
+  return {
+    fromScan: shown,
+    name: label ? fieldName(label, shown) : undefined,
+    edited: (changed = true) => { if (shown && changed) setEdited(true); },
+  };
 }
 
 /** Место знака ошибки с зазором до хвоста: знак 24 у поля формы, 20 у плотного и клетки, плюс 4. */
@@ -127,8 +179,9 @@ export function fieldDescribedBy(hintId: string, below: string | null | undefine
 }
 
 /**
- * Знак ошибки для контрола со своим хвостом (`DateInput`: крестик и календарь). Такой контрол ставит
- * знак перед хвостом сам, а когда и какой — решает оболочка (`markInside`) и отдаёт его сюда: ни
- * условия, ни размера знака контрол не повторяет. Вне такой оболочки — `null`.
+ * Знаки поля для контрола со своим хвостом (`DateInput`: крестик и календарь; триггер `Select` — перед
+ * стрелкой): знак «со скана» ([UI-88]) и знак ошибки, фрагментом в этом порядке. Такой контрол ставит их
+ * перед хвостом сам, с зазором `gap-1`, а когда и какие — решает оболочка (`markInside`) и отдаёт сюда: ни
+ * условия, ни размера знаков контрол не повторяет. Вне такой оболочки — `null`.
  */
 export const FieldMarkContext = createContext<ReactNode>(null);

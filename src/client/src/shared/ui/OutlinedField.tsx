@@ -1,8 +1,9 @@
-import { type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { ICON_BUTTON_XS } from './buttonClasses';
 import { Icon } from './Icon';
-import { ErrorIcon } from './icons';
-import { cellLine, fieldLabelRest, FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
+import { DocumentScanner, ErrorIcon } from './icons';
+import { cellLine, fieldLabelRest, FieldMarkContext, MARK_SPACE, SCAN_NOTE, type FieldDensity } from './fieldBox';
+import { isLayerFocus } from './layerFocus';
 import { Tooltip } from './Tooltip';
 
 // Ширина метки в покое (`raise="auto"`) — до текста, её даёт `fieldLabelRest` той же таблицей, что и отступ
@@ -65,6 +66,33 @@ export function FieldErrorMark({ density = 'form', message }: { density?: FieldD
   return small && message ? <Tooltip content={message}>{mark}</Tooltip> : mark;
 }
 
+/**
+ * Знак «со скана, не проверено» ([UI-88]): значок 18 цвета `warning` с подсказкой, без кнопки — действия у
+ * поля со скана нет, открыть скан предлагает экран. Указатель ловит ради подсказки. Для диктора скрыт: пометку
+ * он слышит в имени поля (`SCAN_NOTE` в подписи). Ставит его оболочка — перед знаком ошибки, ближе к значению.
+ *
+ * Фокуса знак не получает — остановка Tab у каждого поля со скана была бы шумом. Подсказку он поэтому показывает
+ * ещё и пока фокус в его поле (`open`): с клавиатуры и касанием её иначе не увидеть. У отключённого поля знак
+ * гаснет вместе с текстом и подсказки не даёт (`SCAN_DISABLED` у оболочки): править нельзя, обещать правку — тоже.
+ */
+export function FieldScanMark({ open = false }: { open?: boolean }) {
+  return (
+    <Tooltip content={SCAN_TOOLTIP} open={open}>
+      <span data-field-scan-mark aria-hidden className="pointer-events-auto flex shrink-0 items-center text-warning">
+        <Icon icon={DocumentScanner} size={18} />
+      </span>
+    </Tooltip>
+  );
+}
+
+const SCAN_TOOLTIP = 'Со скана, не проверено. Правка снимает метку';
+const NOTE_BLOCK: CSSProperties = { display: 'block' };
+// Отключённое поле ([UI-64]) гасит текст `disabled-content` контрола, а знаку цвет задан свой — гасим и его, тем же
+// on-surface 38 %, и снимаем указатель: подсказка «Правка снимает метку» у поля, которое не правится, лжёт. Признак —
+// селектором, как у рамки: `:disabled` у контролов, `data-disabled` у составных (дата). Строкой целиком (Tailwind).
+const SCAN_DISABLED = '[&:has(:disabled)_[data-field-scan-mark]]:text-on-surface/38 [&:has(:disabled)_[data-field-scan-mark]]:pointer-events-none '
+  + '[&:has([data-disabled])_[data-field-scan-mark]]:text-on-surface/38 [&:has([data-disabled])_[data-field-scan-mark]]:pointer-events-none';
+
 export interface OutlinedFieldProps {
   label: string;
   required?: boolean;
@@ -112,7 +140,17 @@ export interface OutlinedFieldProps {
    * Место — строка `markButton` таблицы `TRAIL` в `fieldBox`; знак и кнопка — фрагментом (`FieldTrailingProps`).
    */
   trailingMark?: boolean;
-  /** Хвост живёт внутри контрола (календарь даты): знак ошибки оболочка отдаёт ему `FieldMarkContext`. */
+  /**
+   * Значение со скана, не проверено ([UI-88]): знак «со скана» перед знаком ошибки и приписка к подписи для
+   * диктора. Место знака — та же таблица `TRAIL` (`fieldBox`, свойство `fromScan`), что и у остального хвоста.
+   * Поле берёт значение из `useFieldScan`: тот снимает пометку правкой и даёт имя контролу без подписи. Рядом с
+   * замком (`trailingMark`) знака нет — места под третий знак хвост не держит.
+   */
+  fromScan?: boolean;
+  /**
+   * Хвост живёт внутри контрола (календарь даты, стрелка выбора поверх его триггера): знаки поля — «со скана» и
+   * ошибки — оболочка отдаёт ему `FieldMarkContext`.
+   */
   markInside?: boolean;
   /** Классы внешней обёртки (поле + подпись под ним). */
   containerClassName?: string;
@@ -121,7 +159,7 @@ export interface OutlinedFieldProps {
 
 export function OutlinedField({
   label, required, invalid, error, hint, hintId, raise = 'auto', focused, htmlFor, labelId,
-  readOnly, density = 'form', trailing, trailingMark, markInside, containerClassName = '', children,
+  readOnly, density = 'form', trailing, trailingMark, fromScan = false, markInside, containerClassName = '', children,
 }: OutlinedFieldProps) {
   const bad = !!error || invalid;
   // Подпись в вырезе есть только у поля формы; у плотного и клетки она для диктора, а под полем места нет.
@@ -129,7 +167,22 @@ export function OutlinedField({
   const cell = density === 'cell';
   // У плотного поля метки в вырезе нет вовсе — механики всплывания ему не нужно.
   const auto = raise === 'auto' && !dense;
+  const scan = fromScan && !trailingMark;
   const markHere = bad && !markInside;
+  const scanHere = scan && !markInside;
+  // Фокус внутри поля открывает подсказку знака «со скана» (`FieldScanMark`). Внутри — по разметке, а не по
+  // всплытию React: оно приносит и фокус из портала (открытый список, календарь), а там подсказка мешала бы.
+  // Фокус, поставленный открывшимся слоем, — не зов (`layerFocus.ts`): первый Esc достался бы подсказке, а не окну.
+  const [focusIn, setFocusIn] = useState(false);
+  // Без пометки обработчиков нет — и запомненный фокус сбрасывается, чтобы вернувшаяся пометка не открылась сама.
+  if (!scan && focusIn) setFocusIn(false);
+  const scanFocus = scan ? {
+    onFocus: (e: FocusEvent<HTMLDivElement>) => setFocusIn(e.currentTarget.contains(e.target) && !isLayerFocus()),
+    onBlur: (e: FocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false);
+    },
+  } : {};
+  const scanMark = <FieldScanMark open={focusIn} />;
 
   // peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение вешаем на
   // fieldset (он сосед) и целим вложенный legend через [&>legend].
@@ -164,7 +217,7 @@ export function OutlinedField({
   // Метка в покое стоит на месте текста и кончается там же, где он: справа знак ошибки и хвост. Наверху,
   // в вырезе, ей ничего не мешает — там ограничение одно, рамка.
   const labelWidth = !auto ? 'max-w-[calc(100%-1.5rem)]'
-    : `${fieldLabelRest({ trailing: !!trailing, trailingMark })} ${RAISED_WIDTH}`;
+    : `${fieldLabelRest({ trailing: !!trailing, trailingMark, fromScan: scanHere })} ${RAISED_WIDTH}`;
 
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
@@ -175,8 +228,18 @@ export function OutlinedField({
   const labelClass = dense ? 'sr-only'
     : `absolute left-3 px-1 pointer-events-none transition-all ease-standard block ${labelWidth} truncate ${labelColor} ${labelPosition}${star}`;
   const markStyle = markHere ? { '--field-mark': MARK_SPACE[density] } as CSSProperties : undefined;
-  // Знак ошибки для контрола со своим хвостом: условие и размер — здесь, ставит он сам (`FieldMarkContext`).
-  const innerMark = bad && markInside ? <FieldErrorMark density={density} message={error} /> : null;
+  // Знаки для контрола со своим хвостом: условие и размер — здесь, ставит он сам (`FieldMarkContext`).
+  const innerMark = markInside && (bad || scan)
+    ? <>{scan && scanMark}{bad && <FieldErrorMark density={density} message={error} />}</>
+    : null;
+  // Пометка «со скана» — в имени поля, для диктора ([UI-88]): подпись — его имя у `<label for>` и `aria-labelledby`.
+  // Только у связанной подписи: несвязанная (дата — имя её группе даёт `aria-label`) никому имени не даёт, а читая
+  // подряд, диктор услышал бы приписку и в ней, и в имени группы. В вырез рамки (`legend`) не идёт — вырез стал бы
+  // шире подписи. `display: block` — то, что браузер и так
+  // вычисляет для `sr-only` (абсолютное положение делает элемент блочным), а блок отделяется в имени пробелом.
+  // Сказано явно для движков без стилей Tailwind (jsdom): у строчного элемента ведущий пробел в имени срезается,
+  // и имя выходило «Номер(со скана…)». Пробел перед span не годится: он виден перед звёздочкой обязательного.
+  const labelText = <>{label}{scan && (htmlFor || labelId) && <span className="sr-only" style={NOTE_BLOCK}>({SCAN_NOTE})</span>}</>;
 
   // У плотного поля текста под ним нет и места нет: ошибку и пояснение диктор читает, глаз видит знак.
   const below = error || hint;
@@ -185,7 +248,8 @@ export function OutlinedField({
 
   return (
     <div className={containerClassName}>
-      <div className={`relative ${hover} ${disabledFrame} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
+      <div className={`relative ${hover} ${disabledFrame} ${scan ? SCAN_DISABLED : ''} ${cell ? cellLine({ focused, bad }) : ''}`}
+        style={markStyle} {...scanFocus}>
         <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет.
@@ -203,14 +267,15 @@ export function OutlinedField({
         {/* У клетки подписи нет вовсе: имя несёт сам контрол (`aria-label`) — текстом в клетке подпись вошла бы
             в текст строки, в копирование и в сверку строк. */}
         {cell ? null
-          : htmlFor ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{label}</label>
-            : <span id={labelId} className={labelClass}>{label}</span>}
-        {/* Слот хвоста: знак ошибки, за ним адорнмент. Сам слот щелчков не ловит — под ним поле, а хвост
+          : htmlFor ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{labelText}</label>
+            : <span id={labelId} className={labelClass}>{labelText}</span>}
+        {/* Слот хвоста: знак «со скана», знак ошибки, за ними адорнмент. Сам слот щелчков не ловит — под ним поле, а хвост
             получает их сам (`contents` не даёт обёртке своего прямоугольника). Стоит по первой строке, а не
             по середине рамки: у поля в одну строку это одно и то же, а у многострочного (`TextAreaField`)
             середина — посреди текста. */}
-        {(markHere || trailing) && (
+        {(scanHere || markHere || trailing) && (
           <div className={`pointer-events-none absolute right-2 ${dense ? 'top-5' : 'top-7'} -translate-y-1/2 z-10 flex items-center gap-1 ${ICON_BUTTON_XS}`}>
+            {scanHere && scanMark}
             {markHere && <FieldErrorMark density={density} message={error} />}
             {trailing && <span className="contents pointer-events-auto">{trailing}</span>}
           </div>
