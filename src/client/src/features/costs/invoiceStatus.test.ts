@@ -16,7 +16,10 @@ function view({ gaps = [], state = 'Черновик', payment, ...rest }: ViewP
     id: 'i1', version: 'v1', documentTypeId: 't',
     requisites: { Состояние: state, Срок: '2026-10-03' },
     unconfirmed: [], duplicates: [], sameFile: [], lines: [],
-    allocation: { document: { parts: [] } },
+    allocation: {
+      allocated: true, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true,
+      document: { parts: [] }, stamp: 's',
+    },
     payment: { paid: false, paidOn: null, document: null, paidAt: null, refusal: null, lockedBy: null, periods: [], refusalKind: null, ...payment },
     readiness: { required: [], gaps },
     updatedAt: '2026-11-07T09:04:00Z', createdAt: '2026-11-01T09:00:00Z',
@@ -150,6 +153,27 @@ describe('statusOf — одно расхождение (1.2)', () => {
     expect(pay?.actions[0]).toMatchObject({ kind: 'goto', place: { place: 'field', key: 'Итого' } });
   });
 
+  it('без права оплаты отказ оплаты пунктом не идёт — ему он ничему не мешает (ревью PR #1792)', () => {
+    const v = view({ gaps: [], payment: { refusal: 'не указана сумма к оплате', refusalKind: 'amount' } });
+    expect(statusOf(input(v, { can: { ...CAN, pay: false } })).items.some(i => i.key === 'pay-refusal')).toBe(false);
+  });
+
+  it('расхождение, о котором готовность молчит (разобран и оплачен), — пунктом «Проверьте» (ревью PR #1792)', () => {
+    const allocation = {
+      allocated: false, unbalanced: [], lost: 0, discrepancy: -38400.5, tolerance: 1, withinTolerance: false,
+      document: { parts: [] }, stamp: 's',
+    } as unknown as InvoiceView['allocation'];
+    const lines = [{ ordinal: 1, allocation: { parts: [] } }] as never;
+    const paid = view({ gaps: null, state: 'Разобран', allocation, lines, payment: { paid: true } });
+    const item = statusOf(input(paid)).items.find(i => i.key === 'discrepancy');
+    expect(item).toMatchObject({ level: 'check' });
+    expect(item!.text).toMatch(/^Сумма строк расходится с суммой к оплате на 38\s400,50\s₽ — больше допуска 1,00\s₽$/);
+
+    // Назвал пункт готовности — второй раз не называется.
+    const draft = statusOf(input(view({ gaps: [DISCREPANCY], allocation, lines })));
+    expect(draft.items.filter(i => /расход/.test(i.text))).toHaveLength(1);
+  });
+
   it('отклонённому отказ оплаты пунктом не идёт', () => {
     const s = statusOf(input(view({ gaps: null, state: 'Отклонён', payment: { refusal: 'счёт отклонён', refusalKind: 'rejected' } })));
     expect(s.items).toEqual([]);
@@ -214,6 +238,20 @@ describe('statusOf — места и права (1.4)', () => {
     expect(ro.items.find(i => i.key === 'marks')!.actions).toEqual([]);
   });
 
+  it('метки: глагол — по числительному; подпись дописанного поля — из схемы', () => {
+    const many = Array.from({ length: 21 }, (_, i) => `Поле${i}`);
+    expect(statusOf(input(view(), { marks: many })).items[0].text).toMatch(/^21 значение со скана не проверено: /);
+    const s = statusOf(input(view(), { marks: ['КодПроекта'], markTitles: { КодПроекта: 'Код проекта' } }));
+    expect(s.items[0].text).toBe('1 значение со скана не проверено: «Код проекта»');
+  });
+
+  it('замечания распознавания — только тому, кто правит: без права их на экране нет (ревью PR #1792)', () => {
+    const done = { ...failed('x'), state: 'done', reason: null, notes: ['поставщик прочитан неуверенно'] } as InvoiceRecognition;
+    expect(statusOf(input(view(), {}, done)).items.find(i => i.key === 'recognition-notes')!.actions[0])
+      .toMatchObject({ kind: 'goto', place: { place: 'part', part: 'who' } });
+    expect(statusOf(input(view(), { can: { ...CAN, edit: false } }, done)).items.some(i => i.key === 'recognition-notes')).toBe(false);
+  });
+
   it('заперт — «К сведению», путь к «Учётному периоду» только с правом закрывать', () => {
     const locked = view({ gaps: null, state: 'Разобран', payment: { lockedBy: 'период 09.2026 закрыт' } });
     expect(statusOf(input(locked)).items.find(i => i.key === 'locked')!.actions).toEqual([]);
@@ -260,5 +298,13 @@ describe('удалённые записи у счёта закрытого пе�
     expect(open.actions[0]).toMatchObject({ kind: 'goto', place: { place: 'field', key: 'Поставщик' } });
     expect(lost({ correcting: true }, closed).level).toBe('blocking');
     expect(lost({ gone: true }).detail).toContain('Счёт удалён');
+  });
+
+  it('без права правки — «К сведению», не ведёт и не встаёт banner (ревью PR #1792)', () => {
+    const ro = lost({ can: { ...CAN, edit: false } });
+    expect(ro.level).toBe('info');
+    expect(ro.actions).toEqual([]);
+    expect(ro.detail).toContain('право вводить счета');
+    expect(bannerOf(statusOf(input(LOST, { can: { ...CAN, edit: false } })))).toBeNull();
   });
 });

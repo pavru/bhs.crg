@@ -1,9 +1,9 @@
 import type { InvoiceView } from '@/shared/api/invoices';
 import type { InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import type { StatusTone } from '@/shared/ui/StatusText';
-import { formatDate, formatDateTime } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { FIELD_LABEL, K, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
+import { FIELD_LABEL, K, REJECTED, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
 import { DRAFT, type DeleteReason } from './invoiceDelete';
 import { readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { PART_ORDER, partOfTarget } from './invoiceParts';
@@ -125,6 +125,8 @@ export interface StatusInput {
     matches: MatchFacts | null;
     /** Метки «со скана» у полей формы — то, что снимет «Всё верно». */
     marks: readonly string[];
+    /** Подписи дописанных в тип полей с метками; поля модуля подписаны `FIELD_LABEL`. */
+    markTitles?: Readonly<Record<string, string>>;
     /** Исправление закрытого периода идёт. */
     correcting: boolean;
     can: {
@@ -215,7 +217,7 @@ function rankOf(item: StatusItem): number {
 }
 
 const marksText = (n: number) =>
-  `${n} ${ruPlural(n, 'значение', 'значения', 'значений')} со скана не ${n === 1 ? 'проверено' : 'проверены'}`;
+  `${n} ${ruPlural(n, 'значение', 'значения', 'значений')} со скана не ${ruPlural(n, 'проверено', 'проверены', 'проверены')}`;
 
 /**
  * Перечень и фраза индикатора по сохранённому счёту и состоянию формы. Число — пункты вне «К сведению».
@@ -279,7 +281,9 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // Удалённые записи справочников (issue #1184): сводкой «в N местах», ведёт к первому.
   const lost = lostSummary(view);
   if (lost) {
-    const locked = gone ? 'gone' : closed && !form.correcting ? (can.correctable ? 'correct' : 'closed') : null;
+    // Без права правки удалённую запись не заменить: работы, которой она «мешает», у человека нет (ревью PR #1792).
+    const locked = gone ? 'gone' : closed && !form.correcting ? (can.correctable ? 'correct' : 'closed') : !editable ? 'read' : null;
+    const place = lostPlace(view);
     if (lost.count > 0)
       add({
         key: 'lost', level: locked === null ? 'blocking' : 'info', name: 'Удалённые записи',
@@ -287,10 +291,11 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
         detail: locked === 'correct'
           ? 'Счёт закрытого периода: запись заменяют исправлением с причиной — «Исправить».'
           : locked === 'closed' ? 'Счёт закрытого периода, здесь это не исправить.'
+            : locked === 'read' ? 'Заменить запись может тот, у кого есть право вводить счета.'
             : locked === 'gone' ? 'Счёт удалён, исправить это нельзя.'
               : 'Счёт сохраняется и так; исправить — выбрать в поле другую запись. Дополнительные поля типа счёта на '
                 + 'удалённые записи не проверяются.',
-        actions: locked === null ? [{ kind: 'goto', label: gotoLabel(lostPlace(view)), place: lostPlace(view) }] : [],
+        actions: locked === null ? [{ kind: 'goto', label: gotoLabel(place), place }] : [],
       });
     if (lost.others.length > 0)
       add({ key: 'lost-others', level: 'check', text: `Запись на месте, но не та: ${lost.others.join('; ')}`, actions: [] });
@@ -321,18 +326,34 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // Отказ оплаты, который не назван пунктом готовности (сервер пометил бы его `payment`), — своим пунктом.
   // Пока сумма к оплате не обязательна для «Разобран», отказ «нет суммы» пунктом готовности не покрыт.
   const payment = view.payment;
-  if (!payment.paid && payment.refusal && payment.refusalKind !== 'rejected' && !payNamed && !gone)
+  // Без права оплаты отказ оплаты ничему не мешает — его не показывала и прежняя часть «Сроки и оплата».
+  const payItem = can.pay && !payment.paid && !!payment.refusal && payment.refusalKind !== 'rejected' && !payNamed && !gone;
+  if (payItem)
     add({
       key: 'pay-refusal', level: 'gate', text: `Оплатить нельзя: ${payment.refusal}`, blocks: ['pay'],
       actions: payment.refusalKind === 'amount' && !closed
         ? [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.total } }] : [],
     });
 
+  // Расхождение сверх допуска у счёта, о котором готовность молчит (разобран — после понижения допуска или
+  // правки суммы; оплачен): прежде его называла сводка разноски, теперь — этот пункт, если не назвал другой.
+  const alloc = view.allocation;
+  const discrepancyNamed = (gaps?.some(gap => gap.kind === 'total') ?? false)
+    || (payItem && payment.refusalKind === 'discrepancy');
+  if (!gone && !discrepancyNamed && !alloc.withinTolerance && alloc.discrepancy !== null && view.lines.length > 0
+    && state !== REJECTED)
+    add({
+      key: 'discrepancy', level: 'check',
+      text: `Сумма строк расходится с суммой к оплате на ${formatMoney(Math.abs(alloc.discrepancy))} — больше допуска ${formatMoney(alloc.tolerance)}`,
+      detail: 'Сверх допуска счёт не считается разнесённым: суммы по стройкам не сойдутся со счётом.',
+      actions: editable && !closed ? [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.total } }] : [],
+    });
+
   // ── Проверьте ───────────────────────────────────────────────────────────────────────────────────────
   twinItems(view, can.delete).forEach(add);
 
   if (form.marks.length > 0) {
-    const names = form.marks.map(key => `«${FIELD_LABEL[key] ?? key}»`).join(', ');
+    const names = form.marks.map(key => `«${FIELD_LABEL[key] ?? form.markTitles?.[key] ?? key}»`).join(', ');
     add({
       key: 'marks', level: 'check', text: `${marksText(form.marks.length)}: ${names}`,
       detail: 'Сверьте их с файлом: правка поля снимает метку с него, «Всё верно» — со всех.',
@@ -473,7 +494,8 @@ function recognitionItems(recognition: InvoiceRecognition, editable: boolean, ca
           detail: `Вид для чтения с тех пор построен заново. Прочитанное осталось в счёте как было.${cannot}`,
           actions: again ? [{ kind: 'recognize', label: 'Распознать ещё раз' }] : [],
         });
-      if (hasRecognitionNotes(recognition)) {
+      // Замечания форма рисует только тому, кто правит: без права «Показать» вела бы в никуда (ревью PR #1792).
+      if (editable && hasRecognitionNotes(recognition)) {
         const n = recognition.notes.length + (unusedLinesNote(recognition) ? 1 : 0) + (recognition.unplaced?.length ?? 0);
         found.push({
           key: 'recognition-notes', level: 'info', text: `Замечания распознавания и не легшее в счёт: ${n}`,

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { ListItem } from '@/shared/ui/ListItem';
@@ -30,11 +31,22 @@ const LEVEL_ICON: Record<StatusLevel, { icon: IconDef; tone: string }> = {
 };
 
 /**
- * Действие пункта — ПОСЛЕ закрытия листа. Лист, закрываясь, возвращает фокус индикатору таймером слоя; действие,
- * сделанное раньше, теряло своё: фокус места уходил обратно в сводку (живой прогон 3.3 — «К строкам» ставил
- * фокус в строку, а лист тут же уводил его на индикатор).
+ * Действие пункта — ПОСЛЕ того, как лист снят и вернул фокус открывшему. Действие, сделанное раньше, теряло
+ * своё: фокус места уходил обратно на индикатор (живой прогон 3.3 — «К строкам» ставил фокус в строку, а лист
+ * тут же уводил его). Ждём не срок, а само снятие: содержимое листа ушло из документа. Возврат фокуса слой
+ * делает таймером, заведённым при снятии, — своё действие ставим таймером после него. Так от длительности
+ * ухода листа ничего не зависит (ревью PR #1792), а отказаться от возврата у листа нельзя: это правка
+ * shared/ui. Потолок ожидания — чтобы зависший уход не держал действие вечно.
  */
-const afterClose = (act: () => void) => requestAnimationFrame(() => setTimeout(act, 0));
+const CLOSE_LIMIT_MS = 2000;
+function afterClose(node: HTMLElement | null, act: () => void, alive: () => boolean) {
+  const since = performance.now();
+  const wait = () => {
+    if (node?.isConnected && performance.now() - since < CLOSE_LIMIT_MS) { requestAnimationFrame(wait); return; }
+    setTimeout(() => { if (alive()) act(); }, 0);
+  };
+  requestAnimationFrame(wait);
+}
 
 /** Исполнитель действий пункта: удаление — через диалог удаления формы, остальное — форма. */
 function useStatusRun(onAction: (action: StatusAction) => void): (action: StatusAction) => void {
@@ -53,16 +65,21 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
   onAction: (action: StatusAction) => void;
 }) {
   const run = useStatusRun(onAction);
+  // Форму закрыли, пока лист уходил, — действие о счёте, которого на экране уже нет, не выполняется.
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // По нему видно, что лист снят: содержимое уходит из документа вместе с ним.
+  const body = useRef<HTMLParagraphElement>(null);
   const count = status.count > 0 ? `${status.count} ${ruPlural(status.count, 'замечание', 'замечания', 'замечаний')} · ` : '';
   return (
     <SideSheet variant="modal" open={open} onClose={onClose} title="Состояние счёта">
       {/* Слота подзаголовка у листа нет — первой строкой тела (D-11.3). */}
-      <p className="text-body-medium text-on-surface-variant pb-2" data-testid="invoice-status-subtitle">
+      <p ref={body} className="text-body-medium text-on-surface-variant pb-2" data-testid="invoice-status-subtitle">
         {count}{saving ? 'Сохраняю…' : `по сохранённому · ${savedAt}`}
       </p>
       {status.items.length === 0 && (
         <p className="text-body-medium text-on-surface-variant py-4">
-          {status.phrase === 'Готов к «Разобран»' ? 'Всё готово к «Разобран».' : 'Сказать о счёте нечего.'}
+          {status.mood === 'ready' ? 'Всё готово к «Разобран».' : 'Сказать о счёте нечего.'}
         </p>
       )}
       {LEVELS.map(level => {
@@ -76,7 +93,7 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
             </h3>
             <ul>
               {items.map(item => (
-                <li key={item.key}><StatusRow item={item} run={action => { onClose(); afterClose(() => run(action)); }} /></li>
+                <li key={item.key}><StatusRow item={item} run={action => { const node = body.current; onClose(); afterClose(node, () => run(action), () => mounted.current); }} /></li>
               ))}
             </ul>
           </section>

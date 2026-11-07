@@ -139,6 +139,9 @@ export function InvoiceLinesTable({
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
   const supplierId = refEntryId(view.requisites[K.supplier]);
   const [askFailed, setAskFailed] = useState<string | null>(null);
+  // Строки, о которых вопрос не прошёл, — «Повторить» спрашивает о них, а не обо всех: suggest подставляет
+  // запомненное сам, а сохранённым строкам по C3 его подставляет только кнопка (ревью PR #1792).
+  const failedKeys = useRef<ReadonlySet<string>>(new Set());
   // Спрашиваем обо ВСЕХ лежащих строках без пометки, а не только о ждущих позиции: человек, меняющий
   // уже стоявшую позицию, обязан увидеть «запомнится вместо прежнего» ДО сохранения, а не узнать о
   // замене из сообщения после него (ревью PR #1262).
@@ -201,6 +204,7 @@ export function InvoiceLinesTable({
       const found = await askMatchSuggestions(supplierId,
         fresh.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
       setAskFailed(null);
+      failedKeys.current = new Set();
       const answers = new Map(found.map(item => [fresh[item.index].key, { offer: item, asked: fresh[item.index] }]));
       if (answers.size === 0) return;
 
@@ -225,6 +229,7 @@ export function InvoiceLinesTable({
     } catch (e) {
       // Вопрос не прошёл — пусть следующий уход с поля задаст его заново.
       fresh.forEach(d => asked.current.delete(d.key));
+      failedKeys.current = new Set([...failedKeys.current, ...fresh.map(d => d.key)]);
       setAskFailed(apiError(e));
     }
   }
@@ -252,7 +257,13 @@ export function InvoiceLinesTable({
     acts.current = {
       reread,
       apply: applyReady,
-      retry: () => { if (laid.isError) void laid.refetch(); if (askFailed !== null) void suggest(latest.current); },
+      retry: () => {
+        if (laid.isError) void laid.refetch();
+        if (askFailed === null) return;
+        // Строки, о которых не спросилось, тем временем удалили — спрашивать не о чем, и отказа больше нет.
+        const again = latest.current.filter(d => failedKeys.current.has(d.key));
+        if (again.length > 0) void suggest(again); else setAskFailed(null);
+      },
     };
   });
   useEffect(() => {

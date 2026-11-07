@@ -15,7 +15,7 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
+  BLOCKS, FIELD_LABEL, K, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { goTo, readinessItems, type ReadinessTarget } from './invoiceReadiness';
@@ -259,14 +259,21 @@ export function InvoiceForm({
         : null;
 
   // ── Индикатор состояния (11): все сообщения о счёте — пунктами перечня ──────────────────────────────
-  const marks = view.unconfirmed.filter(key => key !== VAT_MODE_MARK && !orphanMarks.includes(key));
+  // Пока схема типа читается, неизвестно, какие поля форма покажет: «Всё верно» снимает метки только с полей
+  // модуля — иначе снялась бы и метка поля вне блоков, которого человек не видел (ревью PR #1792).
+  const marks = view.unconfirmed.filter(key => key !== VAT_MODE_MARK && !orphanMarks.includes(key)
+    && (!extras.loading || key in FIELD_LABEL));
+  const markTitles = Object.fromEntries(marks.flatMap(key => {
+    const title = extras.byKey.get(key)?.title;
+    return title ? [[key, title]] : [];
+  }));
   const indicator = useInvoiceStatus({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
     onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
     onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), reveal,
     form: {
-      gone, correcting, marks,
+      gone, correcting, marks, markTitles,
       orgsFailed: organizationsError != null ? apiError(organizationsError, 'сервер отказал') : null,
       extrasFailed: extras.error != null ? apiError(extras.error, 'сервер отказал') : null,
       can: {
