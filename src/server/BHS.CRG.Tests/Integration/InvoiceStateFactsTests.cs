@@ -133,8 +133,9 @@ public class InvoiceStateFactsTests(InvoiceLineHost host) : InvoiceLineTestBase(
     }
 
     /// <summary>
-    /// Нулевая сумма к оплате при строках: поле «Итого» пустым не считается, и пунктом стоит расхождение —
-    /// он и мешает оплате, родом <c>amount</c>. Одна починка — один пункт (ревью PR #1790).
+    /// Нулевая сумма к оплате при строках: нуль — не сумма (change <c>costs-invoice-screen-01-parsed-amount</c>),
+    /// и пунктом стоит пустое поле «Итого» — он и мешает оплате, родом <c>amount</c>. Расхождения рядом нет:
+    /// сверять не с чем (design D5 change 01). Одна починка — один пункт (ревью PR #1790).
     /// </summary>
     [Fact]
     public async Task Нулевая_сумма_при_строках_одним_пунктом_у_Итого()
@@ -146,9 +147,10 @@ public class InvoiceStateFactsTests(InvoiceLineHost host) : InvoiceLineTestBase(
 
         var view = await ReadAsync(client, invoice);
         Assert.Equal(PaymentRefusal.Amount, Kind(view));
-        var blocking = Assert.Single(Gaps(view), g => Blocks(g).Contains(InvoiceReadiness.Payment));
-        Assert.Equal("total", blocking.GetProperty("kind").GetString());
-        Assert.Equal("Итого", blocking.GetProperty("field").GetString());
+        var only = Assert.Single(Gaps(view));
+        Assert.Equal("field", only.GetProperty("kind").GetString());
+        Assert.Equal("Итого", only.GetProperty("field").GetString());
+        Assert.Equal([InvoiceReadiness.Parsed, InvoiceReadiness.Payment], Blocks(only));
     }
 
     /// <summary>Отклонённый: род — <c>rejected</c>, тем же порядком, что отказ записи оплаты.</summary>

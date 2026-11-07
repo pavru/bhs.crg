@@ -79,7 +79,8 @@ public class CostsJournalSeriesTests(InvoiceLineHost host) : InvoiceLineTestBase
     public async Task Разобран_посреди_правки_стоит_отдельным_рядом()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        // Сумма — при заведении: дописанная помощником строк, она стала бы третьей правкой шапки в серии.
+        var invoice = await CreateAsync(client, complete: true, total: 100m);
         await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
 
         await UpdateAsync(client, invoice, "Номер", "СЧ-первый");

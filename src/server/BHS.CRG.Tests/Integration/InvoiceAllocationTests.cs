@@ -75,7 +75,7 @@ public class InvoiceAllocationTests(InvoiceLineHost host) : InvoiceLineTestBase(
     public async Task Документ_с_остатком_не_переходит_в_разобран()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 3100m);
         var view = await LinesAsync(client, invoice, [
             Line(cable, quantity: 300, price: 10m),
             Line(conduit, quantity: 50, price: 2m),

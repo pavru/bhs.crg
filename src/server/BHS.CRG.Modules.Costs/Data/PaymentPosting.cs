@@ -187,7 +187,7 @@ public static class PaymentPosting
 
     /// <summary>То же по готовым числам баланса — у того, кто держит сводку разноски, а не сам баланс.</summary>
     public static string? RefusalKind(Invoice invoice, decimal? discrepancy, bool withinTolerance) =>
-        invoice.Total is not { } total || total == 0 ? PaymentRefusal.Amount
+        InvoiceRequisites.NoTotal(invoice.Total) ? PaymentRefusal.Amount
         : !withinTolerance && discrepancy is not null ? PaymentRefusal.Discrepancy
         : null;
 

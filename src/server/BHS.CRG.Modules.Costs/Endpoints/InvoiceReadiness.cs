@@ -78,19 +78,15 @@ public sealed class InvoiceReadiness
     /// Мешает ли пункт оплате. Род причины берётся у правила оплаты, а не списком видов: правило меняется,
     /// и список молча отстал бы (design D2).
     ///
-    /// <para>Род <c>amount</c> чинит любой пункт у «Итого», а не только пункт пустого поля: нулевая сумма
-    /// к оплате для поля пустой не считается, и при строках пунктом стоит расхождение (<c>total</c>) — а
-    /// чинится оно той же суммой (ревью PR #1790).</para>
-    ///
-    /// <para>⚠️ Пункт пустого поля «Итого» появляется, только когда сумма к оплате обязательна для
-    /// «Разобран» (change <c>costs-invoice-screen-01-parsed-amount</c>). До того у счёта без суммы род
-    /// <c>amount</c> пунктом готовности не покрыт, и причину отказа оплаты индикатор называет отдельно — это
-    /// правда, а не дефект.</para>
+    /// <para>Род <c>amount</c> чинит пункт пустого поля «Итого»: сумма к оплате обязательна для «Разобран»,
+    /// и нуль для неё — не сумма (<see cref="InvoiceRequisites.NoTotal" />, change
+    /// <c>costs-invoice-screen-01-parsed-amount</c>). Расхождения (<c>total</c>) при таком роде не бывает:
+    /// без суммы готовность его не ставит (<see cref="Allocation" />), так что пункт у «Итого» один.</para>
     /// </summary>
     private bool BlocksPayment(InvoiceReadinessGap gap) => _payment switch
     {
         PaymentRefusal.Discrepancy => gap.Kind == "total",
-        PaymentRefusal.Amount => gap.Kind is "field" or "total" && gap.Field == InvoiceRequisites.TotalKey,
+        PaymentRefusal.Amount => gap.Kind == "field" && gap.Field == InvoiceRequisites.TotalKey,
         _ => false,
     };
 
@@ -300,7 +296,11 @@ public sealed class InvoiceReadiness
             gaps.Add(new InvoiceReadinessGap("allocation", $"разноска на удалённую цель: {allocation.Lost}"));
         }
 
-        if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
+        // Суммы к оплате нет (нуль — не сумма) — сверять не с чем: о ней говорит пункт поля «Итого», а
+        // расхождение рядом было бы вторым пунктом на ту же починку (change
+        // costs-invoice-screen-01-parsed-amount, D5). У null его не считает и сама разноска.
+        var reconciled = !InvoiceRequisites.NoTotal(invoice.Total);
+        if (reconciled && !allocation.WithinTolerance && allocation.Discrepancy is { } gap)
         {
             var guess = ModeExplains(invoice, lines, allocation.Tolerance);
             problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} при допуске " +
@@ -311,6 +311,9 @@ public sealed class InvoiceReadiness
                 $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00}{guess?.Label}",
                 Field: InvoiceRequisites.TotalKey, VatExplains: guess?.Code));
         }
+
+        // Мешало только расхождение с нулевой суммой — оно названо пунктом поля, разноске сказать нечего.
+        if (problems.Count == 0 && !reconciled && !allocation.WithinTolerance) return;
 
         // «Не разнесён» без единой названной причины — счёт без строк: разносить ещё нечего.
         if (problems.Count == 0)

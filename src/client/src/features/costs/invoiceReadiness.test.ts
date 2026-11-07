@@ -5,7 +5,7 @@ import { isRequired, readinessAnchor, readinessItems } from './invoiceReadiness'
 const view = (gaps: InvoiceReadinessGap[] | null | undefined, lines = 5): InvoiceView => ({
   id: 'i1',
   lines: Array.from({ length: lines }, (_, i) => ({ ordinal: i + 1 })),
-  readiness: gaps === undefined ? undefined : { required: ['Номер', 'Плательщик'], gaps },
+  readiness: gaps === undefined ? undefined : { required: ['Номер', 'Плательщик', 'Итого'], gaps },
 } as unknown as InvoiceView);
 
 const all = { edit: true, allocate: true };
@@ -97,6 +97,8 @@ describe('readinessItems', () => {
 describe('isRequired', () => {
   it('по перечню сервера', () => {
     expect(isRequired(view([]), 'Плательщик')).toBe(true);
+    // Сумма к оплате обязательна для «Разобран» (costs-invoice-screen-01-parsed-amount): звёздочку ставит перечень сервера.
+    expect(isRequired(view([]), 'Итого')).toBe(true);
     expect(isRequired(view([]), 'Основание')).toBe(false);
   });
 

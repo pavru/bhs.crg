@@ -108,10 +108,13 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     }
 
     /// <summary>
-    /// Завести счёт. <paramref name="complete" /> — со всеми обязательными полями: такой счёт годится
-    /// для перехода «разобран», а без них переход отказывает (и это отдельный тест).
+    /// Завести счёт. <paramref name="complete" /> — с обязательными полями, кроме суммы к оплате: такой
+    /// счёт годится для перехода «разобран», а без них переход отказывает (и это отдельный тест).
+    /// <paramref name="total" /> — сумма к оплате; она обязательна для «разобран» (change
+    /// <c>costs-invoice-screen-01-parsed-amount</c>), но сойтись обязана со строками, которых здесь ещё нет.
+    /// Поэтому её называет тест, а <see cref="AllocatedLinesAsync" /> ставит равной сумме строк сам.
     /// </summary>
-    protected static async Task<Guid> CreateAsync(HttpClient client, bool complete = false)
+    protected static async Task<Guid> CreateAsync(HttpClient client, bool complete = false, decimal? total = null)
     {
         var requisites = new Dictionary<string, object?>
         {
@@ -120,6 +123,7 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
             ["Поставщик"] = Reference(supplier),
             ["Плательщик"] = complete ? Reference(payer) : null,
         };
+        if (total is { } sum) requisites["Итого"] = sum;
 
         var response = await client.PostAsJsonAsync("/api/costs/invoices", new { requisites });
         await OkAsync(response);
@@ -180,6 +184,10 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     /// <summary>
     /// Строки, каждая разнесённая целиком на одну стройку, — счёт, которому до «разобран» (F1) не
     /// хватает только решения человека. Строки — с количеством.
+    ///
+    /// <para>Суммы к оплате у счёта нет — она ставится равной сумме строк: сумма обязательна для
+    /// «Разобран» (change <c>costs-invoice-screen-01-parsed-amount</c>), а «не хватает только решения»
+    /// без неё было бы неправдой. Названная до вызова сумма не трогается — расхождение тест ставит сам.</para>
     /// </summary>
     protected async Task<JsonElement> AllocatedLinesAsync(HttpClient client, Guid invoice, object[] lines)
     {
@@ -190,7 +198,16 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
             view = await AllocateAsync(client, invoice, line.GetProperty("id").GetGuid(),
                 [Part(site, quantity: line.GetProperty("quantity").GetDecimal())]);
 
-        return view;
+        if ((await ReadAsync(client, invoice)).GetProperty("requisites").TryGetProperty("Итого", out var total)
+            && total.ValueKind == JsonValueKind.Number)
+            return view;
+
+        var sum = view.GetProperty("lines").EnumerateArray()
+            .Sum(l => l.GetProperty("amount").ValueKind == JsonValueKind.Number ? l.GetProperty("amount").GetDecimal() : 0m);
+        var saved = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(client, invoice, "Итого", sum) });
+        await OkAsync(saved);
+        return await saved.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     /// <summary>Статья с приметой — посев общий, и одноимённая статья соседнего теста дала бы отказ «уже есть».</summary>

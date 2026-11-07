@@ -181,9 +181,20 @@ public static class InvoiceRequisites
         var requisites = Merge(invoice);
 
         return [.. CostsRecordTypes.Invoice.Fields
-            .Where(f => f.Required && IsBlank(requisites[f.Key]))
+            .Where(f => f.Required && (f.Key == TotalKey ? NoTotal(invoice.Total) : IsBlank(requisites[f.Key])))
             .Select(f => (f.Key, f.Title))];
     }
+
+    /// <summary>
+    /// Суммы к оплате нет: она не указана либо равна нулю. Одно правило на «Разобран» и на оплату
+    /// (<see cref="PaymentPosting.RefusalKind(Invoice, decimal?, bool)" />): нулевой счёт затрат стройке не
+    /// даёт и оплатить его нельзя, а пройди он «Разобран» — остался бы ровно тот разрыв, ради которого сумма
+    /// стала обязательной (change <c>costs-invoice-screen-01-parsed-amount</c>, D2).
+    ///
+    /// <para>⚠️ Для <see cref="IsBlank" /> число <c>0</c> — значение, поэтому сумма проверяется здесь, а
+    /// не общим правилом пустоты: остальным полям нуль не пустота.</para>
+    /// </summary>
+    public static bool NoTotal(decimal? total) => total is null or 0;
 
     /// <summary>Имя поля для человека — из объявления типа; у незнакомого ключа — сам ключ.</summary>
     public static string TitleOf(string key) =>
