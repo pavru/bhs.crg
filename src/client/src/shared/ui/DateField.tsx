@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { DateInput } from './DateInput';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldName, type FieldDensity } from './fieldBox';
 import type { DatePrecision } from '@/shared/api/types';
 
 /**
@@ -13,6 +13,7 @@ import type { DatePrecision } from '@/shared/api/types';
  */
 export function DateField({
   label, value, onChange, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max, density = 'form',
+  fromScan = false,
 }: {
   label: string;
   value: string;
@@ -33,6 +34,11 @@ export function DateField({
   /** Границы допустимых дат — календарь не даст выбрать за ними (#1464); ошибку набранного называет форма. */
   min?: string;
   max?: string;
+  /**
+   * Значение со скана, не проверено ([UI-88]): знак «со скана» перед крестиком и календарём и приписка к имени
+   * группы сегментов для диктора. Знак ставит `DateInput` — оболочка отдаёт его вместе со знаком ошибки.
+   */
+  fromScan?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const hintId = useId();
@@ -42,14 +48,14 @@ export function DateField({
   const error = problem ? (hint ? `${problem}. ${hint[0].toUpperCase()}${hint.slice(1)}` : problem) : undefined;
   return (
     <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error} hintId={hintId}
-      raise="always" focused={focused} readOnly={readOnly} density={density} markInside>
+      raise="always" focused={focused} readOnly={readOnly} density={density} fromScan={fromScan} markInside>
       {/* Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, а не прозрачность всего поля. */}
       <div data-disabled={disabled ? '' : undefined}
         className={`rounded-xs flex items-center text-on-surface disabled-content ${fieldBox(density)}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
-        <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
+        <DateInput label={fieldName(label, fromScan)} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
           disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max}
           hintId={hint || problem ? hintId : undefined} />
       </div>

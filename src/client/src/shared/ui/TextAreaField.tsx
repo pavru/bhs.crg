@@ -28,13 +28,14 @@ interface TextAreaFieldOwnProps extends TextareaHTMLAttributes<HTMLTextAreaEleme
 
 /**
  * Хвост (`FieldTrailingProps`) — знаки и кнопка значения из источника ([UI-86]); `trailingMark` — перед кнопкой
- * ещё знак 18 (замок запертого поля). Слот оболочки стоит по первой строке, а не посреди области, и текст всех
- * строк уступает ему место справа: хвост — не плавающий над текстом знак.
+ * ещё знак 18 (замок запертого поля); `fromScan` — значение со скана, не проверено ([UI-88]), знак ставит оболочка.
+ * Слот оболочки стоит по первой строке, а не посреди области, и текст всех строк уступает ему место справа:
+ * хвост — не плавающий над текстом знак.
  */
 export type TextAreaFieldProps = TextAreaFieldOwnProps & FieldTrailingProps;
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(function TextAreaField(
-  { label, error, invalid, hint, trailing, trailingMark, className = '', containerClassName = '', id, required, rows = 3,
+  { label, error, invalid, hint, trailing, trailingMark, fromScan, className = '', containerClassName = '', id, required, rows = 3,
     onFocus, onBlur, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
@@ -48,7 +49,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
       raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
-      trailing={trailing} trailingMark={trailingMark}
+      trailing={trailing} trailingMark={trailingMark} fromScan={fromScan}
     >
       {/* Отступ под метку — padding ОБЁРТКИ, а не самого поля и не его margin.
           - Не padding `<textarea>`: она обрезает содержимое по padding-box, и при прокрутке строки
@@ -62,11 +63,11 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
           Место хвоста — тоже padding обёртки, а не области: полоса прокрутки рисуется у края самой
           `<textarea>`, и при отступе внутри неё она уходила бы под кнопку хвоста — щелчок по стрелке
           прокрутки попадал бы в кнопку. Без хвоста отступ остаётся у области, как был. */}
-      <div className={`pt-4 ${trailing ? fieldEnd('form', { trailing: true, trailingMark }) : ''}`}>
+      <div className={`pt-4 ${trailing || fromScan ? fieldEnd('form', { trailing: !!trailing, trailingMark, fromScan }) : ''}`}>
         <textarea
           ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
           aria-invalid={invalid || !!error || undefined}
-          className={`block w-full rounded-xs bg-transparent pl-4 ${trailing ? 'pr-1' : fieldEnd('form')} pb-2 text-body-large text-on-surface ` +
+          className={`block w-full rounded-xs bg-transparent pl-4 ${trailing || fromScan ? 'pr-1' : fieldEnd('form')} pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}

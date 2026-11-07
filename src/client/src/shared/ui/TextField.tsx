@@ -1,6 +1,6 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity, type FieldTrailingProps } from './fieldBox';
+import { fieldBox, fieldDescribedBy, fieldName, useFieldDensity, type FieldDensity, type FieldTrailingProps } from './fieldBox';
 
 /**
  * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Рамку с настоящим вырезом,
@@ -35,12 +35,13 @@ interface TextFieldOwnProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 
 /**
  * Хвост (`FieldTrailingProps`): `trailing` — правый адорнмент (например «глаз» пароля); `trailingMark` — перед
- * кнопкой хвоста ещё знак 18 (замок запертого поля, [UI-86]), только вместе с `trailing`.
+ * кнопкой хвоста ещё знак 18 (замок запертого поля, [UI-86]), только вместе с `trailing`; `fromScan` — значение
+ * со скана, не проверено ([UI-88]): знак «со скана» и приписку к имени ставит оболочка, не вместе с замком.
  */
 export type TextFieldProps = TextFieldOwnProps & FieldTrailingProps;
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, error, invalid, hint, trailing, trailingMark, density: own, placeholder, className = '', containerClassName = '', id, required,
+  { label, error, invalid, hint, trailing, trailingMark, fromScan, density: own, placeholder, className = '', containerClassName = '', id, required,
     children, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
@@ -54,15 +55,15 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   return (
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      readOnly={rest.readOnly} density={density} htmlFor={inputId} trailing={trailing} trailingMark={trailingMark}
+      readOnly={rest.readOnly} density={density} htmlFor={inputId} trailing={trailing} trailingMark={trailingMark} fromScan={fromScan}
       containerClassName={containerClassName}
     >
       {/* В клетке подписи у оболочки нет — имя полю даёт `aria-label`. Неверное — `aria-invalid`, а не одна красная
           рамка: рамку диктор не прочтёт (ревью PR #1760). */}
       <input
-        ref={ref} id={inputId} aria-label={density === 'cell' ? label : undefined} placeholder={density === 'form' ? ' ' : placeholder ?? ' '} required={required} aria-describedby={described}
+        ref={ref} id={inputId} aria-label={density === 'cell' ? fieldName(label, fromScan) : undefined} placeholder={density === 'form' ? ' ' : placeholder ?? ' '} required={required} aria-describedby={described}
         aria-invalid={invalid || !!error || undefined}
-        className={`peer w-full rounded-xs bg-transparent text-on-surface ${fieldBox(density, { trailing: !!trailing, trailingMark })} ` +
+        className={`peer w-full rounded-xs bg-transparent text-on-surface ${fieldBox(density, { trailing: !!trailing, trailingMark, fromScan })} ` +
           `outline-none disabled-content ${className}`}
         {...rest}
       />

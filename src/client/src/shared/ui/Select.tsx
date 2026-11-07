@@ -2,9 +2,9 @@ import * as RS from '@radix-ui/react-select';
 import { Chip } from './Chip';
 import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
-import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, fieldDescribedBy, useFieldDensity, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, fieldName, FieldMarkContext, useFieldDensity, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
 
 /**
@@ -73,6 +73,13 @@ interface SelectBase {
   children: ReactNode;
 }
 
+/**
+ * Значение со скана, не проверено ([UI-88]) — у поля (с подписью или плотного): знак «со скана» перед стрелкой и
+ * приписка к имени для диктора. У чипа и `inline` хвоста и подписи нет — нет и пометки.
+ */
+type Scan = { fromScan?: boolean };
+type NoScan = { fromScan?: never };
+
 /** Только у поля с подписью: сообщение и пояснение под рамкой, обёртка. */
 type Below = { error?: string; hint?: string; containerClassName?: string };
 type NoBelow = { error?: never; hint?: never; containerClassName?: never };
@@ -89,10 +96,10 @@ type NoBelow = { error?: never; hint?: never; containerClassName?: never };
  * - `variant="inline"` — внутри фразы, названное отступление: без рамки и фона, высоту и цвет даёт место.
  */
 export type SelectProps = SelectBase & (
-  | (Below & { label: string; variant?: never; density?: FieldDensity })
-  | (NoBelow & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
-  | (NoBelow & { label?: never; variant: 'inline'; density?: never; invalid?: never })
-  | (NoBelow & { label?: never; variant?: never; density: 'dense' | 'cell'; 'aria-label': string })
+  | (Below & Scan & { label: string; variant?: never; density?: FieldDensity })
+  | (NoBelow & NoScan & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
+  | (NoBelow & NoScan & { label?: never; variant: 'inline'; density?: never; invalid?: never })
+  | (NoBelow & Scan & { label?: never; variant?: never; density: 'dense' | 'cell'; 'aria-label': string })
 );
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
@@ -104,8 +111,8 @@ const FRAMED_TRIGGER =
   'disabled-content disabled:pointer-events-none';
 
 /**
- * Стрелка поля формы — в слоте хвоста оболочки, а не в триггере ([UI-69]): знак ошибки оболочка ставит
- * перед хвостом, и стрелка должна быть хвостом. Щелчки она пропускает к триггеру под собой. Открытый
+ * Стрелка поля формы — в слоте хвоста оболочки, а не в триггере ([UI-69]): знаки поля встают перед хвостом
+ * (`TriggerMarks`), и стрелка должна быть хвостом. Щелчки она пропускает к триггеру под собой. Открытый
  * список поворачивает её — exposed dropdown menu MD3.
  */
 function FieldArrow({ open, disabled }: { open: boolean; disabled?: boolean }) {
@@ -116,6 +123,17 @@ function FieldArrow({ open, disabled }: { open: boolean; disabled?: boolean }) {
       <Icon icon={KeyboardArrowDown} size={24} />
     </span>
   );
+}
+
+/**
+ * Знаки поля — «со скана» и ошибки — внутри триггера, после значения ([UI-88], `markInside`): в слоте поверх
+ * кнопки знак ловил бы указатель ради подсказки, и щелчок по нему не открывал бы список. Отсюда щелчок
+ * всплывает к триггеру. Отступ триггера под стрелку тот же (`trailing`), знаки встают перед ним с зазором 4 —
+ * пиксели те же, что у знака перед кнопкой поля (`markButton`). Знаки даёт оболочка (`FieldMarkContext`).
+ */
+function TriggerMarks() {
+  const marks = useContext(FieldMarkContext);
+  return marks ? <span className="flex shrink-0 items-center gap-1 pl-1">{marks}</span> : null;
 }
 
 // Внутри фразы — без рамки и фона ([UI-69], названное отступление): высоту, поля и цвет текста даёт место.
@@ -131,7 +149,7 @@ const EMPTY = '\u0000∅';
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '', variant, emptyItem,
-  label, invalid, error, hint, containerClassName = '', density: own, stayOpenOn, onOpenChange, children, ...aria
+  label, invalid, error, hint, containerClassName = '', density: own, stayOpenOn, onOpenChange, fromScan, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
@@ -170,7 +188,7 @@ export function Select({
         </RS.Trigger>
       ) : <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${bare ? '' : className}`
         : `${INLINE} ${className}`}
-        aria-label={!framed ? aria['aria-label'] : density === 'cell' ? label ?? aria['aria-label'] : undefined}
+        aria-label={!framed ? aria['aria-label'] : density === 'cell' ? fieldName(label ?? aria['aria-label'] ?? '', fromScan) : undefined}
         aria-labelledby={framed && density !== 'cell' ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
         aria-describedby={framed ? fieldDescribedBy(hintId, error || hint) : undefined}
@@ -178,6 +196,7 @@ export function Select({
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}
         <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
+        {framed && <TriggerMarks />}
         {!framed && <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>}
       </RS.Trigger>}
       <RS.Portal>
@@ -198,7 +217,7 @@ export function Select({
   // время, что человек выбирает значение.
   return (
     <OutlinedField label={label ?? aria['aria-label'] ?? ''} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      raise="always" focused={focused || open} labelId={labelId} density={density} containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
+      raise="always" focused={focused || open} labelId={labelId} density={density} fromScan={fromScan} markInside containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
       trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>

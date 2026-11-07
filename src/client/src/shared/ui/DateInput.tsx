@@ -116,8 +116,9 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Список месяцев или лет открыт из шапки календаря: Esc вернёт его к дням, слою закрываться нельзя.
   const headerList = useRef(false);
   const onHeaderList = (open: boolean) => { headerList.current = open; };
-  // Знак ошибки поля формы (`DateField`, [UI-69]) — перед хвостом: крестиком и календарём. Хвост живёт
-  // здесь, поэтому знак оболочки встаёт тоже здесь, и он у поля один; вне оболочки его нет.
+  // Знаки поля формы (`DateField`) — «со скана» ([UI-88]) и ошибки ([UI-69]) — перед хвостом: крестиком и
+  // календарём. Хвост живёт здесь, поэтому знаки оболочки встают тоже здесь, и знак ошибки у поля один; вне
+  // оболочки их нет.
   const mark = useContext(FieldMarkContext);
 
   // Порядок сегментов, разделитель и обозначения — языка пользователя (issue #1461). Хранимое значение
@@ -196,7 +197,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
       {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
           появляясь, крестик не сдвигает ни календарь, ни цифры. */}
       <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
-        {mark && <span className="mr-1 flex">{mark}</span>}
+        {mark && <span className="mr-1 flex items-center gap-1">{mark}</span>}
         {clearButton}
         {showCalendar && (
           <Popover.Trigger asChild>
