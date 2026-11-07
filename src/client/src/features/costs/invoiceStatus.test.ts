@@ -291,6 +291,8 @@ describe('statusOf — места и права (1.4)', () => {
     expect(item.detail).toMatch(/^строки 1\s500,00\s₽ \+ НДС 330,00\s₽ = к оплате 1\s830,00\s₽$/);
     expect(s.count).toBe(0);
     expect(statusOf(input(v, { correcting: true })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    // Режим переключён и не сохранён: у переключателя ни рамки, ни «Верно» — пункт о сохранённом молчит (ревью PR #1794).
+    expect(statusOf(input(v, { vatModeChanged: true })).items.some(i => i.key === 'vat-mode')).toBe(false);
     // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет (ревью PR #1794).
     expect(statusOf(input(v, { can: { ...CAN, edit: false } })).items.some(i => i.key === 'vat-mode')).toBe(false);
     const locked = { ...v, payment: { ...v.payment, lockedBy: 'период закрыт' } } as InvoiceView;

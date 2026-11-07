@@ -278,7 +278,7 @@ export function InvoiceForm({
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
     onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
     onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), onShowScan: onShowFile,
-    onConfirmHiddenMarks: () => void confirmFields(orphanMarks), reveal,
+    onConfirmHiddenMarks: () => void confirmFields(orphanMarks), confirming: confirm.isPending, reveal,
     form: {
       gone, correcting, marks, hiddenMarks: orphanMarks, markTitles, canShowScan: onShowFile !== undefined,
       shippedEarly: shippedBeforeIssued(value(K.shippedOn), value(K.date)),

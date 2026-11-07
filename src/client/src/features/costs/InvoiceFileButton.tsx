@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { RightPanelOpen } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
@@ -105,16 +105,30 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   const beside = file === 'beside';
   // Пока виды файлов и вид для чтения не пришли, решать, чем показывать, не по чему: поверх формы открылся бы
   // не вид для чтения, а скачанный оригинал. И повторный щелчок не начинает второе открытие (ревью PR #1794).
-  const loading = busy || (file === 'over' && (kinds.isLoading || image.isLoading));
-  // «Показать» — все три места здесь, одним решением с кнопкой: открытую рядом панель не закрывает.
-  useImperativeHandle(showRef, () => ({
-    show: () => {
-      if (loading) return;
-      if (file === 'over') over();
-      else if (file === 'closed') onToggle();
+  const waiting = file === 'over' && (kinds.isLoading || image.isLoading);
+  const loading = busy || waiting;
+  // «Показать» — все три места здесь, одним решением с кнопкой: открытую рядом панель не закрывает. Пока виды не
+  // пришли, показ ждёт их, а не пропадает: «Показать на скане» нажат в листе, который уже закрылся, и молча
+  // проглоченное нажатие не повторить глазами (ревью PR #1794). Открытие в пути второго не начинает.
+  const queued = useRef(false);
+  const showNow = useRef(() => {});
+  useEffect(() => {
+    showNow.current = () => {
+      if (busy) return;
+      if (file === 'over') {
+        if (waiting) { queued.current = true; return; }
+        over();
+      } else if (file === 'closed') onToggle();
       else onReveal?.();
-    },
-  }));
+    };
+  });
+  useEffect(() => {
+    if (waiting || !queued.current) return;
+    queued.current = false;
+    showNow.current();
+  }, [waiting]);
+  // Хэндл один на всю жизнь кнопки: показ берёт текущее состояние из `showNow` — его обновляет каждый рендер.
+  useImperativeHandle(showRef, () => ({ show: () => showNow.current() }), []);
   return (
     <>
       <IconButton icon={RightPanelOpen} label="Файл" aria-pressed={file === 'over' ? undefined : beside}

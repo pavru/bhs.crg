@@ -29,6 +29,8 @@ export interface StatusHandlers {
   onConfirmMarks: () => void;
   /** «Всё верно» у меток полей, которых форма не показывает. */
   onConfirmHiddenMarks: () => void;
+  /** «Всё верно» в пути — повторное нажатие ждёт ответа (ревью PR #1794). */
+  confirming?: boolean;
   /** «Показать на скане» у пунктов о метках: открыть файл счёта (`InvoiceFileButton.showRef`). */
   onShowScan?: () => void;
   reveal: (place: ReadinessTarget) => void;
@@ -57,6 +59,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
       ...h.form,
       stale: { header: h.headerStale, lines: lines?.stale ?? false, correction: correction !== null },
       matches: lines?.matches ?? null,
+      vatModeChanged: lines?.modeChanged ?? false,
       rereadFailed: h.rereadFailed?.error ?? null,
       hiddenByFilter: h.hiddenByFilter !== undefined,
     },
@@ -94,6 +97,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
   const busy: StatusAction['kind'][] = [
     ...(start.isPending ? ['recognize' as const] : []),
     ...(h.rereadFailed?.retrying ? ['retry-view' as const] : []),
+    ...(h.confirming ? ['confirm-marks' as const, 'confirm-hidden-marks' as const] : []),
   ];
   return { status, run, busy, onLinesReport, onCorrectionStale };
 }

@@ -269,11 +269,11 @@ export function InvoiceLinesTable({
   });
   useEffect(() => {
     onReport?.({
-      stale, acts,
+      stale, acts, modeChanged: mode !== savedMode,
       matches: shown ? { hasSupplier, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
     });
-  }, [onReport, stale, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
-  useEffect(() => () => onReport?.({ stale: false, acts, matches: null }), [onReport]);
+  }, [onReport, stale, mode, savedMode, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
+  useEffect(() => () => onReport?.({ stale: false, acts, modeChanged: false, matches: null }), [onReport]);
 
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
@@ -364,6 +364,7 @@ export function InvoiceLinesTable({
             для сверки — в подсказке кнопки и в пункте: рамка не единственный носитель смысла. */}
         {modeMarked && (
           <Button variant="text" loading={confirm.isPending} onClick={confirmMode} data-testid="vat-mode-recognized"
+            aria-label={`Верно: режим НДС — ${mode === 'OnTop' ? 'цены без НДС, НДС сверху' : 'НДС в сумме строк'}`}
             title={`${UNCONFIRMED_HINT}: ${modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney)}`}>
             Верно
           </Button>
@@ -461,7 +462,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
         // Не запрет — подсказкой и описанием для диктора, а не фразой в полосе (41): пока строки не сохранены,
         // пункта перечня о расхождении ещё нет, и число в тоне предупреждения читалось бы запретом (ревью PR #1794).
         <Tooltip content={NOT_A_BAN}>
-          <span className="text-warning" data-testid="reconciliation-difference" tabIndex={0}>
+          <span className="text-warning" data-testid="reconciliation-difference">
             расхождение: <b>{formatMoney(strip.difference)}</b>
           </span>
         </Tooltip>
@@ -506,6 +507,8 @@ export interface LinesActs {
 export interface LinesReport {
   /** Строки набраны поверх прежнего вида счёта. */
   stale: boolean;
+  /** Режим НДС переключён и не сохранён: метка режима со скана к набранному не относится (ревью PR #1794). */
+  modeChanged: boolean;
   matches: MatchFacts | null;
   acts: MutableRefObject<LinesActs>;
 }

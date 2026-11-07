@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
@@ -11,7 +11,9 @@ import { BlockFields } from './InvoiceFormFields';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
 import { SCAN_NOTE } from '@/shared/ui/fieldBox';
 
-vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() } }));
+vi.mock('@/shared/api/client', () => ({
+  apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() }, traceIdOf: () => undefined,
+}));
 vi.mock('@/shared/ui/viewer/viewerGate', () => ({ preloadPdfViewer: vi.fn() }));
 vi.mock('@/shared/ui/viewer/PdfViewer', () => ({ PdfViewer: () => null, PdfViewerOverlay: () => null }));
 
@@ -112,14 +114,17 @@ describe('«показать файл» у кнопки «Файл» — отк�
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
-  it('поверх формы, пока виды файлов не пришли, — ничего не открывает и не скачивает (ревью PR #1794)', () => {
+  it('поверх формы, пока виды файлов не пришли, — ждёт их, а не открывает оригинал и не пропадает (ревью PR #1794)', async () => {
     const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const { onToggle, onReveal } = probe('over');
     expect(onToggle).not.toHaveBeenCalled();
     expect(onReveal).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
     // Без запора открытие пошло бы за самим файлом — оригиналом, а не видом для чтения.
-    expect(vi.mocked(apiClient.get).mock.calls.map(c => c[0])).not.toContain('/costs/invoices/i1/scan');
+    const asked = () => vi.mocked(apiClient.get).mock.calls.map(c => c[0]);
+    expect(asked()).not.toContain('/costs/invoices/i1/scan');
+    // Виды пришли (вида для чтения нет) — отложенный показ выполняется сам: нажатие в закрывшемся листе не пропало.
+    await waitFor(() => expect(asked()).toContain('/costs/invoices/i1/scan'));
     save.mockRestore();
   });
 });

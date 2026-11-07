@@ -15,7 +15,6 @@ const FIXTURES = {
   'list-row': '<div role="option" className="px-3 py-1.5">Стройка</div>',
 };
 
-
 const file = 'features/x/X.tsx';
 const actualOf = text => Object.fromEntries(
   Object.entries(countViolations(text, { dir: 'features', file })).map(([rule, n]) => [rule, { [file]: n }]));

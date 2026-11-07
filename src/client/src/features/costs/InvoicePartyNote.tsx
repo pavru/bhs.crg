@@ -196,7 +196,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         {refusal && (
           <ModalBanner tone="error">
             {/* Точку ставим свою: текст сервера своей кончается не всегда (ревью PR #1794). */}
-            Организация не заведена: {refusal.replace(/[.\s]+$/, '')}.{' '}
+            Организация не заведена: {sentence(refusal)}{' '}
             <Link to="/common-data" target="_blank" className="text-primary underline hover:no-underline">
               Открыть справочник организаций ↗
             </Link>
@@ -211,4 +211,10 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
       </div>
     </Modal>
   );
+}
+
+/** Отказ сервера фразой с точкой: своя точка — только если фраза не кончается своим знаком (ревью PR #1794). */
+function sentence(text: string): string {
+  const said = text.replace(/[.\s]+$/, '');
+  return /[!?…]$/.test(said) ? said : `${said}.`;
 }

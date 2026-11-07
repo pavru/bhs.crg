@@ -47,15 +47,6 @@ export function dueState(view: InvoiceView, edits: Record<string, unknown>, lock
 }
 
 /**
- * Подсказки под полем — все, а не первая (ревью PR #1328): метка «распознано, не подтверждено» и
- * предупреждение о дате говорят о разном, и одна не вправе затирать другую.
- */
-export function hints(...parts: (string | null | undefined)[]): string | undefined {
-  const shown = parts.filter((p): p is string => !!p);
-  return shown.length > 0 ? shown.join(' · ') : undefined;
-}
-
-/**
  * Что сказать у поля «Отсрочка» об условиях поставщика (ТЗ COST-9.2; решение владельца 14.10.2026):
  * взята ли она из условий или отличается от них. `null` — у поставщика условий нет.
  *

@@ -126,6 +126,8 @@ export interface StatusInput {
     matches: MatchFacts | null;
     /** Метки «со скана» у полей формы — то, что снимет «Всё верно». */
     marks: readonly string[];
+    /** Режим НДС переключён в строках и не сохранён: метке режима со скана молчать (36). */
+    vatModeChanged?: boolean;
     /** Дата отгрузки раньше даты счёта — по набранному в форме (32). */
     shippedEarly?: boolean;
     /** Метки у полей, которых форма не показывает (46): их снимает только «Всё верно». */
@@ -448,7 +450,9 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // ── К сведению ──────────────────────────────────────────────────────────────────────────────────────
   // Режим НДС поставило распознавание (36). «Верно» — у переключателя режима: сверяют его там, глядя на строки.
   // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет, как нет и «Верно» (ревью PR #1794).
-  if (editable && !closed && !form.correcting && view.unconfirmed.includes(VAT_MODE_MARK)) {
+  // Переключили и не сохранили — у переключателя ни рамки, ни «Верно», и пункт о сохранённом режиме противоречил бы
+  // флажку (ревью PR #1794).
+  if (editable && !closed && !form.correcting && !form.vatModeChanged && view.unconfirmed.includes(VAT_MODE_MARK)) {
     const onTop = vatModeOf(view) === 'OnTop';
     add({
       key: 'vat-mode', level: 'info',
