@@ -392,7 +392,11 @@ public sealed partial class InvoiceDesk(
             readiness,
             InvoiceDueView.Of(invoice, await DueRuleAsync(ct), await SupplierDeferralAsync(invoice.SupplierId, ct),
                 await clock.TodayAsync(ct)),
-            await SupplierMatching.MarkedAsync(db, lines, ct)) with { UpdatedBy = InvoiceAuthorView.Of(invoice, user.Id) },
+            await SupplierMatching.MarkedAsync(db, lines, ct)) with
+            {
+                UpdatedBy = InvoiceAuthorView.Of(invoice, user.Id),
+                ScanRepeatAccepted = await InvoiceSameFiles.RepeatAcceptedAsync(db, invoice, twins, ct),
+            },
             readiness);
     }
 

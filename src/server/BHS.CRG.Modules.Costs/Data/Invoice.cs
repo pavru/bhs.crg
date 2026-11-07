@@ -232,10 +232,11 @@ public sealed partial class Invoice
     public bool RepeatAccepted => ScanRepeatAccepted is { } accepted && accepted == TrustedFingerprint;
 
     /// <summary>
-    /// Принять повтор нынешнего файла. Ставит только звавший, проверивший, что повтор и правда есть: без
-    /// двойников «принятый повтор» был бы неправдой, которую никто не снимет.
+    /// Принять повтор нынешнего файла. Зовёт ТОЛЬКО <c>InvoiceSameFiles.AcceptRepeatAsync</c>: там проверка,
+    /// что двойники и правда есть, — сущность базы не видит, а без двойников «принятый повтор» был бы
+    /// неправдой, которую никто не снимет.
     /// </summary>
-    public void AcceptRepeat() => ScanRepeatAccepted = TrustedFingerprint;
+    internal void AcceptRepeat() => ScanRepeatAccepted = TrustedFingerprint;
 
     /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца

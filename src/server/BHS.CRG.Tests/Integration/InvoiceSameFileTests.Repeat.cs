@@ -117,6 +117,45 @@ public sealed partial class InvoiceSameFileTests
         Assert.False(Accepted(read));
     }
 
+    /// <summary>
+    /// Принимали тех двойников, кого видели при заведении (ревью #1800): двойник, заведённый ПОЗЖЕ, — новый
+    /// вопрос. И после удалённого прежнего двойника новый не возвращает согласия, которого о нём не давали.
+    /// </summary>
+    [Fact]
+    public async Task Новый_двойник_после_принятия_снова_спрашивает()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var first = await FromScanAsync(client, content, "Первый.pdf");
+        var repeat = await RepeatAsync(client, content, "Повтор.pdf", "true");
+        Assert.True(Accepted(repeat));
+
+        var later = await FromScanAsync(client, content, "Позже.pdf");
+        Assert.False(Accepted(await ReadAsync(client, Id(repeat))));
+        Assert.False(Accepted(later));
+
+        // Прежний двойник удалён, новый остался: согласие о прежнем не переходит на нового.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/costs/invoices/{Id(first)}")).StatusCode);
+        var read = await ReadAsync(client, Id(repeat));
+        Assert.Equal([Id(later)], SameFile(read));
+        Assert.False(Accepted(read));
+    }
+
+    /// <summary>Поле формы бывает в мегабайты — отказ повторяет его начало, а не целиком.</summary>
+    [Fact]
+    public async Task Длинное_непонятное_согласие_в_отказе_обрезано()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var value = new string('x', 10_000);
+
+        var refused = await client.PostAsync(FromScan, RepeatForm(Pdf(), "Счёт.pdf", value));
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var body = await refused.Content.ReadAsStringAsync();
+        Assert.Contains(new string('x', 16) + "…", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('x', 17), body, StringComparison.Ordinal);
+    }
+
     /// <summary>Значение не из двух — отказ словами, а не безымянный 400 привязки; черновика нет.</summary>
     [Fact]
     public async Task Непонятное_согласие_отказ_400_со_словами()

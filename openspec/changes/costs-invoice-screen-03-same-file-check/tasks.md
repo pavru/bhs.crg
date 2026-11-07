@@ -47,7 +47,7 @@
 - [x] 2.2 `from-scan` принимает `acceptRepeat`; ставит признак только при доверенных двойниках (design
   D5); `InvoiceView.ScanRepeatAccepted = ScanRepeatAccepted == TrustedFingerprint`. [COST-6.7]
   Проверка — тесты: повтор с `acceptRepeat` → `true`; без двойников → `false`, без отказа; замена файла
-  через `POST …/{id}/scan` → `false`; без поля → `false`.
+  через `POST …/{id}/scan` → `false`; без поля → `false`; двойник, заведённый позже, → `false`.
 - [x] 2.3 Ворота и версия у `from-scan`: `costs.invoice.read` без `costs.invoice.edit` → 403, черновика
   нет; без прав модуля → отказ; без `If-Match` → 201 (названное исключение, design D6);
   `InvoiceStaleFormTests` зелёный без новой записи в `WritesNothing`. [COST-6.7] Проверка — тесты
@@ -55,7 +55,8 @@
 - [x] 2.4 Копия: копия старше колонки не делает отпечаток «принятым» у счёта, чей файл в копии другой.
   Проверка — сценарий в `InvoiceBackupRoundTripTests` или `ModuleBackupShapeTests`;
   `BackupManifestCoverageTests` зелёный. [COST-6.7]
-- [x] 2.5 Тип клиента `scanRepeatAccepted?`; `sendScan` умеет `acceptRepeat` (без экрана). [COST-6.7]
+- [x] 2.5 Тип клиента `scanRepeatAccepted?`; `sendScan` умеет `acceptRepeat` (без экрана: пакет и окно шлют его в
+  change 14, design п. 5). [COST-6.7]
   Проверка — `npx tsc -b`; vitest: поле формы уходит только при `true`.
 
 ## 3. Верификация
