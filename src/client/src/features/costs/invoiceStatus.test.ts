@@ -238,6 +238,67 @@ describe('statusOf — места и права (1.4)', () => {
     expect(ro.items.find(i => i.key === 'marks')!.actions).toEqual([]);
   });
 
+  it('метки у полей вне формы — «Проверьте» со своим «Всё верно»; без права — без действия (46)', () => {
+    const s = statusOf(input(view(), { hiddenMarks: ['КодПроекта'], markTitles: { КодПроекта: 'Код проекта' } }));
+    const item = s.items.find(i => i.key === 'marks-hidden')!;
+    expect(item).toMatchObject({ level: 'check', actions: [{ kind: 'confirm-hidden-marks', label: 'Всё верно (1)' }] });
+    expect(item.text).toBe('1 значение со скана не проверено у полей, которых форма не показывает: «Код проекта»');
+    expect(s.count).toBe(1);
+    const ro = statusOf(input(view(), { hiddenMarks: ['КодПроекта'], can: { ...CAN, edit: false } }));
+    expect(ro.items.find(i => i.key === 'marks-hidden')!.actions).toEqual([]);
+  });
+
+  it('«Показать на скане» — у пунктов о метках, после «Всё верно» и при файле; без права остаётся только оно (D-11.4, вариант А)', () => {
+    const show = { kind: 'show-scan', label: 'Показать на скане' };
+    const s = statusOf(input(view(), { marks: ['Номер'], hiddenMarks: ['КодПроекта'], canShowScan: true }));
+    expect(s.items.find(i => i.key === 'marks')!.actions).toMatchObject([{ kind: 'confirm-marks' }, show]);
+    expect(s.items.find(i => i.key === 'marks-hidden')!.actions).toMatchObject([{ kind: 'confirm-hidden-marks' }, show]);
+
+    const ro = statusOf(input(view(), { marks: ['Номер'], canShowScan: true, can: { ...CAN, edit: false } }));
+    expect(ro.items.find(i => i.key === 'marks')!.actions).toEqual([show]);
+
+    const noFile = statusOf(input(view(), { marks: ['Номер'] }));
+    expect(noFile.items.find(i => i.key === 'marks')!.actions.map(a => a.kind)).toEqual(['confirm-marks']);
+  });
+
+  it('отгрузка раньше даты счёта — «Проверьте», «К полю» даты отгрузки; по набранному в форме (32)', () => {
+    const shipped = (v: InvoiceView, form: Partial<StatusInput['form']> = {}) =>
+      statusOf(input(v, { shippedEarly: true, ...form })).items.find(i => i.key === 'shipped-early');
+    expect(shipped(view())).toMatchObject({
+      level: 'check', text: 'Отгрузка раньше даты счёта',
+      actions: [{ kind: 'goto', place: { place: 'field', key: 'ДатаОтгрузки' } }],
+    });
+    expect(statusOf(input(view())).items.some(i => i.key === 'shipped-early')).toBe(false);
+    // Только тому, кто поправит, и пока срок что-то значит (ревью PR #1794).
+    expect(shipped(view(), { can: { ...CAN, edit: false } })).toBeUndefined();
+    expect(shipped(view({ payment: { paid: true } }))).toBeUndefined();
+    expect(shipped(view({ state: 'Отклонён' }))).toBeUndefined();
+    expect(shipped(view({ payment: { lockedBy: 'период закрыт' } }))).toBeUndefined();
+    expect(shipped(view({ payment: { lockedBy: 'период закрыт' } }), { correcting: true })).toBeDefined();
+  });
+
+  it('режим НДС со скана — «К сведению» с числами для сверки, ведёт к строкам; в исправлении молчит (36)', () => {
+    const v = view({
+      unconfirmed: ['vatMode'], vatMode: 'OnTop', requisites: { Состояние: 'Черновик', Итого: 1830, ВТомЧислеНДС: 330 },
+      totals: { count: 1, amount: 1500, vat: 330, vatMissing: 0, net: 1500, withoutNomenclature: 0 },
+    } as ViewPatch);
+    const s = statusOf(input(v));
+    const item = s.items.find(i => i.key === 'vat-mode')!;
+    expect(item).toMatchObject({
+      level: 'info', text: 'Режим НДС со скана не проверен: цены без НДС, НДС сверху',
+      actions: [{ kind: 'goto', place: { place: 'lines' } }],
+    });
+    expect(item.detail).toMatch(/^строки 1\s500,00\s₽ \+ НДС 330,00\s₽ = к оплате 1\s830,00\s₽$/);
+    expect(s.count).toBe(0);
+    expect(statusOf(input(v, { correcting: true })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    // Режим переключён и не сохранён: у переключателя ни рамки, ни «Верно» — пункт о сохранённом молчит (ревью PR #1794).
+    expect(statusOf(input(v, { vatModeChanged: true })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет (ревью PR #1794).
+    expect(statusOf(input(v, { can: { ...CAN, edit: false } })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    const locked = { ...v, payment: { ...v.payment, lockedBy: 'период закрыт' } } as InvoiceView;
+    expect(statusOf(input(locked)).items.some(i => i.key === 'vat-mode')).toBe(false);
+  });
+
   it('метки: глагол — по числительному; подпись дописанного поля — из схемы', () => {
     const many = Array.from({ length: 21 }, (_, i) => `Поле${i}`);
     expect(statusOf(input(view(), { marks: many })).items[0].text).toMatch(/^21 значение со скана не проверено: /);

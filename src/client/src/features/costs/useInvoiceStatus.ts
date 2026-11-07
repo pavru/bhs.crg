@@ -27,6 +27,12 @@ export interface StatusHandlers {
   hiddenByFilter?: () => void;
   onRetryExtras: () => void;
   onConfirmMarks: () => void;
+  /** «Всё верно» у меток полей, которых форма не показывает. */
+  onConfirmHiddenMarks: () => void;
+  /** «Всё верно» в пути — повторное нажатие ждёт ответа (ревью PR #1794). */
+  confirming?: boolean;
+  /** «Показать на скане» у пунктов о метках: открыть файл счёта (`InvoiceFileButton.showRef`). */
+  onShowScan?: () => void;
   reveal: (place: ReadinessTarget) => void;
   /** Остальное — как в `StatusInput.form`, без отчётов частей. */
   form: Omit<StatusInput['form'], 'stale' | 'matches' | 'rereadFailed' | 'hiddenByFilter'>;
@@ -53,6 +59,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
       ...h.form,
       stale: { header: h.headerStale, lines: lines?.stale ?? false, correction: correction !== null },
       matches: lines?.matches ?? null,
+      vatModeChanged: lines?.modeChanged ?? false,
       rereadFailed: h.rereadFailed?.error ?? null,
       hiddenByFilter: h.hiddenByFilter !== undefined,
     },
@@ -76,6 +83,8 @@ export function useInvoiceStatus(h: StatusHandlers): {
         return;
       case 'retry-recognition': h.onRetryRecognition(); return;
       case 'confirm-marks': h.onConfirmMarks(); return;
+      case 'confirm-hidden-marks': h.onConfirmHiddenMarks(); return;
+      case 'show-scan': h.onShowScan?.(); return;
       case 'apply-matches': lines?.acts.current.apply(); return;
       case 'retry-matches': lines?.acts.current.retry(); return;
       case 'retry-extras': h.onRetryExtras(); return;
@@ -88,6 +97,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
   const busy: StatusAction['kind'][] = [
     ...(start.isPending ? ['recognize' as const] : []),
     ...(h.rereadFailed?.retrying ? ['retry-view' as const] : []),
+    ...(h.confirming ? ['confirm-marks' as const, 'confirm-hidden-marks' as const] : []),
   ];
   return { status, run, busy, onLinesReport, onCorrectionStale };
 }

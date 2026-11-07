@@ -107,6 +107,24 @@ describe('перечень (2.2)', () => {
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ kind: 'goto', place: { place: 'allocation' } }));
   });
 
+  it('метки: справа «Всё верно», «Показать на скане» — сама строка (D-11.4, вариант А)', async () => {
+    const onAction = vi.fn();
+    const marks = status('check', [item('marks', 'check', '2 значения со скана не проверены: «Номер», «Сумма к оплате»', [
+      { kind: 'confirm-marks', label: 'Всё верно (2)' }, { kind: 'show-scan', label: 'Показать на скане' }])], '1 замечание');
+    // Действие исполняется после снятия листа — лист обязан закрыться.
+    function Sheet() {
+      const [open, setOpen] = useState(true);
+      return <InvoiceStatusSheet open={open} onClose={() => setOpen(false)} status={marks} saving={false} savedAt="12:04" onAction={onAction} />;
+    }
+    render(<Sheet />);
+    const row = screen.getByTestId('status-item-marks');
+    expect(within(row.parentElement!).getAllByRole('button').map(b => b.textContent)).toContain('Всё верно (2)');
+    expect(row.getAttribute('aria-description')).toBe('Показать на скане');
+    fireEvent.click(row);
+    await act(() => new Promise(r => setTimeout(r, 50)));
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ kind: 'show-scan' }));
+  });
+
   it('Esc закрывает лист и возвращает фокус на индикатор', async () => {
     render(<Host onAction={() => {}} />);
     const opener = screen.getByTestId('invoice-status');

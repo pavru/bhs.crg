@@ -14,7 +14,7 @@ import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness'
 import { LOST } from './lostReferences';
 import { InvoiceFieldScan } from './InvoiceFieldScan';
 import { InvoiceDueField } from './InvoiceDueField';
-import { deferralNote, hints, shippedBeforeIssued } from './invoiceDue';
+import { deferralNote } from './invoiceDue';
 import { useCorrecting } from './useCorrectionDraft';
 import { ExtraField } from './InvoiceExtraFields';
 import { useExtraField } from './invoiceExtras';
@@ -85,18 +85,18 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
   organizations: CostsOrganization[]; organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
 }) {
+  // Метка «со скана, не проверено» — знаком в хвосте поля (`fromScan`, [UI-88], D-11.4): ни рамки, ни строки под
+  // полем. Сверяют по файлу: «Показать на скане» — у пункта перечня о метках, не в поле (вариант А).
   const marked = isMarked(fieldKey, view.unconfirmed, edits);
-  const hint = marked ? UNCONFIRMED_HINT : undefined;
   // Обязательное для «Разобран» — пометкой у подписи (issue #1291). Перечень присылает сервер.
   const required = isRequired(view, fieldKey);
   const current = value(fieldKey);
   const extra = useExtraField(fieldKey);
 
-  // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
-  // подтвердил. Красная рамка звала бы чинить то, что, скорее всего, верно.
-  const frame = marked ? 'rounded-sm ring-1 ring-warning' : '';
-
-  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} hint={hint} frame={frame} />;
+  // Поле, дописанное в тип, рисует общий с документами `PrimitiveInput`: знака у него нет, и метка — прежней рамкой
+  // предупреждения (не ошибки: распознанное значение не ошибка, его просто никто пока не подтвердил) с подсказкой.
+  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked}
+    hint={marked ? UNCONFIRMED_HINT : undefined} frame={marked ? 'rounded-sm ring-1 ring-warning' : ''} />;
 
   switch (fieldKey) {
     case K.supplier:
@@ -143,59 +143,55 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         );
 
       return (
-        <div className={frame}>
-          <Select label={title} required={required}
-            disabled={organizationsUnread}
-            hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
-              : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
-              : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново'
-              : archived ? 'Запись в архиве. Счёт сохраняется как есть; после замены выбрать её заново будет нельзя'
-              : hint}
-            value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
-            onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
-            {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
-                отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
-            <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
-            {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
-            {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
-            {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
-                вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
-            {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
-            {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </Select>
-        </div>
+        <Select label={title} required={required} fromScan={marked}
+          disabled={organizationsUnread}
+          hint={organizationsUnread ? 'Справочник не прочитан — выбор недоступен'
+            : lost ? 'Запись справочника удалена. Счёт сохраняется и так; исправить — выбрать другую организацию'
+            : foreign ? 'Запись есть, но она больше не организация. Выберите организацию заново'
+            : archived ? 'Запись в архиве. Счёт сохраняется как есть; после замены выбрать её заново будет нельзя'
+            : undefined}
+          value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
+          onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
+          {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
+              отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
+          <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
+          {lost && <SelectItem value={entryId}>{LOST.organization}</SelectItem>}
+          {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
+          {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
+              вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
+          {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
+          {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+        </Select>
       );
     }
 
     case K.dueDate:
       return <InvoiceDueField view={view} edits={edits} current={current} set={set} locked={locked}
-        hint={hint} required={required} frame={frame} />;
+        fromScan={marked} required={required} />;
 
     case K.date:
     case K.shippedOn:
+      // «Отгрузка раньше даты счёта» — пункт перечня состояния (11, 32), а не подсказка у поля.
       return (
-        <div className={frame}>
-          <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
-            hint={hints(hint, fieldKey === K.shippedOn && shippedBeforeIssued(current, value(K.date))
-              ? 'Отгрузка раньше даты счёта — проверьте дату: от неё считается срок' : null)}
-            readOnly={locked}
-            onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
-        </div>
+        <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
+          fromScan={marked}
+          readOnly={locked}
+          onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
       );
 
     default: {
       const money = fieldKey === K.total || fieldKey === K.vat;
       const numeric = money || fieldKey === K.deferral;
+      const label = LABELS[fieldKey] ?? fieldKey;
+      // У отсрочки — взята ли она из условий поставщика (ТЗ COST-9.2): иначе подставленное число
+      // выглядело бы вписанным руками, а расхождение с условиями — незаметным.
       return (
-        <div className={frame}>
-          {/* У отсрочки — взята ли она из условий поставщика (ТЗ COST-9.2): иначе подставленное число
-              выглядело бы вписанным руками, а расхождение с условиями — незаметным. */}
-          <TextField label={LABELS[fieldKey] ?? fieldKey} readOnly={locked} required={required}
-            hint={fieldKey === K.deferral ? hints(hint, deferralNote(view, edits)) : hint}
-            value={money ? moneyInput(current) : asInput(current)}
-            inputMode={numeric ? 'decimal' : undefined}
-            onChange={e => set(fieldKey, fromInput(e.target.value))} />
-        </div>
+        <TextField label={label} readOnly={locked} required={required}
+          hint={fieldKey === K.deferral ? deferralNote(view, edits) ?? undefined : undefined}
+          value={money ? moneyInput(current) : asInput(current)}
+          inputMode={numeric ? 'decimal' : undefined}
+          fromScan={marked}
+          onChange={e => set(fieldKey, fromInput(e.target.value))} />
       );
     }
   }

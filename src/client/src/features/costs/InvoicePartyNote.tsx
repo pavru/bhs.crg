@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { TextField } from '@/shared/ui/TextField';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -147,8 +148,8 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
 /**
  * Диалог «Завести организацию»: название правится, ИНН — из скана и не правится.
  *
- * <p>Отказ сервера остаётся В ДИАЛОГЕ, под названием: тост ушёл бы, а причина нужна, пока человек
- * правит название. Набранное при отказе цело.</p>
+ * <p>Отказ сервера остаётся В ДИАЛОГЕ — banner окна под его шапкой (`ModalBanner`): тост ушёл бы, а причина
+ * нужна, пока человек правит название. Набранное при отказе цело.</p>
  */
 function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
   invoiceId: string; side: InvoicePartySide; party: InvoiceParty;
@@ -191,13 +192,15 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         <p className="text-body-small text-on-surface-variant">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
+        {/* Сообщение окна — banner окна (11, 4.4; docs/UI.md): окно ставит его под шапку, а не в тело. */}
         {refusal && (
-          <div role="alert" className="rounded-md border border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
-            <p>Организация не заведена: {refusal}</p>
-            <Link to="/common-data" target="_blank" className="underline hover:no-underline">
+          <ModalBanner tone="error">
+            {/* Точку ставим свою: текст сервера своей кончается не всегда (ревью PR #1794). */}
+            Организация не заведена: {sentence(refusal)}{' '}
+            <Link to="/common-data" target="_blank" className="text-primary underline hover:no-underline">
               Открыть справочник организаций ↗
             </Link>
-          </div>
+          </ModalBanner>
         )}
         <ModalButtons>
           <ModalExit />
@@ -208,4 +211,10 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
       </div>
     </Modal>
   );
+}
+
+/** Отказ сервера фразой с точкой: своя точка — только если фраза не кончается своим знаком (ревью PR #1794). */
+function sentence(text: string): string {
+  const said = text.replace(/[.\s]+$/, '');
+  return /[!?…]$/.test(said) ? said : `${said}.`;
 }

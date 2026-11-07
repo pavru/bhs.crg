@@ -36,9 +36,7 @@
   "badge": {
     "features/settings/FunctionalTagChip.tsx": 1
   },
-  "notice-plaque": {
-    "features/costs/InvoicePartyNote.tsx": 1
-  },
+  "notice-plaque": {},
   "hand-card": {},
   "list-row": {},
   "icon-button": {

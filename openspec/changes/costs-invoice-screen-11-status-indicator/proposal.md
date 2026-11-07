@@ -37,7 +37,8 @@
     справочник не прочитан, строка готовности, пояснение у «Разобран», причина «оплатить нельзя»,
     запомненное, режим НДС со скана, «скрыт отбором», «не перечитался».
   - У поля остаются `*`, метка «со скана, не проверено» в хвосте поля (без второй рамки и двухстрочной
-    подсказки; кнопкой хвоста XS «Показать на скане», Э7), «В файле: … Взять» и ошибка значения.
+    подсказки; общим знаком `fromScan` у всех полей шапки — `sharedui-field-scan-mark`, [UI-88], вариант А
+    07.11.2026; «Показать на скане» — у пунктов перечня о метках, не в поле), «В файле: … Взять» и ошибка значения.
 - **Факты сервера из ребёнка 02** — «просрочен / осталось N дн.», «мешает чему», «кто и когда изменил».
   Индикатор берёт их готовыми и правил на клиенте не пересчитывает.
 - **Сборку пунктов** проверяет unit-тест по образцу `invoiceReadiness.test.ts`, живьём — счёт СЧ-104 из
@@ -59,7 +60,7 @@
   - уходят или сжимаются плашки: `StaleInvoiceNotice`, `InvoiceRecognitionNote`, `InvoiceTwinNotes`,
     `LostReferencesNote`, `InvoiceLockNote` в `InvoicePayment`, `SupplierMatchNote`,
     `InvoiceReadinessLine`, `InvoiceGoneNotice` в `InvoiceDeleteDialog`;
-  - правятся `InvoicePartyNote.tsx`, `InvoiceFieldScan.tsx` (метка у поля) и полоса сверки в
+  - правятся `InvoicePartyNote.tsx`, `InvoiceFormFields.tsx` (метка у поля) и полоса сверки в
     `InvoiceLinesTable.tsx`.
 - **Общие компоненты** — уже в `shared/ui`, здесь не заводятся: `Banner`, `StatusText`, `Tooltip`
   (`sharedui-md3-12`, #1717–#1719), `SideSheet`, `Card`, `ModalBanner` (`sharedui-md3-13`, #1722–#1725),

@@ -31,9 +31,6 @@ import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
-/** Подпись у помеченного поля — она же примета метки на экране. */
-const MARK = 'Распознано, не подтверждено';
-
 /**
  * Отказ о САМОМ файле (issue #1343, #1344): начало полосы в форме и строка списка. Источник слов —
  * `src/features/costs/recognition.ts` (`failureNote` и `shortReason` для `BadFile`): меняются вместе.
@@ -132,8 +129,9 @@ async function save() {
   if (!answer.ok()) throw new Error(`сохранение отказало: ${answer.status()}`);
 }
 
-/** Сколько меток видно на форме. */
-const markCount = () => page.getByText(MARK, { exact: true }).count();
+/** Сколько меток видно на форме: знаков «со скана» в хвосте полей ([UI-88], 11 D-11.4) — у полей шапки нет ни рамки, ни
+ *  строки подсказки. */
+const markCount = () => page.locator('[data-field-scan-mark]').count();
 
 /**
  * Приложить скан — многочастным запросом, тем же адресом, что и форма.

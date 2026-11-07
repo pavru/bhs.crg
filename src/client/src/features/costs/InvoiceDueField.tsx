@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { DateField } from '@/shared/ui/DateField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { asInput, K } from './invoiceFields';
-import { dueState, hints } from './invoiceDue';
+import { dueState } from './invoiceDue';
 
 /**
  * Поле «Оплатить до» (ТЗ COST-9.1; задача C4, issue #1080). Срок подставляет сервер правилом из
@@ -13,18 +13,18 @@ import { dueState, hints } from './invoiceDue';
  * срок к правилу — кнопкой «По правилу» (решение владельца 14.10.2026): стереть поле значит «срок не
  * определён», а не «верни правило».
  */
-export function InvoiceDueField({ view, edits, current, set, locked, hint, required, frame }: {
+export function InvoiceDueField({ view, edits, current, set, locked, fromScan, required }: {
   view: InvoiceView; edits: Record<string, unknown>; current: unknown;
   set: (key: string, next: unknown) => void;
-  locked: boolean; hint?: string; required: boolean; frame: string;
+  locked: boolean; fromScan: boolean; required: boolean;
 }) {
   const toast = useSnackbar();
   const byRule = useDueByRule();
   const { note, offerRule } = dueState(view, edits, locked);
 
   return (
-    <div className={frame}>
-      <DateField label="Оплатить до" hint={hints(hint, note)} required={required}
+    <div>
+      <DateField label="Оплатить до" hint={note ?? undefined} fromScan={fromScan} required={required}
         value={asInput(current).slice(0, 10)} readOnly={locked}
         onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)} />
       {offerRule && (

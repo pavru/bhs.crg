@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Button } from '@/shared/ui/Button';
+import { Tooltip } from '@/shared/ui/Tooltip';
 import { Divider } from '@/shared/ui/Divider';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
@@ -268,11 +269,11 @@ export function InvoiceLinesTable({
   });
   useEffect(() => {
     onReport?.({
-      stale, acts,
+      stale, acts, modeChanged: mode !== savedMode,
       matches: shown ? { hasSupplier, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
     });
-  }, [onReport, stale, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
-  useEffect(() => () => onReport?.({ stale: false, acts, matches: null }), [onReport]);
+  }, [onReport, stale, mode, savedMode, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
+  useEffect(() => () => onReport?.({ stale: false, acts, modeChanged: false, matches: null }), [onReport]);
 
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
@@ -359,6 +360,15 @@ export function InvoiceLinesTable({
                 onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
             </span>
           )}
+        {/* Метка режима со скана — пункт перечня (11, 36), «Верно» — здесь: сверяют режим у переключателя. Числа
+            для сверки — в подсказке кнопки и в пункте: рамка не единственный носитель смысла. */}
+        {modeMarked && (
+          <Button variant="text" loading={confirm.isPending} onClick={confirmMode} data-testid="vat-mode-recognized"
+            aria-label={`Верно: режим НДС — ${mode === 'OnTop' ? 'цены без НДС, НДС сверху' : 'НДС в сумме строк'}`}
+            title={`${UNCONFIRMED_HINT}: ${modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney)}`}>
+            Верно
+          </Button>
+        )}
         <div className="flex-1" />
         {!still && (
           <>
@@ -372,19 +382,6 @@ export function InvoiceLinesTable({
           </>
         )}
       </div>
-
-      {/* Метка — текстом, а не одной рамкой: цвет не может быть единственным носителем смысла. */}
-      {modeMarked && (
-        <div className="flex items-center gap-2 flex-wrap text-body-small text-warning" data-testid="vat-mode-recognized">
-          <span>
-            {UNCONFIRMED_HINT} ·{' '}
-            {/* Итоги сохранённого — серверные: метка о сохранённом, и пересчитывать их здесь незачем. */}
-            {modeProof(view.totals, view.requisites[K.vat],
-              view.requisites[K.total], formatMoney)}
-          </span>
-          <Button variant="text" loading={confirm.isPending} onClick={confirmMode}>Верно</Button>
-        </div>
-      )}
 
       {mode !== savedMode && view.lines.length > 0 && (
         <p className="text-body-small text-warning">{modeConsequences(view, drafts, parsed)}</p>
@@ -426,9 +423,10 @@ export function InvoiceLinesTable({
  * возвращает сервер, и они могут разойтись с нашими на копейку округления. Молчаливое «сумма 4850»,
  * которое после сохранения стало «4850,01», читалось бы как ошибка ввода.</p>
  *
- * <p>Подсказка о режиме (issue #1500) стоит на месте «сохранить всё равно можно» — рядом с числом, которое
- * объясняет, и пропадает вместе с ним. Живого региона у полосы нет нарочно: она меняется на каждом ударе
- * по клавише в клетке.</p>
+ * <p>Полоса — числа и тон (11, 41): что расхождение значит и что оно не запрет, говорит пункт перечня
+ * состояния, по сохранённому. Подсказка о режиме (issue #1500) — рядом с числом, которое объясняет, и
+ * пропадает вместе с ним. Живого региона у полосы нет нарочно: она меняется на каждом ударе по клавише в
+ * клетке.</p>
  */
 function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   /** Сколько позиций подставлено из запомненного — их человек не выбирал, и это видно числом. */
@@ -461,10 +459,13 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
       ))}
 
       {strip.difference !== null && (
-        <span className="text-warning">
-          расхождение: <b>{formatMoney(strip.difference)}</b>
-          {offer ? null : ' — сохранить всё равно можно'}
-        </span>
+        // Не запрет — подсказкой и описанием для диктора, а не фразой в полосе (41): пока строки не сохранены,
+        // пункта перечня о расхождении ещё нет, и число в тоне предупреждения читалось бы запретом (ревью PR #1794).
+        <Tooltip content={NOT_A_BAN}>
+          <span className="text-warning" data-testid="reconciliation-difference">
+            расхождение: <b>{formatMoney(strip.difference)}</b>
+          </span>
+        </Tooltip>
       )}
       {offer && (
         <span className="inline-flex flex-wrap items-center gap-x-2 text-on-surface-variant">
@@ -478,6 +479,9 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
     </div>
   );
 }
+
+/** Что расхождение не запрет — подсказкой у числа в полосе. */
+const NOT_A_BAN = 'Не запрет: строки и счёт сохраняются и с расхождением';
 
 const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
   main: 'text-on-surface-variant', quiet: 'text-on-surface-variant', warning: 'text-warning',
@@ -503,6 +507,8 @@ export interface LinesActs {
 export interface LinesReport {
   /** Строки набраны поверх прежнего вида счёта. */
   stale: boolean;
+  /** Режим НДС переключён и не сохранён: метка режима со скана к набранному не относится (ревью PR #1794). */
+  modeChanged: boolean;
   matches: MatchFacts | null;
   acts: MutableRefObject<LinesActs>;
 }

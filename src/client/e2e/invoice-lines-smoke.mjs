@@ -22,6 +22,7 @@
 
 import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
+import { reconciliationChecks } from './invoice-reconciliation-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
@@ -643,6 +644,9 @@ try {
 
   // ── Счёт с НДС сверху (эпик #1496) — своим файлом: прогон и так велик ────────
   await vatOnTopChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, cable, pickOption });
+
+  // ── Полоса сверки — числа, фраза — в перечне (11, 4.3) — своим файлом ─────────
+  await reconciliationChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines });
 
   // ── Подсказки по введённому ранее (#1533) — своим файлом: входа отдельного прогона в пределе нет ──
   await suggestChecks({ page, check, stamp, api });

@@ -106,8 +106,9 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
 function StatusRow({ item, run }: { item: StatusItem; run: (action: StatusAction) => void }) {
   const icon = LEVEL_ICON[item.level];
   const [action, ...more] = item.actions;
-  // Одно действие справа; «Открыть» двойника при удалении справа — сама строка (её подсказка — «Открыть …»).
-  const open = more.find(a => a.kind === 'open');
+  // Одно действие справа; «Открыть» двойника при удалении справа и «Показать на скане» у меток при «Всё верно»
+  // справа — сама строка (её подсказка — подпись действия).
+  const open = more.find(a => a.kind === 'open' || a.kind === 'show-scan');
   const supporting = item.detail || item.blocks ? (
     <span className="flex flex-col gap-0.5 whitespace-normal">
       {item.detail && <span>{item.detail}</span>}

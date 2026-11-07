@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { EditNote, LockIcon, UploadFile } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
 import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -38,6 +37,7 @@ import { CorrectionContext, useCorrectionDraft } from './useCorrectionDraft';
 import { mayCorrect } from './correction';
 import { UnshownExtras } from './InvoiceExtraFields';
 import { InvoiceExtrasProvider, useInvoiceExtras } from './invoiceExtras';
+import { shippedBeforeIssued } from './invoiceDue';
 import { AllocationSummary } from './LineAllocation';
 import { BlockFields, ConfirmBlock } from './InvoiceFormFields';
 import { InvoicePart } from './InvoicePart';
@@ -75,7 +75,7 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  */
 export function InvoiceForm({
   view, organizations, organizationsError, onRetryOrganizations, onOpenInvoice, gone = false, onClose, onExit, onUnsaved,
-  focusHeader = false, nav, fromFile, file, pageActions, compactLines = false, hiddenByFilter, rereadFailed,
+  focusHeader = false, nav, fromFile, file, onShowFile, pageActions, compactLines = false, hiddenByFilter, rereadFailed,
 }: {
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
@@ -105,6 +105,8 @@ export function InvoiceForm({
   nav?: ReactNode;
   fromFile?: ReactNode;
   file?: ReactNode;
+  /** Показать файл счёта — «Показать на скане» у пунктов перечня о метках (11, D-11.4). Нет — файла нет. */
+  onShowFile?: () => void;
   /** Действия страницы в «⋮» сводки, когда списка нет (D-10.8). */
   pageActions?: RowAction[];
   /** Рядом список счетов — таблица строк в плотном виде (D-10.10). */
@@ -172,12 +174,16 @@ export function InvoiceForm({
 
   // Поля, дописанные в тип «Счёт» (issue #1482), — в части «Ещё».
   const extras = useInvoiceExtras(view.documentTypeId);
-  const orphanMarks = extras.loading ? [] : unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
+  // Схема типа не прочитана — поля, дописанные в тип, неизвестны, а не «не показаны»: их метки не сироты, и снимать
+  // их «Всё верно» вслепую нельзя (ревью PR #1794). Об отказе говорит пункт «Схема типа не прочитана».
+  const extrasKnown = !extras.loading && extras.error == null;
+  const orphanMarks = extrasKnown ? unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields) : [];
   const extraKeys = extras.block?.fields;
-  // Что части знают от формы: поля типа — в «Ещё», метки вне блоков и замечания — в конце «Кто и сколько».
+  // Что части знают от формы: поля типа — в «Ещё», замечания распознавания — в конце «Кто и сколько». Метки вне
+  // блоков — пункт перечня (46): в части их больше нет, и раскрывать её ради них незачем.
   const partMore: PartExtra = {
     extra: extraKeys ?? [],
-    attention: orphanMarks.length > 0 || (!quiet && hasRecognitionNotes(watch.recognition)),
+    attention: !quiet && hasRecognitionNotes(watch.recognition),
   };
 
   // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже (D-10.7): прежде охрана видела
@@ -259,21 +265,23 @@ export function InvoiceForm({
         : null;
 
   // ── Индикатор состояния (11): все сообщения о счёте — пунктами перечня ──────────────────────────────
-  // Пока схема типа читается, неизвестно, какие поля форма покажет: «Всё верно» снимает метки только с полей
-  // модуля — иначе снялась бы и метка поля вне блоков, которого человек не видел (ревью PR #1792).
+  // Пока схема типа читается (или не прочиталась), неизвестно, какие поля форма покажет: «Всё верно» снимает метки только с
+  // полей модуля — иначе снялась бы и метка поля, которого человек не видел (ревью PR #1792, #1794).
   const marks = view.unconfirmed.filter(key => key !== VAT_MODE_MARK && !orphanMarks.includes(key)
-    && (!extras.loading || key in FIELD_LABEL));
-  const markTitles = Object.fromEntries(marks.flatMap(key => {
-    const title = extras.byKey.get(key)?.title;
+    && (extrasKnown || key in FIELD_LABEL));
+  const markTitles = Object.fromEntries([...marks, ...orphanMarks].flatMap(key => {
+    const title = extras.byKey.get(key)?.title ?? extras.unshown.find(u => u.field.key === key)?.field.title;
     return title ? [[key, title]] : [];
   }));
   const indicator = useInvoiceStatus({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
     onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
-    onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), reveal,
+    onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), onShowScan: onShowFile,
+    onConfirmHiddenMarks: () => void confirmFields(orphanMarks), confirming: confirm.isPending, reveal,
     form: {
-      gone, correcting, marks, markTitles,
+      gone, correcting, marks, hiddenMarks: orphanMarks, markTitles, canShowScan: onShowFile !== undefined,
+      shippedEarly: shippedBeforeIssued(value(K.shippedOn), value(K.date)),
       orgsFailed: organizationsError != null ? apiError(organizationsError, 'сервер отказал') : null,
       extrasFailed: extras.error != null ? apiError(extras.error, 'сервер отказал') : null,
       can: {
@@ -365,21 +373,6 @@ export function InvoiceForm({
             actions={<ConfirmBlock blocks={[who]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
             <BlockFields block={who} {...fieldProps} />
             {!quiet && <RecognitionNotes recognition={watch.recognition} />}
-            {/* Метки у полей, которых форма не показывает: править их здесь нечем — снимает только «Всё верно». */}
-            {orphanMarks.length > 0 && (
-              <div className="flex items-center gap-3">
-                <p className="flex-1 text-body-small text-warning">
-                  Распознано, не подтверждено — у полей, которых форма не показывает:{' '}
-                  {orphanMarks.map(key => `«${extras.unshown.find(u => u.field.key === key)?.field.title || key}»`).join(', ')}.
-                  Сверьте их по скану.
-                </p>
-                {!quiet && (
-                  <Button variant="text" loading={confirm.isPending} onClick={() => void confirmFields(orphanMarks)}>
-                    Всё верно ({orphanMarks.length})
-                  </Button>
-                )}
-              </div>
-            )}
           </InvoicePart>
 
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>

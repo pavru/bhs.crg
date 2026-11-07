@@ -3,7 +3,8 @@ import type { InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import type { StatusTone } from '@/shared/ui/StatusText';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { FIELD_LABEL, K, REJECTED, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
+import { FIELD_LABEL, K, REJECTED, VAT_MODE_MARK, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
+import { modeProof, vatModeOf } from './invoiceVat';
 import { DRAFT, type DeleteReason } from './invoiceDelete';
 import { readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { PART_ORDER, partOfTarget } from './invoiceParts';
@@ -60,7 +61,7 @@ export type StatusAction = { label: string; short?: string } & (
   | { kind: 'delete'; reason: DeleteReason }
   | {
     kind: 'close' | 'reread' | 'retry-view' | 'retry-orgs' | 'recognize' | 'retry-recognition'
-      | 'confirm-marks' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
+      | 'confirm-marks' | 'confirm-hidden-marks' | 'show-scan' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
   });
 
 /** Чему пункт мешает — пометкой «мешает: Разобран · оплата». */
@@ -125,6 +126,14 @@ export interface StatusInput {
     matches: MatchFacts | null;
     /** Метки «со скана» у полей формы — то, что снимет «Всё верно». */
     marks: readonly string[];
+    /** Режим НДС переключён в строках и не сохранён: метке режима со скана молчать (36). */
+    vatModeChanged?: boolean;
+    /** Дата отгрузки раньше даты счёта — по набранному в форме (32). */
+    shippedEarly?: boolean;
+    /** Метки у полей, которых форма не показывает (46): их снимает только «Всё верно». */
+    hiddenMarks?: readonly string[];
+    /** Файл счёта есть: «Показать на скане» — у пунктов о метках, а не в поле (D-11.4, вариант А, [UI-88]). */
+    canShowScan?: boolean;
     /** Подписи дописанных в тип полей с метками; поля модуля подписаны `FIELD_LABEL`. */
     markTitles?: Readonly<Record<string, string>>;
     /** Исправление закрытого периода идёт. */
@@ -352,15 +361,42 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // ── Проверьте ───────────────────────────────────────────────────────────────────────────────────────
   twinItems(view, can.delete).forEach(add);
 
+  // Сверяют метки с файлом: знак в поле действий не имеет ([UI-88]), показ файла — здесь, у пункта. Вторым: в листе
+  // справа одно действие — «Всё верно», а «Показать на скане» — сама строка, как «Открыть» у двойника.
+  const showScan: StatusAction[] = form.canShowScan ? [{ kind: 'show-scan', label: 'Показать на скане' }] : [];
   if (form.marks.length > 0) {
     const names = form.marks.map(key => `«${FIELD_LABEL[key] ?? form.markTitles?.[key] ?? key}»`).join(', ');
     add({
       key: 'marks', level: 'check', text: `${marksText(form.marks.length)}: ${names}`,
       detail: 'Сверьте их с файлом: правка поля снимает метку с него, «Всё верно» — со всех.',
-      actions: editable && !closed && !form.correcting
-        ? [{ kind: 'confirm-marks', label: `Всё верно (${form.marks.length})` }] : [],
+      actions: [...(editable && !closed && !form.correcting
+        ? [{ kind: 'confirm-marks' as const, label: `Всё верно (${form.marks.length})` }] : []), ...showScan],
     });
   }
+
+  // Метки у полей, которых форма не показывает (46): править их здесь нечем — снимает только «Всё верно».
+  const hidden = form.hiddenMarks ?? [];
+  if (hidden.length > 0) {
+    const names = hidden.map(key => `«${form.markTitles?.[key] ?? key}»`).join(', ');
+    add({
+      key: 'marks-hidden', level: 'check',
+      text: `${marksText(hidden.length)} у полей, которых форма не показывает: ${names}`,
+      detail: 'Править их здесь нечем: сверьте значения по файлу, «Всё верно» снимет метки.',
+      actions: [...(editable && !closed && !form.correcting
+        ? [{ kind: 'confirm-hidden-marks' as const, label: `Всё верно (${hidden.length})` }] : []), ...showScan],
+    });
+  }
+
+  // Отгрузка раньше даты счёта (32): не отказ — бывает и так, — но чаще опечатка, и срок от неё уедет. По
+  // набранному, а не по сохранённому: правку видно сразу, как было у подсказки поля. Только тому, кто может
+  // поправить, и пока срок что-то значит: у оплаченного и отклонённого замечанием навсегда она не висит (ревью
+  // PR #1794).
+  if (form.shippedEarly && editable && (!closed || form.correcting) && !payment.paid && state !== REJECTED)
+    add({
+      key: 'shipped-early', level: 'check', text: 'Отгрузка раньше даты счёта',
+      detail: 'Проверьте дату отгрузки: от неё считается срок оплаты.',
+      actions: [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.shippedOn } }],
+    });
 
   if (view.due?.overdue && !payment.paid) {
     const days = view.due.daysLeft != null && view.due.daysLeft < 0 ? -view.due.daysLeft : null;
@@ -412,6 +448,20 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   }
 
   // ── К сведению ──────────────────────────────────────────────────────────────────────────────────────
+  // Режим НДС поставило распознавание (36). «Верно» — у переключателя режима: сверяют его там, глядя на строки.
+  // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет, как нет и «Верно» (ревью PR #1794).
+  // Переключили и не сохранили — у переключателя ни рамки, ни «Верно», и пункт о сохранённом режиме противоречил бы
+  // флажку (ревью PR #1794).
+  if (editable && !closed && !form.correcting && !form.vatModeChanged && view.unconfirmed.includes(VAT_MODE_MARK)) {
+    const onTop = vatModeOf(view) === 'OnTop';
+    add({
+      key: 'vat-mode', level: 'info',
+      text: `Режим НДС со скана не проверен: ${onTop ? 'цены без НДС, НДС сверху' : 'НДС в сумме строк'}`,
+      detail: modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney),
+      actions: [{ kind: 'goto', label: 'К строкам', place: { place: 'lines' } }],
+    });
+  }
+
   if (form.hiddenByFilter)
     add({ key: 'hidden', level: 'info', text: NOT_IN_RAIL, actions: [{ kind: 'show-all', label: 'Показать все' }] });
 

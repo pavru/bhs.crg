@@ -14,6 +14,7 @@
 
 import { expandInvoiceParts } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
+import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
 
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
@@ -108,7 +109,10 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
         // прокрутки вбок на 1366×768.
         if (width === 1366 && height === 650)
           for (const name of FIRST_STAGE) {
-            const field = await box(page.getByLabel(name, { exact: true }).first(), `поля «${name}»`);
+            // У поля с меткой «со скана» подпись с припиской для диктора ([UI-88], 11 D-11.4): она в `<label>` отдельным
+            // блоком `sr-only`, и в тексте подписи пробела перед ней нет — имя то же, хвост свой.
+            const label = new RegExp(`^${name}\\s?(\\(со скана, не проверено\\))?$`);
+            const field = await box(page.getByLabel(label).first(), `поля «${name}»`);
             if (field.y < head.y + head.height - 1 || field.y + field.height > height + 1)
               throw new Error(`поле «${name}» первого этапа вне окна на 1366×650`);
           }
@@ -192,6 +196,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     }
     await placeChecks(page, check, h, invoice);
     await invoiceStatusChecks(page, check, h, invoice);
+    await invoiceScanMarkChecks(page, check, h, invoice);
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.keyboard.press('Escape').catch(() => {});
