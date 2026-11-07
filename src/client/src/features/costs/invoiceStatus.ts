@@ -4,7 +4,6 @@ import type { StatusTone } from '@/shared/ui/StatusText';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { FIELD_LABEL, K, REJECTED, VAT_MODE_MARK, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
-import { shippedBeforeIssued } from './invoiceDue';
 import { modeProof, vatModeOf } from './invoiceVat';
 import { DRAFT, type DeleteReason } from './invoiceDelete';
 import { readinessItems, type ReadinessTarget } from './invoiceReadiness';
@@ -127,6 +126,8 @@ export interface StatusInput {
     matches: MatchFacts | null;
     /** Метки «со скана» у полей формы — то, что снимет «Всё верно». */
     marks: readonly string[];
+    /** Дата отгрузки раньше даты счёта — по набранному в форме (32). */
+    shippedEarly?: boolean;
     /** Метки у полей, которых форма не показывает (46): их снимает только «Всё верно». */
     hiddenMarks?: readonly string[];
     /** Подписи дописанных в тип полей с метками; поля модуля подписаны `FIELD_LABEL`. */
@@ -379,8 +380,11 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
   }
 
-  // Отгрузка раньше даты счёта (32): не отказ — бывает и так, — но чаще опечатка, и срок от неё уедет.
-  if (!gone && shippedBeforeIssued(view.requisites[K.shippedOn], view.requisites[K.date]))
+  // Отгрузка раньше даты счёта (32): не отказ — бывает и так, — но чаще опечатка, и срок от неё уедет. По
+  // набранному, а не по сохранённому: правку видно сразу, как было у подсказки поля. Только тому, кто может
+  // поправить, и пока срок что-то значит: у оплаченного и отклонённого замечанием навсегда она не висит (ревью
+  // PR #1794).
+  if (form.shippedEarly && editable && (!closed || form.correcting) && !payment.paid && state !== REJECTED)
     add({
       key: 'shipped-early', level: 'check', text: 'Отгрузка раньше даты счёта',
       detail: 'Проверьте дату отгрузки: от неё считается срок оплаты.',
@@ -438,7 +442,8 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
 
   // ── К сведению ──────────────────────────────────────────────────────────────────────────────────────
   // Режим НДС поставило распознавание (36). «Верно» — у переключателя режима: сверяют его там, глядя на строки.
-  if (!gone && !form.correcting && view.unconfirmed.includes(VAT_MODE_MARK)) {
+  // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет, как нет и «Верно» (ревью PR #1794).
+  if (editable && !closed && !form.correcting && view.unconfirmed.includes(VAT_MODE_MARK)) {
     const onTop = vatModeOf(view) === 'OnTop';
     add({
       key: 'vat-mode', level: 'info',

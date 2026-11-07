@@ -248,14 +248,20 @@ describe('statusOf — места и права (1.4)', () => {
     expect(ro.items.find(i => i.key === 'marks-hidden')!.actions).toEqual([]);
   });
 
-  it('отгрузка раньше даты счёта — «Проверьте», «К полю» даты отгрузки; по сохранённому (32)', () => {
-    const early = view({ requisites: { Состояние: 'Черновик', Дата: '2026-10-05', ДатаОтгрузки: '2026-10-01' } });
-    expect(statusOf(input(early)).items.find(i => i.key === 'shipped-early')).toMatchObject({
+  it('отгрузка раньше даты счёта — «Проверьте», «К полю» даты отгрузки; по набранному в форме (32)', () => {
+    const shipped = (v: InvoiceView, form: Partial<StatusInput['form']> = {}) =>
+      statusOf(input(v, { shippedEarly: true, ...form })).items.find(i => i.key === 'shipped-early');
+    expect(shipped(view())).toMatchObject({
       level: 'check', text: 'Отгрузка раньше даты счёта',
       actions: [{ kind: 'goto', place: { place: 'field', key: 'ДатаОтгрузки' } }],
     });
-    const same = view({ requisites: { Состояние: 'Черновик', Дата: '2026-10-05', ДатаОтгрузки: '2026-10-05' } });
-    expect(statusOf(input(same)).items.some(i => i.key === 'shipped-early')).toBe(false);
+    expect(statusOf(input(view())).items.some(i => i.key === 'shipped-early')).toBe(false);
+    // Только тому, кто поправит, и пока срок что-то значит (ревью PR #1794).
+    expect(shipped(view(), { can: { ...CAN, edit: false } })).toBeUndefined();
+    expect(shipped(view({ payment: { paid: true } }))).toBeUndefined();
+    expect(shipped(view({ state: 'Отклонён' }))).toBeUndefined();
+    expect(shipped(view({ payment: { lockedBy: 'период закрыт' } }))).toBeUndefined();
+    expect(shipped(view({ payment: { lockedBy: 'период закрыт' } }), { correcting: true })).toBeDefined();
   });
 
   it('режим НДС со скана — «К сведению» с числами для сверки, ведёт к строкам; в исправлении молчит (36)', () => {
@@ -272,6 +278,10 @@ describe('statusOf — места и права (1.4)', () => {
     expect(item.detail).toMatch(/^строки 1\s500,00\s₽ \+ НДС 330,00\s₽ = к оплате 1\s830,00\s₽$/);
     expect(s.count).toBe(0);
     expect(statusOf(input(v, { correcting: true })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    // Ведёт туда, где «Верно» есть: заперт или права нет — пункта нет (ревью PR #1794).
+    expect(statusOf(input(v, { can: { ...CAN, edit: false } })).items.some(i => i.key === 'vat-mode')).toBe(false);
+    const locked = { ...v, payment: { ...v.payment, lockedBy: 'период закрыт' } } as InvoiceView;
+    expect(statusOf(input(locked)).items.some(i => i.key === 'vat-mode')).toBe(false);
   });
 
   it('метки: глагол — по числительному; подпись дописанного поля — из схемы', () => {

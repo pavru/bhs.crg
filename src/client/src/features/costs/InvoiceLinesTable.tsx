@@ -363,11 +363,10 @@ export function InvoiceLinesTable({
         {/* Метка режима со скана — пункт перечня (11, 36), «Верно» — здесь: сверяют режим у переключателя. Числа
             для сверки — в подсказке кнопки и в пункте: рамка не единственный носитель смысла. */}
         {modeMarked && (
-          <Tooltip content={`${UNCONFIRMED_HINT}: ${modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney)}`}>
-            <Button variant="text" loading={confirm.isPending} onClick={confirmMode} data-testid="vat-mode-recognized">
-              Верно
-            </Button>
-          </Tooltip>
+          <Button variant="text" loading={confirm.isPending} onClick={confirmMode} data-testid="vat-mode-recognized"
+            title={`${UNCONFIRMED_HINT}: ${modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney)}`}>
+            Верно
+          </Button>
         )}
         <div className="flex-1" />
         {!still && (
@@ -459,9 +458,13 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
       ))}
 
       {strip.difference !== null && (
-        <span className="text-warning" data-testid="reconciliation-difference">
-          расхождение: <b>{formatMoney(strip.difference)}</b>
-        </span>
+        // Не запрет — подсказкой и описанием для диктора, а не фразой в полосе (41): пока строки не сохранены,
+        // пункта перечня о расхождении ещё нет, и число в тоне предупреждения читалось бы запретом (ревью PR #1794).
+        <Tooltip content={NOT_A_BAN}>
+          <span className="text-warning" data-testid="reconciliation-difference" tabIndex={0}>
+            расхождение: <b>{formatMoney(strip.difference)}</b>
+          </span>
+        </Tooltip>
       )}
       {offer && (
         <span className="inline-flex flex-wrap items-center gap-x-2 text-on-surface-variant">
@@ -475,6 +478,9 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
     </div>
   );
 }
+
+/** Что расхождение не запрет — подсказкой у числа в полосе. */
+const NOT_A_BAN = 'Не запрет: строки и счёт сохраняются и с расхождением';
 
 const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
   main: 'text-on-surface-variant', quiet: 'text-on-surface-variant', warning: 'text-warning',

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { RightPanelOpen } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
@@ -24,13 +24,19 @@ import { FILE_OVER_REASON, type InvoicePlace } from './invoicePlace';
  * жеста не зависит, поэтому байты грузятся после нажатия. Для Excel и Word поверх формы встаёт вид для
  * чтения — с оговоркой строкой над листом. Файл, который показать нечем, скачивается.</p>
  */
-export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle, showRef }: {
+/** «Показать файл» — для метки «со скана» в поле (11, D-11.4): открыть, а не переключить. */
+export interface FileShow {
+  show: () => void;
+}
+
+export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle, onReveal, showRef }: {
   invoiceId: string; blobPath: string | null; fileName: string | null;
   file: InvoicePlace['file'];
   /** Рядом с формой: открыть или закрыть панель. */
   onToggle: () => void;
-  /** Сюда кнопка кладёт «показать файл» — для метки «со скана» в поле (11, D-11.4): открыть, а не переключить. */
-  showRef?: MutableRefObject<(() => void) | null>;
+  /** Файл уже открыт рядом — показать его панель (страница переводит в неё фокус). */
+  onReveal?: () => void;
+  showRef?: Ref<FileShow>;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -97,17 +103,23 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   };
 
   const beside = file === 'beside';
-  // Показать, а не переключить: открытую рядом панель метка не закрывает — место решает страница.
-  useEffect(() => {
-    if (!showRef) return;
-    showRef.current = file === 'over' ? over : file === 'closed' ? onToggle : null;
-    return () => { showRef.current = null; };
-  });
+  // Пока виды файлов и вид для чтения не пришли, решать, чем показывать, не по чему: поверх формы открылся бы
+  // не вид для чтения, а скачанный оригинал. И повторный щелчок не начинает второе открытие (ревью PR #1794).
+  const loading = busy || (file === 'over' && (kinds.isLoading || image.isLoading));
+  // «Показать» — все три места здесь, одним решением с кнопкой: открытую рядом панель не закрывает.
+  useImperativeHandle(showRef, () => ({
+    show: () => {
+      if (loading) return;
+      if (file === 'over') over();
+      else if (file === 'closed') onToggle();
+      else onReveal?.();
+    },
+  }));
   return (
     <>
       <IconButton icon={RightPanelOpen} label="Файл" aria-pressed={file === 'over' ? undefined : beside}
         title={file === 'over' ? FILE_OVER_REASON : beside ? 'Скрыть файл' : 'Показать файл рядом с формой'}
-        loading={busy || (file === 'over' && (kinds.isLoading || image.isLoading))}
+        loading={loading}
         onClick={file === 'over' ? over : onToggle} />
       {shown && (
         <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}

@@ -37,6 +37,7 @@ import { CorrectionContext, useCorrectionDraft } from './useCorrectionDraft';
 import { mayCorrect } from './correction';
 import { UnshownExtras } from './InvoiceExtraFields';
 import { InvoiceExtrasProvider, useInvoiceExtras } from './invoiceExtras';
+import { shippedBeforeIssued } from './invoiceDue';
 import { AllocationSummary } from './LineAllocation';
 import { BlockFields, ConfirmBlock } from './InvoiceFormFields';
 import { InvoicePart } from './InvoicePart';
@@ -173,7 +174,10 @@ export function InvoiceForm({
 
   // Поля, дописанные в тип «Счёт» (issue #1482), — в части «Ещё».
   const extras = useInvoiceExtras(view.documentTypeId);
-  const orphanMarks = extras.loading ? [] : unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
+  // Схема типа не прочитана — поля, дописанные в тип, неизвестны, а не «не показаны»: их метки не сироты, и снимать
+  // их «Всё верно» вслепую нельзя (ревью PR #1794). Об отказе говорит пункт «Схема типа не прочитана».
+  const extrasKnown = !extras.loading && extras.error == null;
+  const orphanMarks = extrasKnown ? unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields) : [];
   const extraKeys = extras.block?.fields;
   // Что части знают от формы: поля типа — в «Ещё», замечания распознавания — в конце «Кто и сколько». Метки вне
   // блоков — пункт перечня (46): в части их больше нет, и раскрывать её ради них незачем.
@@ -261,10 +265,10 @@ export function InvoiceForm({
         : null;
 
   // ── Индикатор состояния (11): все сообщения о счёте — пунктами перечня ──────────────────────────────
-  // Пока схема типа читается, неизвестно, какие поля форма покажет: «Всё верно» снимает метки только с полей
-  // модуля — иначе снялась бы и метка поля вне блоков, которого человек не видел (ревью PR #1792).
+  // Пока схема типа читается (или не прочиталась), неизвестно, какие поля форма покажет: «Всё верно» снимает метки только с
+  // полей модуля — иначе снялась бы и метка поля, которого человек не видел (ревью PR #1792, #1794).
   const marks = view.unconfirmed.filter(key => key !== VAT_MODE_MARK && !orphanMarks.includes(key)
-    && (!extras.loading || key in FIELD_LABEL));
+    && (extrasKnown || key in FIELD_LABEL));
   const markTitles = Object.fromEntries([...marks, ...orphanMarks].flatMap(key => {
     const title = extras.byKey.get(key)?.title ?? extras.unshown.find(u => u.field.key === key)?.field.title;
     return title ? [[key, title]] : [];
@@ -277,6 +281,7 @@ export function InvoiceForm({
     onConfirmHiddenMarks: () => void confirmFields(orphanMarks), reveal,
     form: {
       gone, correcting, marks, hiddenMarks: orphanMarks, markTitles,
+      shippedEarly: shippedBeforeIssued(value(K.shippedOn), value(K.date)),
       orgsFailed: organizationsError != null ? apiError(organizationsError, 'сервер отказал') : null,
       extrasFailed: extras.error != null ? apiError(extras.error, 'сервер отказал') : null,
       can: {

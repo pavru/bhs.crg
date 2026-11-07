@@ -4,10 +4,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
+import { apiClient } from '@/shared/api/client';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { BLOCKS, K, UNCONFIRMED_HINT } from './invoiceFields';
 import { BlockFields } from './InvoiceFormFields';
-import { InvoiceFileButton } from './InvoiceFileButton';
+import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
 import { SCAN_MARK_SPOKEN } from './InvoiceFieldScan';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() } }));
@@ -82,33 +83,44 @@ describe('метка «со скана» в поле на TextField (4.1)', () =
 });
 
 describe('«показать файл» у кнопки «Файл» — открыть, а не переключить', () => {
-  function Probe({ file, onToggle, none }: { file: 'over' | 'beside' | 'closed'; onToggle: () => void; none: () => void }) {
-    const show = useRef<(() => void) | null>(null);
+  function Probe({ file, onToggle, onReveal }: { file: 'over' | 'beside' | 'closed'; onToggle: () => void; onReveal: () => void }) {
+    const show = useRef<FileShow>(null);
     return (
       <>
-        <InvoiceFileButton invoiceId="i1" blobPath="files/a" fileName="Счёт" file={file} onToggle={onToggle} showRef={show} />
-        <button onClick={() => (show.current ? show.current() : none())}>показать</button>
+        <InvoiceFileButton invoiceId="i1" blobPath="files/a" fileName="Счёт" file={file} onToggle={onToggle}
+          onReveal={onReveal} showRef={show} />
+        <button onClick={() => show.current?.show()}>показать</button>
       </>
     );
   }
   const probe = (file: 'over' | 'beside' | 'closed') => {
     const onToggle = vi.fn();
-    const none = vi.fn();
-    render(<QueryClientProvider client={client()}><SnackbarProvider><Probe file={file} onToggle={onToggle} none={none} /></SnackbarProvider></QueryClientProvider>);
+    const onReveal = vi.fn();
+    render(<QueryClientProvider client={client()}><SnackbarProvider><Probe file={file} onToggle={onToggle} onReveal={onReveal} /></SnackbarProvider></QueryClientProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'показать' }));
-    return { onToggle, none };
+    return { onToggle, onReveal };
   };
 
   it('закрытый рядом — открывается панель', () => {
-    const { onToggle, none } = probe('closed');
+    const { onToggle, onReveal } = probe('closed');
     expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(none).not.toHaveBeenCalled();
+    expect(onReveal).not.toHaveBeenCalled();
   });
 
-  it('открытый рядом — не закрывается: «показать» его не переключает', () => {
-    // Показывать его страница будет фокусом в панель — у кнопки «показать» для этого места нет.
-    const { onToggle, none } = probe('beside');
+  it('открытый рядом — не закрывается: страница показывает его панель', () => {
+    const { onToggle, onReveal } = probe('beside');
     expect(onToggle).not.toHaveBeenCalled();
-    expect(none).toHaveBeenCalledTimes(1);
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('поверх формы, пока виды файлов не пришли, — ничего не открывает и не скачивает (ревью PR #1794)', () => {
+    const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const { onToggle, onReveal } = probe('over');
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    // Без запора открытие пошло бы за самим файлом — оригиналом, а не видом для чтения.
+    expect(vi.mocked(apiClient.get).mock.calls.map(c => c[0])).not.toContain('/costs/invoices/i1/scan');
+    save.mockRestore();
   });
 });

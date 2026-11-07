@@ -148,8 +148,8 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
 /**
  * Диалог «Завести организацию»: название правится, ИНН — из скана и не правится.
  *
- * <p>Отказ сервера остаётся В ДИАЛОГЕ, под названием: тост ушёл бы, а причина нужна, пока человек
- * правит название. Набранное при отказе цело.</p>
+ * <p>Отказ сервера остаётся В ДИАЛОГЕ — banner окна под его шапкой (`ModalBanner`): тост ушёл бы, а причина
+ * нужна, пока человек правит название. Набранное при отказе цело.</p>
  */
 function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
   invoiceId: string; side: InvoicePartySide; party: InvoiceParty;
@@ -195,7 +195,8 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         {/* Сообщение окна — banner окна (11, 4.4; docs/UI.md): окно ставит его под шапку, а не в тело. */}
         {refusal && (
           <ModalBanner tone="error">
-            Организация не заведена: {refusal}.{' '}
+            {/* Точку ставим свою: текст сервера своей кончается не всегда (ревью PR #1794). */}
+            Организация не заведена: {refusal.replace(/[.\s]+$/, '')}.{' '}
             <Link to="/common-data" target="_blank" className="text-primary underline hover:no-underline">
               Открыть справочник организаций ↗
             </Link>

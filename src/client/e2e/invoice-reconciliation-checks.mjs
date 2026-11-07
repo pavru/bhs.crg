@@ -23,6 +23,9 @@ export async function reconciliationChecks({ page, check, stamp, invoice, open, 
     const { text, tone } = await difference.evaluate(el => ({ text: el.textContent, tone: el.className }));
     if (!/^расхождение:\s*[−-]?3\s000,00\s₽$/.test(text.trim())) throw new Error(`в полосе не число расхождения: «${text}»`);
     if (!tone.includes('text-warning')) throw new Error(`у расхождения в полосе нет тона предупреждения: «${tone}»`);
+    // Что это не запрет — описанием у числа (подсказка, диктор), а не фразой в полосе (ревью PR #1794).
+    const described = await difference.getAttribute('aria-description');
+    if (!/Не запрет/.test(described ?? '')) throw new Error(`у числа расхождения нет пояснения «не запрет»: «${described}»`);
     const words = await strip.innerText();
     if (/сохранить всё равно|расходится/.test(words)) throw new Error(`в полосе фраза, а не числа: «${words}»`);
 
