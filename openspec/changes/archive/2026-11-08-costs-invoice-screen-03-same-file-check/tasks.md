@@ -61,9 +61,9 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~PermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Backup"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`InvoiceRecognitionEndpoints.cs`, `InvoiceEndpoints.cs` под присмотром)
-- [ ] 3.5 `bash scripts/backend-tests.sh` — весь набор двумя потоками зелёный
-- [ ] 3.6 Оба PR с меткой `version:minor`; `<Version>` не тронута
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~PermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Backup"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (на e608f073: 3870/3870)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`InvoiceRecognitionEndpoints.cs`, `InvoiceEndpoints.cs` под присмотром)
+- [x] 3.5 `bash scripts/backend-tests.sh` — весь набор двумя потоками зелёный (master после #1800 и бота, e608f073: 4700 + 944, падений нет; фильтры 3.1 и 3.4 — в его составе)
+- [x] 3.6 Оба PR с меткой `version:minor`; `<Version>` не тронута (#1799 → 2.85.0, #1800 → 2.86.0 — ботом)

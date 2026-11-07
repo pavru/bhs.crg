@@ -102,9 +102,14 @@
   заархивирован.
   Слит #1790 (bc0b48c8), заархивирован 07.11.2026. Тест случая «нет суммы → пункт „Итого“ мешает и
   оплате» перенесён в 01 (его задача 1.3).
-- [ ] 1.3 `costs-invoice-screen-03-same-file-check` (1–2) — `GET …/invoices/same-file?fingerprint=` до
+- [x] 1.3 `costs-invoice-screen-03-same-file-check` (1–2) — `GET …/invoices/same-file?fingerprint=` до
   выгрузки, поставщик, состояние и «кто завёл» у двойника, пометка сознательного повтора, миграция схемы
   `costs` [COST-6.7]. Проверка — change заархивирован.
+  Слит #1799 (94381de3) и #1800 (c2501940), заархивирован 08.11.2026: в `costs` +5 требований [COST-6.7].
+  Для 14: поля двойника — `id`, `number`, `issuedOn`, `total`, `scanFileName`, `createdAt`, `supplierId`,
+  `supplierName`, `supplierArchived` (`null` — «не знаем»), `state`, `payment`, `createdByName` (`null` у
+  прежних счетов), `mine`; `sendScan(qc, file, { acceptRepeat })` готов, окно и пакет его ещё не шлют.
+  Принятый повтор гаснет, если позже заведён новый двойник (ревью #1800).
 
 ## 2. Дети: клиент
 
