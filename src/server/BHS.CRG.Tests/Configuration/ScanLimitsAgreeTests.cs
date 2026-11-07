@@ -33,6 +33,18 @@ public class ScanLimitsAgreeTests
         Assert.DoesNotMatch(@"\d+ МБ", Screen);
     }
 
+    /// <summary>
+    /// Вопрос «тот же файл» (COST-6.7) принимает столько отпечатков, сколько файлов в пакете: подними
+    /// пакет предел — и каждый большой бросок получал бы 400 ровно там, где повторы вероятнее всего.
+    /// </summary>
+    [Fact]
+    public void Предел_вопроса_по_отпечаткам_равен_пределу_пакета()
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(Screen, @"export const MAX_FILES = (\d+);");
+        Assert.True(match.Success, "В scanBatch.ts не найден предел пакета MAX_FILES.");
+        Assert.Equal(int.Parse(match.Groups[1].Value), InvoiceSameFiles.MaxFingerprints);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

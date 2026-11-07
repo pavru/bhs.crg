@@ -15,8 +15,9 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <para>Одна запись на окно повтора, форму и пакет (COST-6.7): окну нужно узнать счёт — чей он, в каком
 /// состоянии и кто его завёл, — а не только номер и время.</para>
 /// </summary>
-/// <param name="SupplierName">Название поставщика. <c>null</c> при <paramref name="SupplierId" /> — справочник
-/// ядра не ответил: «не знаем», а не «без поставщика».</param>
+/// <param name="SupplierName">Название поставщика. <c>null</c> при <paramref name="SupplierId" /> — названия нет:
+/// справочник ядра не ответил либо запись поставщика удалена. Это «не знаем», а не «без поставщика»; что
+/// именно из двух — говорит форма самого счёта, окну повтора это не нужно.</param>
 /// <param name="State">Состояние документа словами сервера, как в реестре (<c>InvoiceListItem</c>).</param>
 /// <param name="Payment">Оплата словами сервера, как в реестре.</param>
 /// <param name="CreatedByName">Имя заведшего на момент заведения; <c>null</c> — счёт заведён до снимка
@@ -177,18 +178,22 @@ public static class InvoiceSameFiles
         if (fingerprint is not { Length: > 0 })
             throw new InvalidRequestException(
                 "Не назван ни один отпечаток файла: спросите параметром «fingerprint=…» хотя бы один.");
-        if (fingerprint.Length > MaxFingerprints)
-            throw new InvalidRequestException(
-                $"Отпечатков {fingerprint.Length}, а за один вопрос принимается не больше {MaxFingerprints} — " +
-                "столько, сколько файлов в пакете загрузки. Разделите вопрос на части.");
-
         var bad = fingerprint.FirstOrDefault(p => !IsFingerprint(p));
         if (bad is not null)
             throw new InvalidRequestException(
                 $"«{(bad.Length > FingerprintLength ? bad[..FingerprintLength] + "…" : bad)}» — не отпечаток файла: " +
                 $"нужны {FingerprintLength} шестнадцатеричных знаков (SHA-256 содержимого).");
 
-        return [.. fingerprint.Select(p => p.ToLowerInvariant()).Distinct()];
+        // Предел — по РАЗНЫМ отпечаткам, после схлопывания повторов: пакет, где файл выбран дважды,
+        // спрашивает о нём один раз, и отказ за повторы был бы отказом ни за что. Длину самого адреса
+        // ограничивают прокси и сервер.
+        List<string> prints = [.. fingerprint.Select(p => p.ToLowerInvariant()).Distinct()];
+        if (prints.Count > MaxFingerprints)
+            throw new InvalidRequestException(
+                $"Отпечатков {prints.Count}, а за один вопрос принимается не больше {MaxFingerprints} — " +
+                "столько, сколько файлов в пакете загрузки. Разделите вопрос на части.");
+
+        return prints;
     }
 
     private static bool IsFingerprint(string? print) =>

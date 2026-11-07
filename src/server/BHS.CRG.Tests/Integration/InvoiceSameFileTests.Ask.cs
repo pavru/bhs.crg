@@ -74,6 +74,18 @@ public sealed partial class InvoiceSameFileTests
         Assert.Single(answers);
     }
 
+    /// <summary>Предел считается по разным отпечаткам: повтор сверх пятидесяти — не повод для отказа.</summary>
+    [Fact]
+    public async Task Повтор_сверх_предела_не_отказ()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        string[] prints = [.. Enumerable.Range(0, InvoiceSameFiles.MaxFingerprints).Select(_ => Print(Pdf()))];
+
+        var answers = await AskAsync(client, [.. prints, prints[0].ToUpperInvariant()]);
+
+        Assert.Equal(InvoiceSameFiles.MaxFingerprints, answers.Length);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(InvoiceSameFiles.MaxFingerprints + 1)]

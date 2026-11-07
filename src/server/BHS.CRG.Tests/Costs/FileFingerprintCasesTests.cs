@@ -10,7 +10,9 @@ namespace BHS.CRG.Tests.Costs;
 /// <para>Отпечаток считается в двух местах: сервером при приёме (<see cref="InvoiceSameFiles.FingerprintAsync" />,
 /// он ложится в счёт) и браузером до выгрузки — чтобы спросить, нет ли уже счёта с этим файлом. Разойдись
 /// они, вопрос отвечал бы «двойников нет» про файл, у которого они есть, и никто бы не заметил. Поэтому
-/// примеры одни, в файле рядом с клиентской утилитой, и сверяют их оба теста: отставший краснеет.</para>
+/// примеры одни, в файле рядом с клиентскими утилитами. Здесь их сверяет сервер; ⚠️ клиентского SHA-256
+/// пока нет — он появится с броском файла (change <c>costs-invoice-screen-14</c>), и его тест обязан
+/// читать этот же файл.</para>
 /// </summary>
 public class FileFingerprintCasesTests
 {
@@ -42,7 +44,7 @@ public class FileFingerprintCasesTests
         Assert.Contains(lengths, l => l > 4 * 1024 * 1024);
     }
 
-    /// <summary>Байт i — (i × 31 + 7) mod 256; так же их строит клиентский тест (см. <c>_generator</c> в файле).</summary>
+    /// <summary>Байт i — (i × 31 + 7) mod 256: правило записано в самом файле (<c>_generator</c>).</summary>
     private static byte[] Content(JsonElement c)
     {
         if (c.TryGetProperty("hex", out var hex)) return Convert.FromHexString(hex.GetString()!);

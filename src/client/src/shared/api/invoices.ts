@@ -32,7 +32,10 @@ export interface InvoiceSameFile extends InvoiceDuplicate {
   scanFileName: string | null;
   createdAt: string;
   supplierId: string | null;
-  /** `null` при `supplierId` — справочник не ответил: «не знаем», а не «без поставщика». */
+  /**
+   * `null` при `supplierId` — названия нет: справочник не ответил либо запись поставщика удалена.
+   * «Не знаем», а не «без поставщика».
+   */
   supplierName: string | null;
   supplierArchived: boolean;
   /** Состояние документа словами сервера, как в реестре («Черновик», «Разобран», «Отклонён»). */
