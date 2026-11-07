@@ -66,6 +66,7 @@ public static class InvoiceAuthor
         invoice.Property(i => i.UpdatedBy).HasColumnName("updated_by");
         invoice.Property(i => i.UpdatedByName).HasColumnName("updated_by_name").HasMaxLength(NameLength);
         invoice.Property(i => i.UpdatedVia).HasColumnName("updated_via").HasMaxLength(16);
+        invoice.Property(i => i.CreatedByName).HasColumnName("created_by_name").HasMaxLength(NameLength);
     }
 }
 

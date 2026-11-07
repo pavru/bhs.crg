@@ -32,8 +32,8 @@ public class InvoiceBookShiftedGuessTests(InvoiceLineHost host) : InvoiceLineTes
         var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
 
         // Как лежали до PR 6d: признака нет ни у одной строки.
-        var unpaid = Invoice.Create(Guid.NewGuid(), null);
-        var repaid = Invoice.Create(Guid.NewGuid(), null);
+        var unpaid = Invoice.Create(Guid.NewGuid(), null, null);
+        var repaid = Invoice.Create(Guid.NewGuid(), null, null);
         db.Invoices.AddRange(unpaid, repaid);
         var lines = new Dictionary<string, Guid>();
         void Write(Invoice invoice, int seq, InvoiceBookKind kind, DateOnly day, string name, Grain grain)

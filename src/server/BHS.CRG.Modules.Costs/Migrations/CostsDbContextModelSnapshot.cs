@@ -43,6 +43,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("CreatedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by_name");
+
                     b.Property<JsonDocument>("Data")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -138,6 +143,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.Property<string>("ScanMimeType")
                         .HasColumnType("text")
                         .HasColumnName("scan_mime_type");
+
+                    b.Property<string>("ScanRepeatAccepted")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scan_repeat_accepted");
 
                     b.Property<long?>("ScanSize")
                         .HasColumnType("bigint")

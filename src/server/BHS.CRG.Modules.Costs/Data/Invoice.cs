@@ -217,6 +217,28 @@ public sealed partial class Invoice
         System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path)));
 
     /// <summary>
+    /// Отпечаток файла, повтор которого принят сознательно (COST-6.7, лист «Ф» 27.10.2026): человек видел
+    /// окно повтора и выбрал «Завести ещё один черновик». Пункт «тот же файл» у такого счёта стоит «к
+    /// сведению», а не «проверьте» — иначе окно и индикатор спрашивали бы одно и то же дважды.
+    ///
+    /// <para>⚠️ <b>Отпечаток, а не флажок</b>: признак относится к ФАЙЛУ. Замену файла гасит
+    /// <see cref="AttachScan" />. А копия: восстановление из копии старше колонки её не трогает,
+    /// а файл возвращает прежний — флажок приписался бы файлу из копии, а отпечаток с ним не совпадёт
+    /// (<see cref="RepeatAccepted" />).</para>
+    /// </summary>
+    public string? ScanRepeatAccepted { get; private set; }
+
+    /// <summary>Повтор файла, приложенного СЕЙЧАС, принят сознательно — отпечатку можно верить и он тот же.</summary>
+    public bool RepeatAccepted => ScanRepeatAccepted is { } accepted && accepted == TrustedFingerprint;
+
+    /// <summary>
+    /// Принять повтор нынешнего файла. Зовёт ТОЛЬКО <c>InvoiceSameFiles.AcceptRepeatAsync</c>: там проверка,
+    /// что двойники и правда есть, — сущность базы не видит, а без двойников «принятый повтор» был бы
+    /// неправдой, которую никто не снимет.
+    /// </summary>
+    internal void AcceptRepeat() => ScanRepeatAccepted = TrustedFingerprint;
+
+    /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца
     /// продукта 29.09.2026, вариант C).
     ///
@@ -250,6 +272,13 @@ public sealed partial class Invoice
 
     public Guid? CreatedBy { get; private set; }
 
+    /// <summary>
+    /// Имя заведшего — снимком на момент заведения (COST-6.7), как <see cref="UpdatedByName" />: учётную
+    /// запись могут переименовать, а вопрос «кто завёл этот файл» останется. <c>null</c> — счёт заведён до
+    /// колонки (или без человека): имени нет, и строки «кто завёл» нет. Не «неизвестный человек».
+    /// </summary>
+    public string? CreatedByName { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -258,13 +287,20 @@ public sealed partial class Invoice
     /// Новый счёт. Всегда черновик и всегда неоплаченный: другого начала у счёта не бывает, а
     /// параметр с одним осмысленным значением приглашает передать второе.
     /// </summary>
-    public static Invoice Create(Guid documentTypeId, Guid? author) => new()
+    /// <param name="authorName">Имя заведшего — снимком на момент заведения (COST-6.7): окно повтора файла
+    /// называет, кто завёл двойника. Обязательным параметром, а не свойством «потом»: путей заведения
+    /// два, и третий забыл бы.
+    /// <para>Пишется только у человека (<paramref name="author" /> есть): у экземпляра имя — «Система»
+    /// (<c>IModuleUser.Name</c>), а строка «завёл: Система» в окне повтора выдавала бы экземпляр за
+    /// пользователя.</para></param>
+    public static Invoice Create(Guid documentTypeId, Guid? author, string? authorName) => new()
     {
         Id = Guid.CreateVersion7(),
         DocumentTypeId = documentTypeId,
         State = InvoiceState.Draft,
         Payment = InvoicePaymentState.Unpaid,
         CreatedBy = author,
+        CreatedByName = author is null ? null : SupplierMatch.NameSnapshot(authorName),
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
     };
@@ -499,6 +535,9 @@ public sealed partial class Invoice
     {
         ScanFingerprint = fingerprint;
         ScanFingerprintSeal = Seal(blobPath);
+        // Принятый повтор относится к файлу, которого больше нет: новый файл — новый вопрос, даже если это
+        // тот же файл, приложенный снова (COST-6.7). Принять повтор снова может только заведение.
+        ScanRepeatAccepted = null;
         ScanBlobPath = blobPath;
         ScanFileName = fileName;
         ScanMimeType = mimeType;

@@ -18,7 +18,7 @@ namespace BHS.CRG.Tests.Integration;
 /// обычной пробе «один файл дважды» оно выглядит работающим) и отпечатком уже прочитанного потока —
 /// тогда отпечаток у всех файлов один, и совпадает всё со всем.</para>
 /// </summary>
-public sealed class InvoiceSameFileTests(InvoiceScanHost host)
+public sealed partial class InvoiceSameFileTests(InvoiceScanHost host)
     : InvoiceLineTestBase(host), IClassFixture<InvoiceScanHost>
 {
     private static MultipartFormDataContent Form(string content, string fileName)

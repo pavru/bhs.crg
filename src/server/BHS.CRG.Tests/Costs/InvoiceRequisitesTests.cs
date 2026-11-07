@@ -43,7 +43,7 @@ public class InvoiceRequisitesTests
 
     private static JsonObject Stored(InvoiceColumns columns, JsonDocument rest)
     {
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         invoice.ApplyRequisites(columns, rest, dueDateByHand: true, new InvoiceDueRule(true));
         return InvoiceRequisites.Merge(invoice);
     }

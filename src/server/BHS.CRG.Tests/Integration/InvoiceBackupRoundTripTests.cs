@@ -298,6 +298,118 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Equal(JsonValueKind.Null, (await ReadAsync(client, invoice)).GetProperty("updatedBy").ValueKind);
     }
 
+    /// <summary>
+    /// Имя заведшего (COST-6.7) уезжает в копию и возвращается тем же; копия старше колонки восстанавливается
+    /// без имени — строки «кто завёл» нет, а не «завёл тот, кто восстанавливал».
+    /// </summary>
+    [Fact]
+    public async Task Имя_заведшего_возвращается_из_копии_а_из_старой_копии_пусто()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        var name = await CreatedByNameAsync(invoice);
+        Assert.False(string.IsNullOrWhiteSpace(name));
+
+        var (archive, manifest) = await ExportAsync();
+        await ForgetInvoicesAsync();
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(name, await CreatedByNameAsync(invoice));
+
+        var former = Copy(manifest, ("invoices", "created_by_name"));
+        await ForgetInvoicesAsync();
+        report = await ImportAsync(former);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Null(await CreatedByNameAsync(invoice));
+    }
+
+    /// <summary>
+    /// Принятый повтор (COST-6.7) относится к ФАЙЛУ. Копия старше колонки возвращает счёту файл, какой был
+    /// в копии, а живую колонку не трогает: принятым остаётся отпечаток нынешнего файла — и к файлу из
+    /// копии он не приписывается. Флажок на его месте приписался бы.
+    /// </summary>
+    [Fact]
+    public async Task Копия_старше_колонки_не_делает_повтор_принятым_у_другого_файла()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var (repeated, other) = ($"%PDF-1.4 {Guid.NewGuid():N}", $"%PDF-1.4 {Guid.NewGuid():N}");
+        var neighbour = await FromScanAsync(client, other, acceptRepeat: false);
+        await FromScanAsync(client, repeated, acceptRepeat: false);
+        var invoice = await FromScanAsync(client, repeated, acceptRepeat: true);
+        Assert.True(await RepeatAcceptedAsync(client, invoice));
+
+        // Копия до миграции: колонки принятого повтора в ней нет, а у счёта в ней — другой файл (файл
+        // соседа: тот лежит в хранилище, и отпечатку с печатью из копии можно верить).
+        var (_, manifest) = await ExportAsync();
+
+        var report = await ImportAsync(FormerWithFileOf(manifest, invoice, neighbour));
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        var restored = await ReadAsync(client, invoice);
+        // Двойник у счёта есть (сосед) — признак ложен не потому, что сравнивать не с кем.
+        Assert.Equal([neighbour], restored.GetProperty("sameFile").EnumerateArray().Select(t => t.GetProperty("id").GetGuid()));
+        Assert.False(restored.GetProperty("scanRepeatAccepted").GetBoolean());
+    }
+
+    /// <summary>
+    /// Архив до колонки принятого повтора, в котором у счёта <paramref name="invoice" /> — файл счёта
+    /// <paramref name="donor" />.
+    /// </summary>
+    private static MemoryStream FormerWithFileOf(BackupManifest manifest, Guid invoice, Guid donor)
+    {
+        string[] file = ["scan_blob_path", "scan_file_name", "scan_mime_type", "scan_size", "scan_fingerprint", "scan_fingerprint_seal"];
+        var rows = manifest.ModuleData!.SelectMany(m => m.Tables).Single(t => t.Table == "invoices").Rows;
+        var from = System.Text.Json.Nodes.JsonNode.Parse(rows.Single(r => r.GetProperty("id").GetGuid() == donor).GetRawText())!.AsObject();
+
+        JsonElement Patch(JsonElement row)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(row.GetRawText())!.AsObject();
+            node.Remove("scan_repeat_accepted");
+            if (row.GetProperty("id").GetGuid() == invoice)
+                foreach (var column in file) node[column] = from[column]?.DeepClone();
+            return JsonSerializer.SerializeToElement(node);
+        }
+
+        var patched = manifest with
+        {
+            ModuleData = [.. manifest.ModuleData!.Select(m => m with
+            {
+                Tables = [.. m.Tables.Select(t => t.Table == "invoices" ? t with { Rows = [.. t.Rows.Select(Patch)] } : t)],
+            })],
+        };
+        var archive = new MemoryStream();
+        using (var zip = new ZipArchive(archive, ZipArchiveMode.Create, leaveOpen: true))
+        using (var entry = zip.CreateEntry("manifest.json").Open())
+            JsonSerializer.Serialize(entry, patched);
+        archive.Position = 0;
+        return archive;
+    }
+
+    private static async Task<bool> RepeatAcceptedAsync(HttpClient client, Guid invoice) =>
+        (await ReadAsync(client, invoice)).GetProperty("scanRepeatAccepted").GetBoolean();
+
+    private static async Task<Guid> FromScanAsync(HttpClient client, string body, bool acceptRepeat)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "Счёт.pdf");
+        if (acceptRepeat) form.Add(new StringContent("true"), "acceptRepeat");
+
+        var created = await client.PostAsync("/api/costs/invoices/from-scan", form);
+        await OkAsync(created);
+        return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("invoice").GetProperty("id").GetGuid();
+    }
+
+    private async Task<string?> CreatedByNameAsync(Guid invoice)
+    {
+        using var scope = _host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Invoices.AsNoTracking()
+            .Where(i => i.Id == invoice).Select(i => i.CreatedByName).SingleAsync();
+    }
+
     /// <summary>Архив из манифеста без названных колонок — так выглядит копия, снятая до их миграции.</summary>
     private static MemoryStream Copy(BackupManifest manifest, params (string Table, string Column)[] without)
     {
