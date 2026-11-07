@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { TextField } from '@/shared/ui/TextField';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -191,13 +192,14 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         <p className="text-body-small text-on-surface-variant">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
+        {/* Сообщение окна — banner окна (11, 4.4; docs/UI.md): окно ставит его под шапку, а не в тело. */}
         {refusal && (
-          <div role="alert" className="rounded-md border border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
-            <p>Организация не заведена: {refusal}</p>
-            <Link to="/common-data" target="_blank" className="underline hover:no-underline">
+          <ModalBanner tone="error">
+            Организация не заведена: {refusal}.{' '}
+            <Link to="/common-data" target="_blank" className="text-primary underline hover:no-underline">
               Открыть справочник организаций ↗
             </Link>
-          </div>
+          </ModalBanner>
         )}
         <ModalButtons>
           <ModalExit />

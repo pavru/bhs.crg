@@ -12,9 +12,9 @@ import {
 } from './invoiceFields';
 import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness';
 import { LOST } from './lostReferences';
-import { InvoiceFieldScan } from './InvoiceFieldScan';
+import { InvoiceFieldScan, SCAN_MARK_SPOKEN, ScanMark } from './InvoiceFieldScan';
 import { InvoiceDueField } from './InvoiceDueField';
-import { deferralNote, hints, shippedBeforeIssued } from './invoiceDue';
+import { deferralNote, hints } from './invoiceDue';
 import { useCorrecting } from './useCorrectionDraft';
 import { ExtraField } from './InvoiceExtraFields';
 import { useExtraField } from './invoiceExtras';
@@ -29,9 +29,11 @@ import { useExtraField } from './invoiceExtras';
  * узком экране. У «Кто и сколько» стороны — по половине, номер, дата и суммы — по четверти (как в Г).
  */
 export function BlockFields({
-  block, view, edits, organizations, organizationsUnread, value, set, locked,
+  block, view, edits, organizations, organizationsUnread, value, set, locked, onShowScan,
 }: {
   block: InvoiceBlock; locked: boolean;
+  /** Открыть файл счёта — у метки «со скана» в хвосте поля; нет — файла нет, и метка прежняя (рамка). */
+  onShowScan?: () => void;
   view: InvoiceView; edits: Record<string, unknown>; organizations: CostsOrganization[];
   organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
@@ -48,7 +50,7 @@ export function BlockFields({
           <div key={key} className={`min-w-0 ${block.id === 'who' ? (wide(key) ? '@3xl:col-span-6' : '@3xl:col-span-3') : '@3xl:col-span-4'}`}
             {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}>
             <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
-              organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
+              organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} onShowScan={onShowScan} />
             {!quiet && (
               <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={set} organizations={organizations} />
             )}
@@ -77,8 +79,8 @@ export function ConfirmBlock({ blocks, view, locked, confirming, onConfirm }: {
   );
 }
 
-function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, locked }: {
-  fieldKey: string; view: InvoiceView; edits: Record<string, unknown>;
+function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, locked, onShowScan }: {
+  fieldKey: string; view: InvoiceView; edits: Record<string, unknown>; onShowScan?: () => void;
   /** Счёт заперт закрытым периодом: поля только читаются. Читаются, а не отключены — приглушённое
    *  поле выглядит пустым, а причину называет полоса вверху. */
   locked: boolean;
@@ -176,8 +178,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       return (
         <div className={frame}>
           <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
-            hint={hints(hint, fieldKey === K.shippedOn && shippedBeforeIssued(current, value(K.date))
-              ? 'Отгрузка раньше даты счёта — проверьте дату: от неё считается срок' : null)}
+            // «Отгрузка раньше даты счёта» — пункт перечня состояния (11, 32), а не подсказка у поля.
+            hint={hint}
             readOnly={locked}
             onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
         </div>
@@ -186,14 +188,20 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
     default: {
       const money = fieldKey === K.total || fieldKey === K.vat;
       const numeric = money || fieldKey === K.deferral;
+      const label = LABELS[fieldKey] ?? fieldKey;
+      // Метка — в хвосте поля (D-11.4): ни рамки, ни строки под полем. Без файла показывать нечего — прежняя рамка.
+      const tail = marked && onShowScan !== undefined;
+      const own = tail ? undefined : hint;
       return (
-        <div className={frame}>
+        <div className={tail ? '' : frame}>
           {/* У отсрочки — взята ли она из условий поставщика (ТЗ COST-9.2): иначе подставленное число
               выглядело бы вписанным руками, а расхождение с условиями — незаметным. */}
-          <TextField label={LABELS[fieldKey] ?? fieldKey} readOnly={locked} required={required}
-            hint={fieldKey === K.deferral ? hints(hint, deferralNote(view, edits)) : hint}
+          <TextField label={label} readOnly={locked} required={required}
+            hint={fieldKey === K.deferral ? hints(own, deferralNote(view, edits)) : own}
             value={money ? moneyInput(current) : asInput(current)}
             inputMode={numeric ? 'decimal' : undefined}
+            trailing={tail ? <ScanMark onShow={onShowScan} /> : undefined}
+            aria-label={tail ? `${label} ${SCAN_MARK_SPOKEN}` : undefined}
             onChange={e => set(fieldKey, fromInput(e.target.value))} />
         </div>
       );

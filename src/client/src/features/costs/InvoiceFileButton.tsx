@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { RightPanelOpen } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
@@ -24,11 +24,13 @@ import { FILE_OVER_REASON, type InvoicePlace } from './invoicePlace';
  * жеста не зависит, поэтому байты грузятся после нажатия. Для Excel и Word поверх формы встаёт вид для
  * чтения — с оговоркой строкой над листом. Файл, который показать нечем, скачивается.</p>
  */
-export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle }: {
+export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle, showRef }: {
   invoiceId: string; blobPath: string | null; fileName: string | null;
   file: InvoicePlace['file'];
   /** Рядом с формой: открыть или закрыть панель. */
   onToggle: () => void;
+  /** Сюда кнопка кладёт «показать файл» — для метки «со скана» в поле (11, D-11.4): открыть, а не переключить. */
+  showRef?: MutableRefObject<(() => void) | null>;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -95,6 +97,12 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   };
 
   const beside = file === 'beside';
+  // Показать, а не переключить: открытую рядом панель метка не закрывает — место решает страница.
+  useEffect(() => {
+    if (!showRef) return;
+    showRef.current = file === 'over' ? over : file === 'closed' ? onToggle : null;
+    return () => { showRef.current = null; };
+  });
   return (
     <>
       <IconButton icon={RightPanelOpen} label="Файл" aria-pressed={file === 'over' ? undefined : beside}

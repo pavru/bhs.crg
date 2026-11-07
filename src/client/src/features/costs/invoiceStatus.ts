@@ -3,7 +3,9 @@ import type { InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import type { StatusTone } from '@/shared/ui/StatusText';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { FIELD_LABEL, K, REJECTED, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
+import { FIELD_LABEL, K, REJECTED, VAT_MODE_MARK, asInput, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
+import { shippedBeforeIssued } from './invoiceDue';
+import { modeProof, vatModeOf } from './invoiceVat';
 import { DRAFT, type DeleteReason } from './invoiceDelete';
 import { readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { PART_ORDER, partOfTarget } from './invoiceParts';
@@ -60,7 +62,7 @@ export type StatusAction = { label: string; short?: string } & (
   | { kind: 'delete'; reason: DeleteReason }
   | {
     kind: 'close' | 'reread' | 'retry-view' | 'retry-orgs' | 'recognize' | 'retry-recognition'
-      | 'confirm-marks' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
+      | 'confirm-marks' | 'confirm-hidden-marks' | 'apply-matches' | 'retry-matches' | 'retry-extras' | 'show-all' | 'periods';
   });
 
 /** Чему пункт мешает — пометкой «мешает: Разобран · оплата». */
@@ -125,6 +127,8 @@ export interface StatusInput {
     matches: MatchFacts | null;
     /** Метки «со скана» у полей формы — то, что снимет «Всё верно». */
     marks: readonly string[];
+    /** Метки у полей, которых форма не показывает (46): их снимает только «Всё верно». */
+    hiddenMarks?: readonly string[];
     /** Подписи дописанных в тип полей с метками; поля модуля подписаны `FIELD_LABEL`. */
     markTitles?: Readonly<Record<string, string>>;
     /** Исправление закрытого периода идёт. */
@@ -362,6 +366,27 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
   }
 
+  // Метки у полей, которых форма не показывает (46): править их здесь нечем — снимает только «Всё верно».
+  const hidden = form.hiddenMarks ?? [];
+  if (hidden.length > 0) {
+    const names = hidden.map(key => `«${form.markTitles?.[key] ?? key}»`).join(', ');
+    add({
+      key: 'marks-hidden', level: 'check',
+      text: `${marksText(hidden.length)} у полей, которых форма не показывает: ${names}`,
+      detail: 'Править их здесь нечем: сверьте значения по файлу, «Всё верно» снимет метки.',
+      actions: editable && !closed && !form.correcting
+        ? [{ kind: 'confirm-hidden-marks', label: `Всё верно (${hidden.length})` }] : [],
+    });
+  }
+
+  // Отгрузка раньше даты счёта (32): не отказ — бывает и так, — но чаще опечатка, и срок от неё уедет.
+  if (!gone && shippedBeforeIssued(view.requisites[K.shippedOn], view.requisites[K.date]))
+    add({
+      key: 'shipped-early', level: 'check', text: 'Отгрузка раньше даты счёта',
+      detail: 'Проверьте дату отгрузки: от неё считается срок оплаты.',
+      actions: [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.shippedOn } }],
+    });
+
   if (view.due?.overdue && !payment.paid) {
     const days = view.due.daysLeft != null && view.due.daysLeft < 0 ? -view.due.daysLeft : null;
     const due = asInput(view.requisites[K.dueDate]).slice(0, 10);
@@ -412,6 +437,17 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   }
 
   // ── К сведению ──────────────────────────────────────────────────────────────────────────────────────
+  // Режим НДС поставило распознавание (36). «Верно» — у переключателя режима: сверяют его там, глядя на строки.
+  if (!gone && !form.correcting && view.unconfirmed.includes(VAT_MODE_MARK)) {
+    const onTop = vatModeOf(view) === 'OnTop';
+    add({
+      key: 'vat-mode', level: 'info',
+      text: `Режим НДС со скана не проверен: ${onTop ? 'цены без НДС, НДС сверху' : 'НДС в сумме строк'}`,
+      detail: modeProof(view.totals, view.requisites[K.vat], view.requisites[K.total], formatMoney),
+      actions: [{ kind: 'goto', label: 'К строкам', place: { place: 'lines' } }],
+    });
+  }
+
   if (form.hiddenByFilter)
     add({ key: 'hidden', level: 'info', text: NOT_IN_RAIL, actions: [{ kind: 'show-all', label: 'Показать все' }] });
 

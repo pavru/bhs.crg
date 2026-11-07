@@ -377,6 +377,11 @@ export function InvoicesPage() {
     setChosen({ id: selected, open });
     setRemembered(open ? 'open' : 'closed');
   };
+  // «Показать на скане» у метки поля (11, D-11.4): закрытый файл — открыть рядом или поверх, открытый рядом —
+  // перевести фокус в его панель.
+  const fileShow = useRef<(() => void) | null>(null);
+  const filePane = useRef<HTMLElement>(null);
+  const showFile = () => (place.file === 'beside' ? filePane.current?.focus() : fileShow.current?.());
   const position = selected ? positionOf(rows.map(r => r.item.id), selected) : null;
   const filterName = filter === 'upload' ? 'Эта загрузка' : queue ? QUEUE_LABEL[queue] : 'Все';
   const closeInvoice = () => {
@@ -576,9 +581,10 @@ export function InvoicesPage() {
                 fromFile={fromFile('standard')}
                 file={hasScan && !gone
                   ? <InvoiceFileButton invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
-                      fileName={fileProp(scan, 'fileName')} onToggle={toggleFile}
+                      fileName={fileProp(scan, 'fileName')} onToggle={toggleFile} showRef={fileShow}
                       file={!room ? 'over' : place.file === 'beside' ? 'beside' : 'closed'} />
                   : undefined}
+                onShowFile={hasScan && !gone ? showFile : undefined}
                 pageActions={place.list ? undefined : actions}
                 onExit={(how, send, otherwise) => exiting(
                   opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
@@ -590,8 +596,8 @@ export function InvoicesPage() {
                   файл — опора, и рядом он стоит, только пока форме остаётся не меньше 720. Задаёт её CSS:
                   замер ширины между сменами места устаревает нарочно (`useWorkWidth`). */}
               {place.file === 'beside' && (
-                <aside aria-label="Файл счёта" style={{ width: FILE_WIDTH_CSS }}
-                  className="shrink-0 border-l border-outline-variant flex flex-col min-h-0">
+                <aside ref={filePane} tabIndex={-1} aria-label="Файл счёта" style={{ width: FILE_WIDTH_CSS }}
+                  className="shrink-0 outline-none border-l border-outline-variant flex flex-col min-h-0">
                   <InvoiceScanPanel
                     invoiceId={opened.id}
                     blobPath={fileProp(scan, 'blobPath')}

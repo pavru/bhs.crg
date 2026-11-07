@@ -27,6 +27,8 @@ export interface StatusHandlers {
   hiddenByFilter?: () => void;
   onRetryExtras: () => void;
   onConfirmMarks: () => void;
+  /** «Всё верно» у меток полей, которых форма не показывает. */
+  onConfirmHiddenMarks: () => void;
   reveal: (place: ReadinessTarget) => void;
   /** Остальное — как в `StatusInput.form`, без отчётов частей. */
   form: Omit<StatusInput['form'], 'stale' | 'matches' | 'rereadFailed' | 'hiddenByFilter'>;
@@ -76,6 +78,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
         return;
       case 'retry-recognition': h.onRetryRecognition(); return;
       case 'confirm-marks': h.onConfirmMarks(); return;
+      case 'confirm-hidden-marks': h.onConfirmHiddenMarks(); return;
       case 'apply-matches': lines?.acts.current.apply(); return;
       case 'retry-matches': lines?.acts.current.retry(); return;
       case 'retry-extras': h.onRetryExtras(); return;

@@ -15,10 +15,6 @@ const FIXTURES = {
   'list-row': '<div role="option" className="px-3 py-1.5">Стройка</div>',
 };
 
-// Экран счёта: notice-plaque доводит до нуля эпик costs-invoice-screen (задача 4.4 у -11, PR 2 — отказ окна
-// заведения организации). hand-card пуст с PR 1 -11 (07.11.2026). Список только сокращается; новый файл в нём —
-// место, которое храповик обязан был остановить.
-const INVOICE_SCREEN = ['features/costs/InvoicePartyNote.tsx'];
 
 const file = 'features/x/X.tsx';
 const actualOf = text => Object.fromEntries(
@@ -29,10 +25,11 @@ describe('храповик интерфейса: пустой уровень (sh
     expect(compare({}, actualOf(text)).worse).toContainEqual({ rule, file, was: 0, now: 1 });
   });
 
-  it('уровень: шесть правил пусты, notice-plaque — только в файлах экрана счёта', () => {
+  // notice-plaque и hand-card доведены до нуля экраном счёта (costs-invoice-screen-11: hand-card — PR 1, notice-plaque —
+  // PR 2, 07.11.2026).
+  it('уровень: семь правил пусты', () => {
     const baseline = JSON.parse(readFileSync(new URL('../ui-baseline.json', import.meta.url), 'utf8'));
-    for (const rule of ['raw-field', 'legacy-type', 'legacy-radius', 'legacy-shadow', 'list-row', 'hand-card'])
+    for (const rule of ['raw-field', 'legacy-type', 'legacy-radius', 'legacy-shadow', 'list-row', 'hand-card', 'notice-plaque'])
       expect(baseline[rule], rule).toEqual({});
-    expect(Object.keys(baseline['notice-plaque']).filter(f => !INVOICE_SCREEN.includes(f)), 'notice-plaque').toEqual([]);
   });
 });
