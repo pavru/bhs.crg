@@ -356,6 +356,8 @@ public partial class ArchiveReadInventoryTests
             Shown("состояние ссылок счёта и черновиков списка: «в архиве» у сторон, строк и частей разноски"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);"] =
             Seen("названия сторон счёта — уже стоящих; признак рядом, из состояния ссылок"),
+        ["BHS.CRG.Modules.Costs/Endpoints/InvoiceSameFile.cs|: (await catalog.RefsAsync(CostsDirectories.Organization, suppliers, ct))?.ToDictionary(r => r.Id);"] =
+            Shown("поставщики двойников «того же файла» (COST-6.7) — уже стоящие в счетах; признак в ответе — supplierArchived"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDeletion.cs|supplier = (await catalog.RefsAsync(CostsDirectories.Organization, [id], CancellationToken.None))"] =
             Seen("название поставщика удалённого счёта — в запись журнала; стоял в счёте, архивный назван так же"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct);"] =
