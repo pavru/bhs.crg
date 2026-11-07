@@ -312,7 +312,7 @@ public partial class InvoicePaymentTests
     [Fact]
     public void Часть_на_статью_при_непрочитанном_справочнике_не_потеряна_но_и_не_на_месте()
     {
-        var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
+        var invoice = BHS.CRG.Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null, null);
         var part = BHS.CRG.Modules.Costs.Data.InvoiceAllocation.Create(invoice.Id, null);
         part.Apply(1, new(BHS.CRG.Modules.Costs.Data.AllocationTarget.Article(Guid.NewGuid()), null, 100m));
 

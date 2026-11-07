@@ -250,6 +250,13 @@ public sealed partial class Invoice
 
     public Guid? CreatedBy { get; private set; }
 
+    /// <summary>
+    /// Имя заведшего — снимком на момент заведения (COST-6.7), как <see cref="UpdatedByName" />: учётную
+    /// запись могут переименовать, а вопрос «кто завёл этот файл» останется. <c>null</c> — счёт заведён до
+    /// колонки (или без человека): имени нет, и строки «кто завёл» нет. Не «неизвестный человек».
+    /// </summary>
+    public string? CreatedByName { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -258,13 +265,17 @@ public sealed partial class Invoice
     /// Новый счёт. Всегда черновик и всегда неоплаченный: другого начала у счёта не бывает, а
     /// параметр с одним осмысленным значением приглашает передать второе.
     /// </summary>
-    public static Invoice Create(Guid documentTypeId, Guid? author) => new()
+    /// <param name="authorName">Имя заведшего — снимком на момент заведения (COST-6.7): окно повтора файла
+    /// называет, кто завёл двойника. Обязательным параметром, а не свойством «потом»: путей заведения
+    /// два, и третий забыл бы.</param>
+    public static Invoice Create(Guid documentTypeId, Guid? author, string? authorName) => new()
     {
         Id = Guid.CreateVersion7(),
         DocumentTypeId = documentTypeId,
         State = InvoiceState.Draft,
         Payment = InvoicePaymentState.Unpaid,
         CreatedBy = author,
+        CreatedByName = SupplierMatch.NameSnapshot(authorName),
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
     };

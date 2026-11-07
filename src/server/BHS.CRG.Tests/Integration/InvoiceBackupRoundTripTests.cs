@@ -298,6 +298,39 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Equal(JsonValueKind.Null, (await ReadAsync(client, invoice)).GetProperty("updatedBy").ValueKind);
     }
 
+    /// <summary>
+    /// Имя заведшего (COST-6.7) уезжает в копию и возвращается тем же; копия старше колонки восстанавливается
+    /// без имени — строки «кто завёл» нет, а не «завёл тот, кто восстанавливал».
+    /// </summary>
+    [Fact]
+    public async Task Имя_заведшего_возвращается_из_копии_а_из_старой_копии_пусто()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        var name = await CreatedByNameAsync(invoice);
+        Assert.False(string.IsNullOrWhiteSpace(name));
+
+        var (archive, manifest) = await ExportAsync();
+        await ForgetInvoicesAsync();
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Equal(name, await CreatedByNameAsync(invoice));
+
+        var former = Copy(manifest, ("invoices", "created_by_name"));
+        await ForgetInvoicesAsync();
+        report = await ImportAsync(former);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Null(await CreatedByNameAsync(invoice));
+    }
+
+    private async Task<string?> CreatedByNameAsync(Guid invoice)
+    {
+        using var scope = _host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Invoices.AsNoTracking()
+            .Where(i => i.Id == invoice).Select(i => i.CreatedByName).SingleAsync();
+    }
+
     /// <summary>Архив из манифеста без названных колонок — так выглядит копия, снятая до их миграции.</summary>
     private static MemoryStream Copy(BackupManifest manifest, params (string Table, string Column)[] without)
     {

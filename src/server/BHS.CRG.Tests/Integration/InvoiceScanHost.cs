@@ -51,6 +51,17 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     public Exception? RefsFailure { get; set; }
 
     /// <summary>
+    /// Справочник «не прочитан» на вопрос о названиях ОРГАНИЗАЦИЙ — пока стоит (COST-6.7): ответ
+    /// <c>null</c>, как у порта, который справочника не нашёл. Тест ставит и обязан снять.
+    /// </summary>
+    public bool OrganizationRefsUnread { get; set; }
+
+    /// <summary>Сколько раз спросили названия организаций — так тест видит, что справочник не звали.</summary>
+    public int OrganizationRefsCalls => organizationRefsCalls;
+
+    private int organizationRefsCalls;
+
+    /// <summary>
     /// Конвертер офисных файлов — подставной (issue #1270): настоящий живёт в контейнере, и его
     /// проверяет <c>deploy/converter.tests.sh</c>. По умолчанию звать его не должны: счёт с PDF
     /// или картинкой до конвертера не доходит. Тест ставит и обязан снять.
@@ -172,10 +183,18 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             inner.SearchAsync(entityType, query, limit, ct);
 
         public Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
-            string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
-            host.RefsFailure is { } failure && entityType == CostsDirectories.Nomenclature
+            string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+        {
+            if (entityType == CostsDirectories.Organization)
+            {
+                Interlocked.Increment(ref host.organizationRefsCalls);
+                if (host.OrganizationRefsUnread) return Task.FromResult<IReadOnlyList<ModuleCatalogRef>?>(null);
+            }
+
+            return host.RefsFailure is { } failure && entityType == CostsDirectories.Nomenclature
                 ? Task.FromException<IReadOnlyList<ModuleCatalogRef>?>(failure)
                 : inner.RefsAsync(entityType, ids, ct);
+        }
 
         public Task<ModuleCatalogFieldValues?> FieldValuesAsync(
             string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default) =>

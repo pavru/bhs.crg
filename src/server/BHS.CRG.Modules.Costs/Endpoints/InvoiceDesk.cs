@@ -374,7 +374,7 @@ public sealed partial class InvoiceDesk(
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
             await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct),
-            await InvoiceSameFiles.FindAsync(db, invoice, ct), lines, names, allocation,
+            await InvoiceSameFiles.FindAsync(db, catalog, user.Id, invoice, ct), lines, names, allocation,
             await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),

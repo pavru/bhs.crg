@@ -25,10 +25,24 @@ export interface InvoiceDuplicate {
 /**
  * Счёт, к которому приложен файл с тем же содержимым (issue #1295). У черновика из файла нет ни
  * номера, ни даты — узнают его по времени заведения.
+ *
+ * Одна запись на окно повтора, форму и пакет (COST-6.7): чей счёт, в каком он состоянии и кто его завёл.
  */
 export interface InvoiceSameFile extends InvoiceDuplicate {
   scanFileName: string | null;
   createdAt: string;
+  supplierId: string | null;
+  /** `null` при `supplierId` — справочник не ответил: «не знаем», а не «без поставщика». */
+  supplierName: string | null;
+  supplierArchived: boolean;
+  /** Состояние документа словами сервера, как в реестре («Черновик», «Разобран», «Отклонён»). */
+  state: string;
+  /** Оплата словами сервера, как в реестре («Не оплачен», «Оплачен»). */
+  payment: string;
+  /** Имя заведшего на момент заведения; `null` — счёт заведён до снимка имени: строки «кто завёл» нет. */
+  createdByName: string | null;
+  /** Завёл тот, кто читает, — по учётной записи. */
+  mine: boolean;
 }
 
 /**
