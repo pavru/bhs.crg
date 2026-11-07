@@ -162,6 +162,50 @@ public static class InvoiceSameFiles
         InvoiceState State, InvoicePaymentState Payment, Guid? CreatedBy, string? CreatedByName);
 
     /// <summary>
+    /// Принять сознательный повтор файла счёта (COST-6.7) — только если двойники, которым можно верить, у
+    /// файла и правда есть. Нет их (гонка, двойник удалён) — молча ничего: отказ превратил бы оговорку в
+    /// запрет. Единственный путь к <see cref="Invoice.AcceptRepeat" />: проверка стоит рядом с ним.
+    /// </summary>
+    internal static async Task AcceptRepeatAsync(CostsDbContext db, Invoice invoice, CancellationToken ct)
+    {
+        if (invoice.TrustedFingerprint is { } print && await AnyTrustedAsync(db, print, invoice.Id, after: null, ct))
+            invoice.AcceptRepeat();
+    }
+
+    /// <summary>
+    /// Принят ли повтор файла счёта — для ответа счёта (ревью #1800). Принимали тех двойников, кого видели
+    /// при заведении, то есть заведённых РАНЬШЕ счёта: принять повтор может только заведение. Двойник,
+    /// заведённый позже, — новый вопрос, и пункт «тот же файл» снова «проверьте»; иначе удалённый двойник,
+    /// которого сменил новый, возвращал бы согласие, которого о новом никто не давал.
+    /// </summary>
+    /// <param name="twins">Двойники счёта, уже найденные чтением (<see cref="FindAsync" />): без них
+    /// принимать нечего, и запрос не нужен.</param>
+    internal static async Task<bool> RepeatAcceptedAsync(
+        CostsDbContext db, Invoice invoice, SameFileTwins twins, CancellationToken ct) =>
+        invoice.RepeatAccepted && invoice.TrustedFingerprint is { } print && twins.Any(print)
+        && !await AnyTrustedAsync(db, print, invoice.Id, after: invoice.CreatedAt, ct);
+
+    /// <summary>
+    /// Есть ли у отпечатка хоть один счёт, которому можно верить, — ответ «да/нет», а не перечень
+    /// (ревью #1800): три колонки сверки печати, построчно, до первого доверенного. Младшие — первыми:
+    /// недоверенные строки — старшие (путь сменился восстановлением из копии), и бланк, загруженный
+    /// сотни раз, не вычитывается в память ради одного ответа.
+    /// </summary>
+    /// <param name="after">Только заведённые позже этого времени; <c>null</c> — любые.</param>
+    private static async Task<bool> AnyTrustedAsync(
+        CostsDbContext db, string print, Guid except, DateTimeOffset? after, CancellationToken ct)
+    {
+        var rows = db.Invoices.AsNoTracking().Where(i => i.ScanFingerprint == print && i.Id != except);
+        if (after is { } since) rows = rows.Where(i => i.CreatedAt > since);
+        await foreach (var r in rows.OrderByDescending(i => i.CreatedAt)
+                           .Select(i => new { i.ScanBlobPath, i.ScanFingerprint, i.ScanFingerprintSeal })
+                           .AsAsyncEnumerable().WithCancellation(ct))
+            if (Invoice.Trusted(r.ScanBlobPath, r.ScanFingerprint, r.ScanFingerprintSeal) is not null)
+                return true;
+        return false;
+    }
+
+    /// <summary>
     /// Вопрос «нет ли уже счёта с этим файлом» — ДО выгрузки (COST-6.7, лист «Ф» 27.10.2026): браузер
     /// считает отпечатки брошенных файлов и спрашивает один раз на бросок. Только читает.
     ///

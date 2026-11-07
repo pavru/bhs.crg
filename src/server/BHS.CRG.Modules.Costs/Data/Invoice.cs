@@ -217,6 +217,28 @@ public sealed partial class Invoice
         System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path)));
 
     /// <summary>
+    /// Отпечаток файла, повтор которого принят сознательно (COST-6.7, лист «Ф» 27.10.2026): человек видел
+    /// окно повтора и выбрал «Завести ещё один черновик». Пункт «тот же файл» у такого счёта стоит «к
+    /// сведению», а не «проверьте» — иначе окно и индикатор спрашивали бы одно и то же дважды.
+    ///
+    /// <para>⚠️ <b>Отпечаток, а не флажок</b>: признак относится к ФАЙЛУ. Замену файла гасит
+    /// <see cref="AttachScan" />. А копия: восстановление из копии старше колонки её не трогает,
+    /// а файл возвращает прежний — флажок приписался бы файлу из копии, а отпечаток с ним не совпадёт
+    /// (<see cref="RepeatAccepted" />).</para>
+    /// </summary>
+    public string? ScanRepeatAccepted { get; private set; }
+
+    /// <summary>Повтор файла, приложенного СЕЙЧАС, принят сознательно — отпечатку можно верить и он тот же.</summary>
+    public bool RepeatAccepted => ScanRepeatAccepted is { } accepted && accepted == TrustedFingerprint;
+
+    /// <summary>
+    /// Принять повтор нынешнего файла. Зовёт ТОЛЬКО <c>InvoiceSameFiles.AcceptRepeatAsync</c>: там проверка,
+    /// что двойники и правда есть, — сущность базы не видит, а без двойников «принятый повтор» был бы
+    /// неправдой, которую никто не снимет.
+    /// </summary>
+    internal void AcceptRepeat() => ScanRepeatAccepted = TrustedFingerprint;
+
+    /// <summary>
     /// Ключи полей, которые заполнило распознавание и человек ещё не подтвердил (решение владельца
     /// продукта 29.09.2026, вариант C).
     ///
@@ -513,6 +535,9 @@ public sealed partial class Invoice
     {
         ScanFingerprint = fingerprint;
         ScanFingerprintSeal = Seal(blobPath);
+        // Принятый повтор относится к файлу, которого больше нет: новый файл — новый вопрос, даже если это
+        // тот же файл, приложенный снова (COST-6.7). Принять повтор снова может только заведение.
+        ScanRepeatAccepted = null;
         ScanBlobPath = blobPath;
         ScanFileName = fileName;
         ScanMimeType = mimeType;

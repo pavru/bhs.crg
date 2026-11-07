@@ -4,6 +4,7 @@ using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -46,15 +47,32 @@ public static class InvoiceRecognitionEndpoints
     /// <para>Черновик заводится ВСЕГДА, когда файл годен: распознавание — помощь, а не условие.
     /// Не настроено или не удалось — черновик со сканом остаётся, и человек заполняет его руками;
     /// причина видна в ответе.</para>
+    ///
+    /// <para><b>Сознательный повтор</b> (COST-6.7, лист «Ф» 27.10.2026) — поле формы <c>acceptRepeat</c>:
+    /// человек видел окно повтора и выбрал «Завести ещё один черновик». Счёт запоминает, что повтор этого
+    /// файла принят, — но только если двойники у файла и правда есть. Нет их (гонка, двойник удалён) —
+    /// поле молча не действует: отказ здесь превратил бы оговорку в запрет.</para>
+    ///
+    /// <para><c>If-Match</c> адрес не спрашивает — названное исключение: версии у счёта до заведения нет.
+    /// Повтор заведения после обрыва закрывает не версия, а вопрос по отпечатку до отправки («это вы
+    /// завели»).</para>
     /// </summary>
     private static async Task<Created<InvoiceFromScanView>> FromScanAsync(
-        IFormFile file, CostsDbContext db, IModuleTypes types, IModuleUser user,
+        IFormFile file, [FromForm(Name = "acceptRepeat")] string? acceptRepeat,
+        CostsDbContext db, IModuleTypes types, IModuleUser user,
         [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs,
         IModuleActivityLog log, InvoiceDesk desk, InvoiceScanRecognition scan, ILoggerFactory logs,
         CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidRequestException("Файл пуст — распознавать и прикладывать нечего.");
+        // Строкой, а не bool: значение не из двух привязка отвергла бы безымянным 400 до обработчика.
+        // Разобрано один раз — здесь. Пришедшее значение в отказе обрезано: поле формы бывает в мегабайты.
+        var accept = false;
+        if (acceptRepeat is not null && !bool.TryParse(acceptRepeat, out accept))
+            throw new InvalidRequestException(
+                $"Поле «acceptRepeat» — «true» или «false», а пришло «{(acceptRepeat.Length > 16 ? acceptRepeat[..16] + "…" : acceptRepeat)}»: " +
+                "принят ли повтор файла, не понять.");
         // Предел назван словами и здесь, а не только на клиенте: без него файл между этим числом и
         // пределом тела запроса проходил бы мимо экрана, который его отвергает (issue #1093).
         if (file.Length > InvoiceScanRecognition.MaxScanBytes)
@@ -84,6 +102,7 @@ public static class InvoiceRecognitionEndpoints
         try
         {
             invoice.AttachScan(path, file.FileName, kind, file.Length, print);
+            if (accept) await InvoiceSameFiles.AcceptRepeatAsync(db, invoice, ct);
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
         }
