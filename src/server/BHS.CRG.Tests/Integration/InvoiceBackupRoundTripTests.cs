@@ -325,9 +325,9 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
     }
 
     /// <summary>
-    /// Принятый повтор (COST-6.7) относится к ФАЙЛУ. Копия старше колонки возвращает счёту прежний файл, а
-    /// живую колонку не трогает: принятым остаётся отпечаток нынешнего файла — и к файлу из копии он не
-    /// приписывается. Флажок на его месте приписался бы.
+    /// Принятый повтор (COST-6.7) относится к ФАЙЛУ. Копия старше колонки возвращает счёту файл, какой был
+    /// в копии, а живую колонку не трогает: принятым остаётся отпечаток нынешнего файла — и к файлу из
+    /// копии он не приписывается. Флажок на его месте приписался бы.
     /// </summary>
     [Fact]
     public async Task Копия_старше_колонки_не_делает_повтор_принятым_у_другого_файла()
@@ -335,24 +335,56 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         var (client, _) = await SignInAsync("Admin");
         await ForgetInvoicesAsync();
         var (repeated, other) = ($"%PDF-1.4 {Guid.NewGuid():N}", $"%PDF-1.4 {Guid.NewGuid():N}");
+        var neighbour = await FromScanAsync(client, other, acceptRepeat: false);
         await FromScanAsync(client, repeated, acceptRepeat: false);
         var invoice = await FromScanAsync(client, repeated, acceptRepeat: true);
         Assert.True(await RepeatAcceptedAsync(client, invoice));
 
-        // В копии у счёта — другой файл, и колонки принятого повтора в ней нет: так выглядит копия до миграции.
-        await ReplaceScanAsync(client, invoice, other);
-        Assert.False(await RepeatAcceptedAsync(client, invoice));
+        // Копия до миграции: колонки принятого повтора в ней нет, а у счёта в ней — другой файл (файл
+        // соседа: тот лежит в хранилище, и отпечатку с печатью из копии можно верить).
         var (_, manifest) = await ExportAsync();
-        var former = Copy(manifest, ("invoices", "scan_repeat_accepted"));
 
-        // Вернули повторный файл — повтор снова принят: живая колонка помнит его отпечаток.
-        await ReplaceScanAsync(client, invoice, repeated);
-        Assert.True(await RepeatAcceptedAsync(client, invoice));
-
-        var report = await ImportAsync(former);
+        var report = await ImportAsync(FormerWithFileOf(manifest, invoice, neighbour));
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
-        Assert.False(await RepeatAcceptedAsync(client, invoice));
+        var restored = await ReadAsync(client, invoice);
+        // Двойник у счёта есть (сосед) — признак ложен не потому, что сравнивать не с кем.
+        Assert.Equal([neighbour], restored.GetProperty("sameFile").EnumerateArray().Select(t => t.GetProperty("id").GetGuid()));
+        Assert.False(restored.GetProperty("scanRepeatAccepted").GetBoolean());
+    }
+
+    /// <summary>
+    /// Архив до колонки принятого повтора, в котором у счёта <paramref name="invoice" /> — файл счёта
+    /// <paramref name="donor" />.
+    /// </summary>
+    private static MemoryStream FormerWithFileOf(BackupManifest manifest, Guid invoice, Guid donor)
+    {
+        string[] file = ["scan_blob_path", "scan_file_name", "scan_mime_type", "scan_size", "scan_fingerprint", "scan_fingerprint_seal"];
+        var rows = manifest.ModuleData!.SelectMany(m => m.Tables).Single(t => t.Table == "invoices").Rows;
+        var from = System.Text.Json.Nodes.JsonNode.Parse(rows.Single(r => r.GetProperty("id").GetGuid() == donor).GetRawText())!.AsObject();
+
+        JsonElement Patch(JsonElement row)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(row.GetRawText())!.AsObject();
+            node.Remove("scan_repeat_accepted");
+            if (row.GetProperty("id").GetGuid() == invoice)
+                foreach (var column in file) node[column] = from[column]?.DeepClone();
+            return JsonSerializer.SerializeToElement(node);
+        }
+
+        var patched = manifest with
+        {
+            ModuleData = [.. manifest.ModuleData!.Select(m => m with
+            {
+                Tables = [.. m.Tables.Select(t => t.Table == "invoices" ? t with { Rows = [.. t.Rows.Select(Patch)] } : t)],
+            })],
+        };
+        var archive = new MemoryStream();
+        using (var zip = new ZipArchive(archive, ZipArchiveMode.Create, leaveOpen: true))
+        using (var entry = zip.CreateEntry("manifest.json").Open())
+            JsonSerializer.Serialize(entry, patched);
+        archive.Position = 0;
+        return archive;
     }
 
     private static async Task<bool> RepeatAcceptedAsync(HttpClient client, Guid invoice) =>
@@ -369,26 +401,6 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         var created = await client.PostAsync("/api/costs/invoices/from-scan", form);
         await OkAsync(created);
         return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("invoice").GetProperty("id").GetGuid();
-    }
-
-    /// <summary>
-    /// Заменить файл. Пока прежний файл читается распознаванием, замена отвечает 409 — это правило адреса,
-    /// а не предмет теста: ждём.
-    /// </summary>
-    private static async Task ReplaceScanAsync(HttpClient client, Guid invoice, string body)
-    {
-        for (var attempt = 0; ; attempt++)
-        {
-            try
-            {
-                await AttachScanAsync(client, invoice, "Счёт.pdf", body);
-                return;
-            }
-            catch (Xunit.Sdk.XunitException) when (attempt < 100)
-            {
-                await Task.Delay(200);
-            }
-        }
     }
 
     private async Task<string?> CreatedByNameAsync(Guid invoice)

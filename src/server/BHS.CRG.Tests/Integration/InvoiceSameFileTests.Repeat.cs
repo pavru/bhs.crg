@@ -93,6 +93,42 @@ public sealed partial class InvoiceSameFileTests
 
         Assert.False(Accepted(replaced));
         Assert.False(Accepted(await ReadAsync(client, Id(repeat))));
+
+        // Тот же файл приложен снова — новый вопрос, а не прежнее согласие: принять повтор может только заведение.
+        var back = await AttachAsync(client, Id(repeat), content, "Повтор.pdf");
+        Assert.NotEmpty(SameFile(back));
+        Assert.False(Accepted(back));
+    }
+
+    /// <summary>Двойник удалён — принимать больше нечего: признак ложен, а не висит над пустой оговоркой.</summary>
+    [Fact]
+    public async Task Удалённый_двойник_гасит_принятый_повтор()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+        var first = await FromScanAsync(client, content, "Первый.pdf");
+        var repeat = await RepeatAsync(client, content, "Повтор.pdf", "true");
+        Assert.True(Accepted(repeat));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/costs/invoices/{Id(first)}")).StatusCode);
+
+        var read = await ReadAsync(client, Id(repeat));
+        Assert.Empty(SameFile(read));
+        Assert.False(Accepted(read));
+    }
+
+    /// <summary>Значение не из двух — отказ словами, а не безымянный 400 привязки; черновика нет.</summary>
+    [Fact]
+    public async Task Непонятное_согласие_отказ_400_со_словами()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var content = Pdf();
+
+        var refused = await client.PostAsync(FromScan, RepeatForm(content, "Счёт.pdf", "1"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("acceptRepeat", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Empty((await AskAsync(client, Print(content)))[0].GetProperty("twins").EnumerateArray());
     }
 
     /// <summary>Чтение счетов заводить их не даёт — и с согласием на повтор тоже: черновика нет.</summary>

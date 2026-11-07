@@ -58,7 +58,7 @@ public static class InvoiceRecognitionEndpoints
     /// завели»).</para>
     /// </summary>
     private static async Task<Created<InvoiceFromScanView>> FromScanAsync(
-        IFormFile file, [FromForm(Name = "acceptRepeat")] bool? acceptRepeat,
+        IFormFile file, [FromForm(Name = "acceptRepeat")] string? acceptRepeat,
         CostsDbContext db, IModuleTypes types, IModuleUser user,
         [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs,
         IModuleActivityLog log, InvoiceDesk desk, InvoiceScanRecognition scan, ILoggerFactory logs,
@@ -66,6 +66,10 @@ public static class InvoiceRecognitionEndpoints
     {
         if (file.Length == 0)
             throw new InvalidRequestException("Файл пуст — распознавать и прикладывать нечего.");
+        // Строкой, а не bool: значение не из двух привязка отвергла бы безымянным 400 до обработчика.
+        if (acceptRepeat is not null && !bool.TryParse(acceptRepeat, out _))
+            throw new InvalidRequestException(
+                $"Поле «acceptRepeat» — «true» или «false», а пришло «{acceptRepeat}»: принят ли повтор файла, не понять.");
         // Предел назван словами и здесь, а не только на клиенте: без него файл между этим числом и
         // пределом тела запроса проходил бы мимо экрана, который его отвергает (issue #1093).
         if (file.Length > InvoiceScanRecognition.MaxScanBytes)
@@ -95,7 +99,8 @@ public static class InvoiceRecognitionEndpoints
         try
         {
             invoice.AttachScan(path, file.FileName, kind, file.Length, print);
-            if (acceptRepeat == true && await InvoiceSameFiles.HasTwinsAsync(db, print, ct)) invoice.AcceptRepeat();
+            if (bool.TryParse(acceptRepeat, out var accept) && accept && await InvoiceSameFiles.HasTwinsAsync(db, print, ct))
+                invoice.AcceptRepeat();
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
         }

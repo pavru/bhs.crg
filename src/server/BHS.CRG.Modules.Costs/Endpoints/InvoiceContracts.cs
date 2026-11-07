@@ -86,7 +86,8 @@ public sealed record InvoiceView(
     // признак «это вы» зависит от того, кто читает.
     InvoiceAuthorView? UpdatedBy = null,
     // Повтор нынешнего файла принят сознательно (COST-6.7): пункт «тот же файл» у такого счёта — «к
-    // сведению». false и у счёта без двойников, и у счёта, чей файл заменили после принятия.
+    // сведению». false и у счёта без двойников (двойник удалён — принимать больше нечего), и у счёта, чей
+    // файл заменили после принятия.
     bool ScanRepeatAccepted = false);
 
 /// <summary>
@@ -229,7 +230,7 @@ public static class InvoiceViews
         invoice.UpdatedAt,
         invoice.BookSeq,
         invoice.VatMode,
-        ScanRepeatAccepted: invoice.RepeatAccepted);
+        ScanRepeatAccepted: invoice.RepeatAccepted && sameFile.Count > 0);
 
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть
