@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Warning } from '@/shared/ui/icons';
 import { TextField } from '@/shared/ui/TextField';
 import { PrimitiveInput } from '@/features/document-sets/fields/PrimitiveInput';
 import { isLockedField } from '@/features/document-sets/fields/lockedFields';
@@ -97,16 +95,8 @@ function NumberInput({ field, value, onChange, readOnly, label, hint }: InputPro
  * может лежать, и человек должен знать, что оно существует и сохраняется как есть.
  */
 export function UnshownExtras({ extras }: { extras: InvoiceExtras }) {
-  if (extras.error != null)
-    return (
-      <p className="flex items-start gap-2 text-body-small text-warning" data-testid="invoice-extras-unread">
-        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-        <span>
-          Схема типа «Счёт» не прочитана: {apiError(extras.error, 'сервер отказал')}. Поля, дописанные в тип,
-          не показаны — их значения в счёте сохраняются как есть.
-        </span>
-      </p>
-    );
+  // «Схема типа не прочитана» — пункт «Проверьте» индикатора состояния с «Повторить» (11, D-11.2).
+  if (extras.error != null) return null;
   if (extras.unshown.length === 0) return null;
   return (
     <p className="text-body-small text-on-surface-variant" data-testid="invoice-extras-unshown">

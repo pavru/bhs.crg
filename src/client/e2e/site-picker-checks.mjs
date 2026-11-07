@@ -8,6 +8,10 @@
 // урезало бы им выбор строек. Поэтому настройки сбрасываются в finally — адресом, а не через экран.
 
 import { BASE, listGroups, listOptions, pickOption, pickSites, shownValue, expandInvoiceParts } from './harness.mjs';
+import { statusItems, untilStatus } from './invoice-status.mjs';
+
+/** «Счёта нет в списке слева» — пункт «К сведению» индикатора состояния (11). */
+const saysHidden = (page, timeout) => untilStatus(page, items => items.some(i => i.key === 'hidden'), 'форма не сказала «нет в списке»', timeout);
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 const REVEAL = /^Показать все стройки \(ещё \d+\)…$/;
@@ -97,7 +101,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       if (!elsewhere) throw new Error('счёт на неизбранной стройке не заведён предыдущей проверкой');
       const rail = page.getByRole('button', { name: new RegExp(elsewhere.number) });
       if (await rail.count()) throw new Error('счёт неизбранной стройки стоит в рейле под фильтром');
-      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
+      await saysHidden(page, 5_000);
       const note = await page.getByTestId('sites-filter').innerText();
       if (!/скрыто [1-9]/.test(note)) throw new Error(`отбор у рейла: «${note}»`);
     });
@@ -107,9 +111,9 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       await pickSites(page, 'Все стройки');
       await page.getByRole('button', { name: new RegExp(elsewhere.number) }).first().waitFor({ timeout: 5_000 });
       if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Все» закрыло открытый счёт');
-      if (await page.getByTestId('invoice-not-in-rail').count()) throw new Error('без фильтра форма говорит «нет в списке»');
+      if ((await statusItems(page)).some(i => i.key === 'hidden')) throw new Error('без фильтра форма говорит «нет в списке»');
       await pickSites(page, 'Избранные стройки');
-      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
+      await saysHidden(page, 5_000);
       if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Избранные» закрыли открытый счёт');
     });
 
@@ -128,7 +132,7 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       // `.first()`: Radix Toast повторяет текст в живой области для экранного диктора (role="status"), и
       // на CI вторая копия успевает появиться к проверке — строгий локатор видел два элемента (CI PR #1334).
       await page.getByText('Сохранено. В списке счёт скрыт').first().waitFor({ timeout: 10_000 });
-      await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 10_000 });
+      await saysHidden(page, 10_000);
       if (await page.getByRole('button', { name: new RegExp(number) }).count())
         throw new Error('счёт, разнесённый на неизбранную стройку, остался в рейле');
     });

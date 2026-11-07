@@ -12,7 +12,6 @@ import {
 } from '@/shared/api/invoiceCorrection';
 import { conflictKind, correctionBody, readyToCheck, REASON_LENGTH, type CorrectionContent } from './correction';
 import { CorrectionPreviewDialog } from './CorrectionPreviewDialog';
-import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import type { CorrectionDraft } from './useCorrectionDraft';
 
 
@@ -33,7 +32,7 @@ const status = (error: unknown) => (error as { response?: { status?: number } })
  * обычно»; версия сменилась — «перечитайте»; та же версия — устарел предпросмотр (полночь, закрыли
  * период, сменили допуск), и он пересчитывается сам, а записать пересчитанное человек решает снова.</p>
  */
-export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable }: {
+export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable, onStale }: {
   view: InvoiceView;
   draft: CorrectionDraft;
   /** Правки шапки — они живут в форме: поля шапки в обоих режимах одни и те же. */
@@ -45,6 +44,11 @@ export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable }
    * своей кнопки не рисует, а отдаёт, можно ли проверять, и сам вызов. Без него кнопка — на полосе.
    */
   onCheckable?: (checkable: { ready: boolean; check: () => void } | null) => void;
+  /**
+   * Исправление собрано по прежнему виду счёта — пункт «Мешает работе» индикатора (11): полоса своей плашки не
+   * рисует, а отдаёт «перечитать» (`null` — не устарело). Banner стоит под полосой (Э12). Обязан быть стабильным.
+   */
+  onStale?: (reread: (() => void) | null) => void;
 }) {
   const toast = useSnackbar();
   const previewing = usePreviewCorrection();
@@ -90,6 +94,13 @@ export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable }
     setOpen(true);
     void ask();
   }
+  const rereadRef = useRef(reread);
+  useLayoutEffect(() => { rereadRef.current = reread; });
+  useEffect(() => {
+    onStale?.(stale ? () => rereadRef.current() : null);
+  }, [onStale, stale]);
+  useEffect(() => () => onStale?.(null), [onStale]);
+
   // Вызов — через ссылку: сводка держит его между рендерами, а замыкание помнит прежнюю версию.
   const checkRef = useRef(check);
   useLayoutEffect(() => { checkRef.current = check; });
@@ -146,7 +157,6 @@ export function CorrectionBar({ view, draft, edits, onResetHeader, onCheckable }
         Исправление закрытого периода: изменения лягут в книгу, закрытый месяц не изменится. Правьте шапку,
         строки и разноску — запишется всё одним исправлением.
       </Banner>
-      {stale && <StaleInvoiceNotice what="исправление" onReread={reread} />}
       <div className="flex items-end gap-2 flex-wrap">
         <TextAreaField label="Причина исправления" required rows={2} maxLength={REASON_LENGTH}
           containerClassName="flex-1 min-w-64" value={draft.reason}

@@ -7,7 +7,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { withArchiveWord } from '@/shared/ui/archive';
 import type { CostsOrganization, InvoiceView } from '@/shared/api/invoices';
 import {
-  K, UNCONFIRMED_HINT, asInput, catalogRef, fromInput, isMarked, moneyInput, refEntryId, unconfirmedInBlock,
+  FIELD_LABEL, K, UNCONFIRMED_HINT, asInput, catalogRef, fromInput, isMarked, moneyInput, refEntryId, unconfirmedInBlock,
   type InvoiceBlock,
 } from './invoiceFields';
 import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness';
@@ -204,16 +204,4 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
 /** Значение пункта «не выбрано»: пустую строку Radix не принимает, а ссылку снимать чем-то надо. */
 const NOT_CHOSEN = 'не-выбрано';
 
-const LABELS: Record<string, string> = {
-  [K.number]: 'Номер',
-  [K.date]: 'Дата',
-  [K.supplier]: 'Поставщик',
-  [K.payer]: 'Плательщик',
-  [K.basis]: 'Основание',
-  [K.purpose]: 'Назначение',
-  [K.total]: 'Сумма к оплате',
-  [K.vat]: 'В том числе НДС',
-  [K.shippedOn]: 'Дата отгрузки',
-  [K.deferral]: 'Отсрочка, дней',
-  [K.dueDate]: 'Оплатить до',
-};
+const LABELS = FIELD_LABEL;

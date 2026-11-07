@@ -37,18 +37,9 @@
     "features/settings/FunctionalTagChip.tsx": 1
   },
   "notice-plaque": {
-    "features/costs/InvoiceDeleteDialog.tsx": 1,
-    "features/costs/InvoicePartyNote.tsx": 1,
-    "features/costs/InvoiceRecognitionNote.tsx": 1,
-    "features/costs/InvoiceTwinNotes.tsx": 2,
-    "features/costs/LostReferencesNote.tsx": 1,
-    "features/costs/StaleInvoiceNotice.tsx": 1
+    "features/costs/InvoicePartyNote.tsx": 1
   },
-  "hand-card": {
-    "features/costs/InvoiceRecognitionNote.tsx": 1,
-    "features/costs/LostReferencesNote.tsx": 1,
-    "features/costs/SupplierMatchNote.tsx": 3
-  },
+  "hand-card": {},
   "list-row": {},
   "icon-button": {
     "shared/ui/DataGrid.tsx": 1,

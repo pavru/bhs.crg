@@ -136,7 +136,9 @@ export function partOfField(key: string, extra: readonly string[] = []): PartId 
 
 /** Часть, в которой стоит место строки готовности. */
 export function partOfTarget(target: ReadinessTarget, extra: readonly string[] = []): PartId | null {
-  return target.place === 'field' ? partOfField(target.key, extra) : target.place === 'lines' ? 'lines' : 'allocation';
+  return target.place === 'field' ? partOfField(target.key, extra)
+    : target.place === 'part' ? target.part
+      : target.place === 'lines' ? 'lines' : 'allocation';
 }
 
 /**

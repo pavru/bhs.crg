@@ -76,12 +76,11 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
       if (!(await allocated).ok()) throw new Error(`разноска строки ${row} не сохранилась`);
     }
 
-    await page.waitForFunction(
-      () => (document.querySelector('[data-testid="invoice-readiness"]')?.textContent ?? '').includes('Всё готово'),
-      null, { timeout: 10_000 })
+    // Готовность — фразой индикатора состояния в сводке (11).
+    await page.getByTestId('invoice-status').filter({ hasText: 'Готов к «Разобран»' }).waitFor({ timeout: 10_000 })
       .catch(async () => {
-        const said = await page.getByTestId('invoice-readiness').innerText().catch(() => 'строки нет');
-        throw new Error(`строка готовности не «Всё готово»: «${said.replace(/\s+/g, ' ')}»`);
+        const said = await page.getByTestId('invoice-status').innerText().catch(() => 'индикатора нет');
+        throw new Error(`индикатор не «Готов к «Разобран»»: «${said.replace(/\s+/g, ' ')}»`);
       });
     const passed = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });

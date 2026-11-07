@@ -14,7 +14,6 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
-import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
 import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
@@ -35,7 +34,7 @@ import { SupplierTermsDialog } from './SupplierTermsDialog';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 import { InvoiceQueueChips } from './InvoiceQueueChips';
-import { NotInRailNotice, RailSitesEmpty } from './InvoiceRailSites';
+import { RailSitesEmpty } from './InvoiceRailSites';
 import { useRailSites } from './useRailSites';
 import {
   QUEUE_LABEL, afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
@@ -557,17 +556,18 @@ export function InvoicesPage() {
             {/* Списка нет (файл рядом или места мало) — полоса загрузки встаёт над формой: непринятый файл с
                 причиной обязан дожить до взгляда (issue #1093), а говорить об итоге больше негде. */}
             {!listShown && batchBar}
-            {sites.openHidden && <NotInRailNotice onShowAll={sites.showAll} />}
-            {opened.rereadFailed != null && (
-              <RereadFailedNotice what="Счёт не перечитался" error={opened.rereadFailed}
-                retrying={view.isFetching} onRetry={() => void view.refetch()} />
-            )}
             <div className="flex-1 min-w-0 min-h-0 flex">
               <InvoiceForm
                 key={opened.id}
                 view={opened.data}
                 organizations={organizations.data ?? []}
                 organizationsError={organizations.isError ? organizations.error : undefined}
+                onRetryOrganizations={() => void organizations.refetch()}
+                // «Скрыт отбором» и «не перечитался» — пункты индикатора состояния формы (11), а не полосы над ней.
+                hiddenByFilter={sites.openHidden ? sites.showAll : undefined}
+                rereadFailed={opened.rereadFailed != null
+                  ? { error: apiError(opened.rereadFailed, 'сервер отказал'), retrying: view.isFetching, onRetry: () => void view.refetch() }
+                  : undefined}
                 onOpenInvoice={switchTo}
                 compactLines={place.list || place.file === 'beside'}
                 nav={!place.list && position

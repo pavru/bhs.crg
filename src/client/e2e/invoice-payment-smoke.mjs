@@ -39,6 +39,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn, expandInvoiceParts, invoiceMenu } from './harness.mjs';
+import { statusItems, untilStatus } from './invoice-status.mjs';
 
 
 const browser = await launchBrowser();
@@ -139,19 +140,18 @@ await invoice(broken, 100, 150);
 
 await check('refusal-is-shown-instead-of-the-form', async () => {
   await open(broken);
-  const note = await page.locator('main').innerText();
-  if (!/оплатить нельзя: сумма строк .* расходится/i.test(note))
-    throw new Error('рядом с кнопкой оплаты причина отказа не названа');
-
-  await page.getByRole('button', { name: 'Отметить оплату' }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Понятно' }).waitFor({ timeout: 10_000 });
-  const text = await dialog.innerText();
-  if (!/Оплатить нельзя: сумма строк 100[.,]00 расходится с суммой к оплате 150[.,]00 на 50[.,]00/.test(text))
-    throw new Error(`отказ не назвал расхождение числом сервера: ${text.slice(0, 300)}`);
-  if (await dialog.getByText('Дата платежа').count())
-    throw new Error('в диалоге отказа есть поле даты — заполнять его незачем');
-  await dialog.getByRole('button', { name: 'Понятно' }).click();
+  // Причина — подсказкой неактивной «Отметить оплату», словами сервера (11, D-11.2, 47–48): окна с полем
+  // даты, которое заведомо откажет, нет.
+  const pay = page.getByRole('button', { name: 'Отметить оплату' });
+  const hint = await pay.getAttribute('aria-description') ?? '';
+  if (!/Оплатить нельзя: сумма строк 100[.,]00 расходится с суммой к оплате 150[.,]00 на 50[.,]00/.test(hint))
+    throw new Error(`подсказка кнопки оплаты не назвала расхождение числом сервера: «${hint}»`);
+  if (!(await pay.isDisabled()) && (await pay.getAttribute('aria-disabled')) !== 'true')
+    throw new Error('«Отметить оплату» активна, хотя сервер оплату отвергнет');
+  // Расхождение — одним пунктом перечня, с «мешает: … оплата» (COST-6.4).
+  const named = (await statusItems(page)).filter(i => /расход/.test(i.text));
+  if (named.length !== 1 || !/оплат/.test(named[0].text))
+    throw new Error(`расхождение в перечне не одним пунктом «мешает: оплата»: ${JSON.stringify(named)}`);
 });
 
 // ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок и Tab ведут по форме ────────
@@ -455,7 +455,7 @@ await check('preview-matches-recorded', async () => {
   await page.keyboard.press('Escape');
 
   // Доля легла в открытый день — счёт не заперт и правится.
-  if (await page.getByText(/Счёт заперт/).count()) throw new Error('счёт с долей в открытом периоде показан запертым');
+  if ((await statusItems(page)).some(i => i.key === 'locked')) throw new Error('счёт с долей в открытом периоде показан запертым');
 });
 
 // ── Реестр называет учётный месяц и деньги, вошедшие в него ────────────────────────────────────────
@@ -518,12 +518,13 @@ await check('locked-invoice-says-why', async () => {
   page.on('response', listen);
   try {
     await open(lockedNumber);
-    await page.getByText(/Счёт заперт: период закрыт по/).waitFor({ timeout: 10_000 });
-    const body = await page.locator('main').innerText();
-    if (!body.includes(`закрыт по ${ru(through)} у стройки «${SITE}»`))
-      throw new Error(`полоса не назвала закрытие: ${body.slice(0, 400)}`);
+    // Замок — пунктом «К сведению» перечня индикатора (11) со словами сервера.
+    const items = await untilStatus(page, all => all.some(i => i.key === 'locked' && /Счёт заперт: период закрыт по/.test(i.text)),
+      'перечень не назвал замок');
+    const body = items.find(i => i.key === 'locked').text;
+    if (!body.includes(`закрыт по ${ru(through)} у стройки «${SITE}»`)) throw new Error(`пункт не назвал закрытие: ${body}`);
     if (!/Оплату отменить можно: отмена ляжет в книгу исправлений/.test(body))
-      throw new Error('полоса не сказала, что оплату отменить можно');
+      throw new Error('пункт не сказал, что оплату отменить можно');
     if (!(await page.getByRole('button', { name: 'Отменить оплату', exact: true }).count()))
       throw new Error('у запертого счёта нет «Отменить оплату», хотя право исправления у входа есть');
 

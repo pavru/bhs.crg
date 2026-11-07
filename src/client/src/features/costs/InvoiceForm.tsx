@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { EditNote, LockIcon, StarShine, UploadFile, Visibility } from '@/shared/ui/icons';
+import { EditNote, LockIcon, UploadFile } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { Banner } from '@/shared/ui/Banner';
 import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -16,21 +15,19 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, K, PARSED, REJECTED, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
+  BLOCKS, K, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { goTo, readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { useDraftBase } from './draftBase';
-import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { InvoiceObject } from './InvoiceObject';
-import { InvoiceLockNote, InvoicePayButton, InvoicePayment, PayDialog } from './InvoicePayment';
+import { InvoicePayButton, InvoicePayment, PayDialog } from './InvoicePayment';
 import type { QueueExit } from './invoiceQueues';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
-import { InvoiceDeleteProvider, InvoiceGoneNotice } from './InvoiceDeleteDialog';
-import { InvoiceTwinNotes } from './InvoiceTwinNotes';
-import { LostReferencesNote } from './LostReferencesNote';
+import { InvoiceDeleteProvider } from './InvoiceDeleteDialog';
+import { canDelete } from './invoiceDelete';
 import { ScanFileInput } from './InvoiceScanPanel';
-import { RecognitionBanner, RecognitionChip, RecognitionNotes } from './InvoiceRecognitionNote';
+import { RecognitionNotes } from './InvoiceRecognitionNote';
 import { useRecognitionAction } from './recognitionAction';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
 import { explainedByRecognition, hasRecognitionNotes } from './recognition';
@@ -50,6 +47,9 @@ import {
 import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
 import { useInvoiceSave } from './invoiceSave';
+import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
+import { InvoiceStatusBanner, InvoiceStatusSheet } from './InvoiceStatusSheet';
+import { useInvoiceStatus } from './useInvoiceStatus';
 
 /**
  * Форма ввода счёта (задача C1, issue #1076; раскладка — costs-invoice-screen-10-layout, вариант Г, ТЗ
@@ -57,8 +57,11 @@ import { useInvoiceSave } from './invoiceSave';
  *
  * <p><b>Неподвижна только сводка</b> (≤ 64): номер, пометки, поставщик · дата · сумма, «Сохранить», одно
  * основное действие и «⋮». Всё остальное — одной прокруткой частей в порядке работы: «Кто и сколько»,
- * сообщения, «Строки», «Разноска», «Сроки и оплата», «Ещё», «История». Заполненная часть открывается
- * свёрнутой в строку-итог (`invoiceParts`).</p>
+ * «Строки», «Разноска», «Сроки и оплата», «Ещё», «История». Заполненная часть открывается свёрнутой в
+ * строку-итог (`invoiceParts`).</p>
+ *
+ * <p><b>Сообщения о счёте — индикатор состояния в сводке</b> (costs-invoice-screen-11, ТЗ COST-6.4): пунктами
+ * одного перечня, и над частями — не больше одного banner, только при «Мешает работе». Плашек в форме нет.</p>
  *
  * <p><b>Сохранение не блокируется ничем.</b> Ни пустых обязательных полей, ни строк: черновик обязан
  * сохраняться и попадать в реестр со сроком. Шапку и строки пишет одна кнопка, шапка раньше строк
@@ -71,8 +74,8 @@ import { useInvoiceSave } from './invoiceSave';
  * со сбросом состояния — он рисует лишний кадр с чужими правками.</p>
  */
 export function InvoiceForm({
-  view, organizations, organizationsError, onOpenInvoice, gone = false, onClose, onExit, onUnsaved,
-  focusHeader = false, nav, fromFile, file, pageActions, compactLines = false,
+  view, organizations, organizationsError, onRetryOrganizations, onOpenInvoice, gone = false, onClose, onExit, onUnsaved,
+  focusHeader = false, nav, fromFile, file, pageActions, compactLines = false, hiddenByFilter, rereadFailed,
 }: {
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
@@ -92,6 +95,11 @@ export function InvoiceForm({
   /** Отказ чтения справочника организаций, если он был. ⚠️ Пустой список и «справочник не
    *  прочитан» — разные вещи: сервер их различает нарочно. */
   organizationsError?: unknown;
+  onRetryOrganizations?: () => void;
+  /** Счёт скрыт отбором списка — «Показать все» (пункт «К сведению»). */
+  hiddenByFilter?: () => void;
+  /** Открытый счёт не перечитался — пункт «Мешает работе» с «Повторить». */
+  rereadFailed?: { error: string; retrying: boolean; onRetry: () => void };
   onOpenInvoice: (id: string) => void;
   /** Слоты сводки — их наполняет страница (D-10.3, D-10.4): «‹ N из M ›», «Счёт из файла», «Файл». */
   nav?: ReactNode;
@@ -243,12 +251,31 @@ export function InvoiceForm({
   }
 
   const primary: SummaryPrimary | null = kind === 'parsed'
-    ? { kind, hold: parsedHold(readiness, unsaved), loading: state.isPending, onClick: () => void parse() }
+    ? { kind, hold: parsedHold(readiness, unsaved, queue.saving), loading: state.isPending, onClick: () => void parse() }
     : kind === 'pay'
-      ? { kind, hold: payHold(unsaved), onClick: () => setPaying(true) }
+      ? { kind, hold: payHold(unsaved, view.payment.refusal, queue.saving), onClick: () => setPaying(true) }
       : kind === 'check'
         ? { kind, hold: checkable?.ready ? null : 'Назовите причину и измените счёт — тогда исправление можно проверить', onClick: () => checkable?.check() }
         : null;
+
+  // ── Индикатор состояния (11): все сообщения о счёте — пунктами перечня ──────────────────────────────
+  const marks = view.unconfirmed.filter(key => key !== VAT_MODE_MARK && !orphanMarks.includes(key));
+  const indicator = useInvoiceStatus({
+    view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
+    headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
+    onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
+    onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), reveal,
+    form: {
+      gone, correcting, marks,
+      orgsFailed: organizationsError != null ? apiError(organizationsError, 'сервер отказал') : null,
+      extrasFailed: extras.error != null ? apiError(extras.error, 'сервер отказал') : null,
+      can: {
+        edit: mayEdit, pay: canPay, allocate, correct: can.permission('costs.invoice.correct'),
+        closePeriod: can.permission('core.period.close'), correctable, delete: canDelete(view, canEdit && !closed),
+      },
+    },
+  });
+  const [sheet, setSheet] = useState(false);
 
   // ── «⋮» сводки ────────────────────────────────────────────────────────────────────────────────────
   const fileInput = useRef<HTMLInputElement>(null);
@@ -295,6 +322,8 @@ export function InvoiceForm({
         attach.mutateAsync({ id: view.id, seen: view.version, file: picked }).catch(e => toast.apiError(e, 'Файл не приложен'));
       }} />
       {paying && <PayDialog view={view} onDone={() => setPaying(false)} />}
+      <InvoiceStatusSheet open={sheet} onClose={() => setSheet(false)} status={indicator.status} saving={queue.saving}
+        savedAt={formatDateTime(view.updatedAt)} onAction={indicator.run} />
 
       {/* ── Сводка: единственная неподвижная часть ──────────────────────────────────────────────── */}
       <InvoiceSummary ref={header} number={asInput(view.requisites[K.number])}
@@ -304,14 +333,8 @@ export function InvoiceForm({
           <StateText text={view.payment.paid && view.payment.paidOn
             ? `Оплачен ${formatDate(view.payment.paidOn)}` : asInput(view.requisites[K.payment])} />
           {closed && <StatusText tone="quiet" icon={LockIcon}>Заперт</StatusText>}
-          <RecognitionChip recognition={watch.recognition} />
-          {view.unconfirmed.length > 0 && (
-            <StatusText tone="warning" icon={StarShine} title="Распознано, не подтверждено — сверьте с файлом">
-              со скана: {view.unconfirmed.length}
-            </StatusText>
-          )}
-          {!mayEdit && <StatusText tone="quiet" icon={Visibility} title="Права вводить счета нет">Только чтение</StatusText>}
         </>}
+        indicator={<InvoiceStatusIndicator status={indicator.status} open={sheet} onOpen={() => setSheet(true)} />}
         nav={nav} fromFile={fromFile} file={file}
         save={quiet ? null : { unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }}
         primary={primary}
@@ -324,8 +347,12 @@ export function InvoiceForm({
       {/* ── Части: одна прокрутка ───────────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto bg-surface-container-low" data-testid="invoice-scroll">
         <div className="px-4 py-4 space-y-3">
-          {gone && <InvoiceGoneNotice onClose={onClose} />}
-          {correcting && <CorrectionBar view={view} draft={correction} edits={edits} onResetHeader={reread} onCheckable={onCheckable} />}
+          {correcting && (
+            <CorrectionBar view={view} draft={correction} edits={edits} onResetHeader={reread} onCheckable={onCheckable}
+              onStale={indicator.onCorrectionStale} />
+          )}
+          {/* Один banner — худший пункт «Мешает работе» (D-11.3); полоса «Исправление» над ним, в число не идёт (Э12). */}
+          <InvoiceStatusBanner status={indicator.status} onAction={indicator.run} busy={indicator.busy} />
 
           <InvoicePart title={PART_TITLE.who.title} step={1} open={open.who} onToggle={() => toggle('who')} line={lineOf('who')}
             actions={<ConfirmBlock blocks={[who]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
@@ -348,28 +375,9 @@ export function InvoiceForm({
             )}
           </InvoicePart>
 
-          {/* Сообщения — между первой частью и строками (D-10.9): первый этап без прокрутки при любом их
-              числе. Сводит их в индикатор ребёнок 11. */}
-          {!gone && base.stale && !watch.settling && !byScan && !correcting
-            && <StaleInvoiceNotice what="поля счёта" onReread={reread} />}
-          {organizationsError != null && (
-            <Banner tone="error">
-              Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}. Поставщика и
-              плательщика выбрать не из чего — остальные поля правятся и сохраняются. Это не «организаций нет»:
-              их список сюда не доехал.
-            </Banner>
-          )}
-          {!closed && !gone && (
-            <RecognitionBanner invoiceId={view.id} recognition={watch.recognition} unread={watch.failed}
-              onRetryRead={watch.retry} canEdit={canEdit} />
-          )}
-          <LostReferencesNote view={view} locked={gone ? 'gone' : closed && !correcting ? (correctable ? 'correct' : 'closed') : null} />
-          <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
-          {closed && <InvoiceLockNote lockedBy={view.payment.lockedBy ?? ''} />}
-
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
             <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-              supplierName={savedSupplierName(view, organizations)} headerDirty={dirty} saverRef={queue.lines} compact={compactLines} />
+              supplierName={savedSupplierName(view, organizations)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines} />
           </InvoicePart>
 
           {/* «Объект» — здесь, после строк (решение владельца Э1): весь счёт на объект — одним выбором. */}
@@ -402,7 +410,7 @@ export function InvoiceForm({
               {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
             </>}>
             <BlockFields block={terms} {...fieldProps} />
-            {!gone && <InvoicePayment view={view} dirty={unsaved} />}
+            {!gone && <InvoicePayment view={view} />}
           </InvoicePart>
 
           <InvoicePart title={PART_TITLE.more.title} open={open.more} onToggle={() => toggle('more')} line={lineOf('more')}
