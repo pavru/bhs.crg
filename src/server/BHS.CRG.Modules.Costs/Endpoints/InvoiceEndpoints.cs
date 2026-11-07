@@ -51,6 +51,8 @@ public static class InvoiceEndpoints
         group.MapGet("/", InvoiceListEndpoint.ListAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/queues", InvoiceListMarks.QueuesAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/queues/parsing", InvoiceListEndpoint.ParsingCountAsync).RequireAuthorization(AppPolicies.Permission(Read));
+        // «Нет ли уже счёта с этим файлом» — до выгрузки, по отпечаткам браузера (COST-6.7).
+        group.MapGet("/same-file", InvoiceSameFiles.AskAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(AppPolicies.Permission(Read));
         group.MapGet("/{id:guid}/scan", ScanAsync).RequireAuthorization(AppPolicies.Permission(Read));
 
@@ -107,7 +109,7 @@ public static class InvoiceEndpoints
         await EnsureAllowedAsync(guard, typeId, stored: null,
             WithTerms(requisites, termed, columns), ct);
 
-        var invoice = Invoice.Create(typeId, user.Id);
+        var invoice = Invoice.Create(typeId, user.Id, user.Name);
         var marks = body.Unconfirmed ?? [];
 
         // Срок, пришедший из распознавания, ручным не считается — и отличим он ровно меткой: «оплатить

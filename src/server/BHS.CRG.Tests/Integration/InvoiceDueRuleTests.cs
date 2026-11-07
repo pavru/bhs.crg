@@ -141,7 +141,7 @@ public class InvoiceDueRuleTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         Assert.DoesNotContain(columns, c => c.Contains("Overdue", StringComparison.OrdinalIgnoreCase)
             || c.Contains("DaysLeft", StringComparison.OrdinalIgnoreCase));
 
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         invoice.ApplyRequisites(new InvoiceColumns(null, null, null, null, null, null, null,
             new DateOnly(2026, 10, 1), 10, null), JsonDocument.Parse("{}"), dueDateByHand: true, new InvoiceDueRule(true));
         Assert.False(InvoiceDue.OverdueOf(invoice, new DateOnly(2026, 10, 10)));

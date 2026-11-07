@@ -29,7 +29,7 @@ public class InvoiceBookTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
     {
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         db.Invoices.Add(invoice);
         await db.SaveChangesAsync();
         return invoice.Id;

@@ -80,7 +80,7 @@ public static class InvoiceRecognitionEndpoints
         await using (var content = file.OpenReadStream())
             path = await blobs.PutAsync(file.FileName, content, kind, ct);
 
-        var invoice = Invoice.Create(typeId, user.Id);
+        var invoice = Invoice.Create(typeId, user.Id, user.Name);
         try
         {
             invoice.AttachScan(path, file.FileName, kind, file.Length, print);

@@ -320,7 +320,7 @@ describe('пакет оборван извне', () => {
 
 describe('файл, уже приложенный к другому счёту', () => {
   const same = (id: string, number: string | null, scanFileName: string) =>
-    ({ id, number, issuedOn: null, total: null, scanFileName, createdAt: '2026-10-12T11:02:07Z' });
+    ({ id, number, issuedOn: null, total: null, scanFileName, createdAt: '2026-10-12T11:02:07Z', supplierId: null, supplierName: null, supplierArchived: false, state: 'Черновик', payment: 'Не оплачен', createdByName: null, mine: false });
   /** Два файла: первый новый, второй повторяет названные счета. */
   const twice = (...twins: ReturnType<typeof same>[]) => startBatch([pdf('1.pdf'), pdf('2.pdf')], [],
     port(async file => (file.name === '1.pdf' ? 'первый' : { id: 'новый', sameFile: twins })));

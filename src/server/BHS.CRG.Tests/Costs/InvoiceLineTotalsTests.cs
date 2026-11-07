@@ -13,7 +13,7 @@ namespace BHS.CRG.Tests.Costs;
 /// </summary>
 public class InvoiceLineTotalsTests
 {
-    private static readonly Invoice Invoice = Invoice.Create(Guid.NewGuid(), null);
+    private static readonly Invoice Invoice = Invoice.Create(Guid.NewGuid(), null, null);
 
     private static InvoiceLine Line(decimal amount, decimal? rate)
     {

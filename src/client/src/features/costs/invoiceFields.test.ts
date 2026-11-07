@@ -163,7 +163,7 @@ describe('показ значений', () => {
 
 describe('двойники счёта: тот же файл и те же реквизиты (issue #1295)', () => {
   const same = (id: string, number: string | null) =>
-    ({ id, number, issuedOn: null, total: null, scanFileName: 'Счёт.pdf', createdAt: '2026-10-12T11:02:00Z' });
+    ({ id, number, issuedOn: null, total: null, scanFileName: 'Счёт.pdf', createdAt: '2026-10-12T11:02:00Z', supplierId: null, supplierName: null, supplierArchived: false, state: 'Черновик', payment: 'Не оплачен', createdByName: null, mine: false });
   const dup = (id: string) => ({ id, number: 'СЧ-7', issuedOn: null, total: null });
 
   it('счёт, совпавший и файлом, и реквизитами, назван один раз — в оговорке о файле', () => {

@@ -56,7 +56,7 @@ public class InvoiceDueTests
     /// </summary>
     private static Invoice Invoice(InvoiceState state, InvoicePaymentState payment, int? shift)
     {
-        var invoice = Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Modules.Costs.Data.Invoice.Create(Guid.NewGuid(), null, null);
         Set(nameof(invoice.State), state);
         Set(nameof(invoice.Payment), payment);
         Set(nameof(invoice.DueDate), shift is { } days ? Today.AddDays(days) : (DateOnly?)null);

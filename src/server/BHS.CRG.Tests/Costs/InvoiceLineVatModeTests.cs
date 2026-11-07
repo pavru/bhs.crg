@@ -104,7 +104,7 @@ public class InvoiceLineVatModeTests
     [Fact]
     public void Итоги_сверху_называют_бумажную_сумму_и_источник_НДС()
     {
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         invoice.ChangeVatMode(VatMode.OnTop);
         InvoiceLine Line(decimal net, decimal? rate)
         {
@@ -135,7 +135,7 @@ public class InvoiceLineVatModeTests
     [Fact]
     public void Версия_хранит_режим_и_бумажную_сумму()
     {
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         invoice.ChangeVatMode(VatMode.OnTop);
         var line = InvoiceLine.Create(invoice.Id);
         line.Apply(1, Paper(net: 1000m, rate: 22m).Completed(VatMode.OnTop));
@@ -152,7 +152,7 @@ public class InvoiceLineVatModeTests
     [Fact]
     public void Итоги_в_том_числе_без_суммы_без_НДС()
     {
-        var invoice = Invoice.Create(Guid.NewGuid(), null);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
         var line = InvoiceLine.Create(invoice.Id);
         line.Apply(1, Paper(amount: 1220m, rate: 22m).Completed(VatMode.Included));
 

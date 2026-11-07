@@ -365,16 +365,24 @@ public sealed partial class InvoiceDesk(
         // Названия АРХИВНЫХ сторон — с ответом счёта: в списке на выбор их нет, и форме взять
         // название было бы неоткуда. Действующую сторону форма называет по списку, и спрашивать о
         // ней на каждом чтении счёта незачем (ревью PR #1227). Типа «Организация» нет — названий нет.
-        var parties = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct()
+        // Поставщики двойников «того же файла» (COST-6.7) — ТЕМ ЖЕ вызовом: один вызов на ответ, и
+        // только у счёта, которому есть о ком спросить.
+        var archived = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct()
             .Where(id => records[id] == ReferenceState.Archived).ToList();
+        var twins = await InvoiceSameFiles.FindAsync(db, invoice, ct);
+        var parties = archived.Concat(twins.Suppliers).Distinct().ToList();
         var organizations = parties.Count == 0
             ? null
             : await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);
-        string? Name(Guid? id) => organizations?.FirstOrDefault(o => o.Id == id)?.DisplayName;
+        // Только архивной стороне: у действующей названия в ответе нет и не было, даже когда оно
+        // пришло попутно — поставщиком двойника.
+        string? Name(Guid? id) => id is { } key && archived.Contains(key)
+            ? organizations?.FirstOrDefault(o => o.Id == key)?.DisplayName
+            : null;
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
             await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct),
-            await InvoiceSameFiles.FindAsync(db, invoice, ct), lines, names, allocation,
+            twins.Of(invoice.TrustedFingerprint, organizations, user.Id), lines, names, allocation,
             await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),

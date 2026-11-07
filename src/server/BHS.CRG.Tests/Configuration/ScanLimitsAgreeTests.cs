@@ -33,6 +33,31 @@ public class ScanLimitsAgreeTests
         Assert.DoesNotMatch(@"\d+ МБ", Screen);
     }
 
+    /// <summary>
+    /// Вопрос «тот же файл» (COST-6.7) принимает столько отпечатков, сколько файлов в пакете: подними
+    /// пакет предел — и каждый большой бросок получал бы 400 ровно там, где повторы вероятнее всего.
+    /// </summary>
+    [Fact]
+    public void Предел_вопроса_по_отпечаткам_равен_пределу_пакета()
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(Screen, @"export const MAX_FILES = (\d+);");
+        Assert.True(match.Success, "В scanBatch.ts не найден предел пакета MAX_FILES.");
+        Assert.Equal(InvoiceSameFiles.MaxFingerprints, int.Parse(match.Groups[1].Value));
+    }
+
+    /// <summary>
+    /// Клиентская функция вопроса делит перечень на части по своему пределу: окажись он больше
+    /// серверного — каждая часть получала бы 400 целиком.
+    /// </summary>
+    [Fact]
+    public void Части_вопроса_клиента_по_пределу_сервера()
+    {
+        var api = File.ReadAllText(Path.Combine(RepoRoot(), "src", "client", "src", "shared", "api", "invoiceSameFile.ts"));
+        var match = System.Text.RegularExpressions.Regex.Match(api, @"export const MAX_FINGERPRINTS = (\d+);");
+        Assert.True(match.Success, "В invoiceSameFile.ts не найден предел части вопроса MAX_FINGERPRINTS.");
+        Assert.Equal(InvoiceSameFiles.MaxFingerprints, int.Parse(match.Groups[1].Value));
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
