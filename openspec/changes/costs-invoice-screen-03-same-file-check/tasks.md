@@ -41,21 +41,21 @@
 
 ## 2. PR 2 — сознательный повтор
 
-- [ ] 2.1 Колонка `scan_repeat_accepted` (отпечаток, повтор которого принят); миграция
+- [x] 2.1 Колонка `scan_repeat_accepted` (отпечаток, повтор которого принят); миграция
   `dotnet ef migrations add InvoiceScanRepeatAccepted --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext`.
   [COST-6.7] Проверка — миграция применяется на пересозданной базе.
-- [ ] 2.2 `from-scan` принимает `acceptRepeat`; ставит признак только при доверенных двойниках (design
+- [x] 2.2 `from-scan` принимает `acceptRepeat`; ставит признак только при доверенных двойниках (design
   D5); `InvoiceView.ScanRepeatAccepted = ScanRepeatAccepted == TrustedFingerprint`. [COST-6.7]
   Проверка — тесты: повтор с `acceptRepeat` → `true`; без двойников → `false`, без отказа; замена файла
   через `POST …/{id}/scan` → `false`; без поля → `false`.
-- [ ] 2.3 Ворота и версия у `from-scan`: `costs.invoice.read` без `costs.invoice.edit` → 403, черновика
+- [x] 2.3 Ворота и версия у `from-scan`: `costs.invoice.read` без `costs.invoice.edit` → 403, черновика
   нет; без прав модуля → отказ; без `If-Match` → 201 (названное исключение, design D6);
   `InvoiceStaleFormTests` зелёный без новой записи в `WritesNothing`. [COST-6.7] Проверка — тесты
   отказов зелёные.
-- [ ] 2.4 Копия: копия старше колонки не делает отпечаток «принятым» у счёта, чей файл в копии другой.
+- [x] 2.4 Копия: копия старше колонки не делает отпечаток «принятым» у счёта, чей файл в копии другой.
   Проверка — сценарий в `InvoiceBackupRoundTripTests` или `ModuleBackupShapeTests`;
   `BackupManifestCoverageTests` зелёный. [COST-6.7]
-- [ ] 2.5 Тип клиента `scanRepeatAccepted?`; `sendScan` умеет `acceptRepeat` (без экрана). [COST-6.7]
+- [x] 2.5 Тип клиента `scanRepeatAccepted?`; `sendScan` умеет `acceptRepeat` (без экрана). [COST-6.7]
   Проверка — `npx tsc -b`; vitest: поле формы уходит только при `true`.
 
 ## 3. Верификация

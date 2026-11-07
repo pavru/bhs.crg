@@ -162,6 +162,13 @@ public static class InvoiceSameFiles
         InvoiceState State, InvoicePaymentState Payment, Guid? CreatedBy, string? CreatedByName);
 
     /// <summary>
+    /// Есть ли у файла двойники, которым можно верить, — для принятия сознательного повтора (COST-6.7). Тот же
+    /// поиск и то же правило доверия, что у вопроса, но без названий: справочник здесь не нужен.
+    /// </summary>
+    internal static async Task<bool> HasTwinsAsync(CostsDbContext db, string print, CancellationToken ct) =>
+        (await TrustedAsync(db, [print], except: null, ct)).Any(print);
+
+    /// <summary>
     /// Вопрос «нет ли уже счёта с этим файлом» — ДО выгрузки (COST-6.7, лист «Ф» 27.10.2026): браузер
     /// считает отпечатки брошенных файлов и спрашивает один раз на бросок. Только читает.
     ///

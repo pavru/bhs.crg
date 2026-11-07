@@ -178,9 +178,14 @@ export function useInvoiceFromScan() {
  * его начали, и шлёт файлы по одному сам. Клиент запросов у приложения один, поэтому кэш обновляется
  * и тогда, когда страницы уже нет на экране. Списки НЕ перечитывает — см. `refreshInvoiceLists`.
  */
-export async function sendScan(qc: QueryClient, file: File): Promise<InvoiceFromScan> {
+export async function sendScan(
+  qc: QueryClient, file: File, options: { acceptRepeat?: boolean } = {},
+): Promise<InvoiceFromScan> {
   const form = new FormData();
   form.append('file', file);
+  // Сознательный повтор (COST-6.7): человек видел окно повтора и выбрал «Завести ещё один черновик».
+  // Поле уходит только при «да» — без него сервер повтор не помечает.
+  if (options.acceptRepeat) form.append('acceptRepeat', 'true');
   const created = (await apiClient.post<InvoiceFromScan>('/costs/invoices/from-scan', form)).data;
   qc.setQueryData([QK, created.invoice.id], created.invoice);
   qc.setQueryData(recognitionKey(created.invoice.id), created.recognition);

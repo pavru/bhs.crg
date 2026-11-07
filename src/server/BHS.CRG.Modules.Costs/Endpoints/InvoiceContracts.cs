@@ -84,7 +84,10 @@ public sealed record InvoiceView(
     InvoiceMatchMemory? Memory = null,
     // Кто записал счёт последним (COST-6.4, Э4); пусто — неизвестно. Ставит связка ответа (InvoiceDesk):
     // признак «это вы» зависит от того, кто читает.
-    InvoiceAuthorView? UpdatedBy = null);
+    InvoiceAuthorView? UpdatedBy = null,
+    // Повтор нынешнего файла принят сознательно (COST-6.7): пункт «тот же файл» у такого счёта — «к
+    // сведению». false и у счёта без двойников, и у счёта, чей файл заменили после принятия.
+    bool ScanRepeatAccepted = false);
 
 /// <summary>
 /// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184, #1185): <c>present</c>,
@@ -225,7 +228,8 @@ public static class InvoiceViews
         invoice.CreatedAt,
         invoice.UpdatedAt,
         invoice.BookSeq,
-        invoice.VatMode);
+        invoice.VatMode,
+        ScanRepeatAccepted: invoice.RepeatAccepted);
 
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть

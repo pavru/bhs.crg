@@ -324,6 +324,73 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.Null(await CreatedByNameAsync(invoice));
     }
 
+    /// <summary>
+    /// Принятый повтор (COST-6.7) относится к ФАЙЛУ. Копия старше колонки возвращает счёту прежний файл, а
+    /// живую колонку не трогает: принятым остаётся отпечаток нынешнего файла — и к файлу из копии он не
+    /// приписывается. Флажок на его месте приписался бы.
+    /// </summary>
+    [Fact]
+    public async Task Копия_старше_колонки_не_делает_повтор_принятым_у_другого_файла()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var (repeated, other) = ($"%PDF-1.4 {Guid.NewGuid():N}", $"%PDF-1.4 {Guid.NewGuid():N}");
+        await FromScanAsync(client, repeated, acceptRepeat: false);
+        var invoice = await FromScanAsync(client, repeated, acceptRepeat: true);
+        Assert.True(await RepeatAcceptedAsync(client, invoice));
+
+        // В копии у счёта — другой файл, и колонки принятого повтора в ней нет: так выглядит копия до миграции.
+        await ReplaceScanAsync(client, invoice, other);
+        Assert.False(await RepeatAcceptedAsync(client, invoice));
+        var (_, manifest) = await ExportAsync();
+        var former = Copy(manifest, ("invoices", "scan_repeat_accepted"));
+
+        // Вернули повторный файл — повтор снова принят: живая колонка помнит его отпечаток.
+        await ReplaceScanAsync(client, invoice, repeated);
+        Assert.True(await RepeatAcceptedAsync(client, invoice));
+
+        var report = await ImportAsync(former);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.False(await RepeatAcceptedAsync(client, invoice));
+    }
+
+    private static async Task<bool> RepeatAcceptedAsync(HttpClient client, Guid invoice) =>
+        (await ReadAsync(client, invoice)).GetProperty("scanRepeatAccepted").GetBoolean();
+
+    private static async Task<Guid> FromScanAsync(HttpClient client, string body, bool acceptRepeat)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "Счёт.pdf");
+        if (acceptRepeat) form.Add(new StringContent("true"), "acceptRepeat");
+
+        var created = await client.PostAsync("/api/costs/invoices/from-scan", form);
+        await OkAsync(created);
+        return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("invoice").GetProperty("id").GetGuid();
+    }
+
+    /// <summary>
+    /// Заменить файл. Пока прежний файл читается распознаванием, замена отвечает 409 — это правило адреса,
+    /// а не предмет теста: ждём.
+    /// </summary>
+    private static async Task ReplaceScanAsync(HttpClient client, Guid invoice, string body)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await AttachScanAsync(client, invoice, "Счёт.pdf", body);
+                return;
+            }
+            catch (Xunit.Sdk.XunitException) when (attempt < 100)
+            {
+                await Task.Delay(200);
+            }
+        }
+    }
+
     private async Task<string?> CreatedByNameAsync(Guid invoice)
     {
         using var scope = _host.Services.CreateScope();

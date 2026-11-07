@@ -144,6 +144,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("text")
                         .HasColumnName("scan_mime_type");
 
+                    b.Property<string>("ScanRepeatAccepted")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scan_repeat_accepted");
+
                     b.Property<long?>("ScanSize")
                         .HasColumnType("bigint")
                         .HasColumnName("scan_size");
