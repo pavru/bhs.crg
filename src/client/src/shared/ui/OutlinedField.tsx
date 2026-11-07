@@ -1,8 +1,9 @@
-import { type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { ICON_BUTTON_XS } from './buttonClasses';
 import { Icon } from './Icon';
 import { DocumentScanner, ErrorIcon } from './icons';
 import { cellLine, fieldLabelRest, FieldMarkContext, MARK_SPACE, SCAN_NOTE, type FieldDensity } from './fieldBox';
+import { isLayerFocus } from './layerFocus';
 import { Tooltip } from './Tooltip';
 
 // Ширина метки в покое (`raise="auto"`) — до текста, её даёт `fieldLabelRest` той же таблицей, что и отступ
@@ -69,10 +70,14 @@ export function FieldErrorMark({ density = 'form', message }: { density?: FieldD
  * Знак «со скана, не проверено» ([UI-88]): значок 18 цвета `warning` с подсказкой, без кнопки — действия у
  * поля со скана нет, открыть скан предлагает экран. Указатель ловит ради подсказки. Для диктора скрыт: пометку
  * он слышит в имени поля (`SCAN_NOTE` в подписи). Ставит его оболочка — перед знаком ошибки, ближе к значению.
+ *
+ * Фокуса знак не получает — остановка Tab у каждого поля со скана была бы шумом. Подсказку он поэтому показывает
+ * ещё и пока фокус в его поле (`open`): с клавиатуры и касанием её иначе не увидеть. У отключённого поля знак
+ * гаснет вместе с текстом и подсказки не даёт (`SCAN_DISABLED` у оболочки): править нельзя, обещать правку — тоже.
  */
-export function FieldScanMark() {
+export function FieldScanMark({ open = false }: { open?: boolean }) {
   return (
-    <Tooltip content={SCAN_TOOLTIP}>
+    <Tooltip content={SCAN_TOOLTIP} open={open}>
       <span data-field-scan-mark aria-hidden className="pointer-events-auto flex shrink-0 items-center text-warning">
         <Icon icon={DocumentScanner} size={18} />
       </span>
@@ -82,6 +87,11 @@ export function FieldScanMark() {
 
 const SCAN_TOOLTIP = 'Со скана, не проверено. Правка снимает метку';
 const NOTE_BLOCK: CSSProperties = { display: 'block' };
+// Отключённое поле ([UI-64]) гасит текст `disabled-content` контрола, а знаку цвет задан свой — гасим и его, тем же
+// on-surface 38 %, и снимаем указатель: подсказка «Правка снимает метку» у поля, которое не правится, лжёт. Признак —
+// селектором, как у рамки: `:disabled` у контролов, `data-disabled` у составных (дата). Строкой целиком (Tailwind).
+const SCAN_DISABLED = '[&:has(:disabled)_[data-field-scan-mark]]:text-on-surface/38 [&:has(:disabled)_[data-field-scan-mark]]:pointer-events-none '
+  + '[&:has([data-disabled])_[data-field-scan-mark]]:text-on-surface/38 [&:has([data-disabled])_[data-field-scan-mark]]:pointer-events-none';
 
 export interface OutlinedFieldProps {
   label: string;
@@ -133,6 +143,8 @@ export interface OutlinedFieldProps {
   /**
    * Значение со скана, не проверено ([UI-88]): знак «со скана» перед знаком ошибки и приписка к подписи для
    * диктора. Место знака — та же таблица `TRAIL` (`fieldBox`, свойство `fromScan`), что и у остального хвоста.
+   * Поле берёт значение из `useFieldScan`: тот снимает пометку правкой и даёт имя контролу без подписи. Рядом с
+   * замком (`trailingMark`) знака нет — места под третий знак хвост не держит.
    */
   fromScan?: boolean;
   /**
@@ -155,8 +167,22 @@ export function OutlinedField({
   const cell = density === 'cell';
   // У плотного поля метки в вырезе нет вовсе — механики всплывания ему не нужно.
   const auto = raise === 'auto' && !dense;
+  const scan = fromScan && !trailingMark;
   const markHere = bad && !markInside;
-  const scanHere = fromScan && !markInside;
+  const scanHere = scan && !markInside;
+  // Фокус внутри поля открывает подсказку знака «со скана» (`FieldScanMark`). Внутри — по разметке, а не по
+  // всплытию React: оно приносит и фокус из портала (открытый список, календарь), а там подсказка мешала бы.
+  // Фокус, поставленный открывшимся слоем, — не зов (`layerFocus.ts`): первый Esc достался бы подсказке, а не окну.
+  const [focusIn, setFocusIn] = useState(false);
+  // Без пометки обработчиков нет — и запомненный фокус сбрасывается, чтобы вернувшаяся пометка не открылась сама.
+  if (!scan && focusIn) setFocusIn(false);
+  const scanFocus = scan ? {
+    onFocus: (e: FocusEvent<HTMLDivElement>) => setFocusIn(e.currentTarget.contains(e.target) && !isLayerFocus()),
+    onBlur: (e: FocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false);
+    },
+  } : {};
+  const scanMark = <FieldScanMark open={focusIn} />;
 
   // peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение вешаем на
   // fieldset (он сосед) и целим вложенный legend через [&>legend].
@@ -203,15 +229,17 @@ export function OutlinedField({
     : `absolute left-3 px-1 pointer-events-none transition-all ease-standard block ${labelWidth} truncate ${labelColor} ${labelPosition}${star}`;
   const markStyle = markHere ? { '--field-mark': MARK_SPACE[density] } as CSSProperties : undefined;
   // Знаки для контрола со своим хвостом: условие и размер — здесь, ставит он сам (`FieldMarkContext`).
-  const innerMark = markInside && (bad || fromScan)
-    ? <>{fromScan && <FieldScanMark />}{bad && <FieldErrorMark density={density} message={error} />}</>
+  const innerMark = markInside && (bad || scan)
+    ? <>{scan && scanMark}{bad && <FieldErrorMark density={density} message={error} />}</>
     : null;
   // Пометка «со скана» — в имени поля, для диктора ([UI-88]): подпись — его имя у `<label for>` и `aria-labelledby`.
-  // В вырез рамки (`legend`) не идёт — вырез стал бы шире подписи. `display: block` — то, что браузер и так
+  // Только у связанной подписи: несвязанная (дата — имя её группе даёт `aria-label`) никому имени не даёт, а читая
+  // подряд, диктор услышал бы приписку и в ней, и в имени группы. В вырез рамки (`legend`) не идёт — вырез стал бы
+  // шире подписи. `display: block` — то, что браузер и так
   // вычисляет для `sr-only` (абсолютное положение делает элемент блочным), а блок отделяется в имени пробелом.
   // Сказано явно для движков без стилей Tailwind (jsdom): у строчного элемента ведущий пробел в имени срезается,
   // и имя выходило «Номер(со скана…)». Пробел перед span не годится: он виден перед звёздочкой обязательного.
-  const labelText = <>{label}{fromScan && <span className="sr-only" style={NOTE_BLOCK}>({SCAN_NOTE})</span>}</>;
+  const labelText = <>{label}{scan && (htmlFor || labelId) && <span className="sr-only" style={NOTE_BLOCK}>({SCAN_NOTE})</span>}</>;
 
   // У плотного поля текста под ним нет и места нет: ошибку и пояснение диктор читает, глаз видит знак.
   const below = error || hint;
@@ -220,7 +248,8 @@ export function OutlinedField({
 
   return (
     <div className={containerClassName}>
-      <div className={`relative ${hover} ${disabledFrame} ${cell ? cellLine({ focused, bad }) : ''}`} style={markStyle}>
+      <div className={`relative ${hover} ${disabledFrame} ${scan ? SCAN_DISABLED : ''} ${cell ? cellLine({ focused, bad }) : ''}`}
+        style={markStyle} {...scanFocus}>
         <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет.
@@ -246,7 +275,7 @@ export function OutlinedField({
             середина — посреди текста. */}
         {(scanHere || markHere || trailing) && (
           <div className={`pointer-events-none absolute right-2 ${dense ? 'top-5' : 'top-7'} -translate-y-1/2 z-10 flex items-center gap-1 ${ICON_BUTTON_XS}`}>
-            {scanHere && <FieldScanMark />}
+            {scanHere && scanMark}
             {markHere && <FieldErrorMark density={density} message={error} />}
             {trailing && <span className="contents pointer-events-auto">{trailing}</span>}
           </div>

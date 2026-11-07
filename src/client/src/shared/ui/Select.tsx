@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, fieldDescribedBy, fieldName, FieldMarkContext, useFieldDensity, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, FieldMarkContext, useFieldDensity, useFieldScan, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
 
 /**
@@ -163,6 +163,8 @@ export function Select({
   const framed = variant === undefined;
   const bare = label === undefined;
   const density = useFieldDensity(own, 'form');
+  // Пометка «со скана» ([UI-88]) — у поля с подписью и плотного; выбор человеком её снимает.
+  const scan = useFieldScan(label ?? aria['aria-label'], fromScan);
 
   // У поля (с подписью или плотного) `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
   // `<select required>` (1×1 px, `aria-hidden`), и внутри `<form>` браузер молча отказывается
@@ -174,7 +176,12 @@ export function Select({
     <RS.Root value={!value && emptyItem !== undefined ? EMPTY : value ?? ''} disabled={disabled}
       required={framed ? undefined : required} name={name}
       open={open}
-      onValueChange={next => { staying.current = next === stayOpenOn; onValueChange(next === EMPTY ? '' : next); }}
+      onValueChange={next => {
+        staying.current = next === stayOpenOn;
+        const v = next === EMPTY ? '' : next;
+        scan.edited(v !== (value ?? ''));
+        onValueChange(v);
+      }}
       onOpenChange={next => {
         if (!next && staying.current) { staying.current = false; return; }
         setOpen(next);
@@ -188,7 +195,7 @@ export function Select({
         </RS.Trigger>
       ) : <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${bare ? '' : className}`
         : `${INLINE} ${className}`}
-        aria-label={!framed ? aria['aria-label'] : density === 'cell' ? fieldName(label ?? aria['aria-label'] ?? '', fromScan) : undefined}
+        aria-label={!framed ? aria['aria-label'] : density === 'cell' ? scan.name : undefined}
         aria-labelledby={framed && density !== 'cell' ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
         aria-describedby={framed ? fieldDescribedBy(hintId, error || hint) : undefined}
@@ -217,7 +224,7 @@ export function Select({
   // время, что человек выбирает значение.
   return (
     <OutlinedField label={label ?? aria['aria-label'] ?? ''} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      raise="always" focused={focused || open} labelId={labelId} density={density} fromScan={fromScan} markInside containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
+      raise="always" focused={focused || open} labelId={labelId} density={density} fromScan={scan.fromScan} markInside containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
       trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>

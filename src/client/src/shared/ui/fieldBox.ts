@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 /**
  * Размер поля на оболочке `OutlinedField` ([UI-69], sharedui-md3-11): высота, отступы и роль текста — у
@@ -86,7 +86,8 @@ export interface FieldTrailing {
  * обёртка его сняла бы, и хвост вышел бы уже рассчитанного места.
  *
  * `fromScan` — значение со скана, не проверено ([UI-88]): знак ставит оболочка. Рядом с замком (`trailingMark`)
- * его не бывает — знаков в хвосте не больше двух ([UI-86]), и тип это держит.
+ * его не бывает — знаков в хвосте не больше двух ([UI-86]): у полей это держит тип, у оболочки, которую зовут и
+ * напрямую, — `useFieldScan` и она сама (знака при замке не рисует).
  */
 export type FieldTrailingProps =
   | { trailing?: ReactNode; trailingMark?: false; fromScan?: boolean }
@@ -110,14 +111,40 @@ export function fieldLabelRest(tail: FieldTrailing = {}) {
 
 /**
  * Приписка «со скана» к имени поля для диктора ([UI-88]) — одна на все поля. Оболочка кладёт её скрытым текстом
- * в подпись (её слышат `<label for>` и `aria-labelledby`); где имя даёт свойство контрола — группа сегментов
- * даты, клетка сетки, — имя строит `fieldName`.
+ * в подпись, только связанную с контролом (`<label for>`, `aria-labelledby`): несвязанная никому имени не даёт, и
+ * диктор, читая подряд, услышал бы приписку дважды. Где имя даёт свойство контрола — группа сегментов даты,
+ * клетка сетки, — имя строит `useFieldScan`.
  */
 export const SCAN_NOTE = 'со скана, не проверено';
 
 /** Имя поля для `aria-label`: подпись и, у значения со скана, приписка `SCAN_NOTE`. */
 export function fieldName(label: string, fromScan = false) {
   return fromScan ? `${label} (${SCAN_NOTE})` : label;
+}
+
+/**
+ * Пометка «со скана» у поля на оболочке ([UI-88]) — один вход на все поля: что отдать оболочке, имя для диктора и
+ * снятие правкой. Поле без этого хука пометки не получает вовсе — так её нельзя поставить наполовину (знак есть, а
+ * имя без приписки). Поля, которые её ставят, перечисляет сторож в `fieldScanMark.test.tsx`.
+ *
+ * - `fromScan` — оболочке. Ложно рядом с замком (`trailingMark`: знаков в хвосте не больше двух, [UI-86]) и после
+ *   первой правки значения человеком: подсказка знака обещает «Правка снимает метку», и держит обещание поле, не
+ *   дожидаясь экрана. Пометка возвращается, когда экран снимет `fromScan` и поставит снова.
+ * - `name` — для `aria-label` там, где имя даёт свойство контрола (клетка, группа сегментов даты). Без подписи —
+ *   `undefined`, а не пустая строка: пустой `aria-label` отнял бы у контрола и запасное имя из содержимого.
+ * - `edited(changed)` — из обработчика правки человеком; `changed` — значение и правда другое (поле даты отдаёт
+ *   и прежнее: дописывает сегмент при уходе).
+ */
+export function useFieldScan(label: string | undefined, fromScan = false, trailingMark = false) {
+  const [edited, setEdited] = useState(false);
+  const [seen, setSeen] = useState(fromScan);
+  if (seen !== fromScan) { setSeen(fromScan); setEdited(false); }
+  const shown = fromScan && !trailingMark && !edited;
+  return {
+    fromScan: shown,
+    name: label ? fieldName(label, shown) : undefined,
+    edited: (changed = true) => { if (shown && changed) setEdited(true); },
+  };
 }
 
 /** Место знака ошибки с зазором до хвоста: знак 24 у поля формы, 20 у плотного и клетки, плюс 4. */

@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { TooltipLayer, type TooltipSide } from './TooltipLayer';
 import { PLAIN_TOOLTIP, useTooltipTrigger } from './tooltipTrigger';
 
@@ -34,21 +34,33 @@ interface TooltipProps {
    */
   name?: boolean;
   side?: TooltipSide;
+  /**
+   * Открыть ещё и извне — сверх наведения и фокуса самого элемента. Для знака, который фокуса не получает, а
+   * объяснить его нужно и клавиатуре, и касанию: знак «со скана» показывает подсказку, пока фокус в его поле
+   * ([UI-88]). Esc закрывает её до следующего открытия извне.
+   */
+  open?: boolean;
 }
 
-export function Tooltip({ content, children, name = false, side = 'top' }: TooltipProps) {
+export function Tooltip({ content, children, name = false, side = 'top', open: outside = false }: TooltipProps) {
   const empty = content == null || content === '' || content === false;
   const text = typeof content === 'string' && content !== '' ? content : undefined;
   const own = children.props as { 'aria-label'?: unknown; value?: unknown };
   const repeats = own['aria-label'] === text || own.value === text;
   const aria: Record<string, string> = !text ? {} : name ? { 'aria-label': text } : repeats ? {} : { 'aria-description': text };
   const { open, hide, anchor, Element, props } = useTooltipTrigger(children, { empty, aria });
+  // Закрытая Esc'ом остаётся закрытой, пока зов извне не кончится: иначе Esc её не закрывал бы вовсе.
+  const [dismissed, setDismissed] = useState(false);
+  const [called, setCalled] = useState(outside);
+  if (called !== outside) { setCalled(outside); setDismissed(false); }
+  const shown = open || (outside && !dismissed);
 
   return (
     <>
       <Element {...props} />
-      {open && !empty && (
-        <TooltipLayer anchor={anchor} side={side} onClose={hide} role="tooltip" className={PLAIN_TOOLTIP}>
+      {shown && !empty && (
+        <TooltipLayer anchor={anchor} side={side} onClose={hide} onEscape={() => { hide(); setDismissed(true); }}
+          role="tooltip" className={PLAIN_TOOLTIP}>
           {content}
         </TooltipLayer>
       )}

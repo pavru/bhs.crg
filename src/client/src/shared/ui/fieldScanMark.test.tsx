@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { useState, type ReactElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { clientSources } from '@/shared/testing/clientSources';
 import { DateField } from './DateField';
 import { fieldEnd, fieldLabelRest, FieldDensityContext } from './fieldBox';
+import { OutlinedField } from './OutlinedField';
 import { Select, SelectItem } from './Select';
 import { TextAreaField } from './TextAreaField';
 import { TextField } from './TextField';
@@ -185,5 +188,175 @@ describe('DateField', () => {
     render(<DateField label="Дата счёта" fromScan invalid value="2026-09-03" onChange={() => {}} />);
     expect(before(scanMark(), errorMark())).toBe(true);
     expect(before(errorMark(), screen.getByRole('button', { name: 'Очистить дату' }))).toBe(true);
+  });
+});
+
+describe('Отключённое поле', () => {
+  // Селектор в CSS jsdom не применяет — сверяем классы оболочки и то, что признак отключения в поле есть.
+  const off = (wrapper: Element) => {
+    expect(classes(wrapper)).toEqual(expect.arrayContaining([
+      '[&:has(:disabled)_[data-field-scan-mark]]:text-on-surface/38',
+      '[&:has(:disabled)_[data-field-scan-mark]]:pointer-events-none',
+      '[&:has([data-disabled])_[data-field-scan-mark]]:text-on-surface/38',
+    ]));
+    expect(wrapper.querySelector(':disabled, [data-disabled]')).not.toBeNull();
+  };
+
+  it('у текста, выбора и даты знак гаснет вместе с полем и подсказки не даёт', () => {
+    render(<>
+      <TextField label="Номер" fromScan disabled value="1" onChange={() => {}} />
+      <Select label="Поставщик" fromScan disabled value="a" onValueChange={() => {}}><SelectItem value="a">А</SelectItem></Select>
+      <DateField label="Дата" fromScan disabled value="2026-09-03" onChange={() => {}} />
+    </>);
+    const marks = [...scanMarks()];
+    expect(marks).toHaveLength(3);
+    marks.forEach(m => off(m.closest('.relative')!));
+  });
+});
+
+describe('Подсказка — и пока фокус в поле', () => {
+  const tip = () => screen.queryByRole('tooltip')?.textContent;
+  const TIP = 'Со скана, не проверено. Правка снимает метку';
+
+  it('текст: фокус открывает, уход закрывает', () => {
+    render(<><TextField label="Номер" fromScan value="1" onChange={() => {}} /><button type="button">Дальше</button></>);
+    act(() => { screen.getByRole('textbox').focus(); });
+    expect(tip()).toBe(TIP);
+    act(() => { screen.getByRole('button', { name: 'Дальше' }).focus(); });
+    expect(tip()).toBeUndefined();
+  });
+
+  it('Esc закрывает её, пока фокус не уйдёт и не вернётся', () => {
+    render(<><TextField label="Номер" fromScan value="1" onChange={() => {}} /><button type="button">Дальше</button></>);
+    const input = screen.getByRole('textbox');
+    act(() => { input.focus(); });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(tip()).toBeUndefined();
+    act(() => { screen.getByRole('button', { name: 'Дальше' }).focus(); });
+    act(() => { input.focus(); });
+    expect(tip()).toBe(TIP);
+  });
+
+  it('выбор и дата: фокус на триггере и на сегменте', () => {
+    render(<>
+      <Select label="Поставщик" fromScan value="a" onValueChange={() => {}}><SelectItem value="a">А</SelectItem></Select>
+      <DateField label="Дата" fromScan value="2026-09-03" onChange={() => {}} />
+    </>);
+    act(() => { screen.getByRole('combobox').focus(); });
+    expect(tip()).toBe(TIP);
+    const segment = screen.getByRole('group', { name: `Дата ${NOTE}` }).querySelector<HTMLElement>('input, [tabindex="0"]')!;
+    act(() => { segment.focus(); });
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+    expect(tip()).toBe(TIP);
+  });
+
+  it('без пометки фокус подсказки не открывает', () => {
+    render(<TextField label="Номер" value="1" onChange={() => {}} />);
+    act(() => { screen.getByRole('textbox').focus(); });
+    expect(tip()).toBeUndefined();
+  });
+});
+
+describe('Правка снимает метку — само поле', () => {
+  function Text({ scan = true }: { scan?: boolean }) {
+    const [v, setV] = useState('СЧ-104');
+    return <TextField label="Номер" fromScan={scan} value={v} onChange={e => setV(e.target.value)} />;
+  }
+
+  it('текст: первая правка снимает знак, приписку и место под знак', () => {
+    render(<Text />);
+    const input = screen.getByRole('textbox', { name: `Номер ${NOTE}` });
+    fireEvent.change(input, { target: { value: 'СЧ-105' } });
+    expect(scanMarks()).toHaveLength(0);
+    expect(screen.getByRole('textbox', { name: 'Номер' })).toBe(input);
+    expect(classes(input)).toContain(fieldEnd('form'));
+  });
+
+  it('экран снял и снова поставил пометку — знак возвращается', () => {
+    const { rerender } = render(<Text />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'x' } });
+    rerender(<Text scan={false} />);
+    rerender(<Text scan />);
+    expect(scanMarks()).toHaveLength(1);
+  });
+
+  it('многострочное поле — так же', () => {
+    function Area() {
+      const [v, setV] = useState('');
+      return <TextAreaField label="Назначение" fromScan value={v} onChange={e => setV(e.target.value)} />;
+    }
+    render(<Area />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Оплата' } });
+    expect(scanMarks()).toHaveLength(0);
+  });
+
+  it('выбор: другой пункт снимает знак, тот же — нет', () => {
+    function Pick() {
+      const [v, setV] = useState('a');
+      return <Select label="Поставщик" fromScan value={v} onValueChange={setV}>
+        <SelectItem value="a">Первый</SelectItem><SelectItem value="b">Второй</SelectItem>
+      </Select>;
+    }
+    render(<Pick />);
+    const open = () => fireEvent.pointerDown(screen.getByRole('combobox'), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    open();
+    fireEvent.click(screen.getByRole('option', { name: 'Первый' }));
+    expect(scanMarks()).toHaveLength(1);
+    open();
+    fireEvent.click(screen.getByRole('option', { name: 'Второй' }));
+    expect(scanMarks()).toHaveLength(0);
+  });
+
+  it('дата: очистка снимает знак и приписку группы', () => {
+    function Day() {
+      const [v, setV] = useState('2026-09-03');
+      return <DateField label="Дата счёта" fromScan value={v} onChange={setV} />;
+    }
+    render(<Day />);
+    fireEvent.click(screen.getByRole('button', { name: 'Очистить дату' }));
+    expect(scanMarks()).toHaveLength(0);
+    expect(screen.getByRole('group', { name: 'Дата счёта' })).not.toBeNull();
+  });
+});
+
+describe('Одна приписка, один путь', () => {
+  it('дата: приписка только в имени группы — подпись, которая ничего не называет, её не повторяет', () => {
+    render(<DateField label="Дата счёта" fromScan value="2026-09-03" onChange={() => {}} />);
+    expect(screen.getByRole('group', { name: `Дата счёта ${NOTE}` })).not.toBeNull();
+    expect(document.body.textContent).not.toContain(NOTE);
+  });
+
+  it('рядом с замком знака нет — и у оболочки, которую зовут напрямую', () => {
+    render(<OutlinedField label="Счёт" htmlFor="x" fromScan trailingMark trailing={<><span>замок</span><button type="button">к</button></>}>
+      <input id="x" />
+    </OutlinedField>);
+    expect(scanMarks()).toHaveLength(0);
+    expect(screen.getByRole('textbox', { name: 'Счёт' })).not.toBeNull();
+  });
+
+  it('клетка выбора без имени — без пустого aria-label', () => {
+    const Loose = Select as unknown as (p: Record<string, unknown>) => ReactElement;
+    render(<Loose density="cell" fromScan value="a" onValueChange={() => {}}><SelectItem value="a">А</SelectItem></Loose>);
+    expect(screen.getByRole('combobox').hasAttribute('aria-label')).toBe(false);
+  });
+
+  /**
+   * Сторож: пометку ставят только поля, перечисленные здесь, и каждое — через `useFieldScan` (знак, имя и снятие
+   * правкой — одним входом). Новое поле с `fromScan` (`NumberInput`, `TimeField`…) красит его, пока не добавлено
+   * в список, — а с ним и в тесты имени и правки выше.
+   */
+  const FIELDS = ['/src/shared/ui/DateField.tsx', '/src/shared/ui/Select.tsx', '/src/shared/ui/TextAreaField.tsx', '/src/shared/ui/TextField.tsx'];
+  const users = (sources: Record<string, string>) => Object.entries(sources)
+    .filter(([file, code]) => !/\.test\.tsx?$|\/OutlinedField\.tsx$/.test(file) && code.includes('<OutlinedField') && /\bfromScan\b/.test(code))
+    .map(([file]) => file).sort();
+
+  it('поля с пометкой — ровно перечисленные, и все через useFieldScan', () => {
+    expect(users(clientSources)).toEqual(FIELDS);
+    FIELDS.forEach(f => expect(clientSources[f], f).toContain('useFieldScan('));
+  });
+
+  it('сторож видит новое поле', () => {
+    const fake = { ...clientSources, '/src/shared/ui/NumberInput.tsx': '<OutlinedField label="" fromScan={fromScan}>' };
+    expect(users(fake)).toContain('/src/shared/ui/NumberInput.tsx');
   });
 });

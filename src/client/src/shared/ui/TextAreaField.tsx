@@ -1,6 +1,6 @@
 import { forwardRef, useId, useState, type TextareaHTMLAttributes } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldDescribedBy, fieldEnd, type FieldTrailingProps } from './fieldBox';
+import { fieldDescribedBy, fieldEnd, useFieldScan, type FieldTrailingProps } from './fieldBox';
 
 /**
  * MD3 outlined-поле для многострочного текста (issue #574) — тот же `OutlinedField`, что у
@@ -36,7 +36,7 @@ export type TextAreaFieldProps = TextAreaFieldOwnProps & FieldTrailingProps;
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(function TextAreaField(
   { label, error, invalid, hint, trailing, trailingMark, fromScan, className = '', containerClassName = '', id, required, rows = 3,
-    onFocus, onBlur, 'aria-describedby': describedBy, ...rest },
+    onFocus, onBlur, onChange, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -44,12 +44,14 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
   const areaId = id ?? autoId;
   const hintId = `${areaId}-hint`;
   const described = fieldDescribedBy(hintId, error || hint, describedBy);
+  const scan = useFieldScan(label, fromScan, trailingMark);
+  const tail = !!trailing || scan.fromScan;
 
   return (
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
       raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
-      trailing={trailing} trailingMark={trailingMark} fromScan={fromScan}
+      trailing={trailing} trailingMark={trailingMark} fromScan={scan.fromScan}
     >
       {/* Отступ под метку — padding ОБЁРТКИ, а не самого поля и не его margin.
           - Не padding `<textarea>`: она обрезает содержимое по padding-box, и при прокрутке строки
@@ -63,14 +65,15 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
           Место хвоста — тоже padding обёртки, а не области: полоса прокрутки рисуется у края самой
           `<textarea>`, и при отступе внутри неё она уходила бы под кнопку хвоста — щелчок по стрелке
           прокрутки попадал бы в кнопку. Без хвоста отступ остаётся у области, как был. */}
-      <div className={`pt-4 ${trailing || fromScan ? fieldEnd('form', { trailing: !!trailing, trailingMark, fromScan }) : ''}`}>
+      <div className={`pt-4 ${tail ? fieldEnd('form', { trailing: !!trailing, trailingMark, fromScan: scan.fromScan }) : ''}`}>
         <textarea
           ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
           aria-invalid={invalid || !!error || undefined}
-          className={`block w-full rounded-xs bg-transparent pl-4 ${trailing || fromScan ? 'pr-1' : fieldEnd('form')} pb-2 text-body-large text-on-surface ` +
+          className={`block w-full rounded-xs bg-transparent pl-4 ${tail ? 'pr-1' : fieldEnd('form')} pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}
+          onChange={onChange || fromScan ? e => { scan.edited(); onChange?.(e); } : undefined}
           {...rest}
         />
       </div>
