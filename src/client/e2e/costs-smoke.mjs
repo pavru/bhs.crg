@@ -35,6 +35,7 @@ import {
   BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText, expandInvoiceParts,
 } from './harness.mjs';
 import { extraFieldChecks } from './invoice-extra-field-checks.mjs';
+import { statusItems, untilStatus } from './invoice-status.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -508,7 +509,7 @@ async function readerPart() {
     await absent(reader, ['Новый счёт']);
 
     await openInvoice(reader, invoiceId, 'счёт: чтение');
-    await reader.page.getByTestId('invoice-header').getByText('Только чтение', { exact: true }).waitFor({ timeout: 10_000 });
+    await untilStatus(reader.page, items => items.some(i => i.key === 'read-only'), 'перечень не сказал «Только чтение»');
     await absent(reader, ['Сохранить', 'Добавить строку', 'Вернуть в черновик', 'Приложить файл', 'Заменить файл', 'Ещё']);
     if (await reader.page.getByLabel('Объект счёта', { exact: true }).count())
       throw new Error('руководителю виден выбор «Объект счёта» — права на разноску у роли нет');
@@ -613,7 +614,7 @@ async function accountantPart() {
       throw new Error('у бухгалтера нет «Нового счёта» — право правки счетов у роли есть');
 
     await openInvoice(accountant, invoiceId, 'счёт: правка');
-    if (await accountant.page.getByTestId('invoice-header').getByText('Только чтение', { exact: true }).count())
+    if ((await statusItems(accountant.page)).some(i => i.key === 'read-only'))
       throw new Error('форма счёта называет себя «Только чтение» — право правки счетов у бухгалтера есть');
     await accountant.page.getByLabel('Объект счёта', { exact: true }).first().waitFor({ timeout: 10_000 });
   });

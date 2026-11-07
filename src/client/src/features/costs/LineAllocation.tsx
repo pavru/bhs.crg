@@ -185,9 +185,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
         </>
       )}>
       {(base.stale || gone) && (
-        <div className="mb-3">
-          <StaleInvoiceNotice what={gone ? 'строку: её больше нет в счёте' : 'части разноски'} onReread={reread} />
-        </div>
+        <StaleInvoiceNotice what={gone ? 'строку: её больше нет в счёте' : 'части разноски'} onReread={reread} />
       )}
       <EditGrid label="Части разноски" rows={drafts} rowKey={draft => draft.key} framed={false}
         empty="Частей нет — строка не разнесена"
@@ -294,8 +292,9 @@ export function AllocationSummary({ allocation }: { allocation: AllocationSummar
   if (allocation.document.pending)
     problems.push('разноска суммой, сделанная до строк, ждёт пересчёта по строкам («Объект» → матрица)');
   if (allocation.lost > 0) problems.push(`частей на удалённую стройку: ${allocation.lost}`);
-  if (!allocation.withinTolerance && allocation.discrepancy !== null)
-    problems.push(`расхождение с суммой к оплате ${formatMoney(allocation.discrepancy)} больше допуска ${formatMoney(allocation.tolerance)}`);
+  // Расхождение суммы строк с суммой к оплате здесь не называется: оно — один пункт перечня индикатора
+  // состояния с «мешает: Разобран · оплата» (costs-invoice-screen-11, COST-6.4). Одно расхождение — один раз.
+  if (problems.length === 0) return null;
 
   return <span className="text-body-small text-warning">Разноска: {problems.join('; ')}</span>;
 }

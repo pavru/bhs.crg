@@ -1,4 +1,5 @@
 import type { InvoiceReadinessGap, InvoiceView } from '@/shared/api/invoices';
+import type { PartId } from './invoiceParts';
 
 /**
  * Строка готовности счёта — правила экрана (issue #1291).
@@ -16,7 +17,9 @@ import type { InvoiceReadinessGap, InvoiceView } from '@/shared/api/invoices';
 export type ReadinessTarget =
   | { place: 'field'; key: string }
   | { place: 'lines'; line?: number }
-  | { place: 'allocation' };
+  | { place: 'allocation' }
+  /** Часть формы целиком (индикатор состояния, 11): «Замечания распознавания — Показать». */
+  | { place: 'part'; part: PartId };
 
 export interface ReadinessItem {
   /** Устойчивый ключ пункта — для списка. */
@@ -99,6 +102,7 @@ export const READINESS_ATTR = 'data-readiness';
 
 export const readinessAnchor = (target: ReadinessTarget): string =>
   target.place === 'field' ? `field:${target.key}`
+    : target.place === 'part' ? `part:${target.part}`
     : target.place === 'lines' && target.line != null ? lineAnchor(target.line)
       : target.place;
 

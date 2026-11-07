@@ -16,10 +16,13 @@ export interface InvoiceExtras extends ExtraFields {
   error: unknown;
   /** Схема ещё читается: какие поля форма покажет, пока неизвестно (ревью PR #1506). */
   loading: boolean;
+  /** Перечитать схему — «Повторить» у пункта «Схема типа не прочитана» индикатора (11). */
+  retry: () => void;
 }
 
 export function useInvoiceExtras(typeId: string): InvoiceExtras {
   const type = useDocumentType(typeId);
+  const refetch = type.refetch;
   return useMemo(() => {
     const extras = extraFields(type.data ? parseSchemaFields(type.data.schema) : []);
     return {
@@ -28,8 +31,9 @@ export function useInvoiceExtras(typeId: string): InvoiceExtras {
       byKey: new Map(extras.shown.map(f => [f.key, f])),
       error: type.error,
       loading: type.isPending && type.error == null,
+      retry: () => void refetch(),
     };
-  }, [type.data, type.error, type.isPending]);
+  }, [type.data, type.error, type.isPending, refetch]);
 }
 
 const ExtrasContext = createContext<ReadonlyMap<string, SchemaField>>(new Map());

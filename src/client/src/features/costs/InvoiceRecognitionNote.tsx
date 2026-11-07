@@ -1,102 +1,14 @@
-import { Icon } from '@/shared/ui/Icon';
-import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { DocumentScanner, Refresh, Warning } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
-import { useSnackbar } from '@/shared/ui/Snackbar';
-import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
-import { useInvoiceDelete } from './invoiceDelete';
-import { failureNote, hasRecognitionNotes, unusedLinesNote, type FieldOffer } from './recognition';
+import type { InvoiceRecognition } from '@/shared/api/invoiceRecognition';
+import { hasRecognitionNotes, unusedLinesNote, type FieldOffer } from './recognition';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { UnplacedReads } from './UnplacedReads';
+import { READINESS_ATTR } from './invoiceReadiness';
 
 /**
- * Распознавание скана в форме счёта (issue #1077): чип «Распознаётся…», полоса отказа, замечания.
- *
- * <p>Сторож задачи — отказ выглядит отказом: у черновика, чей скан не прочитан, поля пусты так же,
- * как у счёта, которого никто не трогал, и отличает их только эта полоса с названной причиной.</p>
+ * Распознавание скана в форме счёта (issue #1077): замечания и «В файле: … Взять» у поля. «Распознаётся…»,
+ * отказ с причиной и «по прежнему виду» — пункты индикатора состояния (costs-invoice-screen-11, D-11.2): отказ
+ * выглядит отказом и там — пунктом «Мешает работе» с причиной и banner.
  */
-
-/** В строке чипов: скан читается, форму при этом можно заполнять. */
-export function RecognitionChip({ recognition }: { recognition: InvoiceRecognition | undefined }) {
-  if (recognition?.state !== 'running') return null;
-  return (
-    <span className="inline-flex items-center gap-1 text-body-small text-on-surface-variant" role="status">
-      <CircularProgress size={18} /> Распознаётся…
-      {recognition.progress && <span className="text-on-surface-variant">{recognition.progress}</span>}
-    </span>
-  );
-}
-
-/**
- * Полоса в шапке: распознавание не удалось — с причиной и повтором; либо его состояние не пришло.
- *
- * @param canEdit есть ли право вводить счета: без него повтор ответил бы отказом, и кнопки нет.
- */
-export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead, canEdit }: {
-  invoiceId: string;
-  recognition: InvoiceRecognition | undefined;
-  /** Состояние распознавания не пришло. ⚠️ Это не «не распознан» и не «не запускалось». */
-  unread: boolean;
-  onRetryRead: () => void;
-  canEdit: boolean;
-}) {
-  const start = useStartRecognition();
-  const toast = useSnackbar();
-  const askDelete = useInvoiceDelete();
-
-  if (unread) {
-    return (
-      <Strip quiet>
-        <span className="flex-1">Состояние распознавания не пришло — это не «не распознан».</span>
-        <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onRetryRead}>Повторить</Button>
-      </Strip>
-    );
-  }
-  // Распознанное остаётся в счёте как было — полоса только говорит, что вид на экране уже другой.
-  if (recognition?.state === 'done' && recognition.byFormerImage) {
-    return (
-      <Strip quiet>
-        <span className="flex-1" data-testid="by-former-image">
-          Распознано по прежнему виду файла: вид для чтения с тех пор построен заново. Прочитанное
-          осталось в счёте как было.
-          {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
-        </span>
-        {canEdit && recognition.canStart && (
-          <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
-            onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
-            Распознать ещё раз
-          </Button>
-        )}
-      </Strip>
-    );
-  }
-  if (recognition?.state !== 'failed') return null;
-
-  const note = failureNote(recognition);
-  return (
-    <Strip quiet={note.quiet}>
-      <span className="flex-1">
-        {note.text}
-        {/* Кнопки, которая откажет, нет: причину называет сервер, заранее. */}
-        {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
-      </span>
-      {/* Короткий путь (issue #1282): в файле не прочитано ничего или сам файл не читается (#1343) —
-          чаще всего приложили не тот файл, и черновик из него не нужен. Только там, где удалить можно. */}
-      {askDelete && (recognition.reason === 'NoAnswer' || recognition.reason === 'BadFile') && (
-        <Button variant="text" onClick={() => askDelete('wrong-file')}>
-          Не тот файл — удалить черновик…
-        </Button>
-      )}
-      {/* Сам файл не читается (#1343): повтор на том же файле даст то же самое — путь только другой файл. */}
-      {canEdit && recognition.canStart && recognition.reason !== 'BadFile' && (
-        <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
-          onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
-          Распознать ещё раз
-        </Button>
-      )}
-    </Strip>
-  );
-}
 
 /**
  * Замечания распознавания, строки, которые в счёт не легли, и прочитанное без места в счёте (#1484) —
@@ -109,7 +21,8 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
   const lines = unusedLinesNote(recognition);
   const unplaced = recognition.unplaced;
   return (
-    <section className="space-y-1 text-body-small">
+    // Сюда ведёт пункт индикатора «Замечания распознавания — Показать» (`part:who`, 11).
+    <section className="space-y-1 text-body-small" {...{ [READINESS_ATTR]: 'part:who' }}>
       <h2 className="text-body-medium font-medium text-on-surface-variant">Замечания распознавания</h2>
       {(notes.length > 0 || lines) && (
         <ul className="list-disc pl-4 space-y-0.5 text-warning">
@@ -138,17 +51,5 @@ export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value
           : <span className="shrink-0">— впишите вручную</span>}
       </p>
     </Tooltip>
-  );
-}
-
-function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode }) {
-  return (
-    <div role={quiet ? 'status' : 'alert'}
-      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-body-small ${quiet
-        ? 'border-outline-variant bg-surface-container text-on-surface-variant'
-        : 'border-error/30 bg-error-container text-on-error-container'}`}>
-      {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}
-      {children}
-    </div>
   );
 }

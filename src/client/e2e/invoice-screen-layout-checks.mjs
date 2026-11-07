@@ -13,6 +13,8 @@
 // на сервере: прогон ставит её и возвращает прежнюю в finally, иначе соседние прогоны шли бы с ней.
 
 import { expandInvoiceParts } from './harness.mjs';
+import { invoiceStatusChecks } from './invoice-status-checks.mjs';
+import { statusOpen } from './invoice-status.mjs';
 
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
 export const LAPTOPS = [[1366, 768], [1280, 720], [1366, 650], [1024, 768]];
@@ -78,7 +80,8 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
         await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
         const summary = page.getByTestId('invoice-header');
         await h.named('сводки счёта нет', () => summary.waitFor({ timeout: 10_000 }));
-        await page.getByText('Похоже на дубликат').first().waitFor({ timeout: 10_000 });
+        // Сообщения — в индикаторе состояния (11): ждём banner сбоя распознавания, худшего из них.
+        await page.getByTestId('invoice-status-banner').waitFor({ timeout: 15_000 });
 
         // Подпанель раздела у пользователя открыта (D10), но при открытом счёте её нет (D-10.5): место
         // отдано форме и файлу, а выбор человека не тронут — он вернётся с закрытием счёта (проверка ниже).
@@ -188,6 +191,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       });
     }
     await placeChecks(page, check, h, invoice);
+    await invoiceStatusChecks(page, check, h, invoice);
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.keyboard.press('Escape').catch(() => {});
@@ -204,7 +208,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
     const name = page.getByLabel('Наименование в счёте, строка 1', { exact: true });
     await name.fill('Несохранённая правка');
-    await page.locator('button', { hasText: new RegExp(`${invoice.number} от`) }).first().click();
+    await statusOpen(page, 'duplicate');
     const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await h.named('переход к другому счёту не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
     await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -214,7 +218,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     if ((await name.inputValue()) !== 'Несохранённая правка')
       throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
     // Уходим, не сохраняя: соседним проверкам правка не нужна.
-    await page.locator('button', { hasText: new RegExp(`${invoice.number} от`) }).first().click();
+    await statusOpen(page, 'duplicate');
     await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
   });
 
@@ -318,10 +322,14 @@ async function placeChecks(page, check, h, invoice) {
     const prev = steps.getByRole('button', { name: 'Предыдущий счёт' });
     const [there, back] = (await next.isEnabled()) ? [next, prev] : [prev, next];
     if (!(await there.isEnabled())) throw new Error('обе стрелки неактивны — в отборе один счёт?');
+    const here = (await steps.innerText()).match(/\d+ из \d+/)?.[0];
+    if (!here) throw new Error(`в стрелках нет «N из M»: «${await steps.innerText()}»`);
     await there.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') !== id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('стрелка не открыла соседний счёт'); });
-    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    // Адрес меняется раньше сводки: пока сосед читается, стоит прежний счёт со своим «N из M», и «‹» по нему
+    // честно ведёт к соседу прежнего. Ждём сводку соседа — по смене места в отборе.
+    await h.named('сводка соседа не встала', () => steps.filter({ hasNotText: new RegExp(`(^|\\D)${here}(\\D|$)`) }).waitFor({ timeout: 10_000 }));
     await back.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') === id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('обратная стрелка не вернула к счёту'); });

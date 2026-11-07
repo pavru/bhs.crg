@@ -12,12 +12,10 @@ import {
 import { K, PARSED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
-import { SupplierMatchNote } from './SupplierMatchNote';
 import {
   applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
-import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { formatMoney } from '@/shared/format/format';
 import { emptyDraft, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
@@ -25,9 +23,8 @@ import {
 } from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
-import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
-import { InvoiceReadinessLine } from './InvoiceReadinessLine';
-import { READINESS_ATTR, lineAnchor, readinessItems } from './invoiceReadiness';
+import { READINESS_ATTR, lineAnchor } from './invoiceReadiness';
+import type { MatchFacts } from './invoiceStatus';
 import { useCorrecting } from './useCorrectionDraft';
 import type { LinesStep } from './invoiceSave';
 
@@ -54,7 +51,7 @@ const blank = (value: string) => value.trim() || null;
  * счёта стоят в другом.</p>
  */
 export function InvoiceLinesTable({
-  view, locked, readOnly = false, onDirty, headerDirty = false, supplierName = null, saverRef, compact = false,
+  view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false,
 }: {
   view: InvoiceView;
   /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
@@ -70,14 +67,16 @@ export function InvoiceLinesTable({
   locked: boolean;
   /** Права вводить счета нет: строки читаются так же, но разноска остаётся за своим правом. */
   readOnly?: boolean;
-  /** В шапке есть несохранённое: строка готовности — о сохранённом счёте и обязана это сказать. */
-  headerDirty?: boolean;
+  /**
+   * Что таблица знает для индикатора состояния (11): строки собраны по прежнему виду и запомненное. Сообщений
+   * своих у таблицы нет — пункты перечня собирает форма. Обязан быть стабильным.
+   */
+  onReport?: (report: LinesReport) => void;
 }) {
   // Исправление запертого счёта (E2, issue #1100, PR 6b-1): строки открыты, но своей записи у них нет —
   // набранное уходит в черновик исправления и записывается вместе с шапкой и разноской.
   const correcting = useCorrecting();
   const still = (locked && !correcting) || readOnly;
-  const { data: access = NO_ACCESS } = useAccess();
   // Режим НДС — часть черновика строк (issue #1499): он описывает их суммы и пишется вместе с ними.
   const savedMode = vatModeOf(view);
   const [mode, setMode] = useState<VatMode>(savedMode);
@@ -140,6 +139,9 @@ export function InvoiceLinesTable({
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
   const supplierId = refEntryId(view.requisites[K.supplier]);
   const [askFailed, setAskFailed] = useState<string | null>(null);
+  // Строки, о которых вопрос не прошёл, — «Повторить» спрашивает о них, а не обо всех: suggest подставляет
+  // запомненное сам, а сохранённым строкам по C3 его подставляет только кнопка (ревью PR #1792).
+  const failedKeys = useRef<ReadonlySet<string>>(new Set());
   // Спрашиваем обо ВСЕХ лежащих строках без пометки, а не только о ждущих позиции: человек, меняющий
   // уже стоявшую позицию, обязан увидеть «запомнится вместо прежнего» ДО сохранения, а не узнать о
   // замене из сообщения после него (ревью PR #1262).
@@ -202,6 +204,7 @@ export function InvoiceLinesTable({
       const found = await askMatchSuggestions(supplierId,
         fresh.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
       setAskFailed(null);
+      failedKeys.current = new Set();
       const answers = new Map(found.map(item => [fresh[item.index].key, { offer: item, asked: fresh[item.index] }]));
       if (answers.size === 0) return;
 
@@ -226,6 +229,7 @@ export function InvoiceLinesTable({
     } catch (e) {
       // Вопрос не прошёл — пусть следующий уход с поля задаст его заново.
       fresh.forEach(d => asked.current.delete(d.key));
+      failedKeys.current = new Set([...failedKeys.current, ...fresh.map(d => d.key)]);
       setAskFailed(apiError(e));
     }
   }
@@ -242,11 +246,34 @@ export function InvoiceLinesTable({
   const sums = totals(drafts, mode);
   const strip = reconcile(sums, view.requisites[K.vat], view.requisites[K.total], formatMoney);
   const parsed = view.requisites[K.state] === PARSED;
-  // Запертому счёту (закрытый период, удалён) строки готовности нет вовсе: «Разобран» ему откажет замок,
-  // каким бы ни был перечень, и «всё готово» было бы неправдой. Права — отдельно: пункт без права виден.
-  const readiness = locked ? null : readinessItems(view, {
-    edit: !readOnly, allocate: hasPermission(access, 'costs.allocation.edit'),
+  // Для индикатора (11): факты — значениями, действия — через ссылку, чтобы отчёт не менялся на каждом рендере.
+  const stale = base.stale && dirty && !correcting;
+  const failed = askFailed ?? (laid.isError ? apiError(laid.error) : null);
+  const waiting = drafts.filter(d => d.nomenclatureId === null).length;
+  const shown = !still && drafts.length > 0;
+  const hasSupplier = supplierId !== null;
+  const acts = useRef<LinesActs>(null!);
+  useLayoutEffect(() => {
+    acts.current = {
+      reread,
+      apply: applyReady,
+      retry: () => {
+        if (laid.isError) void laid.refetch();
+        if (askFailed === null) return;
+        // Строки, о которых не спросилось, тем временем удалили — спрашивать не о чем, и отказа больше нет.
+        const again = latest.current.filter(d => failedKeys.current.has(d.key));
+        if (again.length > 0) void suggest(again); else setAskFailed(null);
+      },
+    };
   });
+  useEffect(() => {
+    onReport?.({
+      stale, acts,
+      matches: shown ? { hasSupplier, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
+    });
+  }, [onReport, stale, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
+  useEffect(() => () => onReport?.({ stale: false, acts, matches: null }), [onReport]);
+
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
@@ -363,16 +390,6 @@ export function InvoiceLinesTable({
         <p className="text-body-small text-warning">{modeConsequences(view, drafts, parsed)}</p>
       )}
 
-      {base.stale && dirty && !correcting && <StaleInvoiceNotice what="строки" onReread={reread} />}
-
-      {!still && drafts.length > 0 && (
-        <SupplierMatchNote hasSupplier={supplierId !== null}
-          waiting={drafts.filter(d => d.nomenclatureId === null).length}
-          ready={ready.length} blocked={blockedOffers}
-          failed={askFailed ?? (laid.isError ? apiError(laid.error) : null)}
-          onApply={applyReady} />
-      )}
-
       {/* Колонки с шириной — 492 px, две текстовые делят остаток (D-10.10): таблица шириной с часть «Строки»
           и вбок не прокручивается от 640 px — форма рядом с файлом на 1280 шире. Уже — прокручивается
           только сама таблица. */}
@@ -389,16 +406,13 @@ export function InvoiceLinesTable({
         columns={columns} />
 
       {/* Сверка — липкой строкой под таблицей, пока таблица в окне (D1, ТЗ COST-6.2): у сорока строк она
-          видна, где бы ни стояла прокрутка. Без своей рамки — черта сверху (`Divider`). Рядом — строка
-          готовности до «Разобран» (до индикатора 11). */}
+          видна, где бы ни стояла прокрутка. Без своей рамки — черта сверху (`Divider`). */}
       <div className="sticky bottom-0 z-10 bg-surface pb-2" data-testid="invoice-reconciliation">
         <Divider />
         <ReconciliationStrip sums={sums} strip={strip} unsaved={dirty}
           matched={drafts.filter(d => d.matchedBy !== null).length}
           hint={!still && !correcting && !dirty ? savedExplains(view) : null}
           onHint={to => switchMode(to, true)} />
-        {/* Чего не хватает до «Разобран» — не нажимая (issue #1291). У разобранного и отклонённого строки нет. */}
-        {readiness !== null && <InvoiceReadinessLine items={readiness} unsaved={dirty || headerDirty} />}
       </div>
     </div>
   );
@@ -476,4 +490,19 @@ const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
 function linesSignature(view: InvoiceView): string {
   const mode = vatModeOf(view);
   return JSON.stringify([mode, toPayload(toDrafts(view.lines, mode), mode)]);
+}
+
+/** Действия таблицы, которые зовёт индикатор: перечитать строки, подставить запомненное, повторить вопрос. */
+export interface LinesActs {
+  reread: () => void;
+  apply: () => void;
+  retry: () => void;
+}
+
+/** Отчёт таблицы строк форме — для пунктов индикатора состояния (11). */
+export interface LinesReport {
+  /** Строки набраны поверх прежнего вида счёта. */
+  stale: boolean;
+  matches: MatchFacts | null;
+  acts: MutableRefObject<LinesActs>;
 }

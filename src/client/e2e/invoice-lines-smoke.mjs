@@ -24,6 +24,7 @@ import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoicePart
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
+import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
 import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
 
 const browser = await launchBrowser();
@@ -274,9 +275,8 @@ try {
     });
     if ((await parsed.getAttribute('aria-disabled')) !== 'true')
       throw new Error('«Разобран» активна, хотя строка ждёт позиции');
-    // Строка готовности под таблицей называет саму строку.
-    const said = (await page.getByTestId('invoice-readiness').innerText()).replace(/\s+/g, ' ');
-    if (!/позиции/.test(said)) throw new Error(`строка готовности не назвала строку без позиции: «${said}»`);
+    // Перечень индикатора состояния (11) называет саму строку.
+    await untilStatus(page, items => items.some(i => i.key.startsWith('gap:') && /позиции/.test(i.text)), 'перечень не назвал строку без позиции');
   });
 
   // ── 5. Позиция выбирается, строка разносится — и счёт разбирается ────────────
@@ -289,20 +289,16 @@ try {
     await invoice(number, 1_000);
     await open(number);
 
-    // Строка готовности (issue #1291) убывает по мере заполнения: чего не хватает до «Разобран», видно
-    // не нажимая. Ждём, а не читаем сразу: строка рисуется из ответа, который форма перечитывает следом.
-    const readiness = page.getByTestId('invoice-readiness');
-    const remains = async (expected, absent = []) => {
-      await page.waitForFunction(([wanted, gone]) => {
-        const text = document.querySelector('[data-testid="invoice-readiness"]')?.textContent ?? '';
-        return wanted.every(w => text.includes(w)) && gone.every(g => !text.includes(g));
-      }, [expected, absent], { timeout: 10_000 })
-        .catch(async () => {
-          throw new Error(`строка готовности: ждали ${JSON.stringify(expected)} без ${JSON.stringify(absent)}, `
-            + `стоит «${(await readiness.innerText().catch(() => 'строки нет')).replace(/\s+/g, ' ')}»`);
-        });
-    };
-    await remains(['осталось', 'строки', 'разноска']);
+    // Пункты готовности (issue #1291) убывают по мере заполнения: чего не хватает до «Разобран», видно не
+    // нажимая — в перечне индикатора (11). Ждём, а не читаем сразу: перечень — из ответа, который форма
+    // перечитывает следом. Вид пункта — по ключу (`gap:<kind>`): слова пункта — сервера.
+    const gaps = items => items.filter(i => i.key.startsWith('gap:')).map(i => i.key.split(':')[1]);
+    const remains = (expected, absent = []) => untilStatus(page,
+      items => expected.every(w => gaps(items).includes(w)) && absent.every(g => !gaps(items).includes(g)),
+      `пункты готовности: ждали ${JSON.stringify(expected)} без ${JSON.stringify(absent)}`);
+    const phrase = (wanted, what) => until(async () => { if (!wanted(await statusPhrase(page))) throw new Error('ещё нет'); },
+      { timeout: 10_000, every: 300 }).catch(async () => { throw new Error(`${what}: «${await statusPhrase(page)}»`); });
+    await remains(['lines', 'allocation']);
 
     await addRow(1);
     await cell('Количество', 1).fill('2');
@@ -311,10 +307,11 @@ try {
     await page.getByRole('button', { name: 'выбрать позицию' }).click();
     await page.getByPlaceholder('часть наименования').fill(stamp);
     await page.getByRole('option', { name: cable }).click();
-    // Набрано, но не сохранено: строка — о сохранённом счёте, и она это говорит.
-    await remains(['сохраните правки']);
+    // Набрано, но не сохранено: перечень — о сохранённом счёте, «Разобран» называет причину — несохранённое.
+    await page.waitForFunction(() => /сохраните правки/.test([...document.querySelectorAll('button')]
+      .find(b => b.textContent?.trim() === 'Разобран')?.getAttribute('aria-description') ?? ''), null, { timeout: 10_000 });
     await saveLines();
-    await remains(['осталось', 'разноска'], ['строки', 'сохраните правки']);
+    await remains(['allocation'], ['lines', 'nomenclature']);
 
     // Не разнесено — «Разобран» неактивна, и форма говорит об этом до нажатия.
     // ⚠️ Именно ждём, а не считаем сразу: сохранение строк возвращает управление по ответу PUT, а
@@ -338,19 +335,19 @@ try {
     if (!answer.ok()) throw new Error(`разноска не сохранилась: ${answer.status()}`);
     await page.getByText('Разноска сходится', { exact: false }).waitFor({ timeout: 10_000 });
     // Последний пункт закрыт — перечень пуст, и переход обязан пройти С ПЕРВОГО нажатия.
-    await remains(['Всё готово'], ['осталось']);
+    await remains([], ['lines', 'nomenclature', 'allocation']);
+    await phrase(said => said === 'Готов к «Разобран»', 'перечень пуст, а индикатор не говорит «Готов к «Разобран»»');
 
     const passed = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().endsWith('/parsed'), { timeout: 15_000 });
     await page.getByRole('button', { name: 'Разобран', exact: true }).click();
     if (!(await passed).ok())
-      throw new Error('строка готовности сказала «всё готово», а «Разобран» отказал');
+      throw new Error('индикатор сказал «Готов к «Разобран»», а «Разобран» отказал');
     // Состояние показано человеку словом в сводке — оно же и признак перехода.
     await page.getByTestId('invoice-header').getByText('Разобран', { exact: true }).waitFor({ timeout: 10_000 })
       .catch(() => { throw new Error('после перехода сводка не сказала, что счёт разобран'); });
-    // У разобранного вопрос «чего не хватает» не стоит: строки нет.
-    await readiness.waitFor({ state: 'detached', timeout: 10_000 })
-      .catch(() => { throw new Error('у разобранного счёта осталась строка готовности'); });
+    // У разобранного вопрос «чего не хватает» не стоит: индикатор о готовности молчит.
+    await phrase(said => !said.includes('Готов'), 'у разобранного счёта индикатор говорит о готовности');
   });
 
   // ── 6. Отбор «Разобрать» показывает недоведённые счета и называет, чего им не хватает ──
@@ -424,14 +421,13 @@ try {
       throw new Error(`не сказано «${text}»; на экране: `
         + (await page.locator('[role="status"]').allInnerTexts()).join(' | '));
     });
-    // Готовый счёт открывается свёрнутым (D-10.2): строка готовности — в части «Строки».
-    // Раскрываем, пока не появится: после перехода форма следующего счёта дорисовывается не сразу.
+    // Готовность — фразой индикатора в сводке (11): видна и у свёрнутых частей. Ждём: после перехода форма
+    // следующего счёта дорисовывается не сразу.
     const isReady = async () => { await until(async () => {
-      await expandInvoiceParts(page);
-      if (!(await page.getByTestId('invoice-readiness').filter({ hasText: 'Всё готово' }).count())) throw new Error('ещё нет');
+      if (await statusPhrase(page) !== 'Готов к «Разобран»') throw new Error('ещё нет');
     }, { timeout: 10_000, every: 300 }).catch(async () => {
         throw new Error('подготовленный черновик не готов к «Разобран» — проверять переход не на чем: '
-          + (await page.getByTestId('invoice-readiness').innerText().catch(() => 'строки готовности нет')));
+          + await statusPhrase(page).catch(() => 'индикатора нет'));
       }); };
     const trace = async (id, word) => {
       const traces = await page.getByTestId('row-exit').allInnerTexts();
@@ -614,8 +610,9 @@ try {
 
     await page.getByRole('button', { name: 'позиция удалена' }).waitFor({ timeout: 10_000 });
 
-    // Потеря бывает за краем экрана — строка под прокруткой. Шапка говорит о ней сама (issue #1184).
-    const note = page.getByRole('note').filter({ hasText: 'Удалённые записи справочников' });
+    // Потеря бывает за краем экрана — строка под прокруткой. Форма говорит о ней сама (issue #1184): пункт
+    // «Мешает работе» — banner над частями (11).
+    const note = statusBanner(page).filter({ hasText: 'Удалённые записи справочников' });
     await note.waitFor({ timeout: 10_000 });
     if (!(await note.innerText()).includes('позиция в строке 1'))
       throw new Error(`сводка не называет строку с потерянной позицией: ${await note.innerText()}`);

@@ -46,9 +46,10 @@ const SHOWN_GAPS = 3;
 
 /**
  * Почему «Разобран» неактивна; `null` — активна. Перечень — СЕРВЕРА и о сохранённом (#1291): пока есть
- * несохранённое, причина — оно, а не перечень, который сейчас неправда.
+ * несохранённое или запись в пути, причина — они, а не перечень, который сейчас неправда (ТЗ COST-6.4).
  */
-export function parsedHold(readiness: readonly ReadinessItem[] | null, unsaved: boolean): string | null {
+export function parsedHold(readiness: readonly ReadinessItem[] | null, unsaved: boolean, saving = false): string | null {
+  if (saving) return 'Счёт сохраняется — «Разобран» станет доступна после записи';
   if (unsaved) return 'Сначала сохраните правки: «Разобран» утверждает сохранённый счёт';
   if (!readiness || readiness.length === 0) return null;
   const named = readiness.slice(0, SHOWN_GAPS).map(item => item.label).join(' · ');
@@ -57,11 +58,13 @@ export function parsedHold(readiness: readonly ReadinessItem[] | null, unsaved: 
 }
 
 /**
- * Почему «Отметить оплату…» неактивна; `null` — активна. Только несохранённое: отказ сервера кнопку не
- * гасит — окно оплаты называет его словами сервера, а не полем даты (так было и до сводки).
+ * Почему «Отметить оплату…» неактивна; `null` — активна (ТЗ COST-6.4, D-11.2, 47–48): несохранённое либо
+ * отказ сервера его словами. Отказ стоит и пунктом перечня — с пометкой «мешает: оплата».
  */
-export function payHold(unsaved: boolean): string | null {
-  return unsaved ? 'Сначала сохраните правки: оплата считается по сохранённому счёту' : null;
+export function payHold(unsaved: boolean, refusal: string | null = null, saving = false): string | null {
+  if (saving) return 'Счёт сохраняется — оплату можно отметить после записи';
+  if (unsaved) return 'Сначала сохраните правки: оплата считается по сохранённому счёту';
+  return refusal ? `Оплатить нельзя: ${refusal}` : null;
 }
 
 /** Вторая строка сводки — поставщик · дата · сумма к оплате, по СОХРАНЁННОМУ счёту. */

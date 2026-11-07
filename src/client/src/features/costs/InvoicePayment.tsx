@@ -1,9 +1,7 @@
 import { useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { LockIcon, Payments, Undo } from '@/shared/ui/icons';
-import { Link } from 'react-router';
+import { Payments, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { Banner } from '@/shared/ui/Banner';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
@@ -17,7 +15,7 @@ import {
   usePostedPayment,
   type PaymentPosting,
 } from '@/shared/api/invoicePayment';
-import { K, REJECTED, asInput } from './invoiceFields';
+import { K, asInput } from './invoiceFields';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { changedRows, paidToast, payLabel } from './paymentPosting';
@@ -41,35 +39,6 @@ function invoiceTitle(view: InvoiceView): string {
 }
 
 /**
- * Сообщение запертого счёта: причина словами сервера и что именно нельзя. Сообщение об области — `Banner`
- * (выбор А `sharedui-md3-17`; costs-invoice-screen-10-layout, D-10.9), до индикатора состояния (11).
- */
-export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
-  const can = useCan();
-
-  return (
-    <Banner tone="info" icon={LockIcon} urgent={false}>
-      <span>
-        Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
-        {/* Путь исправления (E2, PR 6b-1) называем тому, у кого есть кнопка «Исправить», — остальным он закрыт. */}
-        {can.permission('costs.invoice.edit') && can.permission('costs.invoice.correct') && (
-          <> Изменить их можно исправлением — кнопкой «Исправить»: оно ляжет в книгу, закрытый месяц не изменится.</>
-        )}
-        {/* Отмена оплаты такому счёту — с правом исправления (E2, issue #1100): она ложится в книгу
-            исправлений днём отмены, закрытый месяц не трогая. Без права её нет вовсе — молчим о ней. */}
-        {can.permission('costs.invoice.pay') && can.permission('costs.invoice.correct') && (
-          <> Оплату отменить можно: отмена ляжет в книгу исправлений.</>
-        )}
-        {/* Действие называем только тому, у кого есть путь: остальным ссылка вела бы в отказ. */}
-        {can.permission('core.period.close') && (
-          <> Закрытие отменяют на странице <Link to="/periods" className="underline">«Учётный период»</Link>.</>
-        )}
-      </span>
-    </Banner>
-  );
-}
-
-/**
  * «Отметить оплату» — в шапке части «Сроки и оплата» (costs-invoice-screen-10-layout, как в Г): видна и у
  * свёрнутой части. Нет её у оплаченного, отклонённого и без права оплаты (`mayMarkPaid`); у разобранного
  * неоплаченного оплата — основное действие сводки, и вторую кнопку форма не рисует.
@@ -85,20 +54,20 @@ export function InvoicePayButton({ view, dirty, onPay }: {
 }) {
   const can = useCan();
   if (!mayMarkPaid(view, can.permission('costs.invoice.pay'))) return null;
+  const hold = payHold(dirty, view.payment.refusal);
   return (
-    <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
-      title={payHold(dirty) ?? undefined} onClick={onPay}>
+    <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={hold !== null}
+      title={hold ?? undefined} onClick={onPay}>
       Отметить оплату
     </Button>
   );
 }
 
-/** Тело части «Сроки и оплата» об оплате: почему оплатить нельзя — или как счёт оплачен. */
-export function InvoicePayment({ view, dirty }: {
-  view: InvoiceView;
-  /** В форме есть несохранённое — в шапке ИЛИ в строках (D-10.7). */
-  dirty: boolean;
-}) {
+/**
+ * Тело части «Сроки и оплата» об оплате — как счёт оплачен. Почему оплатить нельзя, говорят подсказка
+ * неактивной «Отметить оплату…» и пункт индикатора состояния (costs-invoice-screen-11, D-11.2, 47–48).
+ */
+export function InvoicePayment({ view }: { view: InvoiceView }) {
   const can = useCan();
   const canPay = can.permission('costs.invoice.pay');
   const [dialog, setDialog] = useState<null | 'cancel' | 'posting'>(null);
@@ -108,13 +77,7 @@ export function InvoicePayment({ view, dirty }: {
   // Без второго кнопки нет вовсе: почему счёт не правится, говорит сообщение над частями.
   const canCancel = canPay && (!locked || can.permission('costs.invoice.correct'));
 
-  if (!payment.paid) {
-    // У отклонённого оплаты нет вовсе, а не «кнопка и причина отказа».
-    if (!canPay || view.requisites[K.state] === REJECTED) return null;
-    // Причина — видимая: приглушённая кнопка сама о ней молчит.
-    if (dirty) return <p className="text-body-small text-on-surface-variant">Сохраните правки счёта: оплата считается по сохранённому.</p>;
-    return payment.refusal ? <p className="text-body-small text-warning">Оплатить нельзя: {payment.refusal}</p> : null;
-  }
+  if (!payment.paid) return null;
 
   return (
     <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-body-small text-on-surface-variant">

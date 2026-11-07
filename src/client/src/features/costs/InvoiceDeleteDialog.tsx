@@ -1,7 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Warning } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDeleteInvoice, useFreshInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
@@ -95,26 +92,5 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
         )}
         onConfirm={confirm} />
     </InvoiceDeleteContext.Provider>
-  );
-}
-
-/**
- * «Этого счёта больше нет» — полоса над формой, чей счёт удалили, пока он был открыт (issue #1282).
- *
- * <p>Форма при этом НЕ закрывается: набранное остаётся на экране, чтобы его можно было перенести.
- * Раньше сосед увидел бы «Счёт не открылся… сам счёт в списке остался» — неправду — и потерял бы
- * набранное молча. Действий записи у такой формы нет: сохранять уже некуда.</p>
- */
-export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
-  return (
-    <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-md border
-      border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
-      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
-      <p className="flex-1">
-        Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:
-        перенесите нужное себе. Сохранить его уже некуда.
-      </p>
-      <Button variant="outlined" onClick={onClose}>Закрыть счёт</Button>
-    </div>
   );
 }

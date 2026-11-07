@@ -46,6 +46,9 @@ beforeEach(() => {
   }) as never);
 });
 
+/** Что полоса отдала индикатору состояния (11): «перечитать» устаревшего исправления. */
+let staleReread: (() => void) | null = null;
+
 /** Форма в миниатюре: вид — из кэша, как у страницы, режим включён с первого кадра. */
 function Form() {
   const { data } = useInvoice('i1');
@@ -54,7 +57,7 @@ function Form() {
   if (!started) { setStarted(true); draft.start(); }
   if (!data) return null;
   return draft.active
-    ? <CorrectionBar view={data} draft={draft} edits={{ 'Номер': 'СЧ-2' }} onResetHeader={() => {}} />
+    ? <CorrectionBar view={data} draft={draft} edits={{ 'Номер': 'СЧ-2' }} onResetHeader={() => {}} onStale={reread => { staleReread = reread; }} />
     : <p>режим закрыт</p>;
 }
 
@@ -115,7 +118,7 @@ describe('полоса исправления', () => {
     expect(vi.mocked(apiClient.post).mock.calls.filter(([u]) => !String(u).endsWith('/preview'))).toHaveLength(1);
   });
 
-  it('версия сменилась — окно закрывается, полоса говорит «перечитайте»', async () => {
+  it('версия сменилась — окно закрывается, «перечитайте» уходит пунктом индикатора (11)', async () => {
     vi.mocked(apiClient.post).mockImplementation((async () => { throw conflict(); }) as never);
     fresh = view({ version: '8' });
     mount();
@@ -123,7 +126,7 @@ describe('полоса исправления', () => {
     fireEvent.click(check());
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(await screen.findByText(/исправление на экране собраны по прежнему виду/)).toBeTruthy();
+    await waitFor(() => expect(staleReread).toBeTypeOf('function'));
     expect((check() as HTMLButtonElement).disabled).toBe(true);
   });
 

@@ -1,6 +1,6 @@
-import { FilterHidesAll, NotInListNotice } from '@/shared/siteFilter/SiteFilterNotes';
+import { FilterHidesAll } from '@/shared/siteFilter/SiteFilterNotes';
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
-import { NOT_IN_RAIL, SEARCH_HIDDEN, hiddenEmpty } from './invoiceSites';
+import { SEARCH_HIDDEN, hiddenEmpty } from './invoiceSites';
 
 /** Строки рейла счетов под фильтром «Избранные стройки» (issue #1221); решения — в `useRailSites`. */
 
@@ -18,7 +18,3 @@ export function RailSitesEmpty({ searching, hidden, foundHidden, onShowAll }: {
   );
 }
 
-/** Над формой счёта, скрытого в рейле. */
-export function NotInRailNotice({ onShowAll }: { onShowAll: () => void }) {
-  return <NotInListNotice testId="invoice-not-in-rail" text={NOT_IN_RAIL} onShowAll={onShowAll} />;
-}

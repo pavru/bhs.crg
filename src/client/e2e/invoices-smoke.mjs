@@ -29,6 +29,7 @@ import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
+import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
 /** Подпись у помеченного поля — она же примета метки на экране. */
 const MARK = 'Распознано, не подтверждено';
@@ -37,7 +38,7 @@ const MARK = 'Распознано, не подтверждено';
  * Отказ о САМОМ файле (issue #1343, #1344): начало полосы в форме и строка списка. Источник слов —
  * `src/features/costs/recognition.ts` (`failureNote` и `shortReason` для `BadFile`): меняются вместе.
  */
-const BAD_FILE = { note: 'Файл не распознан: сам файл не читается', row: 'не распознан — файл не читается' };
+const BAD_FILE = { note: 'Файл не распознан: файл не читается', row: 'не распознан — файл не читается' };
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -295,7 +296,7 @@ try {
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
     await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
     await expandInvoiceParts(page);
-    await page.getByText('Похоже на дубликат').waitFor({ timeout: 10_000 });
+    await untilStatus(page, items => items.some(i => i.key === 'duplicate'), 'перечень не назвал дубликат');
 
     // Сохранение НЕ заблокировано: правка проходит при живой оговорке.
     await page.getByLabel('Назначение').fill('Правка при дубликате');
@@ -315,8 +316,8 @@ try {
     if (saved !== 'Правка при дубликате')
       throw new Error(`правка при дубликате не сохранилась: в поле «${saved}»`);
 
-    // Ссылка ведёт на ТОТ счёт — узнаём его по назначению, оно у счетов разное.
-    await page.locator('button', { hasText: new RegExp(`${number} от`) }).first().click();
+    // Строка пункта ведёт на ТОТ счёт — узнаём его по назначению, оно у счетов разное.
+    await statusOpen(page, 'duplicate');
     // «Назначение» — в части «Ещё», а она открывается свёрнутой.
     await page.waitForTimeout(500);
     await expandInvoiceParts(page);
@@ -458,10 +459,9 @@ try {
 
     // Из полосы — на новый черновик: оговорка стоит на форме и ведёт к удалению лишнего.
     await list.getByRole('button', { name: repeats[0] }).click();
-    const note = page.getByTestId('same-file-note');
-    await named('на форме оговорки о том же файле нет',
-      () => note.getByText(/Этот файл уже приложен к другим счетам: /).waitFor({ timeout: 15_000 }));
-    await note.getByRole('button', { name: 'Загружен дважды — удалить этот черновик…' }).click();
+    await untilStatus(page, items => items.some(i => i.key === 'same-file' && /приложен ещё к \d+ счетам: /.test(i.text)),
+      'на форме оговорки о том же файле нет', 15_000);
+    await statusAction(page, 'same-file', 'Удалить черновик…');
     await named('диалог удаления не назвал остающийся счёт',
       () => page.getByTestId('invoice-delete-body').getByText(/Останется счёт .* — с тем же файлом\./).waitFor({ timeout: 5_000 }));
     await page.getByRole('button', { name: 'Не удалять' }).click();
@@ -663,7 +663,7 @@ try {
     }, [other.id, other.version]);
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await named('форма не сказала, что счёта больше нет',
-      () => page.getByTestId('invoice-gone').waitFor({ timeout: 10_000 }));
+      () => statusBanner(page).filter({ hasText: 'Счёт удалён' }).waitFor({ timeout: 10_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до удаления')
       throw new Error('набранное пропало вместе со счётом — а полоса обещает, что оно на экране');
     if (await page.getByRole('button', { name: 'Сохранить', exact: true }).count())
@@ -686,14 +686,14 @@ try {
       : route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Счёт тем временем изменили (проба)."}' }));
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await named('полосы «не перечитался» нет — форма снята или отказ не показан',
-      () => page.getByTestId('reread-failed').waitFor({ timeout: 15_000 }));
+      () => statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).waitFor({ timeout: 15_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
       throw new Error('набранное пропало при неудачном перечитывании');
 
     await page.unroute(address);
-    await page.getByTestId('reread-failed').getByRole('button', { name: 'Повторить' }).click();
+    await statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).getByRole('button', { name: 'Повторить' }).click();
     await named('после удачного повтора полоса осталась',
-      () => page.getByTestId('reread-failed').waitFor({ state: 'detached', timeout: 10_000 }));
+      () => statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).waitFor({ state: 'detached', timeout: 10_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
       throw new Error('набранное пропало после удачного повтора');
   });

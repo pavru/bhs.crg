@@ -57,9 +57,9 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   return (
     <div ref={ref} tabIndex={-1} role="group" aria-label={title} data-testid="invoice-header"
       className="@container h-16 shrink-0 min-w-0 border-b border-outline-variant bg-surface outline-none">
-      <div className="h-full flex items-center gap-2 @3xl:gap-3 px-3 @3xl:px-4">
+      <div className="h-full flex items-center gap-2 @4xl:gap-3 px-3 @4xl:px-4">
         {nav}
-        <div className="flex-1 min-w-16 @3xl:min-w-32 flex flex-col justify-center">
+        <div className="flex-1 min-w-16 @4xl:min-w-32 flex flex-col justify-center">
           {/* Сжимаются сначала пометки состояния, номер — последним: по нему счёт узнают. */}
           <div className="flex items-center gap-2 min-w-0">
             <h2 className="shrink-0 max-w-full truncate text-title-medium text-on-surface"
@@ -72,7 +72,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
         </div>
         {indicator}
         {save && (
-          <Wide at="3xl">
+          <Wide at="4xl">
             <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`}>
               Сохранить
@@ -80,7 +80,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           </Wide>
         )}
         {save && (
-          <Narrow at="3xl">
+          <Narrow at="4xl">
             <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
           </Narrow>
@@ -113,10 +113,11 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
 /**
  * Подпись кнопки — с ширины сводки `at`, уже — значок (`Narrow`). Основному действию подпись нужнее всего:
  * это главное, что человек делает со счётом, и словом оно читается без наведения, — поэтому ему 576 (форма
- * рядом с файлом на 1280 — 744), «Сохранить» — 768. Причину неактивного называет подсказка и у значка. Скрытая копия выпадает и из дерева доступности.
+ * рядом с файлом на 1280 — 744), «Сохранить» — 896: с индикатором состояния (11) сводка рядом с файлом на 1366 (797)
+ * подпись «Сохранить» уже не вмещала, и основное действие уезжало под панель файла. Причину неактивного называет подсказка и у значка. Скрытая копия выпадает и из дерева доступности.
  */
-const WIDE = { xl: 'hidden @xl:contents', '3xl': 'hidden @3xl:contents' } as const;
-const NARROW = { xl: 'contents @xl:hidden', '3xl': 'contents @3xl:hidden' } as const;
+const WIDE = { xl: 'hidden @xl:contents', '4xl': 'hidden @4xl:contents' } as const;
+const NARROW = { xl: 'contents @xl:hidden', '4xl': 'contents @4xl:hidden' } as const;
 
 function Wide({ at, children }: { at: keyof typeof WIDE; children: ReactNode }) {
   return <span className={WIDE[at]}>{children}</span>;
