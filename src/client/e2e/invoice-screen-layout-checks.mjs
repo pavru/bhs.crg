@@ -322,10 +322,14 @@ async function placeChecks(page, check, h, invoice) {
     const prev = steps.getByRole('button', { name: 'Предыдущий счёт' });
     const [there, back] = (await next.isEnabled()) ? [next, prev] : [prev, next];
     if (!(await there.isEnabled())) throw new Error('обе стрелки неактивны — в отборе один счёт?');
+    const here = (await steps.innerText()).match(/\d+ из \d+/)?.[0];
+    if (!here) throw new Error(`в стрелках нет «N из M»: «${await steps.innerText()}»`);
     await there.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') !== id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('стрелка не открыла соседний счёт'); });
-    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    // Адрес меняется раньше сводки: пока сосед читается, стоит прежний счёт со своим «N из M», и «‹» по нему
+    // честно ведёт к соседу прежнего. Ждём сводку соседа — по смене места в отборе.
+    await h.named('сводка соседа не встала', () => steps.filter({ hasNotText: new RegExp(`(^|\\D)${here}(\\D|$)`) }).waitFor({ timeout: 10_000 }));
     await back.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') === id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('обратная стрелка не вернула к счёту'); });
