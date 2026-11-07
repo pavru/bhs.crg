@@ -124,15 +124,15 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (`invoiceStatus.test.ts`
+- [x] 5.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (`invoiceStatus.test.ts`
   входит).
-- [ ] 5.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `notice-plaque` по
+- [x] 5.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `notice-plaque` по
   `features/costs` — ноль, `hand-card` — без файлов 11 (файлы раскладки — 4.7 у 10).
-- [ ] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный; `--filter "FullyQualifiedName~InvoiceReadiness"` — зелёный (сервер не менялся, ответ 02
   потребляется как есть).
-- [ ] 5.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke` (с
+- [x] 5.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke` (с
   `invoice-screen-layout-checks`), `invoice-lines-smoke`, `invoice-payment-smoke`; оболочку PR не
   трогает. Если тронет — весь список `npm run -s test:e2e:ci` (зонтик 3.1).
-- [ ] 5.5 Каждый PR — с меткой `version:minor`, названием макета и варианта и снимками до и после;
+- [x] 5.5 Каждый PR — с меткой `version:minor`, названием макета и варианта и снимками до и после;
   `<Version>` не тронут.
