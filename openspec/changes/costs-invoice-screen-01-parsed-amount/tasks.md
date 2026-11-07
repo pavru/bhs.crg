@@ -54,5 +54,5 @@
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста (клиент почти не меняется)
 - [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 `bash scripts/backend-tests.sh` — весь набор двумя потоками зелёный, как в CI
-- [ ] 3.6 PR с меткой `version:minor`; `<Version>` не тронута
+- [x] 3.5 `bash scripts/backend-tests.sh` — весь набор двумя потоками зелёный, как в CI
+- [x] 3.6 PR с меткой `version:minor`; `<Version>` не тронута
