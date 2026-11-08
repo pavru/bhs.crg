@@ -281,6 +281,18 @@ describe('SnackbarProvider [UI-71]', () => {
     expect(texts()).toEqual([]);
   });
 
+  // Поле пересоздаётся под каждое уведомление, но фокус, стоявший в нём, туда же и возвращается: человек с
+  // клавиатуры (F8, Tab, Enter на «Вернуть») не должен оказаться на <body> (ревью PR #1808).
+  it('фокус в поле уведомлений переживает смену уведомления', () => {
+    act(() => { api.success('Черновик удалён', { action: { label: 'Вернуть', onClick: () => {} }, onClose: () => {} }); });
+    const button = within(shown()[0]).getByRole('button', { name: 'Вернуть' });
+    act(() => { button.focus(); });
+    fireEvent.click(button);
+    wait(SNACKBAR_EXIT_MS);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole('region').contains(document.activeElement)).toBe(true);
+  });
+
   it('вид MD3: inverse-surface, форма 4, уровень 3, без знака', () => {
     act(() => { api.error('Сбой'); });
     const li = shown()[0];

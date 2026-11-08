@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import type { InvoiceView } from '@/shared/api/invoices';
+import { QK, forgetInvoice, type InvoiceView } from '@/shared/api/invoices';
 import {
-  canDelete, confirmLabel, deleteInvoice, deletesNow, goingAway, invoiceTitle, isFresh, markCreatedHere, resetFresh,
+  canDelete, confirmLabel, deleteDraftLater, deleteInvoice, deletesNow, goingAway, invoiceTitle, isFresh, markCreatedHere, resetFresh,
   watchFreshness,
 } from './invoiceDelete';
 
@@ -73,6 +73,28 @@ describe('goingAway', () => {
     expect(goingAway(view({ lines: [{ parts: 2 }], requisites: { Скан: { fileName: 'а.pdf' } } }))).toEqual([
       'строки счёта — 1', 'разноска по объектам и статьям', 'файл счёта «а.pdf» и прочитанное из него',
     ]);
+  });
+});
+
+// Ревью PR #1808: отложенное удаление разбирает отказы так же, как диалог, — своими словами, без окна.
+describe('deleteDraftLater', () => {
+  it('ответа нет — исход неизвестен, а не «не удалён»', async () => {
+    await expect(deleteDraftLater(() => Promise.reject(new Error('Network Error')), () => Promise.reject(new Error('—'))))
+      .rejects.toThrow('Удалён ли черновик — неизвестно');
+  });
+
+  it('409, а черновик по-прежнему удаляемый — свежий счёт прочитан, слова без «окна»', async () => {
+    let read = 0;
+    const error = await deleteDraftLater(() => Promise.reject(refusal(409, 'Счёт изменили.')),
+      () => { read += 1; return Promise.resolve(view()); }).then(() => new Error('удалён'), (e: Error) => e);
+    expect(read).toBe(1);
+    expect(error.message).toContain('Черновик не удалён: его тем временем изменили');
+    expect(error.message).not.toContain('окно');
+  });
+
+  it('404 — «уже удалён»', async () => {
+    expect(await deleteDraftLater(() => Promise.reject(refusal(404, 'Счёт не найден.')), () => Promise.reject(new Error('—'))))
+      .toBe('already');
   });
 });
 
@@ -167,5 +189,20 @@ describe('«свежий» черновик (costs-invoice-screen-13-undo, D-13.
     expect(deletesNow(entry, 'duplicate')).toBe(false);
     expect(deletesNow({ now: false, ask: () => {} }, 'menu')).toBe(false);
     expect(deletesNow(null, 'menu')).toBe(false);
+  });
+});
+
+// Ревью PR #1808: скрытый на время «Вернуть» черновик открывается обратно, как только запрос удался, — и до ответа
+// перечитывания стоял бы строкой, которая ведёт в «счёта нет».
+describe('forgetInvoice', () => {
+  it('удалённый уходит из списков в кэше сразу, остальные строки на месте', () => {
+    const qc = new QueryClient();
+    qc.setQueryData([QK, 'list', null], [{ id: 'a' }, { id: 'b' }]);
+    qc.setQueryData([QK, 'list', 'parsing'], [{ id: 'a' }]);
+    qc.setQueryData([QK, 'a'], { id: 'a' });
+    forgetInvoice(qc, 'a');
+    expect(qc.getQueryData([QK, 'list', null])).toEqual([{ id: 'b' }]);
+    expect(qc.getQueryData([QK, 'list', 'parsing'])).toEqual([]);
+    expect(qc.getQueryData([QK, 'a'])).toBeUndefined();
   });
 });

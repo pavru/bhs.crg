@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { SnackbarCloseReason } from '@/shared/ui/Snackbar';
+import type { DeleteOutcome } from './recordDelete';
 
 /**
  * Отложенное удаление нового черновика (costs-invoice-screen-13-undo, D-13.4, ТЗ COST-6.6).
@@ -17,17 +18,19 @@ import type { SnackbarCloseReason } from '@/shared/ui/Snackbar';
 
 /** Чем удаление отправляется и что делать с ответом — даёт страница: у модуля нет ни клиента запросов, ни снэкбара. */
 export interface DeletePort {
-  /** Сам запрос: `DELETE …/invoices/{id}` с `If-Match`. */
-  send: (id: string, version: string) => Promise<unknown>;
-  /** Удалён: выбросить счёт из кэша. */
-  deleted: (id: string) => void;
+  /** Сам запрос: `DELETE …/invoices/{id}` с `If-Match`; `already` — счёта уже не было. Отказ — исключением. */
+  send: (id: string, version: string) => Promise<DeleteOutcome>;
+  /** Счёта больше нет: выбросить его из кэша — и из списков, пока черновик ещё скрыт. */
+  deleted: (id: string, outcome: DeleteOutcome) => void;
   /** Отказ: сказать отказом — черновик уже снова в списке. */
   refused: (id: string, error: unknown) => void;
   /** Ушло при закрытии вкладки — `fetch` с `keepalive`: обычный запрос браузер оборвал бы. */
   beacon: (id: string, version: string) => void;
+  /** Исход неизвестен (ушло по `pagehide`, а страница вернулась): перечитать, а список скажет сам. */
+  reread: (id: string) => void;
 }
 
-interface Waiting { version: string; port: DeletePort; sent: boolean }
+interface Waiting { version: string; port: DeletePort; sent: boolean; beaconed?: boolean }
 
 const waiting = new Map<string, Waiting>();
 const listeners = new Set<() => void>();
@@ -43,8 +46,24 @@ function onPageHide() {
   for (const [id, item] of waiting) {
     if (item.sent) continue;
     item.sent = true;
+    item.beaconed = true;
     try { item.port.beacon(id, item.version); } catch { /* не ушёл — черновик останется черновиком */ }
   }
+}
+
+/**
+ * Страница вернулась из кэша истории (`pagehide` бывает и при уходе по ссылке, с «Назад» после него):
+ * ушедшее по `pagehide` больше не ждёт. Дошёл ли запрос, не знает никто — ответ `keepalive` не читается, а токен
+ * мог истечь, — поэтому черновик не прячется навсегда, а перечитывается: удалён — его не будет в списке,
+ * нет — он вернётся строкой (ревью PR #1808).
+ */
+function onPageShow(event: PageTransitionEvent) {
+  if (!event.persisted) return;
+  const beaconed = [...waiting].filter(([, item]) => item.beaconed);
+  if (!beaconed.length) return;
+  for (const [id] of beaconed) waiting.delete(id);
+  changed();
+  for (const [id, item] of beaconed) item.port.reread(id);
 }
 let listening = false;
 
@@ -60,6 +79,7 @@ export function schedule(id: string, version: string, port: DeletePort): boolean
   waiting.set(id, { version, port, sent: false });
   if (!listening && typeof window !== 'undefined') {
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
     listening = true;
   }
   changed();
@@ -81,8 +101,9 @@ export async function send(id: string): Promise<void> {
   if (!item || item.sent) return;
   item.sent = true;
   try {
-    await item.port.send(id, item.version);
-    item.port.deleted(id);
+    const outcome = await item.port.send(id, item.version);
+    // Сначала из кэша, потом из скрытых: в обратном порядке удалённый мигнул бы строкой до перечитывания.
+    item.port.deleted(id, outcome);
     waiting.delete(id);
     changed();
   } catch (error) {
@@ -98,6 +119,12 @@ export function settle(id: string, reason: SnackbarCloseReason): void {
   if (reason !== 'action') void send(id);
 }
 
+/**
+ * Скрытые сейчас черновики — без подписки, для обработчиков: «следующий» после выхода из очереди не должен
+ * оказаться черновиком, который скрыт и вот-вот уйдёт (ревью PR #1808).
+ */
+export const pendingIds = (): ReadonlySet<string> => hidden;
+
 /** Скрытые сейчас черновики: ждут удаления или ответа на него. */
 export function usePendingDeletes(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, () => hidden, () => hidden);
@@ -111,7 +138,10 @@ function subscribe(listener: () => void) {
 /** Для тестов: забыть всё. */
 export function resetPendingDeletes(): void {
   waiting.clear();
-  if (listening) window.removeEventListener('pagehide', onPageHide);
+  if (listening) {
+    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('pageshow', onPageShow);
+  }
   listening = false;
   changed();
 }

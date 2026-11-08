@@ -1,4 +1,5 @@
 import type { InvoiceView } from '@/shared/api/invoices';
+import { isConflict } from '@/shared/utils/apiError';
 import { K, REJECTED } from './invoiceFields';
 
 /** Чем кончилось «Отклонить»: отклонили этим запросом — или счёт уже был отклонён. */
@@ -13,8 +14,6 @@ export type RejectResult = { outcome: 'rejected'; version: string } | { outcome:
 
 /** Версия для «Вернуть» — только у отклонённого этим запросом. */
 export const undoVersion = (result: RejectResult): string | null => result.version;
-
-const isConflict = (error: unknown) => (error as { response?: { status?: number } })?.response?.status === 409;
 
 /**
  * Отклонить счёт — и отличить «не отклонён» от «уже отклонён» (ревью PR #1290).

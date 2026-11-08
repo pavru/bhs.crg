@@ -280,9 +280,11 @@ export function InvoiceForm({
     const title = extras.byKey.get(key)?.title ?? extras.unshown.find(u => u.field.key === key)?.field.title;
     return title ? [[key, title]] : [];
   }));
-  // Новый черновик из файла этой вкладки, без записей и без несохранённого, удаляется без окна (D-13.3).
+  // Новый черновик из файла этой вкладки, без записей и без несохранённого, удаляется без окна (D-13.3). Пока
+  // файл распознаётся — окном: исход сдвинет версию за срок «Вернуть», отложенный запрос упрётся в 409, а окно
+  // говорит, что прочитанное пропадёт (ревью PR #1808).
   const fresh = useFresh(view.id);
-  const deleteNow = !!onDeleteLater && fresh && !unsaved && canDelete(view, canEdit && !closed);
+  const deleteNow = !!onDeleteLater && fresh && !unsaved && !watch.running && canDelete(view, canEdit && !closed);
   const indicator = useInvoiceStatus({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,

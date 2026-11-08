@@ -671,21 +671,20 @@ export function onInvoiceWritten(
  * Удалить счёт (issue #1282): только черновик без оплаты, насовсем. Ответа-вида нет, поэтому не
  * `useInvoiceWrite`; кэш после успеха чистит `forgetInvoice` — когда форма уже закрыта.
  */
-export function useDeleteInvoice() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, seen }: { id: string; seen: string }) =>
-      apiClient.delete(`/costs/invoices/${id}`, seenBy(seen)).then(() => undefined),
-    onError: rereadOnConflict(qc),
-  });
-}
-
 /**
- * Удалить черновик мимо хука — отложенное удаление (costs-invoice-screen-13-undo, D-13.4) уходит, когда формы
- * уже нет, а со страницы, бывает, ушли: мутация размонтированного компонента не нужна.
+ * Сам запрос удаления — один на диалог и на отложенное удаление (costs-invoice-screen-13-undo, D-13.4): то уходит,
+ * когда формы уже нет, а со страницы, бывает, ушли, и мутация размонтированного компонента ему не нужна.
  */
 export const sendInvoiceDelete = (id: string, seen: string) =>
   apiClient.delete(`/costs/invoices/${id}`, seenBy(seen)).then(() => undefined);
+
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, seen }: { id: string; seen: string }) => sendInvoiceDelete(id, seen),
+    onError: rereadOnConflict(qc),
+  });
+}
 
 /**
  * То же при закрытии вкладки: `fetch` с `keepalive`, который axios не умеет, — обычный запрос браузер
@@ -710,6 +709,9 @@ export function sendInvoiceDeleteOnLeave(id: string, seen: string): void {
  */
 export function forgetInvoice(qc: QueryClient, id: string) {
   qc.removeQueries({ queryKey: [QK, id] });
+  // Из списков — сразу, не дожидаясь перечитывания: иначе до его ответа удалённый стоял бы строкой и
+  // открывался бы «счёта нет» (ревью PR #1808 — скрытый на время «Вернуть» черновик возвращался в список).
+  qc.setQueriesData<InvoiceListItem[]>({ queryKey: [QK, 'list'] }, list => list?.filter(i => i.id !== id));
   // Всё остальное под ключом счетов — устарело: список, числа очередей и виды ДРУГИХ счетов. У
   // оставшегося двойника в кэше лежит оговорка о дубликате со ссылкой на удалённый (ревью PR #1298).
   // Сам удалённый счёт под ключом уже не стоит, и заново его это не запросит.
