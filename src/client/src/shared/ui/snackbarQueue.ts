@@ -8,6 +8,10 @@ import type { SnackbarOptions } from './Snackbar';
  * должен закрыть следующий «Сохранено», а «Вернуться» — потеряться за сведениями. Ожидающие успех и
  * сведение стареют за 15 с: опрос или фоновая вкладка иначе накопили бы стопку давних «Сохранено».
  * Ошибки не стареют и не отбрасываются — о них человек обязан узнать.</p>
+ *
+ * <p>Отброшенное с откликом закрытия считается закрытым: оно копится в `dropped`, и провайдер зовёт его
+ * отклик с причиной `dropped`. Звать отсюда нельзя — редьюсер обязан быть чистым, а `StrictMode` зовёт
+ * его дважды, и отклик ушёл бы дважды.</p>
  */
 
 /** Уведомление в очереди: номер, время прихода и ключ повтора. */
@@ -22,12 +26,15 @@ export interface SnackbarQueue {
   shown: SnackbarItem | null;
   leaving: boolean;
   pending: SnackbarItem[];
+  /** Отброшенные очередью, не показавшись, — только с `onClose`; провайдер зовёт отклик и `flush`. */
+  dropped: SnackbarItem[];
 }
 
 export type SnackbarAction =
   | { type: 'push'; item: SnackbarItem }
   | { type: 'close'; id: number }
-  | { type: 'next'; now: number };
+  | { type: 'next'; now: number }
+  | { type: 'flush'; ids: number[] };
 
 export const PENDING_MAX = 10;
 export const PENDING_TTL_MS = 15_000;
@@ -39,7 +46,7 @@ export const PENDING_TTL_MS = 15_000;
  */
 export const SNACKBAR_EXIT_MS = 200;
 
-export const EMPTY_QUEUE: SnackbarQueue = { shown: null, leaving: false, pending: [] };
+export const EMPTY_QUEUE: SnackbarQueue = { shown: null, leaving: false, pending: [], dropped: [] };
 
 /** Ключ повтора: двойной щелчок даёт то же уведомление, и второе не ставится. */
 export function snackbarKey(o: SnackbarOptions): string {
@@ -48,32 +55,51 @@ export function snackbarKey(o: SnackbarOptions): string {
 
 const isError = (i: SnackbarItem) => i.variant === 'error';
 const rank = (i: SnackbarItem) => (isError(i) ? 0 : i.action ? 1 : 2);
+/** Отброшенное без отклика исчезает молча, с откликом — ждёт провайдера. */
+const withDropped = (dropped: SnackbarItem[], gone: SnackbarItem[]) => {
+  const owed = gone.filter(i => i.onClose);
+  return owed.length ? [...dropped, ...owed] : dropped;
+};
 
 export function snackbarQueue(state: SnackbarQueue, action: SnackbarAction): SnackbarQueue {
   switch (action.type) {
     case 'push': {
       const { item } = action;
-      // Уходящее уже не видно: такое же после него — новое уведомление, а не повтор.
+      // Уходящее уже не видно: такое же после него — новое уведомление, а не повтор. Уведомление с
+      // откликом повтором не бывает: отклик несёт своё действие (какую строку вернуть), и слитое
+      // второе потеряло бы его.
       const visible = state.shown && !state.leaving ? state.shown : null;
-      if (visible?.key === item.key || state.pending.some(p => p.key === item.key)) return state;
+      const repeat = !item.onClose && (visible?.key === item.key || state.pending.some(p => p.key === item.key));
+      if (repeat) return state;
       if (!state.shown) return { ...state, shown: item };
       const pending = [...state.pending, item];
+      const evicted: SnackbarItem[] = [];
       while (pending.length > PENDING_MAX) {
         const oldest = pending.findIndex(p => !isError(p));
         if (oldest < 0) break;
-        pending.splice(oldest, 1);
+        evicted.push(...pending.splice(oldest, 1));
       }
-      return { ...state, pending };
+      return { ...state, pending, dropped: withDropped(state.dropped, evicted) };
     }
     case 'close':
       return state.shown?.id === action.id && !state.leaving ? { ...state, leaving: true } : state;
     case 'next': {
       // Сдвиг — только после закрытия: запоздавший таймер прежнего не снимет нынешнее.
       if (!state.leaving) return state;
-      const fresh = state.pending.filter(p => isError(p) || action.now - p.at <= PENDING_TTL_MS);
+      const isFresh = (p: SnackbarItem) => isError(p) || action.now - p.at <= PENDING_TTL_MS;
+      const fresh = state.pending.filter(isFresh);
       // Ожидающие лежат по приходу: первый с наименьшим рангом — и самый важный, и самый ранний.
       const best = fresh.reduce<SnackbarItem | null>((b, p) => (!b || rank(p) < rank(b) ? p : b), null);
-      return { shown: best, leaving: false, pending: fresh.filter(p => p !== best) };
+      return {
+        shown: best, leaving: false, pending: fresh.filter(p => p !== best),
+        dropped: withDropped(state.dropped, state.pending.filter(p => !isFresh(p))),
+      };
+    }
+    case 'flush': {
+      const done = new Set(action.ids);
+      return state.dropped.some(d => done.has(d.id))
+        ? { ...state, dropped: state.dropped.filter(d => !done.has(d.id)) }
+        : state;
     }
   }
 }

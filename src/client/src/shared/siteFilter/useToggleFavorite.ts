@@ -1,4 +1,4 @@
-import { useSnackbar } from '@/shared/ui/Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import { useSiteFilterState } from './siteFilterContext';
 
 /**
@@ -29,7 +29,10 @@ export function useToggleFavorite() {
     } else {
       // «Вернуть» — та же запись, и её отказ (предел, сеть) говорится так же, а не теряется
       // необработанным промисом: кнопка обещала вернуть (ревью PR #1331).
-      toast.success('Убрано из избранного', { action: { label: 'Вернуть', onClick: () => void toggle(id, true) } });
+      toast.success('Убрано из избранного', {
+        duration: SNACKBAR_UNDO_MS,
+        action: { label: 'Вернуть', onClick: () => void toggle(id, true) },
+      });
     }
     return true;
   }

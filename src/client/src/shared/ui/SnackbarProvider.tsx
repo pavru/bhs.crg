@@ -5,7 +5,7 @@ import { Close } from './icons';
 import { traceIdOf } from '@/shared/api/client';
 import { apiError } from '@/shared/utils/apiError';
 import { openBugReport } from './bugReportBus';
-import { SnackbarCtx, type SnackbarApi, type SnackbarOptions, type SnackbarVariant } from './Snackbar';
+import { SnackbarCtx, type SnackbarApi, type SnackbarCloseReason, type SnackbarOptions, type SnackbarVariant } from './Snackbar';
 import { EMPTY_QUEUE, SNACKBAR_EXIT_MS, snackbarKey, snackbarQueue, type SnackbarItem } from './snackbarQueue';
 
 /**
@@ -24,7 +24,23 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'push', item: { ...o, id: ++idRef.current, at: Date.now(), key: snackbarKey(o) } });
   }, []);
 
-  const { shown, leaving } = queue;
+  // Отклик закрытия — ровно один раз на уведомление ([UI-71]): Radix может сообщить о закрытии дважды,
+  // а эффект отброшенных — повториться. Помним только тех, у кого отклик есть.
+  const closedRef = useRef(new Set<number>());
+  const finish = useCallback((item: SnackbarItem, reason: SnackbarCloseReason) => {
+    if (!item.onClose || closedRef.current.has(item.id)) return;
+    closedRef.current.add(item.id);
+    item.onClose(reason);
+  }, []);
+
+  // Отброшенное очередью считается закрытым (Э5): копит его чистый редьюсер, отклик зовём здесь.
+  const { shown, leaving, dropped } = queue;
+  useEffect(() => {
+    if (!dropped.length) return;
+    dispatch({ type: 'flush', ids: dropped.map(d => d.id) });
+    for (const d of dropped) finish(d, 'dropped');
+  }, [dropped, finish]);
+
   useEffect(() => {
     if (!leaving) return;
     const t = setTimeout(() => dispatch({ type: 'next', now: Date.now() }), SNACKBAR_EXIT_MS);
@@ -46,7 +62,11 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
         {children}
         {shown && (
           <SnackbarCard key={shown.id} item={shown} open={!leaving}
-            onClose={() => dispatch({ type: 'close', id: shown.id })} />
+            onClose={reason => {
+              // Сначала закрыть, потом отклик: уведомление, поставленное откликом, — новое, а не повтор.
+              dispatch({ type: 'close', id: shown.id });
+              finish(shown, reason);
+            }} />
         )}
         {/* Рабочий стол — у ведущего края содержимого, правее рейла: отступ ставит оболочка
             (`--snackbar-inset`). Телефон — по центру над нижней навигацией и плавающей кнопкой
@@ -65,7 +85,13 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
  * что диктор читает её сразу. Действие одно: своё или «Сообщить». Внутри — роли `inverse-scope`:
  * text-кнопка становится `inverse-primary`, кнопка-иконка — `inverse-on-surface`.
  */
-function SnackbarCard({ item, open, onClose }: { item: SnackbarItem; open: boolean; onClose: () => void }) {
+function SnackbarCard({ item, open, onClose }: {
+  item: SnackbarItem; open: boolean; onClose: (reason: SnackbarCloseReason) => void;
+}) {
+  // Radix закрывает без причины, поэтому её ставим до него: обработчики свойств Radix зовёт раньше своих.
+  // Не поставлена — значит, закрыл таймер: больше Radix сам не закрывает ничем.
+  const reasonRef = useRef<SnackbarCloseReason | null>(null);
+  const byHuman = () => { reasonRef.current = 'dismissed'; };
   const variant = item.variant ?? 'info';
   const error = variant === 'error';
   const action = item.action
@@ -78,7 +104,9 @@ function SnackbarCard({ item, open, onClose }: { item: SnackbarItem; open: boole
       duration={item.duration ?? DEFAULT_DURATION[variant]}
       // error — foreground (assertive/role=alert); успех/инфо — background (polite/role=status).
       type={error ? 'foreground' : 'background'}
-      onOpenChange={o => { if (!o) onClose(); }}
+      onOpenChange={o => { if (!o) onClose(reasonRef.current ?? 'timeout'); }}
+      onSwipeEnd={byHuman}
+      onEscapeKeyDown={byHuman}
       className={`inverse-scope flex items-center gap-1 min-h-12 py-1 pl-4 ${action || error ? 'pr-2' : 'pr-4'} max-w-full
         rounded-xs bg-inverse-surface text-inverse-on-surface shadow-elevation-3
         data-[state=open]:[animation:snackbar-in_var(--md-sys-motion-duration-short3)_var(--md-sys-motion-easing-standard-decelerate)]
@@ -89,12 +117,13 @@ function SnackbarCard({ item, open, onClose }: { item: SnackbarItem; open: boole
     >
       <RT.Description className="flex-1 min-w-0 py-2.5 text-body-medium">{item.message}</RT.Description>
       {action && (
-        <RT.Action altText={'altText' in action ? action.altText : action.label} asChild onClick={() => action.onClick()}>
+        <RT.Action altText={'altText' in action ? action.altText : action.label} asChild
+          onClick={() => { reasonRef.current = 'action'; action.onClick(); }}>
           <Button variant="text" className="shrink-0">{action.label}</Button>
         </RT.Action>
       )}
       {error && (
-        <RT.Close asChild>
+        <RT.Close asChild onClick={byHuman}>
           <IconButton label="Закрыть" icon={Close} />
         </RT.Close>
       )}

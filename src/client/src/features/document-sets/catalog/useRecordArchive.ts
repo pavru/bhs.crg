@@ -1,6 +1,6 @@
 import { ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
 import type { DocumentType } from '@/shared/api/types';
-import { useSnackbar } from '@/shared/ui/Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 
 /** Код типа «Сотрудник» в ядре (зеркало серверного `CoreRecordTypes.EmployeeCode`). */
 const EMPLOYEE_TYPE_CODE = 'Сотрудник';
@@ -37,7 +37,7 @@ export function useRecordArchive(types: DocumentType[]) {
       ? 'Дата «Уволен с» не менялась.'
       : 'В списках выбора её больше не будет.';
     toast.success(`Запись «${entry.displayName}» — в архиве. ${tail}`, {
-      duration: 8000,
+      duration: SNACKBAR_UNDO_MS,
       action: { label: 'Вернуть', onClick: () => void act(after, false) },
     });
   }

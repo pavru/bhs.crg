@@ -6,7 +6,7 @@ import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { useSnackbar } from '@/shared/ui/Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useCostsArticles, useDeleteArticle, useSaveArticle, useSetArticleArchive, type CostsArticle,
 } from '@/shared/api/articles';
@@ -63,7 +63,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
     }
     if (!archived) { toast.success(`Статья «${article.name}» возвращена из архива.`); return; }
     toast.success(`Статья «${article.name}» — в архиве. В выборе цели разноски её больше не будет.`, {
-      duration: 8000,
+      duration: SNACKBAR_UNDO_MS,
       action: { label: 'Вернуть', onClick: () => void setArchived(article, false) },
     });
   }

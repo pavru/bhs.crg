@@ -78,6 +78,54 @@ describe('очередь уведомлений [UI-71]', () => {
     expect(s.pending.map(p => p.message)).not.toContain('сведение 1');
   });
 
+  describe('отброшенное с откликом считается закрытым (Э5)', () => {
+    const onClose = () => {};
+
+    it('устаревшее с откликом — в dropped, без отклика — нет', () => {
+      let s = push(EMPTY_QUEUE, { message: 'Сбой', variant: 'error' }, 0);
+      s = push(s, { message: 'Черновик удалён', variant: 'success', action: { label: 'Вернуть', onClick: () => {} }, onClose }, 1000);
+      s = push(s, { message: 'Сохранено', variant: 'success' }, 1000);
+      s = advance(s, 16_001);
+      expect(s.shown).toBeNull();
+      expect(s.dropped.map(d => d.message)).toEqual(['Черновик удалён']);
+    });
+
+    it('свежее с откликом показывается, а не отбрасывается', () => {
+      let s = push(EMPTY_QUEUE, { message: 'Сбой', variant: 'error' }, 0);
+      s = push(s, { message: 'Черновик удалён', onClose }, 1000);
+      s = advance(s, 16_000);
+      expect(shownText(s)).toBe('Черновик удалён');
+      expect(s.dropped).toEqual([]);
+    });
+
+    it('вытесненное при переполнении с откликом — в dropped', () => {
+      let s = push(EMPTY_QUEUE, { message: 'видимое' });
+      s = push(s, { message: 'сведение 0', onClose });
+      for (let i = 1; i <= PENDING_MAX; i++) s = push(s, { message: `сведение ${i}` });
+      expect(s.pending.map(p => p.message)).not.toContain('сведение 0');
+      expect(s.dropped.map(d => d.message)).toEqual(['сведение 0']);
+    });
+
+    it('повтор с откликом ставится — и при видимом, и при ожидающем', () => {
+      const o = { message: 'Строка 7 удалена', variant: 'success' as const, action: { label: 'Вернуть', onClick: () => {} }, onClose };
+      let s = push(EMPTY_QUEUE, o);
+      s = push(s, o);
+      s = push(s, o);
+      expect(s.pending).toHaveLength(2);
+    });
+
+    it('flush убирает названных и только их', () => {
+      let s = push(EMPTY_QUEUE, { message: 'Сбой', variant: 'error' }, 0);
+      s = push(s, { message: 'а', onClose }, 0);
+      s = push(s, { message: 'б', onClose }, 0);
+      s = advance(s, 16_000);
+      const [a] = s.dropped;
+      s = snackbarQueue(s, { type: 'flush', ids: [a.id] });
+      expect(s.dropped.map(d => d.message)).toEqual(['б']);
+      expect(snackbarQueue(s, { type: 'flush', ids: [a.id] })).toBe(s);
+    });
+  });
+
   it('запоздавший сдвиг без закрытия не снимает видимое', () => {
     const s = push(EMPTY_QUEUE, { message: 'Сохранено' });
     expect(snackbarQueue(s, { type: 'next', now: 0 })).toBe(s);
