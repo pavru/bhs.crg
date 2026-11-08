@@ -27,7 +27,7 @@ export function useInvoiceFileIntake({ enabled, owner, batch, opened, listShown,
   owner: string;
   batch: ScanBatch | null;
   /** Номер открытого счёта — покрытие обещает, что он не изменится; `null` — счёт не открыт. */
-  opened: { number: string | null } | null;
+  opened: { number: string | null; hasFile?: boolean } | null;
   /** Виден ли список счетов — покрытие говорит, где искать ход пакета. */
   listShown: boolean;
   /** Идёт заведение одного файла. */

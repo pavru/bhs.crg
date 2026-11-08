@@ -15,7 +15,7 @@ function busyWords(batch: ScanBatch | null, checking: boolean): string {
  * Говорит, что будет с брошенным: один файл — свой черновик, несколько — пакет в фоне.
  */
 export function DropCover({ over, opened, batch, checking, listShown }: {
-  over: WindowDropOver; opened: { number: string | null } | null; batch: ScanBatch | null; checking: boolean;
+  over: WindowDropOver; opened: { number: string | null; hasFile?: boolean } | null; batch: ScanBatch | null; checking: boolean;
   /** Виден ли список: где его нет, ход пакета — в центре активности (D5). */
   listShown: boolean;
 }) {
@@ -25,7 +25,9 @@ export function DropCover({ over, opened, batch, checking, listShown }: {
     ? [`Экран останется на месте: пакет идёт в фоне, ход — в ${listShown ? 'полосе над списком' : 'центре активности'}.`,
       'Файлы, уже приложенные к счетам, не заведём — придержим в итоге пакета.']
     : [...(name ? [`Откроем новый черновик; ${name} не изменится.`] : []),
-      'Если файл уже приложен к другому счёту — сначала спросим.'];
+      'Если файл уже приложен к другому счёту — сначала спросим.',
+      // Бросок счёт не меняет никогда (D1) — и покрытие говорит, где замена: в «⋮», с вопросом (D6).
+      ...(opened?.hasFile ? ['Заменить файл этого счёта — «⋮ → Заменить файл…»'] : [])];
   return (
     <div className="fixed inset-0 z-50 p-2 pointer-events-none" data-testid="invoice-drop-cover" aria-hidden>
       <div className={`h-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 p-6 text-center ${

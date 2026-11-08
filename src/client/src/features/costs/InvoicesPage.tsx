@@ -401,7 +401,7 @@ export function InvoicesPage() {
   // окно повтора для одного файла, пакет — для нескольких.
   const intake = useInvoiceFileIntake({
     enabled: hasPermission(access, 'costs.invoice.edit'), owner: me ?? '', batch,
-    opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null } : null,
+    opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null, hasFile: hasScan } : null,
     listShown, sending: fromScan.isPending,
     onSingle: async (file, acceptRepeat) => addFromScan(file, acceptRepeat),
     onOpen: switchTo,
