@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ruCount } from '@/shared/utils/pluralize';
 
 /**
  * Перетаскивание файлов в окно — общее для всех экранов (issue #1093).
@@ -77,4 +78,29 @@ export function droppedFiles(transfer: DataTransfer): { files: File[]; folders: 
   });
   // Браузер без списка элементов — берём файлы как есть.
   return items.length > 0 ? { files, folders } : { files: [...transfer.files], folders };
+}
+
+/** Слова отказа папке — одни у пакета сканов (`scanBatch`) и у площадки файла (`FileDropZone`). */
+export const FOLDER_REFUSAL = 'это папка — перетащите файлы из неё';
+
+/** Слова отказа нескольким файлам там, где ждут один. */
+export const SEVERAL_REFUSAL = 'здесь один файл: перетащите их по одному';
+
+/**
+ * Отказ площадки одного файла ([UI-89]) — «имя — причина» или `null`, если файл отдаётся экрану.
+ *
+ * <p>Порядок — папка → несколько → проверка экрана; называется первая причина. Сама площадка судит только
+ * то, что видно до файла: вид, пустоту и размер решает `check` экрана (у счёта — тот же `precheck`, что у
+ * пакета, #1265). Поэтому `check` зовётся только для одного файла и никогда — для папки.</p>
+ */
+export function zoneRefusal(
+  dropped: { files: readonly File[]; folders: readonly string[] },
+  check?: (file: File) => string | null,
+): string | null {
+  const { files, folders } = dropped;
+  if (folders.length > 0) return `${folders[0]} — ${FOLDER_REFUSAL}`;
+  if (files.length > 1) return `${ruCount(files.length, 'файл', 'файла', 'файлов')} — ${SEVERAL_REFUSAL}`;
+  if (files.length === 0 || !check) return null;
+  const reason = check(files[0]);
+  return reason === null ? null : `${files[0].name} — ${reason}`;
 }

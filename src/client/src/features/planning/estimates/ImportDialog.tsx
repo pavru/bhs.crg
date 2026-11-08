@@ -1,14 +1,11 @@
-import { useRef, useState, type DragEvent } from 'react';
-import { Icon } from '@/shared/ui/Icon';
+import { useState } from 'react';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { UploadFile } from '@/shared/ui/icons';
 import { useConstructionDirectory, useGetConstruction } from '@/shared/api/constructions';
 import { planRefusal, useConstructionEstimates, type EstimateKind } from '@/shared/api/planningEstimates';
 import {
   useCancelImport, useCommitImport, useEstimateImport, useStartImport, type EstimateImport, type ImportRequest,
 } from '@/shared/api/planningImports';
-import { Button } from '@/shared/ui/Button';
-import { carriesFiles, droppedFiles } from '@/shared/ui/fileDrop';
+import { FileDropZone } from '@/shared/ui/FileDropZone';
 import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
@@ -17,8 +14,9 @@ import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { formatBytes, formatCount } from '@/shared/format/format';
+import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
+import { ESTIMATE_ACCEPT, estimateFileRefusal } from './estimateFile';
 import { KIND_LABEL } from './estimateRows';
 import { importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
 import { ParseReport } from './ParseReport';
@@ -190,7 +188,11 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
                 <RevealItem hidden={sites.hidden} />
               </Select>
             )}
-            <FilePick file={file} onFile={setFile} />
+            {/* Шаг остаётся «pick», пока сервер не ответил (importId приходит в onSuccess): без busy на площадку
+                можно было бы бросить второй файл, и окно показывало бы не тот, что разбирается. */}
+            <FileDropZone label="Файл сметы" accept={ESTIMATE_ACCEPT} hint=".gsfx или .xml" check={estimateFileRefusal}
+              prompt="Перетащите файл сметы сюда" pickLabel="Выбрать файл сметы" file={file} onFile={setFile}
+              busy={start.isPending && file ? `Загружаем «${file.name}»` : undefined} />
             {site && (estimateId ? (
               <p className="text-body-medium text-on-surface-variant">Куда: <span className="text-on-surface">новая редакция сметы «{fixed?.name ?? '…'}»</span></p>
             ) : estimates.isError ? (
@@ -267,52 +269,5 @@ function Steps({ step }: { step: (typeof STEPS)[number][0] }) {
         </li>
       ))}
     </ol>
-  );
-}
-
-/** Файлы ГРАНД-Сметы: OpenXML — `.gsfx` (архив) или голый `.xml`. Вид документа сервер узнаёт по содержимому. */
-const ACCEPT = '.gsfx,.xml';
-
-/** Место файла: перетащить или выбрать. Один файл — одна редакция. */
-function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [over, setOver] = useState(false);
-  const [several, setSeveral] = useState(false);
-
-  const onDragOver = (e: DragEvent) => {
-    if (!carriesFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setOver(true);
-  };
-  const onDrop = (e: DragEvent) => {
-    setOver(false);
-    if (!carriesFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    const { files } = droppedFiles(e.dataTransfer);
-    setSeveral(files.length > 1);
-    if (files.length === 1) onFile(files[0]);
-  };
-
-  return (
-    <div onDragOver={onDragOver} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
-      onDrop={onDrop}
-      className={`flex flex-wrap items-center gap-3 rounded-md border-2 border-dashed px-4 py-3 text-body-medium
-        ${over ? 'border-primary bg-primary-container' : 'border-outline-variant'}`}>
-      <Icon icon={UploadFile} size={20} className="shrink-0 text-on-surface-variant" aria-hidden />
-      <div className="min-w-0 flex-1">
-        {file
-          ? <p className="text-on-surface break-all">{file.name} <span className="text-on-surface-variant">· {formatBytes(file.size)}</span></p>
-          : <p className="text-on-surface-variant">Перетащите сюда файл сметы из ГРАНД-Сметы (.gsfx или .xml)</p>}
-        {several && <p className="text-body-small text-error">Одна загрузка — один файл: перетащите их по одному.</p>}
-      </div>
-      <Button variant="outlined" onClick={() => input.current?.click()}>{file ? 'Другой файл' : 'Выбрать файл'}</Button>
-      <input ref={input} type="file" className="hidden" accept={ACCEPT} aria-label="Файл сметы"
-        onChange={e => {
-          const picked = e.target.files?.[0];
-          e.target.value = '';
-          if (picked) { setSeveral(false); onFile(picked); }
-        }} />
-    </div>
   );
 }
