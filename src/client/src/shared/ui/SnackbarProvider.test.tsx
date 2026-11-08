@@ -2,8 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useSnackbar } from './Snackbar';
-import type { SnackbarApi } from './Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar, type SnackbarApi } from './Snackbar';
 import { SnackbarProvider } from './SnackbarProvider';
 import { SNACKBAR_EXIT_MS } from './snackbarQueue';
 
@@ -101,6 +100,166 @@ describe('SnackbarProvider [UI-71]', () => {
     expect(within(li).queryByRole('button', { name: 'Сообщить' })).toBeNull();
     fireEvent.click(within(li).getByRole('button', { name: 'Повторить' }));
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  describe('отклик закрытия с причиной (Э5)', () => {
+    const undo = (onClose: (r: string) => void, onClick = () => {}) =>
+      ({ duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick }, onClose });
+
+    it('истёк срок — timeout, один раз', () => {
+      const onClose = vi.fn();
+      act(() => { api.success('Черновик удалён', undo(onClose)); });
+      wait(SNACKBAR_UNDO_MS - 1);
+      expect(onClose).not.toHaveBeenCalled();
+      wait(1);
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['timeout']]);
+      expect(shown()).toEqual([]);
+    });
+
+    it('нажато действие — action, после самого действия', () => {
+      const order: string[] = [];
+      act(() => { api.success('Черновик удалён', undo(r => order.push(r), () => order.push('вернуть'))); });
+      fireEvent.click(within(shown()[0]).getByRole('button', { name: 'Вернуть' }));
+      wait(SNACKBAR_EXIT_MS);
+      wait(SNACKBAR_UNDO_MS);
+      expect(order).toEqual(['вернуть', 'action']);
+    });
+
+    it('«Сообщить» — тоже action', () => {
+      const onClose = vi.fn();
+      act(() => { api.error('Сбой сервера', { traceId: 't-1', onClose }); });
+      fireEvent.click(within(shown()[0]).getByRole('button', { name: 'Сообщить' }));
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['action']]);
+    });
+
+    it('«Закрыть» и Esc — dismissed', () => {
+      const byButton = vi.fn();
+      act(() => { api.error('Сбой', { onClose: byButton }); });
+      fireEvent.click(within(shown()[0]).getByRole('button', { name: 'Закрыть' }));
+      wait(SNACKBAR_EXIT_MS);
+      expect(byButton.mock.calls).toEqual([['dismissed']]);
+
+      const byEsc = vi.fn();
+      act(() => { api.success('Черновик удалён', undo(byEsc)); });
+      fireEvent.keyDown(shown()[0], { key: 'Escape' });
+      wait(SNACKBAR_EXIT_MS);
+      wait(SNACKBAR_UNDO_MS);
+      expect(byEsc.mock.calls).toEqual([['dismissed']]);
+    });
+
+    it('смахнули — dismissed', () => {
+      const onClose = vi.fn();
+      const back = vi.fn();
+      act(() => { api.success('Черновик удалён', undo(onClose, back)); });
+      const li = shown()[0];
+      Object.assign(li, { setPointerCapture: () => {}, hasPointerCapture: () => false, releasePointerCapture: () => {} });
+      fireEvent.pointerDown(li, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(li, { clientX: 10, clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(li, { clientX: 120, clientY: 0, pointerId: 1 });
+      fireEvent.pointerUp(li, { clientX: 120, clientY: 0, pointerId: 1 });
+      // Смахивание, начатое на «Вернуть», кончается щелчком по ней — Radix его гасит, и мы тоже.
+      fireEvent.click(within(li).getByRole('button', { name: 'Вернуть' }));
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['dismissed']]);
+      expect(back).not.toHaveBeenCalled();
+    });
+
+    it('упавшее действие не закрывает, и срок приходит timeout, а не action', () => {
+      const onClose = vi.fn();
+      act(() => { api.success('Черновик удалён', undo(onClose, () => { throw new Error('сбой'); })); });
+      // Сбой обработчика из fireEvent не бросается: jsdom отдаёт его событием `error` окна.
+      const caught: unknown[] = [];
+      const swallow = (e: ErrorEvent) => { e.preventDefault(); caught.push(e.error); };
+      window.addEventListener('error', swallow);
+      fireEvent.click(within(shown()[0]).getByRole('button', { name: 'Вернуть' }));
+      window.removeEventListener('error', swallow);
+      expect(caught).toEqual([expect.objectContaining({ message: 'сбой' })]);
+      wait(SNACKBAR_EXIT_MS);
+      expect(texts()).toEqual([expect.stringContaining('Черновик удалён')]);
+      expect(onClose).not.toHaveBeenCalled();
+      wait(SNACKBAR_UNDO_MS);
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['timeout']]);
+    });
+
+    it('с откликом без своего срока держится 8 с, а не 4', () => {
+      const onClose = vi.fn();
+      act(() => { api.success('Строка 7 удалена', { action: { label: 'Вернуть', onClick: () => {} }, onClose }); });
+      wait(4000 + SNACKBAR_EXIT_MS);
+      expect(texts()).toEqual([expect.stringContaining('Строка 7 удалена')]);
+      wait(SNACKBAR_UNDO_MS - 4000 - SNACKBAR_EXIT_MS);
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['timeout']]);
+    });
+
+    it('с откликом не стареет в очереди: прождав за ошибкой 20 с, показывается', () => {
+      const onClose = vi.fn();
+      act(() => {
+        api.error('Сбой', { duration: 20_000 });
+        api.success('Черновик удалён', undo(onClose));
+      });
+      wait(20_000);
+      wait(SNACKBAR_EXIT_MS);
+      expect(texts()).toEqual([expect.stringContaining('Черновик удалён')]);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('наведение откладывает timeout', () => {
+      const onClose = vi.fn();
+      act(() => { api.success('Черновик удалён', undo(onClose)); });
+      fireEvent.pointerMove(screen.getByRole('region'));
+      wait(SNACKBAR_UNDO_MS * 2);
+      expect(onClose).not.toHaveBeenCalled();
+      fireEvent.pointerLeave(screen.getByRole('region'));
+      wait(SNACKBAR_UNDO_MS);
+      wait(SNACKBAR_EXIT_MS);
+      expect(onClose.mock.calls).toEqual([['timeout']]);
+    });
+
+    it('вытесненное переполнением — dropped, не показавшись', () => {
+      const onClose = vi.fn();
+      act(() => {
+        api.error('Сбой 0');
+        api.success('Черновик удалён', undo(onClose));
+        for (let i = 1; i <= 10; i++) api.error(`Сбой ${i}`);
+      });
+      expect(onClose.mock.calls).toEqual([['dropped']]);
+      expect(texts()).toEqual([expect.stringContaining('Сбой 0')]);
+    });
+
+    it('сбой одного отклика dropped не теряет остальных и не роняет провайдер', () => {
+      const report = vi.fn();
+      vi.stubGlobal('reportError', report);
+      const second = vi.fn();
+      act(() => {
+        api.error('Сбой 0');
+        for (let i = 1; i <= 10; i++) api.error(`Сбой ${i}`);
+        api.success('а', undo(() => { throw new Error('отклик упал'); }));
+        api.success('б', undo(second));
+      });
+      vi.unstubAllGlobals();
+      expect(report).toHaveBeenCalledWith(expect.objectContaining({ message: 'отклик упал' }));
+      expect(second.mock.calls).toEqual([['dropped']]);
+      expect(texts()).toEqual([expect.stringContaining('Сбой 0')]);
+    });
+
+    it('два одинаковых с откликом — оба показываются, каждый со своим откликом', () => {
+      const first = vi.fn();
+      const second = vi.fn();
+      act(() => {
+        api.success('Строка 7 удалена', undo(first));
+        api.success('Строка 7 удалена', undo(second));
+      });
+      wait(SNACKBAR_UNDO_MS);
+      wait(SNACKBAR_EXIT_MS);
+      expect(first.mock.calls).toEqual([['timeout']]);
+      expect(texts()).toEqual([expect.stringContaining('Строка 7 удалена')]);
+      fireEvent.click(within(shown()[0]).getByRole('button', { name: 'Вернуть' }));
+      wait(SNACKBAR_EXIT_MS);
+      expect(second.mock.calls).toEqual([['action']]);
+    });
   });
 
   it('вид MD3: inverse-surface, форма 4, уровень 3, без знака', () => {
