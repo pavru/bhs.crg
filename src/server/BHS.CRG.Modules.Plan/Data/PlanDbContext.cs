@@ -1,6 +1,7 @@
 using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Plan.Distribution;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -87,6 +88,21 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Версия записи импорта — её называют создание редакции и отмена импорта.</summary>
     public string VersionOf(EstimateImport import) => Version(import);
 
+    /// <summary>Заголовки распределения редакций (<c>plan-10</c>): версия, автор и момент правки, источник переноса.</summary>
+    public DbSet<RevisionDistribution> RevisionDistributions => Set<RevisionDistribution>();
+
+    /// <summary>Правила «раздел ЛСР → цель» (<c>plan-10</c>).</summary>
+    public DbSet<DistributionRule> DistributionRules => Set<DistributionRule>();
+
+    /// <summary>Части строк на разделах стройки — исключения из правила (<c>plan-10</c>).</summary>
+    public DbSet<DistributionPart> DistributionParts => Set<DistributionPart>();
+
+    /// <summary>Отчёт переноса распределения у новой редакции (<c>plan-10</c>).</summary>
+    public DbSet<CarryOverItem> CarryOverItems => Set<CarryOverItem>();
+
+    /// <summary>Версия распределения редакции; заголовка ещё нет — <see cref="RevisionDistribution.FirstVersion" />.</summary>
+    public string VersionOf(RevisionDistribution? head) => head is null ? RevisionDistribution.FirstVersion : Version(head);
+
     /// <summary>
     /// Настройка контекста — одна на всех, кто его создаёт: приложение (<c>PlanModule.RegisterServices</c>)
     /// и <c>dotnet ef</c> через <see cref="PlanDbContextFactory" />.
@@ -149,6 +165,11 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "Импорт тем временем изменили — разбор завершился, импорт отменили или из него создали редакцию в " +
                 "другой вкладке. Перечитайте отчёт импорта и повторите.", e);
+        // Распределение — своей версией (plan-10): звавший перечитает заголовок и назовёт, кто его изменил.
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RevisionDistribution))
+            return new DistributionRaceException(e);
+        if (e.InnerException is PostgresException { ConstraintName: DistributionModel.HeadKey })
+            return new DistributionRaceException(e);
         if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch or ResourceMatch))
             return new ConflictException(
                 "Запомненное сопоставление тем временем изменили или забыли, и это действие не выполнено. Перечитайте " +
@@ -186,5 +207,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     {
         base.OnModelCreating(builder);
         EstimateModel.Configure(builder);
+        DistributionModel.Configure(builder);
     }
 }

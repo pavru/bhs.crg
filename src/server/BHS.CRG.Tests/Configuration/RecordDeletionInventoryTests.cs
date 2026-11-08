@@ -42,6 +42,8 @@ public class RecordDeletionInventoryTests
     /// <summary>Удаляют, но не записи ядра, — с причиной.</summary>
     private static readonly Dictionary<string, string> DeletesSomethingElse = new()
     {
+        ["BHS.CRG.Modules.Plan/Distribution/DistributionWriter.cs"] =
+            "удаляет правила и части распределения редакции — записи модуля; разделы стройки только читает (plan-10)",
         ["BHS.CRG.Modules.Plan/Endpoints/EstimateEndpoints.cs"] =
             "удаляет сметы и редакции — записи модуля; стройку и раздел сметы только проверяет при заведении (plan-06)",
         ["BHS.CRG.Modules.Plan/Endpoints/EstimateImportEndpoints.cs"] =

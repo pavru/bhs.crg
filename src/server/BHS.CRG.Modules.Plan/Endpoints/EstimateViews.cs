@@ -1,5 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Distribution;
 using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,9 @@ internal static class EstimateViews
             .Where(i => i.RevisionId != null && revisionIds.Contains(i.RevisionId.Value))
             .Select(i => new { RevisionId = i.RevisionId!.Value, i.Id, i.ParsedPositions, i.PositionsInFile })
             .ToDictionaryAsync(i => i.RevisionId, ct);
+        var onSection = revisions.Where(r => heads.Any(h => h.Estimate.Id == r.Revision.EstimateId && h.Estimate.SectionId != null))
+            .Select(r => r.Revision.Id).ToHashSet();
+        var distribution = await DistributionCounts.ForRevisionsAsync(db, revisionIds, onSection, ct);
 
         return [.. heads.Select(h =>
         {
@@ -74,7 +78,7 @@ internal static class EstimateViews
                     r.Revision.ImportedAt, r.Revision.ImportedByName, r.Revision.SourceFileName,
                     r.Revision.SchemaVersion, s?.Rows ?? 0, s?.Unmatched ?? 0,
                     materials.GetValueOrDefault(r.Revision.Id), unitChanged.GetValueOrDefault(r.Revision.Id),
-                    import?.Id, partial, frozen, Text(r.Version),
+                    import?.Id, partial, frozen, Distribution(distribution[r.Revision.Id]), Text(r.Version),
                     cost ? new RevisionCostDto(s?.Total ?? 0m) : null);
             }).ToList();
 
@@ -139,6 +143,9 @@ internal static class EstimateViews
     public static Domain.Common.NotFoundException NotFound() => new("Смета не найдена — возможно, её удалили.");
 
     private static string Text(uint version) => version.ToString(CultureInfo.InvariantCulture);
+
+    private static RevisionDistributionDto Distribution(RevisionDistributionCounts c) =>
+        DistributionReader.Counts(c.Tally, c.CarryOverPending, c.ChangedAt);
 
     /// <summary>
     /// Счётчики и итог редакций по их строкам — тот же ответ, что у редакции в смете, и у предпросмотра смены

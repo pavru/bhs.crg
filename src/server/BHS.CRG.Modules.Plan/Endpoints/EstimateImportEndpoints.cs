@@ -219,7 +219,7 @@ public static class EstimateImportEndpoints
             await EstimateImportViews.OneAsync(db, user, jobs, id, ct),
             await EstimateViews.OneAsync(db, user, done.Estimate.Id, ct),
             done.Revision.Id, done.Revision.Number, done.EstimateCreated, done.Repeated,
-            [.. done.Unmatched.Select(u => new UnmatchedImportRowDto(u.Row, u.Reason))]);
+            [.. done.Unmatched.Select(u => new UnmatchedImportRowDto(u.Row, u.Reason))], done.CarryOver?.Dto());
         return done.Repeated ? Results.Ok(dto) : Results.Created($"/api/plan/revisions/{done.Revision.Id}", dto);
     }
 

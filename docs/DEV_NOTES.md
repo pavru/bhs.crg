@@ -6059,7 +6059,9 @@ GET    /api/plan/estimates/{id}             → смета: { id, constructionId
                                       additional), version, currentRevisionId, currentRevisionNumber,
                                       revisions: [{ id, number, current, importedAt, importedBy,
                                       sourceFileName, schemaVersion, rows, unmatched, frozen: { at, code,
-                                      label } | null, version, cost?: { total } }], hidden? }
+                                      label } | null, distribution: { rows, distributed, partial, whole,
+                                      undistributed, carryOverPending, changedAt }, version, cost?: { total }
+                                      }], hidden? }
 POST   /api/plan/estimates  { constructionId, sectionId?, name, kind? }  БЕЗ If-Match → 201 смета; раздел
                                       не своей стройки или стройки нет — 400
 PUT    /api/plan/estimates/{id}  { name, kind? }  If-Match (version сметы) → смета
@@ -6090,9 +6092,55 @@ DELETE /api/plan/imports/{id}  If-Match (version импорта) → 204, фай
                                       редакция — 409
 POST   /api/plan/imports/{id}/commit  { acceptPartial? }  If-Match (version импорта) → 201 { import,
                                       estimate, revisionId, revisionNumber, estimateCreated, repeated,
-                                      unmatched [{ row, reason }] }; уже создана этим импортом — 200 с ней же
+                                      unmatched [{ row, reason }], distributionCarryOver: { sourceRevisionId,
+                                      sourceNumber, carried, shifted, ambiguous, overflow, lost } | null };
+                                      уже создана этим импортом — 200 с ней же
                                       (repeated). Не разобранные без acceptPartial — 409 { error, code:
                                       "partial", parsed, inFile, unparsed }; ВОР, КА, отказ разбора, ещё
                                       разбирается — 409. Журнал plan.estimate.imported «редакция N, строк M,
-                                      не разобрано K» (и plan.estimate.created, если смета новая)
+                                      не разобрано K» (и plan.estimate.created, если смета новая); перенос
+                                      распределения — plan.distribution.carry-over
+
+# Распределение редакции по разделам стройки (change plan-10-distribution, PLAN-5.1). Чтение —
+# plan.estimate.read (правила и части видны и с ним одним), запись — plan.estimate.edit и If-Match с version
+# РАСПРЕДЕЛЕНИЯ (своя, с версией редакции не смешивается; «0» — ещё не распределяли). Без If-Match — 400,
+# устаревшая — 409 { error, code: "distribution-changed", version, changedBy, changedAt }. Зафиксированная и не
+# действующая редакции правятся так же. Смета на разделе стройки — GET available: false, reason { code:
+# "estimate-section", sectionId, sectionName }; запись — 400 с тем же code. Части сверх объёма — 400 { error,
+# code: "balance", errors: [{ rowId, number, name, code (over | no-volume | not-positive | too-small |
+# not-matched | section-twice), sum { row, plan }, volume { row, plan }, unit, text }] }, не пишется ничего.
+# Ответ записи — { version, previous: { rule?: { lsrSectionCode, target }, lines: [{ rowId, unit: "row",
+# parts }] }, distribution } — previous годится для «Отменить» одной записью PUT …/rules с lines
+GET    /api/plan/revisions/{id}/distribution  → { revisionId, available, reason?, version, changedAt,
+                                      changedBy, current, frozen, counts { rows, distributed, partial, whole,
+                                      undistributed, carryOverPending, changedAt }, targets { sections:
+                                      [{ sectionId, name, deleted, rows }], wholeRows, undistributedRows },
+                                      rules: [{ lsrSectionCode, lsrSectionName, target: null | { kind: whole |
+                                      section, sectionId }, rows, exceptions, undistributed }], lines:
+                                      [{ rowId, order, lsrSectionCode, number, name, kind, subordinate, source
+                                      (rule | parts | none), status (distributed | partial | whole |
+                                      undistributed), splittable, splitReason? (no-volume), volume { row, plan },
+                                      units { row, plan }, parts [{ sectionId, quantity { row, plan } }], rest,
+                                      targets [sectionId], whole }], carryOver: { counts { sourceRevisionId,
+                                      sourceNumber, carried, shifted, ambiguous, overflow, lost }, pending,
+                                      items: [нерешённые: { id, category, subject (row | rule), pending,
+                                      …источник, parts, target, rowId, newVolume, candidates }] } | null }
+PUT    /api/plan/revisions/{id}/distribution/rules  { lsrSectionCode, target: null | { kind: "whole" } |
+                                      { kind: "section", sectionId }, resetExceptions?, lines? }  If-Match →
+                                      ответ записи. ОДИН раздел ЛСР: lsrSectionCode обязателен (нет поля —
+                                      400; null — строки вне разделов, если они есть; неизвестный — 400);
+                                      target: null снимает правило; resetExceptions снимает части строк
+                                      раздела; lines — набор строк этого раздела той же транзакцией. Журнал
+                                      plan.distribution.rule
+PUT    /api/plan/revisions/{id}/distribution/lines  { lines: [{ rowId, unit: row | plan, parts: null |
+                                      [{ sectionId, quantity }] }] }  If-Match → ответ записи; parts: null —
+                                      «к правилу», единица одна на строку, plan — только у сопоставленной.
+                                      Баланс точно в единице запроса, хранится единица строки с 6 знаками.
+                                      Журнал plan.distribution.lines — одной записью на набор
+POST   /api/plan/revisions/{id}/distribution/carry-over/{itemId}  { action: apply, rowId } | { action:
+                                      skip } | { action: acknowledge }  If-Match → ответ записи. apply и skip —
+                                      у ambiguous, acknowledge — у overflow, lost, shifted. apply на строку не
+                                      из кандидатов — 400, у кандидата уже есть части — 409 (части целы), не
+                                      помещаются — 400 balance; уже решено — 409. Журнал
+                                      plan.distribution.carry-over
 ```

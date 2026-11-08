@@ -1,5 +1,6 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Distribution;
 using BHS.CRG.Modules.Plan.Endpoints;
 using BHS.CRG.Modules.Plan.GrandSmeta;
 using BHS.CRG.Modules.Ports;
@@ -14,9 +15,11 @@ public sealed record UnmatchedImportRow(int Row, string Reason);
 /// <summary>Чем кончилось создание редакции из импорта.</summary>
 /// <param name="EstimateCreated">Импорт завёл новую смету.</param>
 /// <param name="Repeated">Редакция создана раньше — этим же импортом из другой вкладки или прежним нажатием.</param>
+/// <param name="CarryOver">Перенос распределения из прежней редакции (<c>plan-10</c>); <c>null</c> — переносить было
+/// нечего.</param>
 public sealed record EstimateImportCommitted(
     EstimateImport Import, Estimate Estimate, EstimateRevision Revision, bool EstimateCreated, bool Repeated,
-    IReadOnlyList<UnmatchedImportRow> Unmatched);
+    IReadOnlyList<UnmatchedImportRow> Unmatched, CarryOverSummary? CarryOver);
 
 /// <summary>
 /// В файле есть не разобранные позиции, а согласия на частичную редакцию нет (ТЗ PLAN-7). Несёт числа: экран
@@ -41,7 +44,8 @@ public sealed class PartialImportException(int parsed, int inFile, int unparsed,
 ///   <item>подстановка сопоставлений — <see cref="IEstimateRowMatcher" />;</item>
 ///   <item>позиции перечня — портом ядра «найди или создай» (<c>IModulePlanItems</c>), ДО строк и своей
 ///   транзакцией ядра (ТЗ CORE-4): общей у двух схем нет, и повтор после сбоя найдёт те же позиции;</item>
-///   <item>смета (если новая), редакция со строками и исход импорта — одной транзакцией модуля.</item>
+///   <item>смета (если новая), редакция со строками, перенос распределения из прежней редакции
+///   (<see cref="DistributionCarryOver" />, <c>plan-10</c>) и исход импорта — одной транзакцией модуля.</item>
 /// </list>
 ///
 /// <para><b>Повтор безопасен.</b> Ключ импорта у редакции единствен: проигравшее одновременное создание
@@ -52,7 +56,7 @@ public sealed class PartialImportException(int parsed, int inFile, int unparsed,
 /// </summary>
 public sealed class EstimateImportCommit(
     PlanDbContext db, IEstimateRowMatcher matcher, IModulePlanItems planItems, EstimateRevisionWriter writer,
-    IModuleActivityLog log)
+    DistributionCarryOver carryOver, IModuleActivityLog log)
 {
     /// <summary>Создать редакцию.</summary>
     /// <param name="import">Импорт, отслеживаемый контекстом модуля, — версия его уже сверена.</param>
@@ -92,6 +96,7 @@ public sealed class EstimateImportCommit(
         var (rows, unmatched) = await WithPlanItemsAsync(estimate, drafts, ct);
 
         EstimateRevision revision;
+        CarryOverSummary? carried;
         try
         {
             // Одна транзакция на смету, редакцию и исход импорта. Новая смета сохраняется первой: она и её
@@ -106,6 +111,7 @@ public sealed class EstimateImportCommit(
             revision = await writer.StageAsync(estimate,
                 new EstimateRevisionSource(import.BlobPath, import.FileName, import.SchemaVersion, import.Id.ToString(),
                     model.Requisites.NormativeBase), rows, ct);
+            carried = await carryOver.StageAsync(estimate, revision, ct);
             import.Committed(estimate, revision, EstimateImportJson.Write(EstimateImportRows.Skipped(model)));
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -121,7 +127,8 @@ public sealed class EstimateImportCommit(
                 after: $"импортом файла «{import.FileName}»", ct: ct);
         await log.RecordAsync(EstimateActions.Imported, estimate.Id.ToString(), EstimateActions.Label(estimate),
             after: $"редакция {revision.Number}, строк {rows.Count}, не разобрано {unparsed}", ct: ct);
-        return new(import, estimate, revision, created, Repeated: false, unmatched);
+        if (carried is not null) await carryOver.RecordAsync(estimate, revision, carried, ct);
+        return new(import, estimate, revision, created, Repeated: false, unmatched, carried);
     }
 
     /// <summary>Модель разобранной ЛСР — или отказ словами того, почему из импорта редакции не сделать.</summary>
@@ -195,6 +202,7 @@ public sealed class EstimateImportCommit(
         var import = await db.EstimateImports.FirstAsync(i => i.Id == importId, ct);
         var revision = await db.EstimateRevisions.FirstAsync(r => r.Id == import.RevisionId, ct);
         var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
-        return new(import, estimate, revision, EstimateCreated: false, Repeated: true, []);
+        return new(import, estimate, revision, EstimateCreated: false, Repeated: true, [],
+            await carryOver.StoredAsync(revision.Id, ct));
     }
 }
