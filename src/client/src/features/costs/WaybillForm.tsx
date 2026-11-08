@@ -60,18 +60,13 @@ import { StatusText } from '@/shared/ui/StatusText';
  * устаревшей формы сервер отвергает по версии (заголовок <c>If-Match</c>). Уход со страницы и выбор другой
  * накладной спрашивают, что делать с правками.</p>
  */
-export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit, gone, onLeaveGuard, onClose }: {
+export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit, gone, onClose }: {
   /** Накладная, как её сейчас знает кэш. Форма работает по той, по которой собрана, — см. `view` ниже. */
   view: WaybillView;
   sites: CostsConstruction[];
   /** Список строек не пришёл: выбрать получателя не из чего, и это отказ, а не «строек нет». */
   sitesFailed: boolean;
   canEdit: boolean;
-  /**
-   * Форма сообщает странице вопрос «что делать с правками», пока они есть: страница задаёт его перед
-   * выбором другой накладной. `null` — спрашивать не о чем. Ссылка обязана быть устойчивой.
-   */
-  onLeaveGuard: (ask: ((proceed: () => void) => void) | null) => void;
   /**
    * Накладной больше нет — её удалили, пока она была открыта (issue #1283). Форма остаётся с набранным,
    * чтобы его можно было перенести, но действий записи у неё нет: сохранять уже некуда.
@@ -116,7 +111,6 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
   const undated = posted && !view.accountingOn;
   const locked = !editable;
   const dirty = editable && isDirty(draft, view);
-  const leave = waybillLeave({ dirty, correcting, reason });
   // Закрытие отменили, пока шла правка, — исправлять больше нечего (кэш знает это раньше формы).
   const unneeded = correcting && !fresh.locked;
 
@@ -137,6 +131,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
     toast.error(`Накладная не записана: в дате отпуска ошибка — «${dateProblem}».`);
     return true;
   };
+  const leave = waybillLeave({ dirty, typing: editable && dateProblem !== null, correcting, reason, gone, writing: busy });
 
   /** Сохранить черновик; возвращает записанное — следующему действию нужна его версия — либо null. */
   async function saveDraft(): Promise<WaybillView | null> {
@@ -239,11 +234,11 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Вопрос стоит до конца записи — своей и начатой кнопкой формы (ревью PR #1817): прежде он закрывался до
-          неё, форма снова принимала правки, и удачная запись уносила их без вопроса. */}
-      <LeaveGuard active={leave.guard} message={leave.question} onAsk={onLeaveGuard}
-        save={leave.savable ? async () => (await saveDraft()) !== null : undefined}
-        saving={save.isPending || correct.isPending} />
+      {/* Вопрос стоит до конца записи — своей и любой начатой кнопкой формы, проведение тоже (ревью PR #1817,
+          #1821): прежде он закрывался до неё, форма снова принимала правки, и удачная запись уносила их без
+          вопроса. Выбор другой накладной спрашивает им же — страница уходит через охрану. */}
+      <LeaveGuard active={leave.guard} message={leave.question}
+        save={leave.savable ? async () => (await saveDraft()) !== null : undefined} saving={busy} />
       <div className="shrink-0 border-b border-outline-variant bg-surface px-5 py-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-body-medium font-medium text-on-surface">

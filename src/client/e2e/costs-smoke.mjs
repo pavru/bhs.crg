@@ -229,7 +229,7 @@ async function supplierPart() {
   await check('supplier-deletes-a-mistaken-waybill', () => waybillDeletePart(supplier));
   await check('supplier-sees-a-neighbour-line-choice-in-waybill', () => waybillNeighbourPart(supplier));
   await check('supplier-keeps-typed-waybill-when-reread-fails', () => waybillRereadPart(supplier));
-  await waybillLeaveChecks({ seat: supplier, check, api });
+  await waybillLeaveChecks({ seat: supplier, check, api, visit });
 
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }

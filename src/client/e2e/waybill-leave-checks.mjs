@@ -1,33 +1,54 @@
-// Вопрос ухода из формы накладной (ревью PR #1817, issue #1653) — живым браузером: уход без смены адреса
-// («Новая накладная» при набранном) спрашивает, и вопрос стоит, пока идёт его запись. Прежде «Сохранить и
+// Вопрос ухода из формы накладной (ревью PR #1817 и #1821, issue #1653) — живым браузером: уход без смены
+// адреса («Новая накладная» при набранном) спрашивает, и вопрос стоит, пока идёт его запись. Прежде «Сохранить и
 // перейти» закрывал вопрос ДО записи: форма снова принимала правки, а удачная запись уносила их без вопроса.
 // Отказ записи уход отменяет: набранное на экране, новой накладной нет.
 //
 // Ломается: вернуть в `WaybillForm` свою связку с `setLeave(null)` до `await saveDraft()` — вопрос пропадёт на
-// время записи; убрать `onAsk` у `LeaveGuard` — «Новая накладная» уйдёт без вопроса и унесёт набранное.
+// время записи; вернуть в `WaybillsPage` смену накладной мимо охраны ухода — «Новая накладная» уйдёт без
+// вопроса и унесёт набранное.
+//
+// Черновики, заведённые здесь, здесь же и удаляются (ревью PR #1821): иначе каждый прогон засорял бы список.
 //
 // Отдельным файлом: `costs-smoke` у порога размера. Едет внутри него, с его помощниками.
 
 /** На сколько задержать запись накладной — вопрос успевают увидеть занятым. */
 const HOLD_MS = 1_500;
 
-export async function waybillLeaveChecks({ seat, check, api }) {
+export async function waybillLeaveChecks({ seat, check, api, visit }) {
   const { page } = seat;
   const question = page.getByRole('dialog', { name: 'Несохранённые изменения' });
   const saveAndGo = question.getByRole('button', { name: 'Сохранить и перейти' });
   const opened = () => new URL(page.url()).searchParams.get('waybill');
   const isWrite = id => r => r.method() === 'PUT' && new URL(r.url()).pathname === `/api/costs/waybills/${id}`;
+  const leftFrom = was => page.waitForFunction(w => new URL(location.href).searchParams.get('waybill') !== w, was,
+    { timeout: 10_000 });
+
+  // Каждая заведённая здесь накладная — и своя, и та, что заводит уход «Новой накладной», — на учёте.
+  const created = new Set();
+  const onCreated = async r => {
+    if (r.request().method() !== 'POST' || new URL(r.url()).pathname !== '/api/costs/waybills' || !r.ok()) return;
+    const id = (await r.json().catch(() => ({}))).id;
+    if (id) created.add(id);
+  };
+
+  /** «Новая накладная» — и дождаться её формы: о набранном прежде спросят, оно здесь не нужно. */
+  async function newDraft() {
+    const before = opened();
+    await page.getByRole('button', { name: 'Новая накладная' }).click();
+    // Набранное могла оставить предыдущая проверка (`supplier-keeps-typed-waybill-when-reread-fails`). Что раньше —
+    // вопрос или уход, — решает гонка, а не пауза: на медленном раннере вопрос приходит позже любой паузы.
+    const left = leftFrom(before).then(() => 'left', () => null);
+    const asked = question.waitFor({ timeout: 10_000 }).then(() => 'asked', () => null);
+    if (await Promise.race([left, asked]) === 'asked')
+      await question.getByRole('button', { name: 'Не сохранять' }).click();
+    if (await left !== 'left') throw new Error('«Новая накладная» не открылась');
+    // Своя форма, а не пометка «Черновик» в строке списка: у только что заведённой номера нет.
+    await page.getByRole('heading', { name: /^Накладная № без номера/ }).waitFor({ timeout: 10_000 });
+  }
 
   /** Свой черновик: заведён, записан и снова правлен — уйти с ним молча значило бы потерять правку. */
   async function typedDraft(stamp) {
-    const before = opened();
-    await page.getByRole('button', { name: 'Новая накладная' }).click();
-    // Предыдущая проверка могла оставить набранное (`supplier-keeps-typed-waybill-when-reread-fails`) — тогда
-    // спрашивают о нём; оно этой проверке не нужно.
-    await question.waitFor({ timeout: 1_000 }).then(
-      () => question.getByRole('button', { name: 'Не сохранять' }).click(), () => {});
-    await page.waitForFunction(was => new URL(location.href).searchParams.get('waybill') !== was, before, { timeout: 10_000 });
-    await page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 });
+    await newDraft();
     await page.getByLabel('Номер', { exact: true }).fill(stamp);
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await page.getByRole('heading', { name: new RegExp(stamp) }).waitFor({ timeout: 10_000 });
@@ -35,7 +56,7 @@ export async function waybillLeaveChecks({ seat, check, api }) {
     return opened();
   }
 
-  await check('supplier-is-asked-before-leaving-a-typed-waybill-and-the-question-waits-for-the-write', async () => {
+  async function waitsForTheWrite() {
     seat.screen = 'уход из накладной: запись';
     const stamp = `РН-УХОД-${Date.now()}`;
     const id = await typedDraft(stamp);
@@ -67,19 +88,18 @@ export async function waybillLeaveChecks({ seat, check, api }) {
       await page.unroute(`**/api/costs/waybills/${id}`, hold);
     }
     await question.waitFor({ state: 'hidden', timeout: 10_000 });
-    await page.waitForFunction(was => new URL(location.href).searchParams.get('waybill') !== was, id, { timeout: 10_000 })
-      .catch(() => { throw new Error('после удачной записи новая накладная не открылась'); });
+    await leftFrom(id).catch(() => { throw new Error('после удачной записи новая накладная не открылась'); });
     const saved = await api(page, 'GET', `/costs/waybills/${id}`);
     if (saved.note !== `набрано до ухода ${stamp}`) throw new Error(`правка не записана перед уходом: «${saved.note}»`);
-  });
+  }
 
-  await check('supplier-stays-on-the-waybill-when-the-write-before-leaving-is-refused', async () => {
+  async function staysWhenRefused() {
     seat.screen = 'уход из накладной: отказ записи';
     const stamp = `РН-ОТКАЗ-${Date.now()}`;
     const id = await typedDraft(stamp);
 
-    let created = 0;
-    const onRequest = r => { if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/costs/waybills') created += 1; };
+    let posted = 0;
+    const onRequest = r => { if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/costs/waybills') posted += 1; };
     const refuse = route => route.request().method() === 'PUT'
       ? route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Накладную тем временем изменили (проба)."}' })
       : route.continue();
@@ -93,16 +113,42 @@ export async function waybillLeaveChecks({ seat, check, api }) {
         .catch(() => { throw new Error('после отказа записи вопрос остался'); });
       await page.waitForTimeout(500);
       if (opened() !== id) throw new Error('отказ записи не отменил уход: открыта другая накладная');
-      if (created) throw new Error('отказ записи не отменил уход: заведена новая накладная');
+      if (posted) throw new Error('отказ записи не отменил уход: заведена новая накладная');
       if (await page.getByLabel('Примечание').inputValue() !== `набрано до ухода ${stamp}`)
         throw new Error('после отказа записи набранное пропало');
     } finally {
       await page.unroute(`**/api/costs/waybills/${id}`, refuse);
       page.off('request', onRequest);
     }
-    // Набранное не нужно следующим проверкам: уйти без записи — тем же вопросом.
-    await page.getByRole('button', { name: 'Новая накладная' }).click();
-    await question.getByRole('button', { name: 'Не сохранять' }).click();
-    await question.waitFor({ state: 'hidden', timeout: 10_000 });
+  }
+
+  page.on('response', onCreated);
+  try {
+    await check('supplier-is-asked-before-leaving-a-typed-waybill-and-the-question-waits-for-the-write', waitsForTheWrite);
+    await check('supplier-stays-on-the-waybill-when-the-write-before-leaving-is-refused', staysWhenRefused);
+  } finally {
+    page.off('response', onCreated);
+  }
+
+  // Уборка — проверкой: молча не удалившийся черновик копился бы прогон за прогоном. Со страницы без открытой
+  // накладной: набранное в форме уходом по адресу бросается, а открытая не узнаёт об удалении соседским.
+  await check('waybill-leave-checks-remove-their-drafts', async () => {
+    // Вопрос браузера об уходе с набранным (`beforeunload`) — «уйти»: набранное здесь брошено нарочно.
+    const leave = d => void d.accept();
+    page.on('dialog', leave);
+    try { await visit(seat, 'накладные: уборка', '/waybills'); } finally { page.off('dialog', leave); }
+    const failed = [];
+    for (const id of created) {
+      const { version } = await api(page, 'GET', `/costs/waybills/${id}`);
+      const status = await page.evaluate(async ([wid, seen]) => {
+        const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+        return (await fetch(`/api/costs/waybills/${wid}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'If-Match': seen },
+        })).status;
+      }, [id, version]);
+      if (status !== 204) failed.push(`${id}: ${status}`);
+    }
+    if (!created.size) throw new Error('проверки не завели ни одной накладной — учёт заведённых не работает');
+    if (failed.length) throw new Error(`не удалены черновики проверок: ${failed.join(', ')}`);
   });
 }
