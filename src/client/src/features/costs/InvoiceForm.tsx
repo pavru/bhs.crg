@@ -3,8 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { EditNote, LockIcon, UploadFile } from '@/shared/ui/icons';
 import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
-import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
-import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
@@ -48,6 +46,7 @@ import {
 import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
 import { useInvoiceSave } from './invoiceSave';
+import { useInvoiceLeave } from './InvoiceLeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
 import { InvoiceStatusBanner, InvoiceStatusSheet } from './InvoiceStatusSheet';
 import { useInvoiceStatus } from './useInvoiceStatus';
@@ -193,11 +192,6 @@ export function InvoiceForm({
     attention: !quiet && hasRecognitionNotes(watch.recognition),
   };
 
-  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже (D-10.7): прежде охрана видела
-  // только шапку, и уход молча уносил набранные строки (#1653).
-  const [leave, setLeave] = useState<(() => void) | null>(null);
-  useLeaveGuard(held && !gone, proceed => setLeave(() => proceed));
-
   /** Шаг шапки в очереди записи: вид из ответа или `null` — отказ, о нём уже сказано. */
   async function saveHeader(): Promise<InvoiceView | null> {
     try {
@@ -215,6 +209,11 @@ export function InvoiceForm({
     }
   }
   const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader });
+  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже: прежде охрана видела только шапку,
+  // и уход молча уносил набранные строки (#1653). Вопрос называет, что не сохранено.
+  const leaveDialog = useInvoiceLeave({
+    held: held && !gone, unsaved: { header: dirty, lines: linesDirty, correcting }, saving: queue.saving, save: queue.save,
+  });
 
   // Части: раскрыты незаполненные — решено при открытии счёта, дальше сворачивает только человек.
   const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }, partMore));
@@ -336,16 +335,7 @@ export function InvoiceForm({
     <InvoiceExtrasProvider value={extras.byKey}>
     <PartRevealContext.Provider value={reveal}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-      <LeaveGuardDialog open={leave !== null} saving={queue.saving}
-        onCancel={() => setLeave(null)}
-        onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
-        onSave={async () => {
-          const go = leave;
-          setLeave(null);
-          // Исправление обычным сохранением не пишется: сервер откажет «заперт». Путь у него один.
-          if (correcting) toast.info('Исправление записывается кнопкой «Проверить исправление…» — после проверки.');
-          else if (await queue.save()) go?.();
-        }} />
+      {leaveDialog}
       <ScanFileInput ref={fileInput} onPick={picked => {
         attach.mutateAsync({ id: view.id, seen: view.version, file: picked }).catch(e => toast.apiError(e, 'Файл не приложен'));
       }} />

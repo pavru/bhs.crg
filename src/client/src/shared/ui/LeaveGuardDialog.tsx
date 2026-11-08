@@ -7,8 +7,10 @@ import { Modal, ModalAction, ModalExit, ModalPrimary } from './Modal';
  * Общий компонент, а не часть редактора типов (где он появился, issue #197 / #210): тот же вопрос
  * задаёт форма счёта (G4, issue #1097), и разделу счетов незачем зависеть от редактора типов.
  */
-export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard, onCancel }: {
+export function LeaveGuardDialog({ open, saving, saveBlocked, message, onSave, onDiscard, onCancel }: {
   open: boolean; saving: boolean;
+  /** Что именно не сохранено и что сделает «Сохранить и перейти» (форма счёта, #1653). Нет — общий вопрос. */
+  message?: string;
   /** Сохранить сейчас нельзя — почему (картинка ещё едет в хранилище, issue #532). Уйти без
    *  сохранения и остаться можно: недоступна только кнопка сохранения, с причиной в подсказке. */
   saveBlocked?: string;
@@ -28,7 +30,7 @@ export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard,
       </>
       }>
       <p className="text-body-medium text-on-surface-variant">
-        Есть несохранённые изменения. Сохранить их перед переходом к другому элементу?
+        {message ?? 'Есть несохранённые изменения. Сохранить их перед переходом к другому элементу?'}
       </p>
     </Modal>
   );

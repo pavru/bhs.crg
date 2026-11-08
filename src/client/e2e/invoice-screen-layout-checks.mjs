@@ -32,6 +32,9 @@ const FIRST_STAGE = ['Поставщик', 'Плательщик', 'Номер',
 
 const LINES = 40;
 
+/** Вопрос ухода о несохранённых строках — `leaveQuestion` в `src/features/costs/InvoiceLeaveGuard.tsx`; меняются вместе. */
+const LINES_UNSAVED = 'Не сохранены строки счёта. Сохранить их перед переходом?';
+
 /** Рамка элемента — или отказ с названной причиной. */
 async function box(locator, what) {
   const found = await locator.boundingBox();
@@ -216,6 +219,11 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await statusOpen(page, 'duplicate');
     const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await h.named('переход к другому счёту не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
+    // Вопрос один (#1653, задача 1.3): смена счёта идёт через охрану ухода, своего второго вопроса у очереди нет.
+    await page.waitForTimeout(300);
+    if ((await page.getByRole('dialog').count()) !== 1) throw new Error('на один переход к другому счёту — больше одного вопроса');
+    if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
+      throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
     await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
     await dialog.waitFor({ state: 'detached', timeout: 5_000 });
     if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id)
@@ -225,6 +233,49 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     // Уходим, не сохраняя: соседним проверкам правка не нужна.
     await statusOpen(page, 'duplicate');
     await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
+  });
+
+  // Уход из счёта с несохранённой строкой (#1653, [COST-7], задача 1.5): пункт навигации «Счета» спрашивает и
+  // называет строки, перезагрузка вкладки — вопросом браузера. Вводом с клавиатуры, а не `fill`: вопрос
+  // браузера Chromium задаёт только после действия человека на странице.
+  await check('экран счёта: уход пунктом «Счета» и перезагрузкой с несохранённой строкой спрашивает', async () => {
+    await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
+    await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
+    await expandInvoiceParts(page);
+    const name = page.getByLabel('Наименование в счёте, строка 3', { exact: true });
+    const was = await name.inputValue();
+    await name.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' — правка');
+    const typed = `${was} — правка`;
+
+    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+    await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await h.named('пункт «Счета» увёл со счёта с несохранённой строкой, не спросив', () => dialog.waitFor({ timeout: 5_000 }));
+    if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
+      throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
+    await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
+    if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id) throw new Error('после «Отмена» счёт закрыт');
+    if ((await name.inputValue()) !== typed) throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
+    // Панель раздела поверх формы закрываем: дальше — перезагрузка.
+    await page.keyboard.press('Escape');
+
+    let asked = null;
+    const onDialog = d => { asked = d.type(); void d.dismiss(); };
+    page.on('dialog', onDialog);
+    try {
+      await page.reload({ timeout: 5_000 }).catch(() => {});
+      await page.waitForTimeout(300);
+    } finally { page.off('dialog', onDialog); }
+    if (asked !== 'beforeunload') throw new Error('перезагрузка вкладки с несохранённой строкой прошла без вопроса браузера');
+    if ((await name.inputValue()) !== typed) throw new Error('перезагрузка, отменённая в вопросе, унесла набранное');
+    // Уходим, не сохраняя: соседним проверкам правка не нужна.
+    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+    await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
   });
 
   // Свёрнутая часть тело прячет, а не размонтирует (ревью PR #1787): черновик строк держит таблица, и
