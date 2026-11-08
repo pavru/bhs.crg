@@ -90,7 +90,7 @@ describe('поле формы (PrimitiveInput)', () => {
 
   it('дописанное поле счёта запросов не шлёт: формы записи ядра вокруг него нет (D9)', async () => {
     answer([{ value: 'Камкабель', here: true }]);
-    wrap(<ExtraField field={field()} value={null} set={() => {}} locked={false} frame="" />);
+    wrap(<ExtraField field={field()} value={null} set={() => {}} locked={false} fromScan={false} />);
     fireEvent.change(screen.getByLabelText('Производитель'), { target: { value: 'Кам' } });
     await pause(300);
     expect(asked()).toHaveLength(0);

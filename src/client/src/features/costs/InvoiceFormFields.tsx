@@ -7,7 +7,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { withArchiveWord } from '@/shared/ui/archive';
 import type { CostsOrganization, InvoiceView } from '@/shared/api/invoices';
 import {
-  FIELD_LABEL, K, UNCONFIRMED_HINT, asInput, catalogRef, fromInput, isMarked, moneyInput, refEntryId, unconfirmedInBlock,
+  FIELD_LABEL, K, asInput, catalogRef, fromInput, isMarked, moneyInput, refEntryId, unconfirmedInBlock,
   type InvoiceBlock,
 } from './invoiceFields';
 import { READINESS_ATTR, isRequired, readinessAnchor } from './invoiceReadiness';
@@ -93,10 +93,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
   const current = value(fieldKey);
   const extra = useExtraField(fieldKey);
 
-  // Поле, дописанное в тип, рисует общий с документами `PrimitiveInput`: знака у него нет, и метка — прежней рамкой
-  // предупреждения (не ошибки: распознанное значение не ошибка, его просто никто пока не подтвердил) с подсказкой.
-  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked}
-    hint={marked ? UNCONFIRMED_HINT : undefined} frame={marked ? 'rounded-sm ring-1 ring-warning' : ''} />;
+  // Поле, дописанное в тип, рисует общий с документами `PrimitiveInput` — с тем же знаком в хвосте (D-13.6).
+  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} fromScan={marked} />;
 
   switch (fieldKey) {
     case K.supplier:

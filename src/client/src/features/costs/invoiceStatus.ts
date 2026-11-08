@@ -149,6 +149,8 @@ export interface StatusInput {
       correctable: boolean;
       /** Удалить счёт можно (черновик, право, не заперт). */
       delete: boolean;
+      /** Новый черновик удаляется без окна (13, D-13.5): подпись удаления без многоточия. */
+      deleteNow?: boolean;
     };
   };
 }
@@ -279,7 +281,7 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
 
   // Распознавание (issue #1077). Запертому и удалённому — не о чем: ни повтора, ни правки.
-  if (!closed && !gone && recognition && !form.correcting) recognitionItems(recognition, editable, can.delete).forEach(add);
+  if (!closed && !gone && recognition && !form.correcting) recognitionItems(recognition, editable, can.delete, can.deleteNow).forEach(add);
   if (!closed && !gone && recognitionUnread)
     add({
       key: 'recognition-unread', level: 'check', text: 'Состояние распознавания не пришло',
@@ -361,7 +363,7 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
 
   // ── Проверьте ───────────────────────────────────────────────────────────────────────────────────────
-  twinItems(view, can.delete).forEach(add);
+  twinItems(view, can.delete, can.deleteNow).forEach(add);
 
   // Сверяют метки с файлом: знак в поле действий не имеет ([UI-88]), показ файла — здесь, у пункта. Вторым: в листе
   // справа одно действие — «Всё верно», а «Показать на скане» — сама строка, как «Открыть» у двойника.
@@ -511,7 +513,10 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
 }
 
 /** Пункты распознавания: идёт, сбой, «по прежнему виду», замечания. */
-function recognitionItems(recognition: InvoiceRecognition, editable: boolean, canDelete: boolean): StatusItem[] {
+/** Многоточие — только у действия с окном (D-13.5): новый черновик удаляется без окна. */
+const ask = (label: string, now: boolean | undefined) => (now ? label : `${label}…`);
+
+function recognitionItems(recognition: InvoiceRecognition, editable: boolean, canDelete: boolean, now?: boolean): StatusItem[] {
   const again = editable && recognition.canStart;
   const cannot = editable && !recognition.canStart && recognition.whyNot ? ` Распознать ещё раз нельзя: ${recognition.whyNot}.` : '';
   switch (recognition.state) {
@@ -528,7 +533,7 @@ function recognitionItems(recognition: InvoiceRecognition, editable: boolean, ca
       const actions: StatusAction[] = [
         // Сам файл не читается: повтор на нём даст то же — путь только другой файл.
         ...(again && recognition.reason !== 'BadFile' ? [{ kind: 'recognize' as const, label: 'Распознать ещё раз' }] : []),
-        ...(wrongFile ? [{ kind: 'delete' as const, label: 'Не тот файл — удалить черновик…', short: 'Удалить черновик…', reason: 'wrong-file' as const }] : []),
+        ...(wrongFile ? [{ kind: 'delete' as const, label: ask('Не тот файл — удалить черновик', now), short: ask('Удалить черновик', now), reason: 'wrong-file' as const }] : []),
       ];
       // «Не настроено» — тихо нарочно: это состояние установки, а не счёта.
       return [{
@@ -565,7 +570,7 @@ function recognitionItems(recognition: InvoiceRecognition, editable: boolean, ca
  * Двойники (ТЗ COST-6.2): тот же файл и те же поставщик, номер и дата. Один «другой» счёт — один раз. Удаление
  * (короткий путь #1282) — действием пункта, где удалить можно; «Открыть» тогда — сама строка перечня.
  */
-function twinItems(view: InvoiceView, canDelete: boolean): StatusItem[] {
+function twinItems(view: InvoiceView, canDelete: boolean, now?: boolean): StatusItem[] {
   const { sameFile, both, duplicates } = twinsOf(view);
   const found: StatusItem[] = [];
   const openLabel = (number: string | null) => (number ? `Открыть ${number}` : 'Открыть счёт');
@@ -583,7 +588,7 @@ function twinItems(view: InvoiceView, canDelete: boolean): StatusItem[] {
         loud && 'Если в файле несколько счетов — так и оставьте.',
       ].filter(Boolean).join(' ') || undefined,
       actions: [
-        ...(loud && canDelete ? [{ kind: 'delete' as const, label: 'Загружен дважды — удалить этот черновик…', short: 'Удалить черновик…', reason: 'same-file' as const }] : []),
+        ...(loud && canDelete ? [{ kind: 'delete' as const, label: ask('Загружен дважды — удалить этот черновик', now), short: ask('Удалить черновик', now), reason: 'same-file' as const }] : []),
         { kind: 'open', label: openLabel(first.number), invoiceId: first.id },
       ],
     });

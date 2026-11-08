@@ -195,6 +195,40 @@ try {
     if (amount !== '4850') throw new Error(`сумма «${amount}», ожидалась досчитанная 4850`);
   });
 
+  // ── 1а. Удаление строки без разноски — сразу, с «Вернуть» (costs-invoice-screen-13-undo, D-13.2) ──
+  await check('строка без разноски удаляется сразу, «Вернуть» ставит её на место; сохранённые строки удалённую не держат', async () => {
+    const number = `СЧ-У${stamp}`;
+    const created = await invoice(number);
+    await api('PUT', `/costs/invoices/${created.id}/lines`, {
+      lines: [1, 2, 3].map(n => ({ supplierText: `Позиция ${n}`, quantity: String(n), price: '10' })),
+    });
+    await open(number);
+    const texts = async () => Promise.all([1, 2, 3].map(async n =>
+      (await cell('Наименование в счёте', n).count()) ? cell('Наименование в счёте', n).inputValue() : null));
+    const writes = [];
+    const listen = r => { if (r.method() === 'PUT' && r.url().endsWith('/lines')) writes.push(r.url()); };
+    page.on('request', listen);
+    await page.getByRole('button', { name: 'Удалить строку 2' }).click();
+    if (await page.getByRole('dialog').count()) throw new Error('удаление строки без разноски открыло окно');
+    const undo = page.locator('[role=region][aria-label^="Notifications"] li').filter({ hasText: 'Строка 2 удалена.' }).getByRole('button', { name: 'Вернуть' });
+    await undo.waitFor({ timeout: 5_000 }).catch(() => { throw new Error('снэкбара «Строка 2 удалена · Вернуть» нет'); });
+    await undo.click();
+    const back = await texts();
+    page.off('request', listen);
+    if (JSON.stringify(back) !== JSON.stringify(['Позиция 1', 'Позиция 2', 'Позиция 3']))
+      throw new Error(`после «Вернуть» строки не на местах: ${JSON.stringify(back)}`);
+    if (writes.length) throw new Error('удаление и «Вернуть» до записи отправили строки');
+
+    // Удалить, сохранить, «Вернуть» — строка встаёт новой и пишется заново.
+    await page.getByRole('button', { name: 'Удалить строку 2' }).click();
+    await saveLines();
+    await page.locator('[role=region][aria-label^="Notifications"] li').filter({ hasText: 'Строка 2 удалена.' }).getByRole('button', { name: 'Вернуть' }).click();
+    await saveLines();
+    const saved = (await api('GET', `/costs/invoices/${created.id}`)).lines.map(l => l.supplierText);
+    if (JSON.stringify(saved) !== JSON.stringify(['Позиция 1', 'Позиция 2', 'Позиция 3']))
+      throw new Error(`возвращённая после записи строка не записана на место: ${JSON.stringify(saved)}`);
+  });
+
   // ── 2. Вставка из буфера: шапка не становится строкой счёта ──────────────────
   await check('вставка из буфера даёт строки таблицей, а шапка в счёт не идёт', async () => {
     const number = `СЧ-Б${stamp}`;
@@ -460,17 +494,28 @@ try {
     await opened(firstId).catch(() => { throw new Error('«Вернуться» не открыло разобранный счёт'); });
     await page.getByTestId('invoice-header').getByText('Разобран', { exact: true }).waitFor({ timeout: 10_000 });
 
-    // «Отклонить» ведёт так же, а след называет причину своим словом.
+    // «Отклонить» ведёт так же — без окна (13, D-13.1), — а след называет причину своим словом.
     await page.getByRole('button', { name: new RegExp(names[secondId]) }).first().click();
     await opened(secondId);
-    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Отклонить…' }).click();
-    await page.getByRole('button', { name: 'Отклонить счёт' }).click();
-    await left(secondId).catch(() => { throw new Error('после «Отклонить» следующий счёт очереди не открылся'); });
+    const reject = async () => {
+      await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+      await page.getByRole('menuitem', { name: /^Отклонить/ }).click();
+      await left(secondId).catch(() => { throw new Error('после «Отклонить» следующий счёт очереди не открылся'); });
+    };
+    await reject();
     const thirdId = current();
     if (!names[thirdId] || thirdId === firstId) throw new Error('после «Отклонить» открылся не оставшийся черновик');
     await said(`Счёт № ${names[secondId]} отклонён. Открыт следующий — № ${names[thirdId]}.`);
     await trace(secondId, 'отклонён');
+    // Снэкбар один: «Вернуть» вместо «Вернуться». «Вернуть» — счёт снова черновик и открыт.
+    if (await page.getByRole('button', { name: 'Вернуться' }).count()) throw new Error('у отклонения второй снэкбар «Вернуться»');
+    await page.locator('[role=region][aria-label^="Notifications"] li').filter({ hasText: 'отклонён' }).getByRole('button', { name: 'Вернуть' }).click();
+    await opened(secondId).catch(() => { throw new Error('«Вернуть» не открыл отклонённый счёт'); });
+    await page.getByTestId('invoice-header').getByText('Черновик', { exact: true }).waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('после «Вернуть» счёт не черновик'); });
+    // Отклонить снова — дальше прогон идёт по оставшемуся.
+    await reject();
+    await opened(thirdId);
 
     // Последний счёт запроса: вести некуда — счёт остаётся открытым, и сказано, что пусто.
     await isReady();

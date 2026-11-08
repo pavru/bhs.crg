@@ -4,8 +4,8 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDeleteInvoice, useFreshInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
 import { K, duplicateLabel, refEntryId, sameFileLabel } from './invoiceFields';
 import {
-  InvoiceDeleteContext, canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle,
-  type DeleteReason,
+  InvoiceDeleteContext, canDelete, confirmLabel, deleteInvoice, deletesNow, goingAway, invoiceTitle,
+  type DeleteReason, type InvoiceDeleteEntry,
 } from './invoiceDelete';
 
 const capital = (text: string) => text[0].toUpperCase() + text.slice(1);
@@ -17,11 +17,14 @@ const capital = (text: string) => text[0].toUpperCase() + text.slice(1);
  * <p>Входы спрашивают через контекст и получают `null`, когда удалить нельзя: действие тогда не
  * показывается вовсе, а не показывается с отказом.</p>
  *
+ * <p>Новый черновик (`now`, D-13.3) окна не открывает: удаление откладывается до закрытия снэкбара
+ * «Черновик удалён · Вернуть» (`onDeleteLater`, D-13.4) — кроме входа «Это дубль» (D-13.5).</p>
+ *
  * <p>⚠️ Мутация не строится на `useInvoiceWrite`: тот кладёт ответ в кэш и перечитывает счёт, а здесь
  * ответа нет и перечитывать нечего. Счёт из кэша выбрасывает страница — после того, как форма закрыта:
  * выброшенный при открытой форме, он был бы тут же запрошен заново и ответил бы «счёта нет».</p>
  */
-export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizations, onDeleted, children }: {
+export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizations, onDeleted, now = false, onDeleteLater, children }: {
   view: InvoiceView;
   canEdit: boolean;
   /** Есть несохранённые правки — шапки или строк: они пропадут вместе со счётом, и диалог обязан это сказать. */
@@ -30,6 +33,10 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
   reading: boolean;
   organizations: CostsOrganization[];
   onDeleted: () => void;
+  /** Новый черновик без правок: удаляется без окна, отложенно (D-13.3). Без `onDeleteLater` не действует. */
+  now?: boolean;
+  /** Отложить удаление — страница прячет черновик и показывает «Вернуть». */
+  onDeleteLater?: () => void;
   children: ReactNode;
 }) {
   const remove = useDeleteInvoice();
@@ -55,8 +62,17 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
     onDeleted();
   }
 
+  const later = now && onDeleteLater ? onDeleteLater : null;
+  const entry: InvoiceDeleteEntry | null = available ? {
+    now: later !== null,
+    ask: reason => {
+      if (later && deletesNow(entry, reason)) later();
+      else setAsked({ reason, seen: view.version });
+    },
+  } : null;
+
   return (
-    <InvoiceDeleteContext.Provider value={available ? reason => setAsked({ reason, seen: view.version }) : null}>
+    <InvoiceDeleteContext.Provider value={entry}>
       {children}
       <ConfirmDialog open={asked !== null} onOpenChange={open => { if (!open) setAsked(null); }}
         title={`Удалить ${title}?`}

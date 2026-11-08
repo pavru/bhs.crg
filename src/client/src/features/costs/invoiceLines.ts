@@ -81,6 +81,28 @@ export interface LineDraft {
 
 let sequence = 0;
 
+/**
+ * Есть ли у строки СОХРАНЁННАЯ разноска (costs-invoice-screen-13-undo, D-13.2). Её удаление идёт своим
+ * правилом — вопросом, называющим каскад (#1655), а не снэкбаром «Вернуть»: разноску после записи строк не
+ * вернуть ничем.
+ */
+export const hasSavedAllocation = (line: LineDraft, saved: readonly InvoiceLineView[]): boolean =>
+  line.id !== null && saved.some(s => s.id === line.id && s.allocation.parts.length > 0);
+
+/**
+ * «Вернуть» удалённой строки (D-13.2): на прежнее место с прежними полями. Строки тем временем записали —
+ * её `id` в счёте уже нет, и она встаёт НОВОЙ строкой: прежний `id` сервер отверг бы. Разноски у неё не было,
+ * так что теряется только `id`, на который ничто не ссылается. Уже на месте — ничего не меняется.
+ */
+export function restoreLine(
+  drafts: LineDraft[], line: LineDraft, index: number, saved: readonly InvoiceLineView[],
+): LineDraft[] {
+  if (drafts.some(d => d.key === line.key)) return drafts;
+  const back = line.id === null || saved.some(s => s.id === line.id) ? line : { ...line, id: null, key: emptyDraft().key };
+  const at = Math.min(index, drafts.length);
+  return [...drafts.slice(0, at), back, ...drafts.slice(at)];
+}
+
 /** Пустая строка для дописывания руками. */
 export function emptyDraft(): LineDraft {
   sequence += 1;

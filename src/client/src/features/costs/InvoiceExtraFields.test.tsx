@@ -15,14 +15,14 @@ const field = (over: Partial<SchemaField>): SchemaField =>
 describe('дописанное число', () => {
   it('принимает запятую и пробелы, как суммы шапки, и уезжает числом', () => {
     const set = vi.fn();
-    render(<ExtraField field={field({})} value={null} set={set} locked={false} frame="" />);
+    render(<ExtraField field={field({})} value={null} set={set} locked={false} fromScan={false} />);
     fireEvent.change(screen.getByLabelText('Аванс'), { target: { value: '1 234,50' } });
     expect(set).toHaveBeenLastCalledWith('Аванс', 1234.5);
   });
 
   it('не число — названо у поля и уезжает как набрано: отказ сервера назовёт поле', () => {
     const set = vi.fn();
-    render(<ExtraField field={field({})} value={null} set={set} locked={false} frame="" />);
+    render(<ExtraField field={field({})} value={null} set={set} locked={false} fromScan={false} />);
     fireEvent.change(screen.getByLabelText('Аванс'), { target: { value: 'двести' } });
     expect(set).toHaveBeenLastCalledWith('Аванс', 'двести');
     expect(screen.getByText('Не число')).toBeTruthy();
@@ -30,7 +30,7 @@ describe('дописанное число', () => {
 
   it('стёртое — `null`, а не пустая строка', () => {
     const set = vi.fn();
-    render(<ExtraField field={field({})} value={12} set={set} locked={false} frame="" />);
+    render(<ExtraField field={field({})} value={12} set={set} locked={false} fromScan={false} />);
     expect((screen.getByLabelText('Аванс') as HTMLInputElement).value).toBe('12');
     fireEvent.change(screen.getByLabelText('Аванс'), { target: { value: '' } });
     expect(set).toHaveBeenLastCalledWith('Аванс', null);
@@ -43,7 +43,7 @@ describe('поле со своим типом', () => {
     render(
       <QueryClientProvider client={client}>
         <ExtraField field={field({ key: 'Статус', title: 'Статус', type: 'enum', typeId: 'e1' })}
-          value="active" set={() => {}} locked={false} frame="" />
+          value="active" set={() => {}} locked={false} fromScan={false} />
       </QueryClientProvider>,
     );
     expect(screen.queryByText(/Нет вариантов/)).toBeNull();

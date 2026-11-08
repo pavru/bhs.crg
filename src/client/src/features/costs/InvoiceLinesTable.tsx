@@ -6,7 +6,7 @@ import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import { StatusText } from '@/shared/ui/StatusText';
-import { useSnackbar } from '@/shared/ui/Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useConfirmInvoiceFields, useReplaceInvoiceLines, type InvoiceView, type VatMode,
 } from '@/shared/api/invoices';
@@ -18,7 +18,7 @@ import {
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { formatMoney } from '@/shared/format/format';
-import { emptyDraft, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
+import { emptyDraft, hasSavedAllocation, restoreLine, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
   modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
@@ -299,10 +299,29 @@ export function InvoiceLinesTable({
     void suggest(added);
   }
 
+  /**
+   * Удаление строки — сразу, а у строки без сохранённой разноски — со снэкбаром «Строка N удалена · Вернуть»
+   * (costs-invoice-screen-13-undo, D-13.2). Строку с разноской удаляют своим правилом (#1655) — здесь она
+   * удаляется, как прежде. «Вернуть» сверяет строки счёта на миг нажатия: их могли записать.
+   */
   function remove(key: string) {
+    const index = drafts.findIndex(draft => draft.key === key);
+    const line = drafts[index];
     setDrafts(prev => prev.filter(draft => draft.key !== key));
     setDirty(true);
+    if (!line || hasSavedAllocation(line, view.lines)) return;
+    const restore = () => {
+      // Таблицы уже нет — ушли со счёта: «Вернуть», который молча ничего не делает, был бы ложью.
+      if (!alive.current) { toast.info(`Строка ${index + 1} не возвращена: счёт закрыт. Откройте его и добавьте строку заново.`); return; }
+      setDrafts(prev => restoreLine(prev, line, index, savedLines.current));
+      setDirty(true);
+    };
+    toast.success(`Строка ${index + 1} удалена.`, { duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore } });
   }
+  const savedLines = useRef(view.lines);
+  useLayoutEffect(() => { savedLines.current = view.lines; });
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   /**
    * Шаг записи строк в очереди «Сохранить» (D-10.7). `after` — вид из ответа шапки, записанной этим же

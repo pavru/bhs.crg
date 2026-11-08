@@ -29,6 +29,7 @@ import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
+import { invoiceUndoChecks } from './invoice-undo-checks.mjs';
 import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
 /**
@@ -459,10 +460,13 @@ try {
     await list.getByRole('button', { name: repeats[0] }).click();
     await untilStatus(page, items => items.some(i => i.key === 'same-file' && /приложен ещё к \d+ счетам: /.test(i.text)),
       'на форме оговорки о том же файле нет', 15_000);
-    await statusAction(page, 'same-file', 'Удалить черновик…');
-    await named('диалог удаления не назвал остающийся счёт',
-      () => page.getByTestId('invoice-delete-body').getByText(/Останется счёт .* — с тем же файлом\./).waitFor({ timeout: 5_000 }));
-    await page.getByRole('button', { name: 'Не удалять' }).click();
+    // Черновик заведён этой вкладкой и не правлен — удаляется без окна, с «Вернуть» (13, D-13.5).
+    await statusAction(page, 'same-file', 'Удалить черновик');
+    if (await page.getByRole('dialog').count()) throw new Error('удаление нового черновика-повтора открыло окно');
+    const undo = page.locator('[role=region][aria-label^="Notifications"] li').filter({ hasText: 'Черновик удалён' }).getByRole('button', { name: 'Вернуть' });
+    await named('снэкбара «Черновик удалён · Вернуть» нет', () => undo.waitFor({ timeout: 5_000 }));
+    await undo.click();
+    await untilStatus(page, items => items.some(i => i.key === 'same-file'), '«Вернуть» не вернул черновик-повтор', 10_000);
   });
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
   await api('PUT', '/account/settings', { invoiceFile: 'open' });
@@ -538,6 +542,7 @@ try {
 
   // Раскладка вида по профилю печати (issue #1456) — своим модулем, с помощниками этого прогона.
   await invoiceLayoutChecks(page, check, { api, requisites, open, attachScan, named, officeFile, UNKNOWN_TYPE, stamp });
+  await invoiceUndoChecks(page, check, { named, stamp, BASE });
   // Раскладка экрана по варианту Г (costs-invoice-screen-10-layout) — на четырёх размерах ноутбука.
   await invoiceScreenLayoutChecks(page, check, { api, requisites, attachScan, named, stamp, BASE });
 
@@ -591,15 +596,28 @@ try {
     if (!await queued()) throw new Error('черновик со строкой без позиции не встал в очередь «Разобрать»');
 
     await open(number);
-    await page.getByRole('button', { name: 'Ещё', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Отклонить…' }).click();
-    const dialog = page.getByRole('dialog');
-    await named('диалог не сказал, что счёт останется в реестре',
-      () => dialog.getByText('останется в реестре').waitFor({ timeout: 10_000 }));
+    // Без окна (13, D-13.1): пояснение — строкой под пунктом, после ответа — «Вернуть».
+    const reject = async () => {
+      await page.getByRole('button', { name: 'Ещё', exact: true }).click();
+      const item = page.getByRole('menuitem', { name: /^Отклонить/ });
+      await named('пункт не сказал, что счёт останется в реестре', () => item.getByText(/останется в реестре/).waitFor({ timeout: 10_000 }));
+      await Promise.all([
+        page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/rejected`) && r.ok()),
+        item.click(),
+      ]);
+      if (await page.getByRole('dialog').count()) throw new Error('«Отклонить» открыло окно');
+      const said = page.locator('[role=region][aria-label^="Notifications"] li').filter({ hasText: `Счёт № ${number} отклонён.` });
+      await named('снэкбара «Счёт № … отклонён · Вернуть» нет', () => said.getByRole('button', { name: 'Вернуть' }).waitFor({ timeout: 5_000 }));
+      return said;
+    };
+    // «Вернуть» снэкбара — обратный переход: счёт снова черновик.
     await Promise.all([
-      page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/rejected`) && r.ok()),
-      dialog.getByRole('button', { name: 'Отклонить счёт' }).click(),
+      page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/draft`) && r.ok()),
+      (await reject()).getByRole('button', { name: 'Вернуть' }).click(),
     ]);
+    await named('«Вернуть» не вернул счёт в черновик',
+      () => page.getByText('Черновик', { exact: true }).first().waitFor({ timeout: 10_000 }));
+    await reject();
     await named('чип состояния не стал «Отклонён»',
       () => page.getByText('Отклонён', { exact: true }).first().waitFor({ timeout: 10_000 }));
 
@@ -612,10 +630,10 @@ try {
     if (await page.getByRole('button', { name: 'Отметить оплату' }).count())
       throw new Error('у отклонённого счёта предложено «Отметить оплату» — сервер на это отвечает отказом');
 
-    // У отклонённого в «⋮» нет «Отклонить…» — а возврат стоит там же (D-10.6), одним входом.
+    // У отклонённого в «⋮» нет «Отклонить» — а возврат стоит там же (D-10.6), одним входом.
     await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
-    if (await page.getByRole('menuitem', { name: 'Отклонить…' }).count())
-      throw new Error('у отклонённого счёта в меню осталось «Отклонить…»');
+    if (await page.getByRole('menuitem', { name: /^Отклонить/ }).count())
+      throw new Error('у отклонённого счёта в меню осталось «Отклонить»');
     await Promise.all([
       page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/draft`) && r.ok()),
       page.getByRole('menuitem', { name: 'Вернуть в черновик' }).click(),

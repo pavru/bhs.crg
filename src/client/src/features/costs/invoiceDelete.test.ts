@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 import type { InvoiceView } from '@/shared/api/invoices';
-import { canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle } from './invoiceDelete';
+import {
+  canDelete, confirmLabel, deleteInvoice, deletesNow, goingAway, invoiceTitle, isFresh, markCreatedHere, resetFresh,
+  watchFreshness,
+} from './invoiceDelete';
 
 function view(over: {
   requisites?: Record<string, unknown>; paid?: boolean; lines?: { parts: number }[]; book?: number;
@@ -120,5 +124,48 @@ describe('deleteInvoice', () => {
 
   it('ответа нет — исход неизвестен, а не «не удалён»', async () => {
     await expect(deleteInvoice(() => Promise.reject(new Error('Network Error')), unread)).rejects.toThrow('неизвестно');
+  });
+});
+
+describe('«свежий» черновик (costs-invoice-screen-13-undo, D-13.3, задачи 3.1 и 3.5)', () => {
+  const written = (qc: QueryClient, id: string) =>
+    qc.getMutationCache().build(qc, { mutationFn: async () => ({ id }), meta: { invoiceWrite: true } }).execute(undefined);
+
+  it('заведённый из файла этой вкладкой — свежий; чужой и прошлого сеанса — нет', () => {
+    resetFresh();
+    markCreatedHere('i1');
+    expect(isFresh('i1')).toBe(true);
+    expect(isFresh('i2')).toBe(false);
+  });
+
+  it('своя запись снимает признак — после записи поставщика удаление спросит окном', async () => {
+    resetFresh();
+    const qc = new QueryClient();
+    watchFreshness(qc);
+    watchFreshness(qc);
+    markCreatedHere('i1');
+    markCreatedHere('i2');
+    await written(qc, 'i1');
+    expect(isFresh('i1')).toBe(false);
+    expect(isFresh('i2')).toBe(true);
+  });
+
+  it('сдвиг версии распознаванием (не запись этой вкладки) признак не снимает', () => {
+    resetFresh();
+    const qc = new QueryClient();
+    watchFreshness(qc);
+    markCreatedHere('i1');
+    qc.setQueryData(['costs-invoices', 'i1'], { id: 'i1', version: '9' });
+    expect(isFresh('i1')).toBe(true);
+  });
+
+  it('вход «Это дубль» спрашивает окном и у свежего: дубликат узнают по сохранённым реквизитам', () => {
+    const entry = { now: true, ask: () => {} };
+    expect(deletesNow(entry, 'wrong-file')).toBe(true);
+    expect(deletesNow(entry, 'same-file')).toBe(true);
+    expect(deletesNow(entry, 'menu')).toBe(true);
+    expect(deletesNow(entry, 'duplicate')).toBe(false);
+    expect(deletesNow({ now: false, ask: () => {} }, 'menu')).toBe(false);
+    expect(deletesNow(null, 'menu')).toBe(false);
   });
 });

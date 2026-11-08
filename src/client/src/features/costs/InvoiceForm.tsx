@@ -24,7 +24,8 @@ import { InvoicePayButton, InvoicePayment, PayDialog } from './InvoicePayment';
 import type { QueueExit } from './invoiceQueues';
 import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { InvoiceDeleteProvider } from './InvoiceDeleteDialog';
-import { canDelete } from './invoiceDelete';
+import { canDelete, useFresh } from './invoiceDelete';
+import { undoVersion } from './invoiceReject';
 import { ScanFileInput } from './InvoiceScanPanel';
 import { RecognitionNotes } from './InvoiceRecognitionNote';
 import { useRecognitionAction } from './recognitionAction';
@@ -74,14 +75,20 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  * со сбросом состояния — он рисует лишний кадр с чужими правками.</p>
  */
 export function InvoiceForm({
-  view, organizations, organizationsError, onRetryOrganizations, onOpenInvoice, gone = false, onClose, onExit, onUnsaved,
+  view, organizations, organizationsError, onRetryOrganizations, onOpenInvoice, gone = false, onClose, onExit, onUnsaved, onDeleteLater,
   focusHeader = false, nav, fromFile, file, onShowFile, pageActions, compactLines = false, hiddenByFilter, rereadFailed,
 }: {
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
    *  форму на время записи и выбора следующего счёта и говорит о переходе. `otherwise` зовётся, когда
-   *  сама страница ничего не сказала. Обещание кончается ответом на запись. */
-  onExit?: <T>(how: QueueExit, send: () => Promise<T>, otherwise: (result: T) => void) => Promise<T>;
+   *  сама страница ничего не сказала. Обещание кончается ответом на запись. `back` — версия, с которой
+   *  «Вернуть» возвращает вышедший счёт в черновик (D-13.1); нет её — «Вернуть» не строится. */
+  onExit?: <T>(
+    how: QueueExit, send: () => Promise<T>, otherwise: (result: T, undo?: () => void) => void,
+    back?: (result: T) => string | null,
+  ) => Promise<T>;
+  /** Удалить новый черновик без окна — страница прячет его и показывает «Вернуть» (D-13.4). Нет — окном всегда. */
+  onDeleteLater?: (view: InvoiceView) => void;
   /** Сюда привёл переход от соседнего счёта очереди: фокус — на сводку, а не в начало страницы. */
   focusHeader?: boolean;
   /** Есть ли в форме несохранённое — в шапке, в строках или в исправлении. Страница спрашивает об этом
@@ -273,6 +280,9 @@ export function InvoiceForm({
     const title = extras.byKey.get(key)?.title ?? extras.unshown.find(u => u.field.key === key)?.field.title;
     return title ? [[key, title]] : [];
   }));
+  // Новый черновик из файла этой вкладки, без записей и без несохранённого, удаляется без окна (D-13.3).
+  const fresh = useFresh(view.id);
+  const deleteNow = !!onDeleteLater && fresh && !unsaved && canDelete(view, canEdit && !closed);
   const indicator = useInvoiceStatus({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
@@ -287,6 +297,7 @@ export function InvoiceForm({
       can: {
         edit: mayEdit, pay: canPay, allocate, correct: can.permission('costs.invoice.correct'),
         closePeriod: can.permission('core.period.close'), correctable, delete: canDelete(view, canEdit && !closed),
+        deleteNow,
       },
     },
   });
@@ -319,7 +330,7 @@ export function InvoiceForm({
     <CorrectionContext.Provider value={correction}>
     <RecognitionContext.Provider value={quiet ? undefined : watch.recognition}>
     <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={unsaved} reading={watch.running}
-      organizations={organizations} onDeleted={onClose}>
+      organizations={organizations} onDeleted={onClose} now={deleteNow} onDeleteLater={() => onDeleteLater?.(view)}>
     <InvoiceExtrasProvider value={extras.byKey}>
     <PartRevealContext.Provider value={reveal}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
@@ -356,7 +367,7 @@ export function InvoiceForm({
         menu={(
           <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize} page={pageActions}
             correct={correctable && !correcting ? { key: 'correct', label: 'Исправить', icon: EditNote, onSelect: correction.start } : null}
-            onRejected={onExit && ((send, say) => onExit('rejected', send, say))} />
+            onRejected={onExit && ((send, say) => onExit('rejected', send, say, undoVersion))} />
         )} />
 
       {/* ── Части: одна прокрутка ───────────────────────────────────────────────────────────────── */}

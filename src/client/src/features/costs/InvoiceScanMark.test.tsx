@@ -10,6 +10,8 @@ import { BLOCKS, K, UNCONFIRMED_HINT } from './invoiceFields';
 import { BlockFields } from './InvoiceFormFields';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
 import { SCAN_NOTE } from '@/shared/ui/fieldBox';
+import type { SchemaField } from '@/shared/api/schema';
+import { ExtraField } from './InvoiceExtraFields';
 
 vi.mock('@/shared/api/client', () => ({
   apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() }, traceIdOf: () => undefined,
@@ -80,6 +82,44 @@ describe('метка «со скана» в поле — общим знаком
     expect(scanMarks()).toHaveLength(1);
     expect(screen.queryByText(UNCONFIRMED_HINT)).toBeNull();
     expect(document.querySelector('.ring-warning')).toBeNull();
+  });
+});
+
+describe('метка «со скана» у полей, дописанных в тип, — тем же знаком (13, 4.1, D-13.6)', () => {
+  const extra = (over: Partial<SchemaField>): SchemaField =>
+    ({ key: 'Объект', title: 'Объект', type: 'string', required: false, ...over }) as SchemaField;
+  const mark = (f: SchemaField, value: unknown, fromScan: boolean, set = vi.fn()) => {
+    render(<QueryClientProvider client={client()}>
+      <ExtraField field={f} value={value} set={set} locked={false} fromScan={fromScan} />
+    </QueryClientProvider>);
+    return set;
+  };
+
+  it('строка со скана — знак в хвосте, приписка для диктора, рамки нет', () => {
+    mark(extra({}), 'Склад 3', true);
+    expect(scanMarks()).toHaveLength(1);
+    expect(screen.getByRole('textbox', { name: `Объект (${SCAN_NOTE})` })).toBeTruthy();
+    expect(document.querySelector('.ring-warning')).toBeNull();
+  });
+
+  it('дата и число со скана — тот же знак', () => {
+    mark(extra({ key: 'Подписан', title: 'Подписан', type: 'date' }), '2026-10-05', true);
+    mark(extra({ key: 'Аванс', title: 'Аванс', type: 'number' }), 12, true);
+    expect(scanMarks()).toHaveLength(2);
+    expect(document.querySelector('.ring-warning')).toBeNull();
+  });
+
+  it('правка снимает знак', () => {
+    const set = mark(extra({}), 'Склад 3', true);
+    fireEvent.change(screen.getByRole('textbox', { name: `Объект (${SCAN_NOTE})` }), { target: { value: 'Склад 4' } });
+    expect(set).toHaveBeenLastCalledWith('Объект', 'Склад 4');
+    expect(scanMarks()).toHaveLength(0);
+  });
+
+  it('без метки — поле прежнее: ни знака, ни приписки', () => {
+    mark(extra({}), 'Склад 3', false);
+    expect(scanMarks()).toHaveLength(0);
+    expect(screen.getByRole('textbox', { name: 'Объект' })).toBeTruthy();
   });
 });
 

@@ -79,10 +79,16 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
     }),
   }), [push]);
 
+  // Поле Radix — заново под каждое уведомление. Radix ставит срок на паузу, пока указатель или фокус в поле,
+  // а снимает её уходом, который слушает, только пока в поле есть уведомление. Нажатое действие закрывает
+  // уведомление под указателем: уход приходит, когда слушать уже некому, флаг паузы остаётся — и следующее
+  // уведомление не закрывалось сроком, пока на него не наведут и не уведут (с ним висело и отложенное
+  // удаление черновика, costs-invoice-screen-13-undo). Новое поле паузы не помнит; указатель над ним снова
+  // ставит её первым же движением. Потомки — вне провайдера Radix: его ключ не пересоздаёт приложение.
   return (
     <SnackbarCtx.Provider value={api}>
-      <RT.Provider swipeDirection="right">
-        {children}
+      {children}
+      <RT.Provider key={shown?.id} swipeDirection="right">
         {shown && (
           <SnackbarCard key={shown.id} item={shown} open={!leaving}
             onClose={reason => {

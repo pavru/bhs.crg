@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { apiClient } from './client';
+import { API_BASE, apiClient } from './client';
+import { getToken } from './token';
 import { onWritten, writeMeta, type WriteContext } from './writeWatch';
 
 /**
@@ -677,6 +678,26 @@ export function useDeleteInvoice() {
       apiClient.delete(`/costs/invoices/${id}`, seenBy(seen)).then(() => undefined),
     onError: rereadOnConflict(qc),
   });
+}
+
+/**
+ * Удалить черновик мимо хука — отложенное удаление (costs-invoice-screen-13-undo, D-13.4) уходит, когда формы
+ * уже нет, а со страницы, бывает, ушли: мутация размонтированного компонента не нужна.
+ */
+export const sendInvoiceDelete = (id: string, seen: string) =>
+  apiClient.delete(`/costs/invoices/${id}`, seenBy(seen)).then(() => undefined);
+
+/**
+ * То же при закрытии вкладки: `fetch` с `keepalive`, который axios не умеет, — обычный запрос браузер
+ * оборвал бы вместе со страницей. Тела нет, лимит `keepalive` не мешает. Отказ (истёк токен, сеть) не
+ * виден никому — черновик тогда остаётся черновиком.
+ */
+export function sendInvoiceDeleteOnLeave(id: string, seen: string): void {
+  const token = getToken();
+  void fetch(`${API_BASE}/costs/invoices/${id}`, {
+    method: 'DELETE', keepalive: true,
+    headers: { 'If-Match': seen, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  }).catch(() => undefined);
 }
 
 /**

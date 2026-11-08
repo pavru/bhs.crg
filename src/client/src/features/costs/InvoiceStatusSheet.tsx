@@ -51,7 +51,7 @@ function afterClose(node: HTMLElement | null, act: () => void, alive: () => bool
 /** Исполнитель действий пункта: удаление — через диалог удаления формы, остальное — форма. */
 function useStatusRun(onAction: (action: StatusAction) => void): (action: StatusAction) => void {
   const askDelete = useInvoiceDelete();
-  return action => (action.kind === 'delete' ? askDelete?.(action.reason) : onAction(action));
+  return action => (action.kind === 'delete' ? askDelete?.ask(action.reason) : onAction(action));
 }
 
 export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onAction }: {

@@ -390,3 +390,13 @@ describe('удалённые записи у счёта закрытого пе�
     expect(bannerOf(statusOf(input(LOST, { can: { ...CAN, edit: false } })))).toBeNull();
   });
 });
+
+describe('удаление нового черновика из перечня — без многоточия (costs-invoice-screen-13-undo, D-13.5)', () => {
+  const deletes = (now: boolean) => statusOf(input(view(), { can: { ...CAN, deleteNow: now } }, failed('NoAnswer')))
+    .items.flatMap(i => i.actions).filter(a => a.kind === 'delete').map(a => a.label);
+
+  it('свежий черновик: «Не тот файл — удалить черновик»; иначе — с многоточием, окном', () => {
+    expect(deletes(true)).toEqual(['Не тот файл — удалить черновик']);
+    expect(deletes(false)).toEqual(['Не тот файл — удалить черновик…']);
+  });
+});

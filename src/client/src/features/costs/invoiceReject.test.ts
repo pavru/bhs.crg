@@ -1,22 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { K } from './invoiceFields';
-import { rejectInvoice } from './invoiceReject';
+import { rejectInvoice, undoVersion } from './invoiceReject';
 
 const view = (state: string) => ({ requisites: { [K.state]: state } }) as unknown as InvoiceView;
 const refusal = (status: number) => Object.assign(new Error('отказ'), { response: { status } });
 
 describe('rejectInvoice', () => {
-  it('прошедший запрос — «отклонён», и счёт заново не читается', async () => {
+  it('прошедший запрос — «отклонён» с версией ответа (для «Вернуть»), и счёт заново не читается', async () => {
     let read = 0;
-    const outcome = await rejectInvoice(async () => undefined, async () => { read++; return view('Отклонён'); });
-    expect(outcome).toBe('rejected');
+    const result = await rejectInvoice(async () => ({ version: 'v7' }), async () => { read++; return view('Отклонён'); });
+    expect(result).toEqual({ outcome: 'rejected', version: 'v7' });
+    expect(undoVersion(result)).toBe('v7');
     expect(read).toBe(0);
   });
 
-  it('409 при уже отклонённом счёте — не отказ: повтор после потерянного ответа', async () => {
-    const outcome = await rejectInvoice(() => Promise.reject(refusal(409)), async () => view('Отклонён'));
-    expect(outcome).toBe('already');
+  it('409 при уже отклонённом счёте — не отказ, но и без «Вернуть»: отклонил, возможно, сосед', async () => {
+    const result = await rejectInvoice(() => Promise.reject(refusal(409)), async () => view('Отклонён'));
+    expect(result.outcome).toBe('already');
+    expect(undoVersion(result)).toBeNull();
   });
 
   it('409 при неотклонённом счёте остаётся отказом', async () => {
