@@ -118,6 +118,18 @@ try {
     // число уже не показывают.
     const before = (await seededEstimate()).revisions.length;
     await page.getByRole('button', { name: 'Новая редакция' }).click();
+    // Площадка файла ([UI-89], sharedui-file-drop-zone): брошенный файл не того вида получает отказ на месте,
+    // и разбор не начинается. Бросок — настоящим событием с DataTransfer, путь тот же, что у мыши.
+    const pdf = await page.evaluateHandle(() => {
+      const data = new DataTransfer();
+      data.items.add(new File(['%PDF-1.4'], 'счёт.pdf', { type: 'application/pdf' }));
+      return data;
+    });
+    await dialog().getByText('Перетащите файл сметы сюда').dispatchEvent('drop', { dataTransfer: pdf });
+    await dialog().getByRole('alert').filter({ hasText: 'счёт.pdf — не .gsfx или .xml' }).waitFor({ timeout: 5_000 })
+      .catch(() => { throw new Error('брошенный .pdf не получил отказа «не .gsfx или .xml» под площадкой'); });
+    if (await dialog().getByRole('button', { name: 'Загрузить' }).isEnabled())
+      throw new Error('после отказа .pdf «Загрузить» доступна — файл всё же взят');
     await dialog().getByLabel('Файл сметы').setInputFiles({
       name: 'ЛСР прогона.xml', mimeType: 'application/xml', buffer: Buffer.from(estimateXml(true), 'utf8'),
     });

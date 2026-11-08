@@ -34,6 +34,7 @@ beforeEach(() => {
     if (url === '/plan/estimates') return { data: { items: [{ id: 'e1', name: 'ЭОМ корпус 2', kind: 'main', revisions: [] }] } } as never;
     if (url === '/constructions/c1') return { data: { id: 'c1', name: 'Корпус 2', sections: [] } } as never;
     if (url === '/plan/imports/i1') return { data: shown } as never;
+    if (url === '/files/kinds') return { data: { unknown: 'application/octet-stream', maxBytes: 50 * 1024 * 1024, kinds: [] } } as never;
     throw new Error(`неожиданный адрес ${url}`);
   });
 });
@@ -106,6 +107,44 @@ describe('загрузка: файл и цель', () => {
     expect(unavailable(uploadButton())).toBe(true);
     pickFile();
     expect(unavailable(uploadButton())).toBe(false);
+  });
+
+  // Площадка файла ([UI-89], change sharedui-file-drop-zone, design D3).
+  const dropOnZone = (f: File) => {
+    const zone = screen.getByText(/Перетащите файл сметы сюда|ЛСР_02-01-03\.gsfx|Загружаем/, { selector: 'p' }).closest('div.rounded-md')!;
+    fireEvent.drop(zone, { dataTransfer: { types: ['Files'], files: [f], items: [], dropEffect: 'none' } });
+  };
+
+  it('файл с чужим расширением — отказ на месте, файла у окна нет', async () => {
+    mount({ estimateId: 'e1' });
+    await screen.findByText(/новая редакция сметы «ЭОМ корпус 2»/);
+    dropOnZone(new File(['%PDF'], 'счёт.pdf'));
+    expect(screen.getByRole('alert').textContent).toBe('счёт.pdf — не .gsfx или .xml');
+    expect(unavailable(uploadButton())).toBe(true);
+  });
+
+  it('предел размера — из реестра видов: назван в подписи, больший файл получает отказ на месте', async () => {
+    mount({ estimateId: 'e1' });
+    expect(await screen.findByText('.gsfx или .xml · до 50 МБ')).toBeTruthy();
+    const big = new File(['<xml/>'], 'большая.gsfx');
+    Object.defineProperty(big, 'size', { value: 50 * 1024 * 1024 + 1 });
+    dropOnZone(big);
+    expect(screen.getByRole('alert').textContent).toBe('большая.gsfx — больше 50 МБ');
+    expect(unavailable(uploadButton())).toBe(true);
+  });
+
+  it('пока файл уходит на сервер, площадка показывает ход и брошенный файл не берёт', async () => {
+    mount({ estimateId: 'e1' });
+    await screen.findByText(/новая редакция сметы «ЭОМ корпус 2»/);
+    pickFile();
+    vi.mocked(apiClient.post).mockReturnValueOnce(new Promise(() => {}) as never);
+    fireEvent.click(uploadButton());
+    expect(await screen.findByText('Загружаем «ЛСР_02-01-03.gsfx»', { selector: 'p' })).toBeTruthy();
+    dropOnZone(new File(['<xml/>'], 'другая.gsfx'));
+    expect(screen.queryByText('другая.gsfx')).toBeNull();
+    expect(screen.getByText('Загружаем «ЛСР_02-01-03.gsfx»', { selector: 'p' })).toBeTruthy();
+    const [, form] = vi.mocked(apiClient.post).mock.calls[0] as [string, FormData];
+    expect((form.get('file') as File).name).toBe('ЛСР_02-01-03.gsfx');
   });
 });
 
