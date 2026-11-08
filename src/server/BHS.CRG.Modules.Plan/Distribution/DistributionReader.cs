@@ -1,3 +1,4 @@
+using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Endpoints;
@@ -119,7 +120,7 @@ internal sealed class DistributionReader(PlanDbContext db, IModuleConstructions 
         var factors = rows.ToDictionary(r => r.Id, r => r.Factor);
         int Of(CarryOverCategory category) => items.Count(i => i.Category == category);
         var open = items.Where(i => i.Resolution is null)
-            .OrderBy(i => i.Pending ? 0 : 1).ThenBy(i => i.LsrSectionCode).ThenBy(i => i.Number)
+            .OrderBy(i => i.Pending ? 0 : 1).ThenBy(i => i.LsrSectionCode, InFileOrder).ThenBy(i => i.Number, InFileOrder)
             .Select(i =>
             {
                 var factor = i.RowId is { } own ? factors.GetValueOrDefault(own) : null;
@@ -146,6 +147,10 @@ internal sealed class DistributionReader(PlanDbContext db, IModuleConstructions 
         // Справочник единиц не настроен — имена не показываются, а не отказ: распределение от них не зависит.
         return (await units.GetAsync(ids, ct))?.ToDictionary(u => u.Id, u => u.Name) ?? new Dictionary<Guid, string>();
     }
+
+    /// <summary>Номера глав и строк — числами: «2» раньше «10», как в файле.</summary>
+    private static readonly StringComparer InFileOrder =
+        StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering);
 
     public static string CategoryCode(CarryOverCategory category) => category switch
     {

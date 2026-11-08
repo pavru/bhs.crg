@@ -60,7 +60,10 @@ public static class DistributionRequests
         Object(body, "Набор строк");
         if (!body.TryGetProperty("lines", out var lines) || lines.ValueKind == JsonValueKind.Null)
             throw new InvalidRequestException("Строки не названы («lines»): набор из одной и больше строк.");
-        return LineList(lines);
+        var list = LineList(lines);
+        // Пустой набор ничего не меняет — а запись сдвинула бы версию и оставила в журнале пустую правку.
+        return list.Count > 0 ? list
+            : throw new InvalidRequestException("Набор строк пуст («lines»): назовите одну и больше строк.");
     }
 
     public static CarryOverDecision Decision(JsonElement body)

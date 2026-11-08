@@ -168,7 +168,7 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         // Распределение — своей версией (plan-10): звавший перечитает заголовок и назовёт, кто его изменил.
         if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RevisionDistribution))
             return new DistributionRaceException(e);
-        if (e.InnerException is PostgresException { ConstraintName: DistributionModel.HeadKey })
+        if (e.InnerException is PostgresException { ConstraintName: { } key } && DistributionModel.RaceKeys.Contains(key))
             return new DistributionRaceException(e);
         if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch or ResourceMatch))
             return new ConflictException(

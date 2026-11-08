@@ -47,6 +47,13 @@ public sealed record CarryPlan(
 /// путает соседние строки. Число строк с шифром разное — <c>ambiguous</c> с кандидатами; части больше нового объёма
 /// — <c>overflow</c>. Так каждая строка новой редакции получает не больше одной строки источника.</para>
 ///
+/// <para><b>Единица строки сменилась</b> («100 м» → «м») — тоже <c>overflow</c>: части хранятся в единице строки, и
+/// «7 · 100 м» на новой строке стали бы «7 м», а остаток молча ушёл бы в «стройку в целом». Строку распределяют
+/// заново в окне строки.</para>
+///
+/// <para><b>Строки вне разделов ЛСР</b> (код <c>null</c>) сопоставляются друг с другом точно: это не номер главы, и
+/// сдвинуться ему не от чего.</para>
+///
 /// <para>Переносятся только части строк: строку без частей переносит правило её раздела.</para>
 /// </summary>
 public static class DistributionCarryOverPlan
@@ -105,7 +112,7 @@ public static class DistributionCarryOverPlan
                 }
 
                 var next = candidates[peers.IndexOf(row)];
-                if (next.SourceVolume is not > 0m || own.Sum(p => p.Quantity) > next.SourceVolume)
+                if (next.SourceVolume is not > 0m || own.Sum(p => p.Quantity) > next.SourceVolume || !SameUnit(row, next))
                 {
                     items.Add(new(CarryOverCategory.Overflow, CarryOverSubject.Row, row.Source(), own, null, next.Id,
                         next.SourceVolume, []));
@@ -140,6 +147,15 @@ public static class DistributionCarryOverPlan
         static int Count(List<Section> list, string name) =>
             list.Count(s => string.Equals(Name(s), name, StringComparison.OrdinalIgnoreCase));
 
+        if (from.FirstOrDefault(s => s.Key.Code is null) is { } outside && to.FirstOrDefault(s => s.Key.Code is null) is { } rest)
+        {
+            match[outside.Key] = (rest, false);
+            taken.Add(rest.Key);
+        }
+
+        // Разделы ЛСР — только с разделами: строкам вне разделов не достаться главе и наоборот.
+        from = [.. from.Where(s => s.Key.Code is not null)];
+        to = [.. to.Where(s => s.Key.Code is not null)];
         foreach (var section in from)
         {
             if (Name(section) is not { } name || Count(from, name) != 1 || Count(to, name) != 1) continue;
@@ -162,6 +178,10 @@ public static class DistributionCarryOverPlan
         }
         return match;
     }
+
+    /// <summary>Единица строки та же — части в ней значат то же количество.</summary>
+    private static bool SameUnit(CarryRow from, CarryRow to) =>
+        string.Equals(from.SourceUnit?.Trim(), to.SourceUnit?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Шифр строки — ключ внутри раздела; строка без шифра узнаётся по наименованию.</summary>
     private static string Code(CarryRow row) =>

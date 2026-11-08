@@ -197,4 +197,39 @@ public class DistributionCarryOverTests
         Assert.Equal(plan.Parts.Count, plan.Parts.Select(p => p.RowId).Distinct().Count());
         Assert.Equal(3, plan.Parts.Count);
     }
+
+    [Fact]
+    public void Строки_вне_разделов_ЛСР_переносятся_как_есть_без_пометки()
+    {
+        static List<CarryRow> Outside() =>
+        [
+            new(Guid.NewGuid(), 1, null, null, Cable, "1", "1", "Кабель", 12m, "100 м"),
+            new(Guid.NewGuid(), 2, null, null, Box, "2", "2", "Короб", 3m, "100 м"),
+        ];
+        var from = Outside();
+        var to = Outside();
+        var plan = DistributionCarryOverPlan.Build(new CarrySource(from,
+                new Dictionary<LsrKey, DistributionTarget> { [new LsrKey(null)] = DistributionTarget.WholeConstruction },
+                new Dictionary<Guid, IReadOnlyList<CarriedPart>> { [from[0].Id] = Split(7m, 5m) }), to);
+
+        Assert.Equal(1, plan.Carried);
+        Assert.Empty(plan.Items);
+        Assert.Equal((new LsrKey(null), DistributionTarget.WholeConstruction), Assert.Single(plan.Rules));
+        Assert.Equal(Split(7m, 5m), PartsOf(plan, to[0].Id));
+    }
+
+    [Fact]
+    public void Единица_строки_сменилась_части_не_переносятся_overflow()
+    {
+        var from = Rows(("1", "Кабельные линии", Cable, 12m));
+        var to = Rows(("1", "Кабельные линии", Cable, 1200m));
+        to[0] = to[0] with { SourceUnit = "м" };
+        var plan = DistributionCarryOverPlan.Build(Source(from, null, (from[0], Split(7m, 5m))), to);
+
+        Assert.Empty(plan.Parts);
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(CarryOverCategory.Overflow, item.Category);
+        Assert.Equal(to[0].Id, item.RowId);
+        Assert.Equal(1200m, item.NewVolume);
+    }
 }

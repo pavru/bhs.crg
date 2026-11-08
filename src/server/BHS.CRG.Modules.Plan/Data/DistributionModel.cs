@@ -16,6 +16,19 @@ internal static class DistributionModel
     /// <summary>Ключ заголовка: два одновременных первых распределения редакции — одно записано, второе отказ.</summary>
     internal const string HeadKey = "pk_revision_distributions";
 
+    /// <summary>Одно правило на раздел ЛСР: его нарушает только одновременное заведение того же правила.</summary>
+    internal const string RuleKey = "ux_distribution_rules_revision_section";
+
+    /// <summary>Один раздел стройки на строку: его нарушает только одновременная запись той же части.</summary>
+    internal const string PartKey = "ux_distribution_parts_row_section";
+
+    /// <summary>
+    /// Отказы базы, которые значат «распределение тем временем изменили». Проигравшая одновременная запись
+    /// упирается в любой из них — в xmin заголовка, но и в единственность части или правила: оба оператора идут одним
+    /// пакетом, и какой откажет первым, не определено.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> RaceKeys = new HashSet<string> { HeadKey, RuleKey, PartKey };
+
     public static void Configure(ModelBuilder builder)
     {
         var head = builder.Entity<RevisionDistribution>();
@@ -53,7 +66,7 @@ internal static class DistributionModel
         rule.HasOne<EstimateRevision>().WithMany().HasForeignKey(r => r.RevisionId).OnDelete(DeleteBehavior.Cascade);
         // Одно правило на раздел ЛСР, и строки вне разделов (код null) — тоже одним: NULL здесь не «разные».
         rule.HasIndex(r => new { r.RevisionId, r.LsrSectionCode }).IsUnique().AreNullsDistinct(false)
-            .HasDatabaseName("ux_distribution_rules_revision_section");
+            .HasDatabaseName(RuleKey);
         rule.HasIndex(r => r.SectionId).HasDatabaseName("ix_distribution_rules_section_id")
             .HasFilter("section_id IS NOT NULL");
 
@@ -68,7 +81,7 @@ internal static class DistributionModel
         part.HasOne<EstimateRevision>().WithMany().HasForeignKey(p => p.RevisionId).OnDelete(DeleteBehavior.Cascade);
         part.HasOne<EstimateRow>().WithMany().HasForeignKey(p => p.RowId).OnDelete(DeleteBehavior.Cascade);
         // Раздел — один раз на строку: две части на одну цель были бы одной частью, записанной дважды.
-        part.HasIndex(p => new { p.RowId, p.SectionId }).IsUnique().HasDatabaseName("ux_distribution_parts_row_section");
+        part.HasIndex(p => new { p.RowId, p.SectionId }).IsUnique().HasDatabaseName(PartKey);
         part.HasIndex(p => p.RevisionId).HasDatabaseName("ix_distribution_parts_revision_id");
         part.HasIndex(p => p.SectionId).HasDatabaseName("ix_distribution_parts_section_id");
 

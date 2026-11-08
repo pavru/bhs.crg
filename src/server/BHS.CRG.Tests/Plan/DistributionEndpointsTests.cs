@@ -159,6 +159,32 @@ public class DistributionEndpointsTests(PlanOnlyHost host)
         Assert.Equal("section", RuleOf(await GetAsync(editor, s.Revision), "1").GetProperty("target").GetProperty("kind").GetString());
     }
 
+    /// <summary>
+    /// Одновременные записи одной версией: та же часть и то же правило. Проигравшая упирается в xmin заголовка или в
+    /// единственность части и правила — какой отказ придёт первым, не определено, и каждый обязан быть 409.
+    /// </summary>
+    [Fact]
+    public async Task Одновременная_запись_той_же_части_и_правила_одна_проходит_вторая_409()
+    {
+        var editor = await EditorAsync(host);
+        for (var round = 0; round < 4; round++)
+        {
+            var s = await SeedAsync();
+            // Чётный круг — первая запись (заголовка нет), нечётный — по существующему заголовку.
+            if (round % 2 == 1) await RuleAsync(editor, s.Revision, "1", Section(s.Site.Section));
+            var version = await VersionAsync(editor, s.Revision);
+            var line = new { lines = new[] { Line(s.Rows[0], "row", (s.Site.Section, 1m)) } };
+            var rule = new { lsrSectionCode = "1", target = Whole };
+            var answers = await Task.WhenAll(
+                editor.SendAsync(Lines(s.Revision, version, line)), editor.SendAsync(Lines(s.Revision, version, line)),
+                editor.SendAsync(Rules(s.Revision, version, rule)), editor.SendAsync(Rules(s.Revision, version, rule)));
+            var codes = answers.Select(a => a.StatusCode).ToList();
+            Assert.True(codes.All(c => c is HttpStatusCode.OK or HttpStatusCode.Conflict),
+                string.Join(", ", codes) + ": " + string.Join(" | ", await Task.WhenAll(answers.Select(a => a.Content.ReadAsStringAsync()))));
+            Assert.Single(codes, HttpStatusCode.OK);
+        }
+    }
+
     [Fact]
     public async Task С_одним_чтением_403_а_правила_и_части_видны()
     {
@@ -191,10 +217,20 @@ public class DistributionEndpointsTests(PlanOnlyHost host)
 
         var written = await LinesAsync(editor, revision, [.. rows.Select(r => Line(r, "row", (site.Section, 1m)))]);
         Assert.True(written.GetProperty("distribution").GetProperty("frozen").GetBoolean());
-        Assert.Equal(0, written.GetProperty("previous").GetProperty("lines").GetArrayLength());
+        // Прежнее состояние — «по правилу» у каждой из шести: им набор и отменяют.
+        var previous = written.GetProperty("previous").GetProperty("lines").EnumerateArray().ToList();
+        Assert.Equal(6, previous.Count);
+        Assert.All(previous, l => Assert.Equal(JsonValueKind.Null, l.GetProperty("parts").ValueKind));
         var record = Assert.Single(await JournalAsync(host, revision, "plan.distribution.lines"));
         Assert.Contains("строка 6:", record.After);
         Assert.Contains("по правилу раздела", record.Before);
+
+        var undone = await LinesAsync(editor, revision, [.. previous.Select(l => (object)l)]);
+        Assert.All(undone.GetProperty("distribution").GetProperty("lines").EnumerateArray(),
+            l => Assert.Equal(0, l.GetProperty("parts").GetArrayLength()));
+        // Пустой набор — 400: он ничего не меняет, а версию сдвинул бы.
+        Assert.Equal(HttpStatusCode.BadRequest, (await editor.SendAsync(
+            Lines(revision, await VersionAsync(editor, revision), new { lines = Array.Empty<object>() }))).StatusCode);
         Assert.NotEqual(JsonValueKind.Null,
             (await CountsAsync(editor, estimate, revision)).GetProperty("changedAt").ValueKind);
     }

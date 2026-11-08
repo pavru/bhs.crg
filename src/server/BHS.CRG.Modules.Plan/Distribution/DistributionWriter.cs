@@ -44,14 +44,14 @@ internal sealed class DistributionWriter(
         var rule = await db.DistributionRules.FirstOrDefaultAsync(
             r => r.RevisionId == revisionId && r.LsrSectionCode == write.LsrSectionCode, ct);
         var before = rule?.Target;
-        var touched = write.ResetExceptions ? ownIds : (write.Lines ?? []).Select(l => l.RowId).ToHashSet();
+        var inLines = (write.Lines ?? []).Select(l => l.RowId).ToHashSet();
+        var touched = write.ResetExceptions ? ownIds : inLines;
         var parts = await PartsAsync(revisionId, touched, ct);
-        var previous = Previous(parts, touched);
+        var previous = Previous(parts, touched, inLines);
 
         // Строки набора правит Apply по их прежним частям — сброс снимает части остальных строк раздела.
-        var inLines = (write.Lines ?? []).Select(l => l.RowId).ToHashSet();
-        if (write.ResetExceptions)
-            db.DistributionParts.RemoveRange(parts.Where(p => !inLines.Contains(p.Key)).SelectMany(p => p.Value));
+        var dropped = write.ResetExceptions ? parts.Keys.Where(id => !inLines.Contains(id)).ToList() : [];
+        db.DistributionParts.RemoveRange(dropped.SelectMany(id => parts[id]));
         if (write.Lines is { } lines) Apply(place, rows, parts, lines);
         if (write.Target is null && rule is not null) db.DistributionRules.Remove(rule);
         else if (write.Target is { } target && rule is not null) rule.Point(target);
@@ -59,8 +59,8 @@ internal sealed class DistributionWriter(
 
         var head = await SaveAsync(place, ct);
         var section = own[0].LsrSectionName is { Length: > 0 } name ? $"раздел ЛСР «{name}»" : "строки вне разделов ЛСР";
-        var cleared = write.ResetExceptions && previous.Count > 0
-            ? "; сняты части строк " + string.Join(", ", previous.Select(p => rows[p.RowId]).Select(LineFacts.NumberOf))
+        var cleared = dropped.Count > 0
+            ? "; сняты части строк " + string.Join(", ", dropped.Select(id => rows[id]).OrderBy(r => r.Order).Select(LineFacts.NumberOf))
             : "";
         await log.RecordAsync(EstimateActions.DistributionRule, revisionId.ToString(), Label(place),
             $"{section}: {TargetText(place, before)}", $"{section}: {TargetText(place, write.Target)}{cleared}" +
@@ -75,7 +75,7 @@ internal sealed class DistributionWriter(
         var rows = await RowsAsync(revisionId, ct);
         var touched = lines.Select(l => l.RowId).ToHashSet();
         var parts = await PartsAsync(revisionId, touched, ct);
-        var previous = Previous(parts, touched);
+        var previous = Previous(parts, touched, touched);
         Apply(place, rows, parts, lines);
 
         var head = await SaveAsync(place, ct);
@@ -114,6 +114,10 @@ internal sealed class DistributionWriter(
             var rowId = decision.RowId!.Value;
             if (!item.Candidates.Contains(rowId) || !rows.TryGetValue(rowId, out var row))
                 throw new InvalidRequestException("Эта строка не из кандидатов позиции — выберите строку из её списка.");
+            if (!string.Equals(row.SourceUnit?.Trim(), item.SourceUnit?.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidRequestException(
+                    $"Единица строки сменилась («{item.SourceUnit}» → «{row.SourceUnit}»): прежние части в ней значат другое " +
+                    "количество. Не переносите позицию (skip) и распределите строку заново в окне строки.");
             if (await db.DistributionParts.AnyAsync(p => p.RowId == rowId, ct))
                 throw new ConflictException(
                     "У строки уже есть части — верните её к правилу или выберите другую. Её части не тронуты.");
@@ -233,12 +237,19 @@ internal sealed class DistributionWriter(
             .GroupBy(p => p.RowId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    /// <summary>Прежние части строк в форме набора: строка без частей — <c>parts: null</c>, «по правилу».</summary>
+    /// <summary>
+    /// Прежнее состояние строк в форме набора — им же правку и отменяют: строка с частями — её части, строка набора
+    /// без частей — <c>parts: null</c>, «по правилу». Строки, которые запись не меняет (не из набора и без частей при
+    /// сбросе), не называются.
+    /// </summary>
+    /// <param name="written">Строки, которые запись переписывает набором.</param>
     private static List<PreviousLineDto> Previous(
-        IReadOnlyDictionary<Guid, List<DistributionPart>> parts, IReadOnlySet<Guid> touched) =>
+        IReadOnlyDictionary<Guid, List<DistributionPart>> parts, IReadOnlySet<Guid> touched, IReadOnlySet<Guid> written) =>
     [
-        .. touched.Where(parts.ContainsKey).Select(id => new PreviousLineDto(id, "row",
-            [.. parts[id].OrderByDescending(p => p.Quantity).Select(p => new PreviousPartDto(p.SectionId, p.Quantity))])),
+        .. touched.Where(id => parts.ContainsKey(id) || written.Contains(id)).Select(id => new PreviousLineDto(id, "row",
+            parts.TryGetValue(id, out var own)
+                ? [.. own.OrderByDescending(p => p.Quantity).Select(p => new PreviousPartDto(p.SectionId, p.Quantity))]
+                : null)),
     ];
 
     private static string Label(DistributionPlace place) =>
@@ -263,8 +274,8 @@ internal sealed class DistributionWriter(
         IEnumerable<Guid> touched)
     {
         var had = previous.ToDictionary(p => p.RowId);
-        return string.Join("; ", touched.Select(id => $"строка {LineFacts.NumberOf(rows[id])}: " + (had.TryGetValue(id, out var p)
-            ? string.Join(" + ", p.Parts!.Select(x => $"«{place.SectionName(x.SectionId)}» {Number(x.Quantity)}"))
+        return string.Join("; ", touched.Select(id => $"строка {LineFacts.NumberOf(rows[id])}: " + (had.TryGetValue(id, out var p) && p.Parts is { } was
+            ? string.Join(" + ", was.Select(x => $"«{place.SectionName(x.SectionId)}» {Number(x.Quantity)}"))
             : "по правилу раздела")));
     }
 
