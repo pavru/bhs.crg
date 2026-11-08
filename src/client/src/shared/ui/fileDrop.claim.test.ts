@@ -70,6 +70,8 @@ describe('страж промаха и захват окна', () => {
     expect(drag('dragover').transfer.dropEffect).toBe('copy');
 
     document.body.innerHTML += '<div role="dialog" data-state="open"></div>';
+    // Слой смотрится на входе в элемент, а не на каждом dragover.
+    drag('dragenter');
     const { transfer } = drag('dragover');
     expect(transfer.dropEffect).toBe('none');
     expect(claim.onOver).toHaveBeenLastCalledWith(null);
@@ -83,6 +85,20 @@ describe('страж промаха и захват окна', () => {
     release = claimWindowDrop(claim);
     drag('dragover');
     window.dispatchEvent(new Event('dragend'));
+    expect(claim.onOver).toHaveBeenLastCalledWith(null);
+  });
+
+  it('покрытие гаснет, когда вышли из всех элементов — Esc, уход из окна в любом браузере', () => {
+    renderHook(() => useDropMissGuard());
+    const claim = claimOf();
+    release = claimWindowDrop(claim);
+    drag('dragenter');
+    drag('dragenter');
+    drag('dragover');
+    drag('dragleave');
+    expect(claim.onOver).toHaveBeenLastCalledWith({ count: 1, state: 'accept' });
+    // Последний выход — точкой внутри окна (Firefox, отмена Esc): покрытие всё равно гаснет.
+    drag('dragleave');
     expect(claim.onOver).toHaveBeenLastCalledWith(null);
   });
 

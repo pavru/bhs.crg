@@ -46,7 +46,8 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
     <div className="px-3 py-2 border-y border-outline-variant bg-surface text-body-small space-y-1.5" role="status">
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
-        {batch.phase === 'running' && <Button onClick={stopBatch}>Остановить</Button>}
+        {/* Проверку тоже можно остановить: повисший вопрос о повторе иначе держал бы пакет без выхода. */}
+        {(batch.phase === 'running' || batch.phase === 'checking') && <Button onClick={stopBatch}>Остановить</Button>}
         {done && <IconButton label="Закрыть" onClick={dismissBatch} icon={Close} />}
       </div>
       {!done && batch.phase !== 'checking' && batch.total > 0 && (

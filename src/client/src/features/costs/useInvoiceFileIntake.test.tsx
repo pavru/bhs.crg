@@ -7,7 +7,7 @@ import type { InvoiceSameFile } from '@/shared/api/invoices';
 import { sameFileByFingerprints } from '@/shared/api/invoiceSameFile';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { useDropMissGuard } from '@/shared/ui/fileDrop';
-import { currentBatch, resetBatchForTests, useScanBatch } from './scanBatch';
+import { currentBatch, releaseHeld, resetBatchForTests, useScanBatch } from './scanBatch';
 import { useInvoiceFileIntake } from './useInvoiceFileIntake';
 
 vi.mock('@/shared/api/invoiceSameFile', () => ({ sameFileByFingerprints: vi.fn() }));
@@ -29,7 +29,7 @@ const twin = (id: string, over: Partial<InvoiceSameFile> = {}): InvoiceSameFile 
 });
 const answer = (twins: InvoiceSameFile[]) => ask.mockImplementation(async prints => prints.map(fingerprint => ({ fingerprint, twins })));
 
-let onSingle: ReturnType<typeof vi.fn<(file: File, acceptRepeat: boolean) => Promise<void>>>;
+let onSingle: ReturnType<typeof vi.fn<(file: File, acceptRepeat: boolean, unchecked: boolean) => void>>;
 let onOpen: ReturnType<typeof vi.fn<(id: string) => void>>;
 let add: (files: File[]) => void = () => {};
 
@@ -51,7 +51,7 @@ function mount() {
 
 beforeEach(() => {
   resetBatchForTests();
-  onSingle = vi.fn(async () => {});
+  onSingle = vi.fn();
   onOpen = vi.fn();
   ask.mockReset();
 });
@@ -62,7 +62,7 @@ describe('один файл', () => {
     answer([]);
     mount();
     act(() => add([pdf()]));
-    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(expect.any(File), false));
+    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(expect.any(File), false, false));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.body.textContent).not.toMatch(/файл новый/i);
   });
@@ -99,7 +99,7 @@ describe('один файл', () => {
     act(() => add([pdf()]));
     fireEvent.click(await screen.findByRole('button', { name: 'Завести ещё один черновик' }));
     await waitFor(() => expect(onSingle).toHaveBeenCalledTimes(1));
-    expect(onSingle).toHaveBeenCalledWith(expect.any(File), true);
+    expect(onSingle).toHaveBeenCalledWith(expect.any(File), true, false);
   });
 
   it('разные номера у двойников — окно говорит об этом, а «Завести ещё один» заметнее', async () => {
@@ -146,12 +146,46 @@ describe('один файл', () => {
     now.mockRestore();
   });
 
-  it('вопрос не ответил — черновик заведён, «повтор не проверен»', async () => {
+  /** Файл придержан: печатали в поле, ответ пришёл позже секунды — снэкбар «Решить». */
+  async function holdWhileTyping() {
+    let reply = () => {};
+    ask.mockImplementation(prints => new Promise(resolve => {
+      reply = () => resolve(prints.map(fingerprint => ({ fingerprint, twins: [twin('2611')] })));
+    }));
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    mount();
+    act(() => add([pdf()]));
+    screen.getByLabelText('Номер счёта').focus();
+    await waitFor(() => expect(ask).toHaveBeenCalled());
+    now.mockReturnValue(1500);
+    await act(async () => { reply(); });
+    await screen.findByRole('button', { name: 'Решить' });
+    now.mockRestore();
+  }
+
+  it('придержанный: «Открыть» из окна снэкбара — тоже решение, строка уходит', async () => {
+    await holdWhileTyping();
+    fireEvent.click(screen.getByRole('button', { name: 'Решить' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Открыть счёт 2611 от 22.10.2026' }));
+    expect(onOpen).toHaveBeenCalledWith('2611');
+    expect(currentBatch()).toBeNull();
+  });
+
+  it('придержанный, решённый строкой полосы, — «Решить» окна не открывает: второго черновика нет', async () => {
+    await holdWhileTyping();
+    act(() => releaseHeld(currentBatch()!.held[0].print));
+    fireEvent.click(screen.getByRole('button', { name: 'Решить' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onSingle).not.toHaveBeenCalled();
+  });
+
+  it('вопрос не ответил — черновик заводится с «повтор не проверен»: сказать это — заводящему', async () => {
     ask.mockRejectedValue({ response: { status: 503 } });
     mount();
     act(() => add([pdf()]));
-    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(expect.any(File), false));
-    await screen.findByText('Повтор не проверен — если файл уже был, счёт скажет об этом.');
+    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(expect.any(File), false, true));
+    // До заведения слов нет: охрана ухода могла его отменить (ревью PR #1823).
+    expect(screen.queryByText('Повтор не проверен — если файл уже был, счёт скажет об этом.')).toBeNull();
   });
 
   it('предпроверка та же, что у пакета: пустой файл не уходит и назван', async () => {
@@ -171,6 +205,6 @@ describe('один файл', () => {
       value: { types: ['Files'], dropEffect: 'move', files: [file], items: [{ kind: 'file', getAsFile: () => file, webkitGetAsEntry: () => null }] },
     });
     act(() => { window.dispatchEvent(e); });
-    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(file, false));
+    await waitFor(() => expect(onSingle).toHaveBeenCalledWith(file, false, false));
   });
 });

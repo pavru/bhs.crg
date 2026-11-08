@@ -54,10 +54,19 @@ export const modalLayerOpen = (): boolean =>
  */
 export function useDropMissGuard() {
   useEffect(() => {
+    // Счётчик входов, а не точка за краем окна (ревью PR #1819): отмена Esc и уход из окна в Firefox приходят
+    // `dragleave` с точкой внутри окна, а из проводника `dragend` окну не приходит вовсе — покрытие залипало бы.
+    let depth = 0;
+    // Модальный слой — один раз на вход, а не на каждый `dragover` (их несколько в секунду, ревью PR #1823).
+    // На самом броске он смотрится заново.
+    let layer: boolean | null = null;
     const guard = (e: DragEvent) => {
       if (e.defaultPrevented || !carriesFiles(e.dataTransfer)) return;
       e.preventDefault();
-      const taker = claim && !modalLayerOpen() ? claim : null;
+      const dropping = e.type === 'drop';
+      if (dropping) depth = 0;
+      const blocked = dropping || layer === null ? modalLayerOpen() : layer;
+      const taker = claim && !blocked ? claim : null;
       if (!taker) {
         claim?.onOver(null);
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
@@ -65,24 +74,31 @@ export function useDropMissGuard() {
       }
       const state = taker.state();
       if (e.dataTransfer) e.dataTransfer.dropEffect = state === 'accept' ? 'copy' : 'none';
-      if (e.type === 'dragover') { taker.onOver({ count: e.dataTransfer?.items.length ?? 1, state }); return; }
+      if (!dropping) { taker.onOver({ count: e.dataTransfer?.items.length ?? 1, state }); return; }
       taker.onOver(null);
       if (state !== 'accept' || !e.dataTransfer) return;
       const { files, folders } = droppedFiles(e.dataTransfer);
       if (files.length + folders.length > 0) taker.onFiles(files, folders);
     };
-    // Покрытие гаснет и тогда, когда файл увели из окна или перетаскивание отменили.
-    const end = () => claim?.onOver(null);
-    // Ушёл из окна — точкой за краем: Safari `relatedTarget` не даёт вовсе, и покрытие мигало бы на каждом элементе.
-    const leave = (e: DragEvent) => {
-      const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight;
-      if (e.relatedTarget === null && out && carriesFiles(e.dataTransfer)) end();
+    const enter = (e: DragEvent) => {
+      if (!carriesFiles(e.dataTransfer)) return;
+      depth++;
+      layer = modalLayerOpen();
     };
+    // Покрытие гаснет и тогда, когда файл увели из окна или перетаскивание отменили.
+    const end = () => { depth = 0; layer = null; claim?.onOver(null); };
+    const leave = (e: DragEvent) => {
+      if (!carriesFiles(e.dataTransfer)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) end();
+    };
+    window.addEventListener('dragenter', enter);
     window.addEventListener('dragover', guard);
     window.addEventListener('drop', guard);
     window.addEventListener('dragend', end);
     window.addEventListener('dragleave', leave);
     return () => {
+      window.removeEventListener('dragenter', enter);
       window.removeEventListener('dragover', guard);
       window.removeEventListener('drop', guard);
       window.removeEventListener('dragend', end);

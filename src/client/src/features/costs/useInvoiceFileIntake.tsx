@@ -9,8 +9,8 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { fingerprintOf } from '@/shared/utils/fileFingerprint';
 import { markCreatedHere } from './invoiceDelete';
 import { InvoiceRepeatDialog } from './InvoiceRepeatDialog';
-import { holdFile, releaseHeld, startBatch, type BatchPort, type ScanBatch } from './scanBatch';
-import { LATE_MS, UNCHECKED_NOTE, checkDrop, twinShort, typing, type HeldFile } from './scanIntake';
+import { holdFile, isHeld, releaseHeld, startBatch, type BatchPort, type ScanBatch } from './scanBatch';
+import { LATE_MS, checkDrop, twinShort, typing, type HeldFile } from './scanIntake';
 
 /**
  * Приём файлов страницей счетов (costs-invoice-screen-14, D1, D3, D4): бросок на всё окно, кнопка «Счёт из
@@ -36,8 +36,12 @@ export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sen
   opened: { number: string | null } | null;
   /** Идёт заведение одного файла. */
   sending: boolean;
-  /** Завести черновик из одного файла и открыть его — под охраной ухода. */
-  onSingle: (file: File, acceptRepeat: boolean) => Promise<void>;
+  /**
+   * Завести черновик из одного файла и открыть его — под охраной ухода. `unchecked` — вопрос о повторе не
+   * ответил: «повтор не проверен» говорит тот, кто знает, что черновик заведён (ревью PR #1823) — охрана ухода
+   * могла отменить заведение, а сервер — отказать.
+   */
+  onSingle: (file: File, acceptRepeat: boolean, unchecked: boolean) => void;
   /** Открыть счёт двойника — путём смены счёта. */
   onOpen: (id: string) => void;
   /** Начинается пакет — экрану снять отбор прежней загрузки. */
@@ -74,13 +78,13 @@ export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sen
       if (performance.now() - at > LATE_MS && typing()) {
         holdFile(held, owner);
         toast.info(`Файл уже у ${twinShort(held.twins[0])}`, {
-          action: { label: 'Решить', onClick: () => setAsking({ held, fromHold: true }) },
+          // По строке полосы могли уже решить: окно тогда завело бы второй черновик (ревью PR #1823).
+          action: { label: 'Решить', onClick: () => { if (isHeld(held.print)) setAsking({ held, fromHold: true }); } },
         });
       } else setAsking({ held, fromHold: false });
       return;
     }
-    await onSingle(file, false);
-    if (checked.unchecked) toast.info(UNCHECKED_NOTE);
+    onSingle(file, false, checked.unchecked);
   }
 
   /** Один файл — свой черновик; несколько или с папками — пакет. Решает число выбранных, а не годных. */
@@ -116,8 +120,9 @@ export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sen
     {asking && (
       <InvoiceRepeatDialog file={asking.held.file} twins={asking.held.twins}
         onClose={() => settle(asking)}
-        onMore={() => { settle(asking); void onSingle(asking.held.file, true); }}
-        onOpen={id => { setAsking(null); onOpen(id); }} />
+        onMore={() => { settle(asking); onSingle(asking.held.file, true, false); }}
+        // «Открыть» — тоже решение: придержанная строка уходит, как у «Не заводить» (ревью PR #1819).
+        onOpen={id => { if (asking.fromHold) releaseHeld(asking.held.print); setAsking(null); onOpen(id); }} />
     )}
   </>;
 
