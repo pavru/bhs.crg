@@ -1,5 +1,5 @@
 import { MISSING } from './lostReferences';
-import { useCallback, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useSnackbar } from '@/shared/ui/Snackbar';
+import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
@@ -56,14 +57,14 @@ export function WaybillsPage() {
     return next;
   }, { replace: true });
   // Несохранённое в открытой форме: выбор другой накладной пересоздаёт форму, и без вопроса набранное
-  // с бумаги пропало бы молча (ревью PR #1206). Вопрос задаёт сама форма — тем же диалогом, что и при
-  // уходе со страницы.
-  const leaveGuard = useRef<((proceed: () => void) => void) | null>(null);
-  const onLeaveGuard = useCallback((ask: ((proceed: () => void) => void) | null) => { leaveGuard.current = ask; }, []);
+  // с бумаги пропало бы молча (ревью PR #1206). Вопрос задаёт сама форма — через ту же охрану ухода, что и
+  // уход по ссылке (как `InvoicesPage`): своей регистрации вопроса у страницы нет (ревью PR #1821).
+  const guard = useNavigationGuard();
+  const guarded = (act: () => void) => { if (!guard?.attempt(act)) act(); };
   const setSelected = (id: string) => {
     ld.showDetail();
     if (id === selected) return;
-    if (leaveGuard.current) leaveGuard.current(() => open(id)); else open(id);
+    guarded(() => open(id));
   };
 
   const [query, setQuery] = useState('');
@@ -89,9 +90,9 @@ export function WaybillsPage() {
   const gone = opened.kind === 'open' && opened.gone;
   const missing = gone || opened.kind === 'missing';
 
-  // Вопроса о правках при закрытии нет: сохранять их уже некуда. Следующая накладная сама не открывается.
+  // Вопроса о правках при закрытии нет: сохранять их уже некуда — охрана удалённой молчит (`waybillLeave`), а
+  // закрытие идёт мимо неё. Следующая накладная сама не открывается.
   const closeGone = useCloseGone(selected, missing, id => {
-    leaveGuard.current = null;
     setParams(prev => {
       if (prev.get(PARAM) !== id) return prev;
       const next = new URLSearchParams(prev);
@@ -116,7 +117,7 @@ export function WaybillsPage() {
   }
   // Сначала вопрос о правках, потом новая накладная: иначе черновик завёлся бы и при «Отмене».
   const addDraft = () => {
-    if (leaveGuard.current) leaveGuard.current(() => void createDraft()); else void createDraft();
+    guarded(() => void createDraft());
   };
   // Та же кнопка из командной палитры (issue #1433).
   usePaletteIntent(PALETTE_ACTIONS.waybillNew, addDraft, { busy: create.isPending });
@@ -222,7 +223,7 @@ export function WaybillsPage() {
             )}
             {filter.openHidden && <NotInListNotice testId="waybill-not-in-list" text={NOT_IN_LIST} onShowAll={filter.showAll} />}
             <WaybillForm key={opened.id} view={opened.data} sites={sites.data ?? []}
-              sitesFailed={sites.isError} canEdit={canEdit} gone={gone} onLeaveGuard={onLeaveGuard}
+              sitesFailed={sites.isError} canEdit={canEdit} gone={gone}
               onClose={() => closeGone(opened.id)} />
           </div>
         )
