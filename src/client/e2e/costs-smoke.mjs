@@ -35,6 +35,7 @@ import {
   BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText, expandInvoiceParts,
 } from './harness.mjs';
 import { extraFieldChecks } from './invoice-extra-field-checks.mjs';
+import { waybillLeaveChecks } from './waybill-leave-checks.mjs';
 import { statusItems, untilStatus } from './invoice-status.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
@@ -228,6 +229,7 @@ async function supplierPart() {
   await check('supplier-deletes-a-mistaken-waybill', () => waybillDeletePart(supplier));
   await check('supplier-sees-a-neighbour-line-choice-in-waybill', () => waybillNeighbourPart(supplier));
   await check('supplier-keeps-typed-waybill-when-reread-fails', () => waybillRereadPart(supplier));
+  await waybillLeaveChecks({ seat: supplier, check, api });
 
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }

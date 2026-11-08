@@ -140,3 +140,54 @@ describe('запись, начатая кнопкой страницы', () => {
     expect(go).not.toHaveBeenCalled();
   });
 });
+
+describe('вопрос по уходу страницы (`onAsk`)', () => {
+  /** Страница со списком: уход без смены адреса спрашивает через `onAsk`. */
+  function mountAsked(props: Props) {
+    let ask: ((proceed: () => void) => void) | null = null;
+    const onAsk = vi.fn((a: typeof ask) => { ask = a; });
+    const go = vi.fn();
+    const view = (p: Props) => <NavigationGuardProvider><LeaveGuard {...p} onAsk={onAsk} /></NavigationGuardProvider>;
+    const { rerender, unmount } = render(view(props));
+    return {
+      go, unmount, rerender: (p: Props) => rerender(view(p)),
+      asked: () => ask,
+      leave: () => act(() => { ask!(go); }),
+    };
+  }
+
+  it('спрашивать есть о чём — вопрос дан; нечего — `null`, и при снятии тоже', () => {
+    const page = mountAsked({ active: false });
+    expect(page.asked()).toBeNull();
+    page.rerender({ active: true });
+    expect(page.asked()).toBeTypeOf('function');
+    page.rerender({ active: false });
+    expect(page.asked()).toBeNull();
+    page.rerender({ active: true });
+    page.unmount();
+    expect(page.asked()).toBeNull();
+  });
+
+  it('тот же вопрос: стоит, пока идёт запись, и уходит после неё', async () => {
+    const write = pending();
+    const page = mountAsked({ active: true, save: write.save });
+    page.leave();
+    fireEvent.click(saveButton()!);
+    expect(dialog()).toBeTruthy();
+    expect(saveButton()!.hasAttribute('disabled')).toBe(true);
+    expect(page.go).not.toHaveBeenCalled();
+    await write.finish(true);
+    expect(dialog()).toBeNull();
+    expect(page.go).toHaveBeenCalledOnce();
+  });
+
+  it('отказ записи уход отменяет', async () => {
+    const write = pending();
+    const page = mountAsked({ active: true, save: write.save });
+    page.leave();
+    fireEvent.click(saveButton()!);
+    await write.finish(false);
+    expect(dialog()).toBeNull();
+    expect(page.go).not.toHaveBeenCalled();
+  });
+});

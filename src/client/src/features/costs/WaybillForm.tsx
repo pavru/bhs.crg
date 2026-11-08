@@ -1,11 +1,10 @@
 import { LOST, MISSING } from './lostReferences';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CheckCircle, EditNote, Refresh, Save, Undo, Warning } from '@/shared/ui/icons';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
-import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
-import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
+import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import { useCan } from '@/shared/api/access';
@@ -20,6 +19,7 @@ import { WaybillDeleteMenu } from './WaybillDeleteDialog';
 import { WaybillCorrectionBar, WaybillLockNote } from './WaybillCorrectionBar';
 import { WaybillHistory } from './WaybillHistory';
 import { mayCorrectWaybill } from './waybillCorrection';
+import { waybillLeave } from './waybillLeave';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
@@ -116,17 +116,10 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
   const undated = posted && !view.accountingOn;
   const locked = !editable;
   const dirty = editable && isDirty(draft, view);
-  // Набранная причина — тоже правка: уйти молча значило бы её потерять.
-  const unsaved = dirty || (correcting && reason.trim() !== '');
+  const leave = waybillLeave({ dirty, correcting, reason });
   // Закрытие отменили, пока шла правка, — исправлять больше нечего (кэш знает это раньше формы).
   const unneeded = correcting && !fresh.locked;
 
-  const [leave, setLeave] = useState<(() => void) | null>(null);
-  useLeaveGuard(unsaved, proceed => setLeave(() => proceed));
-  useEffect(() => {
-    onLeaveGuard(unsaved ? proceed => setLeave(() => proceed) : null);
-    return () => onLeaveGuard(null);
-  }, [onLeaveGuard, unsaved]);
   const busy = save.isPending || state.isPending || match.isPending || correct.isPending;
   const unmatched = dirty ? unmatchedCount(draft) : view.totals.unmatched;
   const note = unmatchedNote(unmatched, posted,
@@ -246,11 +239,11 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <LeaveGuardDialog open={leave !== null} saving={save.isPending}
-        saveBlocked={correcting ? 'Исправление записывается кнопкой «Записать исправление» — с причиной' : undefined}
-        onCancel={() => setLeave(null)}
-        onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
-        onSave={async () => { const go = leave; setLeave(null); if (await saveDraft()) go?.(); }} />
+      {/* Вопрос стоит до конца записи — своей и начатой кнопкой формы (ревью PR #1817): прежде он закрывался до
+          неё, форма снова принимала правки, и удачная запись уносила их без вопроса. */}
+      <LeaveGuard active={leave.guard} message={leave.question} onAsk={onLeaveGuard}
+        save={leave.savable ? async () => (await saveDraft()) !== null : undefined}
+        saving={save.isPending || correct.isPending} />
       <div className="shrink-0 border-b border-outline-variant bg-surface px-5 py-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-body-medium font-medium text-on-surface">

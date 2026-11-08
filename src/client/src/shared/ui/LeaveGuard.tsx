@@ -15,8 +15,11 @@ import { LeaveGuardDialog } from './LeaveGuardDialog';
  *
  * <p><b>Терять стало нечего, пока вопрос открыт</b> (кончилась запись, начатая кнопкой страницы), — уход, о
  * котором человек просил, идёт сам: вопрос висел бы о том, чего уже нет.</p>
+ *
+ * <p><b>Уход без смены адреса</b> (выбор другой записи списка, новая запись) охрана навигации не видит — его
+ * страница спрашивает через `onAsk` тем же вопросом, с теми же правилами записи.</p>
  */
-export function LeaveGuard({ active, save, saving = false, message, saveBlocked }: {
+export function LeaveGuard({ active, save, saving = false, message, saveBlocked, onAsk }: {
   /** Есть несохранённое — охрана держит уход, перезагрузку и шаг истории. */
   active: boolean;
   /** Запись перед уходом: `true` — записано всё, можно уходить; `false` — отказ (о нём уже сказано). Нет —
@@ -28,10 +31,18 @@ export function LeaveGuard({ active, save, saving = false, message, saveBlocked 
   message?: string;
   /** Сохранить сейчас нельзя — почему (картинка ещё едет в хранилище, issue #532). */
   saveBlocked?: string;
+  /** Сообщить странице, как задать этот вопрос перед уходом, которого охрана навигации не видит (накладная:
+   *  выбор другой в списке). `null` — спрашивать не о чем. Ссылка обязана быть устойчивой. */
+  onAsk?: (ask: ((proceed: () => void) => void) | null) => void;
 }) {
   const [leave, setLeave] = useState<(() => void) | null>(null);
   const [writing, setWriting] = useState(false);
   useLeaveGuard(active, proceed => setLeave(() => proceed));
+  useEffect(() => {
+    if (!onAsk) return;
+    onAsk(active ? proceed => setLeave(() => proceed) : null);
+    return () => onAsk(null);
+  }, [onAsk, active]);
 
   // Терять нечего, а вопрос открыт: закрыть его — поправкой состояния при отрисовке, а сам уход — эффектом (это
   // уже действие наружу). Свой уход у каждого вопроса свой (`proceed` охраны — новое замыкание), и эффект
