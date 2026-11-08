@@ -78,11 +78,21 @@ describe('слияние ответа записи строк с набранн�
     expect(merged.drafts[1].nomenclatureLost).toBe(false);
   });
 
-  it('строка, возвращённая «Вернуть» во время записи после своего удаления, встаёт новой с прежним ключом', () => {
+  // Удалённая строка не возвращается под прежним идентификатором (ревью PR #1811) — как у `restoreLine`.
+  it('строка, возвращённая «Вернуть» во время записи после своего удаления, встаёт новой со своим ключом', () => {
     const [kept, gone] = toDrafts([line(A), line(B)], 'Included');
     const merged = mergeSaved(at([kept]), at([kept, gone]), answer([line(A)]));
-    expect(merged.drafts[1]).toMatchObject({ key: B, id: null });
-    expect(toPayload(merged.drafts, 'Included')[1]).toMatchObject({ newId: B });
+    expect(merged.drafts[1].id).toBeNull();
+    expect(merged.drafts[1].key).not.toBe(B);
+    expect(toPayload(merged.drafts, 'Included')[1].newId).toBe(merged.drafts[1].key);
+  });
+
+  it('«не запоминать» у строки, совпавшей с сервером значениями, несохранённым её не делает', () => {
+    const sent = toDrafts([line(A)], 'Included');
+    const now = [{ ...sent[0], remember: false }];
+    const merged = mergeSaved(at(sent), at(now), answer([line(A)]));
+    expect(merged.drafts[0].remember).toBe(false);
+    expect(merged.dirty).toBe(false);
   });
 
   it('режим переключили во время записи — он остаётся, и это несохранённое', () => {

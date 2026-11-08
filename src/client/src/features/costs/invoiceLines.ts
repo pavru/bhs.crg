@@ -1,5 +1,5 @@
 import { formatInput } from '@/shared/format/format';
-import { newLocalId } from '@/shared/utils/localId';
+import { newUuid } from '@/shared/utils/localId';
 import type { InvoiceLineMatch, InvoiceLineView, VatMode } from '@/shared/api/invoices';
 import type { MatchOffer } from './supplierMatches';
 import { catalogRef } from './invoiceFields';
@@ -83,22 +83,12 @@ export interface LineDraft {
   vatAside?: string;
 }
 
-const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Ключ новой строки — он же её будущий `id` (issue #1656, D2): уезжает полем `newId`, и сервер заводит строку с
  * ним. Поэтому ключ строки на экране с рождения равен `id`, и ответ записи не перемонтирует строку под курсором
- * (фокус остаётся в ячейке). Вид — всегда GUID: сервер другого не примет.
+ * (фокус остаётся в ячейке).
  */
-export function newLineKey(): string {
-  const id = newLocalId();
-  if (GUID.test(id)) return id;
-  // Web Crypto нет вовсе (очень старый вебвью): GUID из Math.random — уникальности в пределах счёта хватает.
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.floor(Math.random() * 16);
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
+export const newLineKey = newUuid;
 
 /**
  * Есть ли у строки СОХРАНЁННАЯ разноска (costs-invoice-screen-13-undo, D-13.2). Её удаление идёт своим
@@ -184,9 +174,9 @@ export function toDrafts(lines: readonly InvoiceLineView[], mode: VatMode): Line
 export function toPayload(drafts: readonly LineDraft[], mode: VatMode): Record<string, unknown>[] {
   return drafts.map(draft => ({
     id: draft.id,
-    // Новая строка несёт свой ключ как `newId` (issue #1656): сервер заведёт её с этим идентификатором, а
-    // повтор записи узнает её лежащей. Исправление счёта поле не читает — заводит строки своими.
-    ...(draft.id === null && GUID.test(draft.key) ? { newId: draft.key } : {}),
+    // Новая строка несёт свой ключ как `newId` (issue #1656): сервер заведёт её с этим идентификатором. Ключ
+    // новой строки всегда GUID — его выдаёт `newLineKey`. Исправление счёта поле не читает — заводит строки своими.
+    ...(draft.id === null ? { newId: draft.key } : {}),
     nomenclature: draft.nomenclatureId ? catalogRef(draft.nomenclatureId) : null,
     supplierText: text(draft.supplierText),
     supplierCode: text(draft.supplierCode),

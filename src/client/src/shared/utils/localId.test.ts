@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { newLocalId } from './localId';
+import { newLocalId, newUuid } from './localId';
 
 /**
  * Проверяем не «выдаёт строку», а три платформы, на которых система реально живёт: HTTPS
@@ -51,6 +51,21 @@ describe('newLocalId', () => {
       withCrypto(c);
       const ids = new Set(Array.from({ length: 200 }, () => newLocalId()));
       expect(ids.size).toBe(200);
+    }
+  });
+});
+
+describe('newUuid', () => {
+  it('вид UUID v4 на любом из путей — и без Web Crypto вовсе', () => {
+    for (const c of [
+      { randomUUID: realCrypto.randomUUID.bind(realCrypto), getRandomValues: realCrypto.getRandomValues.bind(realCrypto) },
+      { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) },
+      undefined,
+    ]) {
+      withCrypto(c);
+      const ids = new Set(Array.from({ length: 200 }, () => newUuid()));
+      expect(ids.size).toBe(200);
+      for (const id of ids) expect(id).toMatch(UUID_V4);
     }
   });
 });

@@ -24,59 +24,66 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
     await cell('Количество', 1).fill('1');
     await cell('Цена', 1).fill('10');
 
+    // Слушатель и перехват снимаются при ЛЮБОМ исходе (ревью PR #1811): страница общая на весь прогон, и
+    // оставленный слушатель писал бы в `writes` чужие записи следующих проверок.
     const writes = [];
     const onResponse = r => {
       if (r.request().method() === 'PUT' && r.url().endsWith('/lines'))
         writes.push({ status: r.status(), seen: r.request().headers()['if-match'] });
     };
-    page.on('response', onResponse);
     let held = 0;
     const hold = async route => {
       held += 1;
       await new Promise(resolve => setTimeout(resolve, HOLD_MS));
       await route.continue();
     };
-    await page.route('**/api/costs/invoices/*/lines', hold);
+    page.on('response', onResponse);
     try {
-      const isLines = r => r.method() === 'PUT' && r.url().endsWith('/lines');
-      const sent = page.waitForRequest(isLines, { timeout: 15_000 });
-      const answered = page.waitForResponse(r => isLines(r.request()), { timeout: 15_000 });
-      await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
-      await sent;
+      await page.route('**/api/costs/invoices/*/lines', hold);
+      try {
+        const isLines = r => r.method() === 'PUT' && r.url().endsWith('/lines');
+        const sent = page.waitForRequest(isLines, { timeout: 15_000 });
+        await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+        await sent;
+        // Ожидание ответа — после отправки: ответ задержан на HOLD_MS и раньше не придёт, а заведённое до
+        // `sent` ожидание при его отказе осталось бы непойманным отказом.
+        const answered = page.waitForResponse(r => isLines(r.request()), { timeout: 15_000 });
 
-      // Запись идёт: правка лежащей в снимке строки и новая строка.
-      await cell('Количество', 1).fill('3');
-      await addRow(2);
-      await cell('Количество', 2).fill('5');
-      await cell('Цена', 2).fill('2');
-      await cell('Количество', 1).focus();
+        // Запись идёт: правка лежащей в снимке строки и новая строка.
+        await cell('Количество', 1).fill('3');
+        await addRow(2);
+        await cell('Количество', 2).fill('5');
+        await cell('Цена', 2).fill('2');
+        await cell('Количество', 1).focus();
 
-      const first = await answered;
-      if (!first.ok()) throw new Error(`первая запись строк: ${first.status()}`);
-      if (held !== 1) throw new Error(`запись строк задержана ${held} раз — набор шёл не во время записи`);
-      await page.waitForTimeout(300);
+        const first = await answered;
+        if (!first.ok()) throw new Error(`первая запись строк: ${first.status()}`);
+        if (held !== 1) throw new Error(`запись строк задержана ${held} раз — набор шёл не во время записи`);
+        await page.waitForTimeout(300);
+      } finally {
+        await page.unroute('**/api/costs/invoices/*/lines', hold);
+      }
+
+      const one = await cell('Количество', 1).inputValue();
+      const two = await cell('Количество', 2).inputValue();
+      if (one !== '3' || two !== '5') throw new Error(`набранное во время записи пропало: строка 1 «${one}», строка 2 «${two}»`);
+      // Строка под курсором не перемонтирована: её ключ — newId, ставший её id.
+      const focused = await cell('Количество', 1).evaluate(el => el === document.activeElement);
+      if (!focused) throw new Error('фокус ушёл из клетки «Количество, строка 1» после ответа записи');
+      if (!(await page.getByText('(посчитано в форме — строки ещё не сохранены)').isVisible()))
+        throw new Error('правки, набранные во время записи, не помечены несохранёнными');
+      if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('свой ответ записи прочитан как чужая правка — «Счёт изменили»');
+
+      await saveLines();
+      if (writes.length !== 2) throw new Error(`записей строк ${writes.length}, ожидалось 2`);
+      if (writes.some(w => w.status === 409)) throw new Error(`запись получила 409: ${JSON.stringify(writes)}`);
+      if (writes[0].seen === writes[1].seen) throw new Error(`вторая запись назвала ту же версию, что первая: ${writes[0].seen}`);
+      if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('после второй записи — «Счёт изменили»');
     } finally {
-      await page.unroute('**/api/costs/invoices/*/lines', hold);
+      page.off('response', onResponse);
     }
 
-    const one = await cell('Количество', 1).inputValue();
-    const two = await cell('Количество', 2).inputValue();
-    if (one !== '3' || two !== '5') throw new Error(`набранное во время записи пропало: строка 1 «${one}», строка 2 «${two}»`);
-    // Строка под курсором не перемонтирована: её ключ — newId, ставший её id.
-    const focused = await cell('Количество', 1).evaluate(el => el === document.activeElement);
-    if (!focused) throw new Error('фокус ушёл из клетки «Количество, строка 1» после ответа записи');
-    if (!(await page.getByText('(посчитано в форме — строки ещё не сохранены)').isVisible()))
-      throw new Error('правки, набранные во время записи, не помечены несохранёнными');
-    if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('свой ответ записи прочитан как чужая правка — «Счёт изменили»');
-
-    await saveLines();
-    if (writes.length !== 2) throw new Error(`записей строк ${writes.length}, ожидалось 2`);
-    if (writes.some(w => w.status === 409)) throw new Error(`запись получила 409: ${JSON.stringify(writes)}`);
-    if (writes[0].seen === writes[1].seen) throw new Error(`вторая запись назвала ту же версию, что первая: ${writes[0].seen}`);
-    if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('после второй записи — «Счёт изменили»');
-    page.off('response', onResponse);
-
-    // Перечитанный счёт: обе строки с набранным, новая — одна (повтор newId дубликата не заводит).
+    // Перечитанный счёт: обе строки с набранным, новая записана один раз — вторая запись назвала её `id`.
     await page.reload({ waitUntil: 'networkidle' });
     await open(number);
     const after = [await cell('Количество', 1).inputValue(), await cell('Количество', 2).inputValue()];

@@ -1,6 +1,6 @@
 import type { InvoiceView, VatMode } from '@/shared/api/invoices';
 import { vatModeOf } from './invoiceVat';
-import { toDrafts, toPayload, type LineDraft } from './invoiceLines';
+import { newLineKey, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 
 /**
  * Ответ записи строк, слитый с тем, что набрано, пока запись шла (issue #1656, change
@@ -16,7 +16,7 @@ import { toDrafts, toPayload, type LineDraft } from './invoiceLines';
  *     «запомнено» — при той же позиции, пометке и ключе строки. Числа сервера в набранное не возвращаются —
  *     запятая под курсором не пропадает;</li>
  *   <li>строку добавили во время записи — остаётся новой; удалили — её нет, следующая запись удалит её и на
- *     сервере.</li>
+ *     сервере; удалённую до отправки вернули «Вернуть» — она новая, со своим ключом.</li>
  * </ul>
  *
  * <p>«Есть несохранённое» — черновик отличается от принятого ответа тем, что уехало бы на сервер.</p>
@@ -54,8 +54,10 @@ export function mergeSaved(
     const was = before.get(draft.key);
     if (!server) {
       // Строку удалили ДО отправки, а «Вернуть» поставил её назад во время записи: `id` в счёте больше нет.
-      // Новой строкой с тем же ключом (`newId`) она вернётся под прежним идентификатором.
-      return draft.id !== null ? { ...draft, id: null } : draft;
+      // Она встаёт НОВОЙ строкой со своим ключом — как у `restoreLine`: удалённая строка не возвращается под
+      // прежним идентификатором (ревью PR #1811) — иначе всё, что знает строку по `id` (снимки версий счёта,
+      // разноска оплаты, журнал), прочло бы «удалили и добавили» как «поправили ту же».
+      return draft.id !== null ? { ...draft, id: null, key: newLineKey() } : draft;
     }
     if (was && sameLine(was, sent.mode, draft, now.mode)) return server;
 
@@ -74,12 +76,24 @@ export function mergeSaved(
     };
   });
 
+  // «Не запоминать» — слово о записи, а не значение строки: в ответе его нет, и строка, совпавшая с сервером
+  // значениями, несохранённой из-за него не считается (ревью PR #1811). У правленной строки выбор при этом
+  // остаётся на экране и уезжает со следующей записью.
   const dirty = mode !== savedMode || drafts.length !== answer.length
-    || drafts.some((draft, index) => !sameLine(draft, mode, answer[index], savedMode));
+    || drafts.some((draft, index) => !sameLine(draft, mode, answer[index], savedMode, true));
   return { drafts, mode, dirty };
 }
 
-/** Одна и та же ли строка — тем, что уехало бы на сервер. */
-function sameLine(a: LineDraft, aMode: VatMode, b: LineDraft, bMode: VatMode): boolean {
-  return JSON.stringify(toPayload([a], aMode)) === JSON.stringify(toPayload([b], bMode));
+/**
+ * Одна и та же ли строка — тем, что уехало бы на сервер.
+ *
+ * @param values только значения строки — без `remember`, которого ответ не несёт.
+ */
+function sameLine(a: LineDraft, aMode: VatMode, b: LineDraft, bMode: VatMode, values = false): boolean {
+  const sent = (line: LineDraft, mode: VatMode) => {
+    const [payload] = toPayload([line], mode);
+    if (values) delete payload.remember;
+    return JSON.stringify(payload);
+  };
+  return sent(a, aMode) === sent(b, bMode);
 }
