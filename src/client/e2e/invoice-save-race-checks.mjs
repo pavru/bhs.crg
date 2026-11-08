@@ -1,0 +1,86 @@
+// Правка строк во время их записи (issue #1656, change `costs-invoice-lines-save-race`, ТЗ COST-7) — живым
+// браузером: запись строк задержана, человек набирает в строках, пока она идёт. До правки ответ ложился на
+// черновик целиком — набранное пропадало, — а свой ответ при грязном черновике читался чужой правкой: плашка
+// «Счёт изменили» и 409 на следующей записи.
+//
+// Ломается: вернуть в `InvoiceLinesTable.save` пересборку черновика из ответа (`toDrafts(saved.lines)`) — набранное
+// пропадёт; убрать `base.adopt(saved)` — вторая запись назовёт прежнюю версию; убрать `newId` из `toPayload` —
+// ключ новой строки сменится ответом, и фокус уйдёт из клетки.
+//
+// Отдельным файлом: `invoice-lines-smoke` и так велик. Едет внутри него, с его помощниками.
+
+import { statusPhrase } from './invoice-status.mjs';
+
+/** На сколько задержать запись строк — человек успевает набрать. */
+const HOLD_MS = 1_500;
+
+export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines }) {
+  await check('правка строк во время их записи не теряется; вторая запись — с версией ответа, без 409 и «Счёт изменили»', async () => {
+    const number = `СЧ-Г${stamp}`;
+    await invoice(number);
+    await open(number);
+
+    await addRow(1);
+    await cell('Количество', 1).fill('1');
+    await cell('Цена', 1).fill('10');
+
+    const writes = [];
+    const onResponse = r => {
+      if (r.request().method() === 'PUT' && r.url().endsWith('/lines'))
+        writes.push({ status: r.status(), seen: r.request().headers()['if-match'] });
+    };
+    page.on('response', onResponse);
+    let held = 0;
+    const hold = async route => {
+      held += 1;
+      await new Promise(resolve => setTimeout(resolve, HOLD_MS));
+      await route.continue();
+    };
+    await page.route('**/api/costs/invoices/*/lines', hold);
+    try {
+      const isLines = r => r.method() === 'PUT' && r.url().endsWith('/lines');
+      const sent = page.waitForRequest(isLines, { timeout: 15_000 });
+      const answered = page.waitForResponse(r => isLines(r.request()), { timeout: 15_000 });
+      await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+      await sent;
+
+      // Запись идёт: правка лежащей в снимке строки и новая строка.
+      await cell('Количество', 1).fill('3');
+      await addRow(2);
+      await cell('Количество', 2).fill('5');
+      await cell('Цена', 2).fill('2');
+      await cell('Количество', 1).focus();
+
+      const first = await answered;
+      if (!first.ok()) throw new Error(`первая запись строк: ${first.status()}`);
+      if (held !== 1) throw new Error(`запись строк задержана ${held} раз — набор шёл не во время записи`);
+      await page.waitForTimeout(300);
+    } finally {
+      await page.unroute('**/api/costs/invoices/*/lines', hold);
+    }
+
+    const one = await cell('Количество', 1).inputValue();
+    const two = await cell('Количество', 2).inputValue();
+    if (one !== '3' || two !== '5') throw new Error(`набранное во время записи пропало: строка 1 «${one}», строка 2 «${two}»`);
+    // Строка под курсором не перемонтирована: её ключ — newId, ставший её id.
+    const focused = await cell('Количество', 1).evaluate(el => el === document.activeElement);
+    if (!focused) throw new Error('фокус ушёл из клетки «Количество, строка 1» после ответа записи');
+    if (!(await page.getByText('(посчитано в форме — строки ещё не сохранены)').isVisible()))
+      throw new Error('правки, набранные во время записи, не помечены несохранёнными');
+    if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('свой ответ записи прочитан как чужая правка — «Счёт изменили»');
+
+    await saveLines();
+    if (writes.length !== 2) throw new Error(`записей строк ${writes.length}, ожидалось 2`);
+    if (writes.some(w => w.status === 409)) throw new Error(`запись получила 409: ${JSON.stringify(writes)}`);
+    if (writes[0].seen === writes[1].seen) throw new Error(`вторая запись назвала ту же версию, что первая: ${writes[0].seen}`);
+    if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('после второй записи — «Счёт изменили»');
+    page.off('response', onResponse);
+
+    // Перечитанный счёт: обе строки с набранным, новая — одна (повтор newId дубликата не заводит).
+    await page.reload({ waitUntil: 'networkidle' });
+    await open(number);
+    const after = [await cell('Количество', 1).inputValue(), await cell('Количество', 2).inputValue()];
+    if (after.join() !== '3,5') throw new Error(`после перезагрузки количества «${after.join(', ')}», ожидалось 3, 5`);
+    if (await cell('Количество', 3).count()) throw new Error('строк больше двух — новая строка записана дважды');
+  });
+}

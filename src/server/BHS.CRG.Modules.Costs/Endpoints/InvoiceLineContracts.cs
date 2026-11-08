@@ -123,6 +123,7 @@ public sealed record InvoiceLineTotals(
 public static class InvoiceLineRequests
 {
     private const string IdKey = "id";
+    private const string NewIdKey = "newId";
     private const string AmountKey = "amount";
     private const string NetAmountKey = "netAmount";
     private const string NomenclatureKey = "nomenclature";
@@ -164,6 +165,37 @@ public static class InvoiceLineRequests
             var other => throw CostsValues.Wrong($"Строка {number}: идентификатор", other,
                 "строку-идентификатор уже сохранённой строки либо ничего"),
         };
+    }
+
+    /// <summary>
+    /// Идентификатор, выданный НОВОЙ строке формой (issue #1656, D2): сервер заводит строку с ним, а
+    /// строка с таким идентификатором в этом счёте уже есть — она считается лежащей. Так ключ строки на
+    /// экране с рождения равен её <c>id</c> (фокус не теряется после записи), а повтор записи после
+    /// потерянного ответа не заводит дубликата.
+    ///
+    /// <para>⚠️ <b>Это другое поле, чем <c>id</c>, и нарочно.</b> Неизвестный <c>id</c> — отказ: он
+    /// значит «строку тем временем удалили», и принять его за новую строку значило бы молча вернуть
+    /// удалённое соседом. <c>newId</c> такого смысла не несёт: строки с ним ещё не было.</para>
+    /// </summary>
+    public static Guid? NewId(JsonElement line, int number)
+    {
+        CostsValues.EnsureObject(line, $"Строка {number}", "строки");
+
+        var newId = CostsValues.Value(line, NewIdKey) switch
+        {
+            null => (Guid?)null,
+            { ValueKind: JsonValueKind.String } value when Guid.TryParse(value.GetString(), out var id)
+                && id != Guid.Empty => id,
+            var other => throw CostsValues.Wrong($"Строка {number}: идентификатор новой строки", other,
+                "строку-идентификатор (GUID), выданный новой строке, либо ничего"),
+        };
+
+        if (newId is not null && CostsValues.Value(line, IdKey) is not null)
+            throw new InvalidRequestException(
+                $"Строка {number}: присланы и «{IdKey}», и «{NewIdKey}». «{IdKey}» — строка уже лежит в " +
+                $"счёте, «{NewIdKey}» — строка новая; одновременно то и другое не бывает.");
+
+        return newId;
     }
 
     /// <summary>

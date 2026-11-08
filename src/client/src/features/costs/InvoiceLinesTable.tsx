@@ -17,6 +17,7 @@ import {
   applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
+import { mergeSaved } from './invoiceLinesMerge';
 import { formatMoney } from '@/shared/format/format';
 import { emptyDraft, hasSavedAllocation, restoreLine, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
@@ -163,9 +164,10 @@ export function InvoiceLinesTable({
     return laid.data?.get(saved.id) ?? null;
   }
 
-  // Строки, как они есть СЕЙЧАС, — для ответа, пришедшего позже вопроса.
-  const latest = useRef(drafts);
-  useEffect(() => { latest.current = drafts; });
+  // Строки и режим, как они есть СЕЙЧАС, — для ответа, пришедшего позже вопроса или записи. Слойным эффектом:
+  // ответ, пришедший сразу за кадром, застал бы обычный эффект ещё не отработавшим.
+  const latest = useRef({ drafts, mode });
+  useLayoutEffect(() => { latest.current = { drafts, mode }; });
   // О каком ключе строку уже спрашивали: уход с поля без правки вопроса не повторяет.
   const asked = useRef(new Map<string, string>());
 
@@ -220,7 +222,7 @@ export function InvoiceLinesTable({
 
       // «Есть несохранённое» — только если позиция действительно легла в строку: ответ, которому
       // некуда лечь (строку удалили, строки сохранили), правкой не является (ревью PR #1262).
-      const touched = latest.current.some(draft => fills(draft, answerFor(draft)));
+      const touched = latest.current.drafts.some(draft => fills(draft, answerFor(draft)));
       setDrafts(prev => prev.map(draft => {
         const offer = answerFor(draft);
         if (!offer) return draft;
@@ -262,7 +264,7 @@ export function InvoiceLinesTable({
         if (laid.isError) void laid.refetch();
         if (askFailed === null) return;
         // Строки, о которых не спросилось, тем временем удалили — спрашивать не о чем, и отказа больше нет.
-        const again = latest.current.filter(d => failedKeys.current.has(d.key));
+        const again = latest.current.drafts.filter(d => failedKeys.current.has(d.key));
         if (again.length > 0) void suggest(again); else setAskFailed(null);
       },
     };
@@ -331,19 +333,24 @@ export function InvoiceLinesTable({
     // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
     const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
     const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
+    // Снимок черновика на миг отправки — с ним сверяется набранное, пока запись идёт (issue #1656).
+    const snapshot = { drafts, mode };
     try {
       const saved = await base.save(seen => replace.mutateAsync({
         id: view.id, seen, lines: toPayload(sent.drafts, mode), vatMode: mode,
       }), after);
+      // Ответ своей записи — основа черновика, а не чужая правка: следующая запись назовёт его версию.
+      base.adopt(saved);
       if (sent.dropped > 0)
         toast.info(`Поставщик сменился: у ${sent.dropped === 1 ? 'одной строки' : `${sent.dropped} строк`} позиция была `
           + 'подставлена из запомненного за прежним. Позиция оставлена, пометка «запомнено» снята, за новым поставщиком '
           + 'выбор не запомнен.');
-      // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
-      // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
-      setDrafts(toDrafts(saved.lines, vatModeOf(saved)));
-      setMode(vatModeOf(saved));
-      setDirty(false);
+      // Строки берём ИЗ ОТВЕТА — досчитанные суммы и идентификаторы, — но только те, что не правили, пока
+      // запись шла: набранное за это время остаётся на экране несохранённым (issue #1656, `mergeSaved`).
+      const merged = mergeSaved(snapshot, latest.current, saved);
+      setDrafts(merged.drafts);
+      setMode(merged.mode);
+      setDirty(merged.dirty);
       // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
       // следующих счетов этого поставщика — молча это делать нельзя.
       const notice = memoryNotice(saved.memory);

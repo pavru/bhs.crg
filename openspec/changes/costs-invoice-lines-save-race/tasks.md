@@ -14,16 +14,16 @@
 
 ## 1. Основа черновика
 
-- [ ] 1.1 `draftBase.ts`: шаг `adopt(view)` — принять ответ своей записи за основу (D1 (б)), либо
+- [x] 1.1 `draftBase.ts`: шаг `adopt(view)` — принять ответ своей записи за основу (D1 (б)), либо
   проверка, что при (а) основа переезжает без `stale` [COST-7]. Проверка — `draftBase.test.ts`: свой
   ответ при грязном черновике даёт `same`, чужая правка строк — `stale`
 
 ## 2. Запись строк
 
-- [ ] 2.1 `InvoiceLinesTable.tsx` по D1: (а) — ячейки заперты на время записи с «Записываем…»;
+- [x] 2.1 `InvoiceLinesTable.tsx` по D1: (а) — ячейки заперты на время записи с «Записываем…»;
   (б) — снимок отправленного, слияние ответа, «несохранённое» = отличие от принятого ответа [COST-7].
   Проверка — тест vitest: правка во время записи после ответа на экране и помечена несохранённой
-- [ ] 2.2 Новая строка по D2: (а) — сопоставление по порядку; (б) — `newId` в теле `PUT …/lines`,
+- [x] 2.2 Новая строка по D2: (а) — сопоставление по порядку; (б) — `newId` в теле `PUT …/lines`,
   сервер создаёт строку с ним, повтор с тем же `newId` не заводит дубликата, неизвестный `id` —
   по-прежнему отказ [COST-7]. Проверка — тесты сервера на `newId` (при (б)) и vitest: ключ строки не
   меняется, фокус остаётся в ячейке
@@ -32,7 +32,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceLine|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~FileSizeRatchet"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm test` — зелёный
-- [ ] 3.4 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceLine|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~FileSizeRatchet"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm test` — зелёный
+- [x] 3.4 `cd src/client && npm run ui:ratchet` — без роста

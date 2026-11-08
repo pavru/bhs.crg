@@ -70,8 +70,11 @@ public static class InvoiceLineEndpoints
         // «Не запоминать» — слово человека про ЭТУ строку (ТЗ COST-7.1): «Доставка» у поставщика всякий
         // раз другая, и запомненная позиция подставлялась бы не туда.
         var remember = incoming.Select((line, index) => InvoiceLineRequests.Remember(line, index + 1)).ToList();
+        var newIds = incoming.Select((line, index) => InvoiceLineRequests.NewId(line, index + 1)).ToList();
 
-        EnsureIdsDistinct(parsed);
+        // Идентификатор новой строки — тоже идентификатор: повтор его в наборе, как и повтор «id», означал
+        // бы, что одна из двух строк исчезнет без следа.
+        EnsureIdsDistinct([.. parsed.Select((p, index) => (p.Id ?? newIds[index], p.Values))]);
         VatMode? modeWas = null;
         var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
@@ -117,7 +120,7 @@ public static class InvoiceLineEndpoints
             // Сменил человек — метку распознавания режима снимает его решение (issue #1501), как правка поля.
             if (modeChanged) { modeWas = before; invoice.Confirm([VatModes.Mark]); }
 
-            var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct);
+            var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct, newIds);
 
             // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
             //
@@ -153,12 +156,35 @@ public static class InvoiceLineEndpoints
     /// режим известен только тут, и досчёт до замка взял бы режим, который тем временем сменили.</para>
     /// </summary>
     /// <param name="parsed">Строки, как в бумаге (<see cref="InvoiceLineRequests.Values" />).</param>
+    /// <param name="newIds">Идентификаторы, выданные формой новым строкам (<see cref="InvoiceLineRequests.NewId" />),
+    /// по порядку набора; <c>null</c> — их нет (исправление счёта заводит строки своими).</param>
     /// <returns>Строки после правки — по порядку набора; изменён ли набор; что запомнить после записи.</returns>
     internal static async Task<LinesPlaced> PlaceLinesAsync(
         CostsDbContext db, IModuleCatalog catalog, Invoice invoice,
-        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<bool> remember, CancellationToken ct)
+        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<bool> remember, CancellationToken ct,
+        IReadOnlyList<Guid?>? newIds = null)
     {
         var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+
+        // Новая строка, чей идентификатор в счёте УЖЕ лежит, — та же строка, записанная прежде (повтор после
+        // потерянного ответа, issue #1656): она правится на месте, как присланная с «id», а не заводится
+        // второй. Решается по строкам, прочитанным под замком записи, — до всех сверок ниже, чтобы и они
+        // видели её лежащей.
+        var born = new Guid?[parsed.Count];
+        if (newIds is not null)
+        {
+            var laid = existing.Select(l => l.Id).ToHashSet();
+            parsed = [.. parsed.Select((p, index) =>
+            {
+                if (p.Id is null && newIds[index] is { } given)
+                {
+                    if (laid.Contains(given)) return (Id: (Guid?)given, p.Values);
+                    born[index] = given;
+                }
+                return p;
+            })];
+            await EnsureBornFreeAsync(db, born, ct);
+        }
 
         // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
         // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
@@ -211,7 +237,7 @@ public static class InvoiceLineEndpoints
                         "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
                         "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
                         "строка вернулась бы молча.")
-                : Added(db, invoice.Id);
+                : Added(db, invoice.Id, born[index]);
 
             // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
             // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
@@ -350,11 +376,29 @@ public static class InvoiceLineEndpoints
         [.. (await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct))
             .Select(InvoiceAllocations.Line)];
 
-    private static InvoiceLine Added(CostsDbContext db, Guid invoiceId)
+    private static InvoiceLine Added(CostsDbContext db, Guid invoiceId, Guid? id)
     {
-        var line = InvoiceLine.Create(invoiceId);
+        var line = InvoiceLine.Create(invoiceId, id);
         db.InvoiceLines.Add(line);
         return line;
+    }
+
+    /// <summary>
+    /// Идентификатор новой строки не занят строкой ДРУГОГО счёта (своего здесь уже нет — лежащие этого счёта
+    /// узнаны раньше). Без этой сверки отказала бы база, ответом 500 вместо слов.
+    /// </summary>
+    private static async Task EnsureBornFreeAsync(CostsDbContext db, IReadOnlyList<Guid?> born, CancellationToken ct)
+    {
+        var ids = born.OfType<Guid>().ToList();
+        if (ids.Count == 0) return;
+
+        var taken = await db.InvoiceLines.AsNoTracking().Where(l => ids.Contains(l.Id)).Select(l => l.Id)
+            .FirstOrDefaultAsync(ct);
+        if (taken != Guid.Empty)
+            throw new InvalidRequestException(
+                $"Строка {born.ToList().IndexOf(taken) + 1}: идентификатор новой строки {taken} уже занят строкой " +
+                "другого счёта. Форма выдаёт новым строкам идентификаторы сама — перечитайте счёт и добавьте строку " +
+                "заново.");
     }
 
     /// <summary>

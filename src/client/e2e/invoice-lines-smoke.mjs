@@ -23,6 +23,7 @@
 import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { reconciliationChecks } from './invoice-reconciliation-checks.mjs';
+import { saveRaceChecks } from './invoice-save-race-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
@@ -692,6 +693,9 @@ try {
 
   // ── Полоса сверки — числа, фраза — в перечне (11, 4.3) — своим файлом ─────────
   await reconciliationChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines });
+
+  // ── Правка строк во время их записи (#1656) — своим файлом ─────────────────────
+  await saveRaceChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines });
 
   // ── Подсказки по введённому ранее (#1533) — своим файлом: входа отдельного прогона в пределе нет ──
   await suggestChecks({ page, check, stamp, api });
