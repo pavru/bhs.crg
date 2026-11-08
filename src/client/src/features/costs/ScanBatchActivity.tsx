@@ -1,6 +1,5 @@
 import { useId } from 'react';
-import { useNavigate } from 'react-router';
-import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
+import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
 import { InvoiceScanBatchBar } from './InvoiceScanBatchBar';
 import { acceptHeld, retryRejected, type ScanBatch } from './scanBatch';
@@ -18,12 +17,8 @@ import { useBatchPort } from './useBatchPort';
 export function ScanBatchActivity({ batch, owner }: { batch: ScanBatch; owner: string }) {
   const heading = useId();
   const port = useBatchPort(owner);
-  const navigate = useNavigate();
-  const guard = useNavigationGuard();
-  const open = (id: string) => {
-    const go = () => navigate(`${INVOICE_RECORD.screen}?${INVOICE_RECORD.param}=${id}`);
-    if (!guard?.attempt(go)) go();
-  };
+  const navigate = useGuardedNavigate();
+  const open = (id: string) => navigate(`${INVOICE_RECORD.screen}?${INVOICE_RECORD.param}=${id}`);
   return (
     <section aria-labelledby={heading} data-testid="activity-scan-batch" className="shrink-0 border-b border-outline-variant pt-1">
       <h2 id={heading} className="px-5 pt-2 text-body-large font-medium text-on-surface">
