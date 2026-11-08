@@ -9,9 +9,12 @@ import type { SnackbarOptions } from './Snackbar';
  * сведение стареют за 15 с: опрос или фоновая вкладка иначе накопили бы стопку давних «Сохранено».
  * Ошибки не стареют и не отбрасываются — о них человек обязан узнать.</p>
  *
- * <p>Отброшенное с откликом закрытия считается закрытым: оно копится в `dropped`, и провайдер зовёт его
- * отклик с причиной `dropped`. Звать отсюда нельзя — редьюсер обязан быть чистым, а `StrictMode` зовёт
- * его дважды, и отклик ушёл бы дважды.</p>
+ * <p>Уведомление с откликом закрытия держит отложенное действие («Черновик удалён · Вернуть» шлёт
+ * удаление по закрытию), поэтому не стареет, как и ошибка: устаревшее выполнило бы действие, «Вернуть»
+ * которого человек так и не увидел. Отбросить его может только переполнение — и то последним из
+ * не-ошибок. Отброшенное считается закрытым: оно копится в `dropped`, и провайдер зовёт отклик с
+ * причиной `dropped`. Звать отсюда нельзя — редьюсер обязан быть чистым, а `StrictMode` зовёт его
+ * дважды, и отклик ушёл бы дважды.</p>
  */
 
 /** Уведомление в очереди: номер, время прихода и ключ повтора. */
@@ -55,6 +58,11 @@ export function snackbarKey(o: SnackbarOptions): string {
 
 const isError = (i: SnackbarItem) => i.variant === 'error';
 const rank = (i: SnackbarItem) => (isError(i) ? 0 : i.action ? 1 : 2);
+/** Цена потери при переполнении: сведение, затем со своим действием, затем с откликом; ошибка — никогда. */
+const keep = (i: SnackbarItem) => (i.onClose ? 2 : i.action ? 1 : 0);
+/** Кого вытеснить: самого старого из наименее ценных не-ошибок; -1 — одни ошибки. */
+const evictee = (pending: SnackbarItem[]) => pending.reduce(
+  (at, p, i) => (isError(p) || (at >= 0 && keep(pending[at]) <= keep(p)) ? at : i), -1);
 /** Отброшенное без отклика исчезает молча, с откликом — ждёт провайдера. */
 const withDropped = (dropped: SnackbarItem[], gone: SnackbarItem[]) => {
   const owed = gone.filter(i => i.onClose);
@@ -75,9 +83,9 @@ export function snackbarQueue(state: SnackbarQueue, action: SnackbarAction): Sna
       const pending = [...state.pending, item];
       const evicted: SnackbarItem[] = [];
       while (pending.length > PENDING_MAX) {
-        const oldest = pending.findIndex(p => !isError(p));
-        if (oldest < 0) break;
-        evicted.push(...pending.splice(oldest, 1));
+        const at = evictee(pending);
+        if (at < 0) break;
+        evicted.push(...pending.splice(at, 1));
       }
       return { ...state, pending, dropped: withDropped(state.dropped, evicted) };
     }
@@ -86,7 +94,7 @@ export function snackbarQueue(state: SnackbarQueue, action: SnackbarAction): Sna
     case 'next': {
       // Сдвиг — только после закрытия: запоздавший таймер прежнего не снимет нынешнее.
       if (!state.leaving) return state;
-      const isFresh = (p: SnackbarItem) => isError(p) || action.now - p.at <= PENDING_TTL_MS;
+      const isFresh = (p: SnackbarItem) => isError(p) || !!p.onClose || action.now - p.at <= PENDING_TTL_MS;
       const fresh = state.pending.filter(isFresh);
       // Ожидающие лежат по приходу: первый с наименьшим рангом — и самый важный, и самый ранний.
       const best = fresh.reduce<SnackbarItem | null>((b, p) => (!b || rank(p) < rank(b) ? p : b), null);

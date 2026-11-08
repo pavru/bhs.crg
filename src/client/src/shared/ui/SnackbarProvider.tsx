@@ -5,7 +5,9 @@ import { Close } from './icons';
 import { traceIdOf } from '@/shared/api/client';
 import { apiError } from '@/shared/utils/apiError';
 import { openBugReport } from './bugReportBus';
-import { SnackbarCtx, type SnackbarApi, type SnackbarCloseReason, type SnackbarOptions, type SnackbarVariant } from './Snackbar';
+import {
+  SNACKBAR_UNDO_MS, SnackbarCtx, type SnackbarApi, type SnackbarCloseReason, type SnackbarOptions, type SnackbarVariant,
+} from './Snackbar';
 import { EMPTY_QUEUE, SNACKBAR_EXIT_MS, snackbarKey, snackbarQueue, type SnackbarItem } from './snackbarQueue';
 
 /**
@@ -16,6 +18,27 @@ import { EMPTY_QUEUE, SNACKBAR_EXIT_MS, snackbarKey, snackbarQueue, type Snackba
 
 const DEFAULT_DURATION: Record<SnackbarVariant, number> = { success: 4000, info: 4000, error: 8000 };
 
+/**
+ * Срок показа. Уведомление с откликом держит отложенное действие, которое ещё можно отменить, поэтому без
+ * своего срока живёт как «Вернуть» — 8 с, а не 4: забытый `duration` не должен укорачивать окно отмены.
+ */
+const durationOf = (item: SnackbarItem) =>
+  item.duration ?? (item.onClose ? SNACKBAR_UNDO_MS : DEFAULT_DURATION[item.variant ?? 'info']);
+
+/**
+ * Отклик — код потребителя, и его сбой должен быть виден, но не ронять остальное: провайдер стоит выше
+ * корневой границы ошибок (`App.tsx`), и исключение из эффекта размонтировало бы всё приложение, а
+ * отклики прочих отброшенных не позвались бы вовсе.
+ */
+function callOnClose(item: SnackbarItem, reason: SnackbarCloseReason) {
+  try {
+    item.onClose?.(reason);
+  } catch (e) {
+    if (typeof globalThis.reportError === 'function') globalThis.reportError(e);
+    else console.error(e);
+  }
+}
+
 export function SnackbarProvider({ children }: { children: ReactNode }) {
   const [queue, dispatch] = useReducer(snackbarQueue, EMPTY_QUEUE);
   const idRef = useRef(0);
@@ -25,20 +48,20 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Отклик закрытия — ровно один раз на уведомление ([UI-71]): Radix может сообщить о закрытии дважды,
-  // а эффект отброшенных — повториться. Помним только тех, у кого отклик есть.
-  const closedRef = useRef(new Set<number>());
+  // а эффект отброшенных — повториться. Слабое множество: ушедшее из очереди уходит и отсюда.
+  const closedRef = useRef(new WeakSet<SnackbarItem>());
   const finish = useCallback((item: SnackbarItem, reason: SnackbarCloseReason) => {
-    if (!item.onClose || closedRef.current.has(item.id)) return;
-    closedRef.current.add(item.id);
-    item.onClose(reason);
+    if (!item.onClose || closedRef.current.has(item)) return;
+    closedRef.current.add(item);
+    callOnClose(item, reason);
   }, []);
 
   // Отброшенное очередью считается закрытым (Э5): копит его чистый редьюсер, отклик зовём здесь.
   const { shown, leaving, dropped } = queue;
   useEffect(() => {
     if (!dropped.length) return;
-    dispatch({ type: 'flush', ids: dropped.map(d => d.id) });
     for (const d of dropped) finish(d, 'dropped');
+    dispatch({ type: 'flush', ids: dropped.map(d => d.id) });
   }, [dropped, finish]);
 
   useEffect(() => {
@@ -101,7 +124,7 @@ function SnackbarCard({ item, open, onClose }: {
   return (
     <RT.Root
       open={open}
-      duration={item.duration ?? DEFAULT_DURATION[variant]}
+      duration={durationOf(item)}
       // error — foreground (assertive/role=alert); успех/инфо — background (polite/role=status).
       type={error ? 'foreground' : 'background'}
       onOpenChange={o => { if (!o) onClose(reasonRef.current ?? 'timeout'); }}
@@ -118,7 +141,15 @@ function SnackbarCard({ item, open, onClose }: {
       <RT.Description className="flex-1 min-w-0 py-2.5 text-body-medium">{item.message}</RT.Description>
       {action && (
         <RT.Action altText={'altText' in action ? action.altText : action.label} asChild
-          onClick={() => { reasonRef.current = 'action'; action.onClick(); }}>
+          onClick={e => {
+            // Щелчок, которым кончилось смахивание, Radix гасит `preventDefault`, но наш обработчик зовёт
+            // первым: без проверки смахнутое «Вернуть» и закрылось бы `dismissed`, и сработало бы.
+            if (e.defaultPrevented) return;
+            action.onClick();
+            // Причина — после действия: упавшее действие не закрывает уведомление, и срок не должен потом
+            // прийти под видом «нажато».
+            reasonRef.current = 'action';
+          }}>
           <Button variant="text" className="shrink-0">{action.label}</Button>
         </RT.Action>
       )}
