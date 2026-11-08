@@ -17,6 +17,10 @@ public class ScanLimitsAgreeTests
     private static readonly string Screen = File.ReadAllText(Path.Combine(
         RepoRoot(), "src", "client", "src", "features", "costs", "scanBatch.ts"));
 
+    /// <summary>Предпроверка файла — своим файлом с costs-invoice-screen-14: её зовут и пакет, и проверка броска.</summary>
+    private static readonly string Precheck = File.ReadAllText(Path.Combine(
+        RepoRoot(), "src", "client", "src", "features", "costs", "scanPrecheck.ts"));
+
     /// <summary>
     /// Предел модуля — предел вложения ядра: от него считается предел тела запроса, и скан больше
     /// него до нашей проверки не дошёл бы вовсе.
@@ -28,9 +32,12 @@ public class ScanLimitsAgreeTests
     [Fact]
     public void Экран_берёт_предел_размера_из_реестра_а_не_держит_своё_число()
     {
-        Assert.Contains("kinds.maxBytes", Screen);
-        Assert.DoesNotContain("1024 * 1024", Screen);
-        Assert.DoesNotMatch(@"\d+ МБ", Screen);
+        Assert.Contains("kinds.maxBytes", Precheck);
+        foreach (var screen in new[] { Screen, Precheck })
+        {
+            Assert.DoesNotContain("1024 * 1024", screen);
+            Assert.DoesNotMatch(@"\d+ МБ", screen);
+        }
     }
 
     /// <summary>

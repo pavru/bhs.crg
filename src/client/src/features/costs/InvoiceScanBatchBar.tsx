@@ -1,70 +1,11 @@
-import { useState, type DragEvent, type ReactNode } from 'react';
 import { Close } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
-import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
-import { ruCount } from '@/shared/utils/pluralize';
 import {
-  batchTitle, dismissBatch, repeatsTitle, repeatWords, retryable, shownRepeats, stopBatch, uploadLine, type ScanBatch,
+  batchTally, batchTitle, dismissBatch, repeatsTitle, repeatWords, retryable, shownRepeats, stopBatch, uploadLine, type ScanBatch,
 } from './scanBatch';
+import { UNCHECKED_NOTE, heldWords, twinOpenLabel } from './scanIntake';
 import { LinearProgress } from '@/shared/ui/LinearProgress';
 import { Tooltip } from '@/shared/ui/Tooltip';
-
-/**
- * Колонка списка счетов как цель перетаскивания сканов (задача D4, issue #1093).
- *
- * <p>Цель — колонка списка, и только она: слева «новые счета», справа «этот счёт». Файл, брошенный на
- * открытый счёт, мог бы значить и «новый счёт», и «заменить скан» — поэтому правая часть не цель
- * вовсе, а не цель с догадкой.</p>
- *
- * <p>Пока над окном тащат файл, колонка обведена пунктиром — её видно раньше, чем до неё дошёл курсор.
- * Красного «нельзя» до отпускания нет: вид файла браузер называет ненадёжно, и рамка врала бы на
- * годных. Что не подошло, названо после — в полосе пакета.</p>
- */
-export function InvoiceScanDrop({ enabled, onFiles, children }: {
-  /** Цели нет у того, кто счета не заводит, и пока идёт прежняя загрузка. */
-  enabled: boolean;
-  onFiles: (files: File[], folders: string[]) => void;
-  children: ReactNode;
-}) {
-  const dragging = useFileDragActive();
-  const [over, setOver] = useState<number | null>(null);
-
-  const onDragOver = (e: DragEvent) => {
-    if (!enabled || !carriesFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setOver(e.dataTransfer.items.length);
-  };
-  const onDragLeave = (e: DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null);
-  };
-  const onDrop = (e: DragEvent) => {
-    setOver(null);
-    if (!enabled || !carriesFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    const { files, folders } = droppedFiles(e.dataTransfer);
-    if (files.length + folders.length > 0) onFiles(files, folders);
-  };
-
-  return (
-    <div className="relative flex-1 min-h-0 flex flex-col" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-      {children}
-      {enabled && dragging && over === null && (
-        <div className="absolute inset-1 z-10 rounded-md border-2 border-dashed border-outline-variant pointer-events-none" />
-      )}
-      {enabled && over !== null && (
-        <div className="absolute inset-1 z-10 rounded-md border-2 border-dashed border-primary bg-primary-container/80
-          flex items-center justify-center p-4 text-center pointer-events-none">
-          <span className="text-body-medium font-medium text-primary">
-            {over > 1
-              ? `Отпустите — заведём ${ruCount(over, 'черновик', 'черновика', 'черновиков')}, по одному на файл`
-              : 'Отпустите — заведём черновик из файла'}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * Полоса пакета над списком: ход («Загружаем сканы: 3 из 10»), потом итог — и итог сам не исчезает.
@@ -72,7 +13,7 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
  * <p>Тостов у пакета нет: непринятые файлы с причинами обязаны дожить до того, как человек на них
  * посмотрит, а тост уходит через восемь секунд. Закрывает полосу крестик или следующий пакет.</p>
  */
-export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowAll, onRetry, onOpen }: {
+export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowAll, onRetry, onOpen, onAccept }: {
   /** Пакет вошедшего; чужой сюда не приходит. */
   batch: ScanBatch | null;
   /** Список сужен до заведённых этой загрузкой (issue #1294). */
@@ -86,6 +27,8 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   onRetry: () => void;
   /** Открыть счёт — новый черновик или прежний, к которому тот же файл уже приложен. */
   onOpen: (id: string) => void;
+  /** «Завести всё равно» у придержанного — по его отпечатку. */
+  onAccept: (print: string) => void;
 }) {
   if (!batch) return null;
   const repeated = shownRepeats(batch, alive);
@@ -95,6 +38,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   const line = uploadLine(batch, found, only);
 
   const done = batch.phase === 'done';
+  const tally = batchTally(batch);
   const again = retryable(batch).length;
   const bad = batch.refused !== null || batch.halted !== null;
 
@@ -102,12 +46,39 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
     <div className="px-3 py-2 border-y border-outline-variant bg-surface text-body-small space-y-1.5" role="status">
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
-        {batch.phase === 'running' && <Button onClick={stopBatch}>Остановить</Button>}
+        {/* Проверку тоже можно остановить: повисший вопрос о повторе иначе держал бы пакет без выхода. */}
+        {(batch.phase === 'running' || batch.phase === 'checking') && <Button onClick={stopBatch}>Остановить</Button>}
         {done && <IconButton label="Закрыть" onClick={dismissBatch} icon={Close} />}
       </div>
-      {!done && (
+      {!done && batch.phase !== 'checking' && batch.total > 0 && (
         <LinearProgress value={batch.settled / batch.total} label="Ход пакета сканов" />
       )}
+      {/* Итог по листу «Ф»: заведённые, придержанные и выбранные дважды — одной строкой. */}
+      {tally && <p className="text-on-surface" data-testid="upload-tally">{tally}</p>}
+      {batch.held.length > 0 && (
+        <ul className="max-h-32 overflow-y-auto space-y-1" data-testid="upload-held">
+          {batch.held.map(h => (
+            <li key={h.print} className="text-on-surface-variant">
+              <span className="font-medium break-all">{h.name}</span> — {heldWords(h.twins)}
+              <span className="inline-flex flex-wrap gap-1 ml-1 align-middle">
+                <Button variant="text" aria-label={twinOpenLabel(h.twins[0])} onClick={() => onOpen(h.twins[0].id)}>Открыть</Button>
+                {/* Файл живёт в памяти вкладки: после перезагрузки его нет — заводить нечем. */}
+                {h.file
+                  ? <Button variant="text" disabled={!done} aria-label={`Завести черновик из ${h.name} всё равно`}
+                      onClick={() => onAccept(h.print)}>Завести всё равно</Button>
+                  : <span>— выберите файл заново</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {batch.doubled.map(name => (
+        <p key={name} className="text-on-surface-variant">{name} выбран дважды — заведён один черновик</p>
+      ))}
+      {batch.recovered.map(name => (
+        <p key={name} className="text-on-surface-variant">{name} — заведён (ответ потерялся)</p>
+      ))}
+      {batch.unchecked && <p className="text-on-surface-variant" data-testid="upload-unchecked">{UNCHECKED_NOTE}</p>}
       {/* Пакет не хранится нигде, кроме этой вкладки: уйти с неё до конца — оставить файлы неотправленными. */}
       {!done && <p className="text-on-surface-variant">Не закрывайте вкладку до конца загрузки.</p>}
       {batch.rejected.length > 0 && (

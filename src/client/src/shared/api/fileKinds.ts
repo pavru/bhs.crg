@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { joinWords } from '@/shared/utils/joinWords';
 
 /**
  * Реестр видов файлов (issue #1266): что система умеет показать и что — распознать.
@@ -102,9 +103,7 @@ export function acceptOf(kinds: FileKind[]): string {
 
 /** Перечень словами: «PDF, PNG и JPEG». Одинаково названные виды называются один раз. */
 export function wordsOf(kinds: FileKind[], last = 'и'): string {
-  const labels = [...new Set(kinds.map(kind => kind.label))];
-  if (labels.length < 2) return labels.join('');
-  return `${labels.slice(0, -1).join(', ')} ${last} ${labels[labels.length - 1]}`;
+  return joinWords([...new Set(kinds.map(kind => kind.label))], last);
 }
 
 export const shownKinds = (info: FileKindsInfo | undefined) => info?.kinds.filter(kind => kind.view !== null) ?? [];
