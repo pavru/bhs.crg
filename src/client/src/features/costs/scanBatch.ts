@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from 'react';
 import type { InvoiceSameFile } from '@/shared/api/invoices';
 import { onTokenChanged } from '@/shared/api/token';
-import { kindNamed, recognizedKinds, sizeLimitWords, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
-import { FOLDER_REFUSAL } from '@/shared/ui/fileDrop';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { sameFileLabel } from './invoiceFields';
+import { checkDrop, lostDraft, type CheckPort, type HeldFile } from './scanIntake';
+import { inOrder } from './scanPrecheck';
+
+export { inOrder, precheck } from './scanPrecheck';
 
 /**
  * Пакет сканов: несколько файлов разом — по черновику на файл (задача D4, issue #1093).
@@ -28,13 +30,18 @@ import { sameFileLabel } from './invoiceFields';
 /** За раз. Предел стоит от «бросил не ту папку» (решение владельца 09.10.2026). */
 export const MAX_FILES = 50;
 
-export interface BatchPort {
+/**
+ * Куда ходит пакет. Реестр видов, отпечаток и вопрос о повторе — от проверки броска (`scanIntake`, D3 у 14):
+ * пакет сначала проверяет все файлы, потом отправляет.
+ */
+export interface BatchPort extends CheckPort {
   /** Чей пакет — идентификатор вошедшего. */
   owner: string;
-  /** Реестр видов файлов: что распознаётся. Нет его — вид каждого файла решает сервер. */
-  kinds: FileKindsInfo | undefined;
-  /** Отправить файл; ответ — счёт заведённого черновика. Списки при этом НЕ перечитываются. */
-  send: (file: File) => Promise<{ id: string; sameFile: InvoiceSameFile[] }>;
+  /**
+   * Отправить файл; ответ — счёт заведённого черновика. Списки при этом НЕ перечитываются. `acceptRepeat` —
+   * сознательный повтор («Завести всё равно»): человек видел, что файл уже приложен.
+   */
+  send: (file: File, options?: { acceptRepeat?: boolean }) => Promise<{ id: string; sameFile: InvoiceSameFile[] }>;
   /** Перечитать список и числа отборов. Зовётся раз в несколько файлов и в конце, а не на каждый. */
   refresh: () => void;
 }
@@ -68,11 +75,29 @@ export interface RejectedScan {
   reason: string;
   /** Файл, который имеет смысл отправить ещё раз; `null` — повтор дал бы тот же отказ или файла уже нет. */
   retry: File | null;
+  /**
+   * Ответ не пришёл, а отпечаток известен: черновик мог завестись. «Повторить» сначала спрашивает по
+   * отпечатку (design D3 у 14) — новый свой двойник, которого нет среди `known`, и есть этот черновик.
+   */
+  lost?: { print: string; known: string[] };
+}
+
+/**
+ * Файл, содержимое которого уже приложено к счетам (design D5 у 14): в пакете он не заводится, а ждёт
+ * решения — «Открыть» или «Завести всё равно». Файл живёт в памяти вкладки: после перезагрузки его нет, и
+ * строка просит выбрать файл заново.
+ */
+export interface HeldScan {
+  name: string;
+  file: File | null;
+  print: string;
+  twins: InvoiceSameFile[];
 }
 
 export interface ScanBatch {
   owner: string;
-  phase: 'running' | 'stopping' | 'done';
+  /** `checking` — отпечатки и вопрос о повторе: ничего ещё не отправлено, остановить нечего. */
+  phase: 'checking' | 'running' | 'stopping' | 'done';
   total: number;
   /** Сколько файлов уже получили исход — принятых и непринятых вместе. */
   settled: number;
@@ -86,27 +111,23 @@ export interface ScanBatch {
   halted: string | null;
   /** Набор не принят целиком, ни один файл не отправлен. */
   refused: string | null;
+  /** Придержанные: файл уже приложен к счетам (лист «Ф», пакет без окна). */
+  held: HeldScan[];
+  /** Выбранные дважды — то же содержимое под другим именем в этом броске; заведён один черновик. */
+  doubled: string[];
+  /** Вопрос о повторе не ответил или отпечаток не посчитался: повтор не проверен. */
+  unchecked: boolean;
+  /** Ответ на заведение потерялся, а черновик нашёлся по отпечатку — второго не заводили. */
+  recovered: string[];
 }
+
+/** Пакет без придержанных и прочего нового — так его создают тесты и прежние копии из хранилища. */
+const EMPTY_EXTRAS = { held: [], doubled: [], unchecked: false, recovered: [] } satisfies Partial<ScanBatch>;
 
 const NOT_SENT = 'не отправлен — загрузка остановлена';
 const MAYBE = 'черновик мог завестись, проверьте список перед повтором';
 /** Списки перечитываются раз в столько заведённых черновиков — и ещё раз в конце. */
 const REFRESH_EVERY = 5;
-
-/** Что не так с файлом ещё до отправки. Повтор тут не поможет — причина в самом файле. */
-export function precheck(file: File, kinds: FileKindsInfo | undefined): string | null {
-  // Вид файла определяет сервер, по содержимому (issue #1265). Здесь отсекается только то, что
-  // браузер сам НАЗВАЛ другим видом: гнать на сервер пятьдесят мегабайт ради известного отказа
-  // незачем. Файл без названного вида (так приходит PDF без расширения) идёт на сервер — решит он.
-  // Что распознаётся и какого размера, говорит реестр (issue #1266); без реестра не отсекается
-  // ничего, кроме пустого файла. Название сверяется вместе с синонимами: браузер зовёт один и тот
-  // же вид по-разному, а сервер всё равно смотрит на содержимое.
-  if (kinds && file.type && file.type !== kinds.unknown && !kindNamed(kinds, file.type)?.recognized)
-    return `не ${wordsOf(recognizedKinds(kinds), 'или')}`;
-  if (file.size === 0) return 'файл пуст';
-  if (kinds && file.size > kinds.maxBytes) return `больше ${sizeLimitWords(kinds)}`;
-  return null;
-}
 
 /**
  * Отказ запроса — словами и с ответом на два вопроса: слать ли этот файл ещё раз и слать ли остальные.
@@ -129,9 +150,6 @@ export function failure(e: unknown): { reason: string; retry: boolean; halt: str
   return { reason: `сервер отказал: ${text}`, retry: true, halt: text };
 }
 
-/** Порядок отправки — по имени, числа внутри имени числами: `скан 2` раньше, чем `скан 10`. */
-export const inOrder = (files: File[]): File[] =>
-  [...files].sort((a, b) => a.name.localeCompare(b.name, 'ru', { numeric: true }));
 
 const drafts = (n: number) => ruCount(n, 'черновик', 'черновика', 'черновиков');
 
@@ -145,14 +163,30 @@ export const retryable = (batch: ScanBatch): File[] =>
 /** Заголовок полосы — одной строкой на любое состояние пакета. */
 export function batchTitle(batch: ScanBatch): string {
   if (batch.refused) return batch.refused;
+  if (batch.phase === 'checking') return 'Проверяем файлы — нет ли их уже у счетов…';
   if (batch.phase === 'stopping') return 'Останавливаем — догружается текущий файл…';
   if (batch.phase === 'running') return `Загружаем файлы: ${batch.settled} из ${batch.total}`;
   const made = batch.created.length;
+  if (batch.total === 0 && batch.held.length > 0)
+    return batch.held.length === 1 ? 'Файл не заведён: он уже приложен к счёту.' : 'Файлы не заведены: они уже приложены к счетам.';
   if (batch.halted) return `Загрузка остановлена: ${sentence(batch.halted)} Заведено ${made} из ${batch.total}.`;
   if (batch.rejected.length === 0)
     return `${ruPlural(made, 'Заведён', 'Заведено', 'Заведено')} ${drafts(made)}. ` +
       'Распознавание идёт — состояние в строках списка.';
   return `Заведено ${made} из ${batch.total}. Не принято ${batch.rejected.length}:`;
+}
+
+/**
+ * Итог одной строкой (лист «Ф»): «Заведено 7 · придержано 2 (тот же файл) · 1 выбран дважды». `null` — у
+ * пакета нет ни придержанных, ни выбранных дважды: заголовка тогда хватает.
+ */
+export function batchTally(batch: ScanBatch): string | null {
+  if (batch.held.length === 0 && batch.doubled.length === 0) return null;
+  const made = batch.created.length;
+  const parts = [batch.phase === 'done' ? `Заведено ${made}` : `Заводим ${batch.settled} из ${batch.total}`];
+  if (batch.held.length > 0) parts.push(`придержано ${batch.held.length} (тот же файл)`);
+  if (batch.doubled.length > 0) parts.push(`${batch.doubled.length} выбран${batch.doubled.length > 1 ? 'о' : ''} дважды`);
+  return parts.join(' · ');
 }
 
 /**
@@ -272,9 +306,11 @@ export const tooMany = (count: number): string | null => count > MAX_FILES
  */
 export function interrupted(batch: ScanBatch, why: string): ScanBatch {
   if (batch.phase === 'done') return batch;
+  // Во время проверки не отправлялось ничего: первого «мог дойти» нет.
+  const sending = batch.phase !== 'checking';
   const lost: RejectedScan[] = batch.pending.map((name, i) => ({
     name, retry: null,
-    reason: i === 0
+    reason: sending && i === 0
       ? `ответ не получен — ${why}; черновик мог завестись, проверьте список`
       : `не отправлен — ${why}; выберите файл заново`,
   }));
@@ -297,9 +333,12 @@ function restore(): ScanBatch | null {
     const text = tab()?.getItem(STORED);
     if (!text) return null;
     const stored = JSON.parse(text) as ScanBatch;
-    // Копия, записанная до появления повторов, поля не несёт.
+    // Копия, записанная до появления повторов (и придержанных), этих полей не несёт.
     const repeats = (stored.repeats ?? []).filter(r => Array.isArray(r.others));
-    return interrupted({ ...stored, repeats, rejected: stored.rejected.map(r => ({ ...r, retry: null })) }, 'страница перезагружена');
+    const held = (stored.held ?? []).map(h => ({ ...h, file: null }));
+    return interrupted({
+      ...EMPTY_EXTRAS, ...stored, repeats, held, rejected: stored.rejected.map(r => ({ ...r, retry: null })),
+    }, 'страница перезагружена');
   } catch { return null; }
 }
 
@@ -311,7 +350,9 @@ const listeners = new Set<() => void>();
 function put(next: ScanBatch | null) {
   state = next;
   try {
-    if (next) tab()?.setItem(STORED, JSON.stringify({ ...next, rejected: next.rejected.map(r => ({ ...r, retry: null })) }));
+    if (next) tab()?.setItem(STORED, JSON.stringify({
+      ...next, rejected: next.rejected.map(r => ({ ...r, retry: null })), held: next.held.map(h => ({ ...h, file: null })),
+    }));
     else tab()?.removeItem(STORED);
   } catch { /* хранилище недоступно — полоса просто не переживёт перезагрузку */ }
   listeners.forEach(l => l());
@@ -322,28 +363,49 @@ const patch = (change: Partial<ScanBatch>) => { if (state) put({ ...state, ...ch
 /** Пока файлы не отправлены, закрытие вкладки спрашивает: недогруженное пропало бы молча. */
 function warnOnLeave(e: BeforeUnloadEvent) { e.preventDefault(); }
 
-async function run(files: File[], port: BatchPort) {
+/** Что отправляется: файл и что о нём известно с проверки. */
+interface Outgoing {
+  file: File;
+  print: string | null;
+  /** Сознательный повтор: двойники человеку показаны. */
+  acceptRepeat?: boolean;
+  /** Двойники, известные до отправки: найденный потом новый свой двойник — этот же черновик. */
+  known?: string[];
+  /** Повтор после «ответ не пришёл»: сначала спросить по отпечатку. */
+  lost?: boolean;
+}
+
+async function run(items: Outgoing[], port: BatchPort) {
   const mine = ++generation;
   const alive = () => mine === generation && state !== null;
   // Через globalThis: логику гоняют и без окна (тесты), а там слушать нечего.
   globalThis.addEventListener?.('beforeunload', warnOnLeave as EventListener);
   try {
-    for (const file of files) {
+    for (const item of items) {
+      const { file } = item;
       if (!alive()) return;
       const now = state!;
       const settle = (change: Partial<ScanBatch>) =>
         patch({ settled: state!.settled + 1, pending: state!.pending.slice(1), ...change });
-      const reject = (reason: string, retry: boolean) =>
-        settle({ rejected: [...state!.rejected, { name: file.name, reason, retry: retry ? file : null }] });
+      const reject = (reason: string, retry: boolean, lost?: RejectedScan['lost']) =>
+        settle({ rejected: [...state!.rejected, { name: file.name, reason, retry: retry ? file : null, ...(lost ? { lost } : {}) }] });
 
       if (now.phase === 'stopping' || now.halted) { reject(NOT_SENT, true); continue; }
-      const problem = precheck(file, port.kinds);
-      if (problem) { reject(problem, false); continue; }
+      // «Мог завестись» (D3 у 14): прежде чем слать второй раз, спросить, не завёлся ли он тогда.
+      if (item.lost && item.print) {
+        const found = await lostDraft(item.print, item.known ?? [], port);
+        if (!alive()) return;
+        if (found) {
+          settle({ created: [...state!.created, found], recovered: [...state!.recovered, file.name] });
+          continue;
+        }
+      }
       try {
-        const { id, sameFile } = await port.send(file);
+        const { id, sameFile } = await port.send(file, item.acceptRepeat ? { acceptRepeat: true } : undefined);
         // За время запроса пакет могли оборвать (вход завершился) — тогда исход уже записан обрывом.
         if (!alive()) return;
-        const others = sameFile.map(s => ({
+        // Сознательный повтор строкой «уже были приложены» не называется: на этот вопрос человек ответил.
+        const others = item.acceptRepeat ? [] : sameFile.map(s => ({
           id: s.id, label: sameFileLabel(s), fileName: s.scanFileName, inBatch: state!.created.includes(s.id),
         }));
         settle({
@@ -354,7 +416,9 @@ async function run(files: File[], port: BatchPort) {
       } catch (e) {
         if (!alive()) return;
         const { reason, retry, halt } = failure(e);
-        reject(reason, retry);
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        const lost = status === undefined && item.print ? { print: item.print, known: item.known ?? [] } : undefined;
+        reject(reason, retry, lost);
         if (halt) patch({ halted: halt });
       }
     }
@@ -370,20 +434,74 @@ const idle = () => state === null || state.phase === 'done';
 /**
  * Начать пакет. Пока идёт прежний — не начинается: два пакета разом перемешали бы и порядок, и счёт.
  *
+ * <p>Сначала проверка всего броска (D3 у 14): отказы предпроверки, повторы внутри броска, придержанные —
+ * и только потом отправка. Ход «N из M» и «Остановить» начинаются после неё.</p>
+ *
  * @param folders имена брошенных папок: внутрь не заходим, а молча пропустить — значит потерять.
  */
 export function startBatch(files: File[], folders: string[], port: BatchPort) {
   if (!idle()) return;
   const count = files.length + folders.length;
   const refused = tooMany(count);
-  const ordered = refused ? [] : inOrder(files);
-  const rejected: RejectedScan[] = refused ? [] : folders.map(name =>
-    ({ name, reason: FOLDER_REFUSAL, retry: null }));
+  if (refused) {
+    put({
+      owner: port.owner, phase: 'done', total: 0, settled: 0, created: [], repeats: [], rejected: [], pending: [],
+      halted: null, refused, ...EMPTY_EXTRAS,
+    });
+    return;
+  }
   put({
-    owner: port.owner, phase: refused ? 'done' : 'running', total: refused ? 0 : count,
-    settled: rejected.length, created: [], repeats: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
+    owner: port.owner, phase: 'checking', total: count, settled: 0, created: [], repeats: [], rejected: [],
+    pending: [...inOrder(files).map(f => f.name), ...folders], halted: null, refused: null, ...EMPTY_EXTRAS,
   });
-  if (!refused) void run(ordered, port);
+  const mine = generation;
+  void checkDrop(files, folders, port).then(checked => {
+    // Вход завершился, пока шла проверка: исход уже записан обрывом.
+    if (mine !== generation || state?.phase !== 'checking') return;
+    const rejected: RejectedScan[] = checked.refused.map(r => ({ ...r, retry: null }));
+    put({
+      ...state, phase: 'running', total: rejected.length + checked.send.length, settled: rejected.length, rejected,
+      pending: checked.send.map(s => s.file.name), unchecked: checked.unchecked, doubled: checked.doubled,
+      held: checked.held.map(h => ({ name: h.file.name, file: h.file, print: h.print, twins: h.twins })),
+    });
+    void run(checked.send.map(s => ({ file: s.file, print: s.print, known: [] })), port);
+  });
+}
+
+/**
+ * Один файл, по которому человек не решил (окно повтора не открылось — он печатал, Э16 у 14), — придержанной
+ * строкой в полосе пакета: снэкбар «Решить» живёт обычный срок, а решение не должно пропасть вместе с ним.
+ * К законченному пакету того же человека строка добавляется, нового пакета не заводит.
+ */
+export function holdFile(held: HeldFile, owner: string) {
+  const row: HeldScan = { name: held.file.name, file: held.file, print: held.print, twins: held.twins };
+  if (state && state.phase !== 'done') return;
+  if (state && state.owner === owner) { patch({ held: [...state.held.filter(h => h.print !== held.print), row] }); return; }
+  put({
+    owner, phase: 'done', total: 0, settled: 0, created: [], repeats: [], rejected: [], pending: [], halted: null,
+    refused: null, ...EMPTY_EXTRAS, held: [row],
+  });
+}
+
+/** Решено по придержанному («Не заводить» в окне, открытом из снэкбара) — строка уходит. */
+export function releaseHeld(print: string) {
+  if (!state || !state.held.some(h => h.print === print)) return;
+  const held = state.held.filter(h => h.print !== print);
+  // Пакет, в котором ничего, кроме этой строки, не было, уходит целиком: говорить ему больше не о чем.
+  if (held.length === 0 && state.total === 0 && state.phase === 'done' && !state.refused) put(null);
+  else patch({ held });
+}
+
+/** «Завести всё равно» (D5 у 14): один черновик как сознательный повтор; строка уходит из придержанных. */
+export function acceptHeld(print: string, port: BatchPort) {
+  if (!state || state.phase !== 'done' || state.owner !== port.owner) return;
+  const held = state.held.find(h => h.print === print);
+  if (!held?.file) return;
+  put({
+    ...state, phase: 'running', halted: null, total: state.total + 1, pending: [held.name],
+    held: state.held.filter(h => h !== held),
+  });
+  void run([{ file: held.file, print: held.print, acceptRepeat: true, known: held.twins.map(t => t.id) }], port);
 }
 
 /** Текущий запрос не рвётся: оборванный не скажет, завёлся ли черновик. Не уходят только следующие. */
@@ -394,13 +512,15 @@ export function stopBatch() {
 /** Ещё раз — только те, у кого повтор может кончиться иначе; счёт пакета продолжается, а не начинается заново. */
 export function retryRejected(port: BatchPort) {
   if (!state || state.phase !== 'done' || state.owner !== port.owner) return;
-  const again = retryable(state);
+  const again = state.rejected.filter(r => r.retry);
   if (again.length === 0) return;
   put({
     ...state, phase: 'running', halted: null, settled: state.settled - again.length,
-    rejected: state.rejected.filter(r => !r.retry), pending: again.map(f => f.name),
+    rejected: state.rejected.filter(r => !r.retry), pending: again.map(r => r.name),
   });
-  void run(again, port);
+  void run(again.map(r => ({
+    file: r.retry!, print: r.lost?.print ?? null, known: r.lost?.known ?? [], lost: !!r.lost,
+  })), port);
 }
 
 export function dismissBatch() {

@@ -10,11 +10,46 @@ export const carriesFiles = (transfer: DataTransfer | null): boolean =>
   transfer !== null && [...transfer.types].includes('Files');
 
 /**
+ * Захват броска окном страницы (costs-invoice-screen-14, D1): страница, у которой цель — всё окно (шапка и
+ * рейл живут в оболочке, обернуть их нельзя), регистрирует захват, и страж отдаёт событие ему, а не
+ * отклоняет. Захват один на окно: последний зарегистрированный.
+ */
+export interface WindowDropClaim {
+  /** Принять сейчас (`accept`, курсор «копировать») или нет — идёт прежняя загрузка (`busy`, «нельзя»). */
+  state: () => 'accept' | 'busy';
+  onFiles: (files: File[], folders: string[]) => void;
+  /** Над окном тащат файлы: сколько и что с ними будет; `null` — перестали, бросили или открыт слой. */
+  onOver: (over: WindowDropOver | null) => void;
+}
+
+export interface WindowDropOver {
+  count: number;
+  state: 'accept' | 'busy';
+}
+
+let claim: WindowDropClaim | null = null;
+
+/** Зарегистрировать захват; ответ снимает его (только свой — не сменивший его следующий). */
+export function claimWindowDrop(next: WindowDropClaim): () => void {
+  claim = next;
+  return () => { if (claim === next) { claim.onOver(null); claim = null; } };
+}
+
+/**
+ * Открыт модальный слой — окно Radix (`role="dialog"` с `data-state="open"`), не всплывающая панель: у той
+ * тот же `role`, но она внутри обёртки поппера. Пока слой открыт, захват молчит — слой важнее (D1).
+ */
+export const modalLayerOpen = (): boolean =>
+  [...document.querySelectorAll('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')]
+    .some(el => !el.closest('[data-radix-popper-content-wrapper]'));
+
+/**
  * Гасит промах: файл, отпущенный мимо цели, браузер ОТКРЫВАЕТ вместо страницы — и форма с
  * несохранёнными правками пропадает целиком. Ставится один раз, в корне приложения.
  *
  * <p>Цели это не мешает: её обработчик срабатывает раньше (React слушает на корне приложения, ниже
- * окна) и сам отменяет действие по умолчанию — такое событие здесь не трогается. Всё остальное окно
+ * окна) и сам отменяет действие по умолчанию — такое событие здесь не трогается. Есть захват окна
+ * ({@link claimWindowDrop}) и не открыт модальный слой — событие отдаётся ему. Всё остальное окно
  * отвечает «сюда нельзя» — курсором, без рамок и надписей.</p>
  */
 export function useDropMissGuard() {
@@ -22,13 +57,36 @@ export function useDropMissGuard() {
     const guard = (e: DragEvent) => {
       if (e.defaultPrevented || !carriesFiles(e.dataTransfer)) return;
       e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+      const taker = claim && !modalLayerOpen() ? claim : null;
+      if (!taker) {
+        claim?.onOver(null);
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+        return;
+      }
+      const state = taker.state();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = state === 'accept' ? 'copy' : 'none';
+      if (e.type === 'dragover') { taker.onOver({ count: e.dataTransfer?.items.length ?? 1, state }); return; }
+      taker.onOver(null);
+      if (state !== 'accept' || !e.dataTransfer) return;
+      const { files, folders } = droppedFiles(e.dataTransfer);
+      if (files.length + folders.length > 0) taker.onFiles(files, folders);
+    };
+    // Покрытие гаснет и тогда, когда файл увели из окна или перетаскивание отменили.
+    const end = () => claim?.onOver(null);
+    // Ушёл из окна — точкой за краем: Safari `relatedTarget` не даёт вовсе, и покрытие мигало бы на каждом элементе.
+    const leave = (e: DragEvent) => {
+      const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight;
+      if (e.relatedTarget === null && out && carriesFiles(e.dataTransfer)) end();
     };
     window.addEventListener('dragover', guard);
     window.addEventListener('drop', guard);
+    window.addEventListener('dragend', end);
+    window.addEventListener('dragleave', leave);
     return () => {
       window.removeEventListener('dragover', guard);
       window.removeEventListener('drop', guard);
+      window.removeEventListener('dragend', end);
+      window.removeEventListener('dragleave', leave);
     };
   }, []);
 }
