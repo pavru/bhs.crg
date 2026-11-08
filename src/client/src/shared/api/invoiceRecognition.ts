@@ -165,8 +165,8 @@ export interface InvoiceFromScan {
 export function useInvoiceFromScan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
-      const created = await sendScan(qc, file);
+    mutationFn: async ({ file, acceptRepeat = false }: { file: File; acceptRepeat?: boolean }) => {
+      const created = await sendScan(qc, file, { acceptRepeat });
       refreshInvoiceLists(qc);
       return created;
     },

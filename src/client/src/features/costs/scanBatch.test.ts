@@ -31,7 +31,9 @@ const kinds: FileKindsInfo = {
 };
 type Sent = Awaited<ReturnType<BatchPort['send']>>;
 /** Отправка в тестах отвечает идентификатором; ответ с повтором называет его целиком. */
-const port = (send: (file: File) => Promise<string | Sent>, owner = 'я'): BatchPort => ({
+const port = (send: (file: File) => Promise<string | Sent>, owner = 'я', ask: BatchPort['ask'] = async prints => prints.map(fingerprint => ({ fingerprint, twins: [] }))): BatchPort => ({
+  // Отпечаток в тестах — имя файла: «тот же файл под другим именем» задаётся явно, в своих тестах.
+  fingerprint: async file => file.name.padEnd(64, '0').slice(0, 64), ask,
   owner, kinds, refresh: () => { refreshed++; },
   send: async file => { const got = await send(file); return typeof got === 'string' ? { id: got, sameFile: [] } : got; },
 });
@@ -40,6 +42,12 @@ const port = (send: (file: File) => Promise<string | Sent>, owner = 'я'): Batch
 async function settled() {
   for (let i = 0; i < 400 && currentBatch()?.phase !== 'done'; i++) await Promise.resolve();
   return currentBatch()!;
+}
+
+/** Дождаться конца проверки броска (отпечатки и вопрос — до отправки, D3 у 14). */
+async function checked() {
+  for (let i = 0; i < 400 && currentBatch()?.phase === 'checking'; i++) await Promise.resolve();
+  await Promise.resolve();
 }
 
 beforeEach(() => { resetBatchForTests(); refreshed = 0; });
@@ -160,8 +168,9 @@ describe('пакет', () => {
     });
     startBatch([pdf('а.pdf'), pdf('б.pdf'), pdf('в.pdf', 0), pdf('г.pdf')], [], mine);
     const first = await settled();
-    // Связи нет — пакет остановился сам: «г» не уходил, и «мог завестись» сказано только про «б».
-    expect(first.rejected.map(r => r.name)).toEqual(['б.pdf', 'в.pdf', 'г.pdf']);
+    // Связи нет — пакет остановился сам: «г» не уходил, и «мог завестись» сказано только про «б». Пустой «в»
+    // отсеян проверкой броска — до отправки, поэтому назван первым.
+    expect(first.rejected.map(r => r.name)).toEqual(['в.pdf', 'б.pdf', 'г.pdf']);
     expect(first.rejected[2].reason).toBe('не отправлен — загрузка остановлена');
     expect(batchTitle(first)).toBe('Загрузка остановлена: сервер не отвечает. Заведено 1 из 4.');
 
@@ -182,7 +191,7 @@ describe('пакет', () => {
       sent.push(file.name);
       return new Promise<string>(resolve => { release = resolve; });
     }));
-    await Promise.resolve();
+    await checked();
     stopBatch();
     expect(batchTitle(currentBatch()!)).toBe('Останавливаем — догружается текущий файл…');
     release('а');
@@ -220,6 +229,7 @@ describe('пакет', () => {
   it('пока пакет идёт, второй не начинается и полоса не закрывается', async () => {
     let release = (_: string) => {};
     startBatch([pdf('а.pdf')], [], port(() => new Promise<string>(resolve => { release = resolve; })));
+    await checked();
     startBatch([pdf('б.pdf'), pdf('в.pdf')], [], port(async () => 'x'));
     dismissBatch();
     expect(currentBatch()).toMatchObject({ total: 1, phase: 'running' });
@@ -234,7 +244,7 @@ describe('пакет', () => {
 describe('счета этой загрузки в списке', () => {
   const made = (created: string[]): ScanBatch => ({
     owner: 'me', phase: 'done', total: created.length, settled: created.length, created,
-    rejected: [], repeats: [], pending: [], halted: null, refused: null,
+    rejected: [], repeats: [], pending: [], halted: null, refused: null, held: [], doubled: [], unchecked: false, recovered: [],
   });
   const list = ['x', 'b', 'y', 'a'].map(id => ({ id }));
 
@@ -295,7 +305,7 @@ describe('пакет оборван извне', () => {
       sent.push(file.name);
       return new Promise<string>(resolve => { release = resolve; });
     }));
-    await Promise.resolve();
+    await checked();
     endSession();
     release('опоздал');
     for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -313,7 +323,7 @@ describe('пакет оборван извне', () => {
   });
 
   it('законченный пакет обрыв не трогает', () => {
-    const done = { owner: 'я', phase: 'done', total: 1, settled: 1, created: ['x'], rejected: [], repeats: [], pending: [], halted: null, refused: null } as const;
+    const done = { owner: 'я', phase: 'done' as const, total: 1, settled: 1, created: ['x'], rejected: [], repeats: [], pending: [], halted: null, refused: null, held: [], doubled: [], unchecked: false, recovered: [] } ;
     expect(interrupted({ ...done, created: ['x'], rejected: [], repeats: [], pending: [] }, 'страница перезагружена')).toMatchObject({ halted: null });
   });
 });

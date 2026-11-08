@@ -25,8 +25,10 @@ import {
 } from '@/shared/api/invoices';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
-import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
+import { useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { useInvoiceFileIntake } from './useInvoiceFileIntake';
+import { UNCHECKED_NOTE } from './scanIntake';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
@@ -40,7 +42,7 @@ import {
   QUEUE_LABEL, afterExit, backRefused, undoRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
-import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
+import { InvoiceScanBatchBar } from './InvoiceScanBatchBar';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
 import { FromFileButton, InvoiceListHeader, InvoiceStepper } from './InvoicePageChrome';
@@ -52,7 +54,7 @@ import { markCreatedHere } from './invoiceDelete';
 import { pendingIds, usePendingDeletes } from './pendingDelete';
 import { useInvoiceUndo } from './useInvoiceUndo';
 import {
-  aliveIds, forgetCreated, retryRejected, startBatch, uploadEmpty, uploadedOf, useScanBatch, type BatchPort,
+  acceptHeld, aliveIds, forgetCreated, retryRejected, uploadEmpty, uploadedOf, useScanBatch,
 } from './scanBatch';
 
 /**
@@ -335,11 +337,14 @@ export function InvoicesPage() {
    * Счёт из скана (issue #1077): черновик заводится всегда, когда файл годен, распознавание идёт в
    * фоне. Отказ распознавания — не отказ этого действия: о нём говорит полоса в открытом счёте.
    */
-  function addFromScan(file: File) { guarded(() => void createFromScan(file)); }
+  function addFromScan(file: File, acceptRepeat: boolean, unchecked = false) {
+    guarded(() => void createFromScan(file, acceptRepeat, unchecked));
+  }
 
-  async function createFromScan(file: File) {
+  /** `unchecked` — вопрос о повторе не ответил: сказать это можно, только когда черновик заведён (ревью PR #1823). */
+  async function createFromScan(file: File, acceptRepeat: boolean, unchecked: boolean) {
     try {
-      const created = await fromScan.mutateAsync(file);
+      const created = await fromScan.mutateAsync({ file, acceptRepeat });
       // Заведён из файла этой вкладкой: удалить его, пока не правили, можно без окна (D-13.3).
       markCreatedHere(created.invoice.id);
       // Поиск снимается: у счёта без номера и поставщика ему не за что зацепиться — открылся бы счёт,
@@ -348,6 +353,7 @@ export function InvoicesPage() {
       if (queue !== 'parsing') setQueue(null);
       setQuery('');
       setSelected(created.invoice.id);
+      if (unchecked) toast.info(UNCHECKED_NOTE);
     } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
   }
 
@@ -371,29 +377,9 @@ export function InvoicesPage() {
     next.delete(INVOICE_RECORD.param);
     return next;
   }, { replace: true }), id => { forgetCreated(id); forgetInvoice(qc, id); });
-  const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
-  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места —
-  // и закрыты тогда же, когда закрыты кнопки.
-  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft(), { busy: create.isPending });
-  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click(), { busy: loading });
   // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
   const kinds = useFileKinds();
   const readable = recognizedKinds(kinds.data);
-  const port: BatchPort = {
-    owner: me ?? '',
-    kinds: kinds.data,
-    send: file => sendScan(qc, file).then(created => { markCreatedHere(created.invoice.id); return created.invoice; }),
-    refresh: () => refreshInvoiceLists(qc),
-  };
-  function addScans(files: File[], folders: string[] = []) {
-    if (files.length === 1 && folders.length === 0) void addFromScan(files[0]);
-    else {
-      // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
-      if (filter === 'upload') setFilter(null);
-      startBatch(files, folders, port);
-    }
-  }
-
   // Тот же счёт, что в форме: панель скана и форма обязаны говорить об одном (ревью PR #1300).
   const shown = opened.kind === 'open' ? opened.data : null;
   const scan = shown ? shown.requisites[K.scan] : null;
@@ -416,6 +402,23 @@ export function InvoicesPage() {
   const room = placeOf(workWidth, true).file === 'beside';
   const place = placeOf(workWidth, wanted && room);
   const listShown = opened.kind !== 'open' || place.list;
+  // Бросок на всё окно, кнопка и палитра — одним путём (costs-invoice-screen-14, D1, D3): проверки до выгрузки,
+  // окно повтора для одного файла, пакет — для нескольких.
+  const intake = useInvoiceFileIntake({
+    enabled: hasPermission(access, 'costs.invoice.edit'), owner: me ?? '', batch,
+    opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null, hasFile: hasScan } : null,
+    listShown, sending: fromScan.isPending,
+    onSingle: addFromScan,
+    onOpen: switchTo,
+    // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
+    onBatchStart: () => { if (filter === 'upload') setFilter(null); },
+  });
+  const { addScans, loading } = intake;
+  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места —
+  // и закрыты тогда же, когда закрыты кнопки.
+  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft(), { busy: create.isPending });
+  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click(), { busy: loading });
+
   const toggleFile = () => {
     if (!selected) return;
     const open = place.file !== 'beside';
@@ -450,15 +453,18 @@ export function InvoicesPage() {
     <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(shownData, listKnown, batch)}
       // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
       onOnly={() => { setQuery(''); setFilter('upload'); }}
-      onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={switchTo} />
+      onShowAll={() => setFilter(null)} onRetry={() => retryRejected(intake.port)} onOpen={switchTo}
+      onAccept={print => acceptHeld(print, intake.port)} />
   );
-  const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`;
-  const fromFile = (variant: 'tonal' | 'standard') => canEdit
-    ? <FromFileButton variant={variant} loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
+  const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить в окно.`;
+  // При открытом счёте вход — в сводке, всегда (D7 у 14): в шапке списка его нет, кнопка не прыгает по ширине.
+  const fromFile = canEdit
+    ? <FromFileButton loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
     : null;
 
   return (
     <div ref={measure} className="h-full">
+    {intake.layer}
     <ListDetailShell view={ld} bare={selected !== null} navHidden={!listShown}
       title="Счета на оплату"
       subtitle="Черновик сохраняется без строк и сразу попадает в список"
@@ -508,9 +514,11 @@ export function InvoicesPage() {
         </>
       }
       nav={
-        <InvoiceScanDrop enabled={hasPermission(access, 'costs.invoice.edit') && !loading} onFiles={addScans}>
+        // Колонка больше не отдельная цель броска (D1 у 14): цель — всё окно, её держит захват окна.
+        <div className="relative flex-1 min-h-0 flex flex-col">
           {/* Счёт открыт — шапки страницы нет (D-10.8): заголовок и её действия встают над списком. */}
-          {selected !== null && <InvoiceListHeader fromFile={fromFile('tonal')} actions={actions} />}
+          {/* Счёт ещё грузится, не найден или не прочитан — сводки нет, и «Счёт из файла» встаёт сюда (ревью PR #1823). */}
+          {selected !== null && <InvoiceListHeader actions={actions} fromFile={opened.kind === 'open' ? null : fromFile} />}
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
@@ -574,7 +582,7 @@ export function InvoicesPage() {
                 </p>
               ))}
           </div>
-        </InvoiceScanDrop>
+        </div>
       }
       detail={
         // ⚠️ Пять положений, а не одно — см. `openRecord`. «Ничего не выбрано», «счёт грузится», «счёта
@@ -606,9 +614,8 @@ export function InvoicesPage() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col" inert={leading}>
-            {/* Списка нет (файл рядом или места мало) — полоса загрузки встаёт над формой: непринятый файл с
-                причиной обязан дожить до взгляда (issue #1093), а говорить об итоге больше негде. */}
-            {!listShown && batchBar}
+            {/* Списка нет (файл рядом или места мало) — ход и итог пакета в центре активности (D5 у 14), а не
+                полосой над формой: пакет экран не двигает и высоту у формы не отнимает. */}
             <div className="flex-1 min-w-0 min-h-0 flex">
               <InvoiceForm
                 key={opened.id}
@@ -626,7 +633,7 @@ export function InvoicesPage() {
                 nav={!place.list && position
                   ? <InvoiceStepper position={position} filter={filterName} onGo={switchTo} onList={closeInvoice} />
                   : undefined}
-                fromFile={fromFile('standard')}
+                fromFile={fromFile}
                 file={hasScan && !gone
                   ? <InvoiceFileButton invoiceId={opened.id} blobPath={fileProp(scan, 'blobPath')}
                       fileName={fileProp(scan, 'fileName')} onToggle={toggleFile} onReveal={revealPane} showRef={fileShow}

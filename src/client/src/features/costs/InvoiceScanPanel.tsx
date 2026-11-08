@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Description, Download, OpenInNew, RotateRight } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -7,7 +7,7 @@ import { useInvoiceImage } from '@/shared/api/invoiceImage';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
-import { acceptOf, fileShownAs, nameShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { fileShownAs, nameShownAs, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { BuiltImage, Centered as Note, OriginalButton, RefusedImage } from './InvoiceFileImage';
 import { saveScan } from './scanView';
@@ -165,28 +165,6 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
     </div>
   );
 }
-
-/** Приложить или заменить файл счёта. Кнопкой, а не полем формы: файл уезжает своим адресом. */
-/**
- * Скрытый выбор файла счёта — «Приложить файл…» / «Заменить файл…» в «⋮» сводки (D-10.6). Предлагается то,
- * что потом будет чем показать или прочитать: Excel и Word сами не показываются, но стоят рядом с формой
- * видом для чтения (issue #1270). Пока реестра нет, выбор не сужается: вид всё равно определит сервер.
- */
-export const ScanFileInput = forwardRef<HTMLInputElement, { onPick: (file: File) => void }>(function ScanFileInput({ onPick }, ref) {
-  const kinds = useFileKinds();
-  const offered = [...new Set([...shownKinds(kinds.data), ...recognizedKinds(kinds.data)])];
-  const accept = acceptOf(offered) || undefined;
-  return (
-    <input ref={ref} type="file" className="hidden" accept={accept} aria-label="Файл счёта"
-      onChange={e => {
-        const file = e.target.files?.[0];
-        // Значение сбрасываем: иначе выбор ТОГО ЖЕ файла второй раз не вызовет события, и повтор
-        // после неудачной загрузки выглядел бы как «кнопка не работает».
-        e.target.value = '';
-        if (file) onPick(file);
-      }} />
-  );
-});
 
 /** Ждут дольше трёх секунд — уже не «загружается», и об этом стоит сказать. */
 function useSlow(waiting: boolean) {

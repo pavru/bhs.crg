@@ -29,6 +29,7 @@ import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
+import { invoiceFileDropChecks } from './invoice-file-drop-checks.mjs';
 import { invoiceUndoChecks } from './invoice-undo-checks.mjs';
 import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
@@ -344,7 +345,9 @@ try {
     // и тогда выбор предлагает что угодно. Перечень сверяется по признаку, а не слово в слово: его
     // состав — дело сервера.
     await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles({
-      name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${stamp}`),
+      // Своё содержимое: `не настоящий ${stamp}` уже приложен проверкой поддельного PDF, и бросок спросил бы
+      // о повторе (costs-invoice-screen-14) — окном, а не черновиком.
+      name: fileName, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${fileName}`),
     });
 
     // Черновик открылся сам: в адресе назван счёт, скан приложен.
@@ -430,35 +433,26 @@ try {
       () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length > 3, null, { timeout: 10_000 }));
   });
 
-  // ── 8а. Тот же файл дважды: оговорка по СОДЕРЖИМОМУ, черновик всё равно заведён (issue #1295) ────
+  // ── 8а. Повтор, который вопрос не увидел: оговорка по СОДЕРЖИМОМУ после заведения (issue #1295) ──
   //
-  // Сторож задачи. Три файла: два несут содержимое файла из проверки 8 под другими именами, третий
-  // — имя того файла с другим содержимым. Повторами названы первые два; третий — нет: сравнение по
-  // имени вместо содержимого перевернуло бы оба ответа.
-  //
-  // ⚠️ Содержимое нарочно нечитаемо: исход `BadFile` без запроса к движку (#1344) — см. проверку 8.
-  await check('тот же файл дважды: повтор назван в полосе и на форме, одноимённый с другим содержимым — нет', async () => {
-    const before = `Пакет-${stamp}-2.pdf`;
-    const repeats = [`Повтор-${stamp}-1.pdf`, `Повтор-${stamp}-2.pdf`];
-    await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles([
-      ...repeats.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий ${before}`) })),
-      { name: before, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 другое содержимое ${stamp}`) },
-    ]);
-
-    const list = page.getByTestId('upload-repeats');
-    await named('полоса не назвала повторы',
-      () => list.getByText('Уже были приложены — черновики всё равно заведены (2):').waitFor({ timeout: 30_000 }));
-    const lines = await list.locator('li').allInnerTexts();
-    if (lines.length !== 2 || !repeats.every(name => lines.some(text => text.startsWith(name))))
-      throw new Error(`повторами названы не те файлы: ${JSON.stringify(lines)}`);
-    // Прежний счёт без номера назван именем файла и временем заведения до секунд: порознь они
-    // двух черновиков одной загрузки не различают.
-    if (!lines.every(text => /уже приложен к счёту без номера, «.+», заведён \d\d\.\d\d\.\d{4}, \d\d:\d\d:\d\d/.test(text)))
-      throw new Error(`прежний счёт назван не временем заведения: ${JSON.stringify(lines)}`);
-
-    // Из полосы — на новый черновик: оговорка стоит на форме и ведёт к удалению лишнего.
-    await list.getByRole('button', { name: repeats[0] }).click();
-    await untilStatus(page, items => items.some(i => i.key === 'same-file' && /приложен ещё к \d+ счетам: /.test(i.text)),
+  // Повтор спрашивается до выгрузки (costs-invoice-screen-14, проверки — `invoice-file-drop-checks`): бросок того
+  // же файла открывает окно, а не черновик. Оговорка после заведения осталась страховкой — от гонки двух вкладок и
+  // от счетов, которых вопрос не видит. Вопрос здесь подменён пустым ответом, файл — содержимое «Пакет-…-2» из
+  // проверки 8 под другим именем: черновик заводится, и о повторе говорит уже форма.
+  await check('повтор, которого вопрос не увидел: оговорка на форме, черновик удаляется без окна', async () => {
+    const was = new URL(page.url()).searchParams.get('invoice');
+    await page.route('**/api/costs/invoices/same-file?**', route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify(new URL(route.request().url()).searchParams.getAll('fingerprint').map(fingerprint => ({ fingerprint, twins: [] }))),
+    }));
+    try {
+      await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles({
+        name: `Повтор-${stamp}-1.pdf`, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий Пакет-${stamp}-2.pdf`),
+      });
+      await named('черновик-повтор не открылся', () => page.waitForFunction(
+        was => new URL(location.href).searchParams.get('invoice') !== was, was, { timeout: 15_000 }));
+    } finally { await page.unroute('**/api/costs/invoices/same-file?**'); }
+    await untilStatus(page, items => items.some(i => i.key === 'same-file' && /приложен ещё к (\d+ )?сч/.test(i.text)),
       'на форме оговорки о том же файле нет', 15_000);
     // Черновик заведён этой вкладкой и не правлен — удаляется без окна, с «Вернуть» (13, D-13.5).
     await statusAction(page, 'same-file', 'Удалить черновик');
@@ -468,6 +462,9 @@ try {
     await undo.click();
     await untilStatus(page, items => items.some(i => i.key === 'same-file'), '«Вернуть» не вернул черновик-повтор', 10_000);
   });
+
+  await invoiceFileDropChecks(page, check, { api, requisites, named, stamp, base: BASE });
+
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
   await api('PUT', '/account/settings', { invoiceFile: 'open' });
   await page.evaluate(() => localStorage.setItem('crg-invoice-file', 'open'));
