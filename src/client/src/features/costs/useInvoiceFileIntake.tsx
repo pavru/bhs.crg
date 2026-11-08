@@ -1,15 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import type { FileKindsInfo } from '@/shared/api/fileKinds';
-import { refreshInvoiceLists, sendScan } from '@/shared/api/invoiceRecognition';
-import { sameFileByFingerprints } from '@/shared/api/invoiceSameFile';
 import { claimWindowDrop, type WindowDropOver } from '@/shared/ui/fileDrop';
 import { DropCover } from './InvoiceDropCover';
 import { useSnackbar } from '@/shared/ui/Snackbar';
-import { fingerprintOf } from '@/shared/utils/fileFingerprint';
-import { markCreatedHere } from './invoiceDelete';
 import { InvoiceRepeatDialog } from './InvoiceRepeatDialog';
-import { holdFile, isHeld, releaseHeld, startBatch, type BatchPort, type ScanBatch } from './scanBatch';
+import { holdFile, isHeld, releaseHeld, startBatch, type ScanBatch } from './scanBatch';
+import { useBatchPort } from './useBatchPort';
 import { LATE_MS, checkDrop, twinShort, typing, type HeldFile } from './scanIntake';
 
 /**
@@ -26,14 +21,15 @@ import { LATE_MS, checkDrop, twinShort, typing, type HeldFile } from './scanInta
 
 interface Asking { held: HeldFile; fromHold: boolean }
 
-export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sending, onSingle, onOpen, onBatchStart }: {
+export function useInvoiceFileIntake({ enabled, owner, batch, opened, listShown, sending, onSingle, onOpen, onBatchStart }: {
   /** Заводить счета можно: без права захвата и покрытия нет вовсе. */
   enabled: boolean;
   owner: string;
-  kinds: FileKindsInfo | undefined;
   batch: ScanBatch | null;
   /** Номер открытого счёта — покрытие обещает, что он не изменится; `null` — счёт не открыт. */
-  opened: { number: string | null } | null;
+  opened: { number: string | null; hasFile?: boolean } | null;
+  /** Виден ли список счетов — покрытие говорит, где искать ход пакета. */
+  listShown: boolean;
   /** Идёт заведение одного файла. */
   sending: boolean;
   /**
@@ -47,22 +43,12 @@ export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sen
   /** Начинается пакет — экрану снять отбор прежней загрузки. */
   onBatchStart: () => void;
 }) {
-  const qc = useQueryClient();
   const toast = useSnackbar();
   const [checking, setChecking] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [over, setOver] = useState<WindowDropOver | null>(null);
 
-  const port: BatchPort = {
-    owner, kinds,
-    fingerprint: file => fingerprintOf(file),
-    ask: sameFileByFingerprints,
-    send: (file, options) => sendScan(qc, file, options).then(created => {
-      markCreatedHere(created.invoice.id);
-      return created.invoice;
-    }),
-    refresh: () => refreshInvoiceLists(qc),
-  };
+  const port = useBatchPort(owner);
 
   const running = batch !== null && batch.phase !== 'done';
   const loading = sending || checking || running;
@@ -116,7 +102,7 @@ export function useInvoiceFileIntake({ enabled, owner, kinds, batch, opened, sen
   };
 
   const layer: ReactNode = <>
-    {enabled && over && <DropCover over={over} opened={opened} batch={batch} checking={checking} />}
+    {enabled && over && <DropCover over={over} opened={opened} batch={batch} checking={checking} listShown={listShown} />}
     {asking && (
       <InvoiceRepeatDialog file={asking.held.file} twins={asking.held.twins}
         onClose={() => settle(asking)}

@@ -8,7 +8,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import {
-  useAttachInvoiceScan, useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
+  useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
@@ -24,7 +24,7 @@ import { InvoiceMoreMenu } from './InvoiceMoreMenu';
 import { InvoiceDeleteProvider } from './InvoiceDeleteDialog';
 import { canDelete, useFresh } from './invoiceDelete';
 import { undoVersion } from './invoiceReject';
-import { ScanFileInput } from './InvoiceScanPanel';
+import { InvoiceFileDialog } from './InvoiceFileDialog';
 import { RecognitionNotes } from './InvoiceRecognitionNote';
 import { useRecognitionAction } from './recognitionAction';
 import { RecognitionContext, useRecognitionWatch } from './recognitionWatch';
@@ -122,7 +122,6 @@ export function InvoiceForm({
   const [edits, setEdits] = useState<Record<string, unknown>>({});
   const update = useUpdateInvoice();
   const confirm = useConfirmInvoiceFields();
-  const attach = useAttachInvoiceScan();
   const state = useInvoiceState();
   const toast = useSnackbar();
   const correction = useCorrectionDraft();
@@ -304,7 +303,8 @@ export function InvoiceForm({
   const [sheet, setSheet] = useState(false);
 
   // ── «⋮» сводки ────────────────────────────────────────────────────────────────────────────────────
-  const fileInput = useRef<HTMLInputElement>(null);
+  // «Приложить / Заменить файл…» — окно с площадкой (D6 у 14): файл к счёту только явным действием.
+  const [fileDialog, setFileDialog] = useState(false);
   const recognize = useRecognitionAction(view.id, watch.recognition, view.lines.length === 0);
   // К запертому счёту файл приложить можно, заменить — нельзя: замена удалила бы документ закрытого
   // периода. Пока файл читается, заменить его нельзя (сервер откажет). Причина — подсказкой у пункта.
@@ -313,8 +313,8 @@ export function InvoiceForm({
       ? { key: 'file', label: 'Заменить файл…', icon: UploadFile, disabled: true, hint: 'Нельзя: документ закрытого периода' }
       : watch.running
         ? { key: 'file', label: 'Заменить файл…', icon: UploadFile, disabled: true, hint: 'Файл распознаётся — заменить можно после исхода' }
-        : { key: 'file', label: scan !== null ? 'Заменить файл…' : 'Приложить файл…', icon: UploadFile, loading: attach.isPending,
-          onSelect: () => fileInput.current?.click() };
+        : { key: 'file', label: scan !== null ? 'Заменить файл…' : 'Приложить файл…', icon: UploadFile,
+          onSelect: () => setFileDialog(true) };
 
   const who = BLOCKS[0];
   const terms = BLOCKS[1];
@@ -336,9 +336,10 @@ export function InvoiceForm({
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuard active={leave.guard} message={leave.question} save={leave.savable ? queue.save : undefined}
         saving={queue.saving} />
-      <ScanFileInput ref={fileInput} onPick={picked => {
-        attach.mutateAsync({ id: view.id, seen: view.version, file: picked }).catch(e => toast.apiError(e, 'Файл не приложен'));
-      }} />
+      {fileDialog && (
+        <InvoiceFileDialog invoiceId={view.id} version={view.version} number={asInput(view.requisites[K.number]) || null}
+          current={scan === null ? null : scan.fileName ?? 'файл без имени'} onClose={() => setFileDialog(false)} />
+      )}
       {paying && <PayDialog view={view} onDone={() => setPaying(false)} />}
       <InvoiceStatusSheet open={sheet} onClose={() => setSheet(false)} status={indicator.status} saving={queue.saving}
         savedAt={formatDateTime(view.updatedAt)} onAction={indicator.run} />

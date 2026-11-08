@@ -10,6 +10,7 @@
 // Файлы нарочно нечитаемы (`%PDF-1.4 …`): исход распознавания `BadFile` без запроса к движку (#1344).
 
 import { createHash } from 'node:crypto';
+import { invoiceMenu } from './harness.mjs';
 
 const WIDTHS = [{ width: 1366, height: 768 }, { width: 1280, height: 720 }];
 const WIDE = { width: 1500, height: 1000 };
@@ -192,18 +193,23 @@ export async function invoiceFileDropChecks(page, check, h) {
       { name: `Пакет5-${h.stamp}-5.pdf`, buffer: theirs },
     ];
     await dropOn(page, page.getByTestId('rail'), files, h);
-    const tally = page.getByTestId('upload-tally').filter({ hasText: 'Заведено 3 · придержано 1 (тот же файл) · 1 выбран дважды' });
+    // Итог — по месту (D5): над списком, если он виден, иначе — в центре активности.
+    const listed = await page.getByTestId('ld-nav').isVisible();
+    if (!listed) await page.getByTestId('activity').click();
+    const area = listed ? page : page.getByTestId('activity-scan-batch');
+    const tally = area.getByTestId('upload-tally').filter({ hasText: 'Заведено 3 · придержано 1 (тот же файл) · 1 выбран дважды' });
     await h.named('итог пакета не назвал придержанный и выбранный дважды', () => tally.waitFor({ timeout: 30_000 }));
     if (await repeatDialog().count()) throw new Error('пакет открыл окно повтора');
-    const held = await page.getByTestId('upload-held').innerText();
+    const held = await area.getByTestId('upload-held').innerText();
     if (!held.includes(files[4].name) || !held.includes('уже у'))
       throw new Error(`придержанный назван не так: «${held}»`);
-    await h.named('«выбран дважды» не назван', () => page.getByText(`${files[3].name} выбран дважды — заведён один черновик`)
-      .or(page.getByText(`${files[2].name} выбран дважды — заведён один черновик`)).first().waitFor({ timeout: 5_000 }));
+    await h.named('«выбран дважды» не назван', () => area.getByText(`${files[3].name} выбран дважды — заведён один черновик`)
+      .or(area.getByText(`${files[2].name} выбран дважды — заведён один черновик`)).first().waitFor({ timeout: 5_000 }));
     if (openedId(page) !== opened) throw new Error('пакет сменил открытый счёт');
     console.log(`  · двойник другого человека: ${other.id}`);
     // Итог сам не исчезает — закрываем: над формой он отнимает высоту, а проверки раскладки дальше меряют форму.
-    await page.getByRole('status').filter({ has: page.getByTestId('upload-tally') }).getByRole('button', { name: 'Закрыть' }).click();
+    await area.getByRole('status').filter({ has: page.getByTestId('upload-tally') }).getByRole('button', { name: 'Закрыть' }).click();
+    if (!listed) await page.keyboard.press('Escape');
   });
 
   // Проверка не ответила (D3): заводим и говорим «повтор не проверен»; пакет не останавливается.
@@ -237,5 +243,72 @@ export async function invoiceFileDropChecks(page, check, h) {
       if (await repeatDialog().count()) throw new Error('пустой ответ открыл окно повтора');
       if (/файл новый/i.test(await page.locator('body').innerText())) throw new Error('экран сказал «файл новый»');
     } finally { await page.unroute('**/api/costs/invoices/same-file?**'); }
+  });
+
+  // Файл к счёту — только явным действием (D6): окно с площадкой, у замены — вопрос. Без согласия файл и версия
+  // прежние; после «Заменить файл» — новый файл.
+  await check('«⋮ → Заменить файл…»: без согласия файл и версия прежние, после согласия — новый файл', async () => {
+    const created = await fromScanApi(page, `Заменяемый-${h.stamp}.pdf`, bytesOf(`заменяемый ${h.stamp}`));
+    await page.goto(`${h.base}/invoices?invoice=${created.id}`, { waitUntil: 'networkidle' });
+    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    const before = await h.api('GET', `/costs/invoices/${created.id}`);
+    const dialog = page.getByRole('dialog', { name: /^Заменить файл счёта/ });
+    const next = { name: `Замена-${h.stamp}.pdf`, mimeType: 'application/pdf', buffer: bytesOf(`замена ${h.stamp}`) };
+
+    await invoiceMenu(page, 'Заменить файл…');
+    await dialog.getByLabel('Файл счёта').setInputFiles(next);
+    await dialog.getByRole('button', { name: 'Заменить', exact: true }).click();
+    await h.named('вопрос о прежнем файле не задан', () => page.getByText('Прежний файл будет удалён без возврата').waitFor({ timeout: 5_000 }));
+    await page.getByRole('dialog').getByRole('button', { name: 'Отмена' }).click(); // с шага — назад к окну
+    await page.getByRole('dialog').getByRole('button', { name: 'Отмена' }).click(); // окно — закрыть
+    await h.named('«Отмена» не закрыла окно замены', () => dialog.waitFor({ state: 'detached', timeout: 5_000 }));
+    const kept = await h.api('GET', `/costs/invoices/${created.id}`);
+    if (kept.version !== before.version || kept.requisites['Скан']?.fileName !== before.requisites['Скан']?.fileName)
+      throw new Error('без согласия файл или версия счёта изменились');
+
+    await invoiceMenu(page, 'Заменить файл…');
+    await dialog.getByLabel('Файл счёта').setInputFiles(next);
+    await dialog.getByRole('button', { name: 'Заменить', exact: true }).click();
+    const answered = page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${created.id}/scan`) && r.request().method() === 'POST', { timeout: 15_000 });
+    await page.getByRole('dialog').getByRole('button', { name: 'Заменить файл' }).click();
+    if (!(await answered).ok()) throw new Error('замена отказала');
+    const after = await h.api('GET', `/costs/invoices/${created.id}`);
+    if (after.requisites['Скан']?.fileName !== next.name) throw new Error(`файл не заменён: ${after.requisites['Скан']?.fileName}`);
+  });
+
+  await check('«Приложить файл…» у счёта без файла: окно с площадкой прикладывает к нему', async () => {
+    const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(`СЧ-П${h.stamp}`, 'Без файла') });
+    await page.goto(`${h.base}/invoices?invoice=${created.id}`, { waitUntil: 'networkidle' });
+    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
+    await invoiceMenu(page, 'Приложить файл…');
+    const dialog = page.getByRole('dialog', { name: /^Приложить файл к счёту/ });
+    // Бросок на площадку — тем же событием, что мышью.
+    const data = await transferOf(page, [{ name: `Приложенный-${h.stamp}.pdf`, buffer: bytesOf(`приложенный ${h.stamp}`) }]);
+    await dialog.getByText('Перетащите файл сюда').dispatchEvent('drop', { dataTransfer: data });
+    await dialog.getByRole('button', { name: 'Приложить' }).click();
+    await h.named('окно не закрылось после приложения', () => dialog.waitFor({ state: 'detached', timeout: 15_000 }));
+    const after = await h.api('GET', `/costs/invoices/${created.id}`);
+    if (after.requisites['Скан']?.fileName !== `Приложенный-${h.stamp}.pdf`) throw new Error('файл не приложен к ручному счёту');
+    if (openedId(page) !== created.id) throw new Error('приложение увело с счёта');
+  });
+
+  // Пакет там, где списка нет (D5): ход и итог — в центре активности, экран не сменился.
+  await check('пакет на 1280: ход и итог в центре активности, экран не сменился', async () => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    try {
+      const opened = openedId(page);
+      await dropOn(page, page.getByTestId('invoice-header'), [
+        { name: `Центр-${h.stamp}-1.pdf`, buffer: bytesOf(`центр 1 ${h.stamp}`) },
+        { name: `Центр-${h.stamp}-2.pdf`, buffer: bytesOf(`центр 2 ${h.stamp}`) },
+      ], h);
+      if (await page.getByTestId('upload-tally').count() + await page.getByRole('navigation', { name: 'Счета на оплату' }).getByRole('status').count())
+        throw new Error('на 1280 полоса пакета встала на экран');
+      await page.getByTestId('activity').click();
+      const section = page.getByTestId('activity-scan-batch');
+      await h.named('итог пакета не виден в центре активности', () => section.getByText(/Заведено 2 черновика/).waitFor({ timeout: 30_000 }));
+      if (openedId(page) !== opened) throw new Error('пакет сменил открытый счёт');
+      await section.getByRole('button', { name: 'Закрыть' }).click();
+      await page.keyboard.press('Escape');
+    } finally { await page.setViewportSize(WIDE); }
   });
 }

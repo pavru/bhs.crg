@@ -81,25 +81,24 @@
 
 ## 2. PR 2 — центр активности, приложение, замена
 
-- [ ] 2.1 Центр активности: раздел «Загрузка счетов» — ход с «Остановить» и итог пакета, который сам не
+- [x] 2.1 Центр активности: раздел «Загрузка счетов» — ход с «Остановить» и итог пакета, который сам не
   исчезает, из того же `scanBatch`; полоса над списком остаётся там, где список виден (design D5).
   [COST-31] Проверка — vitest `ActivityCenter`; живой прогон на 1280 (списка нет): ход и итог видны в
   центре активности, экран не сменился.
-- [ ] 2.2 Площадка — `FileDropZone` из `shared/ui` (Э8, change `sharedui-file-drop-zone`; `check` — тот же
-  `precheck`, без своего захвата броска, design D6) — и окно
-  «Приложить файл…» в пустой панели файла. Бросок на пустую панель заводит новый черновик (design D6).
-  [COST-6.7] Проверка — vitest; живой прогон: бросок на пустую панель → новый черновик, ручной счёт без
-  файла; через окно → файл приложен к ручному счёту.
-- [ ] 2.3 «⋮ → Заменить файл…»: окно с площадкой, шаг `WindowStep` с вопросом «Прежний файл будет удалён
+- [x] 2.2 Площадка — `FileDropZone` из `shared/ui` (Э8, change `sharedui-file-drop-zone`; `check` — тот же
+  `precheck`, без своего захвата броска, design D6) — и окно «⋮ → Приложить файл…». Пустой панели файла нет
+  (выбор владельца 09.11.2026, вариант Б; design D6). [COST-6.7] Проверка — vitest; живой прогон: через окно
+  → файл приложен к ручному счёту.
+- [x] 2.3 «⋮ → Заменить файл…»: окно с площадкой, шаг `WindowStep` с вопросом «Прежний файл будет удалён
   без возврата»,
   `POST …/{id}/scan` с `If-Match`; пункта нет у запертого и при распознавании. [COST-6.7] Проверка —
   vitest; живой прогон: без согласия файл и версия прежние, после согласия — новый файл.
-- [ ] 2.4 Весь список живых прогонов CI — правка оболочки (центр активности). [COST-6.7] Проверка —
+- [x] 2.4 Весь список живых прогонов CI — правка оболочки (центр активности). [COST-6.7] Проверка —
   `cd src/client && npm run -s test:e2e:ci` зелёный.
 
 ## 3. Документы
 
-- [ ] 3.1 `docs/USER_GUIDE.md`, раздел о заведении счетов из файлов: бросок в любое место окна, окно
+- [x] 3.1 `docs/USER_GUIDE.md`, раздел о заведении счетов из файлов: бросок в любое место окна, окно
   повтора и «Не заводить», придержанные в пакете, «повтор не проверен», «Приложить файл…», замена с
   вопросом; оглавление — `cd docs/tools && npm run toc`, если менялись главы. [COST-6.7] [COST-31]
   Проверка — ревью PR; проверка оглавления зелёная.
@@ -109,9 +108,9 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan"` — зелёный (сервер не меняется; набор примеров отпечатка общий)
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`scanBatch.ts`, `InvoicesPage.tsx` под присмотром: новое — своими файлами)
-- [ ] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF; зонтик 3.2)
-- [ ] 4.6 Оба PR с меткой `version:minor`; `<Version>` не тронута
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan"` — зелёный (сервер не меняется; набор примеров отпечатка общий)
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`scanBatch.ts`, `InvoicesPage.tsx` под присмотром: новое — своими файлами)
+- [x] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF; зонтик 3.2). Сделано: «после» — https://claude.ai/artifact/2myZrycq9Yvs77XRpDR2BU; «до» — кадры листа «Ф» (снимок master против этого стенда не снялся); кадр 8 листа «Ф» (пустая панель) не действует — вариант Б, 09.11.2026
+- [x] 4.6 Оба PR с меткой `version:minor`; `<Version>` не тронута

@@ -52,7 +52,10 @@ export function InvoiceRepeatDialog({ file, twins, onClose, onMore, onOpen }: {
           <Card key={twin.id} title={twinTitle(twin)} data-testid="repeat-twin"
             actions={<Button variant="text" aria-label={twinOpenLabel(twin)} onClick={() => onOpen(twin.id)}>Открыть</Button>}>
             <StatusText>{twin.state}</StatusText>
-            <p>{[twin.supplierName, twin.total != null ? formatMoney(twin.total) : null].filter(Boolean).join(' · ')}</p>
+            {/* Черновик без поставщика и суммы пустой строки не рисует. */}
+            {(twin.supplierName || twin.total != null) && (
+              <p>{[twin.supplierName, twin.total != null ? formatMoney(twin.total) : null].filter(Boolean).join(' · ')}</p>
+            )}
             <p>{twinMade(twin)}</p>
           </Card>
         ))}
