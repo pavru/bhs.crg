@@ -98,7 +98,7 @@
 
 ## 3. Документы
 
-- [ ] 3.1 `docs/USER_GUIDE.md`, раздел о заведении счетов из файлов: бросок в любое место окна, окно
+- [x] 3.1 `docs/USER_GUIDE.md`, раздел о заведении счетов из файлов: бросок в любое место окна, окно
   повтора и «Не заводить», придержанные в пакете, «повтор не проверен», «Приложить файл…», замена с
   вопросом; оглавление — `cd docs/tools && npm run toc`, если менялись главы. [COST-6.7] [COST-31]
   Проверка — ревью PR; проверка оглавления зелёная.
@@ -108,9 +108,9 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan"` — зелёный (сервер не меняется; набор примеров отпечатка общий)
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`scanBatch.ts`, `InvoicesPage.tsx` под присмотром: новое — своими файлами)
-- [ ] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF; зонтик 3.2)
-- [ ] 4.6 Оба PR с меткой `version:minor`; `<Version>` не тронута
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceFromScan"` — зелёный (сервер не меняется; набор примеров отпечатка общий)
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`scanBatch.ts`, `InvoicesPage.tsx` под присмотром: новое — своими файлами)
+- [x] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF; зонтик 3.2). Сделано: «после» — https://claude.ai/artifact/2myZrycq9Yvs77XRpDR2BU; «до» — кадры листа «Ф» (снимок master против этого стенда не снялся); кадр 8 листа «Ф» (пустая панель) не действует — вариант Б, 09.11.2026
+- [x] 4.6 Оба PR с меткой `version:minor`; `<Version>` не тронута
