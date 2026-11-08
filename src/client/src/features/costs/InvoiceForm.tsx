@@ -46,7 +46,8 @@ import {
 import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
 import { useInvoiceSave } from './invoiceSave';
-import { useInvoiceLeave } from './InvoiceLeaveGuard';
+import { invoiceLeave } from './invoiceLeave';
+import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
 import { InvoiceStatusBanner, InvoiceStatusSheet } from './InvoiceStatusSheet';
 import { useInvoiceStatus } from './useInvoiceStatus';
@@ -132,7 +133,10 @@ export function InvoiceForm({
   const [linesDirty, setLinesDirty] = useState(false);
   // Несохранённое ОДНО (D-10.7): шапка или строки. Им гаснут «Разобран» и оплата, его спрашивает уход.
   const unsaved = dirty || linesDirty;
-  const held = unsaved || correction.dirty;
+  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже: прежде охрана видела только шапку,
+  // и уход молча уносил набранные строки (#1653). Вопрос называет, что не сохранено.
+  const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone });
+  const held = leave.held;
   const header = useRef<HTMLDivElement>(null);
   // Один раз, при открытии: форма перемонтируется на каждый счёт.
   useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
@@ -209,11 +213,6 @@ export function InvoiceForm({
     }
   }
   const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader });
-  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже: прежде охрана видела только шапку,
-  // и уход молча уносил набранные строки (#1653). Вопрос называет, что не сохранено.
-  const leaveDialog = useInvoiceLeave({
-    held: held && !gone, unsaved: { header: dirty, lines: linesDirty, correcting }, saving: queue.saving, save: queue.save,
-  });
 
   // Части: раскрыты незаполненные — решено при открытии счёта, дальше сворачивает только человек.
   const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }, partMore));
@@ -335,7 +334,8 @@ export function InvoiceForm({
     <InvoiceExtrasProvider value={extras.byKey}>
     <PartRevealContext.Provider value={reveal}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-      {leaveDialog}
+      <LeaveGuard active={leave.guard} message={leave.question} save={leave.savable ? queue.save : undefined}
+        saving={queue.saving} />
       <ScanFileInput ref={fileInput} onPick={picked => {
         attach.mutateAsync({ id: view.id, seen: view.version, file: picked }).catch(e => toast.apiError(e, 'Файл не приложен'));
       }} />

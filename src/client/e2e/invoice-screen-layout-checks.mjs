@@ -244,38 +244,44 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await expandInvoiceParts(page);
     const name = page.getByLabel('Наименование в счёте, строка 3', { exact: true });
     const was = await name.inputValue();
-    await name.click();
-    await page.keyboard.press('End');
-    await page.keyboard.type(' — правка');
     const typed = `${was} — правка`;
-
-    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
-    await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
-    await h.named('пункт «Счета» увёл со счёта с несохранённой строкой, не спросив', () => dialog.waitFor({ timeout: 5_000 }));
-    if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
-      throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
-    await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
-    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
-    if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id) throw new Error('после «Отмена» счёт закрыт');
-    if ((await name.inputValue()) !== typed) throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
-    // Панель раздела поверх формы закрываем: дальше — перезагрузка.
-    await page.keyboard.press('Escape');
-
-    let asked = null;
-    const onDialog = d => { asked = d.type(); void d.dismiss(); };
-    page.on('dialog', onDialog);
     try {
-      await page.reload({ timeout: 5_000 }).catch(() => {});
-      await page.waitForTimeout(300);
-    } finally { page.off('dialog', onDialog); }
-    if (asked !== 'beforeunload') throw new Error('перезагрузка вкладки с несохранённой строкой прошла без вопроса браузера');
-    if ((await name.inputValue()) !== typed) throw new Error('перезагрузка, отменённая в вопросе, унесла набранное');
-    // Уходим, не сохраняя: соседним проверкам правка не нужна.
-    await page.getByRole('button', { name: 'Показать панель раздела' }).click();
-    await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
-    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
+      await name.click();
+      await page.keyboard.press('End');
+      await page.keyboard.type(' — правка');
+
+      await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+      await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+      await h.named('пункт «Счета» увёл со счёта с несохранённой строкой, не спросив', () => dialog.waitFor({ timeout: 5_000 }));
+      if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
+        throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
+      await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+      await dialog.waitFor({ state: 'detached', timeout: 5_000 });
+      if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id) throw new Error('после «Отмена» счёт закрыт');
+      if ((await name.inputValue()) !== typed) throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
+      // Панель раздела поверх формы закрываем: дальше — перезагрузка.
+      await page.keyboard.press('Escape');
+
+      // Ждём САМ вопрос браузера, а не перезагрузку: отклонённый вопрос её отменяет, и обещание `reload` не
+      // кончается вовсе. Его отказ — не наш исход: исход здесь — вопрос и набранное после него.
+      const asked = page.waitForEvent('dialog', { timeout: 5_000 });
+      page.reload().catch(() => {});
+      // Не `h.named`: он значения не возвращает, а вопрос нужен — его надо отклонить.
+      const unload = await asked.catch(() => { throw new Error('перезагрузка вкладки с несохранённой строкой прошла без вопроса браузера'); });
+      if (unload.type() !== 'beforeunload') throw new Error(`вместо вопроса об уходе — «${unload.type()}»`);
+      await unload.dismiss();
+      if ((await name.inputValue()) !== typed) throw new Error('перезагрузка, отменённая в вопросе, унесла набранное');
+    } finally {
+      // Уходим, не сохраняя, — и при провале тоже: брошенная правка держала бы `beforeunload`, и `goto` соседних
+      // проверок висел бы до таймаута, краснея чужими причинами.
+      // Отказ уборки — строкой в лог, а не исключением: иначе он заслонил бы причину провала самой проверки.
+      const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
+      page.on('dialog', leave);
+      await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' })
+        .catch(e => console.log('  ! правка строки не брошена:', e.message.split('\n')[0]))
+        .finally(() => page.off('dialog', leave));
+    }
   });
 
   // Свёрнутая часть тело прячет, а не размонтирует (ревью PR #1787): черновик строк держит таблица, и
