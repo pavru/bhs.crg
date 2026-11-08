@@ -93,5 +93,5 @@
   `invoice-lines-smoke`, `invoice-payment-smoke` (отмена оплаты по-прежнему окном с причиной). Оболочку PR
   трогает — `SnackbarProvider` (D-13.4), поэтому прогнан весь список `npm run -s test:e2e:ci` (зонтик 3.1):
   20 из 21 зелёные, `planning-estimates` — в CI (стенд ветки без модуля `plan`).
-- [ ] 6.5 PR — с меткой `version:minor`, названием макета и варианта и снимками до и после; `<Version>` не
+- [x] 6.5 PR — с меткой `version:minor`, названием макета и варианта и снимками до и после; `<Version>` не
   тронут.
