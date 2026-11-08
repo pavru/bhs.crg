@@ -5,6 +5,7 @@ import { Modal, ModalAction, ModalExit } from '@/shared/ui/Modal';
 import { StatusText } from '@/shared/ui/StatusText';
 import { formatBytes, formatMoney } from '@/shared/format/format';
 import { ruCount } from '@/shared/utils/pluralize';
+import { joinWords } from '@/shared/utils/joinWords';
 import { distinctNumbers, twinMade, twinOpenLabel, twinTitle } from './scanIntake';
 
 /**
@@ -35,7 +36,7 @@ export function InvoiceRepeatDialog({ file, twins, onClose, onMore, onOpen }: {
     ? `Этот файл уже приложен к ${ruCount(twins.length, 'счёту', 'счетам', 'счетам')}`
     : 'Этот файл уже приложен к счёту';
   const hint = several
-    ? `Черновик ещё не заведён. В этом файле уже разобраны счета ${andJoin(numbers)} — если в нём есть ещё один, заведите черновик и разберите в нём следующий.`
+    ? `Черновик ещё не заведён. В этом файле уже разобраны счета ${joinWords(numbers)} — если в нём есть ещё один, заведите черновик и разберите в нём следующий.`
     : 'Черновик ещё не заведён. Скорее всего, файл загружают второй раз. Если в файле несколько счетов — заведите ещё один черновик и разберите в нём другой счёт.';
   return (
     <Modal open question nothingToLose title={title} onOpenChange={open => { if (!open) onClose(); }}
@@ -62,9 +63,4 @@ export function InvoiceRepeatDialog({ file, twins, onClose, onMore, onOpen }: {
       </div>
     </Modal>
   );
-}
-
-/** «2611 и 2612», «2611, 2612 и 2613». */
-function andJoin(items: string[]): string {
-  return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} и ${items[items.length - 1]}`;
 }

@@ -14,7 +14,7 @@ afterEach(cleanup);
 describe('«Счёт из файла» в сводке', () => {
   it('значок называет себя и бросок в окно, нажатие — тот же исполнитель', () => {
     const onClick = vi.fn();
-    render(<FromFileButton loading={false} onClick={onClick} />);
+    render(<FromFileButton loading={false} title="Один или несколько файлов: PDF." onClick={onClick} />);
     fireEvent.click(screen.getByRole('button', { name: 'Счёт из файла — или перетащите файл в окно' }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -22,5 +22,11 @@ describe('«Счёт из файла» в сводке', () => {
   it('шапка списка при открытом счёте его не несёт', () => {
     render(<MemoryRouter><InvoiceListHeader actions={[]} /></MemoryRouter>);
     expect(screen.queryByRole('button', { name: /Счёт из файла/ })).toBeNull();
+  });
+
+  it('счёт ещё грузится или не найден — сводки нет, и значок встаёт в шапку списка', () => {
+    render(<MemoryRouter><InvoiceListHeader actions={[]}
+      fromFile={<FromFileButton loading={false} title="Один или несколько файлов: PDF." onClick={() => {}} />} /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: /Счёт из файла/ })).toBeTruthy();
   });
 });

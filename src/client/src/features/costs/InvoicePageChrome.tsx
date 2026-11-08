@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, DocumentScanner } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
@@ -41,18 +42,21 @@ export function InvoiceStepper({ position, filter, onGo, onList }: {
  * в шапке списка его нет. `label` — и имя для диктора, и подсказка: кнопка ставит `Tooltip` сама. Исполнитель —
  * тот же, что у палитры команд.
  */
-export function FromFileButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
-  return <IconButton icon={DocumentScanner} label="Счёт из файла — или перетащите файл в окно" loading={loading} onClick={onClick} />;
+export function FromFileButton({ loading, title, onClick }: { loading: boolean; title: string; onClick: () => void }) {
+  // Подсказка — та же, что у кнопки шапки (ревью PR #1819): какие файлы распознаются, видно до выбора.
+  return <IconButton icon={DocumentScanner} label="Счёт из файла — или перетащите файл в окно" title={title}
+    loading={loading} onClick={onClick} />;
 }
 
 /**
  * Шапка списка при открытом счёте (D-10.8): заголовок страницы переезжает сюда, рядом — «⋮» со справочниками
  * и «Новый счёт». «Счёт из файла» здесь нет: при открытом счёте он в сводке (D7 у 14).
  */
-export function InvoiceListHeader({ actions }: { actions: RowAction[] }) {
+export function InvoiceListHeader({ actions, fromFile }: { actions: RowAction[]; fromFile?: ReactNode }) {
   return (
     <div className="shrink-0 flex items-center gap-1 pl-4 pr-2 pt-3">
       <h2 className="flex-1 min-w-0 truncate text-title-large text-on-surface">Счета на оплату</h2>
+      {fromFile}
       {actions.length > 0 && <RowActionsMenu actions={actions} ariaLabel="Действия списка" />}
     </div>
   );

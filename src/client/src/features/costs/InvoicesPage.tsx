@@ -28,6 +28,7 @@ import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
 import { useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useInvoiceFileIntake } from './useInvoiceFileIntake';
+import { UNCHECKED_NOTE } from './scanIntake';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ArticlesDialog } from './ArticlesDialog';
 import { SupplierMatchesDialog } from './SupplierMatchesDialog';
@@ -336,9 +337,12 @@ export function InvoicesPage() {
    * Счёт из скана (issue #1077): черновик заводится всегда, когда файл годен, распознавание идёт в
    * фоне. Отказ распознавания — не отказ этого действия: о нём говорит полоса в открытом счёте.
    */
-  function addFromScan(file: File, acceptRepeat: boolean) { guarded(() => void createFromScan(file, acceptRepeat)); }
+  function addFromScan(file: File, acceptRepeat: boolean, unchecked = false) {
+    guarded(() => void createFromScan(file, acceptRepeat, unchecked));
+  }
 
-  async function createFromScan(file: File, acceptRepeat: boolean) {
+  /** `unchecked` — вопрос о повторе не ответил: сказать это можно, только когда черновик заведён (ревью PR #1823). */
+  async function createFromScan(file: File, acceptRepeat: boolean, unchecked: boolean) {
     try {
       const created = await fromScan.mutateAsync({ file, acceptRepeat });
       // Заведён из файла этой вкладкой: удалить его, пока не правили, можно без окна (D-13.3).
@@ -349,6 +353,7 @@ export function InvoicesPage() {
       if (queue !== 'parsing') setQueue(null);
       setQuery('');
       setSelected(created.invoice.id);
+      if (unchecked) toast.info(UNCHECKED_NOTE);
     } catch (e) { toast.apiError(e, 'Счёт из файла не заведён'); }
   }
 
@@ -403,7 +408,7 @@ export function InvoicesPage() {
     enabled: hasPermission(access, 'costs.invoice.edit'), owner: me ?? '', batch,
     opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null, hasFile: hasScan } : null,
     listShown, sending: fromScan.isPending,
-    onSingle: async (file, acceptRepeat) => addFromScan(file, acceptRepeat),
+    onSingle: addFromScan,
     onOpen: switchTo,
     // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
     onBatchStart: () => { if (filter === 'upload') setFilter(null); },
@@ -454,7 +459,7 @@ export function InvoicesPage() {
   const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить в окно.`;
   // При открытом счёте вход — в сводке, всегда (D7 у 14): в шапке списка его нет, кнопка не прыгает по ширине.
   const fromFile = canEdit
-    ? <FromFileButton loading={loading} onClick={() => scanInput.current?.click()} />
+    ? <FromFileButton loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
     : null;
 
   return (
@@ -512,7 +517,8 @@ export function InvoicesPage() {
         // Колонка больше не отдельная цель броска (D1 у 14): цель — всё окно, её держит захват окна.
         <div className="relative flex-1 min-h-0 flex flex-col">
           {/* Счёт открыт — шапки страницы нет (D-10.8): заголовок и её действия встают над списком. */}
-          {selected !== null && <InvoiceListHeader actions={actions} />}
+          {/* Счёт ещё грузится, не найден или не прочитан — сводки нет, и «Счёт из файла» встаёт сюда (ревью PR #1823). */}
+          {selected !== null && <InvoiceListHeader actions={actions} fromFile={opened.kind === 'open' ? null : fromFile} />}
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}

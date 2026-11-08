@@ -32,6 +32,8 @@ export interface CheckPort {
 export interface ToSend {
   file: File;
   print: string | null;
+  /** Вопрос о повторе об этом файле ответил: двойников до отправки нет. Иначе — не знаем. */
+  answered: boolean;
 }
 
 /** Файл, содержимое которого уже приложено к счетам: до решения человека он не заводится. */
@@ -53,8 +55,15 @@ export interface Checked {
   unchecked: boolean;
 }
 
-/** Проверить бросок. Не бросает: всякий отказ проверки становится `unchecked`, а не отказом заведения. */
-export async function checkDrop(files: File[], folders: string[], port: CheckPort): Promise<Checked> {
+/**
+ * Проверить бросок. Не бросает: всякий отказ проверки становится `unchecked`, а не отказом заведения.
+ *
+ * @param cancelled проверку остановили или вход завершился: оставшиеся отпечатки не считаются и вопрос не
+ * задаётся (ревью PR #1819) — ответ всё равно никому не нужен.
+ */
+export async function checkDrop(
+  files: File[], folders: string[], port: CheckPort, cancelled: () => boolean = () => false,
+): Promise<Checked> {
   const refused = folders.map(name => ({ name, reason: FOLDER_REFUSAL }));
   const good: File[] = [];
   for (const file of inOrder(files)) {
@@ -64,8 +73,9 @@ export async function checkDrop(files: File[], folders: string[], port: CheckPor
   }
 
   let unchecked = false;
-  const printed: ToSend[] = [];
+  const printed: { file: File; print: string | null }[] = [];
   for (const file of good) {
+    if (cancelled()) return { send: [], refused, held: [], doubled: [], unchecked: true };
     try { printed.push({ file, print: (await port.fingerprint(file)).toLowerCase() }); }
     catch { printed.push({ file, print: null }); unchecked = true; }
   }
@@ -82,7 +92,7 @@ export async function checkDrop(files: File[], folders: string[], port: CheckPor
 
   const prints = unique.flatMap(p => (p.print ? [p.print] : []));
   let twinsOf = new Map<string, InvoiceSameFile[]>();
-  if (prints.length > 0) {
+  if (prints.length > 0 && !cancelled()) {
     try {
       const answers = await port.ask(prints);
       twinsOf = new Map(answers.map(a => [a.fingerprint.toLowerCase(), a.twins]));
@@ -96,7 +106,7 @@ export async function checkDrop(files: File[], folders: string[], port: CheckPor
   for (const p of unique) {
     const twins = p.print ? twinsOf.get(p.print) ?? [] : [];
     if (p.print && twins.length > 0) held.push({ file: p.file, print: p.print, twins });
-    else send.push(p);
+    else send.push({ ...p, answered: p.print !== null && twinsOf.has(p.print) });
   }
   return { send, refused, held, doubled, unchecked };
 }
@@ -105,10 +115,13 @@ export async function checkDrop(files: File[], folders: string[], port: CheckPor
  * «Ответ не пришёл» — а черновик мог завестись (design D3, «мог завестись»). Перед повтором спрашиваем по
  * отпечатку: новый двойник, которого не было до отправки и которого завёл сам читающий, — это свой черновик.
  *
- * @param known двойники файла, известные до отправки (принятый повтор их и имел).
- * @returns свой черновик; `null` — не нашёлся или вопрос не ответил: тогда файл отправляется.
+ * @param known двойники файла, известные до отправки (принятый повтор их и имел); `null` — не знаем: вопрос
+ * о повторе тогда не ответил, и давний свой черновик неотличим от только что заведённого (ревью PR #1819).
+ * Не угадываем: файл уходит снова, а повтор, если он есть, назовёт ответ сервера.
+ * @returns свой черновик; `null` — не нашёлся, не знаем или вопрос не ответил: тогда файл отправляется.
  */
-export async function lostDraft(print: string, known: readonly string[], port: Pick<CheckPort, 'ask'>): Promise<string | null> {
+export async function lostDraft(print: string, known: readonly string[] | null, port: Pick<CheckPort, 'ask'>): Promise<string | null> {
+  if (known === null) return null;
   try {
     const [answer] = await port.ask([print]);
     return answer?.twins.find(t => t.mine && !known.includes(t.id))?.id ?? null;

@@ -3,7 +3,7 @@ import type { InvoiceSameFile } from '@/shared/api/invoices';
 import type { SameFileAnswer } from '@/shared/api/invoiceSameFile';
 import {
   acceptHeld, batchTally, batchTitle, currentBatch, holdFile, releaseHeld, resetBatchForTests, retryRejected, startBatch,
-  type BatchPort,
+  stopBatch, type BatchPort, type ScanBatch,
 } from './scanBatch';
 import { checkDrop, heldWords, lostDraft, twinOpenLabel, twinTitle } from './scanIntake';
 
@@ -124,6 +124,84 @@ describe('пакет с повторами — без окна', () => {
     expect(batch.created).toEqual(['мой']);
     expect(batch.recovered).toEqual(['а.pdf']);
     expect(batch.rejected).toEqual([]);
+  });
+
+  it('«Завести всё равно» упало с 500 — «Повторить» шлёт его снова как сознательный повтор', async () => {
+    let fail = false;
+    const p = port({ 'а.pdf': [twin('2611')] }, calls, {
+      send: async file => { if (fail) { fail = false; throw { response: { status: 500 } }; } return `id-${file.name}`; },
+    });
+    startBatch([pdf('а.pdf'), pdf('б.pdf')], [], p);
+    const first = await settled();
+    fail = true;
+    acceptHeld(first.held[0].print, p);
+    expect((await settled()).rejected[0].sent?.acceptRepeat).toBe(true);
+    retryRejected(p);
+    await settled();
+    expect(calls.sent.at(-1)).toEqual({ name: 'а.pdf', acceptRepeat: true });
+  });
+
+  it('вопрос не ответил, ответ на заведение потерялся — давний свой черновик за потерянный не принимается', async () => {
+    let lost = true;
+    let answering = false;
+    const p = port({}, calls, {
+      ask: async prints => {
+        if (!answering) throw { response: { status: 503 } };
+        return prints.map(fingerprint => ({ fingerprint, twins: [twin('вчерашний', { mine: true })] }));
+      },
+      send: async file => { if (lost) { lost = false; throw new Error('Network Error'); } return `id-${file.name}`; },
+    });
+    startBatch([pdf('а.pdf'), pdf('б.pdf')], [], p);
+    const first = await settled();
+    expect(first.rejected[0]).toMatchObject({ lost: true, sent: { known: null } });
+    answering = true;
+    retryRejected(p);
+    const batch = await settled();
+    // Не угадываем: файл уходит снова, а не «нашёлся» вчерашний черновик.
+    expect(batch.recovered).toEqual([]);
+    expect(batch.created).toContain('id-а.pdf');
+    expect(batch.created).not.toContain('вчерашний');
+  });
+
+  it('не отправлен после обрыва — отпечаток при нём: «Повторить» снова знает, что спросить', async () => {
+    let lost = true;
+    const p = port({}, calls, {
+      send: async file => { if (lost) { lost = false; throw new Error('Network Error'); } return `id-${file.name}`; },
+    });
+    startBatch([pdf('а.pdf'), pdf('б.pdf')], [], p);
+    const batch = await settled();
+    const notSent = batch.rejected.find(r => r.name === 'б.pdf')!;
+    expect(notSent.sent?.print).toBeTruthy();
+    expect(notSent.sent?.known).toEqual([]);
+  });
+
+  it('новый пакет не теряет придержанных прежнего; файл, придержанный при идущем пакете, встаёт в него', async () => {
+    const p = port({ 'а.pdf': [twin('2611')], 'в.pdf': [twin('2612')] }, calls);
+    startBatch([pdf('а.pdf'), pdf('б.pdf')], [], p);
+    await settled();
+    startBatch([pdf('г.pdf'), pdf('д.pdf')], [], p);
+    expect(currentBatch()!.held.map(h => h.name)).toEqual(['а.pdf']);
+    const [held] = (await checkDrop([pdf('в.pdf')], [], p)).held;
+    holdFile(held, 'я');
+    const batch = await settled();
+    expect(batch.held.map(h => h.name)).toEqual(['а.pdf', 'в.pdf']);
+  });
+
+  it('проверку можно остановить: ничего не отправлено, файлы повторяемы', async () => {
+    const p = port({}, calls, { ask: () => new Promise(() => {}) });
+    startBatch([pdf('а.pdf'), pdf('б.pdf')], ['Сканы'], p);
+    expect(currentBatch()!.phase).toBe('checking');
+    stopBatch();
+    const batch = currentBatch()!;
+    expect(batch.phase).toBe('done');
+    expect(calls.sent).toEqual([]);
+    expect(batch.rejected.map(r => [r.name, !!r.retry])).toEqual([['а.pdf', true], ['б.pdf', true], ['Сканы', false]]);
+  });
+
+  it('«выбран дважды» склоняется по числу', () => {
+    const batch = { phase: 'done', created: [], held: [], doubled: Array.from({ length: 21 }, (_, i) => `${i}.pdf`) } as unknown as ScanBatch;
+    expect(batchTally(batch)).toBe('Заведено 0 · 21 выбран дважды');
+    expect(batchTally({ ...batch, doubled: ['а', 'б'] })).toBe('Заведено 0 · 2 выбрано дважды');
   });
 
   it('чужой двойник при повторе — не «свой черновик»: файл уходит', async () => {

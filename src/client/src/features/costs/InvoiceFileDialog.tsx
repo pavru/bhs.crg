@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAttachInvoiceScan } from '@/shared/api/invoices';
-import { acceptOf, recognizedKinds, sizeLimitWords, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { acceptOf, sizeLimitWords, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { FileDropZone } from '@/shared/ui/FileDropZone';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { precheck } from './scanPrecheck';
+import { attachKinds, precheck } from './scanPrecheck';
 
 /**
  * Окно «Приложить файл…» и «Заменить файл…» (costs-invoice-screen-14, D6; лист «Ф», окно 8). Файл к счёту —
@@ -16,7 +16,8 @@ import { precheck } from './scanPrecheck';
  * поверх окна, #1384) с вопросом «Прежний файл будет удалён без возврата»: замена удаляет первичку, и до
  * этого окна она шла без вопроса. Запись — `POST …/{id}/scan` с `If-Match`, как раньше.</p>
  *
- * <p>Площадка судит файл тем же `precheck`, что пакет и бросок на окно: одни слова отказа (#1265). Своего
+ * <p>Площадка судит файл тем же `precheck`, что пакет и бросок на окно: одни слова отказа (#1265), — но с
+ * охватом приложения ({@link attachKinds}): показываемое, хоть и не распознаваемое, приложить можно. Своего
  * захвата броска у неё нет — в модальном слое её обработчик отменяет событие раньше стража окна, а захват
  * страницы при открытом слое молчит: бросок мимо площадки, пока окно открыто, ничего не делает.</p>
  */
@@ -36,8 +37,8 @@ export function InvoiceFileDialog({ invoiceId, version, number, current, onClose
   const [asking, setAsking] = useState(false);
   const replace = current !== null;
   const of = number ? `счёта ${number}` : 'счёта без номера';
-  const readable = recognizedKinds(kinds.data);
-  const hint = [readable.length ? wordsOf(readable) : null, kinds.data ? `до ${sizeLimitWords(kinds.data)}` : null]
+  const offered = attachKinds(kinds.data);
+  const hint = [offered.length ? wordsOf(offered) : null, kinds.data ? `до ${sizeLimitWords(kinds.data)}` : null]
     .filter(Boolean).join(' · ');
 
   async function send() {
@@ -64,8 +65,8 @@ export function InvoiceFileDialog({ invoiceId, version, number, current, onClose
       </>}>
       <div className="space-y-3">
         {replace && <p className="text-body-medium text-on-surface-variant break-all">Сейчас: {current}</p>}
-        <FileDropZone label="Файл счёта" onFile={setFile} check={f => precheck(f, kinds.data)}
-          accept={acceptOf(readable) || undefined} hint={hint || undefined} file={file}
+        <FileDropZone label="Файл счёта" onFile={setFile} check={f => precheck(f, kinds.data, offered)}
+          accept={acceptOf(offered) || undefined} hint={hint || undefined} file={file}
           prompt="Перетащите файл сюда" pickLabel="Выбрать файл…"
           busy={busy && file ? `Загружаем «${file.name}»` : undefined} />
         <p className="text-body-medium text-on-surface-variant">
