@@ -167,6 +167,6 @@ describe('проверка броска', () => {
     expect(twinOpenLabel(t)).toBe('Открыть счёт 2611 от 22.10.2026');
     expect(heldWords([t])).toBe('уже у счёта 2611 от 22.10.2026 · ООО «ЭлектроКомплект» · черновик');
     expect(heldWords([twin('x', { number: null, mine: true, supplierName: null })]))
-      .toMatch(/^уже у черновика из файла от .+ · черновик · завели вы$/);
+      .toMatch(/^уже у черновика из файла от .+ — номер не вписан · завели вы$/);
   });
 });

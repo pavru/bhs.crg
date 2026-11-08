@@ -139,12 +139,18 @@ export function twinMade(twin: InvoiceSameFile): string {
   return `заведён ${formatDateTime(twin.createdAt)}${who ? ` · ${who}` : ''}`;
 }
 
-/** Строка придержанного в итоге пакета: «уже у счёта 2611 от 22.10.2026 · ООО «…» · черновик». */
+/**
+ * Строка придержанного в итоге пакета (лист «Ф»): «уже у счёта 2611 от 22.10.2026 · ООО «…» · черновик», а у
+ * черновика без номера — «уже у черновика из файла от 26.10.2026, 12:01 — номер не вписан · завели вы»: что
+ * он черновик, сказано самим именем.
+ */
 export function heldWords(twins: InvoiceSameFile[]): string {
   const [first, ...rest] = twins;
-  const parts = [`уже у ${first.number ? twinTitle(first).replace(/^Счёт/, 'счёта') : twinShort(first)}`];
+  const parts = first.number
+    ? [`уже у ${twinTitle(first).replace(/^Счёт/, 'счёта')}`]
+    : [`уже у ${twinShort(first)} — номер не вписан`];
   if (first.supplierName) parts.push(first.supplierName);
-  parts.push(first.state.toLowerCase());
+  if (first.number || first.state !== 'Черновик') parts.push(first.state.toLowerCase());
   if (first.mine) parts.push('завели вы');
   return parts.join(' · ') + (rest.length > 0 ? ` (и ещё ${rest.length})` : '');
 }
