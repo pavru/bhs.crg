@@ -151,6 +151,15 @@ public class InvoiceStateFactsTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal("field", only.GetProperty("kind").GetString());
         Assert.Equal("Итого", only.GetProperty("field").GetString());
         Assert.Equal([InvoiceReadiness.Parsed, InvoiceReadiness.Payment], Blocks(only));
+
+        // Тот же признак читает форма (ревью PR #1802): число расхождения в сводке есть, но оно не сверено, —
+        // иначе индикатор назвал бы его вторым пунктом рядом с пустой суммой.
+        var allocation = view.GetProperty("allocation");
+        Assert.False(allocation.GetProperty("reconciled").GetBoolean());
+        Assert.Equal(-100m, allocation.GetProperty("discrepancy").GetDecimal());
+
+        await TotalAsync(client, invoice, 50m);
+        Assert.True((await ReadAsync(client, invoice)).GetProperty("allocation").GetProperty("reconciled").GetBoolean());
     }
 
     /// <summary>Отклонённый: род — <c>rejected</c>, тем же порядком, что отказ записи оплаты.</summary>

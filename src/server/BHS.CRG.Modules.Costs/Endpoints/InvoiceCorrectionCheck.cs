@@ -92,10 +92,11 @@ internal static class InvoiceCorrectionCheck
         Invoice invoice, InvoiceSnapshot was, IReadOnlySet<CorrectionGap> wasGaps, InvoiceSnapshot seen)
     {
         var label = InvoiceEndpoints.Label(invoice);
-        if (invoice.Total is not { } total || total == 0)
+        if (InvoiceRequisites.NoTotal(invoice.Total))
             throw new InvalidRequestException(
                 $"{label}: у исправленного счёта не указана сумма к оплате. Счёт оплачен, и его сумма уже вошла " +
                 "в затраты: без неё не из чего считать ни остаток, ни учётные дни.");
+        var total = invoice.Total!.Value;
 
         var problems = new List<string>();
 

@@ -298,9 +298,8 @@ public sealed class InvoiceReadiness
 
         // Суммы к оплате нет (нуль — не сумма) — сверять не с чем: о ней говорит пункт поля «Итого», а
         // расхождение рядом было бы вторым пунктом на ту же починку (change
-        // costs-invoice-screen-01-parsed-amount, D5). У null его не считает и сама разноска.
-        var reconciled = !InvoiceRequisites.NoTotal(invoice.Total);
-        if (reconciled && !allocation.WithinTolerance && allocation.Discrepancy is { } gap)
+        // costs-invoice-screen-01-parsed-amount, D5). Признак — разноски: его же читает форма.
+        if (allocation.Reconciled && !allocation.WithinTolerance && allocation.Discrepancy is { } gap)
         {
             var guess = ModeExplains(invoice, lines, allocation.Tolerance);
             problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} при допуске " +
@@ -313,7 +312,7 @@ public sealed class InvoiceReadiness
         }
 
         // Мешало только расхождение с нулевой суммой — оно названо пунктом поля, разноске сказать нечего.
-        if (problems.Count == 0 && !reconciled && !allocation.WithinTolerance) return;
+        if (problems.Count == 0 && !allocation.Reconciled && !allocation.WithinTolerance) return;
 
         // «Не разнесён» без единой названной причины — счёт без строк: разносить ещё нечего.
         if (problems.Count == 0)

@@ -333,7 +333,8 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   });
 
   // Отказ оплаты, который не назван пунктом готовности (сервер пометил бы его `payment`), — своим пунктом.
-  // Пока сумма к оплате не обязательна для «Разобран», отказ «нет суммы» пунктом готовности не покрыт.
+  // У черновика «нет суммы» называет пункт поля «Итого» (сумма обязательна для «Разобран»); здесь остаются
+  // разобранный и запертый счёт без перечня готовности — например разобранный без суммы до обновления (Э3).
   const payment = view.payment;
   // Без права оплаты отказ оплаты ничему не мешает — его не показывала и прежняя часть «Сроки и оплата».
   const payItem = can.pay && !payment.paid && !!payment.refusal && payment.refusalKind !== 'rejected' && !payNamed && !gone;
@@ -346,11 +347,12 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
 
   // Расхождение сверх допуска у счёта, о котором готовность молчит (разобран — после понижения допуска или
   // правки суммы; оплачен): прежде его называла сводка разноски, теперь — этот пункт, если не назвал другой.
+  // Без суммы к оплате (нуль — не сумма) сверять не с чем: о ней говорит поле «Итого» (`reconciled`, D5).
   const alloc = view.allocation;
   const discrepancyNamed = (gaps?.some(gap => gap.kind === 'total') ?? false)
     || (payItem && payment.refusalKind === 'discrepancy');
-  if (!gone && !discrepancyNamed && !alloc.withinTolerance && alloc.discrepancy !== null && view.lines.length > 0
-    && state !== REJECTED)
+  if (!gone && !discrepancyNamed && alloc.reconciled && !alloc.withinTolerance && alloc.discrepancy !== null
+    && view.lines.length > 0 && state !== REJECTED)
     add({
       key: 'discrepancy', level: 'check',
       text: `Сумма строк расходится с суммой к оплате на ${formatMoney(Math.abs(alloc.discrepancy))} — больше допуска ${formatMoney(alloc.tolerance)}`,

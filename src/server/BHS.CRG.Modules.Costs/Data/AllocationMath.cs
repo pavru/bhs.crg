@@ -64,12 +64,19 @@ public sealed record AllocationDocumentBalance(
 /// <summary>Баланс счёта целиком.</summary>
 /// <param name="Discrepancy">Сумма к оплате минус сумма строк; <c>null</c> — суммы к оплате в счёте
 /// нет или нет строк: сверять не с чем.</param>
+/// <param name="Reconciled">Сумма строк сверена с суммой к оплате: строки есть, и сумма к оплате —
+/// сумма (<see cref="InvoiceRequisites.NoTotal" />: нуль — не сумма). Иначе расхождение не пункт и не
+/// повод: о пустой сумме говорит поле «Итого», и второй пункт рядом звал бы к той же починке (change
+/// <c>costs-invoice-screen-01-parsed-amount</c>, D5). Читают его готовность и индикатор формы — одним
+/// признаком, а не каждый своим условием. Само расхождение у нуля считается по-прежнему: им пользуются
+/// матрица и «не разнесён».</param>
 public sealed record AllocationBalance(
     IReadOnlyList<AllocationLineBalance> Lines,
     AllocationDocumentBalance Document,
     decimal? Discrepancy,
     decimal Tolerance,
-    bool WithinTolerance)
+    bool WithinTolerance,
+    bool Reconciled)
 {
     /// <summary>Номера строк, у которых баланс не сходится, — их называет отказ «разобран».</summary>
     public IReadOnlyList<int> Unbalanced => [.. Lines.Where(l => !l.Balanced).Select(l => l.Ordinal)];
@@ -140,7 +147,8 @@ public static class AllocationMath
         if (discrepancy is { } gap && gap != 0 && within && balances.All(b => b.Balanced))
             Absorb(balances, gap);
 
-        return new AllocationBalance(balances, document, discrepancy, tolerance, within);
+        return new AllocationBalance(balances, document, discrepancy, tolerance, within,
+            Reconciled: discrepancy is not null && !InvoiceRequisites.NoTotal(total));
     }
 
     /// <summary>

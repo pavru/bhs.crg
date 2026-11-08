@@ -17,7 +17,7 @@ function view({ gaps = [], state = 'Черновик', payment, ...rest }: ViewP
     requisites: { Состояние: state, Срок: '2026-10-03' },
     unconfirmed: [], duplicates: [], sameFile: [], lines: [],
     allocation: {
-      allocated: true, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true,
+      allocated: true, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true, reconciled: false,
       document: { parts: [] }, stamp: 's',
     },
     payment: { paid: false, paidOn: null, document: null, paidAt: null, refusal: null, lockedBy: null, periods: [], refusalKind: null, ...payment },
@@ -160,7 +160,7 @@ describe('statusOf — одно расхождение (1.2)', () => {
 
   it('расхождение, о котором готовность молчит (разобран и оплачен), — пунктом «Проверьте» (ревью PR #1792)', () => {
     const allocation = {
-      allocated: false, unbalanced: [], lost: 0, discrepancy: -38400.5, tolerance: 1, withinTolerance: false,
+      allocated: false, unbalanced: [], lost: 0, discrepancy: -38400.5, tolerance: 1, withinTolerance: false, reconciled: true,
       document: { parts: [] }, stamp: 's',
     } as unknown as InvoiceView['allocation'];
     const lines = [{ ordinal: 1, allocation: { parts: [] } }] as never;
@@ -172,6 +172,27 @@ describe('statusOf — одно расхождение (1.2)', () => {
     // Назвал пункт готовности — второй раз не называется.
     const draft = statusOf(input(view({ gaps: [DISCREPANCY], allocation, lines })));
     expect(draft.items.filter(i => /расход/.test(i.text))).toHaveLength(1);
+  });
+
+  it('нулевая сумма при строках — один пункт у «Итого», расхождения рядом нет (costs-invoice-screen-01, D5)', () => {
+    // Сервер: пункт поля «Итого», расхождение не сверено (`reconciled: false`), а число в сводке осталось.
+    const allocation = {
+      allocated: false, unbalanced: [], lost: 0, discrepancy: -100, tolerance: 1, withinTolerance: false, reconciled: false,
+      document: { parts: [] }, stamp: 's',
+    } as unknown as InvoiceView['allocation'];
+    const lines = [{ ordinal: 1, allocation: { parts: [] } }] as never;
+    const gap: InvoiceReadinessGap = { kind: 'field', label: 'сумма к оплате', field: 'Итого', blocks: ['parsed', 'payment'] };
+
+    const draft = statusOf(input(view({
+      gaps: [gap], allocation, lines, payment: { refusal: 'не указана сумма к оплате', refusalKind: 'amount' },
+    })));
+    expect(draft.items.map(i => i.key)).toEqual(['gap:field:Итого']);
+
+    // Разобранный без суммы до обновления (Э3): перечня нет, отказ оплаты — свой пункт, расхождения тоже нет.
+    const parsed = statusOf(input(view({
+      gaps: null, state: 'Разобран', allocation, lines, payment: { refusal: 'не указана сумма к оплате', refusalKind: 'amount' },
+    })));
+    expect(parsed.items.map(i => i.key)).toEqual(['pay-refusal']);
   });
 
   it('отклонённому отказ оплаты пунктом не идёт', () => {

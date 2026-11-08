@@ -108,11 +108,11 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     }
 
     /// <summary>
-    /// Завести счёт. <paramref name="complete" /> — с обязательными полями, кроме суммы к оплате: такой
-    /// счёт годится для перехода «разобран», а без них переход отказывает (и это отдельный тест).
-    /// <paramref name="total" /> — сумма к оплате; она обязательна для «разобран» (change
+    /// Завести счёт. <paramref name="complete" /> — с обязательными полями шапки, кроме суммы к оплате.
+    /// <paramref name="total" /> — сумма к оплате; она тоже обязательна для «разобран» (change
     /// <c>costs-invoice-screen-01-parsed-amount</c>), но сойтись обязана со строками, которых здесь ещё нет.
-    /// Поэтому её называет тест, а <see cref="AllocatedLinesAsync" /> ставит равной сумме строк сам.
+    /// Поэтому «разобран» сразу после <c>CreateAsync(client, complete: true)</c> отказывает «Сумма к оплате»:
+    /// сумму называет тест здесь, либо её ставит <see cref="AllocatedLinesAsync" />.
     /// </summary>
     protected static async Task<Guid> CreateAsync(HttpClient client, bool complete = false, decimal? total = null)
     {
@@ -188,6 +188,10 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
     /// <para>Суммы к оплате у счёта нет — она ставится равной сумме строк: сумма обязательна для
     /// «Разобран» (change <c>costs-invoice-screen-01-parsed-amount</c>), а «не хватает только решения»
     /// без неё было бы неправдой. Названная до вызова сумма не трогается — расхождение тест ставит сам.</para>
+    ///
+    /// <para>⚠️ Поставленная здесь сумма — правка шапки: новая версия счёта и запись «счёт изменён» в
+    /// журнале. Тесту, который считает правки или держит версию, прочитанную до вызова, — называть сумму в
+    /// <see cref="CreateAsync" />, как <c>CostsJournalSeriesTests</c>.</para>
     /// </summary>
     protected async Task<JsonElement> AllocatedLinesAsync(HttpClient client, Guid invoice, object[] lines)
     {
