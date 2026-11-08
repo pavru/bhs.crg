@@ -19,10 +19,12 @@ const transfer = (files: File[], folders: string[] = []) => ({
   ],
   dropEffect: 'none',
 });
-/** Выход перетаскивания: у jsdom нет `DragEvent`, и `relatedTarget` событию ставится руками. */
-const leave = (el: Element, related: Element) => {
+/** Выход перетаскивания: у jsdom нет `DragEvent`, и `relatedTarget` с точкой событию ставятся руками. */
+const leave = (el: Element, related: Element | null, at: { clientX: number; clientY: number } = { clientX: 0, clientY: 0 }) => {
   const event = createEvent.dragLeave(el, { dataTransfer: transfer([file('a.gsfx')]) });
   Object.defineProperty(event, 'relatedTarget', { value: related });
+  Object.defineProperty(event, 'clientX', { value: at.clientX });
+  Object.defineProperty(event, 'clientY', { value: at.clientY });
   fireEvent(el, event);
 };
 const textTransfer = () => ({ types: ['text/plain'], files: [], items: [], dropEffect: 'none' });
@@ -187,11 +189,56 @@ describe('FileDropZone', () => {
     expect(input().multiple).toBe(false);
   });
 
+  it('Safari: выход без relatedTarget судится точкой — над скрытой кнопкой «отпустите» не мигает', () => {
+    const { zone } = setup();
+    vi.spyOn(zone(), 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, right: 400, bottom: 200 } as DOMRect);
+    fireEvent.dragEnter(document.body, { dataTransfer: transfer([file('a.gsfx')]) });
+    fireEvent.dragOver(zone(), { dataTransfer: transfer([file('a.gsfx')]) });
+    // Кнопка скрылась — под курсором сама площадка: вход в неё, затем выход из кнопки без relatedTarget.
+    fireEvent.dragEnter(zone(), { dataTransfer: transfer([file('a.gsfx')]) });
+    leave(screen.getByRole('button'), null, { clientX: 200, clientY: 100 });
+    expect(screen.getByText('Отпустите — возьмём файл')).toBeTruthy();
+    fireEvent.dragEnter(document.body, { dataTransfer: transfer([file('a.gsfx')]) });
+    leave(zone(), null, { clientX: 450, clientY: 100 });
+    expect(screen.getByText('Бросьте файл сюда')).toBeTruthy();
+  });
+
+  it('отказ снимается, когда у экрана сменился файл или пошла загрузка', () => {
+    const { drop, rerender, onFile } = setup({ check: gsfxOnly, file: { name: 'A.gsfx', size: 10 } });
+    drop(transfer([file('счёт.pdf')]));
+    expect(screen.getByRole('alert')).toBeTruthy();
+    rerender(<FileDropZone label="Файл сметы" onFile={onFile} check={gsfxOnly} file={{ name: 'A.gsfx', size: 10 }}
+      busy="Загружаем «A.gsfx»" />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    rerender(<FileDropZone label="Файл сметы" onFile={onFile} check={gsfxOnly} file={{ name: 'A.gsfx', size: 10 }} />);
+    drop(transfer([file('счёт.pdf')]));
+    expect(screen.getByRole('alert')).toBeTruthy();
+    rerender(<FileDropZone label="Файл сметы" onFile={onFile} check={gsfxOnly} file={null} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('выключенная строка файла гасится вся: у знака и размера своего цвета нет', () => {
+    setup({ disabled: true, file: { name: 'смета.gsfx', size: 2048 } });
+    expect(screen.getByText('2 КБ').className).not.toContain('text-on-surface-variant');
+    expect(document.querySelector('svg')!.getAttribute('class') ?? '').not.toContain('text-on-surface-variant');
+  });
+
+  const coarsePointer = () => vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(pointer: coarse)', media: query,
+    addEventListener: () => {}, removeEventListener: () => {},
+  }));
+
+  it('сенсорный экран с броском (iPad): «наготове» и «отпустите» названы', () => {
+    coarsePointer();
+    const { zone } = setup();
+    fireEvent.dragEnter(document.body, { dataTransfer: transfer([file('a.gsfx')]) });
+    expect(screen.getByText('Бросьте файл сюда')).toBeTruthy();
+    fireEvent.dragOver(zone(), { dataTransfer: transfer([file('a.gsfx')]) });
+    expect(screen.getByText('Отпустите — возьмём файл')).toBeTruthy();
+  });
+
   it('телефон: нет «перетащите», кнопка называет файл', () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query === '(pointer: coarse)', media: query,
-      addEventListener: () => {}, removeEventListener: () => {},
-    }));
+    coarsePointer();
     setup({ pickLabel: 'Выбрать файл сметы' });
     expect(screen.queryByText('Перетащите файл сюда')).toBeNull();
     expect(screen.queryByText('или')).toBeNull();

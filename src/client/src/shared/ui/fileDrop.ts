@@ -83,13 +83,16 @@ export function droppedFiles(transfer: DataTransfer): { files: File[]; folders: 
 /** Слова отказа папке — одни у пакета сканов (`scanBatch`) и у площадки файла (`FileDropZone`). */
 export const FOLDER_REFUSAL = 'это папка — перетащите файлы из неё';
 
+/** То же нескольким папкам сразу. */
+export const FOLDERS_REFUSAL = 'это папки — перетащите файлы из них';
+
 /** Слова отказа нескольким файлам там, где ждут один. */
 export const SEVERAL_REFUSAL = 'здесь один файл: перетащите их по одному';
 
 /**
  * Отказ площадки одного файла ([UI-89]) — «имя — причина» или `null`, если файл отдаётся экрану.
  *
- * <p>Порядок — папка → несколько → проверка экрана; называется первая причина. Сама площадка судит только
+ * <p>Порядок — папка → несколько → проверка экрана; называется первая причина, а у папок — все папки броска. Сама площадка судит только
  * то, что видно до файла: вид, пустоту и размер решает `check` экрана (у счёта — тот же `precheck`, что у
  * пакета, #1265). Поэтому `check` зовётся только для одного файла и никогда — для папки.</p>
  */
@@ -98,7 +101,8 @@ export function zoneRefusal(
   check?: (file: File) => string | null,
 ): string | null {
   const { files, folders } = dropped;
-  if (folders.length > 0) return `${folders[0]} — ${FOLDER_REFUSAL}`;
+  // Папки называются все: отказ, назвавший одну, молча потерял бы остальные.
+  if (folders.length > 0) return `${folders.join(', ')} — ${folders.length > 1 ? FOLDERS_REFUSAL : FOLDER_REFUSAL}`;
   if (files.length > 1) return `${ruCount(files.length, 'файл', 'файла', 'файлов')} — ${SEVERAL_REFUSAL}`;
   if (files.length === 0 || !check) return null;
   const reason = check(files[0]);

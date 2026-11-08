@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FOLDER_REFUSAL, SEVERAL_REFUSAL, zoneRefusal } from './fileDrop';
+import { FOLDER_REFUSAL, FOLDERS_REFUSAL, SEVERAL_REFUSAL, zoneRefusal } from './fileDrop';
 
 // Отказ площадки одного файла ([UI-89]): папка → несколько → проверка экрана, «имя — причина».
 const file = (name: string, size = 10) => new File([new Uint8Array(size)], name);
@@ -19,6 +19,9 @@ describe('zoneRefusal', () => {
   it('папка — словами пакета и по имени', () => {
     expect(zoneRefusal({ files: [], folders: ['Сканы'] })).toBe(`Сканы — ${FOLDER_REFUSAL}`);
     expect(FOLDER_REFUSAL).toBe('это папка — перетащите файлы из неё');
+    // Несколько папок — названы все, ни одна не теряется молча.
+    expect(zoneRefusal({ files: [], folders: ['Сканы', 'Акты'] })).toBe(`Сканы, Акты — ${FOLDERS_REFUSAL}`);
+    expect(FOLDERS_REFUSAL).toBe('это папки — перетащите файлы из них');
   });
 
   it('несколько файлов — просит по одному', () => {

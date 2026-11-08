@@ -45,9 +45,10 @@
 ## 3. Потребитель `ImportDialog` [UI-89] [PLAN-6]
 
 - [x] 3.1 `features/planning/estimates/ImportDialog.tsx`: `FilePick` удалён, на его месте `FileDropZone` (design D3).
-  Вместе с ним — `estimateFileRefusal` («файл пуст»; «не .gsfx или .xml» только при чужом расширении) и
+  Вместе с ним — `estimateFileRefusal` («файл пуст»; «не .gsfx или .xml» только при чужом расширении; «больше
+  50 МБ» по реестру видов, подпись называет предел) и
   `busy`, пока идёт `start`. Шаги, `isDirty` и имя «Файл сметы» те же. Проверка:
-  - vitest: `estimateFileRefusal` — пустой, `.pdf`, без расширения, `.GSFX`; окно в `start.isPending` не
+  - vitest: `estimateFileRefusal` — пустой, `.pdf`, без расширения, точка внутри имени, `.GSFX`, предел; окно в `start.isPending` не
     принимает брошенный файл;
   - `FilePick`, `border-dashed` и `carriesFiles` в файле больше не встречаются;
   - файл похудел (FileSizeRatchet).

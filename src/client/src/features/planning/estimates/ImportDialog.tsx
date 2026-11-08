@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { useConstructionDirectory, useGetConstruction } from '@/shared/api/constructions';
+import { useFileKinds } from '@/shared/api/fileKinds';
 import { planRefusal, useConstructionEstimates, type EstimateKind } from '@/shared/api/planningEstimates';
 import {
   useCancelImport, useCommitImport, useEstimateImport, useStartImport, type EstimateImport, type ImportRequest,
@@ -16,7 +17,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { ESTIMATE_ACCEPT, estimateFileRefusal } from './estimateFile';
+import { ESTIMATE_ACCEPT, estimateFileHint, estimateFileRefusal } from './estimateFile';
 import { KIND_LABEL } from './estimateRows';
 import { importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
 import { ParseReport } from './ParseReport';
@@ -67,6 +68,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
 
   const toast = useSnackbar();
   const start = useStartImport();
+  const kinds = useFileKinds();
   const commit = useCommitImport();
   const cancel = useCancelImport();
   const report = useEstimateImport(importId);
@@ -190,7 +192,8 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             )}
             {/* Шаг остаётся «pick», пока сервер не ответил (importId приходит в onSuccess): без busy на площадку
                 можно было бы бросить второй файл, и окно показывало бы не тот, что разбирается. */}
-            <FileDropZone label="Файл сметы" accept={ESTIMATE_ACCEPT} hint=".gsfx или .xml" check={estimateFileRefusal}
+            <FileDropZone label="Файл сметы" accept={ESTIMATE_ACCEPT} hint={estimateFileHint(kinds.data)}
+              check={f => estimateFileRefusal(f, kinds.data)}
               prompt="Перетащите файл сметы сюда" pickLabel="Выбрать файл сметы" file={file} onFile={setFile}
               busy={start.isPending && file ? `Загружаем «${file.name}»` : undefined} />
             {site && (estimateId ? (
