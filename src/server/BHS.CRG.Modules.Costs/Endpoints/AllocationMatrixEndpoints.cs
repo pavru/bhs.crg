@@ -63,7 +63,7 @@ public static class AllocationMatrixEndpoints
                 "«document» (пересчитать разноску счёта по появившимся строкам)."),
         };
 
-        if (lines.Count == 0 && invoice.Total is null or 0)
+        if (lines.Count == 0 && InvoiceRequisites.NoTotal(invoice.Total))
             throw new InvalidRequestException(
                 $"{InvoiceEndpoints.Label(invoice)}: строк нет, и сумма к оплате не заполнена — разносить нечего. " +
                 "Счёт без строк разносится суммой к оплате (ТЗ COST-11): заполните её или введите строки.");
@@ -341,10 +341,11 @@ public static class AllocationMatrixEndpoints
                 $"{InvoiceEndpoints.Label(invoice)}: у счёта есть строки, и разносятся они (ТЗ COST-11). Разноска " +
                 "счёта целиком суммой — только пока строк нет; прежнюю переносит на строки пересчёт.");
 
-        if (invoice.Total is not { } total || total == 0)
+        if (InvoiceRequisites.NoTotal(invoice.Total))
             throw new InvalidRequestException(
                 $"{InvoiceEndpoints.Label(invoice)}: сумма к оплате не заполнена, а счёт без строк разносится " +
                 "именно ею. Заполните её — иначе остаток «не разнесено» считать не от чего.");
+        var total = invoice.Total!.Value;
 
         try
         {

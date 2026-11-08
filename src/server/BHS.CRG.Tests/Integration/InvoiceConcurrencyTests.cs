@@ -143,7 +143,7 @@ public class InvoiceConcurrencyTests(InvoiceLineHost host) : InvoiceLineTestBase
     /// </summary>
     private async Task<(Guid Invoice, Guid Line, Guid Site)> ReadyAsync(HttpClient client)
     {
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 10m);
         var view = await LinesAsync(client, invoice, [Line(cable, quantity: 10, price: 1m)]);
         var (site, _) = await SiteAsync($"Стройка {Guid.NewGuid().ToString()[..6]}");
         await AllocateAsync(client, invoice, LineId(view, 1), [Part(site, quantity: 10)]);

@@ -193,6 +193,26 @@ public class AllocationMathTests
         Assert.Equal(0m, balance.Lines[0].Parts[0].Discrepancy);
     }
 
+    /// <summary>
+    /// «Сверено» — строки есть и сумма к оплате — сумма: нуль — не сумма (change
+    /// costs-invoice-screen-01-parsed-amount, D5). Расхождение у нуля считается по-прежнему — признак
+    /// говорит лишь, что называть его пунктом не с чего.
+    /// </summary>
+    [Theory]
+    [InlineData(105, true, true)]
+    [InlineData(0, true, false)]
+    [InlineData(null, true, false)]
+    [InlineData(105, false, false)]
+    public void Сверено_только_при_строках_и_ненулевой_сумме(int? total, bool withLines, bool reconciled)
+    {
+        var line = new AllocationLine(Guid.NewGuid(), 1, 1, 100m);
+        AllocationLine[] lines = withLines ? [line] : [];
+        var balance = AllocationMath.Of(lines, [], total, Rouble);
+
+        Assert.Equal(reconciled, balance.Reconciled);
+        if (total == 0) Assert.Equal(-100m, balance.Discrepancy);
+    }
+
     [Fact]
     public void Без_суммы_к_оплате_сверять_не_с_чем()
     {

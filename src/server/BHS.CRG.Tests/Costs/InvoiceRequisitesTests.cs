@@ -88,4 +88,29 @@ public class InvoiceRequisitesTests
         Assert.Equal([InvoiceRequisites.TotalKey], landing.Select(p => p.Key));
         Assert.Equal(1234.50m, landing[InvoiceRequisites.TotalKey]!.GetValue<decimal>());
     }
+    /// <summary>
+    /// Нуль — не сумма (change <c>costs-invoice-screen-01-parsed-amount</c>, D2): «Разобран» и оплата судят
+    /// сумму одним правилом. Пропусти «Разобран» нулевую сумму, и разобранным снова стал бы счёт, который
+    /// нельзя оплатить.
+    /// </summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("0", true)]
+    [InlineData("0.00", true)]
+    [InlineData("0.01", false)]
+    [InlineData("-5", false)]
+    public void Сумма_к_оплате_пуста_у_нуля_и_у_null(string? total, bool missing)
+    {
+        decimal? value = total is null ? null : decimal.Parse(total, System.Globalization.CultureInfo.InvariantCulture);
+        var invoice = Invoice.Create(Guid.NewGuid(), null, null);
+        invoice.ApplyRequisites(
+            new InvoiceColumns("СЧ-1", new DateOnly(2026, 10, 1), Guid.NewGuid(), Guid.NewGuid(), null, value, null,
+                null, null, null),
+            JsonDocument.Parse("{}"), dueDateByHand: true, new InvoiceDueRule(true));
+
+        Assert.Equal(missing, InvoiceRequisites.NoTotal(invoice.Total));
+        string[] expected = missing ? [InvoiceRequisites.TotalKey] : [];
+        Assert.Equal(expected, InvoiceRequisites.MissingFields(invoice).Select(f => f.Key));
+        Assert.Equal(missing ? PaymentRefusal.Amount : null, PaymentPosting.RefusalKind(invoice, null, withinTolerance: true));
+    }
 }

@@ -100,7 +100,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         var rows = (await client.GetFromJsonAsync<JsonElement>("/api/costs/invoices")).EnumerateArray().ToList();
         JsonElement Readiness(Guid id) => rows.Single(r => r.GetProperty("id").GetGuid() == id).GetProperty("readiness");
 
-        Assert.Equal(["плательщик", "строки", "разноска"], Readiness(draft).EnumerateArray().Select(l => l.GetString()));
+        Assert.Equal(["плательщик", "сумма к оплате", "строки", "разноска"], Readiness(draft).EnumerateArray().Select(l => l.GetString()));
         Assert.Equal(JsonValueKind.Null, Readiness(parsed).ValueKind);
     }
 
@@ -119,7 +119,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         Assert.Null(await GapsAsync(client, invoice));
         // Обязательные поля едут всегда — форма помечает их и у разобранного.
         var required = (await ReadAsync(client, invoice)).GetProperty("readiness").GetProperty("required");
-        Assert.Equal(["Номер", "Дата", "Поставщик", "Плательщик"], required.EnumerateArray().Select(r => r.GetString()));
+        Assert.Equal(["Номер", "Дата", "Поставщик", "Плательщик", "Итого"], required.EnumerateArray().Select(r => r.GetString()));
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     public async Task Не_хватает_строк()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 100m);
 
         var (gaps, response) = await PressAsync(client, invoice);
 
@@ -284,7 +284,7 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     public async Task Не_хватает_только_разноски()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 100m);
         await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
 
         var (gaps, response) = await PressAsync(client, invoice);
@@ -336,13 +336,15 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
 
         var (gaps, response) = await PressAsync(client, invoice);
 
-        Assert.Equal(["field", "nomenclature", "allocation"], Kinds(gaps));
-        Assert.Equal("2 строки без позиции", gaps[1].GetProperty("label").GetString());
+        // Суммы к оплате нет — она обязательна (change costs-invoice-screen-01-parsed-amount): второй пункт поля.
+        Assert.Equal(["field", "field", "nomenclature", "allocation"], Kinds(gaps));
+        Assert.Equal(["Плательщик", "Итого"], gaps.Take(2).Select(g => g.GetProperty("field").GetString()));
+        Assert.Equal("2 строки без позиции", gaps[2].GetProperty("label").GetString());
 
         var refusal = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         // Слова первого условия — прежние, остальное названо следом.
-        Assert.Contains("не заполнено обязательное — «Плательщик»", refusal);
+        Assert.Contains("не заполнено обязательное — «Плательщик», «Сумма к оплате»", refusal);
         Assert.Contains("Кроме того, до «Разобран» осталось: 2 строки без позиции · разноска", refusal);
     }
 
@@ -354,10 +356,14 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     {
         var (client, _) = await SignInAsync("Admin");
         var invoice = await CreateAsync(client);
-        Assert.Equal(["field", "lines", "allocation"], Kinds((await PressAsync(client, invoice)).Gaps));
+        Assert.Equal(["field", "field", "lines", "allocation"], Kinds((await PressAsync(client, invoice)).Gaps));
 
         await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
             new { requisites = await RequisitesWithAsync(client, invoice, "Плательщик", Reference(payer)) }));
+        Assert.Equal(["field", "lines", "allocation"], Kinds((await PressAsync(client, invoice)).Gaps));
+
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(client, invoice, "Итого", 100m) }));
         Assert.Equal(["lines", "allocation"], Kinds((await PressAsync(client, invoice)).Gaps));
 
         var view = await LinesAsync(client, invoice, [Line(null, quantity: 1, price: 100m, rate: 20, text: "Кабель")]);
@@ -369,6 +375,57 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         var (site, _) = await SiteAsync("Готовность");
         await AllocateAsync(client, invoice, LineId(view, 1), [Part(site, quantity: 1)]);
         Assert.Empty((await PressAsync(client, invoice)).Gaps);
+    }
+
+    /// <summary>
+    /// Сумма к оплате обязательна для «Разобран» (change <c>costs-invoice-screen-01-parsed-amount</c>,
+    /// COST-9), и нуль — не сумма. Всё остальное готово: пункт один — поле «Итого», на месте полей шапки, —
+    /// и мешает он и разбору, и оплате (COST-6.4): один пункт, а не пункт и причина отказа оплаты рядом.
+    /// У нулевой суммы при строках расхождения рядом нет — сверять не с чем (design D5).
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    public async Task Не_хватает_только_суммы_к_оплате(int? total)
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        var view = await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        var (site, _) = await SiteAsync("Без суммы");
+        await AllocateAsync(client, invoice, LineId(view, 1), [Part(site, quantity: 1)]);
+        if (total is { } zero)
+            await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+                new { requisites = await RequisitesWithAsync(client, invoice, "Итого", (decimal)zero) }));
+
+        var read = await ReadAsync(client, invoice);
+        Assert.Contains("Итого", read.GetProperty("readiness").GetProperty("required").EnumerateArray().Select(r => r.GetString()));
+        Assert.Equal("amount", read.GetProperty("payment").GetProperty("refusalKind").GetString());
+
+        var (gaps, response) = await PressAsync(client, invoice);
+
+        var gap = Assert.Single(gaps);
+        Assert.Equal("field", gap.GetProperty("kind").GetString());
+        Assert.Equal("Итого", gap.GetProperty("field").GetString());
+        Assert.Equal("сумма к оплате", gap.GetProperty("label").GetString());
+        Assert.Equal(["parsed", "payment"], gap.GetProperty("blocks").EnumerateArray().Select(b => b.GetString()));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("не заполнено обязательное — «Сумма к оплате»", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Пункт суммы стоит среди полей шапки, до строк: порядок формы сверху вниз.
+    /// </summary>
+    [Fact]
+    public async Task Пункт_суммы_стоит_среди_полей_до_строк()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+
+        var gaps = await GapsAsync(client, invoice);
+
+        Assert.NotNull(gaps);
+        Assert.Equal(["field", "lines", "allocation"], Kinds(gaps));
+        Assert.Equal("Итого", gaps[0].GetProperty("field").GetString());
     }
 
     /// <summary>У отклонённого вопрос «чего не хватает до „Разобран“» не стоит: перечня нет.</summary>

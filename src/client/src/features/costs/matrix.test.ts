@@ -27,7 +27,7 @@ function invoice(lines: InvoiceLineView[], documentParts: AllocationPartView[] =
   return {
     id: 'i1', lines, requisites: {},
     allocation: {
-      allocated: false, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true,
+      allocated: false, unbalanced: [], lost: 0, discrepancy: null, tolerance: 1, withinTolerance: true, reconciled: false,
       document: { parts: documentParts, unallocatedAmount: null, pending: documentParts.length > 0 && lines.length > 0, balanced: false },
       stamp: '0',
     },

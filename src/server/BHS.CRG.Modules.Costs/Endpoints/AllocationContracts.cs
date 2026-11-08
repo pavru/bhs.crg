@@ -82,6 +82,8 @@ public sealed record DocumentAllocationView(
 /// <param name="Discrepancy">Сумма к оплате минус сумма строк; <c>null</c> — суммы к оплате нет.</param>
 /// <param name="Tolerance">Допуск расхождения. Приезжает от сервера, а не зашит в форму: по ТЗ это
 /// настройка, и форма, знающая число сама, разошлась бы с ней на первой же правке.</param>
+/// <param name="Reconciled">Сумма строк сверена с суммой к оплате (<see cref="AllocationBalance.Reconciled" />):
+/// нет — расхождение пунктом не называют ни готовность, ни форма.</param>
 /// <param name="Stamp">Отметка версии разноски счёта: число частей и время последней правки. Её присылает
 /// запись матрицы — набор, собранный по устаревшему виду, отвергается, а не возвращает удалённые части.</param>
 public sealed record AllocationSummaryView(
@@ -91,6 +93,7 @@ public sealed record AllocationSummaryView(
     decimal? Discrepancy,
     decimal Tolerance,
     bool WithinTolerance,
+    bool Reconciled,
     DocumentAllocationView Document,
     string Stamp);
 
@@ -182,6 +185,7 @@ public static class InvoiceAllocations
             balance.Discrepancy,
             balance.Tolerance,
             balance.WithinTolerance,
+            balance.Reconciled,
             document,
             Stamp(parts)));
     }

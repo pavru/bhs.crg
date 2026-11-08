@@ -88,7 +88,7 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     public async Task Разобран_отказывает_пока_строка_ждёт_позиции()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 2m);
 
         await LinesAsync(client, invoice, [
             Line(cable, quantity: 1, price: 1m),
@@ -111,7 +111,7 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
     public async Task Разобран_отказывает_без_строк()
     {
         var (client, _) = await SignInAsync("Admin");
-        var invoice = await CreateAsync(client, complete: true);
+        var invoice = await CreateAsync(client, complete: true, total: 1m);
 
         var response = await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -189,5 +189,80 @@ public class InvoiceParsedStateTests(InvoiceLineHost host) : InvoiceLineTestBase
 
         var view = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+    }
+    // ── Сумма к оплате обязательна (change costs-invoice-screen-01-parsed-amount, COST-9) ──────────
+
+    /// <summary>
+    /// Сумму стёрли правкой шапки у разобранного: правка ложится, счёт сам уходит в черновик, а журнал
+    /// называет причину. Тем же путём, что стёртый плательщик: обязательность — из объявления типа.
+    /// </summary>
+    [Fact]
+    public async Task Стёртая_сумма_возвращает_разобранный_счёт_в_черновик()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await ParsedAsync(client);
+
+        var saved = await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithoutTotalAsync(client, invoice) });
+        await OkAsync(saved);
+
+        var view = await saved.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("requisites").GetProperty("Итого").ValueKind);
+        Assert.Equal("правка счёта: не заполнено обязательное — «Сумма к оплате»",
+            Assert.Single(await DraftJournalAsync(invoice)).After);
+    }
+
+    /// <summary>
+    /// Разобранный без суммы, ставший таким до того, как сумма стала обязательной (Э3, 08.11.2026): задним
+    /// числом не трогается. Читается разобранным, оплата называет пробел, а первая правка шапки — любая, не
+    /// о сумме, — возвращает его в черновик той же причиной. Сумма стёрта в базе: обычной правкой
+    /// разобранного без суммы не получить.
+    /// </summary>
+    [Fact]
+    public async Task Разобранный_без_суммы_до_обновления_остаётся_разобранным_до_правки_шапки()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await ParsedAsync(client);
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database
+                .ExecuteSqlAsync($"UPDATE costs.invoices SET total = NULL WHERE id = {invoice}");
+
+        var view = await ReadAsync(client, invoice);
+        Assert.Equal("Разобран", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Equal("у счёта не указана сумма к оплате", view.GetProperty("payment").GetProperty("refusal").GetString());
+        Assert.Empty(await DraftJournalAsync(invoice));
+
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}",
+            new { requisites = await RequisitesWithAsync(client, invoice, "Назначение", "Кабель на склад") }));
+
+        Assert.Equal("Черновик", (await ReadAsync(client, invoice)).GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Equal("правка счёта: не заполнено обязательное — «Сумма к оплате»",
+            Assert.Single(await DraftJournalAsync(invoice)).After);
+    }
+
+    /// <summary>Разобранный счёт с суммой, равной сумме строк.</summary>
+    private async Task<Guid> ParsedAsync(HttpClient client)
+    {
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m, rate: 20)]);
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+        return invoice;
+    }
+
+    private static async Task<JsonElement> RequisitesWithoutTotalAsync(HttpClient client, Guid invoice)
+    {
+        var requisites = (await ReadAsync(client, invoice)).GetProperty("requisites");
+        var patched = JsonSerializer.Deserialize<Dictionary<string, object?>>(requisites.GetRawText())!;
+        patched["Итого"] = null;
+        return JsonSerializer.SerializeToElement(patched);
+    }
+
+    private async Task<List<ActivityRow>> DraftJournalAsync(Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()
+            .ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.draft");
+        return [.. records.Where(r => r.TargetId == invoice.ToString())];
     }
 }
