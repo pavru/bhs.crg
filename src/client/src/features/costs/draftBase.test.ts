@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { stepBase } from './draftBase';
+import type { InvoiceView } from '@/shared/api/invoices';
+import { baseOf, stepBase } from './draftBase';
 
 const base = { version: '10', signature: 'строки-А' };
 
@@ -51,5 +52,26 @@ describe('основа черновика', () => {
     expect(stepBase(stale.base, '12', 'строки-В', true).kind).toBe('stale');
     // Перечитал — правок нет: основа свежая.
     expect(stepBase(stale.base, '12', 'строки-В', false).kind).toBe('rebuild');
+  });
+
+  // Ответ своей записи строк (issue #1656): версия новая и подпись другая (у новых строк появились id), а
+  // черновик грязный — человек правил во время записи. Принятый за основу, ответ — не «строки изменили».
+  describe('свой ответ записи (adopt)', () => {
+    const saved = { version: '11', lines: 'строки-Б' } as unknown as InvoiceView;
+    const signatureOf = (view: InvoiceView) => (view as unknown as { lines: string }).lines;
+    const adopted = baseOf(saved, signatureOf);
+
+    it('при грязном черновике даёт same, и следующая запись называет версию ответа', () => {
+      expect(adopted).toEqual({ version: '11', signature: 'строки-Б' });
+      expect(stepBase(adopted, saved.version, signatureOf(saved), true)).toEqual({ kind: 'same', base: adopted });
+    });
+
+    it('без принятия тот же ответ читался бы чужой правкой', () => {
+      expect(stepBase(base, saved.version, signatureOf(saved), true).kind).toBe('stale');
+    });
+
+    it('чужая правка строк после принятого ответа — по-прежнему stale', () => {
+      expect(stepBase(adopted, '12', 'строки-В', true)).toEqual({ kind: 'stale', base: adopted });
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { formatInput } from '@/shared/format/format';
+import { newUuid } from '@/shared/utils/localId';
 import type { InvoiceLineMatch, InvoiceLineView, VatMode } from '@/shared/api/invoices';
 import type { MatchOffer } from './supplierMatches';
 import { catalogRef } from './invoiceFields';
@@ -23,7 +24,10 @@ import { catalogRef } from './invoiceFields';
  * по количеству (F1), и потерянный `id` рвал бы ссылку молча.</p>
  */
 export interface LineDraft {
-  /** Ключ для React. У сохранённой строки — её `id`, у новой — свой: без него React путает строки. */
+  /**
+   * Ключ для React. У сохранённой строки — её `id`, у новой — GUID, он же её будущий `id` (`newId`, issue #1656):
+   * после записи ключ не меняется, и строка под курсором не перемонтируется.
+   */
   key: string;
   id: string | null;
   nomenclatureId: string | null;
@@ -79,7 +83,12 @@ export interface LineDraft {
   vatAside?: string;
 }
 
-let sequence = 0;
+/**
+ * Ключ новой строки — он же её будущий `id` (issue #1656, D2): уезжает полем `newId`, и сервер заводит строку с
+ * ним. Поэтому ключ строки на экране с рождения равен `id`, и ответ записи не перемонтирует строку под курсором
+ * (фокус остаётся в ячейке).
+ */
+export const newLineKey = newUuid;
 
 /**
  * Есть ли у строки СОХРАНЁННАЯ разноска (costs-invoice-screen-13-undo, D-13.2). Её удаление идёт своим
@@ -105,9 +114,8 @@ export function restoreLine(
 
 /** Пустая строка для дописывания руками. */
 export function emptyDraft(): LineDraft {
-  sequence += 1;
   return {
-    key: `новая-${sequence}`,
+    key: newLineKey(),
     id: null,
     nomenclatureId: null,
     nomenclatureName: null,
@@ -166,6 +174,9 @@ export function toDrafts(lines: readonly InvoiceLineView[], mode: VatMode): Line
 export function toPayload(drafts: readonly LineDraft[], mode: VatMode): Record<string, unknown>[] {
   return drafts.map(draft => ({
     id: draft.id,
+    // Новая строка несёт свой ключ как `newId` (issue #1656): сервер заведёт её с этим идентификатором. Ключ
+    // новой строки всегда GUID — его выдаёт `newLineKey`. Исправление счёта поле не читает — заводит строки своими.
+    ...(draft.id === null ? { newId: draft.key } : {}),
     nomenclature: draft.nomenclatureId ? catalogRef(draft.nomenclatureId) : null,
     supplierText: text(draft.supplierText),
     supplierCode: text(draft.supplierCode),

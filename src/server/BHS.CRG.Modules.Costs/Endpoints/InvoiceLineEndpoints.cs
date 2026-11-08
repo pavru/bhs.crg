@@ -63,14 +63,21 @@ public static class InvoiceLineEndpoints
         var incoming = body.Lines;
 
         var parsed = new List<(Guid? Id, InvoiceLineValues Values)>(incoming.Count);
+        // Идентификаторы, выданные формой новым строкам (issue #1656), — тем же проходом: вид строки
+        // проверяет `Id`, он идёт первым.
+        var newIds = new List<Guid?>(incoming.Count);
         for (var index = 0; index < incoming.Count; index++)
+        {
             parsed.Add((InvoiceLineRequests.Id(incoming[index], index + 1),
                 InvoiceLineRequests.Values(incoming[index], index + 1)));
+            newIds.Add(InvoiceLineRequests.NewId(incoming[index], index + 1));
+        }
 
         // «Не запоминать» — слово человека про ЭТУ строку (ТЗ COST-7.1): «Доставка» у поставщика всякий
         // раз другая, и запомненная позиция подставлялась бы не туда.
         var remember = incoming.Select((line, index) => InvoiceLineRequests.Remember(line, index + 1)).ToList();
 
+        EnsureNewIdsDistinct(parsed, newIds);
         EnsureIdsDistinct(parsed);
         VatMode? modeWas = null;
         var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
@@ -117,7 +124,7 @@ public static class InvoiceLineEndpoints
             // Сменил человек — метку распознавания режима снимает его решение (issue #1501), как правка поля.
             if (modeChanged) { modeWas = before; invoice.Confirm([VatModes.Mark]); }
 
-            var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct);
+            var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct, newIds);
 
             // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
             //
@@ -140,7 +147,18 @@ public static class InvoiceLineEndpoints
                 : null;
             if (reason is not null) invoice.ReturnToDraft();
 
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException lost) when (lost.InnerException is Npgsql.PostgresException
+                { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: LinesKey })
+            {
+                // Две записи в РАЗНЫЕ счета с одним «newId» разом (ревью PR #1811): сверка занятости идёт под
+                // замком своего счёта, и второй её проходит — отказывает ключ таблицы. Те же слова, что у сверки,
+                // а не 500. Только этот ключ: иной отказ базы под этими словами выдал бы себя за другое.
+                throw new InvalidRequestException(BornTaken(), lost);
+            }
             return (invoice, placed.Changed || modeChanged, reason, placed.Worth);
         }
     }
@@ -153,12 +171,35 @@ public static class InvoiceLineEndpoints
     /// режим известен только тут, и досчёт до замка взял бы режим, который тем временем сменили.</para>
     /// </summary>
     /// <param name="parsed">Строки, как в бумаге (<see cref="InvoiceLineRequests.Values" />).</param>
+    /// <param name="newIds">Идентификаторы, выданные формой новым строкам (<see cref="InvoiceLineRequests.NewId" />),
+    /// по порядку набора; <c>null</c> — их нет (исправление счёта заводит строки своими).</param>
     /// <returns>Строки после правки — по порядку набора; изменён ли набор; что запомнить после записи.</returns>
     internal static async Task<LinesPlaced> PlaceLinesAsync(
         CostsDbContext db, IModuleCatalog catalog, Invoice invoice,
-        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<bool> remember, CancellationToken ct)
+        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<bool> remember, CancellationToken ct,
+        IReadOnlyList<Guid?>? newIds = null)
     {
         var existing = await db.InvoiceLines.Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
+
+        // Новая строка, чей идентификатор в счёте УЖЕ лежит, — та же строка, записанная прежде (повтор набора
+        // с версией, прочитанной после записи, issue #1656; см. InvoiceLineRequests.NewId): она правится на
+        // месте, как присланная с «id», а не заводится второй. Решается по строкам, прочитанным под замком записи, — до всех сверок ниже, чтобы и они
+        // видели её лежащей.
+        var born = new Guid?[parsed.Count];
+        if (newIds is not null)
+        {
+            var laid = existing.Select(l => l.Id).ToHashSet();
+            parsed = [.. parsed.Select((p, index) =>
+            {
+                if (p.Id is null && newIds[index] is { } given)
+                {
+                    if (laid.Contains(given)) return (Id: (Guid?)given, p.Values);
+                    born[index] = given;
+                }
+                return p;
+            })];
+            await EnsureBornFreeAsync(db, born, ct);
+        }
 
         // Позиции, уже стоящие в строках счёта, не перепроверяются (ТЗ CORE-34.4, issue #1184): старая
         // потеря в строке 3 не должна мешать поправить цену в строке 7. По строкам, прочитанным под
@@ -211,7 +252,7 @@ public static class InvoiceLineEndpoints
                         "оставили открытой, а строку тем временем удалили: присланное состояние опирается " +
                         "на то, чего уже нет. Перечитайте счёт и повторите правку — иначе удалённая " +
                         "строка вернулась бы молча.")
-                : Added(db, invoice.Id);
+                : Added(db, invoice.Id, born[index]);
 
             // Пишем только то, что изменилось, — значения или место в наборе (issue #1171). Apply ставит
             // «когда правили» безусловно, и позови мы его для каждой присланной строки, правка одной
@@ -350,11 +391,59 @@ public static class InvoiceLineEndpoints
         [.. (await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct))
             .Select(InvoiceAllocations.Line)];
 
-    private static InvoiceLine Added(CostsDbContext db, Guid invoiceId)
+    private static InvoiceLine Added(CostsDbContext db, Guid invoiceId, Guid? id)
     {
-        var line = InvoiceLine.Create(invoiceId);
+        var line = InvoiceLine.Create(invoiceId, id);
         db.InvoiceLines.Add(line);
         return line;
+    }
+
+    /// <summary>Первичный ключ строк счёта — его нарушение при заведении строки с «newId» и ловит запись.</summary>
+    private const string LinesKey = "PK_invoice_lines";
+
+    /// <summary>
+    /// Отказ «идентификатор новой строки занят». Нейтрально, без «другого счёта» (ревью PR #1811): отказ не
+    /// подтверждает, где лежит запись с этим идентификатором.
+    /// </summary>
+    private static string BornTaken(int? number = null) =>
+        (number is { } n ? $"Строка {n}: идентификатор" : "Идентификатор") +
+        " новой строки («newId») уже занят. Форма выдаёт новым строкам идентификаторы сама — перечитайте счёт и " +
+        "добавьте строку заново.";
+
+    /// <summary>
+    /// Идентификатор новой строки не занят (лежащие этого счёта узнаны раньше и сюда не попадают). Без этой
+    /// сверки отказала бы база, ответом 500 вместо слов; одновременную запись в другой счёт с тем же
+    /// идентификатором она не видит — её ловит запись по ключу таблицы.
+    /// </summary>
+    private static async Task EnsureBornFreeAsync(CostsDbContext db, Guid?[] born, CancellationToken ct)
+    {
+        var ids = born.OfType<Guid>().ToList();
+        if (ids.Count == 0) return;
+
+        var taken = await db.InvoiceLines.AsNoTracking().Where(l => ids.Contains(l.Id)).Select(l => l.Id)
+            .FirstOrDefaultAsync(ct);
+        if (taken != Guid.Empty)
+            throw new InvalidRequestException(BornTaken(Array.IndexOf(born, (Guid?)taken) + 1));
+    }
+
+    /// <summary>
+    /// Один «newId» дважды — или «newId», равный «id» другой строки набора, — отказ своими словами (ревью
+    /// PR #1811): общий отказ о повторе советует «присылать новые без id», а «id» здесь может не быть вовсе.
+    /// </summary>
+    private static void EnsureNewIdsDistinct(
+        IReadOnlyList<(Guid? Id, InvoiceLineValues Values)> parsed, IReadOnlyList<Guid?> newIds)
+    {
+        var repeated = parsed
+            .Select((p, index) => (Key: p.Id ?? newIds[index], Number: index + 1, New: newIds[index] is not null))
+            .Where(p => p.Key is not null)
+            .GroupBy(p => p.Key!.Value)
+            .FirstOrDefault(g => g.Count() > 1 && g.Any(p => p.New));
+
+        if (repeated is not null)
+            throw new InvalidRequestException(
+                $"Идентификатор {repeated.Key} прислан у строк {string.Join(" и ", repeated.Select(p => p.Number))}. " +
+                "У каждой новой строки свой «newId», и он не совпадает с «id» строк, что уже лежат в счёте: набор " +
+                "заменяет состояние целиком, и одна из двух строк исчезла бы без следа.");
     }
 
     /// <summary>

@@ -50,6 +50,18 @@ export function stepBase<S = string>(
   return dirty ? { kind: 'stale', base } : { kind: 'rebuild', base: { version, signature } };
 }
 
+/**
+ * Основа, собранная по виду, — для «Перечитать» и для ответа СВОЕЙ записи (`adopt`, issue #1656).
+ *
+ * <p>Ответ своей записи — не чужая правка, хотя по виду неотличим от неё: версия новая, а подпись другая
+ * (у новых строк появились `id`, сервер досчитал суммы). Пока форма сбрасывала «есть правки» тем же
+ * рендером, `stepBase` отвечал на него `rebuild`, и подмены никто не видел. Правка, набранная во время
+ * записи, «правки» оставляет — и без явного принятия ответ прочёлся бы как «строки изменили, пока вы
+ * правили», а следующая запись назвала бы прежнюю версию и получила 409 от себя самой.</p>
+ */
+export const baseOf = <S>(view: InvoiceView, signatureOf: (of: InvoiceView) => S): DraftBase<S> =>
+  ({ version: view.version, signature: signatureOf(view) });
+
 const isConflict = (error: unknown) => (error as { response?: { status?: number } })?.response?.status === 409;
 
 /**
@@ -59,7 +71,9 @@ const isConflict = (error: unknown) => (error as { response?: { status?: number 
  * @param options `same` — своё сравнение подписей; `initial` — основа, с которой черновик ПРИШЁЛ, если
  *   он собран не по виду на момент монтирования (предпросмотр, посчитанный до открытия матрицы).
  * @returns `stale` — часть изменили под правками; `rebuild` — в этом рендере черновик надо пересобрать
- *   из вида; `rebase` — принять вид за основу (по кнопке «Перечитать счёт»); `save` — записать черновик.
+ *   из вида; `rebase` — принять вид за основу (по кнопке «Перечитать счёт»); `adopt` — принять за основу
+ *   ответ своей записи (черновик при этом может остаться с правками, набранными во время записи);
+ *   `save` — записать черновик.
  */
 export function useDraftBase<S = string>(
   view: InvoiceView, signatureOf: (of: InvoiceView) => S, dirty: boolean,
@@ -112,6 +126,7 @@ export function useDraftBase<S = string>(
     stale: step.kind === 'stale',
     rebuild: step.kind === 'rebuild',
     rebase: () => setBase({ version, signature }),
+    adopt: (saved: InvoiceView) => setBase(baseOf(saved, signatureOf)),
     /** Подпись, по которой собран черновик, — чтобы форма могла сказать, ЧТО изменилось под правками. */
     signature: step.base.signature,
   };

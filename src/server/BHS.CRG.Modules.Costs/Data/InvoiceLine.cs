@@ -155,9 +155,10 @@ public sealed class InvoiceLine
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public static InvoiceLine Create(Guid invoiceId) => new()
+    /// <param name="id">Идентификатор, выданный новой строке формой (issue #1656); <c>null</c> — выдать свой.</param>
+    public static InvoiceLine Create(Guid invoiceId, Guid? id = null) => new()
     {
-        Id = Guid.CreateVersion7(),
+        Id = id ?? Guid.CreateVersion7(),
         InvoiceId = invoiceId,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,

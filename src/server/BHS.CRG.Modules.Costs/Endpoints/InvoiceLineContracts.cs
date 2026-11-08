@@ -123,6 +123,7 @@ public sealed record InvoiceLineTotals(
 public static class InvoiceLineRequests
 {
     private const string IdKey = "id";
+    private const string NewIdKey = "newId";
     private const string AmountKey = "amount";
     private const string NetAmountKey = "netAmount";
     private const string NomenclatureKey = "nomenclature";
@@ -164,6 +165,42 @@ public static class InvoiceLineRequests
             var other => throw CostsValues.Wrong($"Строка {number}: идентификатор", other,
                 "строку-идентификатор уже сохранённой строки либо ничего"),
         };
+    }
+
+    /// <summary>
+    /// Идентификатор, выданный НОВОЙ строке формой (issue #1656, D2): сервер заводит строку с ним, а
+    /// строка с таким идентификатором в этом счёте уже есть — она считается лежащей. Так ключ строки на
+    /// экране с рождения равен её <c>id</c> (фокус не теряется после записи), а повтор того же набора
+    /// строку второй раз не заводит.
+    ///
+    /// <para>⚠️ <b>Повтор проходит только с версией, прочитанной ПОСЛЕ записи</b> (ревью PR #1811):
+    /// клиент, перечитавший счёт, интеграция. Форма, потерявшая ответ, повторяет с прежней версией и
+    /// получает 409 «счёт тем временем изменили» раньше, чем набор дойдёт сюда, — и так задумано (design
+    /// D2, «Риски»): отказ по версии ради повтора не ослабляется. От дубликата форму в этом случае бережёт
+    /// именно 409, а не <c>newId</c>.</para>
+    ///
+    /// <para>⚠️ <b>Это другое поле, чем <c>id</c>, и нарочно.</b> Неизвестный <c>id</c> — отказ: он
+    /// значит «строку тем временем удалили», и принять его за новую строку значило бы молча вернуть
+    /// удалённое соседом. <c>newId</c> такого смысла не несёт: строки с ним ещё не было.</para>
+    /// </summary>
+    /// <remarks>Вид строки (объект ли она) проверяет <see cref="Id" />: его зовут на той же строке первым.</remarks>
+    internal static Guid? NewId(JsonElement line, int number)
+    {
+        var newId = CostsValues.Value(line, NewIdKey) switch
+        {
+            null => (Guid?)null,
+            { ValueKind: JsonValueKind.String } value when Guid.TryParse(value.GetString(), out var id)
+                && id != Guid.Empty => id,
+            var other => throw CostsValues.Wrong($"Строка {number}: идентификатор новой строки", other,
+                "строку-идентификатор (GUID), выданный новой строке, либо ничего"),
+        };
+
+        if (newId is not null && CostsValues.Value(line, IdKey) is not null)
+            throw new InvalidRequestException(
+                $"Строка {number}: присланы и «{IdKey}», и «{NewIdKey}». «{IdKey}» — строка уже лежит в " +
+                $"счёте, «{NewIdKey}» — строка новая; одновременно то и другое не бывает.");
+
+        return newId;
     }
 
     /// <summary>

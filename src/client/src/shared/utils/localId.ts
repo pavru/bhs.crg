@@ -16,6 +16,25 @@
 let counter = 0;
 
 export function newLocalId(): string {
+  // Ни того, ни другого. Форму UUID не изображаем — пусть по значению будет видно, откуда оно
+  // взялось; на роль ключа списка этого достаточно.
+  return cryptoUuid() ?? `local-${Date.now().toString(36)}-${(counter += 1)}`;
+}
+
+/**
+ * Идентификатор, который УХОДИТ НА СЕРВЕР как идентификатор записи (`newId` новой строки счёта, issue #1656), —
+ * поэтому всегда вида UUID v4: сервер другого не примет. Без Web Crypto вовсе (очень старый вебвью) — из
+ * `Math.random`: уникальности в пределах записи хватает, а криптостойкость не нужна и здесь.
+ */
+export function newUuid(): string {
+  return cryptoUuid() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.floor(Math.random() * 16);
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** UUID v4 средствами Web Crypto; `null` — их нет вовсе. */
+function cryptoUuid(): string | null {
   const c: Crypto | undefined = globalThis.crypto;
 
   // Есть защищённый контекст — берём готовый UUID.
@@ -30,9 +49,5 @@ export function newLocalId(): string {
     const hex = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-
-  // Ни того, ни другого. Форму UUID не изображаем — пусть по значению будет видно, откуда оно
-  // взялось; на роль ключа списка этого достаточно.
-  counter += 1;
-  return `local-${Date.now().toString(36)}-${counter}`;
+  return null;
 }
