@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { InvoiceListItem } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import {
-  afterExit, backRefused, emptyText, heldRow, keepTrace, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
+  afterExit, backRefused, undoRefused, emptyText, heldRow, keepTrace, lostTitle, placesCount, placesText, queueChip, queueRows, rowReadiness,
 } from './invoiceQueues';
 
 /** Очереди списка счетов — чипы «наведите порядок» в рейле (issue #1186). */
@@ -204,6 +204,11 @@ describe('после «Разобран» под отбором очереди',
     expect(keepTrace(trace, 'archived', [a, c])).toBe(false);
     expect(keepTrace(trace, null, [a, c])).toBe(false);
     expect(keepTrace(null, 'parsing', [a])).toBe(false);
+  });
+
+  it('«Вернуть» отклонения при несохранённом — отказ до записи: счёт остался отклонённым, и сказано, как вернуть', () => {
+    expect(undoRefused('15')).toBe('Счёт № 15 не возвращён в черновик: в форме несохранённые правки. Он остался '
+      + 'отклонённым — вернуть его можно из меню «Ещё» счёта, «Вернуть в черновик».');
   });
 
   it('«Вернуться» при несохранённом называет, где счёт искать', () => {

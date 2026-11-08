@@ -145,8 +145,9 @@ export interface QueueRow {
   exit?: QueueExit;
 }
 
-/** Чем счёт вывели из очереди «Разобрать» на этом экране. Удаления здесь нет нарочно: возвращаться
- *  некуда, а следующий счёт с тем же «Удалить» под рукой провоцирует удаление по инерции. */
+/** Чем счёт вывели из очереди «Разобрать» на этом экране — с ним остаётся след. Удаления здесь нет: следа
+ *  у удалённого нет, он скрыт, а путь назад — «Вернуть» снэкбара (costs-invoice-screen-13-undo, D-13.4). К
+ *  следующему удаление ведёт так же (`afterExit` с `'deleted'`). */
 export type QueueExit = 'parsed' | 'rejected';
 
 /** Слово о счёте, вышедшем из очереди, — одно в сообщении и в строке-следе. */
@@ -228,9 +229,10 @@ export interface AfterExit {
  * @param number номер разобранного счёта — у открытого счёта, строка списка могла устареть.
  */
 export function afterExit(
-  rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean, how: QueueExit,
+  rows: QueueRow[] | null, id: string, number: string | null, query: string, unsaved: boolean, how: QueueExit | 'deleted',
 ): AfterExit {
-  const done = `${called(number)} ${EXIT_WORD[how]}.`;
+  // Удаляется без окна только новый черновик из файла — у него и номера чаще нет (D-13.3).
+  const done = how === 'deleted' ? 'Черновик удалён.' : `${called(number)} ${EXIT_WORD[how]}.`;
   if (unsaved) return { open: null, message: `${done} Следующий не открыт: в форме несохранённые правки.` };
   if (!rows) return { open: null, message: `${done} Следующий не открыт: список счетов не прочитан.` };
 
@@ -256,6 +258,12 @@ export function afterExit(
 /** «Вернуться» не выполнено: в открытом счёте набрано несохранённое, и уводить с него нельзя. */
 export function backRefused(number: string | null, how: QueueExit): string {
   return `${called(number)} не открыт: в форме несохранённые правки. Он стоит в списке строкой «${EXIT_WORD[how]}».`;
+}
+
+/** «Вернуть» отклонения не выполнено — по той же причине, до записи: счёт остался отклонённым. */
+export function undoRefused(number: string | null): string {
+  return `${called(number)} не возвращён в черновик: в форме несохранённые правки. Он остался отклонённым — `
+    + 'вернуть его можно из меню «Ещё» счёта, «Вернуть в черновик».';
 }
 
 /**

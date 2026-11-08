@@ -1,10 +1,19 @@
 import type { InvoiceView } from '@/shared/api/invoices';
+import { isConflict } from '@/shared/utils/apiError';
 import { K, REJECTED } from './invoiceFields';
 
 /** Чем кончилось «Отклонить»: отклонили этим запросом — или счёт уже был отклонён. */
 export type RejectOutcome = 'rejected' | 'already';
 
-const isConflict = (error: unknown) => (error as { response?: { status?: number } })?.response?.status === 409;
+/**
+ * Исход с версией: «Вернуть» (costs-invoice-screen-13-undo, D-13.1) возвращает в черновик ровно тот
+ * отклонённый счёт, который вернул сервер. У «уже отклонён» версии нет нарочно: отклонил, возможно, сосед, и
+ * возвращать чужое решение одной кнопкой нельзя.
+ */
+export type RejectResult = { outcome: 'rejected'; version: string } | { outcome: 'already'; version: null };
+
+/** Версия для «Вернуть» — только у отклонённого этим запросом. */
+export const undoVersion = (result: RejectResult): string | null => result.version;
 
 /**
  * Отклонить счёт — и отличить «не отклонён» от «уже отклонён» (ревью PR #1290).
@@ -19,20 +28,20 @@ const isConflict = (error: unknown) => (error as { response?: { status?: number 
  * <p>Сверку версии на сервере ради этого не ослабляли: она одна на все правки счёта, и исключение
  * «состояние уже то» пришлось бы объяснять каждому следующему переходу.</p>
  *
- * @param send сам запрос отклонения.
+ * @param send сам запрос отклонения; ответ — вид отклонённого счёта.
  * @param readFresh прочитать счёт заново, мимо кэша.
  */
 export async function rejectInvoice(
-  send: () => Promise<unknown>, readFresh: () => Promise<InvoiceView>,
-): Promise<RejectOutcome> {
+  send: () => Promise<Pick<InvoiceView, 'version'>>, readFresh: () => Promise<InvoiceView>,
+): Promise<RejectResult> {
   try {
-    await send();
-    return 'rejected';
+    const rejected = await send();
+    return { outcome: 'rejected', version: rejected.version };
   } catch (refusal) {
     if (!isConflict(refusal)) throw refusal;
     // Не прочитался — остаётся исходный отказ: он про счёт, а сбой чтения про связь.
     const fresh = await readFresh().catch(() => null);
-    if (fresh?.requisites[K.state] === REJECTED) return 'already';
+    if (fresh?.requisites[K.state] === REJECTED) return { outcome: 'already', version: null };
     throw refusal;
   }
 }

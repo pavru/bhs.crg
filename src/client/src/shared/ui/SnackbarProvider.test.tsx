@@ -262,6 +262,37 @@ describe('SnackbarProvider [UI-71]', () => {
     });
   });
 
+  // Radix ставит срок на паузу, пока указатель или фокус в поле, и снимает её по уходу — но слушает уход,
+  // только пока в поле есть уведомление. Нажатое действие закрывает уведомление под указателем: уход
+  // приходит, когда слушать уже некому, и следующее уведомление без поправки не закрывалось сроком вовсе —
+  // а с ним не уходило и отложенное удаление черновика (costs-invoice-screen-13-undo).
+  it('после нажатого действия следующее уведомление закрывается сроком', () => {
+    const onClose = vi.fn();
+    act(() => { api.success('Черновик удалён', { action: { label: 'Вернуть', onClick: () => {} }, onClose: () => {} }); });
+    const button = within(shown()[0]).getByRole('button', { name: 'Вернуть' });
+    fireEvent.pointerMove(button);
+    fireEvent.focus(button);
+    fireEvent.click(button);
+    wait(SNACKBAR_EXIT_MS);
+    act(() => { api.success('Черновик удалён', { action: { label: 'Вернуть', onClick: () => {} }, onClose }); });
+    wait(SNACKBAR_UNDO_MS);
+    wait(SNACKBAR_EXIT_MS);
+    expect(onClose.mock.calls).toEqual([['timeout']]);
+    expect(texts()).toEqual([]);
+  });
+
+  // Поле пересоздаётся под каждое уведомление, но фокус, стоявший в нём, туда же и возвращается: человек с
+  // клавиатуры (F8, Tab, Enter на «Вернуть») не должен оказаться на <body> (ревью PR #1808).
+  it('фокус в поле уведомлений переживает смену уведомления', () => {
+    act(() => { api.success('Черновик удалён', { action: { label: 'Вернуть', onClick: () => {} }, onClose: () => {} }); });
+    const button = within(shown()[0]).getByRole('button', { name: 'Вернуть' });
+    act(() => { button.focus(); });
+    fireEvent.click(button);
+    wait(SNACKBAR_EXIT_MS);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole('region').contains(document.activeElement)).toBe(true);
+  });
+
   it('вид MD3: inverse-surface, форма 4, уровень 3, без знака', () => {
     act(() => { api.error('Сбой'); });
     const li = shown()[0];

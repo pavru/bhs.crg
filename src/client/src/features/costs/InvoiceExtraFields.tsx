@@ -14,21 +14,23 @@ import { toNumber } from './invoiceLines';
  * поля, сервер их хранит и сверяет вид значения, а форма раньше их не показывала — значение, положенное
  * распознаванием, было бы невидимо, и снять с него метку было бы негде.
  *
- * <p>Поле рисует тот же `PrimitiveInput`, что реквизиты документов: вид поля один на всё приложение.</p>
+ * <p>Поле рисует тот же `PrimitiveInput`, что реквизиты документов: вид поля один на всё приложение. Метка
+ * «со скана» — знаком `fromScan` в хвосте поля, как у шапки ([UI-88]), а не рамкой вокруг: вторую рамку
+ * [COST-6.4] запрещает (costs-invoice-screen-13-undo, D-13.6).</p>
  */
 
-export function ExtraField({ field, value, set, locked, hint, frame }: {
+export function ExtraField({ field, value, set, locked, fromScan }: {
   field: SchemaField; value: unknown; set: (key: string, next: unknown) => void;
-  locked: boolean; hint?: string; frame: string;
+  locked: boolean; fromScan: boolean;
 }) {
   // Пустое уезжает `null`, а не «»: человек, стерев значение, имеет в виду «значения нет».
   const onChange = (next: unknown) => set(field.key, next === '' ? null : next);
   // Запертое поле кладёт код, не человек (ТЗ CORE-20.2): дописанному полю замка не поставить, но форма по
   // схеме обязана его уважать, как остальные.
-  const props = { field, value, onChange, invalid: false, readOnly: locked || isLockedField(field), label: field.title || field.key, hint };
+  const props = { field, value, onChange, invalid: false, readOnly: locked || isLockedField(field), label: field.title || field.key, fromScan };
   return (
     // Флажок — по высоте поля рядом: в одной строке с полем ввода он не висит у верхнего края.
-    <div className={`${frame} ${field.type === 'boolean' ? 'min-h-14 flex items-center' : ''}`}>
+    <div className={field.type === 'boolean' ? 'min-h-14 flex items-center' : undefined}>
       {field.typeId ? <TypedInput {...props} />
         : field.type === 'number' ? <NumberInput {...props} />
         : <PrimitiveInput {...props} />}
@@ -69,7 +71,7 @@ const shownNumber = (value: unknown) =>
  * локалью считает «1 234,50» недопустимым и молча отдаёт пустоту. Уезжает числом — сервер сверяет вид
  * значения поля; не число уезжает как набрано, и отказ сервера назовёт поле.
  */
-function NumberInput({ field, value, onChange, readOnly, label, hint }: InputProps) {
+function NumberInput({ field, value, onChange, readOnly, label, hint, fromScan }: InputProps) {
   const [text, setText] = useState(() => shownNumber(value));
   // Значение сменили не здесь (перечитали счёт, «Взять») — показать его. Своё набранное не трогаем:
   // «1,» уже значит 1, и переписанный текст сдвинул бы курсор.
@@ -81,7 +83,7 @@ function NumberInput({ field, value, onChange, readOnly, label, hint }: InputPro
   const invalid = text.trim() !== '' && toNumber(text) === null;
   return (
     <TextField label={label ?? field.title} required={readOnly ? undefined : field.required} readOnly={readOnly}
-      hint={invalid ? 'Не число' : hint} invalid={invalid} inputMode="decimal" value={text}
+      hint={invalid ? 'Не число' : hint} invalid={invalid} inputMode="decimal" value={text} fromScan={fromScan}
       onChange={e => {
         const typed = e.target.value;
         setText(typed);

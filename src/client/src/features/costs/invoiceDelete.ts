@@ -1,5 +1,6 @@
-import { createContext, useContext } from 'react';
-import type { InvoiceView } from '@/shared/api/invoices';
+import { createContext, useContext, useSyncExternalStore } from 'react';
+import type { QueryClient } from '@tanstack/react-query';
+import { onInvoiceWritten, type InvoiceView } from '@/shared/api/invoices';
 import { formatDate } from '@/shared/format/format';
 import { K, asInput } from './invoiceFields';
 import { deleteRecord } from './recordDelete';
@@ -74,20 +75,106 @@ export const deleteInvoice = (send: () => Promise<unknown>, readFresh: () => Pro
     unknown: 'Удалён ли счёт — неизвестно: ответ не пришёл. Посмотрите список счетов.',
     changed: 'Счёт тем временем изменили — или дочитали его файл. Он не удалён: закройте это окно, '
       + 'посмотрите счёт заново и решите ещё раз.',
-    noLonger: fresh => fresh.payment.paid
-      ? 'Счёт тем временем оплатили. Он не удалён: удаляется только черновик без оплаты — сначала '
-        + 'отмените оплату.'
-      : `Счёт тем временем изменили: теперь он — ${String(fresh.requisites[K.state]).toLowerCase()}. Он не `
-        + 'удалён: удаляется только черновик — верните счёт в черновик.',
+    noLonger,
   });
+
+/**
+ * То же для отложенного удаления нового черновика (D-13.4): разбор отказов тот же, слова — снэкбара, окна нет.
+ * Свежепрочитанный на 409 счёт ложится в кэш: повторное удаление уйдёт уже с его версией, а не упрётся в
+ * ту же старую (ревью PR #1808).
+ */
+export const deleteDraftLater = (send: () => Promise<unknown>, readFresh: () => Promise<InvoiceView>) =>
+  deleteRecord(send, readFresh, fresh => canDelete(fresh, true), {
+    unknown: 'Удалён ли черновик — неизвестно: ответ не пришёл. Список счетов перечитан — посмотрите его.',
+    changed: 'Черновик не удалён: его тем временем изменили — или дочитали его файл. Посмотрите его и удалите '
+      + 'ещё раз.',
+    noLonger,
+  });
+
+function noLonger(fresh: InvoiceView): string {
+  return fresh.payment.paid
+    ? 'Счёт тем временем оплатили. Он не удалён: удаляется только черновик без оплаты — сначала '
+      + 'отмените оплату.'
+    : `Счёт тем временем изменили: теперь он — ${String(fresh.requisites[K.state]).toLowerCase()}. Он не `
+      + 'удалён: удаляется только черновик — верните счёт в черновик.';
+}
 
 /** Откуда пришли к удалению: от этого зависит первая строка диалога. */
 export type DeleteReason = 'menu' | 'duplicate' | 'same-file' | 'wrong-file';
 
 /**
- * Спросить об удалении открытого счёта. `null` — удалить нельзя: все три входа (меню «Ещё», оговорка
- * о дубликате, полоса исхода распознавания) в этом случае действие не показывают.
+ * Удаление открытого счёта для входов (меню «Ещё», пункты перечня). `null` — удалить нельзя: входы в этом
+ * случае действие не показывают.
  */
-export const InvoiceDeleteContext = createContext<((reason: DeleteReason) => void) | null>(null);
+export interface InvoiceDeleteEntry {
+  /** Удалить: окном — или сразу, отложенным запросом, если `now`. */
+  ask: (reason: DeleteReason) => void;
+  /**
+   * Новый черновик удаляется без окна (D-13.5): у входа подпись без многоточия. Кроме дубликата — его
+   * узнают по сохранённым реквизитам, значит, черновик правили, и вопрос остаётся окном (`deletesNow`).
+   */
+  now: boolean;
+}
+
+/** Без окна ли удаляет этот вход — по таблице D-13.5. */
+export const deletesNow = (entry: InvoiceDeleteEntry | null, reason: DeleteReason): boolean =>
+  !!entry?.now && reason !== 'duplicate';
+
+export const InvoiceDeleteContext = createContext<InvoiceDeleteEntry | null>(null);
 
 export const useInvoiceDelete = () => useContext(InvoiceDeleteContext);
+
+// ── «Свежий» черновик (costs-invoice-screen-13-undo, D-13.3) ────────────────────────────────────────────
+
+/**
+ * Черновики, заведённые из файла В ЭТОЙ ВКЛАДКЕ, в которые с тех пор из неё ничего не записано. Такой
+ * удаляется без окна (D-13.5): терять в нём нечего, кроме прочитанного из файла, — «не тот файл».
+ *
+ * <p>Живёт в памяти вкладки и с перезагрузкой пропадает — безопасное направление: окно спросит лишний раз.
+ * Чужой черновик и черновик прошлого сеанса сюда не попадают никогда.</p>
+ */
+const createdHere = new Set<string>();
+const freshListeners = new Set<() => void>();
+const freshChanged = () => freshListeners.forEach(listener => listener());
+
+/** Черновик заведён из файла этой вкладкой — при ответе заведения. */
+export function markCreatedHere(id: string): void {
+  createdHere.add(id);
+  freshChanged();
+}
+
+/** Записали из этой вкладки — черновик больше не «свежий». */
+export function forgetFresh(id: string): void {
+  if (createdHere.delete(id)) freshChanged();
+}
+
+export const isFresh = (id: string): boolean => createdHere.has(id);
+
+export function useFresh(id: string): boolean {
+  return useSyncExternalStore(subscribeFresh, () => createdHere.has(id), () => false);
+}
+
+function subscribeFresh(listener: () => void) {
+  freshListeners.add(listener);
+  return () => { freshListeners.delete(listener); };
+}
+
+const watched = new WeakSet<QueryClient>();
+
+/**
+ * Любая своя запись счёта снимает признак — подпиской `onInvoiceWritten`: через неё идёт каждая запись
+ * этой вкладки (реквизиты, строки, «Всё верно», разноска, переходы), и новый пишущий хук попадёт сюда сам.
+ * Сдвиг версии распознаванием записью человека не считается — он сюда не приходит. Подписка одна на
+ * клиент запросов и не снимается: черновик могут править на любом экране.
+ */
+export function watchFreshness(qc: QueryClient): void {
+  if (watched.has(qc)) return;
+  watched.add(qc);
+  onInvoiceWritten(qc, (_before, after) => forgetFresh(after.id));
+}
+
+/** Для тестов: забыть всё. */
+export function resetFresh(): void {
+  createdHere.clear();
+  freshChanged();
+}

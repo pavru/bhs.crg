@@ -21,6 +21,8 @@ export function traceIdOf(e: unknown): string | undefined {
 }
 
 const baseURL = import.meta.env.VITE_API_URL ?? '/api';
+/** Адрес API — для запроса мимо axios (`fetch` с `keepalive` при закрытии вкладки): тот же, что у клиента. */
+export const API_BASE: string = baseURL;
 
 export const apiClient = axios.create({ baseURL });
 

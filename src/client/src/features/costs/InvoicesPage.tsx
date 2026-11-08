@@ -10,7 +10,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
-import { useSnackbar } from '@/shared/ui/Snackbar';
+import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
@@ -21,7 +21,7 @@ import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { apiError } from '@/shared/utils/apiError';
 import {
   INVOICES_KEY, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
-  type InvoiceListItem, type InvoiceQueue,
+  type InvoiceListItem, type InvoiceQueue, type InvoiceView,
 } from '@/shared/api/invoices';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
@@ -37,7 +37,7 @@ import { InvoiceQueueChips } from './InvoiceQueueChips';
 import { RailSitesEmpty } from './InvoiceRailSites';
 import { useRailSites } from './useRailSites';
 import {
-  QUEUE_LABEL, afterExit, backRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
+  QUEUE_LABEL, afterExit, backRefused, undoRefused, emptyText, heldRow, keepTrace, lockedNote, queueRows,
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar, InvoiceScanDrop } from './InvoiceScanDrop';
@@ -48,6 +48,9 @@ import { pageActions, useWorkWidth } from './invoicePageModel';
 import { FILE_WIDTH_CSS, fileWanted, placeOf, positionOf } from './invoicePlace';
 import { K, PARSED, REJECTED, asInput } from './invoiceFields';
 import { useQueuesFollowScans } from './recognitionWatch';
+import { markCreatedHere } from './invoiceDelete';
+import { pendingIds, usePendingDeletes } from './pendingDelete';
+import { useInvoiceUndo } from './useInvoiceUndo';
 import {
   aliveIds, forgetCreated, retryRejected, startBatch, uploadEmpty, uploadedOf, useScanBatch, type BatchPort,
 } from './scanBatch';
@@ -87,9 +90,12 @@ export function InvoicesPage() {
    * Смена счёта по строке списка, ссылке двойника и полосе загрузки (D-10.7) — через ту же охрану ухода,
    * что уход по ссылке: форма с несохранённым спрашивает своим вопросом и сама решает, уходить ли. Без
    * этого щелчок по соседнему счёту перемонтировал форму, и набранное пропадало без вопроса.
+   *
+   * <p>Выбор — из `now`, а не из замыкания: «Вернуть» снэкбара зовёт это из рендера, где удалённый черновик
+   * ещё был выбранным, и прежний выбор принял бы возврат за щелчок по открытому.</p>
    */
   const switchTo = (id: string) => {
-    if (id === selected) { ld.showDetail(); return; }
+    if (id === now.current.selected) { ld.showDetail(); return; }
     const go = () => setSelected(id);
     if (!guard?.attempt(go)) go();
   };
@@ -154,21 +160,25 @@ export function InvoicesPage() {
   const batch = useScanBatch(me);
   const onlyUpload = filter === 'upload' && batch !== null;
   if (filter === 'upload' && !batch) setFilter(null);
+  // Черновик, удаление которого ждёт закрытия снэкбара, уже скрыт (D-13.4): «Вернуть» его вернёт. Скрыт он
+  // везде — и в строках, и в полосе загрузки: её число и ссылки не должны вести к уходящему (ревью PR #1808).
+  const deleting = usePendingDeletes();
+  const shownData = deleting.size ? invoices.data?.filter(i => !deleting.has(i.id)) : invoices.data;
   // Принадлежность загрузке считается в одном месте — `uploadedOf`: и строки, и число в полосе.
-  const ofUpload = new Set((uploadedOf(invoices.data, batch) ?? []).map(i => i.id));
+  const ofUpload = new Set((uploadedOf(shownData, batch) ?? []).map(i => i.id));
   // Избранные стройки (#1221) урезают только общий список — без чипа и без отбора загрузки.
   const sites = useRailSites({ cuts: filter === null, list: invoices.data, selected, matches: i => matches(i, query) });
   // Открытый счёт под отбором загрузки остаётся строкой, даже если заведён не ею: форма справа без
   // активной строки слева выглядела бы счётом, которого в списке нет. В число он не входит.
   const rows = queueRows(invoices.data ?? [], nextHeld, trace)
     .filter(r => matches(r.item, query) && (!onlyUpload || ofUpload.has(r.item.id) || r.item.id === selected)
-      && !sites.pending && !sites.hides(r.item));
+      && !sites.pending && !sites.hides(r.item) && !deleting.has(r.item.id));
   // Сколько счетов загрузки в списке. Под включённым отбором — сколько показано: поиск сужает внутри,
   // и полоса не должна называть пять над одной строкой. «Не знаем» — список не пришёл, стоит под чипом
   // (в отобранном сервером списке счетов загрузки может и не быть) либо догоняет: заведённых в нём
   // меньше, чем завела загрузка, и чтение ещё идёт. Просто «перечитывается» незнанием не считается —
   // пока файлы распознаются, список опрашивается каждые пять секунд, и число мигало бы.
-  const madeCount = batch?.created.length ?? 0;
+  const madeCount = batch?.created.filter(id => !deleting.has(id)).length ?? 0;
   const catchingUp = invoices.isFetching && ofUpload.size < madeCount;
   const listKnown = queue === null && !catchingUp && !invoices.isError && invoices.data !== undefined;
   const found = !listKnown ? null
@@ -203,20 +213,34 @@ export function InvoicesPage() {
    * «Разобран» и «Отклонить»: запись идёт отсюда. Под отбором очереди форма запирается, а после
    * ответа выбирается следующий счёт — уже не задерживая того, кто звал: его обещание кончается
    * ответом на запись. Сама ничего не сказала (вне отбора, ушли со счёта, сбой) — зовёт `otherwise`.
+   * `back` даёт версию для «Вернуть» (D-13.1): тогда снэкбар перехода несёт его вместо «Вернуться».
    */
   async function exiting<T>(
-    id: string, number: string | null, how: QueueExit, send: () => Promise<T>, otherwise: (result: T) => void,
+    id: string, number: string | null, how: QueueExit, send: () => Promise<T>,
+    otherwise: (result: T, undo?: () => void) => void, back?: (result: T) => string | null,
   ): Promise<T> {
+    const undoOf = (result: T) => {
+      const version = back?.(result);
+      if (!version) return undefined;
+      const revert = undoReject(id, version);
+      // Как прежний «Вернуться»: под формой с несохранённым соседним счётом — отказ ДО записи. Иначе счёт
+      // вернулся бы в черновик, а охрана ухода, отпущенная «Отменой», оставила бы его неоткрытым молча.
+      return () => {
+        if (alive.current && unsaved.current && now.current.selected !== id) toast.info(undoRefused(number));
+        else revert();
+      };
+    };
     if (now.current.queue !== 'parsing') {
       const result = await send();
-      otherwise(result);
+      otherwise(result, undoOf(result));
       return result;
     }
     setLeading(true);
     let result: T;
     try { result = await send(); } catch (e) { setLeading(false); throw e; }
-    void leadOn(id, number, how).catch(() => false)
-      .then(said => { if (!said) otherwise(result); })
+    const undo = undoOf(result);
+    void leadOn(id, number, how, undo).catch(() => false)
+      .then(said => { if (!said) otherwise(result, undo); })
       .finally(() => setLeading(false));
     return result;
   }
@@ -228,9 +252,10 @@ export function InvoicesPage() {
    * разобрал или удалил счёт, — и открылся бы не черновик, а то и «счёта нет». Место разобранного в
    * перечитанном списке помнит удержанная строка.
    *
+   * @param undo «Вернуть» вышедшего счёта (D-13.1): снэкбар один, и он несёт его вместо «Вернуться».
    * @returns сказано ли о случившемся здесь: нет — говорит тот, кто вывел счёт из очереди.
    */
-  async function leadOn(id: string, number: string | null, how: QueueExit): Promise<boolean> {
+  async function leadOn(id: string, number: string | null, how: QueueExit, undo?: () => void): Promise<boolean> {
     // Не отменяя начатого: запись уже инвалидировала список, и это чтение присоединяется к тому,
     // что началось после неё, а не шлёт второе.
     const fresh = await invoices.refetch({ cancelRefetch: false });
@@ -246,28 +271,46 @@ export function InvoicesPage() {
     // След ставится и тогда, когда перехода нет: вышедший отсюда счёт подписан одинаково, а
     // прежний след уступает ему место.
     setParsedTrace(place && { queue: place.queue, item: place.item, index: place.index, how });
-    const listed = read ? queueRows(fresh.data, place).filter(r => matches(r.item, at.query)) : null;
+    // Скрытый черновик, ждущий удаления, следующим не открывается: он вот-вот уйдёт (ревью PR #1808).
+    const listed = read ? queueRows(fresh.data, place).filter(r => matches(r.item, at.query) && !pendingIds().has(r.item.id)) : null;
     const after = afterExit(listed, id, number, at.query, unsaved.current, how);
-    if (!after.open) { toast.info(after.message); return true; }
+    const undoAction = undo && { duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: undo } };
+    if (!after.open) { if (undoAction) toast.success(after.message, undoAction); else toast.info(after.message); return true; }
     setSelected(after.open.id);
     // Фокус на шапку — если человек не печатает в поиске: забирать его посреди ввода нельзя.
     if (!(document.activeElement instanceof HTMLInputElement)) setLed(after.open.id);
     // «Вернуться» уводит со счёта, на который только что перевели, — и о его несохранённом
     // спрашивает так же, как сам переход.
     const back = () => {
-      if (!alive.current) {
-        // Со страницы уже ушли: возвращаемся адресом, через охрану ухода того раздела, где человек сейчас.
-        const go = () => navigate(`${INVOICE_RECORD.screen}?${INVOICE_RECORD.param}=${id}`);
-        if (!guard?.attempt(go)) go();
-        return;
-      }
+      if (!alive.current) { reopen(id); return; }
       if (unsaved.current) { toast.info(backRefused(number, how)); return; }
       setSelected(id);
       setLed(id);
     };
     // Дольше обычного: в сообщении действие, а прочитать надо два номера.
-    toast.success(after.message, { duration: 8000, action: { label: 'Вернуться', onClick: back } });
+    toast.success(after.message, undoAction ?? { duration: 8000, action: { label: 'Вернуться', onClick: back } });
     return true;
+  }
+
+  /** Открыть счёт после «Вернуть»: через охрану ухода; со страницы ушли — адресом, через охрану того раздела. */
+  function reopen(id: string) {
+    if (alive.current) { switchTo(id); return; }
+    const go = () => navigate(`${INVOICE_RECORD.screen}?${INVOICE_RECORD.param}=${id}`);
+    if (!guard?.attempt(go)) go();
+  }
+  const { undoReject, deferDelete } = useInvoiceUndo(id => reopen(id));
+
+  /**
+   * Новый черновик — без окна (D-13.4): скрыт сразу, удаление уходит по закрытию снэкбара. Открытый счёт
+   * закрывается; под отбором «Разобрать» — к следующему, как после отклонения, и снэкбар называет его.
+   */
+  function deleteLater(view: InvoiceView) {
+    const at = now.current;
+    const listed = queueRows(invoices.data ?? [], at.held, at.trace)
+      .filter(r => matches(r.item, at.query) && !pendingIds().has(r.item.id));
+    const after = at.queue === 'parsing' ? afterExit(listed, view.id, null, at.query, false, 'deleted') : null;
+    if (!deferDelete(view, after?.message ?? 'Черновик удалён.')) return;
+    if (after?.open) { setSelected(after.open.id); setLed(after.open.id); } else closeInvoice();
   }
 
   /**
@@ -297,6 +340,8 @@ export function InvoicesPage() {
   async function createFromScan(file: File) {
     try {
       const created = await fromScan.mutateAsync(file);
+      // Заведён из файла этой вкладкой: удалить его, пока не правили, можно без окна (D-13.3).
+      markCreatedHere(created.invoice.id);
       // Поиск снимается: у счёта без номера и поставщика ему не за что зацепиться — открылся бы счёт,
       // которого нет в списке. Отбор снимается тоже — кроме «Разобрать»: новый черновик под ним стоит
       // (issue #1292), и выбрасывать человека из рабочей очереди незачем.
@@ -337,7 +382,7 @@ export function InvoicesPage() {
   const port: BatchPort = {
     owner: me ?? '',
     kinds: kinds.data,
-    send: file => sendScan(qc, file).then(created => created.invoice),
+    send: file => sendScan(qc, file).then(created => { markCreatedHere(created.invoice.id); return created.invoice; }),
     refresh: () => refreshInvoiceLists(qc),
   };
   function addScans(files: File[], folders: string[] = []) {
@@ -402,7 +447,7 @@ export function InvoicesPage() {
     onTerms: () => setTermsOpen(true), onNew: () => void addDraft(),
   });
   const batchBar = (
-    <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
+    <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(shownData, listKnown, batch)}
       // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
       onOnly={() => { setQuery(''); setFilter('upload'); }}
       onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={switchTo} />
@@ -589,8 +634,9 @@ export function InvoicesPage() {
                   : undefined}
                 onShowFile={hasScan && !gone ? () => fileShow.current?.show() : undefined}
                 pageActions={place.list ? undefined : actions}
-                onExit={(how, send, otherwise) => exiting(
-                  opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise)}
+                onExit={(how, send, otherwise, back) => exiting(
+                  opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise, back)}
+                onDeleteLater={deleteLater}
                 focusHeader={led === opened.id}
                 onUnsaved={noteUnsaved}
                 gone={gone} onClose={() => closeGone(opened.id)}

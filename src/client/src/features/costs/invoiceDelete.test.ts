@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { InvoiceView } from '@/shared/api/invoices';
-import { canDelete, confirmLabel, deleteInvoice, goingAway, invoiceTitle } from './invoiceDelete';
+import { QueryClient } from '@tanstack/react-query';
+import { QK, forgetInvoice, type InvoiceView } from '@/shared/api/invoices';
+import {
+  canDelete, confirmLabel, deleteDraftLater, deleteInvoice, deletesNow, goingAway, invoiceTitle, isFresh, markCreatedHere, resetFresh,
+  watchFreshness,
+} from './invoiceDelete';
 
 function view(over: {
   requisites?: Record<string, unknown>; paid?: boolean; lines?: { parts: number }[]; book?: number;
@@ -72,6 +76,28 @@ describe('goingAway', () => {
   });
 });
 
+// Ревью PR #1808: отложенное удаление разбирает отказы так же, как диалог, — своими словами, без окна.
+describe('deleteDraftLater', () => {
+  it('ответа нет — исход неизвестен, а не «не удалён»', async () => {
+    await expect(deleteDraftLater(() => Promise.reject(new Error('Network Error')), () => Promise.reject(new Error('—'))))
+      .rejects.toThrow('Удалён ли черновик — неизвестно');
+  });
+
+  it('409, а черновик по-прежнему удаляемый — свежий счёт прочитан, слова без «окна»', async () => {
+    let read = 0;
+    const error = await deleteDraftLater(() => Promise.reject(refusal(409, 'Счёт изменили.')),
+      () => { read += 1; return Promise.resolve(view()); }).then(() => new Error('удалён'), (e: Error) => e);
+    expect(read).toBe(1);
+    expect(error.message).toContain('Черновик не удалён: его тем временем изменили');
+    expect(error.message).not.toContain('окно');
+  });
+
+  it('404 — «уже удалён»', async () => {
+    expect(await deleteDraftLater(() => Promise.reject(refusal(404, 'Счёт не найден.')), () => Promise.reject(new Error('—'))))
+      .toBe('already');
+  });
+});
+
 describe('deleteInvoice', () => {
   const unread = () => Promise.reject(new Error('читать не должны'));
 
@@ -120,5 +146,63 @@ describe('deleteInvoice', () => {
 
   it('ответа нет — исход неизвестен, а не «не удалён»', async () => {
     await expect(deleteInvoice(() => Promise.reject(new Error('Network Error')), unread)).rejects.toThrow('неизвестно');
+  });
+});
+
+describe('«свежий» черновик (costs-invoice-screen-13-undo, D-13.3, задачи 3.1 и 3.5)', () => {
+  const written = (qc: QueryClient, id: string) =>
+    qc.getMutationCache().build(qc, { mutationFn: async () => ({ id }), meta: { invoiceWrite: true } }).execute(undefined);
+
+  it('заведённый из файла этой вкладкой — свежий; чужой и прошлого сеанса — нет', () => {
+    resetFresh();
+    markCreatedHere('i1');
+    expect(isFresh('i1')).toBe(true);
+    expect(isFresh('i2')).toBe(false);
+  });
+
+  it('своя запись снимает признак — после записи поставщика удаление спросит окном', async () => {
+    resetFresh();
+    const qc = new QueryClient();
+    watchFreshness(qc);
+    watchFreshness(qc);
+    markCreatedHere('i1');
+    markCreatedHere('i2');
+    await written(qc, 'i1');
+    expect(isFresh('i1')).toBe(false);
+    expect(isFresh('i2')).toBe(true);
+  });
+
+  it('сдвиг версии распознаванием (не запись этой вкладки) признак не снимает', () => {
+    resetFresh();
+    const qc = new QueryClient();
+    watchFreshness(qc);
+    markCreatedHere('i1');
+    qc.setQueryData(['costs-invoices', 'i1'], { id: 'i1', version: '9' });
+    expect(isFresh('i1')).toBe(true);
+  });
+
+  it('вход «Это дубль» спрашивает окном и у свежего: дубликат узнают по сохранённым реквизитам', () => {
+    const entry = { now: true, ask: () => {} };
+    expect(deletesNow(entry, 'wrong-file')).toBe(true);
+    expect(deletesNow(entry, 'same-file')).toBe(true);
+    expect(deletesNow(entry, 'menu')).toBe(true);
+    expect(deletesNow(entry, 'duplicate')).toBe(false);
+    expect(deletesNow({ now: false, ask: () => {} }, 'menu')).toBe(false);
+    expect(deletesNow(null, 'menu')).toBe(false);
+  });
+});
+
+// Ревью PR #1808: скрытый на время «Вернуть» черновик открывается обратно, как только запрос удался, — и до ответа
+// перечитывания стоял бы строкой, которая ведёт в «счёта нет».
+describe('forgetInvoice', () => {
+  it('удалённый уходит из списков в кэше сразу, остальные строки на месте', () => {
+    const qc = new QueryClient();
+    qc.setQueryData([QK, 'list', null], [{ id: 'a' }, { id: 'b' }]);
+    qc.setQueryData([QK, 'list', 'parsing'], [{ id: 'a' }]);
+    qc.setQueryData([QK, 'a'], { id: 'a' });
+    forgetInvoice(qc, 'a');
+    expect(qc.getQueryData([QK, 'list', null])).toEqual([{ id: 'b' }]);
+    expect(qc.getQueryData([QK, 'list', 'parsing'])).toEqual([]);
+    expect(qc.getQueryData([QK, 'a'])).toBeUndefined();
   });
 });

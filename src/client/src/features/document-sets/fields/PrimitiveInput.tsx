@@ -67,10 +67,19 @@ export interface PrimitiveInputProps extends ReadOnlyView {
    * своей рамкой, а у поля формы по схеме имя есть всегда. Флажок подписывает себя ею же.
    */
   label: string; hint?: string;
+  /**
+   * Значение положено распознаванием и не проверено ([UI-88]): знак «со скана» в хвосте поля, подсказка и
+   * снятие знака правкой — у самого поля `shared/ui`. Задаёт форма счёта у полей, дописанных в тип
+   * (costs-invoice-screen-13-undo, D-13.6); документы не задают, у реквизитов метки нет.
+   *
+   * <p>Флажку и подсказке по введённому знака не передаём: у их полей его нет, а со скана они и не
+   * приходят — распознавание кладёт в дописанное поле только строку, текст, число и дату.</p>
+   */
+  fromScan?: boolean;
 }
 
 export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly, label, hint,
-  error, trailing, trailingMark, describedBy }: PrimitiveInputProps) {
+  error, trailing, trailingMark, describedBy, fromScan }: PrimitiveInputProps) {
   const strVal = value == null ? '' : String(value);
   /**
    * Звёздочку обязательности у нередактируемого поля не рисуем (issue #958): она — указание тому,
@@ -84,8 +93,9 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   // только у поля, которое правило `Suggestable` подсказывает. Иначе — прежнее поле, адрес не зовётся.
   const source = useSuggestSource(field);
   const [locale] = useLocale();
-  // Знак перед кнопкой тип поля пускает только вместе с самим хвостом.
-  const tail: FieldTrailingProps = trailing != null && trailingMark ? { trailing, trailingMark: true } : { trailing };
+  // Знак перед кнопкой тип поля пускает только вместе с самим хвостом. Знак «со скана» с замком не ставится
+  // ([UI-88]): у запертого поля значение кладёт источник, а не распознавание.
+  const tail: FieldTrailingProps = trailing != null && trailingMark ? { trailing, trailingMark: true } : { trailing, fromScan };
   /** Поле только для чтения с готовым значением — строка, число, перечисление, дата. */
   const shown = (text: string, ownHint = hint) =>
     <TextField label={label} hint={ownHint} invalid={invalid} error={error} aria-describedby={describedBy}
@@ -96,7 +106,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       ? <TextAreaField label={label} hint={hint} invalid={invalid} error={error} aria-describedby={describedBy}
           value={strVal} readOnly onChange={() => {}} className="resize-y" {...tail} />
       : <TextAreaField label={label} required={askRequired} hint={hint} invalid={invalid}
-          value={strVal} onChange={e => onChange(e.target.value)} className="resize-y" />;
+          value={strVal} onChange={e => onChange(e.target.value)} className="resize-y" fromScan={fromScan} />;
   if (field.type === 'boolean')
     return (
       // Read-only флажок НЕ отключаем (issue #958): `disabled` убирает его из обхода клавиатурой и
@@ -129,7 +139,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         label={label} required={askRequired}
         // Про отсутствие вариантов сообщаем подписью ПОД полем, а не вместо поля: иначе исчезала бы
         // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
-        hint={empty ? NO_OPTIONS : hint} invalid={invalid}>
+        hint={empty ? NO_OPTIONS : hint} invalid={invalid} fromScan={fromScan}>
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
     );
@@ -141,19 +151,19 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       const { datePrecision: prec = 'day', minDate: min, maxDate: max } = primitiveTypeDef.constraints;
       if (readOnly) return shown(shownDate(strVal, locale, prec), typeHint);
       return <DateField label={label} required={askRequired} hint={typeHint} invalid={invalid}
-        value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} min={min} max={max} />;
+        value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} min={min} max={max} fromScan={fromScan} />;
     }
     if (readOnly) return shown(strVal, typeHint);
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
     return <TextField label={label} required={askRequired} hint={typeHint}
       type={bt === 'number' ? 'number' : 'text'} step={step} value={strVal}
-      invalid={invalid} onChange={e => onCh(e.target.value)} />;
+      invalid={invalid} onChange={e => onCh(e.target.value)} fromScan={fromScan} />;
   }
   if (field.type === 'date') {
     if (readOnly) return shown(shownDate(strVal, locale));
     return <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
-      value={dateForDisplay(strVal)} onChange={v => onChange(v)} />;
+      value={dateForDisplay(strVal)} onChange={v => onChange(v)} fromScan={fromScan} />;
   }
   if (readOnly) return shown(strVal);
   if (source)
@@ -162,5 +172,5 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   return <TextField label={label} required={askRequired} hint={hint}
     type={field.type === 'number' ? 'number' : 'text'} value={strVal}
-    invalid={invalid} onChange={e => onCh(e.target.value)} />;
+    invalid={invalid} onChange={e => onCh(e.target.value)} fromScan={fromScan} />;
 }

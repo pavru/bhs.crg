@@ -79,10 +79,31 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
     }),
   }), [push]);
 
+  // Пересоздаётся поле — фокус, стоявший в нём, ставится в новое (ревью PR #1808): человек с клавиатуры (F8, Tab,
+  // Enter на «Вернуть») иначе оказался бы на <body>. Узнаём, пока старое поле ещё в документе, — при снятии ref.
+  const keepFocus = useRef(false);
+  const viewportNode = useRef<HTMLOListElement | null>(null);
+  const viewportRef = useCallback((node: HTMLOListElement | null) => {
+    if (!node) {
+      keepFocus.current = !!viewportNode.current?.contains(document.activeElement);
+      viewportNode.current = null;
+      return;
+    }
+    viewportNode.current = node;
+    if (keepFocus.current && (document.activeElement === document.body || !document.activeElement)) node.focus();
+    keepFocus.current = false;
+  }, []);
+
+  // Поле Radix — заново под каждое уведомление. Radix ставит срок на паузу, пока указатель или фокус в поле,
+  // а снимает её уходом, который слушает, только пока в поле есть уведомление. Нажатое действие закрывает
+  // уведомление под указателем: уход приходит, когда слушать уже некому, флаг паузы остаётся — и следующее
+  // уведомление не закрывалось сроком, пока на него не наведут и не уведут (с ним висело и отложенное
+  // удаление черновика, costs-invoice-screen-13-undo). Новое поле паузы не помнит; указатель над ним снова
+  // ставит её первым же движением. Потомки — вне провайдера Radix: его ключ не пересоздаёт приложение.
   return (
     <SnackbarCtx.Provider value={api}>
-      <RT.Provider swipeDirection="right">
-        {children}
+      {children}
+      <RT.Provider key={shown?.id} swipeDirection="right">
         {shown && (
           <SnackbarCard key={shown.id} item={shown} open={!leaving}
             onClose={reason => {
@@ -94,7 +115,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
         {/* Рабочий стол — у ведущего края содержимого, правее рейла: отступ ставит оболочка
             (`--snackbar-inset`). Телефон — по центру над нижней навигацией и плавающей кнопкой
             (`--snackbar-lift`, `phoneLayout.ts`): у края уведомление закрывало бы разделы. */}
-        <RT.Viewport className="fixed z-[100] bottom-4 left-[calc(var(--snackbar-inset,0px)+1rem)] flex flex-col items-start outline-none
+        <RT.Viewport ref={viewportRef} className="fixed z-[100] bottom-4 left-[calc(var(--snackbar-inset,0px)+1rem)] flex flex-col items-start outline-none
           max-w-[min(560px,calc(100vw-var(--snackbar-inset,0px)-2rem))]
           max-md:left-4 max-md:right-4 max-md:max-w-none max-md:items-center max-md:bottom-[calc(1rem+var(--snackbar-lift,0px))]" />
       </RT.Provider>

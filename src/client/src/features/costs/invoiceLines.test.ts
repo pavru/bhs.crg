@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyDraft, fromTable, guessRoles, hasHeader, mismatch, parseTable, preview, toDrafts, toNumber,
-  toPayload, totals, vatCaption,
+  emptyDraft, fromTable, guessRoles, hasHeader, hasSavedAllocation, mismatch, parseTable, preview, restoreLine, toDrafts,
+  toNumber, toPayload, totals, vatCaption,
 } from './invoiceLines';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 
@@ -333,5 +333,42 @@ describe('потеря позиции приходит от сервера', () 
     })], 'Included');
 
     expect(draft.nomenclatureLost).toBe(true);
+  });
+});
+
+describe('«Вернуть» удалённой строки (costs-invoice-screen-13-undo, D-13.2, задачи 2.1 и 2.2)', () => {
+  const six = Array.from({ length: 6 }, (_, i) =>
+    line({ id: `l${i + 1}`, ordinal: i + 1, supplierText: `Позиция ${i + 1}`, quantity: i + 1, price: 10 * (i + 1) }));
+  const drafts = toDrafts(six, 'Included');
+
+  it('удалить строку 3 из 6 и вернуть — порядок и поля прежние', () => {
+    const removed = drafts[2];
+    const without = drafts.filter(d => d.key !== removed.key);
+    const back = restoreLine(without, removed, 2, six);
+    expect(back.map(d => d.supplierText)).toEqual(drafts.map(d => d.supplierText));
+    expect(back[2]).toBe(removed);
+  });
+
+  it('строки записали до «Вернуть» — возвращённая встаёт новой, без `id`, на прежнем месте', () => {
+    const removed = drafts[2];
+    const without = drafts.filter(d => d.key !== removed.key);
+    const saved = six.filter(l => l.id !== removed.id);
+    const back = restoreLine(without, removed, 2, saved);
+    expect(back[2].id).toBeNull();
+    expect(back[2].key).not.toBe(removed.key);
+    expect(back[2].supplierText).toBe('Позиция 3');
+    expect(back[2].quantity).toBe(removed.quantity);
+  });
+
+  it('уже на месте (второе «Вернуть») — ничего не меняется', () => {
+    expect(restoreLine(drafts, drafts[2], 2, six)).toBe(drafts);
+  });
+
+  it('строка с сохранённой разноской снэкбара не даёт; новая и без долей — даёт', () => {
+    const allocated = [line({ id: 'a', allocation: { parts: [{}] } as never }), line({ id: 'b' })];
+    const [a, b] = toDrafts(allocated, 'Included');
+    expect(hasSavedAllocation(a, allocated)).toBe(true);
+    expect(hasSavedAllocation(b, allocated)).toBe(false);
+    expect(hasSavedAllocation(emptyDraft(), allocated)).toBe(false);
   });
 });
