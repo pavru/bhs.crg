@@ -250,6 +250,9 @@ jobs:
 
       # Версия — та же, что в образе API; почему скриптом и почему читается из Dockerfile — в нём.
       - name: Typst CLI
+        # Токен — для запасного пути через API, когда адрес загрузки выпусков отказывает (см. скрипт).
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/ci-install-typst.sh
 
       # Двумя потоками — двумя процессами `dotnet test` на своих базах (issue #1164): интеграционные
@@ -592,6 +595,9 @@ jobs:
       # Проверять надо ТЕМ ЖЕ компилятором, что поедет в продакшн: версию скрипт читает из
       # deploy/Dockerfile.api (почему — в нём самом).
       - name: Typst CLI
+        # Токен — для запасного пути через API, когда адрес загрузки выпусков отказывает (см. скрипт).
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/ci-install-typst.sh
 
       - name: Кеш пакетов NuGet

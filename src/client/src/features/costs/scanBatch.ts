@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { InvoiceSameFile } from '@/shared/api/invoices';
 import { onTokenChanged } from '@/shared/api/token';
 import { kindNamed, recognizedKinds, sizeLimitWords, wordsOf, type FileKindsInfo } from '@/shared/api/fileKinds';
+import { FOLDER_REFUSAL } from '@/shared/ui/fileDrop';
 import { apiError } from '@/shared/utils/apiError';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { sameFileLabel } from './invoiceFields';
@@ -377,7 +378,7 @@ export function startBatch(files: File[], folders: string[], port: BatchPort) {
   const refused = tooMany(count);
   const ordered = refused ? [] : inOrder(files);
   const rejected: RejectedScan[] = refused ? [] : folders.map(name =>
-    ({ name, reason: 'это папка — перетащите файлы из неё', retry: null }));
+    ({ name, reason: FOLDER_REFUSAL, retry: null }));
   put({
     owner: port.owner, phase: refused ? 'done' : 'running', total: refused ? 0 : count,
     settled: rejected.length, created: [], repeats: [], rejected, pending: ordered.map(f => f.name), halted: null, refused,
