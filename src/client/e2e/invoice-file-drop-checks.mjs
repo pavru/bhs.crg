@@ -193,18 +193,23 @@ export async function invoiceFileDropChecks(page, check, h) {
       { name: `Пакет5-${h.stamp}-5.pdf`, buffer: theirs },
     ];
     await dropOn(page, page.getByTestId('rail'), files, h);
-    const tally = page.getByTestId('upload-tally').filter({ hasText: 'Заведено 3 · придержано 1 (тот же файл) · 1 выбран дважды' });
+    // Итог — по месту (D5): над списком, если он виден, иначе — в центре активности.
+    const listed = await page.getByTestId('ld-nav').isVisible();
+    if (!listed) await page.getByTestId('activity').click();
+    const area = listed ? page : page.getByTestId('activity-scan-batch');
+    const tally = area.getByTestId('upload-tally').filter({ hasText: 'Заведено 3 · придержано 1 (тот же файл) · 1 выбран дважды' });
     await h.named('итог пакета не назвал придержанный и выбранный дважды', () => tally.waitFor({ timeout: 30_000 }));
     if (await repeatDialog().count()) throw new Error('пакет открыл окно повтора');
-    const held = await page.getByTestId('upload-held').innerText();
+    const held = await area.getByTestId('upload-held').innerText();
     if (!held.includes(files[4].name) || !held.includes('уже у'))
       throw new Error(`придержанный назван не так: «${held}»`);
-    await h.named('«выбран дважды» не назван', () => page.getByText(`${files[3].name} выбран дважды — заведён один черновик`)
-      .or(page.getByText(`${files[2].name} выбран дважды — заведён один черновик`)).first().waitFor({ timeout: 5_000 }));
+    await h.named('«выбран дважды» не назван', () => area.getByText(`${files[3].name} выбран дважды — заведён один черновик`)
+      .or(area.getByText(`${files[2].name} выбран дважды — заведён один черновик`)).first().waitFor({ timeout: 5_000 }));
     if (openedId(page) !== opened) throw new Error('пакет сменил открытый счёт');
     console.log(`  · двойник другого человека: ${other.id}`);
     // Итог сам не исчезает — закрываем: над формой он отнимает высоту, а проверки раскладки дальше меряют форму.
-    await page.getByRole('status').filter({ has: page.getByTestId('upload-tally') }).getByRole('button', { name: 'Закрыть' }).click();
+    await area.getByRole('status').filter({ has: page.getByTestId('upload-tally') }).getByRole('button', { name: 'Закрыть' }).click();
+    if (!listed) await page.keyboard.press('Escape');
   });
 
   // Проверка не ответила (D3): заводим и говорим «повтор не проверен»; пакет не останавливается.
