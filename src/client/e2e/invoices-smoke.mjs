@@ -463,7 +463,7 @@ try {
     await untilStatus(page, items => items.some(i => i.key === 'same-file'), '«Вернуть» не вернул черновик-повтор', 10_000);
   });
 
-  await invoiceFileDropChecks(page, check, { api, named, stamp, base: BASE });
+  await invoiceFileDropChecks(page, check, { api, requisites, named, stamp, base: BASE });
 
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
   await api('PUT', '/account/settings', { invoiceFile: 'open' });

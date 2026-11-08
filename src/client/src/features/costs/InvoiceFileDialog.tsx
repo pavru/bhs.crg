@@ -53,7 +53,8 @@ export function InvoiceFileDialog({ invoiceId, version, number, current, onClose
 
   const busy = attach.isPending;
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} busy={busy} isDirty={file !== null}
+    // Терять нечего: выбранный, но не отправленный файл выбирается заново одним действием; идущий запрос держит `busy`.
+    <Modal open nothingToLose onOpenChange={open => { if (!open) onClose(); }} busy={busy}
       title={replace ? `Заменить файл ${of}` : `Приложить файл к ${of.replace(/^счёта/, 'счёту')}`}
       footer={<>
         <ModalExit />
