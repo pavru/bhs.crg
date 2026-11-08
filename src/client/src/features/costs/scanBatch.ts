@@ -176,6 +176,12 @@ export function batchTitle(batch: ScanBatch): string {
   return `Заведено ${made} из ${batch.total}. Не принято ${batch.rejected.length}:`;
 }
 
+/** Подпись хода пакета в кнопке активности (D5 у 14): «Счета из файлов · 4 из 7». */
+export function batchDoing(batch: ScanBatch): string {
+  if (batch.phase === 'checking') return 'Счета из файлов: проверяем';
+  return `Счета из файлов · ${batch.settled} из ${batch.total}`;
+}
+
 /**
  * Итог одной строкой (лист «Ф»): «Заведено 7 · придержано 2 (тот же файл) · 1 выбран дважды». `null` — у
  * пакета нет ни придержанных, ни выбранных дважды: заголовка тогда хватает.

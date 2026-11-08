@@ -10,6 +10,9 @@ import { JobRow } from '@/features/jobs/JobRow';
 import { NotificationList } from '@/features/notifications/NotificationList';
 import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { ScanBatchActivity } from '@/features/costs/ScanBatchActivity';
+import { batchDoing, useScanBatch } from '@/features/costs/scanBatch';
 
 /**
  * Кнопка активности в шапке (issue #1431) — одна дверь к тому, что идёт и что уже случилось. Раньше
@@ -25,24 +28,33 @@ import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
  * Подсказки у кнопки нет, как у аватара: имя — в `aria-label`, а подсказка, открытая возвращённым
  * фокусом, забирала бы себе следующий Esc.
  *
+ * Пакет счетов из файлов (costs-invoice-screen-14, D5) — клиентский источник рядом с серверными задачами: пока
+ * он идёт, кнопка — пилюля с его ходом, а итог стоит разделом «Загрузка счетов» и сам не исчезает. Готовый,
+ * но не закрытый итог считается в числе новых: на экране без списка счетов о нём больше негде сказать.
+ *
  * Монтируется один раз, в оболочке: `useActiveJobs` — и поллер задач, и точка инвалидации по их
  * завершении. Частота опроса — его дело (2 с при задачах, 10 с в простое), здесь не меняется.
  */
 export function ActivityCenter() {
   const jobs = useActiveJobs();
   const { data } = useNotifications();
+  const me = useAuth().user?.sub;
+  const batch = useScanBatch(me);
+  const loading = batch !== null && batch.phase !== 'done';
+  const summary = batch !== null && batch.phase === 'done';
   const items = data?.items ?? [];
-  const unread = data?.unreadCount ?? 0;
+  const unread = (data?.unreadCount ?? 0) + (summary ? 1 : 0);
   const hasUnreadError = items.some(n => !n.isRead && n.severity === 'Error');
-  const busy = jobs.length > 0;
+  const tasks = jobs.length + (loading ? 1 : 0);
+  const busy = tasks > 0;
   const jobsHeading = useId();
-  const doing = jobs.length === 1 ? jobs[0].title : `Задач выполняется: ${jobs.length}`;
+  const doing = tasks > 1 ? `Задач выполняется: ${tasks}` : loading ? batchDoing(batch) : jobs[0]?.title ?? '';
 
   const news = unread > 0
-    ? `новых уведомлений: ${unread}${hasUnreadError ? ', среди них ошибка' : ''}`
+    ? `новых уведомлений: ${unread}${hasUnreadError ? ', среди них ошибка' : ''}${summary ? ', итог загрузки счетов' : ''}`
     : 'новых уведомлений нет';
   const label = busy
-    ? `${jobs.length === 1 ? `Выполняется: ${doing}` : doing}; ${news}`
+    ? `${tasks === 1 ? `Выполняется: ${doing}` : doing}; ${news}`
     : `Уведомления — ${news}`;
 
   // «Назад» на телефоне закрывает панель, а не страницу (issue #1418).
@@ -80,7 +92,8 @@ export function ActivityCenter() {
             раздел «Выполняется» стоят на месте, как у прежнего колокольчика (ревью PR #1450). */}
         <Popover.Content align="end" sideOffset={8} collisionPadding={8} aria-label="Активность"
           className={`z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-lg focus:outline-none ${LAYER_SURFACE}`}>
-          {busy && (
+          {batch && me && <ScanBatchActivity batch={batch} owner={me} />}
+          {jobs.length > 0 && (
             <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-outline-variant pt-1">
               <h2 id={jobsHeading} className="px-5 pt-2 text-body-large font-medium text-on-surface">Выполняется</h2>
               {/* Ход задач озвучивается, пока поповер открыт (так было у прежнего поповера задач).

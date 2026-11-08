@@ -14,13 +14,15 @@ function busyWords(batch: ScanBatch | null, checking: boolean): string {
  * Покрытие всего окна (D1): поверх оболочки, `pointer-events: none` — бросок ловит захват окна, а не оно.
  * Говорит, что будет с брошенным: один файл — свой черновик, несколько — пакет в фоне.
  */
-export function DropCover({ over, opened, batch, checking }: {
+export function DropCover({ over, opened, batch, checking, listShown }: {
   over: WindowDropOver; opened: { number: string | null } | null; batch: ScanBatch | null; checking: boolean;
+  /** Виден ли список: где его нет, ход пакета — в центре активности (D5). */
+  listShown: boolean;
 }) {
   const busy = busyWords(batch, checking);
   const name = opened ? (opened.number ? `счёт ${opened.number}` : 'открытый счёт') : null;
   const lines = over.state === 'busy' ? [] : over.count > 1
-    ? [name ? `Экран останется на месте: пакет идёт в фоне, ${name} не изменится.` : 'Экран останется на месте: пакет идёт в фоне.',
+    ? [`Экран останется на месте: пакет идёт в фоне, ход — в ${listShown ? 'полосе над списком' : 'центре активности'}.`,
       'Файлы, уже приложенные к счетам, не заведём — придержим в итоге пакета.']
     : [...(name ? [`Откроем новый черновик; ${name} не изменится.`] : []),
       'Если файл уже приложен к другому счёту — сначала спросим.'];

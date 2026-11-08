@@ -13,7 +13,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * <p>Тостов у пакета нет: непринятые файлы с причинами обязаны дожить до того, как человек на них
  * посмотрит, а тост уходит через восемь секунд. Закрывает полосу крестик или следующий пакет.</p>
  */
-export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowAll, onRetry, onOpen, onAccept }: {
+export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowAll, onRetry, onOpen, onAccept, bare = false }: {
   /** Пакет вошедшего; чужой сюда не приходит. */
   batch: ScanBatch | null;
   /** Список сужен до заведённых этой загрузкой (issue #1294). */
@@ -22,20 +22,23 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   found: number | null;
   /** Счета, которые есть в списке; `null` — не знаем, и повторы показаны как запомнены. */
   alive: ReadonlySet<string> | null;
-  onOnly: () => void;
-  onShowAll: () => void;
+  /** Отбор списка «только эта загрузка» — у полосы над списком; в центре активности списка нет, и строки нет. */
+  onOnly?: () => void;
+  onShowAll?: () => void;
   onRetry: () => void;
   /** Открыть счёт — новый черновик или прежний, к которому тот же файл уже приложен. */
   onOpen: (id: string) => void;
   /** «Завести всё равно» у придержанного — по его отпечатку. */
   onAccept: (print: string) => void;
+  /** Без своей рамки и заливки — внутри слоя центра активности. */
+  bare?: boolean;
 }) {
   if (!batch) return null;
   const repeated = shownRepeats(batch, alive);
   const repeats = repeatsTitle(batch, repeated);
   // Отбор живёт здесь, а не чипом в ряду отборов: чипы — постоянные очереди сервера, загрузка —
   // состояние этой вкладки. Чип, который появляется и пропадает, обещал бы постоянство, которого нет.
-  const line = uploadLine(batch, found, only);
+  const line = onOnly && onShowAll ? uploadLine(batch, found, only) : null;
 
   const done = batch.phase === 'done';
   const tally = batchTally(batch);
@@ -43,7 +46,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   const bad = batch.refused !== null || batch.halted !== null;
 
   return (
-    <div className="px-3 py-2 border-y border-outline-variant bg-surface text-body-small space-y-1.5" role="status">
+    <div className={`${bare ? 'px-5 py-2' : 'px-3 py-2 border-y border-outline-variant bg-surface'} text-body-small space-y-1.5`} role="status">
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
         {batch.phase === 'running' && <Button onClick={stopBatch}>Остановить</Button>}

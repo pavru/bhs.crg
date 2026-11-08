@@ -24,6 +24,8 @@ vi.mock('@/shared/api/jobs', () => ({
   useActiveJobs: () => jobs,
   useCancelJob: () => ({ mutate: cancel, isPending: false }),
 }));
+// Пакета счетов у этих проверок нет — его раздел проверяет `ActivityCenter.scanBatch.test.tsx`.
+vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: { sub: 'я' } }) }));
 vi.mock('@/shared/api/notifications', () => ({
   useNotifications: () => ({ data: { items, unreadCount: items.filter(n => !n.isRead).length } }),
   useHealth: () => ({ data: health }),

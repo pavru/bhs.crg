@@ -12,6 +12,7 @@ import { useInvoiceFileIntake } from './useInvoiceFileIntake';
 
 vi.mock('@/shared/api/invoiceSameFile', () => ({ sameFileByFingerprints: vi.fn() }));
 vi.mock('@/shared/api/invoiceRecognition', () => ({ sendScan: vi.fn(), refreshInvoiceLists: vi.fn() }));
+vi.mock('@/shared/api/fileKinds', async real => ({ ...(await real<object>()), useFileKinds: () => ({ data: undefined }) }));
 // Отпечаток — по имени: «тот же файл» задаётся ответом вопроса, а не содержимым.
 vi.mock('@/shared/utils/fileFingerprint', () => ({ fingerprintOf: async (f: File) => f.name.padEnd(64, '0') }));
 
@@ -37,7 +38,7 @@ function Harness() {
   useDropMissGuard();
   const batch = useScanBatch('я');
   const intake = useInvoiceFileIntake({
-    enabled: true, owner: 'я', kinds: undefined, batch, opened: { number: '104' }, sending: false,
+    enabled: true, owner: 'я', batch, opened: { number: '104' }, listShown: true, sending: false,
     onSingle, onOpen, onBatchStart: () => {},
   });
   useEffect(() => { add = intake.addScans; });

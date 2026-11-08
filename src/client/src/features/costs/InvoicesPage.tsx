@@ -375,23 +375,6 @@ export function InvoicesPage() {
   // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
   const kinds = useFileKinds();
   const readable = recognizedKinds(kinds.data);
-  // Бросок на всё окно, кнопка и палитра — одним путём (costs-invoice-screen-14, D1, D3): проверки до выгрузки,
-  // окно повтора для одного файла, пакет — для нескольких.
-  const intake = useInvoiceFileIntake({
-    enabled: hasPermission(access, 'costs.invoice.edit'), owner: me ?? '', kinds: kinds.data, batch,
-    opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null } : null,
-    sending: fromScan.isPending,
-    onSingle: async (file, acceptRepeat) => addFromScan(file, acceptRepeat),
-    onOpen: switchTo,
-    // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
-    onBatchStart: () => { if (filter === 'upload') setFilter(null); },
-  });
-  const { addScans, loading } = intake;
-  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места —
-  // и закрыты тогда же, когда закрыты кнопки.
-  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft(), { busy: create.isPending });
-  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click(), { busy: loading });
-
   // Тот же счёт, что в форме: панель скана и форма обязаны говорить об одном (ревью PR #1300).
   const shown = opened.kind === 'open' ? opened.data : null;
   const scan = shown ? shown.requisites[K.scan] : null;
@@ -414,6 +397,23 @@ export function InvoicesPage() {
   const room = placeOf(workWidth, true).file === 'beside';
   const place = placeOf(workWidth, wanted && room);
   const listShown = opened.kind !== 'open' || place.list;
+  // Бросок на всё окно, кнопка и палитра — одним путём (costs-invoice-screen-14, D1, D3): проверки до выгрузки,
+  // окно повтора для одного файла, пакет — для нескольких.
+  const intake = useInvoiceFileIntake({
+    enabled: hasPermission(access, 'costs.invoice.edit'), owner: me ?? '', batch,
+    opened: opened.kind === 'open' ? { number: asInput(opened.data.requisites[K.number]) || null } : null,
+    listShown, sending: fromScan.isPending,
+    onSingle: async (file, acceptRepeat) => addFromScan(file, acceptRepeat),
+    onOpen: switchTo,
+    // Новая загрузка — отбор прежней снимается: под ним новые черновики не появились бы.
+    onBatchStart: () => { if (filter === 'upload') setFilter(null); },
+  });
+  const { addScans, loading } = intake;
+  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места —
+  // и закрыты тогда же, когда закрыты кнопки.
+  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft(), { busy: create.isPending });
+  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click(), { busy: loading });
+
   const toggleFile = () => {
     if (!selected) return;
     const open = place.file !== 'beside';
@@ -608,9 +608,8 @@ export function InvoicesPage() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col" inert={leading}>
-            {/* Списка нет (файл рядом или места мало) — полоса загрузки встаёт над формой: непринятый файл с
-                причиной обязан дожить до взгляда (issue #1093), а говорить об итоге больше негде. */}
-            {!listShown && batchBar}
+            {/* Списка нет (файл рядом или места мало) — ход и итог пакета в центре активности (D5 у 14), а не
+                полосой над формой: пакет экран не двигает и высоту у формы не отнимает. */}
             <div className="flex-1 min-w-0 min-h-0 flex">
               <InvoiceForm
                 key={opened.id}
