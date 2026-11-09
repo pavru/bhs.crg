@@ -80,10 +80,11 @@ public sealed class EstimateImport
 
     public string? LsrName { get; private set; }
 
-    /// <summary>Модель разбора ЛСР (<c>ParsedLocalEstimate</c> без не разобранного) — JSON; у ВОР и КА — пусто.</summary>
+    /// <summary>Модель разбора без не разобранного — JSON: у ЛСР <c>ParsedLocalEstimate</c>, у ВОР и КА — их модель
+    /// (<c>plan-11</c>); вид модели называет <see cref="Kind" />.</summary>
     public string? Parsed { get; private set; }
 
-    /// <summary>Не разобранные позиции с причиной — JSON-массив; у ВОР и КА — пусто. После создания редакции
+    /// <summary>Не разобранные позиции с причиной — JSON-массив. После создания редакции
     /// остаётся: отчёт импорта у редакции перечисляет, чего в ней нет.</summary>
     public string? Unparsed { get; private set; }
 
@@ -185,12 +186,33 @@ public sealed class EstimateImport
         Finish(EstimateImportState.Parsed, now);
     }
 
-    /// <summary>Разобран документ, который редакцией не становится (ВОР, КА): только вид.</summary>
-    public void ParsedOther(DateTimeOffset now)
+    /// <summary>
+    /// Разобран документ, который редакцией не становится, а прикладывается к смете (ВОР, КА — <c>plan-11</c>):
+    /// модель и не разобранное — до решения человека «приложить», как у ЛСР.
+    /// </summary>
+    public void ParsedAttachment(string parsed, string unparsed, int positions, int inFile, DateTimeOffset now)
     {
         EnsureParsing();
+        Parsed = parsed;
+        Unparsed = unparsed;
+        ParsedPositions = positions;
+        PositionsInFile = inFile;
         Finish(EstimateImportState.Parsed, now);
     }
+
+    /// <summary>Отказ приложить к смете то, что из этого импорта не приложить; <c>null</c> — можно.</summary>
+    public string? NotAttachable() => State switch
+    {
+        EstimateImportState.Parsing => "Файл ещё разбирается — приложение заводится по отчёту разбора. Дождитесь его.",
+        EstimateImportState.Rejected => $"Файл не разобран, и приложить его нельзя: {RefusalText}",
+        EstimateImportState.Committed => "Из этого импорта создана редакция сметы — приложением он не станет.",
+        _ when Kind is GrandSmetaKind.LocalEstimate =>
+            "Это локальный сметный расчёт — он не прикладывается к смете, а становится её редакцией: «Создать редакцию».",
+        _ when EstimateId is null =>
+            "Импорт заводит новую смету — приложить файл не к чему. Уберите импорт и загрузите файл в карточке сметы.",
+        _ when Parsed is null => "У импорта нет модели разбора — загрузите файл ещё раз.",
+        _ => null,
+    };
 
     public void Reject(string code, string text, DateTimeOffset now)
     {

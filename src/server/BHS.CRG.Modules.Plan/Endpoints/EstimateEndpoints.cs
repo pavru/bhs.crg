@@ -108,7 +108,7 @@ public static class EstimateEndpoints
 
     /// <summary>
     /// Удаляется только смета без редакций: у неё нет ничего, из чего сделаны КП и график. Несостоявшиеся
-    /// импорты в неё уходят вместе с ней (<c>plan-07</c>) — и их файлы тоже.
+    /// импорты в неё и приложения к ней уходят вместе с ней (<c>plan-07</c>, <c>plan-11</c>) — и их файлы тоже.
     /// </summary>
     private static async Task<IResult> DeleteAsync(
         Guid id, HttpRequest request, PlanDbContext db, IModuleActivityLog log,
@@ -123,10 +123,16 @@ public static class EstimateEndpoints
         // Импорт, заведённый между этим чтением и сохранением, уйдёт каскадом без своего файла: файл без ссылки
         // найдёт уборка осиротевших (OrphanBlobCleanup) — как и после любого сбоя между записью и хранилищем.
         var imports = await db.EstimateImports.AsNoTracking().Where(i => i.EstimateId == id).ToListAsync(ct);
+        // Приложения (plan-11) уходят каскадом так же — и их файлы тоже.
+        var attached = await db.ConjunctureAnalyses.AsNoTracking().Where(a => a.EstimateId == id).Select(a => a.BlobPath)
+            .Concat(db.VolumeStatements.AsNoTracking().Where(v => v.EstimateId == id).Select(v => v.BlobPath)).ToListAsync(ct);
         db.Estimates.Remove(estimate);
         await db.SaveChangesAsync(ct);
+        var logger = logs.CreateLogger(typeof(EstimateEndpoints));
         foreach (var import in imports)
-            await EstimateImportEndpoints.DeleteFileAsync(blobs, import, logs.CreateLogger(typeof(EstimateEndpoints)));
+            await EstimateImportEndpoints.DeleteFileAsync(blobs, import, logger);
+        foreach (var path in attached)
+            await EstimateImportEndpoints.DeleteFileAsync(blobs, path, $"Приложение сметы {id}", logger);
         await log.RecordAsync(EstimateActions.Deleted, id.ToString(), EstimateActions.Label(estimate), ct: ct);
         return Results.NoContent();
     }

@@ -138,6 +138,239 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("distribution_carry_over", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureAnalysis", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("blob_path");
+
+                    b.Property<DateOnly?>("CreationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("creation_date");
+
+                    b.Property<DateOnly?>("CurrentPriceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("current_price_date");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("ImportKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_key");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<Guid?>("ImportedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_by");
+
+                    b.Property<string>("ImportedByName")
+                        .HasColumnType("text")
+                        .HasColumnName("imported_by_name");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("number");
+
+                    b.Property<int>("ParsedPositions")
+                        .HasColumnType("integer")
+                        .HasColumnName("parsed_positions");
+
+                    b.Property<int>("PositionsInFile")
+                        .HasColumnType("integer")
+                        .HasColumnName("positions_in_file");
+
+                    b.Property<string>("ProgramVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("program_version");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SchemaVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("schema_version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId")
+                        .HasDatabaseName("ix_conjuncture_analyses_estimate_id");
+
+                    b.HasIndex("ImportKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_conjuncture_analyses_import_key");
+
+                    b.ToTable("conjuncture_analyses", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnalysisId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("caption");
+
+                    b.Property<string>("ChapterCaption")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("chapter_caption");
+
+                    b.Property<int>("ChapterIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("chapter_index");
+
+                    b.Property<bool>("IsInactive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_inactive");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("number");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<int?>("SelectedOffer")
+                        .HasColumnType("integer")
+                        .HasColumnName("selected_offer");
+
+                    b.Property<decimal?>("SelectedPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("selected_price");
+
+                    b.Property<string>("Selection")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("selection");
+
+                    b.Property<string>("Units")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("units");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnalysisId", "Order")
+                        .IsUnique()
+                        .HasDatabaseName("ux_conjuncture_items_analysis_order");
+
+                    b.ToTable("conjuncture_items", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("caption");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("number");
+
+                    b.Property<DateOnly?>("OfferDate")
+                        .HasColumnType("date")
+                        .HasColumnName("offer_date");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("price");
+
+                    b.Property<decimal?>("PriceWithVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("price_with_vat");
+
+                    b.Property<string>("ResourceCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("resource_code");
+
+                    b.Property<string>("SupplierInn")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("supplier_inn");
+
+                    b.Property<string>("SupplierName")
+                        .HasColumnType("text")
+                        .HasColumnName("supplier_name");
+
+                    b.Property<string>("Units")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("units");
+
+                    b.Property<decimal?>("Vat")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)")
+                        .HasColumnName("vat");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId", "Order")
+                        .IsUnique()
+                        .HasDatabaseName("ux_conjuncture_offers_item_order");
+
+                    b.ToTable("conjuncture_offers", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionPart", b =>
                 {
                     b.Property<Guid>("Id")
@@ -941,6 +1174,169 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("revision_distributions", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.VolumeStatement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("blob_path");
+
+                    b.Property<DateOnly?>("CreationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("creation_date");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("ImportKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_key");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<Guid?>("ImportedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_by");
+
+                    b.Property<string>("ImportedByName")
+                        .HasColumnType("text")
+                        .HasColumnName("imported_by_name");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("number");
+
+                    b.Property<int>("ParsedPositions")
+                        .HasColumnType("integer")
+                        .HasColumnName("parsed_positions");
+
+                    b.Property<int>("PositionsInFile")
+                        .HasColumnType("integer")
+                        .HasColumnName("positions_in_file");
+
+                    b.Property<string>("ProgramVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("program_version");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SchemaVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("schema_version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId")
+                        .HasDatabaseName("ix_volume_statements_estimate_id");
+
+                    b.HasIndex("ImportKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_volume_statements_import_key");
+
+                    b.ToTable("volume_statements", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.VolumeStatementLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("caption");
+
+                    b.Property<string>("ChapterCaption")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("chapter_caption");
+
+                    b.Property<int>("ChapterIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("chapter_index");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Drawings")
+                        .HasColumnType("text")
+                        .HasColumnName("drawings");
+
+                    b.Property<string>("Formula")
+                        .HasColumnType("text")
+                        .HasColumnName("formula");
+
+                    b.Property<bool>("IsSubordinate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_subordinate");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("number");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("StatementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("statement_id");
+
+                    b.Property<string>("Units")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("units");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StatementId", "Order")
+                        .IsUnique()
+                        .HasDatabaseName("ux_volume_statement_lines_statement_order");
+
+                    b.ToTable("volume_statement_lines", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.CarryOverItem", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
@@ -953,6 +1349,33 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .WithMany()
                         .HasForeignKey("RowId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureAnalysis", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.Estimate", null)
+                        .WithMany()
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureItem", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.ConjunctureAnalysis", null)
+                        .WithMany("Items")
+                        .HasForeignKey("AnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureOffer", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.ConjunctureItem", null)
+                        .WithMany("Offers")
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionPart", b =>
@@ -1056,6 +1479,39 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasForeignKey("RevisionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.VolumeStatement", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.Estimate", null)
+                        .WithMany()
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.VolumeStatementLine", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.VolumeStatement", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("StatementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureAnalysis", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureItem", b =>
+                {
+                    b.Navigation("Offers");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.VolumeStatement", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

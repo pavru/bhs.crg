@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-function mount(props: { importId?: string; estimateId?: string } = {}) {
+function mount(props: { importId?: string; estimateId?: string; attach?: boolean } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onCreated = vi.fn();
   render(
@@ -202,15 +202,56 @@ describe('отчёт разбора', () => {
       { headers: { 'If-Match': '5' } }));
   });
 
-  it('ВОР не предлагает «создать редакцию» (решение В-7)', async () => {
+  it('ВОР в новую смету: «создать редакцию» нет (В-7), приложить не к чему — только убрать импорт', async () => {
     shown = report({
       kind: 'vor', kindName: 'Ведомость объёмов работ', parsed: null, inFile: null, summary: null,
-      marks: [{ code: 'notEstimate', text: 'Это ведомость объёмов работ — редакцией сметы она не становится: уберите импорт.' }],
+      target: { estimateId: null, estimateName: null, newEstimate: { name: 'ЭОМ', sectionId: null, kind: 'main' } },
+      marks: [{ code: 'notEstimate', text: 'Это ведомость объёмов работ — редакцией сметы она не становится: сначала загрузите смету.' }],
     });
     mount({ importId: 'i1' });
-    expect(await screen.findByText(/редакцией сметы она не становится/)).toBeTruthy();
+    expect(await screen.findByText(/сначала загрузите смету/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Создать редакцию/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Приложить/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Убрать импорт' })).toBeTruthy();
+  });
+
+  it('КА в смету — «Приложить к смете «X»» одним действием (plan-11)', async () => {
+    shown = report({ kind: 'ka', kindName: 'Конъюнктурный анализ', parsed: 52, inFile: 52, summary: null,
+      marks: [{ code: 'notEstimate', text: 'Это конъюнктурный анализ — приложите его к смете.' }] });
+    const onAttached = vi.fn();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ImportDialog open onClose={vi.fn()} constructionId="c1" importId="i1" onCreated={vi.fn()} onAttached={onAttached} />
+      </QueryClientProvider>,
+    );
+    const attachment = { id: 'a1', kind: 'ka', estimateId: 'e1', fileName: 'КА.gsfx', number: 'КА-01', name: 'Материалы' };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { attachment, repeated: false } } as never);
+    fireEvent.click(await screen.findByRole('button', { name: 'Приложить к смете «ЭОМ корпус 2»' }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/plan/estimates/e1/conjuncture/i1/accept', { acceptPartial: false }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('«КА-01 · Материалы» приложен к смете «ЭОМ корпус 2»'));
+    expect(onAttached).toHaveBeenCalledWith(attachment);
+  });
+
+  it('КА разобран не весь — кнопка называет последствие, приложить только согласием', async () => {
+    shown = report({ kind: 'ka', kindName: 'Конъюнктурный анализ', parsed: 84, inFile: 86, summary: null, unparsed: unparsed(2) });
+    mount({ importId: 'i1' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Приложить без 2 позиций…' }));
+    expect(await screen.findByText(/приложатся 84 из 86 позиций/)).toBeTruthy();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { attachment: { id: 'a1', kind: 'ka', fileName: 'КА.gsfx', number: null, name: null }, repeated: false } } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Приложить' }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/plan/estimates/e1/conjuncture/i1/accept', { acceptPartial: true }));
+  });
+
+  it('«Приложить файл» из карточки: загрузка адресом приложения; ЛСР — «Создать редакцию» в том же окне', async () => {
+    mount({ estimateId: 'e1', attach: true });
+    expect(await screen.findByText(/КА и ВОР приложатся к ней, ЛСР станет её новой редакцией/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Файл КА или ВОР'), { target: { files: [new File(['<xml/>'], 'ЛСР.gsfx')] } });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: report() } as never);
+    fireEvent.click(uploadButton());
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/plan/estimates/e1/conjuncture', expect.any(FormData)));
+    expect(await screen.findByRole('button', { name: 'Создать редакцию' })).toBeTruthy();
   });
 
   it('отказ разбора — полосой с причиной сервера; отказаться — с версией импорта', async () => {

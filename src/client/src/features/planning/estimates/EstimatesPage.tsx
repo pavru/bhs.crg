@@ -15,6 +15,7 @@ import { formatCount, formatDate } from '@/shared/format/format';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
 import { KIND_LABEL, latestRevision } from './estimateRows';
+import { attachmentSearch } from './attachmentRows';
 import { EstimateCard } from './EstimateCard';
 import { ImportDialog } from './ImportDialog';
 import { openingOf } from './importReport';
@@ -74,7 +75,8 @@ function AllEstimates() {
           <Button variant="filled" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting(true)}>Загрузить смету</Button>
         )} />
       <ImportDialog open={importing} onClose={() => setImporting(false)}
-        onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })} />
+        onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })}
+        onAttached={a => navigate(`/estimates/${a.estimateId}${attachmentSearch(a)}`)} />
       {pages.isError ? (
         <p role="alert" className="text-body-medium text-error">{apiError(pages.error, 'Сметы не прочитались')}</p>
       ) : !pages.data || filter.status === 'loading' ? (

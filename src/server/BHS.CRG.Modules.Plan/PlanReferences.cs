@@ -113,5 +113,15 @@ public static class PlanReferences
         // автора счёта (ревью PR #1188).
         ModuleReference.Remembering("estimate_revisions", "imported_by", ReferenceTarget.User,
             "кто импортировал редакцию сметы — справочное поле; удаление учётной записи редакций не касается"),
+
+        // Приложения сметы (plan-11): кто приложил — справка, как у редакции; ключ импорта — запись модуля, а не ядра.
+        ModuleReference.Remembering("conjuncture_analyses", "imported_by", ReferenceTarget.User,
+            "кто приложил конъюнктурный анализ к смете — справочное поле; удаление учётной записи приложений не касается"),
+        ModuleReference.Remembering("conjuncture_analyses", "import_key", target: null,
+            "импорт, из которого заведён анализ, — по нему повторное принятие находит приложение; импорт после принятия уходит"),
+        ModuleReference.Remembering("volume_statements", "imported_by", ReferenceTarget.User,
+            "кто приложил ведомость объёмов работ к смете — справочное поле; удаление учётной записи приложений не касается"),
+        ModuleReference.Remembering("volume_statements", "import_key", target: null,
+            "импорт, из которого заведена ведомость, — по нему повторное принятие находит приложение; импорт после принятия уходит"),
     ];
 }

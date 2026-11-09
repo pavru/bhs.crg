@@ -16,7 +16,10 @@ import { KIND_LABEL, type RowQueue } from './estimateRows';
  * Что делать с импортом:
  * - `parsing` — разбор идёт, решать нечего;
  * - `refused` — файл не разобран или разбор прерван: только убрать;
- * - `attachment` — это не ЛСР (ВОР, КА): редакцией не станет, «создать редакцию» нет (решение В-7);
+ * - `attachment` — это не ЛСР (ВОР, КА): редакцией не станет, «создать редакцию» нет (решение В-7). `estimateId` —
+ *   смета, к которой он прикладывается (`plan-11`); `null` — импорт заводит новую смету или его смету удалили:
+ *   приложить не к чему, «сначала загрузите смету» (ответ на вопрос 2 листа 0 П11). `unparsed > 0` — приложить
+ *   можно только явным согласием, как частичную редакцию;
  * - `empty` — разобрано, но строк у будущей редакции нет (все позиции неактивны);
  * - `ready` — можно создать редакцию; `unparsed > 0` — только явным согласием (ТЗ PLAN-7);
  * - `committed` — редакция уже создана.
@@ -24,7 +27,7 @@ import { KIND_LABEL, type RowQueue } from './estimateRows';
 export type ImportVerdict =
   | { kind: 'parsing' }
   | { kind: 'refused'; text: string }
-  | { kind: 'attachment' }
+  | { kind: 'attachment'; estimateId: string | null; unparsed: number }
   | { kind: 'empty' }
   | { kind: 'ready'; unparsed: number }
   | { kind: 'committed' };
@@ -37,7 +40,8 @@ export function importVerdict(report: EstimateImport): ImportVerdict {
     case 'committed': return { kind: 'committed' };
     case 'rejected': return { kind: 'refused', text: report.refusal?.text ?? 'Файл не разобран.' };
   }
-  if (hasMark(report, 'notEstimate') || (report.kind !== null && report.kind !== 'lsr')) return { kind: 'attachment' };
+  if (hasMark(report, 'notEstimate') || (report.kind !== null && report.kind !== 'lsr'))
+    return { kind: 'attachment', estimateId: report.target.newEstimate ? null : report.target.estimateId, unparsed: report.unparsed.length };
   if (!report.summary || report.summary.rows === 0) return { kind: 'empty' };
   return { kind: 'ready', unparsed: report.unparsed.length };
 }
@@ -69,6 +73,16 @@ export const withoutRows = (unparsed: number) => `без ${countOf(unparsed, 'с
 
 /** Что сказать на кнопке частичной редакции: она называет последствие (макет П1, вариант 2). */
 export const partialCommitLabel = (unparsed: number) => `Создать редакцию ${withoutRows(unparsed)}…`;
+
+/** Сколько позиций не войдёт в приложение: «без 2 позиций». */
+export const withoutPositions = (unparsed: number) => `без ${countOf(unparsed, 'позиции', 'позиций', 'позиций')}`;
+
+/**
+ * Главная кнопка приложения в отчёте (общий лист макета П11): смета названа в кнопке; не разобранное — кнопка
+ * называет последствие и ведёт на шаг согласия.
+ */
+export const attachLabel = (estimateName: string, unparsed: number) =>
+  unparsed > 0 ? `Приложить ${withoutPositions(unparsed)}…` : `Приложить к смете «${estimateName}»`;
 
 /** Редакция создана — куда вести: в смету, на созданную редакцию; есть несопоставленное — с отбором по нему. */
 export interface ImportCreated {

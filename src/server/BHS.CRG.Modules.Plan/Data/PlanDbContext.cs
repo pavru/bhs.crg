@@ -100,6 +100,21 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Отчёт переноса распределения у новой редакции (<c>plan-10</c>).</summary>
     public DbSet<CarryOverItem> CarryOverItems => Set<CarryOverItem>();
 
+    /// <summary>Конъюнктурные анализы — приложения к смете (<c>plan-11</c>).</summary>
+    public DbSet<ConjunctureAnalysis> ConjunctureAnalyses => Set<ConjunctureAnalysis>();
+
+    public DbSet<ConjunctureItem> ConjunctureItems => Set<ConjunctureItem>();
+
+    public DbSet<ConjunctureOffer> ConjunctureOffers => Set<ConjunctureOffer>();
+
+    /// <summary>Ведомости объёмов работ — приложения к смете (<c>plan-11</c>, решение В-7 (а)).</summary>
+    public DbSet<VolumeStatement> VolumeStatements => Set<VolumeStatement>();
+
+    public DbSet<VolumeStatementLine> VolumeStatementLines => Set<VolumeStatementLine>();
+
+    /// <summary>Версия приложения к смете — её называет удаление.</summary>
+    public string VersionOf(EstimateAttachment attachment) => Version(attachment);
+
     /// <summary>Версия распределения редакции; заголовка ещё нет — <see cref="RevisionDistribution.FirstVersion" />.</summary>
     public string VersionOf(RevisionDistribution? head) => head is null ? RevisionDistribution.FirstVersion : Version(head);
 
@@ -170,6 +185,13 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new DistributionRaceException(e);
         if (e.InnerException is PostgresException { ConstraintName: { } key } && DistributionModel.RaceKeys.Contains(key))
             return new DistributionRaceException(e);
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is EstimateAttachment))
+            return new ConflictException(
+                "Приложение к смете тем временем удалили в другой вкладке. Перечитайте приложения сметы.", e);
+        if (e.InnerException is PostgresException { ConstraintName: AttachmentModel.ConjunctureImportKey or AttachmentModel.VolumeImportKey })
+            return new ConflictException(
+                "Из этого импорта приложение уже заведено — в другой вкладке или повторным нажатием. Перечитайте " +
+                "приложения сметы.", e);
         if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch or ResourceMatch))
             return new ConflictException(
                 "Запомненное сопоставление тем временем изменили или забыли, и это действие не выполнено. Перечитайте " +
@@ -208,5 +230,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         base.OnModelCreating(builder);
         EstimateModel.Configure(builder);
         DistributionModel.Configure(builder);
+        AttachmentModel.Configure(builder);
     }
 }
