@@ -70,7 +70,7 @@ export function MyPermissionsSection() {
                       <div className="text-label-small text-on-surface-variant">входит в право «читать всё»</div>
                     )}
                     {/* Право контракта (plan-21): отвечает на «право есть, а раздела нет». */}
-                    {contractPermissionNote(p, group.title) && (
+                    {p.contract && (
                       <div className="text-label-small text-on-surface-variant">{contractPermissionNote(p, group.title)}</div>
                     )}
                   </li>

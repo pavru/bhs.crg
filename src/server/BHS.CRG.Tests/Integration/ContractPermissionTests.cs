@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Api.Activity;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
@@ -105,6 +107,42 @@ public class ContractPermissionTests(ContractPermissionHost host)
         Assert.False(ContractOf(Ordinary));
     }
 
+    /// <summary>
+    /// Журнал действий модуля (AUTH-8.1): записи <c>costs</c> носителю одного права контракта не видны,
+    /// с обычным правом — видны. Действие — без своего права чтения: его видит всякий, кому открыт модуль,
+    /// и закрыть его может только правило «модуль открыт». Действие со своим правом чтения сторожем не
+    /// годится — его закрыло бы и отсутствие того права (проверено: с ним тест зеленел на префиксе).
+    /// </summary>
+    [Fact]
+    public void Журнал_модуля_не_открывает_право_контракта()
+    {
+        var catalog = host.Services.GetRequiredService<ActivityActionCatalog>();
+        const string action = "costs.article.created";
+        Assert.True(catalog.Declares(action));
+
+        Assert.False(catalog.VisibleTo([Contract]).Shows(action));
+        Assert.True(catalog.VisibleTo([Contract, Ordinary]).Shows(action));
+    }
+
+    /// <summary>
+    /// Параметр доступа наборов (AUTH-8.1, CORE-24.1): ключ модуля носителю одного права контракта не
+    /// выдаётся — опубликованные наборы <c>costs</c> ему закрыты; с обычным правом ключ есть.
+    /// </summary>
+    [Fact]
+    public async Task Параметр_доступа_не_даёт_ключа_модуля_за_право_контракта()
+    {
+        var (_, contractOnly) = await SignInWithAsync(Contract);
+        var (_, ordinary) = await SignInWithAsync(Contract, Ordinary);
+        var resolver = host.Services.GetRequiredService<IDataAccessResolver>();
+
+        var closed = await resolver.ForUserAsync(contractOnly, CancellationToken.None);
+        var open = await resolver.ForUserAsync(ordinary, CancellationToken.None);
+
+        Assert.False(closed.Allows("costs"));
+        Assert.True(closed.Allows(Contract));   // само право в параметре есть — оно для «perm:»-ключей
+        Assert.True(open.Allows("costs"));
+    }
+
     /// <summary>«Мои права» называют признак тому, у кого право есть: отсюда человек узнаёт, почему раздела нет.</summary>
     [Fact]
     public async Task Мои_права_отдают_признак_права_контракта()
@@ -198,7 +236,11 @@ public sealed class ContractPermissionHost : ModuleOnlyHost
             services.AddSingleton(new PermissionCatalog(
             [
                 .. delivered.All.Select(p =>
-                    p.Code == ContractPermissionTests.Contract ? p with { Contract = true } : p),
+                    // Пометка «читать всё» — вместе с признаком: право контракта входящим быть не может
+                    // (D12), и справочник отверг бы его при сборке.
+                    p.Code == ContractPermissionTests.Contract
+                        ? p with { Contract = true, ReadAll = ReadAllMark.Out("выдача другому модулю") }
+                        : p),
             ]));
         });
     }

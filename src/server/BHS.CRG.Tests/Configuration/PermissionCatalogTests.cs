@@ -191,6 +191,21 @@ public class PermissionCatalogTests
         Assert.Contains("правом контракта", ex.Message);
     }
 
+    /// <summary>
+    /// Право контракта, помеченное входящим в «читать всё», — отказ (D12 зонтика plan-00-epic): оно
+    /// выдаёт данные другому модулю, а составное право сводит чтение модулей.
+    /// </summary>
+    [Fact]
+    public void Contract_permission_included_in_read_all_stops_startup()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => new PermissionCatalog(
+            [new AppPermission("plan.estimate.hint", "подсказка", "наименования сметы",
+                ReadAll: ReadAllMark.In, Contract: true)]));
+
+        Assert.Contains("plan.estimate.hint", ex.Message);
+        Assert.Contains("право контракта помечено входящим", ex.Message);
+    }
+
     /// <summary>Признак у права модуля — законен: справочник собирается и узнаёт право.</summary>
     [Fact]
     public void Module_permission_marked_as_contract_is_accepted()
@@ -250,7 +265,8 @@ public class PermissionCatalogTests
     [Fact]
     public void Delivered_permissions_are_marked_correctly()
     {
-        var faults = PermissionCatalog.ReadAllFaults(
+        // DeclarationFaults, а не одни пометки: старт сверяет и признак права контракта у ядра.
+        var faults = PermissionCatalog.DeclarationFaults(
             BHS.CRG.Api.Auth.CorePermissions.All,
             BHS.CRG.Api.Modules.DeliveredModules.All().SelectMany(m => m.Permissions)).ToList();
 

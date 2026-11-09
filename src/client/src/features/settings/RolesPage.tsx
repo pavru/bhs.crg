@@ -196,7 +196,7 @@ export function RolesPage() {
                         {p.readAll && (
                           <span className="block text-label-small text-on-surface-variant">входит в право «читать всё»</span>
                         )}
-                        {contractPermissionNote(p, group.title) && (
+                        {p.contract && (
                           <span className="block text-label-small text-on-surface-variant">
                             {contractPermissionNote(p, group.title)}
                           </span>

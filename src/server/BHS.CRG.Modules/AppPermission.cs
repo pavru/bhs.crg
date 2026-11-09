@@ -66,6 +66,13 @@ public sealed record AppPermission(
         if (ReadAll is { Included: false } && string.IsNullOrWhiteSpace(ReadAll.Why))
             return $"«{Code}» — не сказано, почему право не входит в «читать всё»";
 
+        // Право контракта выдаёт данные ДРУГОМУ модулю, а «читать всё» сводит чтение модулей (D12
+        // зонтика plan-00-epic): входящим оно раздало бы «Руководителю» чужую выдачу, и редактор
+        // ролей показал бы у одной галки две противоречащие подписи.
+        if (Contract && ReadAll is { Included: true })
+            return $"«{Code}» — право контракта помечено входящим в «читать всё»: поставьте " +
+                   "ReadAllMark.Out(\"выдача другому модулю\")";
+
         return null;
     }
 }
