@@ -28,7 +28,7 @@ Issue #1818, п. 3 (замечания Петра, пользователя за
 ## Impact
 
 - **Сервер:** `BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs` — сортировка списка; тест порядка
-  рядом с `BHS.CRG.Tests/Costs/InvoiceListWholeTests.cs`.
+  `BHS.CRG.Tests/Integration/InvoiceListOrderTests.cs` (оснастка счёта с хостом — в `Integration/`).
 - **Клиент:** без правки кода. Проверяются места, которые полагаются на позицию в списке: переход
   «‹ › », прокрутка к открытому счёту, живые прогоны счёта, которые берут «первую строку».
 - **Документы:** `docs/USER_GUIDE.md` — порядок ленты счетов; ТЗ `docs/tz/55-счета-и-накладные.md`,

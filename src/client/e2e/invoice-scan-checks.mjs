@@ -48,6 +48,36 @@ async function watchFirstSheet(page) {
 }
 
 export async function invoiceScanChecks(page, check, h) {
+  // Лента — по дате добавления ([COST-6.3], issue #1818, п. 3). Брошенный последним счёт выше заведённого
+  // раньше — и до даты, и после давней даты. По дате счёта он стоял выше лишь до неё, а с датой уезжал
+  // под заведённый раньше.
+  //
+  // Сравниваются ДВА своих счёта, суженные поиском по номеру прогона, а не «первая строка ленты»: счёт,
+  // который в ту же минуту завёл кто-то другой (общий стенд, соседний набор), встал бы первым по праву —
+  // и проверка краснела бы при верном порядке.
+  await check('счёт, заведённый последним, выше заведённого раньше — и без даты, и с давней датой', async () => {
+    const mark = `СЧ-Л${h.stamp}`;
+    await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(`${mark}-1`, 'Заведён раньше'), 'Дата': '2026-10-22' } });
+    const dropped = await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(`${mark}-2`, 'Брошен последним'), 'Дата': null } });
+    const order = async when => {
+      await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
+      await page.getByPlaceholder('Номер, поставщик, назначение…').fill(mark);
+      const rows = page.getByTestId('invoice-row');
+      await h.named(`под поиском не два счёта прогона (${when})`,
+        () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length === 2, null, { timeout: 10_000 }));
+      const shown = await rows.allInnerTexts();
+      if (!shown[0].includes(`${mark}-2`) || !shown[1].includes(`${mark}-1`))
+        throw new Error(`${when}: порядок ленты не по заведению: ${JSON.stringify(shown)}`);
+    };
+    await order('без даты');
+    // Дата — правкой шапки (версию счёта обвязка называет сама, `nameSeenVersion`). Распознавание пишет её
+    // на сервере, своим путём, но ключ ленты — момент заведения, и его не пишет ни один путь правки.
+    const seen = await h.api('GET', `/costs/invoices/${dropped.id}`);
+    await h.api('PUT', `/costs/invoices/${dropped.id}`, { requisites: { ...seen.requisites, 'Дата': '2025-10-09' } });
+    await order('с давней датой');
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill('');
+  });
+
   // Скан открывается РЯДОМ, а без места рядом «Файл» называет причину (проверка 4 `invoices-smoke`).
   //
   // Место — по рабочей области (costs-invoice-screen-10-layout, D-10.3): форме рядом с файлом нужно 720.
