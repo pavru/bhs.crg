@@ -206,8 +206,11 @@ try {
     const name = (await target.innerText()).trim();
     await target.click();
     // Запись сразу: снэкбар называет цель и предлагает «Отменить», полоса редакции считает строки раздела.
-    await page.getByText(new RegExp(`Раздел 1 → ${escape(name)}`)).waitFor({ timeout: 10_000 })
-      .catch(() => { throw new Error(`после выбора «${name}» нет снэкбара «Раздел 1 → ${name}»`); });
+    // `.first()` — обязателен: первую секунду Radix Toast держит копию текста в скрытой области для диктора, и
+    // строгий локатор находит ДВА элемента — отказом «strict mode violation», а не ожиданием (упало в CI #1829).
+    // Причину отказа — в сообщение: подменённая своими словами, она выглядела как «снэкбара нет».
+    await page.getByText(new RegExp(`Раздел 1 → ${escape(name)}`)).first().waitFor({ timeout: 10_000 })
+      .catch(e => { throw new Error(`после выбора «${name}» нет снэкбара «Раздел 1 → ${name}»: ${e.message.split(/\r?\n/)[0]}`); });
     await page.getByText(/распределено [1-9]\d* из/).waitFor({ timeout: 10_000 })
       .catch(() => { throw new Error('полоса редакции не показала распределённые строки после правила'); });
     await page.getByRole('button', { name: 'Отменить' }).click();
