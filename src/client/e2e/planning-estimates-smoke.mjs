@@ -11,8 +11,12 @@
 //      сопоставлены строки одной единицы, вид работы стоит в строках.
 //   3. `estimator-matches-a-material` — «Сопоставить материалы»: поиск по номенклатуре находит позицию,
 //      выбор ложится на материал, окно ведёт к следующему.
-//   4. `reader-sees-cost-hidden` — «Менеджер проекта» (только `plan.estimate.read`): колонка стоимости
-//      «скрыто правами», действий правки нет.
+//   3а. `estimator-distributes-a-section` — режим «Распределение» (plan-10, ТЗ PLAN-5.1): правило раздела ЛСР
+//      списком в заголовке — запись сразу, полоса «распределено N из M», «Отменить» в снэкбаре возвращает
+//      правило; окно строки: часть в раздел, остаток — «стройка в целом».
+//   4. `reader-sees-distribution-read-only` и `reader-sees-cost-hidden` — «Менеджер проекта» (только
+//      `plan.estimate.read`): распределение видно без правки; колонка стоимости «скрыто правами», действий
+//      правки нет.
 //   5. `id-engineer-sees-no-estimates` — «Инженер ИД»: ни раздела «Планы» в рейле, ни пункта «Сметы» у стройки.
 //
 // ⚠️ Данные — посев (`seed-estimates.mjs`): смета «ЭОМ корпус 2 (посев)» с двумя редакциями и
@@ -96,6 +100,8 @@ const seededEstimate = async () =>
 const dialog = () => page.getByRole('dialog');
 const card = estimateId => page.goto(`${BASE}/estimates/${estimateId}`, { waitUntil: 'networkidle' });
 const linesRead = () => page.getByText('Читаем строки редакции…').waitFor({ state: 'detached', timeout: 15_000 });
+const distributionRead = () => page.getByText('Читаем распределение…').waitFor({ state: 'detached', timeout: 15_000 });
+const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 let estimate;
 try {
@@ -186,9 +192,55 @@ try {
     else await dialog().getByText('Пройдены все материалы без номенклатуры.').waitFor({ timeout: 15_000 });
   });
 
+  // ── 3а. Распределение по разделам стройки (plan-10) ───────────────────────────────────────────
+  await check('estimator-distributes-a-section', async () => {
+    // Окно материалов прошлой проверки ещё открыто на следующем материале — карточку открываем заново.
+    await card(estimate.id);
+    await page.getByRole('radio', { name: 'Распределение' }).click();
+    await distributionRead();
+    // Правило раздела ЛСР — списком в заголовке раздела; цель — первый раздел стройки посева.
+    const rule = page.getByRole('combobox', { name: /^Правило: Раздел 1/ });
+    await rule.click();
+    // Первый пункт списка — «Не распределено» (снять правило); цель — первый раздел из группы разделов стройки.
+    const target = page.getByRole('group', { name: 'Разделы стройки' }).getByRole('option').first();
+    const name = (await target.innerText()).trim();
+    await target.click();
+    // Запись сразу: снэкбар называет цель и предлагает «Отменить», полоса редакции считает строки раздела.
+    await page.getByText(new RegExp(`Раздел 1 → ${escape(name)}`)).waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error(`после выбора «${name}» нет снэкбара «Раздел 1 → ${name}»`); });
+    await page.getByText(/распределено [1-9]\d* из/).waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('полоса редакции не показала распределённые строки после правила'); });
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await page.getByText('Правило возвращено').first().waitFor({ timeout: 10_000 })
+      .catch(e => { throw new Error(`«Отменить» не вернуло правило: ${e.message.split(/\r?\n/)[0]}`); });
+    if (!(await rule.innerText()).includes('Не распределено')) throw new Error(`после «Отменить» правило — «${await rule.innerText()}»`);
+
+    // Строку — частью в раздел окном строки: два связанных поля единиц, остаток — «стройка в целом».
+    const heading = page.getByRole('button', { name: /^Раздел 1/ });
+    if ((await heading.getAttribute('aria-expanded', { timeout: 5_000 })) === 'false') await heading.click();
+    await page.getByRole('button', { name: 'Разделить…' }).first().click();
+    await pickOption(dialog().getByRole('combobox', { name: 'Раздел стройки, часть 1' }), name);
+    await dialog().getByRole('textbox', { name: 'В ед. строки' }).fill('1');
+    await dialog().getByText(/^1 из .* · стройка в целом: /).waitFor({ timeout: 5_000 })
+      .catch(() => { throw new Error('окно строки не назвало остаток «стройка в целом»'); });
+    await dialog().getByRole('button', { name: 'Записать' }).click();
+    await dialog().waitFor({ state: 'detached', timeout: 15_000 });
+    await page.getByText(`${name} + стройка в целом`).first().waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error(`строка не показала «${name} + стройка в целом»`); });
+  });
+
   // ── 4. Без права на себестоимость ─────────────────────────────────────────────────────────────
   await clearSession(page);
   await login(page, PM, PASSWORD);
+  await check('reader-sees-distribution-read-only', async () => {
+    await card(estimate.id);
+    await page.getByRole('radio', { name: 'Распределение' }).click();
+    await distributionRead();
+    await page.getByText(/^Раздел 1/).first().waitFor({ timeout: 10_000 });
+    if (await page.getByRole('combobox', { name: /^Правило:/ }).count()) throw new Error('у читающего смету правило раздела правится');
+    if (await page.getByRole('button', { name: 'Разделить…' }).count()) throw new Error('у читающего смету есть «Разделить…»');
+    await page.getByRole('radio', { name: 'Сопоставление' }).click();
+  });
   await check('reader-sees-cost-hidden', async () => {
     await card(estimate.id);
     await linesRead();

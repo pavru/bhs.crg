@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { Estimate, EstimateKind, HiddenPart, PlanMark } from './planningEstimates';
+import type { CarryOverCountsInfo } from './planningDistribution';
 
 /**
  * Импорт сметы из ГРАНД-Сметы (change `plan-09-estimate-ui`, PR 2; сервер — `plan-07`, ТЗ PLAN-6, PLAN-7):
@@ -110,6 +111,8 @@ export interface ImportCommitted {
   estimateCreated: boolean;
   /** Редакция создана раньше тем же импортом — ответ называет её, второй нет. */
   repeated: boolean;
+  /** Перенос распределения из прежней редакции — источник и числа; `null` — переносить было нечего. */
+  distributionCarryOver: CarryOverCountsInfo | null;
 }
 
 /** Что загрузить и куда: новая редакция существующей сметы либо новая смета (решение В-12 (а)). */

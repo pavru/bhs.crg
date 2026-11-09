@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EstimateImport } from '@/shared/api/planningImports';
-import { importVerdict, openingOf, partialCommitLabel, reasonGroups, targetLabel } from './importReport';
+import { carryOverPending, importVerdict, openingOf, partialCommitLabel, reasonGroups, targetLabel } from './importReport';
 
 /** Правила отчёта импорта (plan-09, PR 2, ТЗ PLAN-7): что можно сделать с импортом — по состоянию сервера. */
 
@@ -71,7 +71,17 @@ describe('слова отчёта', () => {
   });
 
   it('созданная с несопоставленным открывается на отборе «не сопоставлено»', () => {
-    expect(openingOf({ estimateId: 'e1', revisionId: 'r4', unmatched: true })).toEqual({ revisionId: 'r4', queue: 'unmatched' });
-    expect(openingOf({ estimateId: 'e1', revisionId: 'r4', unmatched: false })).toEqual({ revisionId: 'r4', queue: 'all' });
+    expect(openingOf({ estimateId: 'e1', revisionId: 'r4', unmatched: true, carryOver: true }))
+      .toEqual({ revisionId: 'r4', queue: 'unmatched', mode: 'match' });
+    expect(openingOf({ estimateId: 'e1', revisionId: 'r4', unmatched: false, carryOver: false }))
+      .toEqual({ revisionId: 'r4', queue: 'all', mode: 'match' });
+  });
+
+  it('перенос распределения ждёт решения — открывается режим распределения (plan-10)', () => {
+    expect(openingOf({ estimateId: 'e1', revisionId: 'r4', unmatched: false, carryOver: true }))
+      .toEqual({ revisionId: 'r4', queue: 'all', mode: 'distribution' });
+    expect(carryOverPending({ sourceRevisionId: 'r3', sourceNumber: 3, carried: 280, shifted: 4, ambiguous: 0, overflow: 0, lost: 0 })).toBe(false);
+    expect(carryOverPending({ sourceRevisionId: 'r3', sourceNumber: 3, carried: 280, shifted: 0, ambiguous: 0, overflow: 0, lost: 1 })).toBe(true);
+    expect(carryOverPending(null)).toBe(false);
   });
 });
