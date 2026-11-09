@@ -32,6 +32,8 @@ import { VolumeStatementView } from './VolumeStatementView';
  * - Удалить — с `plan.estimate.edit` на широком экране, подтверждением с именем, видом, числом позиций и кто
  *   приложил; «уже удалили» (404) — не ошибка, а снэкбар.
  * - Что выбрано, решает карточка (адрес); здесь — только `selected` и `onSelect`. Не выбрано — раскрыто новое.
+ *   Выбранного по адресу в списке нет (удалили, ссылка устарела) — не раскрыто ничего, и так и сказано: подставить
+ *   другое приложение под чужую ссылку значило бы показать не тот документ, о котором шла речь (ревью PR #1845).
  */
 export function EstimateAttachments({ estimateId, selected, onSelect, attach }: {
   estimateId: string;
@@ -51,7 +53,9 @@ export function EstimateAttachments({ estimateId, selected, onSelect, attach }: 
   if (error) return <p role="alert" className="text-body-medium text-error">{apiError(error, 'Приложения сметы не прочитались')}</p>;
   if (!all) return <p className="text-body-medium text-on-surface-variant">Читаем приложения сметы…</p>;
 
-  const opened = all.find(a => attachmentKey(a) === selected) ?? all[0] ?? null;
+  const found = all.find(a => attachmentKey(a) === selected) ?? null;
+  const stale = selected !== null && found === null;
+  const opened = stale ? null : found ?? all[0] ?? null;
   const downloadable = (a: EstimateAttachment) => a.kind === 'vor' || can.permission('plan.estimate.cost');
   const download = (a: EstimateAttachment) => {
     downloadAttachmentFile(a).catch(e => toast.apiError(e, 'Файл не скачался'));
@@ -101,6 +105,12 @@ export function EstimateAttachments({ estimateId, selected, onSelect, attach }: 
             );
           })}
         </ul>
+      )}
+
+      {stale && all.length > 0 && (
+        <p role="status" className="text-body-medium text-on-surface-variant">
+          Приложения, на которое ведёт ссылка, у сметы нет — возможно, его удалили. Выберите приложение в списке.
+        </p>
       )}
 
       {opened && (

@@ -201,6 +201,22 @@ public class ConjunctureImportTests(PlanOnlyHost host)
         Assert.Contains(broken.Unparsed, u => u.Reason.Contains("выбрано предложение 99", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// <c>MainSubPosition="0"</c> — «не выбрано», а не номер вне предложений: номер с единицы нулём не бывает, и отказ
+    /// по нему увёл бы в не разобранные каждую позицию файла, где программа пишет ноль по умолчанию (ревью PR #1845).
+    /// </summary>
+    [Fact]
+    public void Ноль_в_MainSubPosition_значит_не_выбрано()
+    {
+        var plain = ConjunctureReader.Read(GrandSmetaSamples.Open(ManyOffers));
+        var zero = ConjunctureReader.Read(GrandSmetaSamples.OpenEdited(ManyOffers, text => Choose(text, 0)));
+
+        Assert.Equal(plain.Unparsed.Count, zero.Unparsed.Count);
+        var position = zero.Positions.First(p => p.Offers.Count > 1);
+        Assert.Null(position.ChosenOffer);
+        Assert.Equal(plain.Positions.First(p => p.Offers.Count > 1).MinSellingPrice, position.MinSellingPrice);
+    }
+
     /// <summary>Вписать <c>MainSubPosition</c> первой позиции с несколькими предложениями.</summary>
     private static string Choose(string text, int offer)
     {

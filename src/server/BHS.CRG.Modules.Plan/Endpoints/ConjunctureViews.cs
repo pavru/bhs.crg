@@ -13,11 +13,6 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// </summary>
 internal static class ConjunctureViews
 {
-    /// <summary>Позиций и строк на странице — как у строк редакции.</summary>
-    public const int DefaultLimit = EstimateRowsEndpoints.DefaultLimit;
-
-    public const int MaxLimit = EstimateRowsEndpoints.MaxLimit;
-
     public static async Task<List<EstimateAttachmentDto>> ListAsync<T>(
         PlanDbContext db, IQueryable<T> attachments, CancellationToken ct) where T : EstimateAttachment
     {
@@ -130,7 +125,7 @@ internal static class ConjunctureViews
     private static (int Skip, int Take) Page(int? offset, int? limit)
     {
         if (offset is < 0) throw new InvalidRequestException("Смещение страницы (offset) не может быть меньше нуля.");
-        return (offset ?? 0, limit is { } l ? Math.Clamp(l, 1, MaxLimit) : DefaultLimit);
+        return (offset ?? 0, EstimateRowsEndpoints.PageSize(limit));
     }
 
     private static string Kind(EstimateAttachment attachment) => attachment is ConjunctureAnalysis ? "ka" : "vor";

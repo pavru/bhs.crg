@@ -148,22 +148,42 @@ export function useEstimateAttachments(kind: AttachmentKind, estimateId: string)
   });
 }
 
-/** Позиции анализа с предложениями — одной страницей до предела сервера. */
+/**
+ * Все страницы приложения одним ответом: сетка ищет по всему анализу или ведомости, а сервер отдаёт не больше
+ * {@link ATTACHMENT_PAGE_LIMIT} за раз — первая страница одна показала бы большой файл обрезанным, и молча (ревью
+ * PR #1845). Приложение не меняется (правки нет), поэтому страницы читаются по смещению без риска сдвига; пустая
+ * страница раньше `total` — конец, а не повод крутить цикл.
+ */
+export async function readAllPages<P extends { total: number }, T>(
+  path: string, rows: (page: P) => T[], merge: (first: P, all: T[]) => P,
+): Promise<P> {
+  const read = (offset: number) => apiClient.get<P>(path, { params: { limit: ATTACHMENT_PAGE_LIMIT, offset } }).then(r => r.data);
+  const first = await read(0);
+  const all = [...rows(first)];
+  while (all.length < first.total) {
+    const next = rows(await read(all.length));
+    if (next.length === 0) break;
+    all.push(...next);
+  }
+  return merge(first, all);
+}
+
+/** Позиции анализа с предложениями — все, страницами до предела сервера. */
 export function useConjunctureItems(analysisId: string | null) {
   return useQuery({
     queryKey: [...KEY, 'ka', 'items', analysisId],
-    queryFn: () => apiClient.get<ConjunctureItemsPage>(`${onePath('ka', analysisId!)}/items`,
-      { params: { limit: ATTACHMENT_PAGE_LIMIT } }).then(r => r.data),
+    queryFn: () => readAllPages<ConjunctureItemsPage, ConjunctureItem>(`${onePath('ka', analysisId!)}/items`,
+      p => p.items, (first, items) => ({ ...first, items })),
     enabled: analysisId !== null,
   });
 }
 
-/** Строки ведомости — одной страницей до предела сервера. */
+/** Строки ведомости — все, страницами до предела сервера. */
 export function useVolumeLines(statementId: string | null) {
   return useQuery({
     queryKey: [...KEY, 'vor', 'lines', statementId],
-    queryFn: () => apiClient.get<VolumeLinesPage>(`${onePath('vor', statementId!)}/lines`,
-      { params: { limit: ATTACHMENT_PAGE_LIMIT } }).then(r => r.data),
+    queryFn: () => readAllPages<VolumeLinesPage, VolumeLine>(`${onePath('vor', statementId!)}/lines`,
+      p => p.lines, (first, lines) => ({ ...first, lines })),
     enabled: statementId !== null,
   });
 }
@@ -197,7 +217,12 @@ export function useAcceptAttachment() {
     onSuccess: (done, { importId }) => {
       qc.removeQueries({ queryKey: ['planning', 'imports', 'one', importId] });
       void qc.invalidateQueries({ queryKey: ['planning', 'imports', 'construction'] });
-      void qc.invalidateQueries({ queryKey: [...KEY, done.attachment.kind, 'estimate', done.attachment.estimateId] });
+      // Заведённое — в список сразу: карточка открывает его по адресу, и до перечитывания старый список назвал бы
+      // ссылку на него устаревшей.
+      const list = [...KEY, done.attachment.kind, 'estimate', done.attachment.estimateId];
+      qc.setQueryData<EstimateAttachment[]>(list, old =>
+        old && !old.some(a => a.id === done.attachment.id) ? [done.attachment, ...old] : old);
+      void qc.invalidateQueries({ queryKey: list });
     },
   });
 }

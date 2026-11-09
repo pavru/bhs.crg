@@ -203,7 +203,7 @@ internal static class EstimateImportViews
     /// <param name="attachable">Импорт назвал смету — файл к ней прикладывается.</param>
     internal static string NotEstimate(GrandSmetaKind kind, bool attachable) =>
         $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится: " + (attachable
-            ? $"приложите {Him(kind)} к смете — {Him(kind)} останется рядом с редакциями."
+            ? $"приложите {Him(kind)} к смете — {Its(kind)} останется рядом с редакциями."
             : $"сначала загрузите смету — {Him(kind)} прикладывают к смете, а этот импорт её только заводит. Уберите " +
               "импорт, загрузите ЛСР и приложите файл в карточке сметы.");
 

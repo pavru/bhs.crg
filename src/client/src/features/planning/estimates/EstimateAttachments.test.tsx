@@ -64,14 +64,14 @@ function serve(cost: boolean, attachments: { ka: EstimateAttachment[]; vor: Esti
   });
 }
 
-function Panel() {
-  const [selected, setSelected] = useState<string | null>(null);
+function Panel({ initial = null }: { initial?: string | null }) {
+  const [selected, setSelected] = useState<string | null>(initial);
   return <EstimateAttachments estimateId="e1" selected={selected} onSelect={setSelected} />;
 }
 
-function mount() {
+function mount(initial: string | null = null) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={qc}><Panel /></QueryClientProvider>);
+  render(<QueryClientProvider client={qc}><Panel initial={initial} /></QueryClientProvider>);
 }
 
 beforeEach(() => { permissions = ['plan.estimate.read']; vi.clearAllMocks(); });
@@ -120,6 +120,18 @@ describe('приложения сметы', () => {
     expect(screen.getByText('= Lк1 + Lк2')).toBeTruthy();
     // ВОР денег не несёт — файл скачивается под чтением.
     expect(screen.getByRole('button', { name: 'Скачать файл' })).toBeTruthy();
+  });
+
+  it('ссылка на приложение, которого нет, — не подменяется другим, а так и сказано', async () => {
+    serve(false);
+    mount('ka:gone');
+    const list = await screen.findByRole('list', { name: 'Приложения сметы' });
+    expect(screen.getByRole('status').textContent).toMatch(/Приложения, на которое ведёт ссылка, у сметы нет/);
+    expect(screen.queryByRole('table')).toBeNull();
+
+    fireEvent.click(within(list).getByText('ВОР-1.gsfx'));
+    expect(await screen.findByText('входит в № 12')).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('пустая смета — пустое состояние, без «Удалить» у читающего', async () => {

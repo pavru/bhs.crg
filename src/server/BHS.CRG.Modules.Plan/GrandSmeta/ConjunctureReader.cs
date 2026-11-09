@@ -53,7 +53,10 @@ public static class ConjunctureReader
         var offers = p.Elements("Items").Elements("Item").Select(i => Offer(i, suppliers)).ToList();
         var prices = offers.Where(o => o.SellingPrice is not null).Select(o => o.SellingPrice!.Value).ToList();
         int? chosen = null;
-        if (p.Number("MainSubPosition") is { } main)
+        // 0 — «не выбрано»: номер с единицы нулём быть не может, а отказ по нему увёл бы в не разобранные каждую
+        // позицию файла, если программа пишет ноль по умолчанию (образца с атрибутом нет — ревью PR #1845). Цена
+        // такой позиции — минимальная, как без атрибута.
+        if (p.Number("MainSubPosition") is { } main and not 0)
         {
             if (main < 1 || main > offers.Count || main != Math.Floor(main))
                 throw new GrandSmetaFormatException(
