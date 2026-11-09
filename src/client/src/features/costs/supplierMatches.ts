@@ -1,6 +1,7 @@
 import type { InvoiceLineMatch, InvoiceLineView, InvoiceMatchMemory } from '@/shared/api/invoices';
 import type { MatchSuggestion } from '@/shared/api/supplierMatches';
 import type { LineDraft } from './invoiceLines';
+import { K, refEntryId } from './invoiceFields';
 
 /**
  * Правила соответствий наименований поставщика, отделённые от разметки (задача C3, issue #1079,
@@ -153,6 +154,43 @@ export function dropForeignMarks(drafts: readonly LineDraft[], saved: readonly I
   });
   return { drafts: next, dropped };
 }
+
+/** Поставщик в шапке изменён и не сохранён (#1657, D3): на кого. `null` — смены нет. */
+export interface SupplierChange {
+  /** Поставщик из правки шапки; `null` — поставщика сняли. */
+  to: string | null;
+}
+
+/**
+ * Смена поставщика, которой нет в сохранённом счёте (#1657, D3), — сравнением правки шапки с сохранённым
+ * видом по ссылке. Выбрали прежнего обратно — смены нет, хотя ключ в правке остался.
+ */
+export function supplierChangeOf(edits: Readonly<Record<string, unknown>>, saved: Readonly<Record<string, unknown>>): SupplierChange | null {
+  if (!(K.supplier in edits)) return null;
+  const to = refEntryId(edits[K.supplier]);
+  return to === refEntryId(saved[K.supplier]) ? null : { to };
+}
+
+/**
+ * Строки пишутся БЕЗ шапки, а смена поставщика в ней не сохранена (#1657, решение (б) от 08.11.2026): каждая
+ * строка уходит с «не запоминать». Сервер запомнил бы выбор за поставщиком, который лежит в счёте, — за
+ * прежним, хотя человек выбирал позиции уже для нового.
+ *
+ * <p>Сегодня строки так не пишутся: «Сохранить» записывает шапку раньше строк (D-10.7), и выбор уходит за
+ * новым поставщиком. Правило — для записи строк без шапки, которую принесёт автосохранение (12).</p>
+ *
+ * @param saved строки, лежащие в счёте: запоминается только новость, и молчать о незапомненном можно, когда
+ *   запоминать было нечего.
+ * @returns строки к отправке и было ли что запоминать: о незапомненном выборе молчать нельзя.
+ */
+export function holdMemory(drafts: readonly LineDraft[], saved: readonly InvoiceLineView[]): { drafts: LineDraft[]; held: boolean } {
+  const held = drafts.some(draft => memoryFate(draft, saved.find(line => line.id === draft.id), true, null) === 'remember');
+  return { drafts: drafts.map(draft => ({ ...draft, remember: false })), held };
+}
+
+/** Уведомление о выборе, не запомненном по {@link holdMemory}. */
+export const HELD_MEMORY_NOTICE = 'Строки сохранены, но выбор позиций не запомнен: поставщик в шапке изменён и не '
+  + 'сохранён. Позиции в строках на месте.';
 
 /**
  * Что станет с выбором при сохранении — тем же правилом, что на сервере: запоминается выбор человека,

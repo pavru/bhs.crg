@@ -44,8 +44,10 @@ export interface InvoiceLineContext {
   blocked: string | null;
   /** Запомненное для строки, известное форме (C3, issue #1079). */
   offerFor: (draft: LineDraft) => MatchOffer | null;
-  /** У счёта сохранён поставщик: без него ни подставить, ни запомнить. */
+  /** У счёта есть поставщик — сохранённый или, при несохранённой смене, из шапки: без него не запомнить. */
   hasSupplier: boolean;
+  /** Поставщик в шапке изменён и не сохранён (#1657): пометкам строк есть что об этом сказать. */
+  supplierPending?: boolean;
   /** Сохранённый поставщик названием — в плашку окна выбора позиции. */
   supplierName: string | null;
   /** У строки появился новый ключ (наименование или артикул) — спросить запомненное. */
@@ -134,6 +136,8 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
           mark={(
             <LineMatchChip draft={draft} offer={ctx.offerFor(draft)}
               fate={memoryFate(draft, saved(draft), ctx.hasSupplier, ctx.offerFor(draft))}
+              supplierPending={ctx.supplierPending}
+              leaving={ctx.supplierPending === true && draft.matchedBy !== null && saved(draft)?.match?.id !== draft.matchedBy}
               supplierId={refEntryId(view.requisites[K.supplier])}
               onCancel={() => ctx.onEdit(draft.key, cancelMatch(draft))}
               onRestore={restored => ctx.onEdit(draft.key, applyOffer(restored))}

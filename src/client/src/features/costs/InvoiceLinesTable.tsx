@@ -14,7 +14,8 @@ import { K, PARSED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoic
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
+  HELD_MEMORY_NOTICE, applyOffer, dropForeignMarks, holdMemory, lineKey, memoryNotice, pending, sameKey, usable,
+  type MatchOffer, type SupplierChange,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { mergeSaved } from './invoiceLinesMerge';
@@ -53,9 +54,14 @@ const blank = (value: string) => value.trim() || null;
  * счёта стоят в другом.</p>
  */
 export function InvoiceLinesTable({
-  view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false,
+  view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false, supplierChange = null,
 }: {
   view: InvoiceView;
+  /**
+   * Поставщик в шапке изменён и не сохранён (#1657, D3). Запомненное прежнего тогда не подставляется и не
+   * предлагается (D2), а строки, записанные без шапки, своего выбора не запоминают (решение (б)).
+   */
+  supplierChange?: SupplierChange | null;
   /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
   supplierName?: string | null;
   /** Сюда таблица кладёт свой шаг записи — его зовёт «Сохранить» сводки после шапки (D-10.7). */
@@ -140,6 +146,10 @@ export function InvoiceLinesTable({
   // Запомненное (C3, issue #1079). Поставщик — тот, что СОХРАНЁН в шапке: строки пишутся отдельно от
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
   const supplierId = refEntryId(view.requisites[K.supplier]);
+  // Поставщик в шапке другой и не сохранён: опыт сохранённого — уже не про этот счёт (#1657, D2). Запомнится ли
+  // выбор — судит поставщик из шапки: «Сохранить» записывает её раньше строк.
+  const supplierPending = supplierChange !== null;
+  const hasSupplier = supplierPending ? supplierChange.to !== null : supplierId !== null;
   const [askFailed, setAskFailed] = useState<string | null>(null);
   // Строки, о которых вопрос не прошёл, — «Повторить» спрашивает о них, а не обо всех: suggest подставляет
   // запомненное сам, а сохранённым строкам по C3 его подставляет только кнопка (ревью PR #1792).
@@ -150,13 +160,14 @@ export function InvoiceLinesTable({
   const laid = useLaidMatchSuggestions(supplierId,
     view.lines.filter(line => !line.match && lineKey(line.supplierCode, line.supplierText) !== null)
       .map(line => ({ id: line.id, supplierCode: line.supplierCode, supplierText: line.supplierText })),
-    !still);
+    !still && !supplierPending);
 
   /**
    * Запомненное для строки: спрошенное для неё самой либо, у лежащей строки, — ответ общего вопроса.
    * Ответ общего вопроса годится, только пока ключ строки тот же, что сохранён: он был про тот текст.
    */
   function offerFor(draft: LineDraft): MatchOffer | null {
+    if (supplierPending) return null;
     if (draft.offer) return draft.offer;
     const saved = draft.id ? view.lines.find(line => line.id === draft.id) : undefined;
     if (!saved || !sameKey(lineKey(saved.supplierCode, saved.supplierText),
@@ -190,7 +201,9 @@ export function InvoiceLinesTable({
    * ответ был про прежний текст.
    */
   async function suggest(born: readonly LineDraft[]) {
-    if (!supplierId) return;
+    // Смена поставщика не сохранена — спрашивать прежнего незачем (D2). Строку не помечаем спрошенной: после
+    // сохранения шапки о ней спросит правка ключа, а о лежащей — общий вопрос по новому поставщику.
+    if (!supplierId || supplierPending) return;
     // Строка с позицией, выбранной руками, тоже спрашивается — подставлять ей нечего, но запомненное
     // знать надо: без него «запомнится» не отличить от «запомнится вместо прежнего».
     const fresh = born.filter(d => {
@@ -254,7 +267,6 @@ export function InvoiceLinesTable({
   const failed = askFailed ?? (laid.isError ? apiError(laid.error) : null);
   const waiting = drafts.filter(d => d.nomenclatureId === null).length;
   const shown = !still && drafts.length > 0;
-  const hasSupplier = supplierId !== null;
   const acts = useRef<LinesActs>(null!);
   useLayoutEffect(() => {
     acts.current = {
@@ -272,15 +284,15 @@ export function InvoiceLinesTable({
   useEffect(() => {
     onReport?.({
       stale, acts, modeChanged: mode !== savedMode,
-      matches: shown ? { hasSupplier, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
+      matches: shown ? { hasSupplier, supplierPending, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
     });
-  }, [onReport, stale, mode, savedMode, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
+  }, [onReport, stale, mode, savedMode, shown, hasSupplier, supplierPending, waiting, ready.length, blockedOffers, failed]);
   useEffect(() => () => onReport?.({ stale: false, acts, modeChanged: false, matches: null }), [onReport]);
 
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
-    offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
+    offerFor, hasSupplier, supplierPending, supplierName, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
   });
 
@@ -333,11 +345,14 @@ export function InvoiceLinesTable({
     // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
     const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
     const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
+    // Строки уходят без шапки, а смена поставщика в ней не сохранена (#1657, решение (б)): выбор не запоминается
+    // вовсе — сервер записал бы его за прежним поставщиком.
+    const hold = supplierPending && after === null ? holdMemory(sent.drafts, view.lines) : { drafts: sent.drafts, held: false };
     // Снимок черновика на миг отправки — с ним сверяется набранное, пока запись идёт (issue #1656).
     const snapshot = { drafts, mode };
     try {
       const saved = await base.save(seen => replace.mutateAsync({
-        id: view.id, seen, lines: toPayload(sent.drafts, mode), vatMode: mode,
+        id: view.id, seen, lines: toPayload(hold.drafts, mode), vatMode: mode,
       }), after);
       // Ответ своей записи — основа черновика, а не чужая правка: следующая запись назовёт его версию.
       base.adopt(saved);
@@ -353,7 +368,7 @@ export function InvoiceLinesTable({
       setDirty(merged.dirty);
       // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
       // следующих счетов этого поставщика — молча это делать нельзя.
-      const notice = memoryNotice(saved.memory);
+      const notice = hold.held ? { variant: 'info' as const, text: HELD_MEMORY_NOTICE } : memoryNotice(saved.memory);
       if (notice) toast[notice.variant](notice.text);
       return true;
     } catch (e) {

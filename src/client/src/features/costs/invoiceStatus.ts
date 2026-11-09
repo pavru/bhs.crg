@@ -88,7 +88,10 @@ export interface StatusItem {
 
 /** Что таблица строк знает о запомненном (C3): только о сохранённом поставщике. */
 export interface MatchFacts {
+  /** Поставщик есть — сохранённый либо, при несохранённой смене, выбранный в шапке. */
   hasSupplier: boolean;
+  /** Поставщик в шапке изменён и не сохранён (#1657): запомненное прежнего не подставляется (D2). */
+  supplierPending?: boolean;
   /** Строк без позиции. */
   waiting: number;
   /** Скольким запомненное можно подставить. */
@@ -426,6 +429,14 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
       add({
         key: 'matches-supplier', level: 'info', text: 'Поставщик не выбран — запомненное подставить не по чему',
         detail: 'Выбор позиций в этом счёте не запомнится. Выберите поставщика и сохраните счёт.',
+        actions: [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.supplier } }],
+      });
+    else if (matches.supplierPending)
+      add({
+        key: 'matches-pending', level: 'info',
+        text: 'Поставщик изменён и не сохранён — запомненное нового поставщика будет видно после сохранения',
+        detail: 'Запомненное прежнего поставщика не подставляется. Выбор позиций запомнится за новым: «Сохранить» '
+          + 'записывает шапку раньше строк.',
         actions: [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.supplier } }],
       });
     else if (matches.failed !== null)

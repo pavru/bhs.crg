@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import {
-  applyOffer, cancelMatch, dropForeignMarks, lineKey, matchTrouble, memoryFate, memoryNotice, pending, pickByHand, usable,
-  type MatchOffer,
+  applyOffer, cancelMatch, dropForeignMarks, holdMemory, lineKey, matchTrouble, memoryFate, memoryNotice, pending,
+  pickByHand, supplierChangeOf, usable, type MatchOffer,
 } from './supplierMatches';
 
 const offer: MatchOffer = {
@@ -173,5 +173,36 @@ describe('смена поставщика тем же «Сохранить»', (
     const { drafts, dropped } = dropForeignMarks([kept], [line]);
     expect(dropped).toBe(0);
     expect(drafts[0]).toBe(kept);
+  });
+});
+
+describe('несохранённая смена поставщика (#1657)', () => {
+  const ref = (id: string | null) => (id === null ? null : { $ref: 'catalog', entryId: id });
+  const savedA = { Поставщик: ref('A'), Номер: '1' };
+
+  it('смена — когда в правке шапки другой поставщик, чем сохранён', () => {
+    expect(supplierChangeOf({ Поставщик: ref('B') }, savedA)).toEqual({ to: 'B' });
+    expect(supplierChangeOf({ Поставщик: null }, savedA)).toEqual({ to: null });
+  });
+
+  it('смены нет: поставщика не трогали, вернули прежнего или шапку сохранили', () => {
+    expect(supplierChangeOf({ Номер: '2' }, savedA)).toBeNull();
+    expect(supplierChangeOf({ Поставщик: ref('A') }, savedA)).toBeNull();
+    // После сохранения правок нет, а в виде — новый поставщик.
+    expect(supplierChangeOf({}, { Поставщик: ref('B') })).toBeNull();
+  });
+
+  it('строки без шапки — каждая с «не запоминать»; молчать нельзя, только если выбор был новостью', () => {
+    const picked = draft({ id: 'l-1', ...pickByHand('n-2', 'Другая позиция') });
+    const lying = saved({ nomenclatureId: 'n-1' });
+    const held = holdMemory([picked, draft({ key: 'k-2' })], [lying]);
+    expect(held.drafts.map(d => d.remember)).toEqual([false, false]);
+    expect(toPayload(held.drafts, 'Included').map(p => p.remember)).toEqual([false, false]);
+    expect(held.held).toBe(true);
+
+    // Позиция та же, что лежит, — сервер ничего бы не запомнил, и говорить «не запомнен» не о чем.
+    expect(holdMemory([draft({ id: 'l-1', nomenclatureId: 'n-1' })], [lying]).held).toBe(false);
+    // Человек и так сказал «не запоминать».
+    expect(holdMemory([{ ...picked, remember: false }], [lying]).held).toBe(false);
   });
 });

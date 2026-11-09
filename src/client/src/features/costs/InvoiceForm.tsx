@@ -15,6 +15,7 @@ import {
   BLOCKS, FIELD_LABEL, K, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
+import { supplierChangeOf } from './supplierMatches';
 import { goTo, readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { useDraftBase } from './draftBase';
 import { InvoiceObject } from './InvoiceObject';
@@ -129,6 +130,8 @@ export function InvoiceForm({
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   const dirty = Object.keys(edits).length > 0;
+  // Поставщик в шапке изменён и не сохранён — таблице строк (#1657, D3): запомненное прежнего не про этот счёт.
+  const supplierChange = useMemo(() => supplierChangeOf(edits, view.requisites), [edits, view.requisites]);
   const [linesDirty, setLinesDirty] = useState(false);
   // Несохранённое ОДНО (D-10.7): шапка или строки. Им гаснут «Разобран» и оплата, его спрашивает уход.
   const unsaved = dirty || linesDirty;
@@ -381,7 +384,8 @@ export function InvoiceForm({
 
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
             <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-              supplierName={savedSupplierName(view, organizations)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines} />
+              supplierName={savedSupplierName(view, organizations)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines}
+              supplierChange={supplierChange} />
           </InvoicePart>
 
           {/* «Объект» — здесь, после строк (решение владельца Э1): весь счёт на объект — одним выбором. */}
