@@ -10,10 +10,12 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// <param name="Parsed">Разобрано позиций (у ВОР — работ): приложено могло быть с согласия без не разобранных.</param>
 /// <param name="InFile">Позиций в файле.</param>
 /// <param name="CurrentPriceDate">Дата текущих цен — у анализа.</param>
+/// <param name="Chapters">Глав среди разобранного — для строки списка «48 работ в 7 главах».</param>
+/// <param name="Suppliers">Поставщиков в предложениях анализа (по ИНН, без ИНН — по имени); у ВОР — <c>null</c>.</param>
 public sealed record EstimateAttachmentDto(
     Guid Id, string Kind, Guid EstimateId, string FileName, string? Number, string? Name, string? ProgramVersion,
-    string? SchemaVersion, DateOnly? CreationDate, DateOnly? CurrentPriceDate, int Parsed, int InFile,
-    DateTimeOffset ImportedAt, string? ImportedBy, string Version);
+    string? SchemaVersion, DateOnly? CreationDate, DateOnly? CurrentPriceDate, int Parsed, int InFile, int Chapters,
+    int? Suppliers, DateTimeOffset ImportedAt, string? ImportedBy, string Version);
 
 /// <summary>Принятие отчёта разбора: <c>acceptPartial</c> — согласие приложить без не разобранных позиций.</summary>
 public sealed record EstimateAttachRequest(bool AcceptPartial = false);
@@ -52,8 +54,11 @@ public sealed record ConjunctureItemsDto(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
 /// <summary>Строка ведомости объёмов: обоснование — шифр, ссылка на чертежи и примечание сметчика.</summary>
+/// <param name="ParentNumber">У подчинённой работы — номер вышестоящей («входит в № 12»): ближайшая не подчинённая
+/// выше в той же главе — так их пишет ГРАНД-Смета (<c>SlaveRow</c> идёт за своей работой). Выше в главе нет — <c>null</c>.</param>
 public sealed record VolumeLineDto(
     Guid Id, int Order, int ChapterIndex, string ChapterCaption, string Number, string Caption, string? Code,
-    string? Units, decimal Quantity, string? Formula, string? Drawings, string? Note, bool Subordinate);
+    string? Units, decimal Quantity, string? Formula, string? Drawings, string? Note, bool Subordinate,
+    string? ParentNumber);
 
 public sealed record VolumeLinesDto(int Total, int Offset, IReadOnlyList<VolumeLineDto> Lines);

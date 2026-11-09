@@ -46,6 +46,13 @@ public class VolumeStatementTests(PlanOnlyHost host)
         Assert.Contains(lines, l => !string.IsNullOrWhiteSpace(l.GetProperty("code").GetString())
                                     || !string.IsNullOrWhiteSpace(l.GetProperty("drawings").GetString()));
 
+        // Сводка строки списка: «48 работ в 7 главах»; поставщиков у ведомости нет вовсе.
+        var row = list[0];
+        Assert.Equal(lines.Select(l => l.GetProperty("chapterIndex").GetInt32()).Distinct().Count(),
+            row.GetProperty("chapters").GetInt32());
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("suppliers").ValueKind);
+        Assert.All(lines, l => Assert.Equal(JsonValueKind.Null, l.GetProperty("parentNumber").ValueKind));
+
         Assert.Equal(before, await PlanAsync(estimate));
         Assert.Equal(revision.Id, await EstimateSeed.CurrentRevisionAsync(host, estimate));
 
@@ -54,6 +61,50 @@ public class VolumeStatementTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.NoContent,
             (await client.SendAsync(ConjunctureFlow.Delete(path, ConjunctureFlow.Version(attachment)))).StatusCode);
         Assert.Equal(before, await PlanAsync(estimate));
+    }
+
+    /// <summary>
+    /// «Входит в № 12» (вариант 1 макета П11): у подчинённой работы — номер ближайшей не подчинённой выше в той же
+    /// главе, у прочих — ничего. Образец 15.3.5 — 67 подчинённых. Подчинённая первой строкой страницы (вышестоящая —
+    /// на прошлой) номер всё равно называет.
+    /// </summary>
+    [Fact]
+    public async Task Подчинённая_работа_называет_вышестоящую()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
+        await EstimateSeed.RevisionAsync(host, estimate, await EstimateSeed.MatchedRowAsync(host, site, 120m));
+        var client = await EstimateImportFlow.EditorAsync(host);
+        var attachment = await ConjunctureFlow.AttachedAsync(client, estimate, "vor-15.3.5-attachment-pdf");
+        var path = $"/api/plan/volume-statements/{ConjunctureFlow.Id(attachment)}/lines";
+
+        var lines = (await client.GetFromJsonAsync<JsonElement>($"{path}?limit=1000")).GetProperty("lines").EnumerateArray().ToList();
+        var expected = ExpectedParents(lines);
+        Assert.True(expected.Count(p => p is not null) > 10, "В образце 15.3.5 подчинённых работ десятки.");
+        for (var i = 0; i < lines.Count; i++)
+            Assert.Equal(expected[i], lines[i].GetProperty("parentNumber").GetString());
+
+        var boundary = Enumerable.Range(1, lines.Count - 1).First(i => expected[i] is not null);
+        var single = await client.GetFromJsonAsync<JsonElement>($"{path}?offset={boundary}&limit=1");
+        Assert.Equal(expected[boundary], single.GetProperty("lines")[0].GetProperty("parentNumber").GetString());
+    }
+
+    private static List<string?> ExpectedParents(List<JsonElement> lines)
+    {
+        var result = new List<string?>();
+        JsonElement? master = null;
+        foreach (var line in lines)
+        {
+            if (master is { } m && m.GetProperty("chapterIndex").GetInt32() != line.GetProperty("chapterIndex").GetInt32())
+                master = null;
+            if (!line.GetProperty("subordinate").GetBoolean())
+            {
+                master = line;
+                result.Add(null);
+            }
+            else result.Add(master?.GetProperty("number").GetString());
+        }
+        return result;
     }
 
     /// <summary>План сметы, как он лежит: редакции, действующая, строки с объёмами и распределение.</summary>

@@ -30,6 +30,10 @@ export interface EstimateAttachment {
   /** Разобрано позиций (у ВОР — работ): приложено могло быть с согласия без не разобранных. */
   parsed: number;
   inFile: number;
+  /** Глав среди разобранного — «48 работ в 7 главах». */
+  chapters: number;
+  /** Поставщиков в предложениях анализа (по ИНН, без ИНН — по имени); у ВОР — `null`. */
+  suppliers: number | null;
   importedAt: string;
   importedBy: string | null;
   /** Версия записи: её называет удаление заголовком `If-Match`. */
@@ -98,6 +102,8 @@ export interface VolumeLine {
   drawings: string | null;
   note: string | null;
   subordinate: boolean;
+  /** У подчинённой — номер вышестоящей работы («входит в № 12»); выше в главе нет — `null`. */
+  parentNumber: string | null;
 }
 
 export interface VolumeLinesPage {

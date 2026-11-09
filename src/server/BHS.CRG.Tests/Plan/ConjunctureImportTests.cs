@@ -86,6 +86,16 @@ public class ConjunctureImportTests(PlanOnlyHost host)
         Assert.Equal(ConjunctureFlow.Id(attachment), ConjunctureFlow.Id(repeated.GetProperty("attachment")));
         var list = await client.GetFromJsonAsync<JsonElement>($"/api/plan/estimates/{estimate}/conjuncture");
         Assert.Equal(1, list.GetArrayLength());
+
+        // Сводка строки списка (вариант 1 макета П11): «52 позиции · 3 поставщика» — глав и поставщиков по ИНН.
+        var row = list[0];
+        Assert.Equal(items.Select(i => i.GetProperty("chapterIndex").GetInt32()).Distinct().Count(),
+            row.GetProperty("chapters").GetInt32());
+        var suppliers = items.SelectMany(i => i.GetProperty("offers").EnumerateArray())
+            .Select(o => o.GetProperty("supplierInn").GetString() ?? o.GetProperty("supplier").GetString())
+            .Where(s => s is not null).Distinct().Count();
+        Assert.True(suppliers > 1, "В образце с тремя предложениями поставщиков больше одного.");
+        Assert.Equal(suppliers, row.GetProperty("suppliers").GetInt32());
     }
 
     /// <summary>Разобрано не всё: без согласия — 409 с числами и анализа нет; с согласием — только разобранное.</summary>
