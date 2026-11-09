@@ -12,7 +12,7 @@
 // ⚠️ Подпанель раздела у пользователя ОТКРЫТА — так было в разборе Дизайнера. Выбор — настройка человека
 // на сервере: прогон ставит её и возвращает прежнюю в finally, иначе соседние прогоны шли бы с ней.
 
-import { expandInvoiceParts } from './harness.mjs';
+import { expandInvoiceParts, takePanels, setPanels } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
@@ -68,20 +68,16 @@ async function allMessages(page, h) {
   return { id: created.id, number };
 }
 
-/** Выбор подпанели — настройка на сервере; прогон ставит «открыта» и возвращает прежний. */
-async function railPreference(h, value) {
-  const before = (await h.api('GET', '/account/settings')) ?? {};
-  await h.api('PUT', '/account/settings', { rail: value });
-  return before.rail ?? 'auto';
-}
-
 export async function invoiceScreenLayoutChecks(page, check, h) {
   let invoice;
   await check('экран счёта: черновик «со всеми сообщениями» заведён', async () => { invoice = await allMessages(page, h); });
   if (!invoice) return;
 
-  const before = await railPreference(h, 'expanded');
+  // Подпанель — «открыта», «Файл» пишут щелчки проверок; уборка возвращает оба как были — и на сервере, и в
+  // зеркалах браузера (`takePanels` в обвязке). Взятое запоминается до записи.
+  const before = await takePanels(page);
   try {
+    await setPanels(page, { rail: 'expanded' });
     for (const [width, height] of LAPTOPS) {
       await check(`экран счёта ${width}×${height}: сводка не выше 64, до последней строки и сверки доходят колесом и Tab`, async () => {
         await page.setViewportSize({ width, height });
@@ -207,9 +203,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.keyboard.press('Escape').catch(() => {});
-    // «Файл» пишет выбор на сервер — возвращаем «открыт», как без выбора.
-    await h.api('PUT', '/account/settings', { invoiceFile: 'open' }).catch(e => console.log('  ! выбор «Файл» не возвращён:', e.message));
-    await railPreference(h, before).catch(e => console.log('  ! выбор подпанели не возвращён:', e.message));
+    await check.tidy('выбор подпанели и «Файла» не возвращён', () => setPanels(page, before));
   }
 
   // Смена счёта сначала ДОПИСЫВАЕТ (costs-invoice-screen-12-autosave, D-12.7, D10.4 зонтика): у 10 щелчок по
@@ -305,8 +299,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       // Брошенная недошедшая запись держала бы `beforeunload`, и `goto` соседних проверок висел бы до таймаута.
       const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
       page.on('dialog', leave);
-      await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' })
-        .catch(e => console.log('  ! правка строки не брошена:', e.message.split('\n')[0]))
+      await check.tidy('правка строки не брошена', () => page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' }))
         .finally(() => page.off('dialog', leave));
     }
   });

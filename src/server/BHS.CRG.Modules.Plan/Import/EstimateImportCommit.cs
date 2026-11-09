@@ -142,7 +142,7 @@ public sealed class EstimateImportCommit(
                 throw new ConflictException($"Файл не разобран, и редакции из него не создать: {import.RefusalText}");
         }
         if (import.Kind is { } kind and not GrandSmetaKind.LocalEstimate)
-            throw new ConflictException(EstimateImportViews.NotEstimate(kind));
+            throw new ConflictException(EstimateImportViews.NotEstimate(kind, import.EstimateId is not null));
         return EstimateImportJson.Model(import)
             ?? throw new ConflictException("У импорта нет модели разбора — загрузите файл ещё раз.");
     }

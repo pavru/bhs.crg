@@ -60,12 +60,12 @@ public sealed record EstimateImportItemDto(
 /// <param name="State"><c>parsing</c>, <c>parsed</c>, <c>rejected</c> или <c>committed</c>.</param>
 /// <param name="Kind"><c>lsr</c>, <c>vor</c>, <c>ka</c>; <c>null</c> — файл ещё не открыт или не открылся.</param>
 /// <param name="Progress">Ход разбора словами очереди, пока он идёт.</param>
-/// <param name="Parsed">Разобрано позиций — у ЛСР.</param>
-/// <param name="InFile">Позиций в файле — у ЛСР.</param>
+/// <param name="Parsed">Разобрано позиций (у ВОР — работ).</param>
+/// <param name="InFile">Позиций в файле.</param>
 /// <param name="Skipped">Позиции, которые строками не станут, с причиной (D3 <c>plan-31</c>): в «N из M» они
 /// разобранные.</param>
-/// <param name="Marks">Пометки отчёта: <c>notEstimate</c> — это не ЛСР, редакцией не станет: уберите импорт; <c>partial</c> —
-/// разобрано не всё; <c>otherCalculation</c> — номер ЛСР не совпадает с прежней редакцией сметы;
+/// <param name="Marks">Пометки отчёта: <c>notEstimate</c> — это не ЛСР, редакцией не станет: у импорта в смету — приложите
+/// к смете (<c>plan-11</c>), у импорта в новую смету — уберите импорт; <c>partial</c> — разобрано не всё; <c>otherCalculation</c> — номер ЛСР не совпадает с прежней редакцией сметы;
 /// <c>computedTotals</c> — итоги посчитаны системой; <c>interrupted</c> — разбор прерван.</param>
 /// <param name="Hidden">Что скрыто правами; <c>null</c> — ничего.</param>
 public sealed record EstimateImportDto(

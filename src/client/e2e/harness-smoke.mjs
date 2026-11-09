@@ -288,6 +288,29 @@ await check('branding-refusal-fails-the-summary', async () => {
   }
 });
 
+// ── Уборка ─────────────────────────────────────────────────────────────────────
+// Отказ уборки не роняет ни одной проверки — его предъявляет итог, как и отказ оформления. Здесь
+// стережётся, что предъявляет: провалившая уборка делает итог провалом и названа в нём, а удачная
+// проверкой не считается. Итог — свой, под другим именем (см. выше), слова его в лог не идут.
+await check('failed-tidy-fails-the-summary', async () => {
+  const { log, error } = console;
+  const said = [];
+  try {
+    const { check: probe, tidy, summarize: verdictOf } = createChecks();
+    console.log = console.error = (...words) => { said.push(words.join(' ')); };
+    await probe('проба', async () => {});
+    await probe.tidy('прошла', async () => {});
+    if (verdictOf('проба') !== 0) throw new Error('удачная уборка провалила итог');
+    if (!said.some(s => s.includes('1/1 проверок'))) throw new Error(`удачная уборка посчитана проверкой: ${said.join(' | ')}`);
+    await tidy('отказала', async () => { throw new Error('400 Недопустимое значение'); });
+    said.length = 0;
+    if (verdictOf('проба') !== 1) throw new Error('итог с отказавшей уборкой назвался успехом');
+    if (!said.some(s => s.includes('уборка: отказала'))) throw new Error(`итог не назвал уборку: ${said.join(' | ')}`);
+  } finally {
+    Object.assign(console, { log, error });
+  }
+});
+
 // ── Вход ───────────────────────────────────────────────────────────────────────
 // Своя страница, и нарочно БЕЗ watchRequests: наблюдение обязан поставить сам вход — иначе набор,
 // забывший о нём, узнавал бы об этом отказом `settled()` посреди прогона.

@@ -8,7 +8,7 @@
 // избранное урезало бы им список строек, и они упали бы на чужом. Поэтому настройки сбрасываются и
 // до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, pickSites } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, pickSites } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
@@ -122,8 +122,8 @@ export async function favoritesChecks(page, check) {
       // «С другого компьютера» заводят стройку и отмечают её — адресом, мимо кэша этой страницы.
       // Звезда здесь не должна снять её как «удалённую»: справочник этой страницы её ещё не видел, а
       // сервер — видит (ревью PR #1331).
-      const created = await callApi(page, 'POST', '/constructions', { name: `${SPARE} с другого компьютера` });
-      const elsewhere = created.body.id;
+      // `callApiOk`: отказ — провал этой проверки словами сервера, а не `undefined` в уборке ниже.
+      const elsewhere = (await callApiOk(page, 'POST', '/constructions', { name: `${SPARE} с другого компьютера` })).id;
       spare.push(elsewhere);
       const before = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions;
       await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: `${before},${elsewhere}` });
@@ -211,7 +211,7 @@ export async function favoritesChecks(page, check) {
       }
     });
   } finally {
-    await callApi(page, 'PUT', '/account/settings', RESET);
-    for (const id of spare) await callApi(page, 'DELETE', `/constructions/${id}`);
+    await check.tidy('настройки избранного не сброшены', () => callApiOk(page, 'PUT', '/account/settings', RESET));
+    for (const id of spare) await check.tidy(`запасная стройка ${id} не удалена`, () => callApiOk(page, 'DELETE', `/constructions/${id}`));
   }
 }

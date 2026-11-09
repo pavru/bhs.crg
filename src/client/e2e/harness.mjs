@@ -469,6 +469,48 @@ export function callApi(page, method, path, body) {
   }, [method, path, body ?? null]);
 }
 
+/**
+ * То же, что `callApi`, но отказ (код от 400) бросается — со словами сервера. Для уборки в `tidy`:
+ * ответа `callApi` никто не читает, и отказ сервера без этого проходил бы молча.
+ */
+export async function callApiOk(page, method, path, body) {
+  const answer = await callApi(page, method, path, body);
+  if (answer.status >= 400) throw new Error(`${method} ${path} → ${answer.status} ${String(answer.body).slice(0, 200)}`);
+  return answer.body;
+}
+
+/**
+ * Подпанель раздела и «Файл» счёта — настройки учётной записи (на сервере) и их зеркала в браузере: первый
+ * кадр после перехода берётся из зеркала, до ответа сервера. Наборы счетов задуманы и проверены на свежем
+ * пользователе (в CI другого не бывает): у того, кто закрыл подпанель или «Файл», краснели проверки скана
+ * рядом с формой и ухода по ссылке «Накладные» подпанели. Поэтому набор запоминает их (`takePanels`),
+ * ставит как без выбора (`setPanels(page, FRESH_PANELS)`) и уборкой возвращает (`setPanels(page, взятое)`).
+ */
+const PANEL_MIRRORS = { rail: 'crg-rail', invoiceFile: 'crg-invoice-file' };
+
+/**
+ * Как без выбора. Подпанель — `null`: по ширине окна (`'auto'` в AppShell — значение клиента, сервер его
+ * отвергает 400), то есть рядом с формой на окне наборов.
+ */
+export const FRESH_PANELS = { rail: null, invoiceFile: 'open' };
+
+/** Что стоит у учётной записи. Ключа нет — `null`, «к умолчанию»: так его и возвращать. */
+export async function takePanels(page) {
+  const stored = (await callApiOk(page, 'GET', '/account/settings')) ?? {};
+  return Object.fromEntries(Object.keys(PANEL_MIRRORS).map(key => [key, stored[key] ?? null]));
+}
+
+/** Поставить названные настройки на сервере и в зеркалах; `null` стирает зеркало. */
+export async function setPanels(page, values) {
+  await callApiOk(page, 'PUT', '/account/settings', values);
+  await page.evaluate(([values, mirrors]) => {
+    for (const [key, mirror] of Object.entries(mirrors)) {
+      if (!(key in values)) continue;
+      if (values[key] === null) localStorage.removeItem(mirror); else localStorage.setItem(mirror, values[key]);
+    }
+  }, [values, PANEL_MIRRORS]);
+}
+
 /** Адрес «Реестра счетов» с готовым отбором — тем же видом, каким его собирает клиент. */
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
@@ -572,6 +614,13 @@ export async function clearSession(page) {
  *
  * Отказ 429 оформления, увиденный любой страницей прогона (`brandingRefusals`), итог тоже делает
  * провалом — даже когда все проверки прошли.
+ *
+ * `tidy(what, fn)` — уборка за проверками: вернуть настройку, удалить заведённое. Отказ уборки —
+ * ПРОВАЛ набора («✗ уборка: …» и в итоге), успех не считается проверкой и итог «N из M» не
+ * раздувает. Модулям проверок она приходит вместе с `check` — `check.tidy`, — как и сам `check`.
+ * Заведена после того, как уборка выбора подпанели на каждом прогоне получала 400 и сообщала об этом
+ * строкой «! … не возвращён», которой не видел никто: набор оставался зелёным, а следующий шёл на
+ * чужой настройке. Ловить отказ уборки и только печатать его запрещает `tidy.test.mjs`.
  */
 export function createChecks() {
   const results = [];
@@ -580,6 +629,19 @@ export function createChecks() {
     try { await fn(); results.push([name, true, '']); console.log(`  ✓ ${name}`); }
     catch (e) { results.push([name, false, e.message]); console.log(`  ✗ ${name} — ${e.message}`); }
   }
+  async function tidy(what, fn) {
+    try { await fn(); }
+    catch (e) {
+      const name = `уборка: ${what}`;
+      // Отказ — не обязательно Error (`Promise.reject('…')`): уборка стоит в `finally` и бросать не должна,
+      // иначе следующие его строки — закрытие браузера — не выполнятся.
+      const said = String(e?.message ?? e);
+      results.push([name, false, said]);
+      // Первая строка: отказ Playwright тянет за собой журнал вызова.
+      console.log(`  ✗ ${name} — ${said.split('\n')[0]}`);
+    }
+  }
+  check.tidy = tidy;
   function skip(name, reason) {
     skipped.push([name, reason]);
     console.log(`  — ${name} — пропущено: ${reason}`);
@@ -599,7 +661,7 @@ export function createChecks() {
     console.log(`${title} — OK`);
     return 0;
   }
-  return { check, skip, summarize };
+  return { check, skip, tidy, summarize };
 }
 
 /**
