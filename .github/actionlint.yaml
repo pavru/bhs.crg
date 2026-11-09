@@ -1,0 +1,5 @@
+# Метки self-hosted раннеров: без списка actionlint считает любую свою метку опечаткой.
+# `1c` — раннер стенда 1С на машине разработчика (docs/DEV_NOTES.md, «Стенд 1С: OData и раннер»).
+self-hosted-runner:
+  labels:
+    - 1c
