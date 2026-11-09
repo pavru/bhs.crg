@@ -176,6 +176,56 @@ public class PermissionCatalogTests
     }
 
     /// <summary>
+    /// Признак «право контракта» у права ЯДРА — отказ при старте с названием права (plan-21, AUTH-8.1):
+    /// право контракта модуль отдаёт другим, не открывая себя, а ядро модулем не открывается.
+    /// </summary>
+    [Fact]
+    public void Core_permission_marked_as_contract_stops_startup()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddAppModules(
+            new ConfigurationBuilder().Build(),
+            [new AppPermission("core.employees.read", "сотрудники", "справочник", Contract: true)],
+            new GoodModule("id")));
+
+        Assert.Contains("core.employees.read", ex.Message);
+        Assert.Contains("правом контракта", ex.Message);
+    }
+
+    /// <summary>Признак у права модуля — законен: справочник собирается и узнаёт право.</summary>
+    [Fact]
+    public void Module_permission_marked_as_contract_is_accepted()
+    {
+        var catalog = new PermissionCatalog(
+        [
+            new AppPermission("plan.estimate.read", "сметы", "сметы", ReadAll: ReadAllMark.In),
+            new AppPermission("plan.estimate.hint", "подсказка", "наименования сметы",
+                ReadAll: ReadAllMark.Out("выдача другому модулю"), Contract: true),
+        ], PermissionCatalog.DeclarationFaults([], []));
+
+        Assert.True(catalog.IsContract("plan.estimate.hint"));
+        Assert.False(catalog.IsContract("plan.estimate.read"));
+        Assert.False(catalog.IsContract("plan.never.declared"));
+    }
+
+    /// <summary>
+    /// Правило «модуль открыт» не считает права контракта (AUTH-8.1): одно такое право модуль не
+    /// открывает, вместе с обычным — открывает. Ломается так: проверка по одному началу кода.
+    /// </summary>
+    [Fact]
+    public void Contract_permission_alone_does_not_open_the_module()
+    {
+        var catalog = new PermissionCatalog(
+        [
+            new AppPermission("plan.estimate.read", "сметы", "сметы", ReadAll: ReadAllMark.In),
+            new AppPermission("plan.estimate.hint", "подсказка", "наименования сметы",
+                ReadAll: ReadAllMark.Out("выдача другому модулю"), Contract: true),
+        ]);
+
+        Assert.False(ModuleAccess.IsOpen("plan", ["plan.estimate.hint"], catalog));
+        Assert.True(ModuleAccess.IsOpen("plan", ["plan.estimate.hint", "plan.estimate.read"], catalog));
+    }
+
+    /// <summary>
     /// Изъян пометки идёт в ТОТ ЖЕ отказ, что и право без объяснения: модуль с обоими чинится за
     /// один перезапуск, а не за два.
     /// </summary>
@@ -249,8 +299,9 @@ public class PermissionCatalogTests
     [Fact]
     public void Expanded_read_all_opens_the_module()
     {
-        Assert.False(ModuleAccess.IsOpen("costs", [PermissionCatalog.ReadAllCode]));
-        Assert.True(ModuleAccess.IsOpen("costs", Composite().Expand([PermissionCatalog.ReadAllCode])));
+        var catalog = Composite();
+        Assert.False(ModuleAccess.IsOpen("costs", [PermissionCatalog.ReadAllCode], catalog));
+        Assert.True(ModuleAccess.IsOpen("costs", catalog.Expand([PermissionCatalog.ReadAllCode]), catalog));
     }
 
     private static PermissionCatalog Composite() => new(

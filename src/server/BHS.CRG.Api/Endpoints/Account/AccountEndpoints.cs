@@ -31,7 +31,8 @@ public static class AccountEndpoints
         /// устаревший ответ рисует меню, которого у пользователя больше нет, — то есть пункты,
         /// отвечающие отказом. Это тот же случай, что и роль в токене, только этажом выше.
         g.MapGet("/access", async (ClaimsPrincipal principal, IUserPermissions permissions,
-            ModuleRegistry modules, IAppSettingsStore settings, CancellationToken ct) =>
+            ModuleRegistry modules, PermissionCatalog catalog, IAppSettingsStore settings,
+            CancellationToken ct) =>
         {
             var granted = await permissions.ForAsync(principal, ct);
             // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и чтение без
@@ -64,7 +65,8 @@ public static class AccountEndpoints
                 {
                     code = m.Code,
                     title = m.Title,
-                    available = ModuleAccess.IsOpen(m.Code, granted),
+                    // Без прав контракта (plan-21): ими модуль делится с другими, себя не открывая.
+                    available = ModuleAccess.IsOpen(m.Code, granted, catalog),
                     // Разделы ядра, которыми модуль пользуется (issue #1001): из них клиент собирает
                     // навигацию рабочего пространства. Доступа они не дают — пункт закрыт своим правом.
                     sections = m.UsesSections,
