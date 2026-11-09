@@ -281,8 +281,8 @@ try {
     await api('POST', '/costs/invoices', { requisites: requisites(number, 'Счёт первый') });
     await api('POST', '/costs/invoices', { requisites: requisites(number, 'Счёт второй') });
 
-    // Открываем ВТОРОЙ по созданию — в списке он ПЕРВЫЙ: реестр отдаётся по дате счёта и времени
-    // создания, оба по убыванию. Даты у пары одинаковые, значит порядок решает создание.
+    // Открываем ВТОРОЙ по созданию — в списке он ПЕРВЫЙ: лента идёт по моменту заведения, новые
+    // сверху ([COST-6.3]).
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
     await invoiceOpened(page);
@@ -389,8 +389,8 @@ try {
     if (new URL(page.url()).searchParams.get('invoice') !== opened)
       throw new Error('пакет из нескольких файлов сменил открытый счёт');
 
-    // Отбор загрузки (issue #1294): список отсортирован по дате счёта, и после распознавания её
-    // черновики разъезжаются между старыми счетами. Из полосы одним действием видны ровно они.
+    // Отбор загрузки (issue #1294): черновики загрузки стоят наверху ленты ([COST-6.3]), но вперемешку
+    // с заведёнными в ту же минуту чужими. Из полосы одним действием видны ровно они.
     const rows = page.getByTestId('invoice-row');
     const line = page.getByTestId('upload-line');
     await page.getByPlaceholder('Номер, поставщик, назначение…').fill('заведомо ничего');

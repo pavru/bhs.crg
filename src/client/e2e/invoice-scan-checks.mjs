@@ -48,6 +48,34 @@ async function watchFirstSheet(page) {
 }
 
 export async function invoiceScanChecks(page, check, h) {
+  // Лента — по дате добавления ([COST-6.3], issue #1818, п. 3). Брошенный последним счёт от давнего числа —
+  // первая строка и до распознавания (даты нет), и после (дата старше всех счетов прогона). По дате счёта
+  // он стоял сверху лишь до распознавания, а с датой уезжал под счета, заведённые раньше.
+  await check('счёт, заведённый последним, первый в ленте и без даты, и с давней датой', async () => {
+    const number = `СЧ-Л${h.stamp}`;
+    const created = await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(number, 'Давняя дата'), 'Дата': null } });
+    const onTop = async when => {
+      await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
+      const top = page.getByTestId('invoice-row').first();
+      await h.named(`лента пуста (${when})`, () => top.waitFor({ timeout: 10_000 }));
+      const text = await top.innerText();
+      if (!text.includes(number)) throw new Error(`${when}: первая строка ленты — «${text}», а не ${number}`);
+    };
+    await onTop('без даты');
+    // Дату ставит распознавание — тем же адресом правки шапки, что и форма, с версией счёта.
+    await page.evaluate(async id => {
+      const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+      const seen = await (await fetch(`/api/costs/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+      const res = await fetch(`/api/costs/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'If-Match': `"${seen.version}"` },
+        body: JSON.stringify({ requisites: { ...seen.requisites, 'Дата': '2025-10-09' } }),
+      });
+      if (!res.ok) throw new Error(`дата не записана: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    }, created.id);
+    await onTop('с давней датой');
+  });
+
   // Скан открывается РЯДОМ, а без места рядом «Файл» называет причину (проверка 4 `invoices-smoke`).
   //
   // Место — по рабочей области (costs-invoice-screen-10-layout, D-10.3): форме рядом с файлом нужно 720.

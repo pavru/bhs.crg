@@ -6,16 +6,16 @@
 
 ## 1. Сервер
 
-- [ ] 1.1 `InvoiceListEndpoint.ListAsync`: `OrderByDescending(CreatedAt).ThenByDescending(Id)` вместо
+- [x] 1.1 `InvoiceListEndpoint.ListAsync`: `OrderByDescending(CreatedAt).ThenByDescending(Id)` вместо
   сортировки по `IssuedOn` (D1); doc-комментарий метода называет порядок и почему [COST-6.3]. Проверка —
   интеграционный тест рядом с `InvoiceListWholeTests`: три счёта, заведённые по очереди, с датами «старая —
   новая — без даты» приходят в обратном порядке заведения; то же под `needsParsing=true`
-- [ ] 1.2 Тест стабильности: два счёта с одинаковым `CreatedAt` приходят в одном порядке при двух чтениях
+- [x] 1.2 Тест стабильности: два счёта с одинаковым `CreatedAt` приходят в одном порядке при двух чтениях
   [COST-6.3]. Проверка — тест из 1.1 зелёный
 
 ## 2. Клиент и прогоны
 
-- [ ] 2.1 Сверить, что клиент не сортирует ленту сам: `InvoicesPage.tsx`, `invoicePageModel.ts`, переход
+- [x] 2.1 Сверить, что клиент не сортирует ленту сам: `InvoicesPage.tsx`, `invoicePageModel.ts`, переход
   «‹ N из M ›» (D3) [COST-6.3]. Проверка — в описании PR: места просмотрены, правки нет (или названа)
 - [ ] 2.2 Живые прогоны счёта, которые выбирают строку ленты по позиции (`invoice-row` с `first()` /
   `nth(`), — сверить и при нужде перевести на выбор по номеру или имени файла. Проверка —
@@ -26,12 +26,12 @@
 
 ## 3. Документы
 
-- [ ] 3.1 `docs/USER_GUIDE.md` — лента счетов идёт по дате добавления; `docs/tz/55-счета-и-накладные.md`,
+- [x] 3.1 `docs/USER_GUIDE.md` — лента счетов идёт по дате добавления; `docs/tz/55-счета-и-накладные.md`,
   [COST-6.3] — та же фраза. Проверка — `cd docs/tools && npm run toc` без изменений оглавления (или
   перестроено), ревью PR
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceList|FullyQualifiedName~FileSizeRatchet"` — зелёный
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceList|FullyQualifiedName~FileSizeRatchet"` — зелёный
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
