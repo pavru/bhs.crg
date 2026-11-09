@@ -12,7 +12,7 @@
 // ⚠️ Подпанель раздела у пользователя ОТКРЫТА — так было в разборе Дизайнера. Выбор — настройка человека
 // на сервере: прогон ставит её и возвращает прежнюю в finally, иначе соседние прогоны шли бы с ней.
 
-import { expandInvoiceParts } from './harness.mjs';
+import { expandInvoiceParts, takePanels, setPanels } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
@@ -68,25 +68,16 @@ async function allMessages(page, h) {
   return { id: created.id, number };
 }
 
-/**
- * Выбор подпанели и «Файла» — настройки на сервере: прогон ставит подпанель «открыта», «Файл» пишут его
- * щелчки, а уборка возвращает оба как были. Ключа не было — возвращается null, «к умолчанию»: умолчание
- * подпанели («по ширине окна», `'auto'` в AppShell) живёт только в клиенте, и сервер такое значение
- * отвергает 400 — так уборка и промахивалась у каждого, кто подпанель не выбирал, то есть на свежем стенде.
- */
-async function takeSettings(h) {
-  const stored = (await h.api('GET', '/account/settings')) ?? {};
-  await h.api('PUT', '/account/settings', { rail: 'expanded' });
-  return { rail: stored.rail ?? null, invoiceFile: stored.invoiceFile ?? null };
-}
-
 export async function invoiceScreenLayoutChecks(page, check, h) {
   let invoice;
   await check('экран счёта: черновик «со всеми сообщениями» заведён', async () => { invoice = await allMessages(page, h); });
   if (!invoice) return;
 
-  const before = await takeSettings(h);
+  // Подпанель — «открыта», «Файл» пишут щелчки проверок; уборка возвращает оба как были — и на сервере, и в
+  // зеркалах браузера (`takePanels` в обвязке). Взятое запоминается до записи.
+  const before = await takePanels(page);
   try {
+    await setPanels(page, { rail: 'expanded' });
     for (const [width, height] of LAPTOPS) {
       await check(`экран счёта ${width}×${height}: сводка не выше 64, до последней строки и сверки доходят колесом и Tab`, async () => {
         await page.setViewportSize({ width, height });
@@ -212,7 +203,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.keyboard.press('Escape').catch(() => {});
-    await check.tidy('выбор подпанели и «Файла» не возвращён', () => h.api('PUT', '/account/settings', before));
+    await check.tidy('выбор подпанели и «Файла» не возвращён', () => setPanels(page, before));
   }
 
   // Смена счёта сначала ДОПИСЫВАЕТ (costs-invoice-screen-12-autosave, D-12.7, D10.4 зонтика): у 10 щелчок по

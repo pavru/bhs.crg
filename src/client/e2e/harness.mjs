@@ -480,20 +480,35 @@ export async function callApiOk(page, method, path, body) {
 }
 
 /**
- * Подпанель раздела и «Файл» счёта — как у СВЕЖЕГО пользователя; возвращает, что стояло, — для уборки
- * (`check.tidy`, PUT того же адреса). Наборы счетов задуманы и проверены на свежем пользователе (в CI другого
- * не бывает), а настройки — на сервере, у учётной записи: у того, кто закрыл подпанель или «Файл», краснели
- * проверки скана рядом с формой и ухода по ссылке «Накладные» подпанели.
- *
- * Подпанель — `null`, «как без выбора»: по ширине окна (`'auto'` в AppShell — значение клиента, сервер его
- * отвергает 400), то есть рядом с формой на окне наборов. Отсутствующий ключ возвращается тоже `null`.
- * Зеркала в браузере — под стать: первый кадр после перехода берётся из них, до ответа сервера.
+ * Подпанель раздела и «Файл» счёта — настройки учётной записи (на сервере) и их зеркала в браузере: первый
+ * кадр после перехода берётся из зеркала, до ответа сервера. Наборы счетов задуманы и проверены на свежем
+ * пользователе (в CI другого не бывает): у того, кто закрыл подпанель или «Файл», краснели проверки скана
+ * рядом с формой и ухода по ссылке «Накладные» подпанели. Поэтому набор запоминает их (`takePanels`),
+ * ставит как без выбора (`setPanels(page, FRESH_PANELS)`) и уборкой возвращает (`setPanels(page, взятое)`).
  */
-export async function freshPanels(page) {
+const PANEL_MIRRORS = { rail: 'crg-rail', invoiceFile: 'crg-invoice-file' };
+
+/**
+ * Как без выбора. Подпанель — `null`: по ширине окна (`'auto'` в AppShell — значение клиента, сервер его
+ * отвергает 400), то есть рядом с формой на окне наборов.
+ */
+export const FRESH_PANELS = { rail: null, invoiceFile: 'open' };
+
+/** Что стоит у учётной записи. Ключа нет — `null`, «к умолчанию»: так его и возвращать. */
+export async function takePanels(page) {
   const stored = (await callApiOk(page, 'GET', '/account/settings')) ?? {};
-  await callApiOk(page, 'PUT', '/account/settings', { rail: null, invoiceFile: 'open' });
-  await page.evaluate(() => { localStorage.removeItem('crg-rail'); localStorage.setItem('crg-invoice-file', 'open'); });
-  return { rail: stored.rail ?? null, invoiceFile: stored.invoiceFile ?? null };
+  return Object.fromEntries(Object.keys(PANEL_MIRRORS).map(key => [key, stored[key] ?? null]));
+}
+
+/** Поставить названные настройки на сервере и в зеркалах; `null` стирает зеркало. */
+export async function setPanels(page, values) {
+  await callApiOk(page, 'PUT', '/account/settings', values);
+  await page.evaluate(([values, mirrors]) => {
+    for (const [key, mirror] of Object.entries(mirrors)) {
+      if (!(key in values)) continue;
+      if (values[key] === null) localStorage.removeItem(mirror); else localStorage.setItem(mirror, values[key]);
+    }
+  }, [values, PANEL_MIRRORS]);
 }
 
 /** Адрес «Реестра счетов» с готовым отбором — тем же видом, каким его собирает клиент. */
@@ -618,9 +633,12 @@ export function createChecks() {
     try { await fn(); }
     catch (e) {
       const name = `уборка: ${what}`;
-      results.push([name, false, e.message]);
+      // Отказ — не обязательно Error (`Promise.reject('…')`): уборка стоит в `finally` и бросать не должна,
+      // иначе следующие его строки — закрытие браузера — не выполнятся.
+      const said = String(e?.message ?? e);
+      results.push([name, false, said]);
       // Первая строка: отказ Playwright тянет за собой журнал вызова.
-      console.log(`  ✗ ${name} — ${e.message.split('\n')[0]}`);
+      console.log(`  ✗ ${name} — ${said.split('\n')[0]}`);
     }
   }
   check.tidy = tidy;

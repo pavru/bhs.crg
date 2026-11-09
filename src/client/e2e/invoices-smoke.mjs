@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import {
   BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
-  callApiOk, freshPanels,
+  FRESH_PANELS, takePanels, setPanels,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
@@ -164,10 +164,14 @@ const UNKNOWN_TYPE = 'application/octet-stream';
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-// Подпанель и «Файл» — как у свежего пользователя, а прежние — уборкой в конце (`freshPanels`).
+// Подпанель и «Файл» — как у свежего пользователя, а прежние — уборкой в конце (`takePanels` в обвязке).
+// Взятое запоминается ДО записи: упади запись на полпути, уборка всё равно вернёт.
 let panels;
 try {
-  panels = await freshPanels(page);
+  await check('подпанель и «Файл» поставлены как у свежего пользователя', async () => {
+    panels = await takePanels(page);
+    await setPanels(page, FRESH_PANELS);
+  });
 
   // ── 1. Черновик сохраняется без строк ───────────────────────────────────────
   //
@@ -461,7 +465,7 @@ try {
 
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
   // Прежние настройки запомнены в начале набора — здесь возвращать нечего.
-  await freshPanels(page);
+  await check('«Файл» снова открыт, как без выбора', () => setPanels(page, FRESH_PANELS));
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
   //
@@ -748,8 +752,7 @@ try {
     }
   });
 } finally {
-  if (panels) await check.tidy('подпанель и «Файл» администратора не возвращены',
-    () => callApiOk(page, 'PUT', '/account/settings', panels));
+  if (panels) await check.tidy('подпанель и «Файл» администратора не возвращены', () => setPanels(page, panels));
   await browser.close();
 }
 
