@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView, InvoiceView } from '@/shared/api/invoices';
-import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
+import { emptyDraft, preview, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import { mergeSaved } from './invoiceLinesMerge';
 
 /**
@@ -26,8 +26,11 @@ const at = (drafts: LineDraft[]) => ({ drafts, mode: 'Included' as const });
 describe('слияние ответа записи строк с набранным', () => {
   it('ничего не правили — строки из ответа, несохранённого нет', () => {
     const sent = toDrafts([line(A, { quantity: 2, amount: null })], 'Included');
-    const merged = mergeSaved(at(sent), at(sent), answer([line(A, { quantity: 2, amount: 20 })]));
-    expect(merged.drafts[0].amount).toBe('20');
+    const saved = answer([line(A, { quantity: 2, amount: 20 })]);
+    const merged = mergeSaved(at(sent), at(sent), saved);
+    // Строка — из ответа; досчитанная сумма в ней пустая, посчитанной она и показывается (issue #1654).
+    expect(merged.drafts[0]).toEqual(toDrafts(saved.lines, 'Included')[0]);
+    expect(preview(merged.drafts[0], 'Included').amount).toBe(20);
     expect(merged.dirty).toBe(false);
   });
 
@@ -38,7 +41,8 @@ describe('слияние ответа записи строк с набранн�
 
     // Недонабранное «7,» не переписано числом сервера — запятая под курсором на месте.
     expect(merged.drafts[1].quantity).toBe('7,');
-    expect(merged.drafts[0].amount).toBe('10');
+    expect(merged.drafts[0].amount).toBe('');
+    expect(preview(merged.drafts[0], 'Included').amount).toBe(10);
     expect(merged.dirty).toBe(true);
   });
 

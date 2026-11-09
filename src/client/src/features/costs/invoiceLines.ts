@@ -140,9 +140,24 @@ export function emptyDraft(): LineDraft {
  * `amount` ответа там — сумма С НДС, посчитанная сервером. Взятая в черновик, она уехала бы обратно как
  * бумага, и НДС прибавился бы второй раз. Режим обязателен, умолчания нет нарочно — как у сервера
  * (`InvoiceLineValues.Completed`): с умолчанием забытое место читало бы «в том числе» у счёта сверху.</p>
+ *
+ * <p>⚠️ <b>Посчитанное остаётся пустым</b> (issue #1654, D1 (а)): сервер хранит только досчитанное, и сумма,
+ * взятая в черновик набранной, после сохранения больше не пересчитывалась — 1 × 100 → сохранить → количество
+ * 10 давало сумму 100. Поэтому сумма, равная количеству × цену, и НДС, равный посчитанному по ставке от суммы,
+ * ложатся пустыми: пустое поле и значит «посчитай» — здесь, в `preview`, и на сервере. Бумажная сумма, по
+ * случайности равная расчёту, с бумажной неотличима и тоже станет посчитанной — там это одно и то же.</p>
  */
 export function toDrafts(lines: readonly InvoiceLineView[], mode: VatMode): LineDraft[] {
-  return lines.map(line => ({
+  return lines.map(line => toDraft(line, mode));
+}
+
+function toDraft(line: InvoiceLineView, mode: VatMode): LineDraft {
+  const sum = mode === 'OnTop' ? line.netAmount ?? null : line.amount;
+  const computed = line.quantity != null && line.price != null ? money(line.quantity * line.price) : null;
+  const rate = line.vatRate;
+  const vatByRate = sum != null && rate != null && rate >= 0
+    ? money((sum * rate) / (mode === 'OnTop' ? 100 : 100 + rate)) : null;
+  return ({
     key: line.id,
     id: line.id,
     nomenclatureId: line.nomenclatureId,
@@ -156,12 +171,12 @@ export function toDrafts(lines: readonly InvoiceLineView[], mode: VatMode): Line
     quantity: formatInput(line.quantity),
     price: formatInput(line.price),
     vatRate: formatInput(line.vatRate),
-    vatAmount: formatInput(line.vatAmount),
-    amount: formatInput(mode === 'OnTop' ? line.netAmount ?? null : line.amount),
+    vatAmount: line.vatAmount === vatByRate ? '' : formatInput(line.vatAmount),
+    amount: sum === computed ? '' : formatInput(sum),
     note: line.note ?? '',
     matchedBy: line.match?.id ?? null,
     match: line.match ?? null,
-  }));
+  });
 }
 
 /**

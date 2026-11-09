@@ -24,6 +24,7 @@ import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoicePart
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { reconciliationChecks } from './invoice-reconciliation-checks.mjs';
 import { saveRaceChecks } from './invoice-save-race-checks.mjs';
+import { computedAmountChecks, shown } from './invoice-computed-amount-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
@@ -191,8 +192,8 @@ try {
 
     const quantity = await cell('Количество', 1).inputValue();
     if (quantity !== '100') throw new Error(`после перезагрузки количество «${quantity}», ожидалось 100`);
-    // Сумму никто не набирал — её досчитал СЕРВЕР по количеству и цене.
-    const amount = await cell('Сумма', 1).inputValue();
+    // Сумму никто не набирал — её досчитал СЕРВЕР по количеству и цене; посчитанная стоит подсказкой поля (#1654).
+    const amount = await shown(cell('Сумма', 1));
     if (amount !== '4850') throw new Error(`сумма «${amount}», ожидалась досчитанная 4850`);
   });
 
@@ -555,8 +556,8 @@ try {
 
     await page.getByRole('button', { name: 'Перечитать счёт' }).click();
     await notice.waitFor({ state: 'detached', timeout: 10_000 });
-    const shown = [await cell('Наименование в счёте', 1).inputValue(), await cell('Количество', 1).inputValue()];
-    if (shown.join('|') !== 'строка соседа|3') throw new Error(`после перечитывания на экране не сохранённое: ${shown}`);
+    const onScreen = [await cell('Наименование в счёте', 1).inputValue(), await cell('Количество', 1).inputValue()];
+    if (onScreen.join('|') !== 'строка соседа|3') throw new Error(`после перечитывания на экране не сохранённое: ${onScreen}`);
 
     // Версия у счёта одна, а части разные: сосед поправил ШАПКУ — строки, которых он не трогал,
     // сохраняются. Форма называет версию своего вида, получает отказ, перечитывает счёт, видит, что
@@ -696,6 +697,9 @@ try {
 
   // ── Правка строк во время их записи (#1656) — своим файлом ─────────────────────
   await saveRaceChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines });
+
+  // ── Посчитанная сумма строки после сохранения (#1654) — своим файлом ───────────
+  await computedAmountChecks({ page, check, stamp, invoice, open, cell, addRow });
 
   // ── Подсказки по введённому ранее (#1533) — своим файлом: входа отдельного прогона в пределе нет ──
   await suggestChecks({ page, check, stamp, api });
