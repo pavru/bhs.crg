@@ -27,6 +27,7 @@ import { saveRaceChecks } from './invoice-save-race-checks.mjs';
 import { computedAmountChecks, shown } from './invoice-computed-amount-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
+import { unsavedSupplierChecks } from './invoice-unsaved-supplier-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
 import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
 
@@ -697,6 +698,9 @@ try {
 
   // ── Правка строк во время их записи (#1656) — своим файлом ─────────────────────
   await saveRaceChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines });
+
+  // ── Поставщик в шапке изменён и не сохранён (#1657) — своим файлом ─────────────
+  await unsavedSupplierChecks({ page, check, stamp, api, invoice, open, cell, addRow, saveLines, cable, organizations });
 
   // ── Посчитанная сумма строки после сохранения (#1654) — своим файлом ───────────
   await computedAmountChecks({ page, check, stamp, invoice, open, cell, addRow });
