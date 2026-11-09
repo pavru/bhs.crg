@@ -14,7 +14,7 @@ import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import {
-  allocationStatus, emptyPart, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft,
+  allocationStatus, emptyPart, estimateRemainder, nextPart, toPartDrafts, toPartsPayload, type PartDraft,
 } from './allocation';
 import { PlaceSelect } from './PlaceSelect';
 import { missingSection, usePlaces } from './places';
@@ -190,7 +190,8 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
       )}
       <EditGrid label="Части разноски" rows={drafts} rowKey={draft => draft.key} framed={false}
         empty="Частей нет — строка не разнесена"
-        add={canEdit ? { label: 'Добавить часть', onAdd: () => { setDrafts(prev => [...prev, emptyPart()]); setDirty(true); } } : undefined}
+        // Вторая и следующая часть приходит с остатком строки (#1818, п. 5б) — обычным набранным числом.
+        add={canEdit ? { label: 'Добавить часть', onAdd: () => { setDrafts(prev => [...prev, nextPart(prev, line, mode)]); setDirty(true); } } : undefined}
         onRemove={canEdit ? draft => { setDrafts(prev => prev.filter(d => d.key !== draft.key)); setDirty(true); } : undefined}
         removeLabel={(_, index) => `Удалить часть ${index + 1}`}
         columns={[

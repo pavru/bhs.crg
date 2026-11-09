@@ -1,6 +1,7 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView, VatMode } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatInput, formatMoney, formatQuantityUnit } from '@/shared/format/format';
+import { remainderInput } from './allocation';
 import { K } from './invoiceFields';
 import { lineName, preview as linePreview, toNumber, type LineDraft } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
@@ -214,6 +215,28 @@ export function estimateRest(row: MatrixRow, targets: MatrixTarget[], cells: Mat
   const given = targets.reduce((sum, t) => sum + (toNumber(cells[row.key]?.[t.key] ?? '') ?? 0), 0);
   const digits = row.mode === 'quantity' ? 1000 : 100;
   return Math.round((row.whole - given) * digits) / digits;
+}
+
+/**
+ * Клетки колонки, которую человек добавляет кнопкой «Добавить объект» (#1818, п. 5б; ТЗ COST-12.1): у второго
+ * и следующего объекта — остаток каждой строки, у первого — пусто.
+ *
+ * <p>Остаток — ровно {@link estimateRest}, то самое «Не разнесено», что человек видит в строке: число в клетке
+ * и обещание рядом не расходятся. Когда клетка остаётся пустой (строка разнесена целиком или с лишним, нет
+ * количества и суммы) и как учитывается знак отрицательной строки — решает {@link remainderInput}, общий с
+ * окном строки.</p>
+ *
+ * <p>Поверх предпросмотра «поровну» / «по %» не зовётся: там остаток серверный, а кнопка заперта.</p>
+ *
+ * @returns строка → текст клетки; строк без остатка в ответе нет.
+ */
+export function remainderColumn(rows: MatrixRow[], targets: MatrixTarget[], cells: MatrixCells): Record<string, string> {
+  if (targets.length === 0) return {};
+  return Object.fromEntries(rows.flatMap(row => {
+    if (row.mode === 'none') return [];
+    const text = remainderInput(estimateRest(row, targets, cells), row.whole);
+    return text === '' ? [] : [[row.key, text]];
+  }));
 }
 
 /**
