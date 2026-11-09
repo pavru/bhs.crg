@@ -1,6 +1,6 @@
 import { forwardRef, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { CheckCircle, Payments, Save, SearchCheck, type IconDef } from '@/shared/ui/icons';
+import { CheckCircle, Edit, Payments, SearchCheck, Undo, type IconDef } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
 import type { PrimaryAction } from './invoicePrimary';
@@ -19,8 +19,12 @@ import { InvoiceSaveState } from './InvoiceSaveState';
  * (D-10.3, D-10.4).</p>
  *
  * <p>Ширину меряет сама сводка (`@container`), а не окно: рядом со списком и файлом форма бывает уже
- * 400 px. Тогда «Сохранить» и основное действие становятся значками с тем же именем — иначе кнопки
- * выходили за колонку, и соседняя панель ложилась поверх «Разобран».</p>
+ * 400 px. Тогда «Изменить», «Отменить правку» и основное действие становятся значками с тем же именем — иначе
+ * кнопки выходили за колонку, и соседняя панель ложилась поверх «Разобран».</p>
+ *
+ * <p>Кнопки «Сохранить» в сводке нет ни у одного положения счёта (costs-invoice-screen-12-autosave, D-12.3): черновик
+ * пишется сам, разобранный правится режимом «Изменить» и пишется «Разобран», оплаченный черновик — «Сохранить» в
+ * «Сроках и оплате».</p>
  */
 export interface SummaryPrimary {
   kind: Exclude<PrimaryAction, null>;
@@ -36,10 +40,23 @@ const PRIMARY: Record<SummaryPrimary['kind'], { label: string; icon: IconDef }> 
   check: { label: 'Проверить исправление…', icon: SearchCheck },
 };
 
-/** Запись в сводке: носитель (счёт пишется сам) или кнопка «Сохранить» (явная запись). */
+/**
+ * Запись в сводке (D-12.3): `auto` — носитель, счёт пишется сам; `read` — разобранный читается, «Изменить» открывает
+ * правку; `edit` — режим «Изменить»: носитель и «Отменить правку»; `terms` — оплаченный черновик: носитель ведёт к
+ * «Сохранить» в «Сроках и оплате».
+ */
 export type SummarySave =
   | { kind: 'auto'; status: SaveStatus; savedAt: string; onRetry: () => void }
-  | { kind: 'button'; unsaved: boolean; saving: boolean; savedAt: string; onSave: () => void };
+  | { kind: 'read'; onEdit: () => void }
+  | { kind: 'edit'; status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void; onCancel: () => void }
+  | { kind: 'terms'; status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void; onGo: () => void };
+
+/** «Не сохранено» явной записи — что сказать и куда вести. */
+function pendingOf(save: SummarySave) {
+  if (save.kind === 'edit') return save.unsaved ? { text: 'Не сохранено' } : null;
+  if (save.kind === 'terms') return save.unsaved ? { text: 'Не сохранено — «Сохранить» в «Сроках и оплате»', onGo: save.onGo } : null;
+  return null;
+}
 
 export const InvoiceSummary = forwardRef<HTMLDivElement, {
   /** Номер счёта — как его называет сводка; пустой — «без номера». */
@@ -53,9 +70,8 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   /** Место индикатора состояния (ребёнок 11). */
   indicator?: ReactNode;
   /**
-   * Запись: `auto` — носитель записи (счёт пишется сам, costs-invoice-screen-12-autosave, D-12.1); `button` —
-   * «Сохранить» там, где автосохранения нет (D-12.3); `null` — записывать нечего и некому (заперт, исправление,
-   * нет права).
+   * Запись (costs-invoice-screen-12-autosave, D-12.3) — см. `SummarySave`; `null` — записывать нечего и некому
+   * (заперт, исправление, нет права).
    */
   save: SummarySave | null;
   fromFile?: ReactNode;
@@ -82,25 +98,27 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           <p className="truncate text-body-small text-on-surface-variant" onPointerEnter={fullTextIfCut(meta)}>{meta}</p>
         </div>
         {indicator}
-        {save?.kind === 'auto' && (
+        {save && save.kind !== 'read' && (
           <>
-            <Wide at="4xl"><InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} /></Wide>
-            <Narrow at="4xl"><InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} narrow /></Narrow>
+            <Wide at="4xl">
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={pendingOf(save)} />
+            </Wide>
+            <Narrow at="4xl">
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={pendingOf(save)} narrow />
+            </Narrow>
           </>
         )}
-        {save?.kind === 'button' && (
-          <Wide at="4xl">
-            <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!save.unsaved}
-              loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`}>
-              Сохранить
-            </Button>
-          </Wide>
+        {save?.kind === 'edit' && (
+          <>
+            <Wide at="4xl"><Button variant="text" icon={<Icon icon={Undo} size={18} />} onClick={save.onCancel}>Отменить правку</Button></Wide>
+            <Narrow at="4xl"><IconButton icon={Undo} label="Отменить правку" onClick={save.onCancel} /></Narrow>
+          </>
         )}
-        {save?.kind === 'button' && (
-          <Narrow at="4xl">
-            <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
-              loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
-          </Narrow>
+        {save?.kind === 'read' && (
+          <>
+            <Wide at="4xl"><Button variant="outlined" icon={<Icon icon={Edit} size={18} />} onClick={save.onEdit}>Изменить</Button></Wide>
+            <Narrow at="4xl"><IconButton variant="outlined" icon={Edit} label="Изменить" onClick={save.onEdit} /></Narrow>
+          </>
         )}
         {fromFile}
         {file}

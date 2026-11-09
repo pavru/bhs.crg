@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { EditNote, LockIcon, UploadFile } from '@/shared/ui/icons';
+import { EditNote, LockIcon, Save, UploadFile } from '@/shared/ui/icons';
+import { Button } from '@/shared/ui/Button';
+import { Icon } from '@/shared/ui/Icon';
 import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
@@ -44,9 +46,9 @@ import { InvoicePart } from './InvoicePart';
 import {
   PART_ORDER, PART_TITLE, PartRevealContext, attentionOf, initiallyOpen, partLine, partOfTarget, type PartExtra, type PartId,
 } from './invoiceParts';
-import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
+import { InvoiceSummary, type SummaryPrimary, type SummarySave } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
-import { editsAfterSave, saveModel, useInvoiceSave } from './invoiceSave';
+import { editsAfterSave, saveModel, useInvoiceSave, type SaveModel, type SaveStatus } from './invoiceSave';
 import { invoiceLeave } from './invoiceLeave';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
@@ -177,9 +179,14 @@ export function InvoiceForm({
   // Всё, что пишет само, в исправлении убрано: запись у него одна.
   const quiet = locked || correcting;
 
-  // Как форма пишется (D-12.3): сама — черновик и отклонённый без оплаты; кнопкой — разобранный и оплаченный.
-  const model = saveModel(view, !quiet, parsed);
+  // Как форма пишется (D-12.3): сама — черновик и отклонённый без оплаты; разобранный читается до «Изменить»
+  // (D-12.4); оплаченный черновик — «Сохранить» в «Сроках и оплате» (D-12.5).
+  const [editing, setEditing] = useState(false);
+  // «Отменить правку» сбрасывает и строки: таблица монтируется заново с записанными.
+  const [editRound, setEditRound] = useState(0);
+  const model = saveModel(view, !quiet, parsed, editing);
   const auto = model === 'auto';
+  const reading = model === 'read';
   const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader, auto });
   // Несохранённое ОДНО (D-10.7): шапка или строки; у черновика — непустая очередь записи. Им гаснут «Разобран» и
   // оплата, его держит уход.
@@ -203,6 +210,9 @@ export function InvoiceForm({
     onFlush?.(auto && !gone ? () => flushNow.current() : null);
     return () => onFlush?.(null);
   }, [auto, gone, onFlush]);
+  // «Разобран» после записи правки называет версию последнего ответа, а не ту, что была в замыкании (D-12.4).
+  const viewNow = useRef(view);
+  useLayoutEffect(() => { viewNow.current = view; });
   /** Значение выбрано (организация, дата) — запись сразу (D-12.2). */
   const pick = (key: string, next: unknown) => { set(key, next); queue.mark('header'); };
 
@@ -276,14 +286,34 @@ export function InvoiceForm({
   const [checkable, setCheckable] = useState<{ ready: boolean; check: () => void } | null>(null);
   const onCheckable = useCallback((next: { ready: boolean; check: () => void } | null) => setCheckable(next), []);
 
-  async function parse() {
+  async function parse(seen = viewNow.current.version) {
     try {
-      const send = () => state.mutateAsync({ id: view.id, seen: view.version, to: 'parsed' as const });
+      const send = () => state.mutateAsync({ id: view.id, seen, to: 'parsed' as const });
       await (onExit ? onExit('parsed', send, () => {}) : send());
     } catch (e) { toast.apiError(e, 'Счёт не разобран'); }
   }
 
-  const primary: SummaryPrimary | null = kind === 'parsed'
+  /**
+   * «Разобран» режима «Изменить» (D-12.4): записать правку (реквизиты → строки), затем переход. Запись отказала —
+   * режим открыт, причина в носителе. Переход отказал — счёт уже черновик (сервер опустил его сам): режим
+   * закрывается, форма переходит к модели черновика, индикатор называет пробелы.
+   */
+  async function finishEdit() {
+    if (!(await queue.flush())) return;
+    await parse((queue.written() ?? viewNow.current).version);
+    setEditing(false);
+  }
+  /** «Отменить правку» — без записи: поля и строки снова записанные. */
+  function cancelEdit() {
+    reread();
+    setEditRound(n => n + 1);
+    setEditing(false);
+  }
+
+  const primary: SummaryPrimary | null = model === 'edit'
+    ? { kind: 'parsed', hold: queue.saving ? 'Счёт сохраняется — подождите' : null, loading: queue.saving || state.isPending,
+      onClick: () => void finishEdit() }
+    : kind === 'parsed'
     ? { kind, hold: parsedHold(readiness, unsaved, queue.saving), loading: state.isPending, onClick: () => void parse() }
     : kind === 'pay'
       ? { kind, hold: payHold(unsaved, view.payment.refusal, queue.saving), onClick: () => setPaying(true) }
@@ -343,7 +373,7 @@ export function InvoiceForm({
   const terms = BLOCKS[1];
   const more: InvoiceBlock[] = [BLOCKS[2], ...(extras.block ? [extras.block] : [])];
   const fieldProps = {
-    view, edits, organizations, locked, organizationsUnread: organizationsError != null, value, set,
+    view, edits, organizations, locked: locked || reading, organizationsUnread: organizationsError != null, value, set,
     ...(auto ? { pick, onLeave: () => queue.mark('header') } : {}),
   };
 
@@ -379,9 +409,10 @@ export function InvoiceForm({
         </>}
         indicator={<InvoiceStatusIndicator status={indicator.status} open={sheet} onOpen={() => setSheet(true)} />}
         nav={nav} fromFile={fromFile} file={file}
-        save={model === 'auto' ? { kind: 'auto', status: queue.status, savedAt: savedTime(view.updatedAt), onRetry: queue.retry }
-          : model === 'button' ? { kind: 'button', unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }
-          : null}
+        save={summarySave(model, {
+          status: queue.status, savedAt: savedTime(view.updatedAt), unsaved, onRetry: queue.retry,
+          onEdit: () => setEditing(true), onCancel: cancelEdit, onGo: () => reveal({ place: 'part', part: 'terms' }),
+        })}
         primary={primary}
         menu={(
           <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize} page={pageActions}
@@ -406,7 +437,8 @@ export function InvoiceForm({
           </InvoicePart>
 
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
-            <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
+            <InvoiceLinesTable key={`${correction.generation}:${editRound}`} view={view} locked={closed || gone}
+              readOnly={!canEdit || reading} onDirty={setLinesDirty}
               supplierName={nameOf(K.supplier)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines}
               supplierChange={supplierChange} autosave={auto} onCommit={auto ? () => queue.mark('lines') : undefined} />
           </InvoicePart>
@@ -438,6 +470,12 @@ export function InvoiceForm({
           <InvoicePart title={PART_TITLE.terms.title} step={4} open={open.terms} onToggle={() => toggle('terms')} line={lineOf('terms')}
             actions={<>
               <ConfirmBlock blocks={[terms]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />
+              {model === 'terms' && (
+                <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!unsaved} loading={queue.saving}
+                  onClick={() => void queue.save()} title={unsaved ? undefined : `Всё сохранено · ${savedTime(view.updatedAt)}`}>
+                  Сохранить
+                </Button>
+              )}
               {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
             </>}>
             <BlockFields block={terms} {...fieldProps} />
@@ -472,6 +510,21 @@ export function InvoiceForm({
     </CorrectionContext.Provider>
     </SiteRevealScope>
   );
+}
+
+/** Что сводка говорит о записи — по модели (D-12.3). */
+function summarySave(model: SaveModel, at: {
+  status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void;
+  onEdit: () => void; onCancel: () => void; onGo: () => void;
+}): SummarySave | null {
+  const carrier = { status: at.status, savedAt: at.savedAt, onRetry: at.onRetry };
+  switch (model) {
+    case 'auto': return { kind: 'auto', ...carrier };
+    case 'read': return { kind: 'read', onEdit: at.onEdit };
+    case 'edit': return { kind: 'edit', ...carrier, unsaved: at.unsaved, onCancel: at.onCancel };
+    case 'terms': return { kind: 'terms', ...carrier, unsaved: at.unsaved, onGo: at.onGo };
+    default: return null;
+  }
 }
 
 /** Запись перед уходом не дошла — что теряется и где причина (D-12.7). */

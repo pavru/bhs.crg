@@ -53,10 +53,57 @@ describe('носитель записи', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).toBeNull();
   });
 
-  it('там, где автосохранения нет, — прежняя кнопка «Сохранить»', () => {
-    mount({ kind: 'button', unsaved: true, saving: false, savedAt: '09.11.2026 12:04', onSave: () => {} });
+});
+
+describe('явная запись (D-12.3 – D-12.5): кнопки «Сохранить» в сводке нет ни у одного положения', () => {
+  const carry = { status: { kind: 'idle' } as SaveStatus, savedAt: '12:04', onRetry: () => {} };
+  const all: SummarySave[] = [
+    auto({ kind: 'idle' }),
+    { kind: 'read', onEdit: () => {} },
+    { kind: 'edit', ...carry, unsaved: true, onCancel: () => {} },
+    { kind: 'terms', ...carry, unsaved: true, onGo: () => {} },
+  ];
+  it.each(all.map(save => [save.kind, save] as const))('%s — «Сохранить» нет', (_, save) => {
+    mount(save);
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+  });
+
+  it('разобранный читается — «Изменить», носителя нет', () => {
+    const edit = vi.fn();
+    mount({ kind: 'read', onEdit: edit });
     expect(screen.queryByTestId('invoice-save-state')).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Сохранить' }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Изменить' })[0]);
+    expect(edit).toHaveBeenCalledOnce();
+  });
+
+  it('режим «Изменить» с правкой — «Не сохранено» и «Отменить правку»', () => {
+    const cancel = vi.fn();
+    mount({ kind: 'edit', ...carry, unsaved: true, onCancel: cancel });
+    expect(carrier().dataset.state).toBe('unsaved');
+    expect(carrier().textContent).toContain('Не сохранено');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Отменить правку' })[0]);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('режим «Изменить» без правки — «Сохранено · время»', () => {
+    mount({ kind: 'edit', ...carry, unsaved: false, onCancel: () => {} });
+    expect(carrier().dataset.state).toBe('saved');
+  });
+
+  it('оплаченный черновик с правкой — носитель называет «Сохранить» в «Сроках и оплате» и ведёт туда', () => {
+    const go = vi.fn();
+    mount({ kind: 'terms', ...carry, unsaved: true, onGo: go });
+    expect(carrier().dataset.state).toBe('unsaved');
+    const to = screen.getAllByRole('button', { name: /«Сохранить» в «Сроках и оплате»/ })[0];
+    fireEvent.click(to);
+    expect(go).toHaveBeenCalledOnce();
+  });
+
+  it('оплаченный черновик, отказ сервера — его словами', () => {
+    mount({ kind: 'terms', ...carry, status: { kind: 'refused', text: 'Оплаченный счёт обязан оставаться сведённым' },
+      unsaved: true, onGo: () => {} });
+    expect(carrier().dataset.state).toBe('refused');
+    expect(carrier().textContent).toContain('Оплаченный счёт обязан оставаться сведённым');
   });
 });
 

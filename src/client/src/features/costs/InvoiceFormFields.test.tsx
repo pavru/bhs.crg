@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { CostsOrganization, InvoiceView } from '@/shared/api/invoices';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { BlockFields } from './InvoiceFormFields';
 import { BLOCKS, K } from './invoiceFields';
 
@@ -28,22 +29,42 @@ const organizations: CostsOrganization[] = [
   { id: 'o2', name: 'ООО «Наша компания»' } as CostsOrganization,
 ];
 
-function Form({ onLeave, pick }: { onLeave: () => void; pick: (key: string, next: unknown) => void }) {
+function Form({ onLeave, pick, locked = false, block = BLOCKS[0] }: {
+  onLeave: () => void; pick: (key: string, next: unknown) => void; locked?: boolean; block?: (typeof BLOCKS)[number];
+}) {
   const [edits, setEdits] = useState<Record<string, unknown>>({});
   const value = (key: string) => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
   return (
-    <BlockFields block={BLOCKS[0]} view={view} edits={edits} organizations={organizations} organizationsUnread={false}
-      value={value} set={set} pick={(key, next) => { set(key, next); pick(key, next); }} onLeave={onLeave} locked={false} />
+    <BlockFields block={block} view={view} edits={edits} organizations={organizations} organizationsUnread={false}
+      value={value} set={set} pick={(key, next) => { set(key, next); pick(key, next); }} onLeave={onLeave} locked={locked} />
   );
 }
 
-function mount() {
+function mount(props: { locked?: boolean; block?: (typeof BLOCKS)[number] } = {}) {
   const onLeave = vi.fn();
   const pick = vi.fn();
-  render(<QueryClientProvider client={new QueryClient()}><Form onLeave={onLeave} pick={pick} /></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient()}><SnackbarProvider><Form onLeave={onLeave} pick={pick} {...props} /></SnackbarProvider></QueryClientProvider>);
   return { onLeave, pick };
 }
+
+/**
+ * Вид чтения разобранного (D-12.4, Э15): до «Изменить» форма отдаёт полям замок — каждое поле читается как
+ * `TextField readOnly`, выбора и правки нет, поводов записи тоже.
+ */
+describe('разобранный до «Изменить» — поля для чтения', () => {
+  it.each(BLOCKS.map(block => [block.title, block] as const))('«%s»: ни одного поля для ввода', (_, block) => {
+    const { onLeave, pick } = mount({ locked: true, block });
+    expect(screen.queryAllByRole('combobox')).toHaveLength(0);
+    const boxes = screen.queryAllByRole('textbox');
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) expect((box as HTMLInputElement).readOnly).toBe(true);
+    boxes[0].focus();
+    fireEvent.blur(boxes[0], { relatedTarget: boxes[1] ?? null });
+    expect(onLeave).not.toHaveBeenCalled();
+    expect(pick).not.toHaveBeenCalled();
+  });
+});
 
 describe('реквизиты черновика пишутся по уходу с поля', () => {
   it('набор в поле записи не даёт; уход на соседнее поле — один повод', () => {

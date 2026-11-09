@@ -96,6 +96,9 @@ export function createSaveQueue(
   // Ответ реквизитов, ещё не принятый строками: строки, идущие прямо за ними, называют его версию.
   let after: InvoiceView | null = null;
   let waiters: ((outcome: SaveOutcome) => void)[] = [];
+  // Вид из ответа последней записи этой `flush`: переход следом («Разобран» режима «Изменить», D-12.4) называет его
+  // версию. Из кадра её брать нельзя — кадр с ответом мог ещё не отрисоваться, и переход получил бы 409 от своей записи.
+  let written: InvoiceView | null = null;
 
   const stopped = () => status.kind === 'failed' || status.kind === 'refused';
   const pending = () => running || marked.size > 0 || stopped();
@@ -137,11 +140,11 @@ export function createSaveQueue(
       marked.delete(part);
       set({ kind: 'saving' });
       try {
-        if (part === 'header') after = await sides.header();
+        if (part === 'header') written = after = await sides.header();
         else {
           const from = after;
           after = null;
-          await sides.lines!(from);
+          written = await sides.lines!(from);
         }
         await rendered();
       } catch (error) {
@@ -165,6 +168,7 @@ export function createSaveQueue(
     pump,
     /** Дописать всё грязное. Обещание кончается, когда очередь опустела или остановилась. */
     flush(): Promise<SaveOutcome> {
+      if (!running) written = null;
       const { dirty } = read();
       (['header', 'lines'] as const).forEach(part => { if (dirty[part]) marked.add(part); });
       if (stopped()) set({ kind: 'idle' });
@@ -193,6 +197,8 @@ export function createSaveQueue(
       set({ kind: 'idle' });
     },
     get status() { return status; },
+    /** Вид из ответа последней записи начатой `flush`; `null` — она ничего не писала. */
+    get written() { return written; },
     /** Есть ли что дописывать: помеченное, запись в полёте или остановка на отказе. */
     get pending() { return pending(); },
   };
@@ -270,22 +276,16 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
 
   /**
    * Записать всё; `true` — записано. Набранное, пока шла запись, дописывается тем же вызовом: уход после «записано»
-   * иначе унёс бы его. Без автосохранения отказ называет снэкбар: носителя у кнопки нет.
+   * иначе унёс бы его. Отказ называет носитель в сводке — он есть у каждой модели записи (D-12.4, D-12.5).
    */
   async function flush(): Promise<boolean> {
     for (let round = 0; round < FLUSH_ROUNDS; round += 1) {
       const outcome = await queue().flush();
-      if (!outcome.ok) {
-        if (!autoNow.current && outcome.status.kind === 'refused') toast.error(`Счёт не сохранён: ${outcome.status.text}`);
-        if (!autoNow.current && outcome.status.kind === 'failed' && !outcome.reported)
-          toast.error('Счёт не сохранён: нет связи с сервером. Повторите запись.');
-        return false;
-      }
+      if (!outcome.ok) return false;
       const { dirty } = sides.current;
       if (!dirty.header && !dirty.lines) return true;
     }
     queue().refuse(FLUSH_UNFINISHED);
-    if (!autoNow.current) toast.error(`Счёт не сохранён: ${FLUSH_UNFINISHED}`);
     return false;
   }
 
@@ -293,10 +293,12 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
   const saving = status.kind === 'saving';
   return {
     lines, mark, flush, status, saving,
+    /** Вид из ответа последней записи `flush` — версия для перехода следом; `null` — запись не шла. */
+    written: () => made.current?.written ?? null,
     retry: () => queue().retry(),
     /** Пуста ли очередь: нечего дописывать, ничего не в полёте, отказа нет, правок нет. */
     empty: !said.pending && !headerDirty && !linesDirty,
-    /** Совместимость с охраной ухода «спросить и сохранить» — там, где автосохранения нет. */
+    /** Явная запись — «Сохранить» в «Сроках и оплате» и «Сохранить и перейти» охраны ухода. */
     save: flush,
   };
 }
@@ -311,19 +313,30 @@ export function sayStatus(status: SaveStatus, savedAt: string): string {
   }
 }
 
-/** Как пишется форма счёта (D-12.3): сама, кнопкой «Сохранить» или никак. */
-export type SaveModel = 'auto' | 'button' | null;
+/**
+ * Как пишется форма счёта (D-12.3): `auto` — сама; `read` — разобранный читается, правка — через «Изменить»;
+ * `edit` — режим «Изменить» разобранного, запись — «Разобран» (D-12.4); `terms` — оплаченный черновик, запись —
+ * «Сохранить» в «Сроках и оплате» (D-12.5); `null` — никак.
+ */
+export type SaveModel = 'auto' | 'read' | 'edit' | 'terms' | null;
 
 /**
- * Кому автосохранение (D-12.3): черновику и отклонённому без оплаты. Разобранный правится явным режимом
- * (до PR 2 — кнопкой), оплаченный черновик открытого периода — явной записью: промежуточный итог получил бы
- * отказ «оплаченный обязан оставаться сведённым». Запертому, исправлению и без права — никак.
+ * Кому автосохранение (D-12.3): черновику и отклонённому без оплаты. Разобранный читается и правится режимом
+ * «Изменить», оплаченный черновик открытого периода — явной записью: промежуточный итог получил бы отказ
+ * «оплаченный обязан оставаться сведённым». Запертому, исправлению и без права — никак.
+ *
+ * <p>Режим «Изменить» держится, пока его не закрыли, а не пока счёт разобран: «Разобран» в режиме пишет правку,
+ * сервер на миг опускает счёт в черновик, и модель не должна переключиться на автосохранение посреди шага.</p>
  *
  * @param writable форма пишет: есть право, счёт не заперт и не удалён, исправления нет.
+ * @param editing открыт режим «Изменить» разобранного.
  */
-export function saveModel(view: Pick<InvoiceView, 'requisites' | 'payment'>, writable: boolean, parsed: boolean): SaveModel {
+export function saveModel(view: Pick<InvoiceView, 'requisites' | 'payment'>, writable: boolean, parsed: boolean,
+  editing = false): SaveModel {
   if (!writable) return null;
-  if (parsed || view.payment.paid) return 'button';
+  if (editing) return 'edit';
+  if (parsed) return 'read';
+  if (view.payment.paid) return 'terms';
   return 'auto';
 }
 
