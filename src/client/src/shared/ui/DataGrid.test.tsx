@@ -159,6 +159,28 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     grid([{ key: 'code', label: 'Шифр', width: 'w-36' }, { key: 'name', label: 'Имя' }]);
     expect(screen.getByRole('table').style.minWidth).toBe('');
   });
+
+  it('фиксированная раскладка: ширины — колонками <col>, и в двухэтажной шапке тоже', () => {
+    // table-fixed читает ширины из <col> либо из первой строки шапки — а там группа со своим colSpan.
+    grid([
+      { key: 'code', label: 'Шифр', width: 'w-36' },
+      { key: 'qty', label: 'Кол-во', width: 'w-20', group: { key: 'm', label: 'Мера' } },
+      { key: 'unit', label: 'Ед.', width: 'w-16', group: { key: 'm', label: 'Мера' } },
+      { key: 'name', label: 'Имя' },
+    ], { fixed: true });
+    const cols = [...document.querySelectorAll('colgroup col')];
+    expect(cols.map(c => c.className)).toEqual(['w-36', 'w-20', 'w-16', '']);
+  });
+
+  it('обычная раскладка колонок <col> не рисует', () => {
+    grid([{ key: 'code', label: 'Шифр', width: 'w-36' }]);
+    expect(document.querySelector('colgroup')).toBeNull();
+  });
+
+  it('сетка без колонок наименьшей ширины не получает', () => {
+    grid([], { fixed: true });
+    expect(screen.getByRole('table').style.minWidth).toBe('');
+  });
 });
 
 describe('DataGrid: особые строки и шапка (#1354, 3/3)', () => {
