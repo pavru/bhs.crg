@@ -115,7 +115,8 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
         {/* Рабочий стол — у ведущего края содержимого, правее рейла: отступ ставит оболочка
             (`--snackbar-inset`). Телефон — по центру над нижней навигацией и плавающей кнопкой
             (`--snackbar-lift`, `phoneLayout.ts`): у края уведомление закрывало бы разделы. */}
-        <RT.Viewport ref={viewportRef} className="fixed z-[100] bottom-4 left-[calc(var(--snackbar-inset,0px)+1rem)] flex flex-col items-start outline-none
+        {/* `data-snackbar-viewport` — по нему фокус на «Вернуть» не считается уходом из строки формы (счёт, 12 D-12.2). */}
+        <RT.Viewport ref={viewportRef} data-snackbar-viewport="" className="fixed z-[100] bottom-4 left-[calc(var(--snackbar-inset,0px)+1rem)] flex flex-col items-start outline-none
           max-w-[min(560px,calc(100vw-var(--snackbar-inset,0px)-2rem))]
           max-md:left-4 max-md:right-4 max-md:max-w-none max-md:items-center max-md:bottom-[calc(1rem+var(--snackbar-lift,0px))]" />
       </RT.Provider>

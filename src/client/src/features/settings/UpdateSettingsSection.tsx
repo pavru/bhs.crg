@@ -1,4 +1,4 @@
-import { formatDateTime, formatTime } from '@/shared/format/format';
+import { formatDateTime, formatTime, isToday } from '@/shared/format/format';
 import { Icon } from '@/shared/ui/Icon';
 import { Refresh } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -10,10 +10,7 @@ import { ProxyToggle } from './ProxyToggle';
 
 function whenText(iso: string | null): string {
   if (!iso) return 'ещё не выполнялась';
-  const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  return sameDay ? `сегодня в ${formatTime(d)}` : formatDateTime(d);
+  return isToday(iso) ? `сегодня в ${formatTime(iso)}` : formatDateTime(iso);
 }
 
 /**

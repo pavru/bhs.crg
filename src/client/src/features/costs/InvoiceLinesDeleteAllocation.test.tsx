@@ -150,7 +150,7 @@ describe('удаление строки с разноской (#1655)', () => {
     expect(focused.closest('[data-cell]')).not.toBeNull();
 
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view([{ ...plain, ordinal: 1 }]) } as never);
-    await act(async () => { expect(await saver.current!(null)).toBe(true); });
+    await act(async () => { expect(await saver.current!(null)).toBeTruthy(); });
     const body = vi.mocked(apiClient.put).mock.calls[0][1] as { lines: Record<string, unknown>[] };
     expect(body.lines.map(l => l.id)).toEqual([B]);
   });

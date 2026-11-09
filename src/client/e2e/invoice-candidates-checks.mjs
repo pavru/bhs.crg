@@ -35,8 +35,11 @@ export async function candidateChecks({ page, check, stamp, invoice, open, cell,
     await picker().waitFor({ state: 'hidden', timeout: 10_000 })
       .catch(() => { throw new Error('Enter не выбрал «Лучшее совпадение»'); });
     await page.getByRole('button', { name, exact: true }).waitFor({ timeout: 10_000 });
-    await page.getByText('запомнится', { exact: true }).first().waitFor({ timeout: 10_000 })
-      .catch(() => { throw new Error('у строки с выбранной позицией нет пометки «запомнится»'); });
+    // Выбор позиции у черновика пишется сразу (costs-invoice-screen-12-autosave, D-12.2): пометка «запомнится» живёт до
+    // ответа, а после него о запомненном говорит уведомление записи.
+    await page.getByText('запомнится', { exact: true }).first().or(page.getByText(/Запомнено соответствий: 1/).first())
+      .waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('у строки с выбранной позицией нет ни пометки «запомнится», ни «Запомнено соответствий»'); });
 
     // Строка 2 — название позиции целиком в строке, но строка другая: кандидат «по словам», не сильный.
     await addRow(2);

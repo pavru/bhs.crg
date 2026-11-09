@@ -13,9 +13,11 @@ import { dueState } from './invoiceDue';
  * срок к правилу — кнопкой «По правилу» (решение владельца 14.10.2026): стереть поле значит «срок не
  * определён», а не «верни правило».
  */
-export function InvoiceDueField({ view, edits, current, set, locked, fromScan, required }: {
+export function InvoiceDueField({ view, edits, current, set, pick = set, locked, fromScan, required }: {
   view: InvoiceView; edits: Record<string, unknown>; current: unknown;
   set: (key: string, next: unknown) => void;
+  /** Дата выбрана — ушли из поля, Enter, день в календаре; у черновика пишет (D-12.2). Каждая цифра — только `set`. */
+  pick?: (key: string, next: unknown) => void;
   locked: boolean; fromScan: boolean; required: boolean;
 }) {
   const toast = useSnackbar();
@@ -26,7 +28,8 @@ export function InvoiceDueField({ view, edits, current, set, locked, fromScan, r
     <div>
       <DateField label="Оплатить до" hint={note ?? undefined} fromScan={fromScan} required={required}
         value={asInput(current).slice(0, 10)} readOnly={locked}
-        onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)} />
+        onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)}
+        onCommit={iso => pick(K.dueDate, iso ? iso.slice(0, 10) : null)} />
       {offerRule && (
         <Button variant="text" className="mt-0.5 -ml-2" icon={<Icon icon={RestartAlt} size={18} />}
           loading={byRule.isPending}

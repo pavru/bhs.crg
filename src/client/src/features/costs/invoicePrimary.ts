@@ -50,7 +50,7 @@ const SHOWN_GAPS = 3;
  */
 export function parsedHold(readiness: readonly ReadinessItem[] | null, unsaved: boolean, saving = false): string | null {
   if (saving) return 'Счёт сохраняется — «Разобран» станет доступна после записи';
-  if (unsaved) return 'Сначала сохраните правки: «Разобран» утверждает сохранённый счёт';
+  if (unsaved) return 'Правки не сохранены: «Разобран» утверждает сохранённый счёт';
   if (!readiness || readiness.length === 0) return null;
   const named = readiness.slice(0, SHOWN_GAPS).map(item => item.label).join(' · ');
   const rest = readiness.length - SHOWN_GAPS;
@@ -63,7 +63,7 @@ export function parsedHold(readiness: readonly ReadinessItem[] | null, unsaved: 
  */
 export function payHold(unsaved: boolean, refusal: string | null = null, saving = false): string | null {
   if (saving) return 'Счёт сохраняется — оплату можно отметить после записи';
-  if (unsaved) return 'Сначала сохраните правки: оплата считается по сохранённому счёту';
+  if (unsaved) return 'Правки не сохранены: оплата считается по сохранённому счёту';
   return refusal ? `Оплатить нельзя: ${refusal}` : null;
 }
 

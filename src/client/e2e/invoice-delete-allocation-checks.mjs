@@ -1,6 +1,6 @@
 // Удаление строки с сохранённой разноской (#1655, change `costs-invoice-line-delete-allocation`, [COST-7] [COST-12]) —
-// живым браузером, задача 1.4: окно называет разноску до записи, отказ оставляет строку и разноску, подтверждение и
-// «Сохранить» её удаляют. Строка без разноски — проверка 1а `invoice-lines-smoke` (снэкбар «Вернуть», D-13.2).
+// живым браузером, задача 1.4: окно называет разноску до записи, отказ оставляет строку и разноску, подтверждение её
+// удаляет — у черновика сразу, записью очереди (costs-invoice-screen-12-autosave, D-12.2). Строка без разноски — проверка 1а `invoice-lines-smoke` (снэкбар «Вернуть», D-13.2).
 //
 // Отдельным файлом: `invoice-lines-smoke` и так велик. Едет внутри него, с его страницей и помощниками.
 
@@ -11,7 +11,7 @@ async function savedParts(api, invoiceId, lineId) {
 }
 
 export async function deleteAllocationChecks({ page, check, stamp, api, invoice, open, cell, saveLines }) {
-  await check('строка с разноской: окно называет обе стройки, отказ оставляет строку, подтверждение и «Сохранить» удаляют разноску', async () => {
+  await check('строка с разноской: окно называет обе стройки, отказ оставляет строку, подтверждение удаляет разноску записью', async () => {
     const known = await api('GET', '/constructions');
     const site = async name => known.find(c => c.name === name) ?? api('POST', '/constructions', { name });
     const first = await site('Демо-стройка');
@@ -48,8 +48,9 @@ export async function deleteAllocationChecks({ page, check, stamp, api, invoice,
     await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Удалить строку 1', null, { timeout: 5_000 })
       .catch(() => { throw new Error('после «Отмена» фокус не вернулся на корзину строки'); });
     if (await savedParts(api, created.id, lineId) !== 2) throw new Error('после «Отмена» разноска строки изменилась');
+    if (writes.length) throw new Error('вопрос и «Отмена» отправили строки');
 
-    // Подтверждение: строка ушла без «Вернуть», фокус — в поле строки на её месте; запись — по «Сохранить».
+    // Подтверждение: строка ушла без «Вернуть», фокус — в поле строки на её месте; запись — сразу, очередью (D-12.2).
     await bin.click();
     await dialog.getByRole('button', { name: 'Удалить строку 1', exact: true }).click();
     await dialog.waitFor({ state: 'detached', timeout: 5_000 });
@@ -62,13 +63,11 @@ export async function deleteAllocationChecks({ page, check, stamp, api, invoice,
       return { cell: !!el?.closest('[data-cell]'), row: el?.closest('tr')?.getAttribute('data-row') ?? null };
     });
     if (!where.cell || where.row !== '0') throw new Error(`после удаления фокус не в поле строки на месте удалённой: ${JSON.stringify(where)}`);
-    page.off('request', listen);
-    if (writes.length) throw new Error('удаление до «Сохранить» отправило строки');
-    if (await savedParts(api, created.id, lineId) !== 2) throw new Error('разноска удалена до записи строк');
-
     await saveLines();
+    page.off('request', listen);
+    if (writes.length !== 1) throw new Error(`подтверждение удаления дало записей строк: ${writes.length}, ждали одну`);
     const after = await api('GET', `/costs/invoices/${created.id}`);
-    if (after.lines.some(l => l.id === lineId)) throw new Error('после «Сохранить» удалённая строка осталась в счёте');
-    if (after.lines.length !== 1) throw new Error(`после «Сохранить» строк ${after.lines.length}, ждали одну`);
+    if (after.lines.some(l => l.id === lineId)) throw new Error('после подтверждения удалённая строка осталась в счёте');
+    if (after.lines.length !== 1) throw new Error(`после подтверждения строк ${after.lines.length}, ждали одну`);
   });
 }

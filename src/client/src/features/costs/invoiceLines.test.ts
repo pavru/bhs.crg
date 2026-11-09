@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyDraft, fromTable, guessRoles, hasHeader, hasSavedAllocation, mismatch, parseTable, preview, restoreLine, toDrafts,
-  toNumber, toPayload, totals, vatCaption,
+  emptyDraft, fromTable, guessRoles, hasHeader, hasSavedAllocation, mismatch, parseTable, preview, restoreLine, sameAsSaved,
+  toDrafts, toNumber, toPayload, totals, vatCaption,
 } from './invoiceLines';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 
@@ -393,6 +393,14 @@ describe('«Вернуть» удалённой строки (costs-invoice-scre
 
   it('уже на месте (второе «Вернуть») — ничего не меняется', () => {
     expect(restoreLine(drafts, drafts[2], 2, six)).toBe(drafts);
+  });
+
+  it('возвращённая на место без других правок — строки как записаны; правка или другой режим — нет (Э5)', () => {
+    const without = drafts.filter(d => d.key !== drafts[2].key);
+    expect(sameAsSaved(restoreLine(without, drafts[2], 2, six), 'Included', six, 'Included')).toBe(true);
+    expect(sameAsSaved(without, 'Included', six, 'Included')).toBe(false);
+    expect(sameAsSaved(drafts.map((d, i) => (i === 0 ? { ...d, quantity: '7' } : d)), 'Included', six, 'Included')).toBe(false);
+    expect(sameAsSaved(drafts, 'OnTop', six, 'Included')).toBe(false);
   });
 
   it('строка с сохранённой разноской спрашивается (#1655), снэкбара не даёт; новая и без долей — даёт', () => {

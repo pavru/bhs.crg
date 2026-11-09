@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { EditNote, LockIcon, UploadFile } from '@/shared/ui/icons';
 import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
@@ -6,7 +6,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
-import { formatDate, formatDateTime } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatTime, isToday } from '@/shared/format/format';
 import {
   useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
@@ -46,7 +46,7 @@ import {
 } from './invoiceParts';
 import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
-import { useInvoiceSave } from './invoiceSave';
+import { editsAfterSave, saveModel, useInvoiceSave } from './invoiceSave';
 import { invoiceLeave } from './invoiceLeave';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
@@ -66,8 +66,9 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  * одного перечня, и над частями — не больше одного banner, только при «Мешает работе». Плашек в форме нет.</p>
  *
  * <p><b>Сохранение не блокируется ничем.</b> Ни пустых обязательных полей, ни строк: черновик обязан
- * сохраняться и попадать в реестр со сроком. Шапку и строки пишет одна кнопка, шапка раньше строк
- * (`invoiceSave`, D-10.7).</p>
+ * сохраняться и попадать в реестр со сроком. Шапку и строки пишет одна очередь, шапка раньше строк
+ * (`invoiceSave`, D-12.1). Черновик пишется сам — по уходу с поля и из строки (costs-invoice-screen-12-autosave,
+ * ТЗ COST-6.5); где автосохранения нет (D-12.3), пишет кнопка «Сохранить» той же очередью.</p>
  *
  * <p><b>Метки «распознано, не подтверждено»</b> приходят с сервера и переживают повторное открытие
  * черновика. Конец у метки двойной: правка поля снимает её с этого поля, «Всё верно» — со всей части.</p>
@@ -77,8 +78,13 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  */
 export function InvoiceForm({
   view, organizations, organizationsError, onRetryOrganizations, onOpenInvoice, gone = false, onClose, onExit, onUnsaved, onDeleteLater,
-  focusHeader = false, nav, fromFile, file, onShowFile, pageActions, compactLines = false, hiddenByFilter, rereadFailed,
+  focusHeader = false, nav, fromFile, file, onShowFile, pageActions, compactLines = false, hiddenByFilter, rereadFailed, onFlush,
 }: {
+  /**
+   * Дописать форму перед сменой счёта (D-12.7): форма, что пишет сама, отдаёт сюда свою запись, иначе — `null`, и
+   * смена счёта спрашивает, как уход. Обязана быть стабильной.
+   */
+  onFlush?: (flush: (() => Promise<boolean>) | null) => void;
   view: InvoiceView;
   /** «Разобран» и «Отклонить» идут через страницу — она знает отбор и список (issue #1293): запирает
    *  форму на время записи и выбора следующего счёта и говорит о переходе. `otherwise` зовётся, когда
@@ -133,21 +139,6 @@ export function InvoiceForm({
   // Поставщик в шапке изменён и не сохранён — таблице строк (#1657, D3): запомненное прежнего не про этот счёт.
   const supplierChange = useMemo(() => supplierChangeOf(edits, view.requisites), [edits, view.requisites]);
   const [linesDirty, setLinesDirty] = useState(false);
-  // Несохранённое ОДНО (D-10.7): шапка или строки. Им гаснут «Разобран» и оплата, его спрашивает уход.
-  const unsaved = dirty || linesDirty;
-  // Уход с несохранённым спрашивает (G4, issue #1097) — и о строках тоже: прежде охрана видела только шапку,
-  // и уход молча уносил набранные строки (#1653). Вопрос называет, что не сохранено.
-  const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone });
-  const held = leave.held;
-  const header = useRef<HTMLDivElement>(null);
-  // Один раз, при открытии: форма перемонтируется на каждый счёт.
-  useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
-  // Закрытая форма несохранённого не держит: без снятия страница помнила бы правки счёта, которого
-  // на экране уже нет.
-  useEffect(() => {
-    onUnsaved?.(held);
-    return () => onUnsaved?.(false);
-  }, [held, onUnsaved]);
 
   // Правки шапки лежат поверх вида (issue #1176): «моя часть» — только поля, которые человек правит
   // (ревью PR #1208), подпись — реквизиты целиком.
@@ -168,6 +159,8 @@ export function InvoiceForm({
     && explainedByRecognition(edits, base.signature, view);
   if (byScan) base.rebase();
 
+  const parsed = view.requisites[K.state] === PARSED;
+  const rejected = view.requisites[K.state] === REJECTED;
   // Заперт — слово сервера (`lockedBy`), а не «оплачен»: оплаченный счёт открытого периода правится.
   const closed = view.payment.lockedBy !== null;
   // Без права вводить счета форма читается так же, как запертая (N1, issue #1102). Счёта больше нет —
@@ -184,6 +177,35 @@ export function InvoiceForm({
   // Всё, что пишет само, в исправлении убрано: запись у него одна.
   const quiet = locked || correcting;
 
+  // Как форма пишется (D-12.3): сама — черновик и отклонённый без оплаты; кнопкой — разобранный и оплаченный.
+  const model = saveModel(view, !quiet, parsed);
+  const auto = model === 'auto';
+  const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader, auto });
+  // Несохранённое ОДНО (D-10.7): шапка или строки; у черновика — непустая очередь записи. Им гаснут «Разобран» и
+  // оплата, его держит уход.
+  const unsaved = auto ? !queue.empty : dirty || linesDirty;
+  // Уход с несохранённым (G4, issue #1097; строки — #1653): у черновика — дописывает, иначе спрашивает.
+  const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone });
+  const held = auto ? unsaved || correction.dirty : leave.held;
+  const header = useRef<HTMLDivElement>(null);
+  // Один раз, при открытии: форма перемонтируется на каждый счёт.
+  useEffect(() => { if (focusHeader) header.current?.focus(); }, [focusHeader]);
+  // Закрытая форма несохранённого не держит: без снятия страница помнила бы правки счёта, которого
+  // на экране уже нет.
+  useEffect(() => {
+    onUnsaved?.(held);
+    return () => onUnsaved?.(false);
+  }, [held, onUnsaved]);
+  // Смена счёта сначала дописывает (D-12.7) — запись берётся свежей, слойным эффектом, как шаг строк.
+  const flushNow = useRef(queue.flush);
+  useLayoutEffect(() => { flushNow.current = queue.flush; });
+  useEffect(() => {
+    onFlush?.(auto && !gone ? () => flushNow.current() : null);
+    return () => onFlush?.(null);
+  }, [auto, gone, onFlush]);
+  /** Значение выбрано (организация, дата) — запись сразу (D-12.2). */
+  const pick = (key: string, next: unknown) => { set(key, next); queue.mark('header'); };
+
   // Поля, дописанные в тип «Счёт» (issue #1482), — в части «Ещё».
   const extras = useInvoiceExtras(view.documentTypeId);
   // Схема типа не прочитана — поля, дописанные в тип, неизвестны, а не «не показаны»: их метки не сироты, и снимать
@@ -198,23 +220,21 @@ export function InvoiceForm({
     attention: !quiet && hasRecognitionNotes(watch.recognition),
   };
 
-  /** Шаг шапки в очереди записи: вид из ответа или `null` — отказ, о нём уже сказано. */
-  async function saveHeader(): Promise<InvoiceView | null> {
-    try {
-      // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким,
-      // каким оно лежит сейчас.
-      const saved = await base.save((seen, fresh) => update.mutateAsync({
-        id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, edits),
-      }));
-      setEdits({});
-      return saved;
-    } catch (e) {
-      // Текст отказа — ОТ СЕРВЕРА: он называет поле и причину.
-      toast.apiError(e, 'Счёт не сохранён');
-      return null;
-    }
+  /**
+   * Шаг шапки в очереди записи: вид из ответа; отказ — исключением, его называет очередь словами сервера. Ответ
+   * своей записи — основа шапки (#1656), а поле, правленное, пока запись шла, остаётся несохранённым.
+   */
+  async function saveHeader(): Promise<InvoiceView> {
+    const sent = edits;
+    // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким,
+    // каким оно лежит сейчас.
+    const saved = await base.save((seen, fresh) => update.mutateAsync({
+      id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, sent),
+    }));
+    base.adopt(saved);
+    setEdits(now => editsAfterSave(sent, now));
+    return saved;
   }
-  const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader });
 
   // Части: раскрыты незаполненные — решено при открытии счёта, дальше сворачивает только человек.
   const [open, setOpen] = useState(() => initiallyOpen(view, { edits: {}, linesDirty: false }, partMore));
@@ -324,9 +344,8 @@ export function InvoiceForm({
   const more: InvoiceBlock[] = [BLOCKS[2], ...(extras.block ? [extras.block] : [])];
   const fieldProps = {
     view, edits, organizations, locked, organizationsUnread: organizationsError != null, value, set,
+    ...(auto ? { pick, onLeave: () => queue.mark('header') } : {}),
   };
-  const parsed = view.requisites[K.state] === PARSED;
-  const rejected = view.requisites[K.state] === REJECTED;
 
   return (
     <SiteRevealScope>
@@ -337,8 +356,10 @@ export function InvoiceForm({
     <InvoiceExtrasProvider value={extras.byKey}>
     <PartRevealContext.Provider value={reveal}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-      <LeaveGuard active={leave.guard} message={leave.question} save={leave.savable ? queue.save : undefined}
-        saving={queue.saving} />
+      {auto
+        ? <LeaveGuard active={held && !gone} flush={queue.flush} failedMessage={LEAVE_FAILED} />
+        : <LeaveGuard active={leave.guard} message={leave.question} save={leave.savable ? queue.save : undefined}
+          saving={queue.saving} />}
       {fileDialog && (
         <InvoiceFileDialog invoiceId={view.id} version={view.version} number={asInput(view.requisites[K.number]) || null}
           current={scan === null ? null : scan.fileName ?? 'файл без имени'} onClose={() => setFileDialog(false)} />
@@ -358,7 +379,9 @@ export function InvoiceForm({
         </>}
         indicator={<InvoiceStatusIndicator status={indicator.status} open={sheet} onOpen={() => setSheet(true)} />}
         nav={nav} fromFile={fromFile} file={file}
-        save={quiet ? null : { unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }}
+        save={model === 'auto' ? { kind: 'auto', status: queue.status, savedAt: savedTime(view.updatedAt), onRetry: queue.retry }
+          : model === 'button' ? { kind: 'button', unsaved, saving: queue.saving, savedAt: formatDateTime(view.updatedAt), onSave: () => void queue.save() }
+          : null}
         primary={primary}
         menu={(
           <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize} page={pageActions}
@@ -385,7 +408,7 @@ export function InvoiceForm({
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
             <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
               supplierName={nameOf(K.supplier)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines}
-              supplierChange={supplierChange} />
+              supplierChange={supplierChange} autosave={auto} onCommit={auto ? () => queue.mark('lines') : undefined} />
           </InvoicePart>
 
           {/* «Объект» — здесь, после строк (решение владельца Э1): весь счёт на объект — одним выбором. */}
@@ -449,6 +472,14 @@ export function InvoiceForm({
     </CorrectionContext.Provider>
     </SiteRevealScope>
   );
+}
+
+/** Запись перед уходом не дошла — что теряется и где причина (D-12.7). */
+const LEAVE_FAILED = 'Набранное в счёте не записано: уйдя, вы его потеряете. Останьтесь — в сводке счёта названа причина, и запись можно повторить.';
+
+/** «Сохранено · 12:04» — сегодня временем, раньше — датой со временем. */
+function savedTime(iso: string): string {
+  return isToday(iso) ? formatTime(iso) : formatDateTime(iso);
 }
 
 const STATE_TONE: Record<string, StatusTone> = { [PARSED]: 'success', [REJECTED]: 'error', 'Оплачен': 'success' };

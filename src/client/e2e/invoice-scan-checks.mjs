@@ -160,7 +160,7 @@ export async function invoiceScanChecks(page, check, h) {
       await page.keyboard.press('Escape');
       await h.named('Esc не закрыл просмотрщик', () => dialog.waitFor({ state: 'detached', timeout: 10_000 }));
       await h.named('после Esc формы нет',
-        () => page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 5_000 }));
+        () => page.getByTestId('invoice-header').waitFor({ timeout: 5_000 }));
     } finally {
       page.off('popup', onPopup);
       await page.setViewportSize({ width: 1500, height: 1000 });

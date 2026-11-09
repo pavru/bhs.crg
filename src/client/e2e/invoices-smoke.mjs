@@ -31,6 +31,7 @@ import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 import { invoiceFileDropChecks } from './invoice-file-drop-checks.mjs';
 import { invoiceUndoChecks } from './invoice-undo-checks.mjs';
+import { commitInvoice, invoiceOpened, saveInvoice } from './invoice-save.mjs';
 import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
 /**
@@ -98,37 +99,27 @@ const supplierId = organizations[0].id;
 /**
  * Открыть счёт списка по номеру и дождаться формы.
  *
- * Кнопка «Сохранить» — одна, в сводке (costs-invoice-screen-10-layout, D-10.7): она пишет и шапку, и
- * строки. Заполненные части открываются свёрнутыми — проверки этого прогона не про свёртку и раскрывают их.
+ * Черновик пишется сам — по уходу с поля (costs-invoice-screen-12-autosave, D-12.1); `commitInvoice` уходит с поля
+ * либо жмёт «Сохранить» там, где запись явная. Заполненные части открываются свёрнутыми — проверки этого прогона не
+ * про свёртку и раскрывают их.
  */
 async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
-  await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+  await invoiceOpened(page);
   await expandInvoiceParts(page);
 }
 
 /**
- * Нажать «Сохранить» и дождаться ОТВЕТА сервера.
+ * Записать набранное и дождаться, пока запись ДОШЛА (`saveInvoice`).
  *
- * ⚠️ Без ожидания ответа проверка мигает, и мигает обманчиво: `reload()` сразу после нажатия
- * ОБРЫВАЕТ запрос — правка «не сохраняется» по вине прогона, а сообщение винит форму. Так в CI упали
- * две проверки из шести, причём на мастере, где сохранение работает (разбор прогонов #1078).
- *
- * ⚠️ Ждать здесь нечего, кроме ответа: успешное сохранение видимого следа не оставляет (тост заведён
- * для отказа), а кнопка гаснет и на время самого запроса (`disabled || loading`) — «погасла»
- * срабатывает ДО ответа, то есть такое ожидание не ловит вовсе ничего.
+ * ⚠️ Без ожидания проверка мигает, и мигает обманчиво: `reload()` сразу после ухода с поля ОБРЫВАЕТ запрос —
+ * правка «не сохраняется» по вине прогона, а сообщение винит форму (разбор прогонов #1078).
  */
 async function save() {
-  const answered = page.waitForResponse(
-    r => ['PUT', 'POST'].includes(r.request().method())
-      && /\/api\/costs\/invoices(\/[0-9a-f-]+)?$/.test(r.url()),
-    { timeout: 15_000 });
-  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
-  const answer = await answered;
-  // Отказ называем отказом: иначе он доедет до проверки как «правка не сохранилась», то есть будет
-  // выглядеть поломкой формы, а не отказом сервера с кодом и причиной.
-  if (!answer.ok()) throw new Error(`сохранение отказало: ${answer.status()}`);
+  // Черновик пишется сам, и выбор (организация, дата) уходит ещё до этого вызова: ждём, пока запись ДОШЛА, а не
+  // ответа своего запроса. Отказ — словами носителя записи, а не «правка не сохранилась» (`saveInvoice`).
+  await saveInvoice(page);
 }
 
 /** Сколько меток видно на форме: знаков «со скана» в хвосте полей ([UI-88], 11 D-11.4) — у полей шапки нет ни рамки, ни
@@ -181,7 +172,7 @@ try {
   await check('черновик заводится пустым и сохраняется с одним номером', async () => {
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: 'Новый счёт' }).click();
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+    await invoiceOpened(page);
 
     const number = `СЧ-Ч${stamp}`;
     await page.getByLabel('Номер', { exact: true }).fill(number);
@@ -294,14 +285,12 @@ try {
     // создания, оба по убыванию. Даты у пары одинаковые, значит порядок решает создание.
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+    await invoiceOpened(page);
     await expandInvoiceParts(page);
     await untilStatus(page, items => items.some(i => i.key === 'duplicate'), 'перечень не назвал дубликат');
 
-    // Сохранение НЕ заблокировано: правка проходит при живой оговорке.
+    // Сохранение НЕ заблокировано: правка проходит при живой оговорке (`save` ждёт ответа и называет отказ).
     await page.getByLabel('Назначение').fill('Правка при дубликате');
-    if (await page.getByRole('button', { name: 'Сохранить', exact: true }).isDisabled())
-      throw new Error('сохранение заблокировано дубликатом');
     await save();
 
     // ⚠️ Сохранение проверяется ПЕРЕЗАГРУЗКОЙ, а не погасшей кнопкой. Кнопка гаснет и на время
@@ -309,7 +298,7 @@ try {
     // сервера — то есть проверка не могла упасть вовсе, даже если сохранение отказало.
     await page.reload({ waitUntil: 'networkidle' });
     await page.getByRole('button', { name: new RegExp(number) }).first().click();
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+    await invoiceOpened(page);
     await expandInvoiceParts(page);
 
     const saved = await page.getByLabel('Назначение').inputValue();
@@ -674,7 +663,7 @@ try {
       });
       if (res.status !== 204) throw new Error(`счёт не удалён: ${res.status} ${(await res.text()).slice(0, 200)}`);
     }, [other.id, other.version]);
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await commitInvoice(page);
     await named('форма не сказала, что счёта больше нет',
       () => statusBanner(page).filter({ hasText: 'Счёт удалён' }).waitFor({ timeout: 10_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до удаления')
@@ -697,7 +686,7 @@ try {
     await page.route(address, route => route.request().method() === 'GET'
       ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Сервер недоступен (проба)."}' })
       : route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Счёт тем временем изменили (проба)."}' }));
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await commitInvoice(page);
     await named('полосы «не перечитался» нет — форма снята или отказ не показан',
       () => statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).waitFor({ timeout: 15_000 }));
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')

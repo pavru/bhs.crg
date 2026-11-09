@@ -1,5 +1,5 @@
 import type { InvoiceLineTotals, InvoiceView, VatMode } from '@/shared/api/invoices';
-import { lines, mismatch, money, toNumber, vatCaption, type LineDraft, type LineTotals } from './invoiceLines';
+import { lines, mismatch, money, preview, toNumber, totals, vatCaption, type LineDraft, type LineTotals } from './invoiceLines';
 
 /**
  * Режим НДС счёта в форме (эпик #1496, issue #1499, #1500) — всё, что не рисование: смена режима в
@@ -163,3 +163,30 @@ export function savedExplains(view: InvoiceView): 'onTop' | 'included' | null {
   return view.readiness?.gaps?.find(gap => gap.vatExplains)?.vatExplains ?? null;
 }
 
+
+/** Что сделает смена режима со строками — предпросмотр перед записью (costs-invoice-screen-12-autosave, D-12.6). */
+export interface ModePreview {
+  /** Сколько строк сменят сумму с НДС. */
+  changed: number;
+  /** Сколько строк в новом режиме суммы с НДС не получат: у них нет ставки (НДС сверху — не от чего считать). */
+  unknown: number;
+  /** Сумма строк с НДС до и после; строки без суммы в неё не входят. */
+  before: number;
+  after: number;
+}
+
+/**
+ * Предпросмотр смены режима НДС: считает клиент тем же `preview`, которым считается полоса сверки, — он
+ * сверен с сервером общим набором `invoiceLineCases.json`.
+ */
+export function modePreview(drafts: readonly LineDraft[], from: VatMode, to: VatMode): ModePreview {
+  const next = withMode(drafts);
+  let changed = 0;
+  let unknown = 0;
+  drafts.forEach((draft, index) => {
+    const was = preview(draft, from).gross;
+    const now = preview(next[index], to).gross;
+    if (now === null) { if (was !== null) unknown += 1; } else if (was !== now) changed += 1;
+  });
+  return { changed, unknown, before: totals(drafts, from).amount, after: totals(next, to).amount };
+}

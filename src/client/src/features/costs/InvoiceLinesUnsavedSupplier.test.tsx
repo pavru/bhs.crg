@@ -122,7 +122,7 @@ describe('поставщик в шапке изменён и не сохранё
     fireEvent.click(screen.getByRole('button', { name: 'Добавить строку' }));
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view(OLD, [line('l1')], 'v2') } as never);
 
-    await act(async () => { expect(await saver.current!(null)).toBe(true); });
+    await act(async () => { expect(await saver.current!(null)).toBeTruthy(); });
     expect(sentLines().map(sent => sent.remember)).toEqual([false, false]);
     expect(await screen.findByText(HELD_MEMORY_NOTICE)).toBeTruthy();
   });
@@ -132,7 +132,7 @@ describe('поставщик в шапке изменён и не сохранё
     fireEvent.change(screen.getByRole('textbox', { name: 'Количество, строка 1' }), { target: { value: '3' } });
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view(OLD, [line('l1')], 'v2') } as never);
 
-    await act(async () => { expect(await saver.current!(null)).toBe(true); });
+    await act(async () => { expect(await saver.current!(null)).toBeTruthy(); });
     expect(sentLines().map(sent => sent.remember)).toEqual([false]);
     expect(screen.queryByText(HELD_MEMORY_NOTICE)).toBeNull();
   });
@@ -141,7 +141,7 @@ describe('поставщик в шапке изменён и не сохранё
     const { saver } = mount(view(OLD, [line('l1', { nomenclatureId: POSITION, nomenclatureName: 'Кабель' })]), { to: NEW });
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view(NEW, [line('l1')], 'v3') } as never);
 
-    await act(async () => { expect(await saver.current!(view(NEW, [line('l1')], 'v2'))).toBe(true); });
+    await act(async () => { expect(await saver.current!(view(NEW, [line('l1')], 'v2'))).toBeTruthy(); });
     expect(sentLines()[0]).not.toHaveProperty('remember');
   });
 });
@@ -180,7 +180,7 @@ describe('опыт прежнего поставщика не переживае
     expect(screen.getByText(/Поставщика счёта сменили: это запомнено за прежним/)).toBeTruthy();
 
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view(NEW, [line('l1')], 'v3') } as never);
-    await act(async () => { expect(await saver.current!(null)).toBe(true); });
+    await act(async () => { expect(await saver.current!(null)).toBeTruthy(); });
     expect(sentLines()[0]).toMatchObject({ matchedBy: null, remember: false });
   });
 

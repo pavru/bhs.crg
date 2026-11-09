@@ -31,6 +31,7 @@ import { unsavedSupplierChecks } from './invoice-unsaved-supplier-checks.mjs';
 import { deleteAllocationChecks } from './invoice-delete-allocation-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
 import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
+import { commitInvoice, invoiceOpened, saveInvoice } from './invoice-save.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -129,7 +130,7 @@ async function invoice(number, total = 10_000, vat = undefined) {
 async function open(number) {
   await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: new RegExp(number.replace(/[-/]/g, '.')) }).first().click();
-  await page.getByRole('button', { name: 'Сохранить', exact: true }).waitFor({ timeout: 10_000 });
+  await invoiceOpened(page);
   // Заполненные части открываются свёрнутыми (costs-invoice-screen-10-layout, D-10.2) — проверки здесь
   // о строках, а не о свёртке.
   await expandInvoiceParts(page);
@@ -155,21 +156,16 @@ async function addRow(number) {
 }
 
 /**
- * Сохранить строки и дождаться ОТВЕТА сервера.
+ * Записать строки и дождаться, пока запись ДОШЛА (`saveInvoice`: тишина сети и носитель «Сохранено»).
  *
- * ⚠️ Погасшая кнопка признаком НЕ ГОДИТСЯ, хотя выглядит им: она гаснет и на время самого запроса
- * (`disabled || loading`), то есть ожидание «погасла» срабатывает ДО ответа. Дальше идёт либо
- * перезагрузка — она ОБРЫВАЕТ запрос, и строки теряются по вине прогона, — либо переход «Разобран»,
- * который отказал бы, не увидев ещё не записанных строк. Тем же ожиданием упали в CI две проверки
- * формы счёта, причём на мастере, где сохранение работает (разбор прогонов #1078).
+ * ⚠️ Признаком не годится ни погасшая кнопка, ни «носитель сказал Сохранено» сразу после ухода из строки: запись
+ * начинается после отрисовки, и мгновенный взгляд застал бы прежнее «Сохранено». Дальше шла бы перезагрузка — она
+ * ОБРЫВАЕТ запрос, и строки терялись бы по вине прогона (разбор прогонов #1078).
  */
 async function saveLines() {
-  const answered = page.waitForResponse(
-    r => r.request().method() === 'PUT' && r.url().endsWith('/lines'), { timeout: 15_000 });
-  // Одна «Сохранить» в сводке пишет и шапку, и строки (D-10.7); шапка здесь не тронута — уходят строки.
-  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
-  const answer = await answered;
-  if (!answer.ok()) throw new Error(`строки не сохранились: ${answer.status()}`);
+  // Черновик пишется сам — уход из строки (costs-invoice-screen-12-autosave, D-12.2); выбор позиции и вставка пишут
+  // ещё раньше. Ждём, пока запись ДОШЛА, — не ответа своего запроса (`saveInvoice`).
+  await saveInvoice(page);
 }
 
 try {
@@ -305,8 +301,8 @@ try {
     await cell('Цена', 1).fill('100');
     const parsed = page.getByRole('button', { name: 'Разобран', exact: true });
     // Несохранённое — первая причина: перечень о сохранённом.
-    if ((await parsed.getAttribute('aria-description') ?? '').search(/сохраните правки/) < 0)
-      throw new Error(`при несохранённых строках «Разобран» не назвал причину «сохраните правки»: «${await parsed.getAttribute('aria-description')}»`);
+    if ((await parsed.getAttribute('aria-description') ?? '').search(/Правки не сохранены/) < 0)
+      throw new Error(`при несохранённых строках «Разобран» не назвал причину «правки не сохранены»: «${await parsed.getAttribute('aria-description')}»`);
     await saveLines();
 
     await page.waitForFunction(() => {
@@ -349,9 +345,7 @@ try {
     await page.getByRole('button', { name: 'выбрать позицию' }).click();
     await page.getByPlaceholder('часть наименования').fill(stamp);
     await page.getByRole('option', { name: cable }).click();
-    // Набрано, но не сохранено: перечень — о сохранённом счёте, «Разобран» называет причину — несохранённое.
-    await page.waitForFunction(() => /сохраните правки/.test([...document.querySelectorAll('button')]
-      .find(b => b.textContent?.trim() === 'Разобран')?.getAttribute('aria-description') ?? ''), null, { timeout: 10_000 });
+    // Выбор позиции — цельное действие: строки пишутся сами (D-12.2), перечень — о сохранённом счёте.
     await saveLines();
     await remains(['allocation'], ['lines', 'nomenclature']);
 
@@ -550,7 +544,7 @@ try {
 
     const [refusal] = await Promise.all([
       page.waitForResponse(r => r.url().endsWith(lines) && r.request().method() === 'PUT'),
-      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+      commitInvoice(page),
     ]);
     if (refusal.status() !== 409) throw new Error(`устаревшие строки записались: ответ ${refusal.status()}`);
 
@@ -579,7 +573,7 @@ try {
       { requisites: { ...seenByNeighbour.requisites, 'Назначение': 'правка соседа' } });
     await Promise.all([
       saved(lines).catch(() => { throw new Error('правка шапки соседом отказала сохранению строк'); }),
-      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+      commitInvoice(page),
     ]);
     await noNotice('сосед правил шапку, я — строки');
 
@@ -589,7 +583,7 @@ try {
     await api('PUT', lines, { lines: [{ supplierText: 'строка соседа, вторая правка', quantity: '4', price: '10' }] });
     await Promise.all([
       saved(`/costs/invoices/${created.id}`).catch(() => { throw new Error('правка строк соседом отказала сохранению шапки'); }),
-      page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+      commitInvoice(page),
     ]);
     await noNotice('сосед правил строки, я — шапку');
     // Строки при этом на экране — соседа: своих правок в них не было, и таблица пересобралась.

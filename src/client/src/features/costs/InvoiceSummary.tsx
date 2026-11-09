@@ -4,6 +4,8 @@ import { CheckCircle, Payments, Save, SearchCheck, type IconDef } from '@/shared
 import { Button, IconButton } from '@/shared/ui/Button';
 import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
 import type { PrimaryAction } from './invoicePrimary';
+import type { SaveStatus } from './invoiceSave';
+import { InvoiceSaveState } from './InvoiceSaveState';
 
 /**
  * Сводка счёта — единственная неподвижная часть формы (costs-invoice-screen-10-layout, D-10.6, ТЗ
@@ -34,6 +36,11 @@ const PRIMARY: Record<SummaryPrimary['kind'], { label: string; icon: IconDef }> 
   check: { label: 'Проверить исправление…', icon: SearchCheck },
 };
 
+/** Запись в сводке: носитель (счёт пишется сам) или кнопка «Сохранить» (явная запись). */
+export type SummarySave =
+  | { kind: 'auto'; status: SaveStatus; savedAt: string; onRetry: () => void }
+  | { kind: 'button'; unsaved: boolean; saving: boolean; savedAt: string; onSave: () => void };
+
 export const InvoiceSummary = forwardRef<HTMLDivElement, {
   /** Номер счёта — как его называет сводка; пустой — «без номера». */
   number: string;
@@ -45,8 +52,12 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   nav?: ReactNode;
   /** Место индикатора состояния (ребёнок 11). */
   indicator?: ReactNode;
-  /** Запись: `null` — записывать нечего и некому (заперт, исправление, нет права). */
-  save: { unsaved: boolean; saving: boolean; savedAt: string; onSave: () => void } | null;
+  /**
+   * Запись: `auto` — носитель записи (счёт пишется сам, costs-invoice-screen-12-autosave, D-12.1); `button` —
+   * «Сохранить» там, где автосохранения нет (D-12.3); `null` — записывать нечего и некому (заперт, исправление,
+   * нет права).
+   */
+  save: SummarySave | null;
   fromFile?: ReactNode;
   file?: ReactNode;
   primary: SummaryPrimary | null;
@@ -71,7 +82,13 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           <p className="truncate text-body-small text-on-surface-variant" onPointerEnter={fullTextIfCut(meta)}>{meta}</p>
         </div>
         {indicator}
-        {save && (
+        {save?.kind === 'auto' && (
+          <>
+            <Wide at="4xl"><InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} /></Wide>
+            <Narrow at="4xl"><InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} narrow /></Narrow>
+          </>
+        )}
+        {save?.kind === 'button' && (
           <Wide at="4xl">
             <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`}>
@@ -79,7 +96,7 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
             </Button>
           </Wide>
         )}
-        {save && (
+        {save?.kind === 'button' && (
           <Narrow at="4xl">
             <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
               loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
