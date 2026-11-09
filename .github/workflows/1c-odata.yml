@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+# Одна группа на все ветки — нарочно: база стенда одна, и два прогона по ней разом мешали бы друг
+# другу, когда появятся пишущие тесты. Цена: GitHub держит один идущий и ОДИН ожидающий прогон, и
+# новый ожидающий отменяет прежний (cancel-in-progress его не спасает). Отменённый прогон своего
+# PR — не провал: «Re-run» после того, как раннер освободится.
 concurrency:
   group: 1c-stand
   cancel-in-progress: false
@@ -37,16 +41,8 @@ jobs:
     runs-on: [self-hosted, 1c]
     environment: 1c
     timeout-minutes: 10
-    env:
-      # Системный gitconfig машины (C:\Program Files\Git\etc\gitconfig) включает встроенный
-      # fsmonitor — для всех учётных записей, и раннера тоже. Каждая команда git поднимает демона, тот
-      # держит каталоги открытыми, и checkout падает на EBUSY при удалении _work\_temp\… (наступили
-      # в первом же прогоне, #1836). Переменные GIT_CONFIG_* старше системного конфига.
-      GIT_CONFIG_COUNT: '2'
-      GIT_CONFIG_KEY_0: core.fsmonitor
-      GIT_CONFIG_VALUE_0: 'false'
-      GIT_CONFIG_KEY_1: core.useBuiltinFSMonitor
-      GIT_CONFIG_VALUE_1: 'false'
+    # fsmonitor (checkout падал на EBUSY, #1836) отключён не здесь, а в .env раннера — для всех его
+    # заданий сразу (register-runner.ps1). Новой работе на `1c` ничего повторять не нужно.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

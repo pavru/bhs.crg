@@ -75,12 +75,11 @@ try {
         finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
         if ($code -eq $r.code) { Write-Host "  ok   $($r.n)" }
         else { $failed++; Write-Host "  FAIL $($r.n) -> код $code`n$out" -ForegroundColor Red }
-        $cases += $r
     }
 } finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
 if ($failed) { Write-Host "Провалов: $failed" -ForegroundColor Red; exit 1 }
-Write-Host "Все $($cases.Count) случаев прошли." -ForegroundColor Green
+Write-Host "Все $($cases.Count + $runs.Count) случаев прошли." -ForegroundColor Green
 # Явный код: шаг `shell: pwsh` в Actions кончается `exit $LASTEXITCODE`, а последний нативный вызов
 # выше — нарочно падающий хук (код 1). Без этой строки зелёные тесты дают красный шаг (#1836).
 exit 0

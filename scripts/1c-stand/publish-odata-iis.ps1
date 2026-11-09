@@ -77,7 +77,12 @@ $features = 'IIS-WebServerRole', 'IIS-WebServer', 'IIS-ISAPIExtensions', 'IIS-IS
             'IIS-ManagementConsole', 'IIS-RequestFiltering', 'IIS-HttpErrors'
 $missing = $features | Where-Object { (Get-WindowsOptionalFeature -Online -FeatureName $_).State -ne 'Enabled' }
 if ($missing) {
-    Enable-WindowsOptionalFeature -Online -All -NoRestart -FeatureName $missing | Out-Null
+    $res = Enable-WindowsOptionalFeature -Online -All -NoRestart -FeatureName $missing
+    # Без перезагрузки включённое может не заработать, а скрипт дошёл бы до «Готово» — и публикация
+    # отвечала бы 404/500 без объяснения. Говорим сразу.
+    if (@($res | Where-Object RestartNeeded).Count) {
+        Write-Warning "Windows просит перезагрузку для компонентов IIS ($($missing -join ', ')). Перезагрузитесь и запустите скрипт ещё раз — до этого публикация может не отвечать."
+    }
 }
 
 Step "Разрешаю wsisapi.dll в ограничениях ISAPI"

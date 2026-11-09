@@ -26,6 +26,10 @@ if (-not $Url.EndsWith('/')) { $Url += '/' }
 if ($env:ONEC_ODATA_USER) {
     $pw = ConvertTo-SecureString ($env:ONEC_ODATA_PASSWORD ?? '') -AsPlainText -Force
     $cred = [pscredential]::new($env:ONEC_ODATA_USER, $pw)
+} elseif ($env:GITHUB_ACTIONS -eq 'true') {
+    # Окна ввода у службы раннера нет: Get-Credential здесь висел бы до таймаута работы.
+    Write-Host 'ОТКАЗ: нет ONEC_ODATA_USER — секреты окружения «1c» не заданы или не дошли до задания.' -ForegroundColor Red
+    exit 1
 } else {
     $cred = Get-Credential -Message "Пользователь 1С для $Url"
 }
@@ -55,7 +59,15 @@ function Get-OData($relative) {
 }
 
 $raw  = (Get-OData '$metadata').Content
-$meta = [xml]$raw
+# 200 с HTML (страница IIS, чужой сайт на порту) — это не OData, и сказать надо это, а не стек и не
+# «пустой состав». Аккуратный HTML — корректный XML, поэтому судим по корню: у OData он `Edmx`.
+$meta = $null
+try { $meta = [xml]$raw } catch { }
+if (-not $meta -or $meta.DocumentElement.LocalName -ne 'Edmx') {
+    $head = ($raw | Out-String).Trim(); if ($head.Length -gt 300) { $head = $head.Substring(0, 300) + '…' }
+    Write-Host "ОТКАЗ: `$metadata ответил 200, но это не описание OData (нет корня Edmx) — по адресу не OData 1С.`n$head" -ForegroundColor Red
+    exit 1
+}
 $sets = @($meta.SelectNodes("//*[local-name()='EntitySet']") | ForEach-Object { $_.Name })
 if ($sets.Count -eq 0) {
     # Пустой ответ бывает по трём причинам, и по виду они неотличимы — называем, что видно.
