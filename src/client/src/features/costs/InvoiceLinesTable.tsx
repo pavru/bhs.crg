@@ -20,7 +20,7 @@ import {
 import { useDraftBase } from './draftBase';
 import { mergeSaved } from './invoiceLinesMerge';
 import { formatMoney } from '@/shared/format/format';
-import { emptyDraft, hasSavedAllocation, restoreLine, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
+import { emptyDraft, hasSavedAllocation, restoreLine, sameAsSaved, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
   modeConsequences, modeHint, modePreview, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
@@ -108,6 +108,13 @@ export function InvoiceLinesTable({
   const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines, savedMode));
   const [dirty, setDirty] = useState(false);
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
+  // Повод записи отдаётся форме ПОСЛЕ слова о грязи (эффект ниже `onDirty`): поданный прямо из события, он
+  // застал бы очередь, ещё не знающую о правке, и та сбросила бы пометку как «писать нечего» (вставка, выбор).
+  const [commits, setCommits] = useState(0);
+  const onCommitNow = useRef(onCommit);
+  useLayoutEffect(() => { onCommitNow.current = onCommit; });
+  useEffect(() => { if (commits > 0) onCommitNow.current?.(); }, [commits]);
+  const commit = () => { if (onCommit) setCommits(n => n + 1); };
   const report = correcting?.setLines;
   const reportMode = correcting?.setVatMode;
   // Нетронутые строки — `null`, а не набор: исправление шлёт их такими, какими они лежат в счёте. Режим —
@@ -159,7 +166,7 @@ export function InvoiceLinesTable({
     const ask = modeAsk;
     setModeAsk(null);
     if (!ask) return;
-    if (confirmed) { applyMode(ask.to, ask.focus); onCommit?.(); } else if (ask.focus) requestAnimationFrame(() => modeBox.current?.focus());
+    if (confirmed) { applyMode(ask.to, ask.focus); commit(); } else if (ask.focus) requestAnimationFrame(() => modeBox.current?.focus());
   }
 
   const replace = useReplaceInvoiceLines();
@@ -368,7 +375,7 @@ export function InvoiceLinesTable({
   /** Правка цельным действием — выбор позиции, решение пометки: пишется сразу (D-12.2). */
   function choose(key: string, patch: Partial<LineDraft>) {
     edit(key, patch);
-    onCommit?.();
+    commit();
   }
 
   /** Строки добавлены; вставка с отметкой «цены без НДС» приносит и режим (issue #1499). */
@@ -397,14 +404,16 @@ export function InvoiceLinesTable({
     const restore = () => {
       // Таблицы уже нет — ушли со счёта: «Вернуть», который молча ничего не делает, был бы ложью.
       if (!alive.current) { toast.info(`Строка ${index + 1} не возвращена: счёт закрыт. Откройте его и добавьте строку заново.`); return; }
-      setDrafts(prev => restoreLine(prev, line, index, savedLines.current));
-      setDirty(true);
+      const back = restoreLine(latest.current.drafts, line, index, savedLines.current);
+      setDrafts(back);
+      // «Вернуть» без других правок — строки снова как записаны: дописывать нечего, удаление не уходит (Э5).
+      setDirty(!sameAsSaved(back, latest.current.mode, savedLines.current, savedModeNow.current));
     };
     // Удаление пишется, когда снэкбар закрылся — любым исходом (D-12.2, D-13.2): после «Вернуть» строка снова в
     // черновике, и запись положит то, что на экране. Без автосохранения отклик не нужен.
     toast.success(`Строка ${index + 1} удалена.`, {
       duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore },
-      ...(onCommit ? { onClose: () => { if (alive.current) onCommit(); } } : {}),
+      ...(onCommit ? { onClose: () => { if (alive.current) commit(); } } : {}),
     });
   }
   function drop(key: string) {
@@ -425,12 +434,13 @@ export function InvoiceLinesTable({
   /** Ответ окна: подтверждение удаляет строку тем же рендером, что закрывает окно; отказ — оставляет. */
   function answerAsking(confirmed: boolean) {
     if (!asking) return;
-    if (confirmed) { drop(asking.key); onCommit?.(); }
+    if (confirmed) { drop(asking.key); commit(); }
     setAsking(null);
     asking.answer(confirmed);
   }
   const savedLines = useRef(view.lines);
-  useLayoutEffect(() => { savedLines.current = view.lines; });
+  const savedModeNow = useRef(savedMode);
+  useLayoutEffect(() => { savedLines.current = view.lines; savedModeNow.current = savedMode; });
   const alive = useRef(true);
   const grid = useRef<HTMLDivElement>(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -513,7 +523,7 @@ export function InvoiceLinesTable({
               onClick={() => setNoteOn(on => !on)}>
               Примечание
             </Chip>
-            <InvoiceLinesPaste mode={mode} onAdd={(rows, pastedMode) => { add(rows, pastedMode); onCommit?.(); }} />
+            <InvoiceLinesPaste mode={mode} onAdd={(rows, pastedMode) => { add(rows, pastedMode); commit(); }} />
           </>
         )}
       </div>
@@ -526,8 +536,8 @@ export function InvoiceLinesTable({
           и вбок не прокручивается от 640 px — форма рядом с файлом на 1280 шире. Уже — прокручивается
           только сама таблица. */}
       {/* Повод записи — уход из строки и Enter в последнем поле (D-12.2): слушаем вокруг сетки, сетка общая. */}
-      <div ref={grid} onBlur={e => { if (onCommit && leftRow(e.target, e.relatedTarget, grid.current)) onCommit(); }}
-        onKeyDown={e => { if (onCommit && enterInLastField(e.key, e.target, grid.current)) onCommit(); }}>
+      <div ref={grid} onBlur={e => { if (onCommit && leftRow(e.target, e.relatedTarget, grid.current)) commit(); }}
+        onKeyDown={e => { if (onCommit && enterInLastField(e.key, e.target, grid.current)) commit(); }}>
       <EditGrid label="Строки счёта" numbered fill minWidth="min-w-160" rows={drafts} rowKey={draft => draft.key}
         empty={(
           <>

@@ -118,6 +118,14 @@ export function restoreLine(
   return [...drafts.slice(0, at), back, ...drafts.slice(at)];
 }
 
+/** Совпадают ли строки и режим с записанными — так, как их принял бы сервер. */
+export function sameAsSaved(
+  drafts: readonly LineDraft[], mode: VatMode, saved: readonly InvoiceLineView[], savedMode: VatMode,
+): boolean {
+  return mode === savedMode
+    && JSON.stringify(toPayload(drafts, mode)) === JSON.stringify(toPayload(toDrafts(saved, savedMode), savedMode));
+}
+
 /** Пустая строка для дописывания руками. */
 export function emptyDraft(): LineDraft {
   return {

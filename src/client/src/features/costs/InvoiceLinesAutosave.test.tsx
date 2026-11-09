@@ -113,6 +113,26 @@ describe('удаление строки без разноски', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(9000); });
     expect(commit).toHaveBeenCalledOnce();
   });
+
+  it('повод отдаётся после слова о грязи; «Вернуть» без других правок оставляет строки чистыми (Э5)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const said: string[] = [];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <SnackbarProvider>
+          <InvoiceLinesTable view={view([line('a', 1, 1), line('b', 2, 2)])} locked={false} autosave
+            onDirty={dirty => { said.push(dirty ? 'грязно' : 'чисто'); }} onCommit={() => { said.push('повод'); }} />
+        </SnackbarProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: /Удалить строку/ })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуть' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(9000); });
+    // Очередь читает грязь в миг повода: поданный раньше слова, он сбросил бы пометку как «писать нечего».
+    expect(said.at(-1)).toBe('повод');
+    expect(said.at(-2)).toBe('чисто');
+  });
 });
 
 describe('режим НДС — явный шаг', () => {
