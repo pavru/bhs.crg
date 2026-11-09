@@ -28,6 +28,7 @@ import {
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
+import { invoiceTermsCollapseChecks } from './invoice-terms-collapse-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 import { invoiceFileDropChecks } from './invoice-file-drop-checks.mjs';
@@ -540,6 +541,8 @@ try {
   await invoiceUndoChecks(page, check, { named, stamp, BASE });
   // Раскладка экрана по варианту Г (costs-invoice-screen-10-layout) — на четырёх размерах ноутбука.
   await invoiceScreenLayoutChecks(page, check, { api, requisites, attachScan, named, stamp, BASE });
+  // «Сроки и оплата» свёрнута, если решать в ней нечего (costs-invoice-terms-collapse, #1818 п. 7).
+  await invoiceTermsCollapseChecks(page, check, { api, requisites, named, stamp, BASE });
 
   // ── 10. Файл под паролем ПРИЛОЖЕН, а причина названа словами (issue #1270) ──────────────────────
   //
