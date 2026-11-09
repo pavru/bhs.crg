@@ -14,7 +14,8 @@ import { K, PARSED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoic
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  applyOffer, dropForeignMarks, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
+  HELD_MEMORY_NOTICE, applyOffer, dropForeignMarks, holdMemory, lineKey, memoryNotice, offerOfSupplier, pending, sameKey,
+  usable, type MatchOffer, type SupplierChange,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { mergeSaved } from './invoiceLinesMerge';
@@ -53,10 +54,18 @@ const blank = (value: string) => value.trim() || null;
  * счёта стоят в другом.</p>
  */
 export function InvoiceLinesTable({
-  view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false,
+  view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false, supplierChange = null,
 }: {
   view: InvoiceView;
-  /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
+  /**
+   * Поставщик в шапке изменён и не сохранён (#1657, D3). Запомненное прежнего тогда не подставляется и не
+   * предлагается (D2), а строки, записанные без шапки, своего выбора не запоминают (решение (б)).
+   */
+  supplierChange?: SupplierChange | null;
+  /**
+   * Поставщик названием — для плашки окна выбора позиции (issue #1517). Из шапки, если её смена не сохранена:
+   * окно подбирает подходящие по нему же (ревью PR #1830).
+   */
   supplierName?: string | null;
   /** Сюда таблица кладёт свой шаг записи — его зовёт «Сохранить» сводки после шапки (D-10.7). */
   saverRef?: MutableRefObject<LinesStep | null>;
@@ -140,6 +149,12 @@ export function InvoiceLinesTable({
   // Запомненное (C3, issue #1079). Поставщик — тот, что СОХРАНЁН в шапке: строки пишутся отдельно от
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
   const supplierId = refEntryId(view.requisites[K.supplier]);
+  // Поставщик в шапке другой и не сохранён: опыт сохранённого — уже не про этот счёт (#1657, D2). Запомнится ли
+  // выбор — судит поставщик из шапки: «Сохранить» записывает её раньше строк.
+  const supplierPending = supplierChange !== null;
+  // Поставщик, за которым строки запишутся: из шапки, если её смена не сохранена.
+  const supplierNow = supplierPending ? supplierChange.to : supplierId;
+  const hasSupplier = supplierNow !== null;
   const [askFailed, setAskFailed] = useState<string | null>(null);
   // Строки, о которых вопрос не прошёл, — «Повторить» спрашивает о них, а не обо всех: suggest подставляет
   // запомненное сам, а сохранённым строкам по C3 его подставляет только кнопка (ревью PR #1792).
@@ -150,24 +165,28 @@ export function InvoiceLinesTable({
   const laid = useLaidMatchSuggestions(supplierId,
     view.lines.filter(line => !line.match && lineKey(line.supplierCode, line.supplierText) !== null)
       .map(line => ({ id: line.id, supplierCode: line.supplierCode, supplierText: line.supplierText })),
-    !still);
+    !still && !supplierPending);
 
   /**
    * Запомненное для строки: спрошенное для неё самой либо, у лежащей строки, — ответ общего вопроса.
    * Ответ общего вопроса годится, только пока ключ строки тот же, что сохранён: он был про тот текст.
    */
   function offerFor(draft: LineDraft): MatchOffer | null {
-    if (draft.offer) return draft.offer;
+    if (supplierPending) return null;
+    // Предложение в черновике строки могло прийти по прежнему поставщику — шапку с тех пор сохранили, а
+    // строки нет (ревью PR #1830). Опыт другого поставщика этому счёту не предлагается.
+    if (draft.offer) return offerOfSupplier(draft.offer, supplierId) ? draft.offer : null;
     const saved = draft.id ? view.lines.find(line => line.id === draft.id) : undefined;
     if (!saved || !sameKey(lineKey(saved.supplierCode, saved.supplierText),
       lineKey(draft.supplierCode, draft.supplierText))) return null;
-    return laid.data?.get(saved.id) ?? null;
+    const found = laid.data?.get(saved.id);
+    return found ? { ...found, supplierId } : null;
   }
 
   // Строки и режим, как они есть СЕЙЧАС, — для ответа, пришедшего позже вопроса или записи. Слойным эффектом:
   // ответ, пришедший сразу за кадром, застал бы обычный эффект ещё не отработавшим.
-  const latest = useRef({ drafts, mode });
-  useLayoutEffect(() => { latest.current = { drafts, mode }; });
+  const latest = useRef({ drafts, mode, supplier: supplierNow });
+  useLayoutEffect(() => { latest.current = { drafts, mode, supplier: supplierNow }; });
   // О каком ключе строку уже спрашивали: уход с поля без правки вопроса не повторяет.
   const asked = useRef(new Map<string, string>());
 
@@ -190,13 +209,17 @@ export function InvoiceLinesTable({
    * ответ был про прежний текст.
    */
   async function suggest(born: readonly LineDraft[]) {
-    if (!supplierId) return;
+    // Смена поставщика не сохранена — спрашивать прежнего незачем (D2). Строку не помечаем спрошенной: после
+    // сохранения шапки о ней спросит правка ключа, а о лежащей — общий вопрос по новому поставщику.
+    if (!supplierId || supplierPending) return;
+    const askedFor = supplierId;
     // Строка с позицией, выбранной руками, тоже спрашивается — подставлять ей нечего, но запомненное
     // знать надо: без него «запомнится» не отличить от «запомнится вместо прежнего».
     const fresh = born.filter(d => {
       const key = lineKey(d.supplierCode, d.supplierText);
       if (!key || d.declined || d.matchedBy !== null) return false;
-      const signature = `${key.by}:${key.value}`;
+      // Поставщик — часть вопроса: о той же строке у другого поставщика спрашивают заново.
+      const signature = `${askedFor}:${key.by}:${key.value}`;
       if (asked.current.get(d.key) === signature) return false;
       asked.current.set(d.key, signature);
       return true;
@@ -204,11 +227,17 @@ export function InvoiceLinesTable({
     if (fresh.length === 0) return;
 
     try {
-      const found = await askMatchSuggestions(supplierId,
+      const found = await askMatchSuggestions(askedFor,
         fresh.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
+      // Пока шёл вопрос, поставщика сменили — ответ про опыт другого поставщика, и в строки он не ложится
+      // (ревью PR #1830). О строках спросит следующий вопрос — по нынешнему.
+      if (latest.current.supplier !== askedFor) {
+        fresh.forEach(d => asked.current.delete(d.key));
+        return;
+      }
       setAskFailed(null);
       failedKeys.current = new Set();
-      const answers = new Map(found.map(item => [fresh[item.index].key, { offer: item, asked: fresh[item.index] }]));
+      const answers = new Map(found.map(item => [fresh[item.index].key, { offer: { ...item, supplierId: askedFor }, asked: fresh[item.index] }]));
       if (answers.size === 0) return;
 
       // Ответ про строку, которую тем временем отменили, пометили или переписали, к ней не относится.
@@ -237,6 +266,23 @@ export function InvoiceLinesTable({
     }
   }
 
+  // Смену поставщика отменили, не сохраняя, — вернули прежнего (ревью PR #1830): о строках, родившихся за это
+  // время, спрашивают теперь. Смену сохранили — поставщик в виде другой, и не спрашиваем: строки лягут лежащими, и о
+  // них спросит общий вопрос по новому поставщику. Кадр между сбросом правок шапки и приходом её ответа выглядит
+  // отменой — ответ такого вопроса отбрасывает сверка поставщика в `suggest`.
+  const suggestNow = useRef(suggest);
+  useLayoutEffect(() => { suggestNow.current = suggest; });
+  const pendingFrom = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (supplierPending) {
+      if (pendingFrom.current === undefined) pendingFrom.current = supplierId;
+      return;
+    }
+    const from = pendingFrom.current;
+    pendingFrom.current = undefined;
+    if (from !== undefined && from === supplierId) void suggestNow.current(latest.current.drafts.filter(d => d.id === null));
+  }, [supplierPending, supplierId]);
+
   // Колонки, которых в таблице по умолчанию нет (D-10.10): НДС строки и примечание. Ни ввести примечание,
   // ни поправить НДС строки, неверно прочитанный со скана, иначе было бы негде (ревью PR #1786) — их
   // включает чип над таблицей. Колонка примечания, раз показанная, не пропадает у человека под курсором,
@@ -254,7 +300,6 @@ export function InvoiceLinesTable({
   const failed = askFailed ?? (laid.isError ? apiError(laid.error) : null);
   const waiting = drafts.filter(d => d.nomenclatureId === null).length;
   const shown = !still && drafts.length > 0;
-  const hasSupplier = supplierId !== null;
   const acts = useRef<LinesActs>(null!);
   useLayoutEffect(() => {
     acts.current = {
@@ -272,15 +317,15 @@ export function InvoiceLinesTable({
   useEffect(() => {
     onReport?.({
       stale, acts, modeChanged: mode !== savedMode,
-      matches: shown ? { hasSupplier, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
+      matches: shown ? { hasSupplier, supplierPending, waiting, ready: ready.length, blocked: blockedOffers, failed } : null,
     });
-  }, [onReport, stale, mode, savedMode, shown, hasSupplier, waiting, ready.length, blockedOffers, failed]);
+  }, [onReport, stale, mode, savedMode, shown, hasSupplier, supplierPending, waiting, ready.length, blockedOffers, failed]);
   useEffect(() => () => onReport?.({ stale: false, acts, modeChanged: false, matches: null }), [onReport]);
 
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
-    offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
+    offerFor, hasSupplier, supplierPending, supplier: supplierNow, supplierName, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
   });
 
@@ -330,14 +375,18 @@ export function InvoiceLinesTable({
    * нажатием: основа о нём ещё не знает, а версия у счёта одна.
    */
   async function save(after: InvoiceView | null): Promise<boolean> {
-    // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
-    const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
-    const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
+    // Подставленное из памяти другого поставщика за тем, кто будет лежать в счёте, не числится: шапка сменила
+    // его этим нажатием либо прошлым, когда строки не записались (ревью PR #1830).
+    const target = after !== null ? refEntryId(after.requisites[K.supplier]) : supplierId;
+    const sent = dropForeignMarks(drafts, view.lines, target);
+    // Строки уходят без шапки, а смена поставщика в ней не сохранена (#1657, решение (б)): выбор не запоминается
+    // вовсе — сервер записал бы его за прежним поставщиком.
+    const hold = supplierPending && after === null ? holdMemory(sent.drafts, view.lines) : { drafts: sent.drafts, held: false };
     // Снимок черновика на миг отправки — с ним сверяется набранное, пока запись идёт (issue #1656).
     const snapshot = { drafts, mode };
     try {
       const saved = await base.save(seen => replace.mutateAsync({
-        id: view.id, seen, lines: toPayload(sent.drafts, mode), vatMode: mode,
+        id: view.id, seen, lines: toPayload(hold.drafts, mode), vatMode: mode,
       }), after);
       // Ответ своей записи — основа черновика, а не чужая правка: следующая запись назовёт его версию.
       base.adopt(saved);
@@ -353,7 +402,7 @@ export function InvoiceLinesTable({
       setDirty(merged.dirty);
       // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
       // следующих счетов этого поставщика — молча это делать нельзя.
-      const notice = memoryNotice(saved.memory);
+      const notice = hold.held ? { variant: 'info' as const, text: HELD_MEMORY_NOTICE } : memoryNotice(saved.memory);
       if (notice) toast[notice.variant](notice.text);
       return true;
     } catch (e) {

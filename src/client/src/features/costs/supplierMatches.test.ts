@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import {
-  applyOffer, cancelMatch, dropForeignMarks, lineKey, matchTrouble, memoryFate, memoryNotice, pending, pickByHand, usable,
-  type MatchOffer,
+  applyOffer, cancelMatch, dropForeignMarks, foreignMark, holdMemory, offerOfSupplier, lineKey, matchTrouble, memoryFate, memoryNotice, pending,
+  pickByHand, supplierChangeOf, usable, type MatchOffer,
 } from './supplierMatches';
 
 const offer: MatchOffer = {
@@ -159,19 +159,66 @@ describe('слова', () => {
 
 describe('смена поставщика тем же «Сохранить»', () => {
   it('новая пометка снимается, позиция остаётся, за новым поставщиком не запоминается', () => {
-    const pasted = draft(applyOffer(offer));
-    const { drafts, dropped } = dropForeignMarks([pasted], []);
+    const pasted = draft(applyOffer({ ...offer, supplierId: 'A' }));
+    const { drafts, dropped } = dropForeignMarks([pasted], [], 'B');
     expect(dropped).toBe(1);
     expect(drafts[0]).toMatchObject({ nomenclatureId: 'n-1', matchedBy: null, match: null, remember: false });
     expect(toPayload(drafts, 'Included')[0]).toMatchObject({ matchedBy: null, remember: false });
+  });
+
+  it('судит поставщик, за которым строки пишутся, а не то, сменился ли он этим нажатием (ревью PR #1830)', () => {
+    const pasted = draft(applyOffer({ ...offer, supplierId: 'A' }));
+    // Шапку с B записали прошлым нажатием, строки — нет: пометка из памяти A всё ещё чужая.
+    expect(foreignMark(pasted, undefined, 'B')).toBe(true);
+    expect(dropForeignMarks([pasted], [], 'A').dropped).toBe(0);
+    expect(foreignMark(pasted, undefined, 'A')).toBe(false);
   });
 
   it('пометка, что у строки уже лежала, остаётся: сервер её не сверяет', () => {
     const line = saved({ nomenclatureId: 'n-1', match: { id: 'm-1', by: 'name', state: 'current', source: 'x', rememberedAt: null, rememberedBy: null } });
     const kept = { ...toDrafts([line], 'Included')[0] };
     expect(kept.matchedBy).toBe('m-1');
-    const { drafts, dropped } = dropForeignMarks([kept], [line]);
+    const { drafts, dropped } = dropForeignMarks([kept], [line], 'B');
     expect(dropped).toBe(0);
     expect(drafts[0]).toBe(kept);
+  });
+});
+
+describe('несохранённая смена поставщика (#1657)', () => {
+  const ref = (id: string | null) => (id === null ? null : { $ref: 'catalog', entryId: id });
+  const savedA = { Поставщик: ref('A'), Номер: '1' };
+
+  it('смена — когда в правке шапки другой поставщик, чем сохранён', () => {
+    expect(supplierChangeOf({ Поставщик: ref('B') }, savedA)).toEqual({ to: 'B' });
+    expect(supplierChangeOf({ Поставщик: null }, savedA)).toEqual({ to: null });
+  });
+
+  it('смены нет: поставщика не трогали, вернули прежнего или шапку сохранили', () => {
+    expect(supplierChangeOf({ Номер: '2' }, savedA)).toBeNull();
+    expect(supplierChangeOf({ Поставщик: ref('A') }, savedA)).toBeNull();
+    // После сохранения правок нет, а в виде — новый поставщик.
+    expect(supplierChangeOf({}, { Поставщик: ref('B') })).toBeNull();
+  });
+
+  it('строки без шапки — каждая с «не запоминать»; молчать нельзя, только если выбор был новостью', () => {
+    const picked = draft({ id: 'l-1', ...pickByHand('n-2', 'Другая позиция') });
+    const lying = saved({ nomenclatureId: 'n-1' });
+    const held = holdMemory([picked, draft({ key: 'k-2' })], [lying]);
+    expect(held.drafts.map(d => d.remember)).toEqual([false, false]);
+    expect(toPayload(held.drafts, 'Included').map(p => p.remember)).toEqual([false, false]);
+    expect(held.held).toBe(true);
+
+    // Позиция та же, что лежит, — сервер ничего бы не запомнил, и говорить «не запомнен» не о чем.
+    expect(holdMemory([draft({ id: 'l-1', nomenclatureId: 'n-1' })], [lying]).held).toBe(false);
+    // Человек и так сказал «не запоминать».
+    expect(holdMemory([{ ...picked, remember: false }], [lying]).held).toBe(false);
+  });
+});
+
+describe('чей опыт в предложении (ревью PR #1830)', () => {
+  it('предложение по поставщику — его; восстановленное из лежащей пометки — ничьё, то есть годится', () => {
+    expect(offerOfSupplier({ ...offer, supplierId: 'A' }, 'A')).toBe(true);
+    expect(offerOfSupplier({ ...offer, supplierId: 'A' }, 'B')).toBe(false);
+    expect(offerOfSupplier(offer, 'B')).toBe(true);
   });
 });

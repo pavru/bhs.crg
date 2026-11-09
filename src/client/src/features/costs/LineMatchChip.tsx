@@ -20,8 +20,17 @@ import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
  * <p>⚠️ Крестик отменяет подстановку БЕЗ вопроса: это одно действие по ТЗ, и обратимо оно тут же —
  * «вернуть» стоит на том же месте до сохранения строк.</p>
  */
-export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRestore, onRemember }: {
+export function LineMatchChip({
+  draft, offer, fate, supplierId, supplierPending = false, leaving = false, onCancel, onRestore, onRemember,
+}: {
   draft: LineDraft;
+  /** Поставщик в шапке изменён и не сохранён (#1657): выбор запомнится за поставщиком из шапки. */
+  supplierPending?: boolean;
+  /**
+   * Пометка новая и взята из памяти другого поставщика (#1657, `foreignMark`): при сохранении её снимет
+   * `dropForeignMarks`. Сказано заранее, а не только уведомлением после записи.
+   */
+  leaving?: boolean;
   /** Поставщик счёта — с ним открывается список соответствий из раскрытия пометки. */
   supplierId: string | null;
   /** Запомненное для этой строки, известное форме. */
@@ -39,7 +48,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
     const listed = draft.match != null && draft.match.state !== 'gone';
     return (
       <span className="shrink-0 inline-flex items-center">
-        <Explained label="запомнено" warning={trouble !== null}>
+        <Explained label="запомнено" warning={trouble !== null || leaving}>
           <p>
             Подставлено из соответствий поставщика: {byWord(draft.match?.by ?? null)}
             {draft.match?.source ? ` «${draft.match.source}»` : ''} → «{draft.nomenclatureName ?? 'позиция без названия'}».
@@ -47,6 +56,12 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
           {draft.match?.rememberedAt && (
             <p className="text-on-surface-variant">
               Запомнено {formatDate(draft.match.rememberedAt)}{draft.match.rememberedBy ? `, ${draft.match.rememberedBy}` : ''}.
+            </p>
+          )}
+          {leaving && (
+            <p className="text-warning">
+              Поставщика счёта сменили: это запомнено за прежним. При сохранении строк пометка снимется, позиция
+              останется, а за новым поставщиком выбор не запомнится.
             </p>
           )}
           {trouble && (
@@ -106,7 +121,12 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
     return (
       <Explained label="запомнится">
         <p>При сохранении строк запомнится: {what} → «{name}».</p>
-        <p className="text-on-surface-variant">Следующий счёт этого поставщика получит эту позицию сам.</p>
+        <p className="text-on-surface-variant">
+          {supplierPending
+            ? 'Поставщик в шапке изменён: выбор запомнится за новым — «Сохранить» записывает шапку раньше строк. '
+              + 'Было ли у него для этой строки запомнено своё, скажет сообщение после сохранения.'
+            : 'Следующий счёт этого поставщика получит эту позицию сам.'}
+        </p>
         <Action onClick={() => onRemember(false)}>Не запоминать</Action>
       </Explained>
     );

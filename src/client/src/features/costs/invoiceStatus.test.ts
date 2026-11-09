@@ -209,6 +209,19 @@ describe('statusOf — отказ, а не пропуск (1.3)', () => {
     expect(item.actions[0]).toMatchObject({ kind: 'retry-matches', label: 'Повторить' });
   });
 
+  it('поставщик изменён и не сохранён — запомненное прежнего не предлагается, причина названа (#1657)', () => {
+    const s = statusOf(input(view(), {
+      matches: { hasSupplier: true, supplierPending: true, waiting: 3, ready: 0, blocked: 0, failed: 'сервер отказал' },
+    }));
+    expect(s.items.map(i => i.key).filter(k => k.startsWith('matches-'))).toEqual(['matches-pending']);
+    const item = s.items.find(i => i.key === 'matches-pending')!;
+    // Слова не о «прежнем»: в сохранённом счёте поставщика могло не быть вовсе (ревью PR #1830).
+    expect(item.text).toMatch(/Поставщик в шапке не сохранён/);
+    expect(item.detail).toMatch(/запомненное не подставляется/);
+    expect(`${item.text} ${item.detail}`).not.toMatch(/прежн/);
+    expect(item.actions[0]).toMatchObject({ kind: 'goto', place: { place: 'field', key: 'Поставщик' } });
+  });
+
   it('неизвестный вид пункта готовности — пункт со словами сервера', () => {
     const s = statusOf(input(view({ gaps: [{ kind: 'something-new', label: 'новое условие сервера' }] })));
     expect(s.items[0]).toMatchObject({ level: 'gate', text: 'Новое условие сервера' });

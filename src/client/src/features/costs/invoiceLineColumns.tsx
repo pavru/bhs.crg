@@ -5,7 +5,7 @@ import type { InvoiceView, VatMode } from '@/shared/api/invoices';
 import { LOST } from './lostReferences';
 import { K, refEntryId } from './invoiceFields';
 import { preview, type LineDraft } from './invoiceLines';
-import { applyOffer, cancelMatch, lineKey, memoryFate, pickByHand, sameKey, type MatchOffer } from './supplierMatches';
+import { applyOffer, cancelMatch, foreignMark, lineKey, memoryFate, pickByHand, sameKey, type MatchOffer } from './supplierMatches';
 import { LineMatchChip } from './LineMatchChip';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { invoiceLineWhere } from './pickerLine';
@@ -44,9 +44,16 @@ export interface InvoiceLineContext {
   blocked: string | null;
   /** Запомненное для строки, известное форме (C3, issue #1079). */
   offerFor: (draft: LineDraft) => MatchOffer | null;
-  /** У счёта сохранён поставщик: без него ни подставить, ни запомнить. */
+  /** У счёта есть поставщик — сохранённый или, при несохранённой смене, из шапки: без него не запомнить. */
   hasSupplier: boolean;
-  /** Сохранённый поставщик названием — в плашку окна выбора позиции. */
+  /** Поставщик в шапке изменён и не сохранён (#1657): пометкам строк есть что об этом сказать. */
+  supplierPending?: boolean;
+  /**
+   * Поставщик, за которым строки запишутся: из шапки при несохранённой смене (#1657). По нему окно выбора
+   * подбирает подходящие и судится чужая пометка — опыт прежнего этому счёту не предлагается (ревью PR #1830).
+   */
+  supplier: string | null;
+  /** Поставщик из шапки названием — в плашку окна выбора позиции: тот же, по которому подбираются подходящие. */
   supplierName: string | null;
   /** У строки появился новый ключ (наименование или артикул) — спросить запомненное. */
   onBorn: (draft: LineDraft) => void;
@@ -124,7 +131,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
         // только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
         // ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится.
         <NomenclaturePicker chosen={draft.nomenclatureId !== null} chosenId={draft.nomenclatureId}
-          name={draft.nomenclatureName} supplierId={refEntryId(view.requisites[K.supplier])}
+          name={draft.nomenclatureName} supplierId={ctx.supplier}
           neighbours={() => neighboursOf(ctx.drafts, index, chosenPosition)}
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           archived={draft.nomenclatureArchived}
@@ -134,6 +141,8 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
           mark={(
             <LineMatchChip draft={draft} offer={ctx.offerFor(draft)}
               fate={memoryFate(draft, saved(draft), ctx.hasSupplier, ctx.offerFor(draft))}
+              supplierPending={ctx.supplierPending}
+              leaving={foreignMark(draft, saved(draft), ctx.supplier)}
               supplierId={refEntryId(view.requisites[K.supplier])}
               onCancel={() => ctx.onEdit(draft.key, cancelMatch(draft))}
               onRestore={restored => ctx.onEdit(draft.key, applyOffer(restored))}
