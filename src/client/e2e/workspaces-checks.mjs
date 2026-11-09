@@ -9,7 +9,7 @@
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
 // сбрасываются и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, railSection, accountAction } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, railSection, accountAction } from './harness.mjs';
 
 const RESET = { workspaces: null, workspace: null, 'workspace.default': null };
 const OWN = 'Снабжение (проверка)';
@@ -162,6 +162,6 @@ export async function workspaceChecks(page, check) {
       if (!section.includes(OWN)) throw new Error(`в профиле умолчание: «${section}»`);
     });
   } finally {
-    await callApi(page, 'PUT', '/account/settings', RESET);
+    await check.tidy('настройки пространств не сброшены', () => callApiOk(page, 'PUT', '/account/settings', RESET));
   }
 }

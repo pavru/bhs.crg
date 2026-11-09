@@ -68,11 +68,16 @@ async function allMessages(page, h) {
   return { id: created.id, number };
 }
 
-/** Выбор подпанели — настройка на сервере; прогон ставит «открыта» и возвращает прежний. */
-async function railPreference(h, value) {
-  const before = (await h.api('GET', '/account/settings')) ?? {};
-  await h.api('PUT', '/account/settings', { rail: value });
-  return before.rail ?? 'auto';
+/**
+ * Выбор подпанели и «Файла» — настройки на сервере: прогон ставит подпанель «открыта», «Файл» пишут его
+ * щелчки, а уборка возвращает оба как были. Ключа не было — возвращается null, «к умолчанию»: умолчание
+ * подпанели («по ширине окна», `'auto'` в AppShell) живёт только в клиенте, и сервер такое значение
+ * отвергает 400 — так уборка и промахивалась у каждого, кто подпанель не выбирал, то есть на свежем стенде.
+ */
+async function takeSettings(h) {
+  const stored = (await h.api('GET', '/account/settings')) ?? {};
+  await h.api('PUT', '/account/settings', { rail: 'expanded' });
+  return { rail: stored.rail ?? null, invoiceFile: stored.invoiceFile ?? null };
 }
 
 export async function invoiceScreenLayoutChecks(page, check, h) {
@@ -80,7 +85,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
   await check('экран счёта: черновик «со всеми сообщениями» заведён', async () => { invoice = await allMessages(page, h); });
   if (!invoice) return;
 
-  const before = await railPreference(h, 'expanded');
+  const before = await takeSettings(h);
   try {
     for (const [width, height] of LAPTOPS) {
       await check(`экран счёта ${width}×${height}: сводка не выше 64, до последней строки и сверки доходят колесом и Tab`, async () => {
@@ -207,9 +212,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.keyboard.press('Escape').catch(() => {});
-    // «Файл» пишет выбор на сервер — возвращаем «открыт», как без выбора.
-    await h.api('PUT', '/account/settings', { invoiceFile: 'open' }).catch(e => console.log('  ! выбор «Файл» не возвращён:', e.message));
-    await railPreference(h, before).catch(e => console.log('  ! выбор подпанели не возвращён:', e.message));
+    await check.tidy('выбор подпанели и «Файла» не возвращён', () => h.api('PUT', '/account/settings', before));
   }
 
   // Смена счёта сначала ДОПИСЫВАЕТ (costs-invoice-screen-12-autosave, D-12.7, D10.4 зонтика): у 10 щелчок по
@@ -305,8 +308,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       // Брошенная недошедшая запись держала бы `beforeunload`, и `goto` соседних проверок висел бы до таймаута.
       const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
       page.on('dialog', leave);
-      await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' })
-        .catch(e => console.log('  ! правка строки не брошена:', e.message.split('\n')[0]))
+      await check.tidy('правка строки не брошена', () => page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' }))
         .finally(() => page.off('dialog', leave));
     }
   });

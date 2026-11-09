@@ -200,6 +200,6 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       }
     });
   } finally {
-    await api('PUT', '/account/settings', RESET);
+    await check.tidy('настройки избранного не сброшены', () => api('PUT', '/account/settings', RESET));
   }
 }
