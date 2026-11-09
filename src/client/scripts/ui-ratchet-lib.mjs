@@ -127,7 +127,7 @@ export const RULES = [
     // Свои вкладки по ARIA (#1416): role="tab" / "tablist" / "tabpanel" у элемента разметки. Их клавиатуру
     // (стрелки, Home/End, ручная активация) Tabs уже делает — второй раз её пишут с ошибками.
     count: text => countElements(text, isTabRole),
-    instead: 'вкладки — Tabs + TabPanel (shared/ui/Tabs): underline для разделов, segmented для режима; стрелки и ручную активацию компонент делает сам (docs/UI.md, «Язык формы»)',
+    instead: 'вкладки — Tabs + TabPanel (shared/ui/Tabs): primary для разделов верхнего уровня, underline для разделов, segmented для режима; стрелки и ручную активацию компонент делает сам (docs/UI.md, «Язык формы»)',
   },
   {
     id: 'white-on-fill',
