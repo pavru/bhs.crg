@@ -69,10 +69,8 @@ describe('partFilled — остальные части', () => {
     expect(partFilled('lines', view(), { edits: {}, linesDirty: true })).toBe(false);
   });
 
-  it('разноска — когда сходится; сроки — когда срок определён', () => {
+  it('разноска — когда сходится', () => {
     expect(partFilled('allocation', view({ allocation: { allocated: false } } as unknown as Partial<InvoiceView>), clean)).toBe(false);
-    expect(partFilled('terms', view({ requisites: { [K.dueDate]: null } }), clean)).toBe(false);
-    expect(partFilled('terms', view(), clean)).toBe(true);
   });
 
   it('«Ещё» и «История» открываются свёрнутыми', () => {
@@ -84,6 +82,34 @@ describe('partFilled — остальные части', () => {
 
   it('«Ещё» с меткой со скана раскрыта: метку прятать нельзя', () => {
     expect(initiallyOpen(view({ unconfirmed: [K.basis] }), clean).more).toBe(true);
+  });
+});
+
+describe('«Сроки и оплата» — свёрнута, если решать нечего (costs-invoice-terms-collapse, COST-6.2)', () => {
+  const noShipment = { [K.shippedOn]: null, [K.deferral]: null, [K.dueDate]: null };
+
+  it('срок не определён, меток нет — свёрнута строкой «срок не определён · не оплачен»', () => {
+    const v = view({ requisites: noShipment });
+    expect(partFilled('terms', v, clean)).toBe(true);
+    expect(initiallyOpen(v, clean).terms).toBe(false);
+    expect(partLine('terms', v, clean, () => null)).toBe('срок не определён · не оплачен');
+  });
+
+  it('срок определён, меток нет — свёрнута, как и прежде', () => {
+    expect(partFilled('terms', view(), clean)).toBe(true);
+  });
+
+  it('дата отгрузки со скана, не проверена — раскрыта', () => {
+    const v = view({ requisites: { ...noShipment, [K.shippedOn]: '2026-09-05' }, unconfirmed: [K.shippedOn] });
+    expect(partFilled('terms', v, clean)).toBe(false);
+    expect(initiallyOpen(v, clean).terms).toBe(true);
+  });
+
+  it('пункт готовности о поле части — раскрыта; правка поля его снимает', () => {
+    const gaps = [{ kind: 'field', label: 'отсрочка не задана', field: K.deferral }];
+    const v = view({ requisites: noShipment, readiness: { required: [], gaps } });
+    expect(partFilled('terms', v, clean)).toBe(false);
+    expect(partFilled('terms', v, { edits: { [K.deferral]: 10 }, linesDirty: false })).toBe(true);
   });
 });
 
