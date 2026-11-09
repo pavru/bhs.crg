@@ -22,29 +22,36 @@ public class InvoiceListOrderTests(InvoiceLineHost host) : InvoiceLineTestBase(h
 {
     private static readonly DateTimeOffset Morning = new(2020, 1, 8, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// Сценарий спецификации «Распознанный счёт с давней датой»: в ленте счета от 19 и 22 октября, последним
+    /// брошен файл без даты, и потом ему проставлена дата 9 октября. Счёт первый и до, и после.
+    ///
+    /// <para>Даты подобраны так, чтобы прежний порядок (по дате счёта, без даты — первым) на каждом шаге
+    /// давал другую ленту. До даты он переставил бы два старых счёта между собой, после — увёл бы брошенный
+    /// вниз. Совпади порядки хоть на одном шаге — возврат к сортировке по дате (и по дате перед моментом
+    /// заведения) прошёл бы эту проверку зелёным.</para>
+    /// </summary>
     [Fact]
-    public async Task Лента_идёт_по_заведению_а_не_по_дате_счёта()
+    public async Task Брошенный_последним_первый_и_до_и_после_даты()
     {
         var (client, _) = await SignInAsync("Admin");
 
-        // Заведены по очереди: давняя дата — новая — без даты. По дате счёта порядок был бы
-        // «без даты, новая, давняя» случайно совпавшим; поэтому последним заводится счёт с ДАВНЕЙ датой.
-        var undated = await CreateOnAsync(client, null);
-        var recent = await CreateOnAsync(client, "2026-10-22");
-        var old = await CreateOnAsync(client, "2026-10-09");
-        await CreatedAtAsync(undated, Morning);
-        await CreatedAtAsync(recent, Morning.AddMinutes(1));
-        await CreatedAtAsync(old, Morning.AddMinutes(2));
+        var later = await CreateOnAsync(client, "2026-10-22");
+        var earlier = await CreateOnAsync(client, "2026-10-19");
+        var dropped = await CreateOnAsync(client, null);
+        await CreatedAtAsync(later, Morning);
+        await CreatedAtAsync(earlier, Morning.AddMinutes(1));
+        await CreatedAtAsync(dropped, Morning.AddMinutes(2));
 
-        Guid[] expected = [old, recent, undated];
+        Guid[] expected = [dropped, earlier, later];
         Assert.Equal(expected, await OrderAsync(client, "/api/costs/invoices", expected));
         Assert.Equal(expected, await OrderAsync(client, "/api/costs/invoices?needsParsing=true", expected));
 
-        // Дата счёта, проставленная позже (так её ставит распознавание), места не меняет: счёт без даты
-        // получает самую давнюю — и остаётся последним по заведению, а не уходит за дату.
-        await DatedAsync(client, undated, "2026-01-15");
-        await DatedAsync(client, old, "2026-12-31");
+        // Дата — правкой шапки. Распознавание пишет её на сервере, своим путём (InvoiceScanReading), но
+        // место от пути записи не зависит: ключ ленты — CreatedAt, а его пишет только Invoice.Create.
+        await DatedAsync(client, dropped, "2026-10-09");
         Assert.Equal(expected, await OrderAsync(client, "/api/costs/invoices", expected));
+        Assert.Equal(expected, await OrderAsync(client, "/api/costs/invoices?needsParsing=true", expected));
     }
 
     /// <summary>

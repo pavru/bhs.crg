@@ -48,32 +48,34 @@ async function watchFirstSheet(page) {
 }
 
 export async function invoiceScanChecks(page, check, h) {
-  // Лента — по дате добавления ([COST-6.3], issue #1818, п. 3). Брошенный последним счёт от давнего числа —
-  // первая строка и до распознавания (даты нет), и после (дата старше всех счетов прогона). По дате счёта
-  // он стоял сверху лишь до распознавания, а с датой уезжал под счета, заведённые раньше.
-  await check('счёт, заведённый последним, первый в ленте и без даты, и с давней датой', async () => {
-    const number = `СЧ-Л${h.stamp}`;
-    const created = await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(number, 'Давняя дата'), 'Дата': null } });
-    const onTop = async when => {
+  // Лента — по дате добавления ([COST-6.3], issue #1818, п. 3). Брошенный последним счёт выше заведённого
+  // раньше — и до даты, и после давней даты. По дате счёта он стоял выше лишь до неё, а с датой уезжал
+  // под заведённый раньше.
+  //
+  // Сравниваются ДВА своих счёта, суженные поиском по номеру прогона, а не «первая строка ленты»: счёт,
+  // который в ту же минуту завёл кто-то другой (общий стенд, соседний набор), встал бы первым по праву —
+  // и проверка краснела бы при верном порядке.
+  await check('счёт, заведённый последним, выше заведённого раньше — и без даты, и с давней датой', async () => {
+    const mark = `СЧ-Л${h.stamp}`;
+    await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(`${mark}-1`, 'Заведён раньше'), 'Дата': '2026-10-22' } });
+    const dropped = await h.api('POST', '/costs/invoices', { requisites: { ...h.requisites(`${mark}-2`, 'Брошен последним'), 'Дата': null } });
+    const order = async when => {
       await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
-      const top = page.getByTestId('invoice-row').first();
-      await h.named(`лента пуста (${when})`, () => top.waitFor({ timeout: 10_000 }));
-      const text = await top.innerText();
-      if (!text.includes(number)) throw new Error(`${when}: первая строка ленты — «${text}», а не ${number}`);
+      await page.getByPlaceholder('Номер, поставщик, назначение…').fill(mark);
+      const rows = page.getByTestId('invoice-row');
+      await h.named(`под поиском не два счёта прогона (${when})`,
+        () => page.waitForFunction(() => document.querySelectorAll('[data-testid="invoice-row"]').length === 2, null, { timeout: 10_000 }));
+      const shown = await rows.allInnerTexts();
+      if (!shown[0].includes(`${mark}-2`) || !shown[1].includes(`${mark}-1`))
+        throw new Error(`${when}: порядок ленты не по заведению: ${JSON.stringify(shown)}`);
     };
-    await onTop('без даты');
-    // Дату ставит распознавание — тем же адресом правки шапки, что и форма, с версией счёта.
-    await page.evaluate(async id => {
-      const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-      const seen = await (await fetch(`/api/costs/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } })).json();
-      const res = await fetch(`/api/costs/invoices/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'If-Match': `"${seen.version}"` },
-        body: JSON.stringify({ requisites: { ...seen.requisites, 'Дата': '2025-10-09' } }),
-      });
-      if (!res.ok) throw new Error(`дата не записана: ${res.status} ${(await res.text()).slice(0, 200)}`);
-    }, created.id);
-    await onTop('с давней датой');
+    await order('без даты');
+    // Дата — правкой шапки (версию счёта обвязка называет сама, `nameSeenVersion`). Распознавание пишет её
+    // на сервере, своим путём, но ключ ленты — момент заведения, и его не пишет ни один путь правки.
+    const seen = await h.api('GET', `/costs/invoices/${dropped.id}`);
+    await h.api('PUT', `/costs/invoices/${dropped.id}`, { requisites: { ...seen.requisites, 'Дата': '2025-10-09' } });
+    await order('с давней датой');
+    await page.getByPlaceholder('Номер, поставщик, назначение…').fill('');
   });
 
   // Скан открывается РЯДОМ, а без места рядом «Файл» называет причину (проверка 4 `invoices-smoke`).
