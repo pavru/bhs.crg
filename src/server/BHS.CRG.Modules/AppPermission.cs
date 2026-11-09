@@ -25,12 +25,21 @@ namespace BHS.CRG.Modules;
 /// AUTH-5.2). У права МОДУЛЯ пометка обязательна — без неё приложение не стартует; у прав ядра её
 /// нет: составное право раскрывается по модулям, а справочники ядра роль получает своими правами.
 /// </param>
+/// <param name="Contract">
+/// Право контракта (ТЗ AUTH-8.1, change <c>plan-21-contract-permissions</c>): модуль выдаёт его
+/// ДРУГИМ модулям и ролям, которым сам модуль не нужен, — смету «Снабженцу» для заявок, подсказку
+/// материалов «Монтажнику». Такое право не открывает модуль-владелец (<see cref="ModuleAccess" />):
+/// ни ворота <c>module:</c>, ни навигацию, ни уведомления, ни журнал, ни наборы модуля. Ворота
+/// <c>perm:</c> на нём работают как обычно. Объявить его может только модуль — у права ядра признак
+/// роняет старт (<see cref="PermissionCatalog.ContractFaults" />): ядро модулем не открывается.
+/// </param>
 public sealed record AppPermission(
     string Code,
     string Gives,
     string Opens,
     IReadOnlyList<string>? UsuallyWith = null,
-    ReadAllMark? ReadAll = null)
+    ReadAllMark? ReadAll = null,
+    bool Contract = false)
 {
     public IReadOnlyList<string> UsuallyWith { get; init; } = UsuallyWith ?? [];
 
@@ -56,6 +65,13 @@ public sealed record AppPermission(
 
         if (ReadAll is { Included: false } && string.IsNullOrWhiteSpace(ReadAll.Why))
             return $"«{Code}» — не сказано, почему право не входит в «читать всё»";
+
+        // Право контракта выдаёт данные ДРУГОМУ модулю, а «читать всё» сводит чтение модулей (D12
+        // зонтика plan-00-epic): входящим оно раздало бы «Руководителю» чужую выдачу, и редактор
+        // ролей показал бы у одной галки две противоречащие подписи.
+        if (Contract && ReadAll is { Included: true })
+            return $"«{Code}» — право контракта помечено входящим в «читать всё»: поставьте " +
+                   "ReadAllMark.Out(\"выдача другому модулю\")";
 
         return null;
     }

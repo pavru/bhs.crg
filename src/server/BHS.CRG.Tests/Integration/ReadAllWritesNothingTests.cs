@@ -155,9 +155,11 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
         Assert.Equal(["POST /api/test/any-of"], OpenWrites([endpoint], granted));
     }
 
-    private static List<string> OpenWrites(IEnumerable<RouteEndpoint> routes, IReadOnlyCollection<string> granted) =>
+    // Справочник — тот же, что у ворот: право контракта модуль не открывает (plan-21).
+    private List<string> OpenWrites(IEnumerable<RouteEndpoint> routes, IReadOnlyCollection<string> granted) =>
         [.. routes
-            .Where(e => EndpointInventory.IsGated(e) && Writes(e) && Passes(e, granted))
+            .Where(e => EndpointInventory.IsGated(e) && Writes(e)
+                        && Passes(e, granted, fixture.Services.GetRequiredService<PermissionCatalog>()))
             .Select(e => $"{EndpointInventory.Verbs(e)} {EndpointInventory.Route(e)}")
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)];
@@ -171,7 +173,7 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
     /// (роль, своя), считается закрытой: одно «читать всё» её не открывает, а судить о ней по имени
     /// здесь нечем.
     /// </summary>
-    private static bool Passes(Endpoint endpoint, IReadOnlyCollection<string> granted) =>
+    private static bool Passes(Endpoint endpoint, IReadOnlyCollection<string> granted, PermissionCatalog catalog) =>
         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
             .Where(a => a.Policy is not null || a.Roles is not null)
             .All(a => a.Roles is null && a.Policy switch
@@ -179,7 +181,7 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
                 { } p when AppPolicies.PermissionCodes(p) is { } codes =>
                     codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)),
                 { } p when p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase) =>
-                    ModuleAccess.IsOpen(p[AppPolicies.ModulePrefix.Length..].Trim(), granted),
+                    ModuleAccess.IsOpen(p[AppPolicies.ModulePrefix.Length..].Trim(), granted, catalog),
                 _ => false,
             });
 

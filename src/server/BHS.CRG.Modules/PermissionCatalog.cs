@@ -46,9 +46,19 @@ public sealed class PermissionCatalog
         All = permissions;
         _codes = new HashSet<string>(permissions.Select(p => p.Code), StringComparer.OrdinalIgnoreCase);
         ReadAll = [.. permissions.Where(p => p.ReadAll is { Included: true }).Select(p => p.Code)];
+        _contract = new HashSet<string>(
+            permissions.Where(p => p.Contract).Select(p => p.Code), StringComparer.OrdinalIgnoreCase);
     }
 
     private readonly HashSet<string> _codes;
+    private readonly HashSet<string> _contract;
+
+    /// <summary>
+    /// Право контракта ли это (<see cref="AppPermission.Contract" />): модуль-владелец оно не
+    /// открывает (<see cref="ModuleAccess" />). Необъявленный код — не контракта: так он и считался
+    /// до появления признака, и решать за него справочнику нечем.
+    /// </summary>
+    public bool IsContract(string code) => _contract.Contains(code);
 
     /// <summary>
     /// Права, входящие в «читать всё». Только включённых модулей: справочник собран из них, поэтому
@@ -94,6 +104,26 @@ public sealed class PermissionCatalog
             .Concat(core.Where(p => p.ReadAll is not null)
                 .Select(p => $"«{p.Code}» — право ядра помечено для «читать всё», а оно раскрывается " +
                              "только по модулям: уберите пометку"));
+
+    /// <summary>
+    /// Признак «право контракта» у права ЯДРА (change <c>plan-21-contract-permissions</c>). Право
+    /// контракта модуль отдаёт другим, не открывая себя; ядро модулем не открывается, и признак у его
+    /// права означает ошибку объявления. Молча он ничего бы не сделал сегодня и вынул бы право из
+    /// правила «модуль открыт», дойди это правило до ядра, — поэтому отказ при старте, с названием
+    /// права, в том же отказе, что прочие изъяны.
+    /// </summary>
+    public static IEnumerable<string> ContractFaults(IEnumerable<AppPermission> core) =>
+        core.Where(p => p.Contract)
+            .Select(p => $"«{p.Code}» — право ядра объявлено правом контракта, а признак бывает только " +
+                         "у права модуля: уберите Contract");
+
+    /// <summary>
+    /// Все изъяны, видные только собирающему справочник: пометки «читать всё»
+    /// (<see cref="ReadAllFaults" />) и признак контракта у права ядра (<see cref="ContractFaults" />).
+    /// </summary>
+    public static IEnumerable<string> DeclarationFaults(
+        IReadOnlyCollection<AppPermission> core, IEnumerable<AppPermission> modules) =>
+        ReadAllFaults(core, modules).Concat(ContractFaults(core));
 
     public IReadOnlyList<AppPermission> All { get; }
 

@@ -142,6 +142,25 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Признак права контракта (plan-21, AUTH-16.7) приходит у КАЖДОГО права, и у обычного он
+    /// <c>false</c>. Проверяется по самому ответу, а не по разобранной записи: отсутствующее поле
+    /// разобралось бы тем же <c>false</c>, и экран молча не узнал бы признака никогда. Право контракта
+    /// с <c>true</c> — в <c>ContractPermissionTests</c>: в поставке их пока не объявлено.
+    /// </summary>
+    [Fact]
+    public async Task Мои_права_называют_признак_права_контракта()
+    {
+        var engineer = await SignInAsync(SystemRoles.IdEngineer);
+        var groups = await engineer.GetFromJsonAsync<JsonElement>("/api/account/permissions");
+
+        var permissions = groups.EnumerateArray().SelectMany(g => g.GetProperty("permissions").EnumerateArray()).ToList();
+        Assert.NotEmpty(permissions);
+        Assert.All(permissions, p => Assert.False(p.GetProperty("contract").GetBoolean()));
+
+        Assert.All((await MyPermissionsAsync(engineer)).SelectMany(g => g.Permissions), p => Assert.False(p.Contract));
+    }
+
+    /// <summary>
     /// У администратора список шире, и пустых групп в нём нет. Группа без прав — это заголовок,
     /// под которым ничего не написано: человек читает его как «здесь у меня что-то есть».
     /// </summary>
@@ -209,7 +228,7 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
         (await client.GetFromJsonAsync<JsonElement>("/api/account/access"))
             .GetProperty("company").GetProperty("timeZone").GetString();
 
-    private sealed record PermissionDto(string Code, string Gives, string Opens, string[] UsuallyWith);
+    private sealed record PermissionDto(string Code, string Gives, string Opens, string[] UsuallyWith, bool Contract);
     private sealed record PermissionGroupDto(string Module, string Title, PermissionDto[] Permissions);
 
     private static async Task<PermissionGroupDto[]> MyPermissionsAsync(HttpClient client)
