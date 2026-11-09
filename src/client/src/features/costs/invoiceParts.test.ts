@@ -111,6 +111,18 @@ describe('«Сроки и оплата» — свёрнута, если реша
     expect(partFilled('terms', v, clean)).toBe(false);
     expect(partFilled('terms', v, { edits: { [K.deferral]: 10 }, linesDirty: false })).toBe(true);
   });
+
+  it('отгрузка раньше даты счёта — раскрыта; у оплаченного — нет; правка даты снимает (ревью PR #1855)', () => {
+    const early = view({ requisites: { [K.shippedOn]: '2026-09-01', [K.deferral]: 10, [K.dueDate]: '2026-09-11' } });
+    expect(partFilled('terms', early, clean)).toBe(false);
+    expect(attentionOf(early, clean).terms).toBe(true);
+    expect(partFilled('terms', early, { edits: { [K.shippedOn]: '2026-09-05' }, linesDirty: false })).toBe(true);
+    const paid = view({
+      requisites: { [K.shippedOn]: '2026-09-01', [K.deferral]: 10, [K.dueDate]: '2026-09-11' },
+      payment: { paid: true, paidOn: '2026-09-10' },
+    } as unknown as Partial<InvoiceView>);
+    expect(partFilled('terms', paid, clean)).toBe(true);
+  });
 });
 
 describe('части', () => {
