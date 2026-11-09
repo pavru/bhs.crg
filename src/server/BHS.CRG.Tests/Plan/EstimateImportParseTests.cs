@@ -148,7 +148,7 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         Assert.Equal(report.GetProperty("inFile").GetInt32(), report.GetProperty("parsed").GetInt32());
         var mark = Assert.Single(report.GetProperty("marks").EnumerateArray());
         Assert.Equal("notEstimate", mark.GetProperty("code").GetString());
-        Assert.Contains("уберите импорт", mark.GetProperty("text").GetString());
+        Assert.Contains("сначала загрузите смету", mark.GetProperty("text").GetString());
         Assert.Contains("в карточке сметы", mark.GetProperty("text").GetString());
     }
 

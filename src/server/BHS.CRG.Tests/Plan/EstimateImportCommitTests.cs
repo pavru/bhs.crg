@@ -170,7 +170,7 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
         var toVor = await client.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(vor), Version(vor)));
         Assert.Equal(HttpStatusCode.Conflict, toVor.StatusCode);
         var vorRefusal = await toVor.Content.ReadAsStringAsync();
-        Assert.Contains("уберите импорт", vorRefusal);
+        Assert.Contains("сначала загрузите смету", vorRefusal);
         Assert.Contains("в карточке сметы", vorRefusal);
         var toRejected = await client.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(rejected), Version(rejected)));
         Assert.Equal(HttpStatusCode.Conflict, toRejected.StatusCode);

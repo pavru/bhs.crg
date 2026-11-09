@@ -150,10 +150,15 @@ public class ConjunctureImportTests(PlanOnlyHost host)
         var toLsr = await ConjunctureFlow.AcceptAsync(client, estimate, EstimateImportFlow.Id(lsr));
         Assert.Equal(HttpStatusCode.Conflict, toLsr.StatusCode);
         Assert.Contains("Создать редакцию", await toLsr.Content.ReadAsStringAsync());
+        // ЛСР, брошенная в «Приложить файл», — не тупик: то же окно создаёт из неё редакцию этой сметы (ответ на
+        // вопрос 3 листа 0 П11) — импорт в смету один и тот же, откуда бы его ни загрузили.
+        var committed = await client.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(lsr), ConjunctureFlow.Version(lsr)));
+        Assert.True(committed.StatusCode == HttpStatusCode.Created, await committed.Content.ReadAsStringAsync());
+        Assert.False(await AnyAnalysisAsync(estimate));
 
         var forNew = await EstimateImportFlow.OutcomeAsync(client,
             await EstimateImportFlow.UploadAsync(client, site.Construction, ConjunctureFlow.Ka));
-        Assert.Contains("уберите импорт", forNew.GetProperty("marks")[0].GetProperty("text").GetString());
+        Assert.Contains("сначала загрузите смету", forNew.GetProperty("marks")[0].GetProperty("text").GetString());
         var toNew = await ConjunctureFlow.AcceptAsync(client, estimate, EstimateImportFlow.Id(forNew));
         Assert.Equal(HttpStatusCode.Conflict, toNew.StatusCode);
         Assert.Contains("новую смету", await toNew.Content.ReadAsStringAsync());

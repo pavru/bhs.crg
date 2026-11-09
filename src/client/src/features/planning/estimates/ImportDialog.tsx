@@ -6,6 +6,7 @@ import { planRefusal, useConstructionEstimates, type EstimateKind } from '@/shar
 import {
   useCancelImport, useCommitImport, useEstimateImport, useStartImport, type EstimateImport, type ImportRequest,
 } from '@/shared/api/planningImports';
+import { useAcceptAttachment, useUploadAttachment, type EstimateAttachment, type EstimateAttached } from '@/shared/api/planningConjuncture';
 import { FileDropZone } from '@/shared/ui/FileDropZone';
 import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -19,7 +20,10 @@ import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { ESTIMATE_ACCEPT, estimateFileHint, estimateFileRefusal } from './estimateFile';
 import { KIND_LABEL } from './estimateRows';
-import { carryOverPending, importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
+import { attachmentTitle } from './attachmentRows';
+import {
+  attachLabel, carryOverPending, importVerdict, partialCommitLabel, withoutPositions, withoutRows, type ImportCreated,
+} from './importReport';
 import { ParseReport } from './ParseReport';
 
 interface ImportDialogProps {
@@ -33,7 +37,15 @@ interface ImportDialogProps {
   sectionId?: string;
   /** Импорт, закрытый без решения: окно открывается на его отчёте («ждёт решения» над сметами). */
   importId?: string;
+  /**
+   * «Приложить файл» из карточки сметы (`plan-11`, вместе с `estimateId`): файл ложится в эту смету адресом
+   * приложения. КА и ВОР прикладываются, ЛСР становится новой редакцией той же сметы — тем же окном, а не отказом
+   * (ответ на вопрос 3 листа 0 П11): вид решает файл.
+   */
+  attach?: boolean;
   onCreated: (created: ImportCreated) => void;
+  /** КА или ВОР приложены к смете: карточка открывает приложенное. */
+  onAttached?: (attachment: EstimateAttachment) => void;
 }
 
 /**
@@ -45,7 +57,10 @@ interface ImportDialogProps {
  * - Редакция создаётся только действием человека; при не разобранных позициях — кнопкой, называющей
  *   последствие, и подтверждением шагом окна (`acceptPartial`). Отказ — «Отказаться»: импорт и файл уходят,
  *   поэтому тоже через подтверждение шагом окна — кнопка стоит рядом с главной.
- * - Не ЛСР (ВОР, КА) редакцией не становится (решение В-7): «Создать редакцию» нет.
+ * - Не ЛСР (ВОР, КА) редакцией не становится (решение В-7): «Создать редакцию» нет. Импорт в существующую смету
+ *   прикладывается к ней — «Приложить к смете «X»», при не разобранном — кнопкой с последствием и шагом согласия
+ *   (`plan-11`, общий лист макета П11). Импорт в новую смету приложить не к чему: отчёт говорит «сначала загрузите
+ *   смету», в окне — только «Убрать импорт».
  */
 export function ImportDialog(props: ImportDialogProps) {
   // Состояние окна живёт, пока оно открыто: закрытое и открытое снова начинает с начала.
@@ -54,7 +69,9 @@ export function ImportDialog(props: ImportDialogProps) {
 
 type TargetMode = 'existing' | 'new';
 
-function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId: reopened, onCreated }: ImportDialogProps) {
+function ImportWindow({
+  onClose, constructionId, estimateId, sectionId, importId: reopened, attach = false, onCreated, onAttached,
+}: ImportDialogProps) {
   const [importId, setImportId] = useState<string | null>(reopened ?? null);
   const [site, setSite] = useState(constructionId ?? '');
   const [file, setFile] = useState<File | null>(null);
@@ -65,9 +82,12 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   const [section, setSection] = useState(sectionId ?? '');
   const [confirming, setConfirming] = useState(false);
   const [refusing, setRefusing] = useState(false);
+  const [attaching, setAttaching] = useState(false);
 
   const toast = useSnackbar();
   const start = useStartImport();
+  const attachUpload = useUploadAttachment();
+  const accept = useAcceptAttachment();
   const kinds = useFileKinds();
   const commit = useCommitImport();
   const cancel = useCancelImport();
@@ -87,8 +107,8 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   const shownMode: TargetMode = estimateId ? 'existing' : known.length === 0 ? 'new' : mode;
   const fixed = estimateId ? known.find(e => e.id === estimateId) : undefined;
 
-  const busy = start.isPending || commit.isPending || cancel.isPending;
-  const failure = start.error ?? commit.error ?? cancel.error;
+  const busy = start.isPending || attachUpload.isPending || commit.isPending || cancel.isPending || accept.isPending;
+  const failure = start.error ?? attachUpload.error ?? commit.error ?? cancel.error ?? accept.error;
   // Отчёт не прочитался (импорт тем временем убрали) — показываем отказ, а не прежний отчёт и не идущий разбор.
   const data = report.isError ? undefined : report.data;
   const verdict = data ? importVerdict(data) : null;
@@ -108,8 +128,21 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
 
   const upload = () => {
     if (typeof ready === 'string') return;
-    start.mutate(ready, { onSuccess: started => setImportId(started.id) });
+    if (attach && estimateId) attachUpload.mutate({ estimateId, file: ready.file }, { onSuccess: started => setImportId(started.id) });
+    else start.mutate(ready, { onSuccess: started => setImportId(started.id) });
   };
+  // Смета, к которой прикладывается импорт, — по имени из отчёта: окно могли открыть и из общего раздела «Сметы».
+  const attachTo = data?.target.estimateName ?? fixed?.name ?? 'смета';
+  const attachOne = (r: EstimateImport, attachTarget: string, acceptPartial: boolean) =>
+    accept.mutate({ estimateId: attachTarget, importId: r.id, acceptPartial }, {
+      onSuccess: (done: EstimateAttached) => {
+        const title = attachmentTitle(done.attachment);
+        toast.success(done.repeated ? `«${title}» уже приложен к смете «${attachTo}»` : `«${title}» приложен к смете «${attachTo}»`);
+        onAttached?.(done.attachment);
+        onClose();
+      },
+      onSettled: () => setAttaching(false),
+    });
   const refuse = (r: EstimateImport) =>
     cancel.mutate({ id: r.id, version: r.version, constructionId: r.constructionId },
       { onSuccess: onClose, onSettled: () => setRefusing(false) });
@@ -133,7 +166,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
     <>
       <ModalExit />
       <ModalPrimary disabled={typeof ready === 'string' || busy} title={typeof ready === 'string' ? ready : undefined}
-        loading={start.isPending} onClick={upload}>Загрузить</ModalPrimary>
+        loading={start.isPending || attachUpload.isPending} onClick={upload}>Загрузить</ModalPrimary>
     </>
   ) : step === 'parsing' ? (
     <>
@@ -148,6 +181,16 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
       {verdict.unparsed > 0
         ? <ModalPrimary disabled={busy} onClick={() => setConfirming(true)}>{partialCommitLabel(verdict.unparsed)}</ModalPrimary>
         : <ModalPrimary disabled={busy} loading={commit.isPending} onClick={() => create(data, false)}>Создать редакцию</ModalPrimary>}
+    </>
+  ) : verdict?.kind === 'attachment' && verdict.estimateId && data ? (
+    <>
+      <ModalExit>Закрыть</ModalExit>
+      <ModalAction disabled={busy} onClick={() => setRefusing(true)}>Отказаться</ModalAction>
+      {verdict.unparsed > 0
+        ? <ModalPrimary disabled={busy} onClick={() => setAttaching(true)}>{attachLabel(attachTo, verdict.unparsed)}</ModalPrimary>
+        : <ModalPrimary disabled={busy} loading={accept.isPending} onClick={() => attachOne(data, verdict.estimateId!, false)}>
+            {attachLabel(attachTo, 0)}
+          </ModalPrimary>}
     </>
   ) : (
     <>
@@ -178,7 +221,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   );
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Загрузка сметы" wide busy={busy}
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={attach ? 'Приложить файл к смете' : 'Загрузка сметы'} wide busy={busy}
       isDirty={step === 'pick' && (file !== null || name.trim() !== '')} footer={footer}>
       <div className="space-y-4">
         <Steps step={step} />
@@ -193,12 +236,15 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             )}
             {/* Шаг остаётся «pick», пока сервер не ответил (importId приходит в onSuccess): без busy на площадку
                 можно было бы бросить второй файл, и окно показывало бы не тот, что разбирается. */}
-            <FileDropZone label="Файл сметы" accept={ESTIMATE_ACCEPT} hint={estimateFileHint(kinds.data)}
+            <FileDropZone label={attach ? 'Файл КА или ВОР' : 'Файл сметы'} accept={ESTIMATE_ACCEPT} hint={estimateFileHint(kinds.data)}
               check={f => estimateFileRefusal(f, kinds.data)}
-              prompt="Перетащите файл сметы сюда" pickLabel="Выбрать файл сметы" file={file} onFile={setFile}
-              busy={start.isPending && file ? `Загружаем «${file.name}»` : undefined} />
+              prompt={attach ? 'Перетащите файл КА или ВОР сюда' : 'Перетащите файл сметы сюда'}
+              pickLabel={attach ? 'Выбрать файл' : 'Выбрать файл сметы'} file={file} onFile={setFile}
+              busy={(start.isPending || attachUpload.isPending) && file ? `Загружаем «${file.name}»` : undefined} />
             {site && (estimateId ? (
-              <p className="text-body-medium text-on-surface-variant">Куда: <span className="text-on-surface">новая редакция сметы «{fixed?.name ?? '…'}»</span></p>
+              <p className="text-body-medium text-on-surface-variant">Куда: <span className="text-on-surface">{attach
+                ? `смета «${fixed?.name ?? '…'}» — КА и ВОР приложатся к ней, ЛСР станет её новой редакцией`
+                : `новая редакция сметы «${fixed?.name ?? '…'}»`}</span></p>
             ) : estimates.isError ? (
               <p role="alert" className="text-body-medium text-error">{planRefusal(estimates.error).text}</p>
             ) : !listed ? (
@@ -243,6 +289,21 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             {formatCount(verdict.unparsed)} не {ruPlural(verdict.unparsed, 'разобранная', 'разобранные', 'разобранных')} в неё не{' '}
             {ruPlural(verdict.unparsed, 'войдёт', 'войдут', 'войдут')}: добавить их можно только новой загрузкой исправленного файла.
             У редакции останется пометка «частично».
+          </p>
+        </WindowStep>
+      )}
+      {attaching && data && verdict?.kind === 'attachment' && verdict.estimateId && (
+        <WindowStep title={`Приложить ${withoutPositions(verdict.unparsed)}?`}
+          onBack={() => setAttaching(false)} busy={accept.isPending}
+          footer={<>
+            <ModalExit>Назад</ModalExit>
+            <ModalPrimary loading={accept.isPending} onClick={() => attachOne(data, verdict.estimateId!, true)}>Приложить</ModalPrimary>
+          </>}>
+          <p className="text-body-medium text-on-surface-variant">
+            К смете «{attachTo}» приложатся {formatCount(data.parsed ?? 0)} из {formatCount(data.inFile ?? 0)} позиций файла.{' '}
+            {formatCount(verdict.unparsed)} не {ruPlural(verdict.unparsed, 'разобранная', 'разобранные', 'разобранных')} в приложение не{' '}
+            {ruPlural(verdict.unparsed, 'войдёт', 'войдут', 'войдут')}; файл сохранится целиком и скачивается как был.
+            У приложения останется пометка «частично».
           </p>
         </WindowStep>
       )}
