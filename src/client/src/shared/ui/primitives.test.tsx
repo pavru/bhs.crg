@@ -283,7 +283,7 @@ describe('Tabs primary', () => {
   it('индикатор только у выбранной и по содержимому, а не у кнопки', () => {
     render(<Card />);
     const revisions = screen.getByRole('tab', { name: 'Редакции' });
-    const attachments = screen.getByRole('tab', { name: 'Приложения 3' });
+    const attachments = screen.getByRole('tab', { name: /^Приложения/ });
     const bar = indicatorOf(revisions)!;
     expect(bar).toBeTruthy();
     expect(bar.parentElement!.hasAttribute('data-tab-content')).toBe(true);
@@ -301,12 +301,12 @@ describe('Tabs primary', () => {
     const revisions = screen.getByRole('tab', { name: 'Редакции' });
     revisions.focus();
     fireEvent.keyDown(revisions, { key: 'ArrowRight' });
-    const attachments = screen.getByRole('tab', { name: 'Приложения 3' });
+    const attachments = screen.getByRole('tab', { name: /^Приложения/ });
     expect(document.activeElement).toBe(attachments);
     expect(attachments.getAttribute('aria-selected')).toBe('false');
     fireEvent.click(attachments);
     expect(attachments.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByRole('tabpanel', { name: 'Приложения 3' }).textContent).toBe('приложения');
+    expect(screen.getByRole('tabpanel', { name: /^Приложения/ }).textContent).toBe('приложения');
   });
 
   it('у каждого ряда одна остановка Tab и своя панель', () => {
@@ -317,17 +317,18 @@ describe('Tabs primary', () => {
     expect(document.getElementById(stops[1].getAttribute('aria-controls')!)!.textContent).toBe('строки r2');
   });
 
-  it('имя вкладки — подпись и счётчик через пробел, ноль тоже показан', () => {
+  it('пустой badge не меняет текст вкладки: экраны ищут её по подписи', () => {
+    // Редактор документа отдаёт badge фрагментом всегда, даже пустым (живой прогон ищет /^Генерация$/).
     render(<Tabs id="b" variant="primary" aria-label="Разделы" value="a" onChange={() => {}}
-      items={[{ value: 'a', label: 'Ошибки', badge: <CountText>0</CountText> }, { value: 'b', label: 'Все', badge: false }]} />);
-    expect(screen.getByRole('tab', { name: 'Ошибки 0' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: 'Все' })).toBeTruthy();
+      items={[{ value: 'a', label: 'Генерация', badge: <>{false}</> }, { value: 'b', label: 'Ошибки', badge: <CountText>0</CountText> }]} />);
+    expect(screen.getByRole('tab', { name: 'Генерация' }).textContent).toBe('Генерация');
+    expect(screen.getByRole('tab', { name: /^Ошибки/ }).textContent).toBe('Ошибки0');
   });
 
   it('панель названа только у выбранной: невыбранной ссылаться не на что', () => {
     render(<Card />);
     expect(screen.getByRole('tab', { name: 'Редакции' }).getAttribute('aria-controls')).toBe('top-panel-revisions');
-    expect(screen.getByRole('tab', { name: 'Приложения 3' }).hasAttribute('aria-controls')).toBe(false);
+    expect(screen.getByRole('tab', { name: /^Приложения/ }).hasAttribute('aria-controls')).toBe(false);
   });
 
   it('не влезающий ряд прокручивается, подписи не переносятся', () => {
@@ -373,7 +374,7 @@ describe('Tabs primary', () => {
     unmount();
     window.innerWidth = 375;
     render(<Card />);
-    for (const name of ['Редакции', 'Приложения 3']) {
+    for (const name of ['Редакции', /^Приложения/]) {
       const tab = screen.getByRole('tab', { name });
       expect(tab.className).toContain('flex-1 min-w-max');
       expect(tab.className).not.toContain('shrink-0');

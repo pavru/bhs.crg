@@ -80,9 +80,6 @@ const PRIMARY = {
 /** Недоступная вкладка (`primary` и `underline`; у сегмента — свой вид в `segmentClass`). */
 const DISABLED = 'disabled-content disabled:pointer-events-none';
 
-/** Есть ли что показать в `badge`: `0` — показать, пусто и `false` — нет. */
-const hasBadge = (badge: ReactNode) => badge !== undefined && badge !== null && badge !== false && badge !== '';
-
 type Variant = 'primary' | 'underline' | 'segmented';
 
 export function Tabs<T extends string>({ id, items, value, onChange, variant = 'underline', className = '', ...aria }: {
@@ -115,9 +112,6 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
         const on = it.value === value;
         // У сегмента выбранный — с галочкой, как у `SegmentedButton`: вид один.
         const icon = segmented && on ? Check : it.icon;
-        // Пробел между подписью и счётчиком — для диктора: без него имя вкладки «Приложения3». В строке flex
-        // пробельный текст не рисуется, вид не меняется.
-        const badge = hasBadge(it.badge) ? <>{' '}{it.badge}</> : null;
         const look = segmented
           ? segmentClass({ selected: on, first: i === 0, last: i === items.length - 1 })
           : primary
@@ -137,14 +131,14 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
                 <span data-tab-content className={`${p.content} ${stacked ? p.stackedContent : p.flatContent}`}>
                   {icon ? <Icon icon={icon} size={24} aria-hidden className="shrink-0" />
                     : stacked && <span data-tab-icon-slot aria-hidden className={p.iconSlot} />}
-                  <span className="inline-flex items-center gap-1.5">{it.label}{badge}</span>
+                  <span className="inline-flex items-center gap-1.5">{it.label}{it.badge}</span>
                   {on && <span data-tab-indicator aria-hidden className={p.indicator} />}
                 </span>
               ) : (
                 <>
                   {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
                   {it.label}
-                  {badge}
+                  {it.badge}
                 </>
               )}
             </button>
