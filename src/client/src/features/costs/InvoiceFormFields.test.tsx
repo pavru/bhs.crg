@@ -50,19 +50,16 @@ function mount(props: { locked?: boolean; block?: (typeof BLOCKS)[number] } = {}
 
 /**
  * Вид чтения разобранного (D-12.4, Э15): до «Изменить» форма отдаёт полям замок — каждое поле читается как
- * `TextField readOnly`, выбора и правки нет, поводов записи тоже.
+ * `TextField readOnly`, выбора и правки нет. Поводов записи у вида чтения форма не передаёт вовсе (`onLeave` и
+ * `pick` — только при автосохранении), поэтому здесь проверяется сам замок.
  */
 describe('разобранный до «Изменить» — поля для чтения', () => {
   it.each(BLOCKS.map(block => [block.title, block] as const))('«%s»: ни одного поля для ввода', (_, block) => {
-    const { onLeave, pick } = mount({ locked: true, block });
+    mount({ locked: true, block });
     expect(screen.queryAllByRole('combobox')).toHaveLength(0);
     const boxes = screen.queryAllByRole('textbox');
     expect(boxes.length).toBeGreaterThan(0);
     for (const box of boxes) expect((box as HTMLInputElement).readOnly).toBe(true);
-    boxes[0].focus();
-    fireEvent.blur(boxes[0], { relatedTarget: boxes[1] ?? null });
-    expect(onLeave).not.toHaveBeenCalled();
-    expect(pick).not.toHaveBeenCalled();
   });
 });
 

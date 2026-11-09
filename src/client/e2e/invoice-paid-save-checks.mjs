@@ -37,6 +37,10 @@ export async function paidSaveChecks({ page, check, stamp, api, invoice, open, p
       const save = page.getByRole('button', { name: 'Сохранить', exact: true });
       await save.waitFor({ timeout: 5_000 })
         .catch(() => { throw new Error('носитель не привёл к «Сохранить» в «Сроках и оплате»'); });
+      // «Ведёт туда» — значит фокус на «Сохранить»: видимая кнопка в раскрытой части ещё не значит, что носитель
+      // к ней привёл (якорь части `part:terms`; без него щелчок не делал ничего — ревью PR #1838).
+      await page.waitForFunction(() => document.activeElement?.closest('[data-readiness="part:terms"]') != null, null,
+        { timeout: 5_000 }).catch(() => { throw new Error('носитель не поставил фокус на «Сохранить» в «Сроках и оплате»'); });
 
       // Итог 450 при строках на 400 — несведённый оплаченный: сервер отказывает, и отказ назван его словами.
       const answered = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().includes(`/costs/invoices/${id}`),

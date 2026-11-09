@@ -18,7 +18,7 @@ import {
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { supplierChangeOf } from './supplierMatches';
-import { goTo, readinessItems, type ReadinessTarget } from './invoiceReadiness';
+import { goTo, READINESS_ATTR, readinessItems, type ReadinessTarget } from './invoiceReadiness';
 import { useDraftBase } from './draftBase';
 import { InvoiceObject } from './InvoiceObject';
 import { InvoicePayButton, InvoicePayment, PayDialog } from './InvoicePayment';
@@ -46,9 +46,10 @@ import { InvoicePart } from './InvoicePart';
 import {
   PART_ORDER, PART_TITLE, PartRevealContext, attentionOf, initiallyOpen, partLine, partOfTarget, type PartExtra, type PartId,
 } from './invoiceParts';
-import { InvoiceSummary, type SummaryPrimary, type SummarySave } from './InvoiceSummary';
+import { InvoiceSummary, type SummaryPrimary } from './InvoiceSummary';
+import { summarySave } from './invoiceSummarySave';
 import { parsedHold, payHold, primaryOf, summaryMeta } from './invoicePrimary';
-import { editsAfterSave, saveModel, useInvoiceSave, type SaveModel, type SaveStatus } from './invoiceSave';
+import { editsAfterSave, saveModel, useInvoiceSave } from './invoiceSave';
 import { invoiceLeave } from './invoiceLeave';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
@@ -59,7 +60,7 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  * Форма ввода счёта (задача C1, issue #1076; раскладка — costs-invoice-screen-10-layout, вариант Г, ТЗ
  * COST-6.2).
  *
- * <p><b>Неподвижна только сводка</b> (≤ 64): номер, пометки, поставщик · дата · сумма, «Сохранить», одно
+ * <p><b>Неподвижна только сводка</b> (≤ 64): номер, пометки, поставщик · дата · сумма, носитель записи, одно
  * основное действие и «⋮». Всё остальное — одной прокруткой частей в порядке работы: «Кто и сколько»,
  * «Строки», «Разноска», «Сроки и оплата», «Ещё», «История». Заполненная часть открывается свёрнутой в
  * строку-итог (`invoiceParts`).</p>
@@ -70,7 +71,8 @@ import { useInvoiceStatus } from './useInvoiceStatus';
  * <p><b>Сохранение не блокируется ничем.</b> Ни пустых обязательных полей, ни строк: черновик обязан
  * сохраняться и попадать в реестр со сроком. Шапку и строки пишет одна очередь, шапка раньше строк
  * (`invoiceSave`, D-12.1). Черновик пишется сам — по уходу с поля и из строки (costs-invoice-screen-12-autosave,
- * ТЗ COST-6.5); где автосохранения нет (D-12.3), пишет кнопка «Сохранить» той же очередью.</p>
+ * ТЗ COST-6.5). Где автосохранения нет (D-12.3), пишет та же очередь: разобранный — «Разобран» режима «Изменить»,
+ * оплаченный черновик — «Сохранить» в «Сроках и оплате».</p>
  *
  * <p><b>Метки «распознано, не подтверждено»</b> приходят с сервера и переживают повторное открытие
  * черновика. Конец у метки двойной: правка поля снимает её с этого поля, «Всё верно» — со всей части.</p>
@@ -182,9 +184,16 @@ export function InvoiceForm({
   // Как форма пишется (D-12.3): сама — черновик и отклонённый без оплаты; разобранный читается до «Изменить»
   // (D-12.4); оплаченный черновик — «Сохранить» в «Сроках и оплате» (D-12.5).
   const [editing, setEditing] = useState(false);
+  // «Разобран» режима идёт: запись правки может на шаг опустить счёт в черновик (итог правлен раньше строк), а
+  // следующий шаг — свести его снова. Режим держится до конца перехода.
+  const [finishing, setFinishing] = useState(false);
+  // Вне «Разобран» режим живёт, пока счёт разобран: опустил его сосед или другая запись — форма переходит к модели
+  // нового положения, а не держит «Разобран» над черновиком. Подстройка при отрисовке, не эффектом: эффект нарисовал
+  // бы лишний кадр «Изменить» над черновиком.
+  if (editing && !parsed && !finishing) setEditing(false);
   // «Отменить правку» сбрасывает и строки: таблица монтируется заново с записанными.
   const [editRound, setEditRound] = useState(0);
-  const model = saveModel(view, !quiet, parsed, editing);
+  const model = saveModel(view, !quiet, parsed, editing && (parsed || finishing));
   const auto = model === 'auto';
   const reading = model === 'read';
   const queue = useInvoiceSave({ headerDirty: dirty, linesDirty, saveHeader, auto });
@@ -192,7 +201,7 @@ export function InvoiceForm({
   // оплата, его держит уход.
   const unsaved = auto ? !queue.empty : dirty || linesDirty;
   // Уход с несохранённым (G4, issue #1097; строки — #1653): у черновика — дописывает, иначе спрашивает.
-  const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone });
+  const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone, editing: model === 'edit' });
   const held = auto ? unsaved || correction.dirty : leave.held;
   const header = useRef<HTMLDivElement>(null);
   // Один раз, при открытии: форма перемонтируется на каждый счёт.
@@ -286,24 +295,35 @@ export function InvoiceForm({
   const [checkable, setCheckable] = useState<{ ready: boolean; check: () => void } | null>(null);
   const onCheckable = useCallback((next: { ready: boolean; check: () => void } | null) => setCheckable(next), []);
 
-  async function parse(seen = viewNow.current.version) {
+  /** Перейти в «Разобран»; `false` — переход отказал, причину назвал тост. */
+  async function parse(seen = viewNow.current.version): Promise<boolean> {
     try {
       const send = () => state.mutateAsync({ id: view.id, seen, to: 'parsed' as const });
       await (onExit ? onExit('parsed', send, () => {}) : send());
-    } catch (e) { toast.apiError(e, 'Счёт не разобран'); }
+      return true;
+    } catch (e) { toast.apiError(e, 'Счёт не разобран'); return false; }
   }
 
   /**
    * «Разобран» режима «Изменить» (D-12.4): записать правку (реквизиты → строки), затем переход. Запись отказала —
-   * режим открыт, причина в носителе. Переход отказал — счёт уже черновик (сервер опустил его сам): режим
-   * закрывается, форма переходит к модели черновика, индикатор называет пробелы.
+   * режим открыт, причина в носителе. Переход просится всегда: шаг реквизитов мог опустить счёт в черновик, а шаг
+   * строк — свести его снова. Переход отказал у счёта, который запись оставила черновиком, — правка сломала
+   * готовность: режим закрывается, форма переходит к модели черновика, пробелы называет индикатор. Отказ у
+   * разобранного (счёт изменил другой, нет связи) режим не закрывает: правка уже записана, «Разобран» можно
+   * нажать снова.
    */
   async function finishEdit() {
-    if (!(await queue.flush())) return;
-    await parse((queue.written() ?? viewNow.current).version);
-    setEditing(false);
+    setFinishing(true);
+    try {
+      if (!(await queue.flush())) return;
+      const now = queue.written() ?? viewNow.current;
+      if (await parse(now.version) || now.requisites[K.state] !== PARSED) setEditing(false);
+    } finally { setFinishing(false); }
   }
-  /** «Отменить правку» — без записи: поля и строки снова записанные. */
+  /**
+   * «Отменить правку» — без записи того, что не записано: поля и строки снова такие, как на сервере. Если «Разобран»
+   * успел записать часть (реквизиты легли, строки получили отказ), легшее остаётся — форма показывает записанное.
+   */
   function cancelEdit() {
     reread();
     setEditRound(n => n + 1);
@@ -415,7 +435,8 @@ export function InvoiceForm({
         })}
         primary={primary}
         menu={(
-          <InvoiceMoreMenu view={view} canChange={!quiet} file={fileAction} recognize={quiet ? null : recognize} page={pageActions}
+          <InvoiceMoreMenu view={view} canChange={!quiet && model !== 'edit'} file={fileAction}
+            recognize={quiet || reading || model === 'edit' ? null : recognize} page={pageActions}
             correct={correctable && !correcting ? { key: 'correct', label: 'Исправить', icon: EditNote, onSelect: correction.start } : null}
             onRejected={onExit && ((send, say) => onExit('rejected', send, say, undoVersion))} />
         )} />
@@ -431,7 +452,7 @@ export function InvoiceForm({
           <InvoiceStatusBanner status={indicator.status} onAction={indicator.run} busy={indicator.busy} />
 
           <InvoicePart title={PART_TITLE.who.title} step={1} open={open.who} onToggle={() => toggle('who')} line={lineOf('who')}
-            actions={<ConfirmBlock blocks={[who]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
+            actions={<ConfirmBlock blocks={[who]} view={view} locked={locked || reading} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
             <BlockFields block={who} {...fieldProps} />
             {!quiet && <RecognitionNotes recognition={watch.recognition} />}
           </InvoicePart>
@@ -446,7 +467,7 @@ export function InvoiceForm({
           {/* «Объект» — здесь, после строк (решение владельца Э1): весь счёт на объект — одним выбором. */}
           <InvoicePart title={PART_TITLE.allocation.title} step={3} open={open.allocation} onToggle={() => toggle('allocation')}
             line={lineOf('allocation')}>
-            <InvoiceObject view={view} locked={closed || gone} />
+            <InvoiceObject view={view} locked={closed || gone || reading} />
             {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
               && <AllocationSummary allocation={view.allocation} />}
             {/* Что значит состояние для денег — словами (ревью PR #1787): строки-итога «не разнесён» мало,
@@ -469,12 +490,15 @@ export function InvoiceForm({
 
           <InvoicePart title={PART_TITLE.terms.title} step={4} open={open.terms} onToggle={() => toggle('terms')} line={lineOf('terms')}
             actions={<>
-              <ConfirmBlock blocks={[terms]} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />
+              <ConfirmBlock blocks={[terms]} view={view} locked={locked || reading} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />
+              {/* Носитель оплаченного ведёт сюда (`part:terms`): обёртка — место, кнопка внутри получает фокус. */}
               {model === 'terms' && (
-                <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!unsaved} loading={queue.saving}
-                  onClick={() => void queue.save()} title={unsaved ? undefined : `Всё сохранено · ${savedTime(view.updatedAt)}`}>
-                  Сохранить
-                </Button>
+                <span className="inline-flex" {...{ [READINESS_ATTR]: 'part:terms' }}>
+                  <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!unsaved} loading={queue.saving}
+                    onClick={() => void queue.save()} title={unsaved ? undefined : `Всё сохранено · ${savedTime(view.updatedAt)}`}>
+                    Сохранить
+                  </Button>
+                </span>
               )}
               {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
             </>}>
@@ -483,7 +507,7 @@ export function InvoiceForm({
           </InvoicePart>
 
           <InvoicePart title={PART_TITLE.more.title} open={open.more} onToggle={() => toggle('more')} line={lineOf('more')}
-            actions={<ConfirmBlock blocks={more} view={view} locked={locked} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
+            actions={<ConfirmBlock blocks={more} view={view} locked={locked || reading} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
             <BlockFields block={BLOCKS[2]} {...fieldProps} />
             {/* Поля, дописанные в тип «Счёт» (issue #1482), — своим подразделом: их ведёт заказчик, не модуль. */}
             {extras.block && (
@@ -510,21 +534,6 @@ export function InvoiceForm({
     </CorrectionContext.Provider>
     </SiteRevealScope>
   );
-}
-
-/** Что сводка говорит о записи — по модели (D-12.3). */
-function summarySave(model: SaveModel, at: {
-  status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void;
-  onEdit: () => void; onCancel: () => void; onGo: () => void;
-}): SummarySave | null {
-  const carrier = { status: at.status, savedAt: at.savedAt, onRetry: at.onRetry };
-  switch (model) {
-    case 'auto': return { kind: 'auto', ...carrier };
-    case 'read': return { kind: 'read', onEdit: at.onEdit };
-    case 'edit': return { kind: 'edit', ...carrier, unsaved: at.unsaved, onCancel: at.onCancel };
-    case 'terms': return { kind: 'terms', ...carrier, unsaved: at.unsaved, onGo: at.onGo };
-    default: return null;
-  }
 }
 
 /** Запись перед уходом не дошла — что теряется и где причина (D-12.7). */

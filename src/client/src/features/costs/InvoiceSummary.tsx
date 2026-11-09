@@ -4,7 +4,7 @@ import { CheckCircle, Edit, Payments, SearchCheck, Undo, type IconDef } from '@/
 import { Button, IconButton } from '@/shared/ui/Button';
 import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
 import type { PrimaryAction } from './invoicePrimary';
-import type { SaveStatus } from './invoiceSave';
+import type { SummarySave } from './invoiceSummarySave';
 import { InvoiceSaveState } from './InvoiceSaveState';
 
 /**
@@ -39,24 +39,6 @@ const PRIMARY: Record<SummaryPrimary['kind'], { label: string; icon: IconDef }> 
   pay: { label: 'Отметить оплату…', icon: Payments },
   check: { label: 'Проверить исправление…', icon: SearchCheck },
 };
-
-/**
- * Запись в сводке (D-12.3): `auto` — носитель, счёт пишется сам; `read` — разобранный читается, «Изменить» открывает
- * правку; `edit` — режим «Изменить»: носитель и «Отменить правку»; `terms` — оплаченный черновик: носитель ведёт к
- * «Сохранить» в «Сроках и оплате».
- */
-export type SummarySave =
-  | { kind: 'auto'; status: SaveStatus; savedAt: string; onRetry: () => void }
-  | { kind: 'read'; onEdit: () => void }
-  | { kind: 'edit'; status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void; onCancel: () => void }
-  | { kind: 'terms'; status: SaveStatus; savedAt: string; unsaved: boolean; onRetry: () => void; onGo: () => void };
-
-/** «Не сохранено» явной записи — что сказать и куда вести. */
-function pendingOf(save: SummarySave) {
-  if (save.kind === 'edit') return save.unsaved ? { text: 'Не сохранено' } : null;
-  if (save.kind === 'terms') return save.unsaved ? { text: 'Не сохранено — «Сохранить» в «Сроках и оплате»', onGo: save.onGo } : null;
-  return null;
-}
 
 export const InvoiceSummary = forwardRef<HTMLDivElement, {
   /** Номер счёта — как его называет сводка; пустой — «без номера». */
@@ -98,17 +80,17 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           <p className="truncate text-body-small text-on-surface-variant" onPointerEnter={fullTextIfCut(meta)}>{meta}</p>
         </div>
         {indicator}
-        {save && save.kind !== 'read' && (
+        {save?.kind === 'carrier' && (
           <>
             <Wide at="4xl">
-              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={pendingOf(save)} />
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={save.pending} />
             </Wide>
             <Narrow at="4xl">
-              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={pendingOf(save)} narrow />
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={save.pending} narrow />
             </Narrow>
           </>
         )}
-        {save?.kind === 'edit' && (
+        {save?.kind === 'carrier' && save.onCancel && (
           <>
             <Wide at="4xl"><Button variant="text" icon={<Icon icon={Undo} size={18} />} onClick={save.onCancel}>Отменить правку</Button></Wide>
             <Narrow at="4xl"><IconButton icon={Undo} label="Отменить правку" onClick={save.onCancel} /></Narrow>
