@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { Add, Delete } from './icons';
 import { Button, IconButton } from './Button';
@@ -7,6 +7,7 @@ import {
   dtTdSheet, dtThCompact,
 } from './dataTable';
 import { markScrolled, useStickyPadding } from './dataTableScroll';
+import { fixedTableMinWidth } from './dataGridLayout';
 import type { DataGridDrag } from './DataGrid';
 import { FieldDensityContext } from './fieldBox';
 import { Tooltip } from './Tooltip';
@@ -145,6 +146,14 @@ export function EditGrid<Row>({
   const hasTotal = columns.some(c => c.total);
   useStickyPadding(table, String(hasTotal));
   const span = columns.length + (numbered ? 1 : 0) + (removable ? 1 : 0);
+  // `fill` без `minWidth` — та же защита, что у `DataGrid fixed`: колонка без ширины не сжимается в ноль, когда
+  // ширины не помещаются (телефон), а таблица прокручивается вбок. Свои колонки сетки (№ и удаление) — в счёт.
+  const fillWidths = fill && !minWidth && columns.length > 0 && !columns.some(c => c.size !== undefined)
+    ? [numbered ? 'w-8' : null, ...columns.map(c => c.width ?? ''), removable ? 'w-12' : null]
+      .filter(w => w !== null).join('|')
+    : null;
+  const fillMinWidth = useMemo(() => (fillWidths === null ? undefined
+    : fixedTableMinWidth(fillWidths.split('|').map(width => ({ width })))), [fillWidths]);
 
   useLayoutEffect(() => {
     const wanted = pendingFocus.current;
@@ -253,7 +262,8 @@ export function EditGrid<Row>({
             или в окне, открытом из клетки: поле в шапке колонки — плотное с рамкой (В5). */}
         <FieldDensityContext.Provider value={null}>
         <table ref={table} aria-label={label} onKeyDown={onKeyDown}
-          className={`${dtTable} ${sized ? dtTableSized : fill ? 'table-fixed' : ''} ${minWidth}`}>
+          className={`${dtTable} ${sized ? dtTableSized : fill ? 'table-fixed' : ''} ${minWidth}`}
+          style={fillMinWidth ? { minWidth: fillMinWidth } : undefined}>
           <thead>
             <tr>
               {numbered && <th className={th('w-8')}>№</th>}
