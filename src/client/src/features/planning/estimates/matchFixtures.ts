@@ -31,6 +31,7 @@ export const REVISION = {
   id: 'rev3', number: 3, current: false, rows: 6, unmatched: 4, materialsUnmatched: 1, unitChanged: 0, frozen: null,
   version: '5', importedAt: '2026-10-20T10:00:00Z', importedBy: null, sourceFileName: null, schemaVersion: null,
   importId: null, partial: null,
+  distribution: { rows: 6, distributed: 0, partial: 0, whole: 0, undistributed: 6, carryOverPending: 0, changedAt: null },
 } satisfies EstimateRevision;
 
 export const WORK_TYPES = [

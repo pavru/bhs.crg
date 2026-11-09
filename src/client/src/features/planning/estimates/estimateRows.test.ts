@@ -99,7 +99,7 @@ function revision(number: number, over: Partial<EstimateRevision> = {}): Estimat
   return {
     id: `r${number}`, number, current: false, importedAt: '2026-10-20T00:00:00Z', importedBy: null, sourceFileName: null,
     schemaVersion: null, rows: 1, unmatched: 0, materialsUnmatched: 0, unitChanged: 0, importId: null, partial: null,
-    frozen: null, version: '1', ...over,
+    frozen: null, version: '1', distribution: { rows: 1, distributed: 0, partial: 0, whole: 0, undistributed: 1, carryOverPending: 0, changedAt: null }, ...over,
   };
 }
 

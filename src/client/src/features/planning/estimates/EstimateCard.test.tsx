@@ -30,7 +30,8 @@ function estimate(cost: boolean, materialsUnmatched = 0): Estimate {
       {
         id: 'r1', number: 1, current: true, importedAt: '2026-10-20T00:00:00Z', importedBy: 'Смирнова А. В.',
         sourceFileName: 'ЛСР.gsfx', schemaVersion: null, rows: 1, unmatched: 1, materialsUnmatched, unitChanged: 0,
-        importId: null, partial: null, frozen: null, version: '3', ...(cost ? { cost: { total: TOTAL } } : {}),
+        importId: null, partial: null, frozen: null, version: '3',
+        distribution: { rows: 1, distributed: 0, partial: 0, whole: 0, undistributed: 1, carryOverPending: 0, changedAt: null }, ...(cost ? { cost: { total: TOTAL } } : {}),
       },
     ],
     ...(cost ? {} : { hidden: HIDDEN }),
@@ -154,5 +155,25 @@ describe('чипы по материалам (ревью PR #1648)', () => {
     fireEvent.click(chip);
     const tr = (await screen.findByText('Розетка штепсельная')).closest('tr')!;
     expect(within(tr).getByText('запомнено')).toBeTruthy();
+  });
+});
+
+describe('режим распределения (plan-10, задача 2.3)', () => {
+  it('у обычной сметы — переключатель режимов и «распределено N из M» в полосе редакции', async () => {
+    serve(false);
+    mount();
+    expect(await screen.findByText(/распределено 0 из 1/)).toBeTruthy();
+    expect(screen.getByText('Распределение')).toBeTruthy();
+  });
+
+  it('у сметы на разделе стройки режима нет: её строки целиком в том разделе', async () => {
+    serve(false);
+    const base = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url: string, config?: unknown) =>
+      (url === '/plan/estimates/e1' ? { data: { ...estimate(false), sectionId: 's1' } } as never : base(url, config as never)));
+    mount();
+    await openSection();
+    expect(screen.queryByText('Распределение')).toBeNull();
+    expect(screen.queryByText(/распределено \d+ из/)).toBeNull();
   });
 });

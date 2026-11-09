@@ -6,6 +6,7 @@ import { ChevronLeft, LockIcon, Upload } from '@/shared/ui/icons';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
+import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Tabs } from '@/shared/ui/Tabs';
 import { apiError } from '@/shared/utils/apiError';
@@ -15,6 +16,7 @@ import { ImportDialog } from './ImportDialog';
 import { openingOf, type RevisionOpening } from './importReport';
 import { MakeCurrentDialog } from './MakeCurrentDialog';
 import { PendingImports } from './PendingImports';
+import { RevisionDistribution } from '../distribution/RevisionDistribution';
 import { RevisionLines } from './RevisionLines';
 import { useEstimateEdit } from './useEstimateEdit';
 
@@ -29,6 +31,9 @@ import { useEstimateEdit } from './useEstimateEdit';
  * Пришли сюда созданием редакции (окно загрузки, `RevisionOpening` в состоянии перехода) — открыта она, и с
  * отбором «не сопоставлено», если оно есть. Состояние перехода снимается сразу: «Назад» и перезагрузка
  * возвращают к карточке, а не к той редакции с тем отбором.
+ *
+ * Над строками — режим «Сопоставление | Распределение» (`plan-10`, макет П2): распределение по разделам стройки.
+ * У сметы на разделе стройки режима нет — её строки целиком в том разделе (ответ листа 0 П2).
  */
 export function EstimateCard({ estimateId, back }: { estimateId: string; back: { to: string; label: string } }) {
   const estimate = useEstimate(estimateId);
@@ -42,6 +47,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
     if (arrived) void navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
   }, [arrived, navigate, location.pathname, location.search, location.hash]);
   const [importing, setImporting] = useState<{ importId?: string } | null>(null);
+  const [mode, setMode] = useState<Mode>(opening?.mode ?? 'match');
 
   if (estimate.isError) return (
     <div className="space-y-3">
@@ -67,7 +73,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         onOpen={id => setImporting({ importId: id })} />
       <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={data.constructionId}
         estimateId={data.id} importId={importing?.importId}
-        onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); }} />
+        onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); setMode(next.mode ?? 'match'); }} />
 
       {shown === null ? (
         <p className="text-body-medium text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
@@ -75,12 +81,23 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         <>
           <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
           <RevisionBand estimate={data} revision={shown} />
-          <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
+          {data.sectionId === null && (
+            <SegmentedButton aria-label="Режим строк редакции" value={mode} onChange={setMode}
+              items={[{ value: 'match', label: 'Сопоставление' }, { value: 'distribution', label: 'Распределение' }]} />
+          )}
+          {mode === 'distribution' && data.sectionId === null ? (
+            <RevisionDistribution key={shown.id} revision={shown} constructionId={data.constructionId}
+              initialQueue={opening?.revisionId === shown.id && opening.mode === 'distribution' ? 'carry-over' : 'all'} />
+          ) : (
+            <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
+          )}
         </>
       )}
     </div>
   );
 }
+
+type Mode = 'match' | 'distribution';
 
 function BackLink({ back }: { back: { to: string; label: string } }) {
   return (
@@ -149,6 +166,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
           частично {formatCount(revision.partial.parsed)} из {formatCount(revision.partial.inFile)}
         </StatusText>
       )}
+      {estimate.sectionId === null && <DistributedText counts={revision.distribution} />}
       {/* Итог — только с правом: без него суммы нет вовсе, причину называет колонка стоимости таблицы. */}
       {!closed && revision.cost && <span>итог <span className="font-medium text-on-surface">{formatMoney(revision.cost.total)}</span></span>}
 
@@ -159,5 +177,20 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
       )}
       <MakeCurrentDialog estimateId={estimate.id} revision={asked} onClose={() => setAsked(null)} />
     </div>
+  );
+}
+
+/**
+ * «Распределено N из M» в полосе редакции — всегда, в любом режиме (ответ листа 0 П2). «Стройка в целом» — явный
+ * выбор и в «не распределено» не входит; частично распределённые — отдельно.
+ */
+function DistributedText({ counts }: { counts: EstimateRevision['distribution'] }) {
+  const done = counts.distributed + counts.whole;
+  return (
+    <StatusText tone="neutral">
+      распределено {formatCount(done)} из {formatCount(counts.rows)}
+      {counts.partial > 0 ? ` · частично ${formatCount(counts.partial)}` : ''}
+      {counts.carryOverPending > 0 ? ` · перенос: проверить ${formatCount(counts.carryOverPending)}` : ''}
+    </StatusText>
   );
 }

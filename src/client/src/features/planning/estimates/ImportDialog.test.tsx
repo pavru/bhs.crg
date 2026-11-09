@@ -163,10 +163,11 @@ describe('отчёт разбора', () => {
 
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: {
       import: report({ state: 'committed' }), revisionId: 'r4', revisionNumber: 4, estimateCreated: false, repeated: false,
+      distributionCarryOver: { sourceRevisionId: 'r3', sourceNumber: 3, carried: 5, shifted: 0, ambiguous: 1, overflow: 0, lost: 0 },
       estimate: { id: 'e1', name: 'ЭОМ корпус 2', revisions: [{ id: 'r4', unmatched: 17, current: false }] },
     } } as never);
     fireEvent.click(screen.getByRole('button', { name: 'Создать редакцию' }));
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ estimateId: 'e1', revisionId: 'r4', unmatched: true }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ estimateId: 'e1', revisionId: 'r4', unmatched: true, carryOver: true }));
     expect(apiClient.post).toHaveBeenCalledWith('/plan/imports/i1/commit', { acceptPartial: true }, { headers: { 'If-Match': '5' } });
   });
 

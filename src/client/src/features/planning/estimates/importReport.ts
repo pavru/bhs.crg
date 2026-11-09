@@ -1,3 +1,4 @@
+import type { CarryOverCountsInfo } from '@/shared/api/planningDistribution';
 import { hasMark, type EstimateImport, type ImportTarget, type UnparsedPosition } from '@/shared/api/planningImports';
 import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
@@ -74,13 +75,26 @@ export interface ImportCreated {
   estimateId: string;
   revisionId: string;
   unmatched: boolean;
+  /** Перенос распределения ждёт решения (`ambiguous`, `overflow`, `lost`). */
+  carryOver: boolean;
 }
 
-/** Переход к созданной редакции: её открывает карточка сметы, с отбором «не сопоставлено», если оно есть. */
+/** Ждёт ли перенос решения: `shifted` решения не требует. */
+export const carryOverPending = (c: CarryOverCountsInfo | null | undefined) =>
+  (c?.ambiguous ?? 0) + (c?.overflow ?? 0) + (c?.lost ?? 0) > 0;
+
+/**
+ * Переход к созданной редакции: её открывает карточка сметы, с отбором «не сопоставлено», если оно есть. Нет — а
+ * перенос распределения ждёт решения — в режиме распределения на чипе «Перенос: проверить» (макет П2): в отчёте
+ * импорта только числа. Несопоставленное — первым: без вида работы строке нечего распределять в плане.
+ */
 export interface RevisionOpening {
   revisionId: string;
   queue: RowQueue;
+  mode?: 'match' | 'distribution';
 }
 
 export const openingOf = (created: ImportCreated): RevisionOpening =>
-  ({ revisionId: created.revisionId, queue: created.unmatched ? 'unmatched' : 'all' });
+  created.unmatched ? { revisionId: created.revisionId, queue: 'unmatched', mode: 'match' }
+    : created.carryOver ? { revisionId: created.revisionId, queue: 'all', mode: 'distribution' }
+    : { revisionId: created.revisionId, queue: 'all', mode: 'match' };
