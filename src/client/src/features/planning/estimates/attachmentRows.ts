@@ -18,6 +18,13 @@ const count = (n: number, one: string, few: string, many: string) => `${formatCo
 /** Ключ приложения в адресе и в выборе: вид и id — у КА и ВОР id из разных таблиц. */
 export const attachmentKey = (a: Pick<EstimateAttachment, 'kind' | 'id'>) => `${a.kind}:${a.id}`;
 
+/**
+ * Адрес приложения в карточке сметы: `?view=attachments&attachment=ka:<id>` (решение плана экрана plan-11). Редакции
+ * — без параметра: ими карточка открывается и до plan-11, старые ссылки не меняют смысла.
+ */
+export const attachmentSearch = (a: Pick<EstimateAttachment, 'kind' | 'id'>) =>
+  `?${new URLSearchParams({ view: 'attachments', attachment: attachmentKey(a) })}`;
+
 /** Заголовок: номер и название из файла, иначе имя файла целиком (номер есть у половины КА — разбор §78). */
 export function attachmentTitle(a: Pick<EstimateAttachment, 'number' | 'name' | 'fileName'>): string {
   const number = a.number?.trim();

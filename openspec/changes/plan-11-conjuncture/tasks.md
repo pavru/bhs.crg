@@ -25,13 +25,13 @@
 - [x] 2.1 Сверить, что макет П1 (`plan-09`) покрывает раздел анализа; если нет — вопрос владельцу до кода
   [PLAN-9]. Проверка — ссылка на вариант макета в `design.md`. Не покрывает; раунд П11, выбран вариант 1
   (09.11.2026)
-- [ ] 2.2 `shared/api/planningConjuncture.ts`, `features/planning/estimates/ConjunctureSection.tsx` на
+- [x] 2.2 `shared/api/planningConjuncture.ts`, `features/planning/estimates/ConjunctureSection.tsx` на
   `DataGrid`: позиции, предложения, выбранная цена, «скрыто правами» [PLAN-9]. Проверка — vitest:
   `hidden: ["cost"]` — колонок цены нет, строка о скрытом есть. По варианту 1 П11 — панель
   `EstimateAttachments` (`ConjunctureView`, `VolumeStatementView`), окно загрузки с «Приложить к смете «X»» и
   согласием, «сначала загрузите смету», «Создать редакцию» из «Приложить файл»; строка «Редакции | Приложения
   N» в карточке — после слияния и архива `sharedui-md3-22-primary-tabs` (ответ владельца 09.11.2026)
-- [ ] 2.3 `docs/USER_GUIDE.md`: конъюнктурный анализ в смете; `npm run toc` в `docs/tools`. Проверка —
+- [x] 2.3 `docs/USER_GUIDE.md`: конъюнктурный анализ в смете; `npm run toc` в `docs/tools`. Проверка —
   проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
