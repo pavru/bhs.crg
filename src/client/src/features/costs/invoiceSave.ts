@@ -77,7 +77,7 @@ export const LINES_NOT_READY = 'строки правлены, но таблиц
  */
 export function createSaveQueue(
   read: () => SaveSides,
-  notify: (status: SaveStatus) => void,
+  notify: (status: SaveStatus, pending: boolean) => void,
   report: (error: unknown) => void = () => {},
   rendered: () => Promise<void> = () => Promise.resolve(),
 ) {
@@ -88,8 +88,9 @@ export function createSaveQueue(
   let after: InvoiceView | null = null;
   let waiters: ((outcome: SaveOutcome) => void)[] = [];
 
-  const set = (next: SaveStatus) => { status = next; notify(next); };
   const stopped = () => status.kind === 'failed' || status.kind === 'refused';
+  const pending = () => running || marked.size > 0 || stopped();
+  const set = (next: SaveStatus) => { status = next; notify(next, pending()); };
 
   function settle(outcome: SaveOutcome) {
     const ready = waiters;
@@ -107,49 +108,41 @@ export function createSaveQueue(
     return null;
   }
 
+  /** Очередь встала: опустела (`null`) или остановилась на отказе. Признак полёта снимается ДО слова наружу. */
+  function stop(refused: Exclude<SaveStatus, { kind: 'idle' | 'saving' }> | null, reported = false) {
+    running = false;
+    after = null;
+    set(refused ?? { kind: 'idle' });
+    settle(refused ? { ok: false, status: refused, reported } : { ok: true });
+  }
+
   async function pump(): Promise<void> {
     if (running || stopped()) return;
     running = true;
-    try {
-      for (;;) {
-        const sides = read();
-        const part = next(sides);
-        if (part === null) {
+    for (;;) {
+      const sides = read();
+      const part = next(sides);
+      if (part === null) { stop(null); return; }
+      // Строки грязные, а шага нет — отказ ДО реквизитов: иначе уход со счёта прошёл бы, унеся строки.
+      if (marked.has('lines') && sides.dirty.lines && !sides.lines) { stop({ kind: 'refused', text: LINES_NOT_READY }); return; }
+      marked.delete(part);
+      set({ kind: 'saving' });
+      try {
+        if (part === 'header') after = await sides.header();
+        else {
+          const from = after;
           after = null;
-          set({ kind: 'idle' });
-          settle({ ok: true });
-          return;
+          await sides.lines!(from);
         }
-        // Строки грязные, а шага нет — отказ ДО реквизитов: иначе уход со счёта прошёл бы, унеся строки.
-        if (marked.has('lines') && sides.dirty.lines && !sides.lines) {
-          const refused = { kind: 'refused' as const, text: LINES_NOT_READY };
-          set(refused);
-          settle({ ok: false, status: refused, reported: false });
-          return;
-        }
-        marked.delete(part);
-        set({ kind: 'saving' });
-        try {
-          if (part === 'header') after = await sides.header();
-          else {
-            const from = after;
-            after = null;
-            await sides.lines!(from);
-          }
-          await rendered();
-        } catch (error) {
-          // Часть остаётся помеченной: «Повторить» и следующая пометка отправят её снова.
-          marked.add(part);
-          after = null;
-          const { status: refused, report: tell } = classify(error);
-          if (tell) report(error);
-          set(refused);
-          settle({ ok: false, status: refused, reported: tell });
-          return;
-        }
+        await rendered();
+      } catch (error) {
+        // Часть остаётся помеченной: «Повторить» и следующая пометка отправят её снова.
+        marked.add(part);
+        const { status: refused, report: tell } = classify(error);
+        if (tell) report(error);
+        stop(refused, tell);
+        return;
       }
-    } finally {
-      running = false;
     }
   }
 
@@ -157,7 +150,7 @@ export function createSaveQueue(
     /** Часть готова к записи. Новая пометка — и повтор после отказа: человек исправил значение. */
     mark(part: SavePart) {
       marked.add(part);
-      if (stopped()) set({ kind: 'idle' });
+      set(stopped() ? { kind: 'idle' } : status);
     },
     /** Начать запись помеченного — зовёт хук после отрисовки, когда стороны формы свежие. */
     pump,
@@ -186,7 +179,7 @@ export function createSaveQueue(
     },
     get status() { return status; },
     /** Есть ли что дописывать: помеченное, запись в полёте или остановка на отказе. */
-    get pending() { return running || marked.size > 0 || stopped(); },
+    get pending() { return pending(); },
   };
 }
 
@@ -217,7 +210,8 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
   });
   const autoNow = useRef(auto);
   useLayoutEffect(() => { autoNow.current = auto; });
-  const [status, setStatus] = useState<SaveStatus>({ kind: 'idle' });
+  // Что очередь говорит наружу — состоянием: сама очередь живёт вне отрисовки и читается только в событиях и эффектах.
+  const [said, setSaid] = useState<{ status: SaveStatus; pending: boolean }>({ status: { kind: 'idle' }, pending: false });
   // Ждущие отрисовки после записи — отпускаются слойным эффектом, когда стороны формы уже свежие.
   const commits = useRef<(() => void)[]>([]);
   const [, setRender] = useState(0);
@@ -226,22 +220,26 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
     commits.current = [];
     ready.forEach(resolve => resolve());
   });
-  const [queue] = useState(() => createSaveQueue(
-    () => ({ ...sides.current, lines: lines.current }),
-    setStatus,
-    error => toast.apiError(error, 'Счёт не сохранён'),
-    () => new Promise<void>(resolve => { commits.current.push(resolve); setRender(n => n + 1); }),
-  ));
+  const made = useRef<SaveQueue | null>(null);
+  const queue = () => {
+    made.current ??= createSaveQueue(
+      () => ({ ...sides.current, lines: lines.current }),
+      (status, pending) => setSaid({ status, pending }),
+      error => toast.apiError(error, 'Счёт не сохранён'),
+      () => new Promise<void>(resolve => { commits.current.push(resolve); setRender(n => n + 1); }),
+    );
+    return made.current;
+  };
   // Пометка ставится в обработчике события — тем же, что меняет черновик. Писать сразу нельзя: стороны формы
   // ещё прежние. Запись начинается после отрисовки, когда тело собирается из нового.
   const [kick, setKick] = useState(0);
-  useEffect(() => { if (kick > 0) void queue.pump(); }, [kick, queue]);
+  useEffect(() => { if (kick > 0) void queue().pump(); }, [kick]); // eslint-disable-line react-hooks/exhaustive-deps -- очередь одна на форму
   // Перечитали или отменили — грязного нет, и носитель не держит отказ о том, чего уже нет на экране.
-  useEffect(() => { if (!headerDirty && !linesDirty) queue.forgetRefusal(); }, [headerDirty, linesDirty, queue]);
+  useEffect(() => { if (!headerDirty && !linesDirty) made.current?.forgetRefusal(); }, [headerDirty, linesDirty]);
 
   function mark(part: SavePart) {
     if (!autoNow.current) return;
-    queue.mark(part);
+    queue().mark(part);
     setKick(k => k + 1);
   }
 
@@ -251,7 +249,7 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
    */
   async function flush(): Promise<boolean> {
     for (let round = 0; round < FLUSH_ROUNDS; round += 1) {
-      const outcome = await queue.flush();
+      const outcome = await queue().flush();
       if (!outcome.ok) {
         if (!autoNow.current && outcome.status.kind === 'refused') toast.error(`Счёт не сохранён: ${outcome.status.text}`);
         if (!autoNow.current && outcome.status.kind === 'failed' && !outcome.reported)
@@ -264,12 +262,13 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
     return false;
   }
 
+  const { status } = said;
   const saving = status.kind === 'saving';
   return {
     lines, mark, flush, status, saving,
-    retry: () => queue.retry(),
+    retry: () => queue().retry(),
     /** Пуста ли очередь: нечего дописывать, ничего не в полёте, отказа нет, правок нет. */
-    empty: !queue.pending && !headerDirty && !linesDirty,
+    empty: !said.pending && !headerDirty && !linesDirty,
     /** Совместимость с охраной ухода «спросить и сохранить» — там, где автосохранения нет. */
     save: flush,
   };

@@ -43,18 +43,17 @@ export function LeaveGuard({ active, save, saving = false, message, saveBlocked,
   // Уход, ждущий записи, и уход, запись которого не дошла, — у страницы, что пишет сама.
   const [failed, setFailed] = useState<(() => void) | null>(null);
   const [settled, setSettled] = useState<(() => void) | null>(null);
+  async function flushThenGo(write: () => Promise<boolean>, go: () => void) {
+    setWriting(true);
+    let ok: boolean;
+    try { ok = await write(); } finally { setWriting(false); }
+    if (ok) go(); else setFailed(() => go);
+  }
   useLeaveGuard(active, proceed => {
     if (!flush) { setLeave(() => proceed); return; }
     if (writing) return;
     void flushThenGo(flush, proceed);
   });
-
-  async function flushThenGo(write: () => Promise<boolean>, go: () => void) {
-    setWriting(true);
-    let ok = false;
-    try { ok = await write(); } finally { setWriting(false); }
-    if (ok) go(); else setFailed(() => go);
-  }
   // Запись дошла, пока вопрос открыт (носитель «Повторить»), — уход, о котором просили, идёт сам.
   if (failed && !active) {
     setFailed(null);

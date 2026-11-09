@@ -75,3 +75,30 @@ describe('основа черновика', () => {
     });
   });
 });
+
+/** Очередь записи (costs-invoice-screen-12-autosave, D-12.1): ответ своей записи и сдвиг распознаванием — не «изменили». */
+describe('основа под автосохранением', () => {
+  const reqs = (number: string, total: string) => ({ Номер: number, Итого: total });
+  const view = (version: string, requisites: Record<string, string>) => ({ version, requisites } as unknown as InvoiceView);
+  const sig = (of: InvoiceView) => of.requisites as Record<string, unknown>;
+  // Шапка правит только «Итого»: моя часть — правленые поля (как `same` в `InvoiceForm`).
+  const mine = (a: Record<string, unknown>, b: Record<string, unknown>) => a.Итого === b.Итого;
+
+  it('свой ответ, пока набрано новое после отправки: основа — ответ, черновик не «устарел»', () => {
+    const saved = view('v2', reqs('104', '100'));
+    const adopted = baseOf(saved, sig);
+    // Человек уже набрал «1000» — правки есть, а вид пришёл тот же, что принят.
+    expect(stepBase(adopted, 'v2', sig(saved), true, mine)).toEqual({ kind: 'same', base: adopted });
+  });
+
+  it('без принятия свой ответ под правками читался бы чужой правкой', () => {
+    const before = baseOf(view('v1', reqs('104', '10')), sig);
+    expect(stepBase(before, 'v2', sig(view('v2', reqs('104', '100'))), true, mine).kind).toBe('stale');
+  });
+
+  it('распознавание дописало пустое поле и сдвинуло версию — моя часть та же, основа переезжает', () => {
+    const at = baseOf(view('v2', reqs('', '100')), sig);
+    const scanned = view('v3', reqs('104', '100'));
+    expect(stepBase(at, 'v3', sig(scanned), true, mine)).toEqual({ kind: 'same', base: { version: 'v3', signature: sig(scanned) } });
+  });
+});

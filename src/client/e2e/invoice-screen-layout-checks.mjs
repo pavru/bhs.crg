@@ -16,6 +16,7 @@ import { expandInvoiceParts } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
+import { saveState, untilSaveState } from './invoice-save.mjs';
 
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
 export const LAPTOPS = [[1366, 768], [1280, 720], [1366, 650], [1024, 768]];
@@ -32,7 +33,10 @@ const FIRST_STAGE = ['Поставщик', 'Плательщик', 'Номер',
 
 const LINES = 40;
 
-/** Вопрос ухода о несохранённых строках — `leaveQuestion` в `src/features/costs/InvoiceLeaveGuard.tsx`; меняются вместе. */
+/**
+ * Вопрос ухода о несохранённых строках там, где автосохранения нет, — `leaveQuestion` в `src/features/costs/invoiceLeave.ts`;
+ * меняются вместе (сверяет `invoiceLeave.test.ts`). У черновика вопроса «сохранить ли» нет: уход дописывает (12, D-12.7).
+ */
 const LINES_UNSAVED = 'Не сохранены строки счёта. Сохранить их перед переходом?';
 
 /** Рамка элемента — или отказ с названной причиной. */
@@ -208,74 +212,97 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await railPreference(h, before).catch(e => console.log('  ! выбор подпанели не возвращён:', e.message));
   }
 
-  // Смена счёта идёт через охрану ухода (D-10.7, задача 2.3): раньше щелчок по соседнему счёту
-  // перемонтировал форму, и набранное в строке пропадало без вопроса. Соседний — двойник по ссылке
-  // оговорки: она идёт тем же `switchTo`, что и строка списка.
-  await check('экран счёта: переход к другому счёту при несохранённой строке спрашивает, «Отмена» оставляет набранное', async () => {
+  // Смена счёта сначала ДОПИСЫВАЕТ (costs-invoice-screen-12-autosave, D-12.7, D10.4 зонтика): у 10 щелчок по
+  // соседнему счёту спрашивал, а до 10 — молча терял набранное. Соседний — двойник по ссылке оговорки: она идёт тем
+  // же `switchTo`, что и строка списка. Отказ записи оставляет на счёте — причину называет носитель, вопроса нет.
+  await check('экран счёта: переход к другому счёту дописывает строку и открывает другой; отказ записи оставляет на счёте', async () => {
     await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
     await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
     const name = page.getByLabel('Наименование в счёте, строка 1', { exact: true });
-    await name.fill('Несохранённая правка');
+    const lines = `**/api/costs/invoices/${invoice.id}/lines`;
+
+    // Отказ сервера: человек остаётся, носитель называет причину словами сервера, вопроса нет.
+    await page.route(lines, route => (route.request().method() === 'PUT'
+      ? route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"Строки не приняты (проба)."}' })
+      : route.continue()));
+    try {
+      await name.fill('Правка, которой откажут');
+      await statusOpen(page, 'duplicate');
+      await h.named('носитель не назвал отказ', () => untilSaveState(page, 'refused'));
+      if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id)
+        throw new Error('запись строк отказала, а счёт сменился — набранное ушло вместе с ним');
+      if (await page.getByRole('dialog').count()) throw new Error('при отказе записи смена счёта задала вопрос — должна была остаться молча');
+      const said = await page.getByTestId('invoice-save-state').first().innerText();
+      if (!said.includes('Строки не приняты (проба).')) throw new Error(`носитель не назвал причину словами сервера: «${said}»`);
+      if ((await name.inputValue()) !== 'Правка, которой откажут') throw new Error('после отказа набранное пропало');
+    } finally {
+      await page.unroute(lines);
+    }
+
+    // Запись проходит: сначала строка записана, затем открыт другой счёт.
+    await name.fill('Дописано при смене счёта');
+    const written = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith(`/costs/invoices/${invoice.id}/lines`), { timeout: 15_000 });
     await statusOpen(page, 'duplicate');
-    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
-    await h.named('переход к другому счёту не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
-    // Вопрос один (#1653, задача 1.3): смена счёта идёт через охрану ухода, своего второго вопроса у очереди нет.
-    await page.waitForTimeout(300);
-    if ((await page.getByRole('dialog').count()) !== 1) throw new Error('на один переход к другому счёту — больше одного вопроса');
-    if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
-      throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
-    await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
-    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
-    if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id)
-      throw new Error('после «Отмена» открыт другой счёт');
-    if ((await name.inputValue()) !== 'Несохранённая правка')
-      throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
-    // Уходим, не сохраняя: соседним проверкам правка не нужна.
-    await statusOpen(page, 'duplicate');
-    await dialog.getByRole('button', { name: 'Не сохранять', exact: true }).click();
+    if (!(await written).ok()) throw new Error('запись строк при смене счёта отказала');
+    await h.named('другой счёт не открылся после записи', () => page.waitForURL(url => new URL(url).searchParams.get('invoice') !== invoice.id, { timeout: 10_000 }));
+    if (await page.getByRole('dialog').count()) throw new Error('смена счёта с записанной строкой спросила о несохранённом');
+    const stored = (await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[0].supplierText;
+    if (stored !== 'Дописано при смене счёта') throw new Error(`на сервере строка 1 — «${stored}», набранное при смене счёта не записано`);
   });
 
-  // Уход из счёта с несохранённой строкой (#1653, [COST-7], задача 1.5): пункт навигации «Счета» спрашивает и
-  // называет строки, перезагрузка вкладки — вопросом браузера. Вводом с клавиатуры, а не `fill`: вопрос
-  // браузера Chromium задаёт только после действия человека на странице.
-  await check('экран счёта: уход пунктом «Счета» и перезагрузкой с несохранённой строкой спрашивает', async () => {
+  // Уход из счёта (#1653, [COST-7]; 12, D-12.7): пункт «Счета» сначала дописывает и уходит; вопрос — только когда
+  // запись не дошла («Запись не дошла — уйти без неё?»), и тогда же перезагрузка — вопросом браузера. Вводом с
+  // клавиатуры, а не `fill`: вопрос браузера Chromium задаёт только после действия человека на странице.
+  await check('экран счёта: уход дописывает строку; без связи — вопрос «Запись не дошла», «Остаться» и вопрос браузера', async () => {
     await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
     await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
     await expandInvoiceParts(page);
     const name = page.getByLabel('Наименование в счёте, строка 3', { exact: true });
+    const lines = `**/api/costs/invoices/${invoice.id}/lines`;
+    const toInvoices = async () => {
+      await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+      await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
+    };
+    const question = page.getByRole('alertdialog', { name: 'Запись не дошла — уйти без неё?' })
+      .or(page.getByRole('dialog', { name: 'Запись не дошла — уйти без неё?' }));
     const was = await name.inputValue();
     const typed = `${was} — правка`;
     try {
+      // Связи нет: запись обрывается, уход спрашивает, «Остаться» оставляет набранное.
+      await page.route(lines, route => (route.request().method() === 'PUT' ? route.abort('internetdisconnected') : route.continue()));
       await name.click();
       await page.keyboard.press('End');
       await page.keyboard.type(' — правка');
-
-      await page.getByRole('button', { name: 'Показать панель раздела' }).click();
-      await page.getByTestId('section-panel-drawer').getByRole('link', { name: 'Счета', exact: true }).click();
-      const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
-      await h.named('пункт «Счета» увёл со счёта с несохранённой строкой, не спросив', () => dialog.waitFor({ timeout: 5_000 }));
-      if (!(await dialog.getByText(LINES_UNSAVED, { exact: true }).count()))
-        throw new Error(`вопрос не называет несохранённые строки: «${(await dialog.innerText()).replace(/\s+/g, ' ')}»`);
-      await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
-      await dialog.waitFor({ state: 'detached', timeout: 5_000 });
-      if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id) throw new Error('после «Отмена» счёт закрыт');
-      if ((await name.inputValue()) !== typed) throw new Error(`после «Отмена» набранное пропало: «${await name.inputValue()}»`);
-      // Панель раздела поверх формы закрываем: дальше — перезагрузка.
+      await toInvoices();
+      await h.named('уход без связи не спросил «Запись не дошла — уйти без неё?»', () => question.waitFor({ timeout: 10_000 }));
+      await question.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await question.waitFor({ state: 'detached', timeout: 5_000 });
       await page.keyboard.press('Escape');
+      if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id) throw new Error('после «Остаться» счёт закрыт');
+      if ((await name.inputValue()) !== typed) throw new Error(`после «Остаться» набранное пропало: «${await name.inputValue()}»`);
+      if ((await saveState(page)) !== 'failed') throw new Error(`носитель после обрыва говорит «${await saveState(page)}», а не «не сохранено — повторить»`);
 
-      // Ждём САМ вопрос браузера, а не перезагрузку: отклонённый вопрос её отменяет, и обещание `reload` не
-      // кончается вовсе. Его отказ — не наш исход: исход здесь — вопрос и набранное после него.
+      // Очередь не пуста — перезагрузка спрашивает браузер. Ждём САМ вопрос, а не перезагрузку: отклонённый вопрос
+      // её отменяет, и обещание `reload` не кончается вовсе.
       const asked = page.waitForEvent('dialog', { timeout: 5_000 });
       page.reload().catch(() => {});
-      // Не `h.named`: он значения не возвращает, а вопрос нужен — его надо отклонить.
-      const unload = await asked.catch(() => { throw new Error('перезагрузка вкладки с несохранённой строкой прошла без вопроса браузера'); });
+      const unload = await asked.catch(() => { throw new Error('перезагрузка с недошедшей записью прошла без вопроса браузера'); });
       if (unload.type() !== 'beforeunload') throw new Error(`вместо вопроса об уходе — «${unload.type()}»`);
       await unload.dismiss();
       if ((await name.inputValue()) !== typed) throw new Error('перезагрузка, отменённая в вопросе, унесла набранное');
+
+      // Связь вернулась: «Повторить» в сводке дописывает, уход идёт без вопроса.
+      await page.unroute(lines);
+      await page.getByTestId('invoice-header').getByRole('button', { name: 'Повторить' }).first().click();
+      await h.named('«Повторить» не дописал строку', () => untilSaveState(page, 'saved'));
+      await toInvoices();
+      await h.named('уход после записи не открыл «Счета»', () => page.waitForURL(url => !new URL(url).searchParams.get('invoice'), { timeout: 10_000 }));
+      if (await question.count()) throw new Error('уход с записанной строкой спросил');
+      const stored = (await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[2].supplierText;
+      if (stored !== typed) throw new Error(`на сервере строка 3 — «${stored}», а набрано «${typed}»`);
     } finally {
-      // Уходим, не сохраняя, — и при провале тоже: брошенная правка держала бы `beforeunload`, и `goto` соседних
-      // проверок висел бы до таймаута, краснея чужими причинами.
-      // Отказ уборки — строкой в лог, а не исключением: иначе он заслонил бы причину провала самой проверки.
+      await page.unroute(lines).catch(() => {});
+      // Брошенная недошедшая запись держала бы `beforeunload`, и `goto` соседних проверок висел бы до таймаута.
       const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
       page.on('dialog', leave);
       await page.goto(`${h.BASE}/invoices`, { waitUntil: 'networkidle' })
@@ -284,10 +311,9 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     }
   });
 
-  // Свёрнутая часть тело прячет, а не размонтирует (ревью PR #1787): черновик строк держит таблица, и
-  // свёртка «Строк» молча выбрасывала набранное, оставляя «Сохранить» гореть над пустым местом. И «Новый
-  // счёт» спрашивает о несохранённом ДО записи (ревью PR #1786): «Отмена» не оставляет сироты.
-  await check('экран счёта: свёртка «Строк» правку строки не теряет, «Новый счёт» спрашивает до записи', async () => {
+  // Свёрнутая часть тело прячет, а не размонтирует (ревью PR #1787): черновик строк держит таблица, и свёртка
+  // «Строк» молча выбрасывала набранное. «Новый счёт» сначала дописывает текущий (12, D-12.7): охрана ухода та же.
+  await check('экран счёта: свёртка «Строк» правку строки не теряет, «Новый счёт» сначала дописывает её', async () => {
     await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
     await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
     const name = page.getByLabel('Наименование в счёте, строка 2', { exact: true });
@@ -298,18 +324,14 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     if ((await name.inputValue()) !== 'Правка до свёртки')
       throw new Error(`свёртка «Строк» выбросила набранное: «${await name.inputValue()}»`);
 
-    const count = async () => (await h.api('GET', '/costs/invoices')).length;
-    const was = await count();
     // Списка рядом нет (файл рядом) — «Новый счёт» в «⋮» сводки (D-10.8).
     await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
     await page.getByRole('menuitem', { name: 'Новый счёт' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Несохранённые изменения' });
-    await h.named('«Новый счёт» не спросил о несохранённом', () => dialog.waitFor({ timeout: 5_000 }));
-    await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
-    await dialog.waitFor({ state: 'detached', timeout: 5_000 });
-    await page.waitForTimeout(500);
-    if ((await count()) !== was) throw new Error('«Новый счёт» завёл черновик до вопроса — после «Отмена» он остался сиротой');
-    if ((await name.inputValue()) !== 'Правка до свёртки') throw new Error('после «Отмена» набранное пропало');
+    await h.named('«Новый счёт» не открыл новый черновик', () => page.waitForURL(url => new URL(url).searchParams.get('invoice') !== invoice.id, { timeout: 10_000 }));
+    const stored = (await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[1].supplierText;
+    if (stored !== 'Правка до свёртки') throw new Error(`«Новый счёт» не дописал строку прежнего: на сервере «${stored}»`);
+    await page.goto(`${h.BASE}/invoices?invoice=${invoice.id}`, { waitUntil: 'networkidle' });
+    await page.getByTestId('invoice-header').waitFor({ timeout: 10_000 });
   });
 
   // Примечание вводится чипом над таблицей (ревью PR #1786): колонка «только когда примечания есть» не
@@ -375,7 +397,7 @@ async function placeChecks(page, check, h, invoice) {
     await name.fill('Строка раскладки 1');
   });
 
-  await check('экран счёта 1280: списка нет, «›» ведёт к соседнему счёту отбора, «‹» — обратно', async () => {
+  await check('экран счёта 1280: списка нет, «›» дописывает строку и ведёт к соседнему счёту отбора, «‹» — обратно', async () => {
     await go(1280, 720);
     const steps = page.getByTestId('invoice-header').getByRole('group', { name: 'Счета отбора' });
     await steps.waitFor({ timeout: 5_000 });
@@ -386,12 +408,17 @@ async function placeChecks(page, check, h, invoice) {
     if (!(await there.isEnabled())) throw new Error('обе стрелки неактивны — в отборе один счёт?');
     const here = (await steps.innerText()).match(/\d+ из \d+/)?.[0];
     if (!here) throw new Error(`в стрелках нет «N из M»: «${await steps.innerText()}»`);
+    // Набранное перед стрелкой не теряется (12, D-12.7): «›» сначала дописывает строку, затем ведёт.
+    const typed = `Набрано перед стрелкой ${h.stamp}`;
+    await page.getByLabel('Наименование в счёте, строка 4', { exact: true }).fill(typed);
     await there.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') !== id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('стрелка не открыла соседний счёт'); });
     // Адрес меняется раньше сводки: пока сосед читается, стоит прежний счёт со своим «N из M», и «‹» по нему
     // честно ведёт к соседу прежнего. Ждём сводку соседа — по смене места в отборе.
     await h.named('сводка соседа не встала', () => steps.filter({ hasNotText: new RegExp(`(^|\\D)${here}(\\D|$)`) }).waitFor({ timeout: 10_000 }));
+    if ((await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[3].supplierText !== typed)
+      throw new Error('«›» увела к соседу, не дописав строку');
     await back.click();
     await page.waitForFunction(id => new URLSearchParams(location.search).get('invoice') === id, invoice.id, { timeout: 5_000 })
       .catch(() => { throw new Error('обратная стрелка не вернула к счёту'); });

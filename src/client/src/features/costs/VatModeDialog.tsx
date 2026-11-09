@@ -19,18 +19,25 @@ export function VatModeDialog({ to, preview, consequences, onConfirm, onCancel }
   onCancel: () => void;
 }) {
   const changed = preview?.changed ?? 0;
+  const touched = changed + (preview?.unknown ?? 0);
   return (
     <ConfirmDialog open={to !== null && preview !== null} onOpenChange={open => { if (!open) onCancel(); }}
       title={to === 'OnTop' ? 'Цены без НДС, НДС сверху?' : 'НДС в сумме строк?'}
       confirmDanger={false}
-      confirmLabel={changed > 0 ? `Пересчитать ${rows(changed)}` : 'Сменить режим'}
+      confirmLabel={touched > 0 ? `Пересчитать ${rows(touched)}` : 'Сменить режим'}
       description={preview && (
         <div className="space-y-2" data-testid="vat-mode-preview">
           <p>
-            {changed > 0
-              ? `Пересчитать ${rows(changed)}: сумма строк станет ${formatMoney(preview.after)} (сейчас ${formatMoney(preview.before)}).`
-              : 'Суммы строк не изменятся: у строк нет ставки НДС, пересчитывать нечего.'}
+            {touched > 0
+              ? `Пересчитать ${rows(touched)}: сумма строк станет ${formatMoney(preview.after)} (сейчас ${formatMoney(preview.before)}).`
+              : 'Суммы строк не изменятся: пересчитывать нечего.'}
           </p>
+          {preview.unknown > 0 && (
+            <p>
+              {`У ${preview.unknown === 1 ? 'одной строки' : `${preview.unknown} строк`} нет ставки НДС: суммы с НДС у `
+                + `${preview.unknown === 1 ? 'неё' : 'них'} не будет, пока ставку не укажут, — в сумму строк ${preview.unknown === 1 ? 'она не вошла' : 'они не вошли'}.`}
+            </p>
+          )}
           {consequences && <p>{consequences}</p>}
           <p>Режим и строки запишутся сразу после подтверждения.</p>
         </div>

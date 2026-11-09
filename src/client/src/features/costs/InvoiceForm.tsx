@@ -184,8 +184,6 @@ export function InvoiceForm({
   // Несохранённое ОДНО (D-10.7): шапка или строки; у черновика — непустая очередь записи. Им гаснут «Разобран» и
   // оплата, его держит уход.
   const unsaved = auto ? !queue.empty : dirty || linesDirty;
-  // Запись не дошла — отказ или сбой: носитель называет причину, «Разобран» и оплата ждут.
-  const stuck = queue.status.kind === 'refused' || queue.status.kind === 'failed';
   // Уход с несохранённым (G4, issue #1097; строки — #1653): у черновика — дописывает, иначе спрашивает.
   const leave = invoiceLeave({ header: dirty, lines: linesDirty, correction, gone });
   const held = auto ? unsaved || correction.dirty : leave.held;
@@ -286,11 +284,9 @@ export function InvoiceForm({
   }
 
   const primary: SummaryPrimary | null = kind === 'parsed'
-    ? { kind, hold: auto ? parsedHold(readiness, stuck, unsaved && !stuck) : parsedHold(readiness, unsaved, queue.saving),
-      loading: state.isPending, onClick: () => void parse() }
+    ? { kind, hold: parsedHold(readiness, unsaved, queue.saving), loading: state.isPending, onClick: () => void parse() }
     : kind === 'pay'
-      ? { kind, hold: auto ? payHold(stuck, view.payment.refusal, unsaved && !stuck) : payHold(unsaved, view.payment.refusal, queue.saving),
-        onClick: () => setPaying(true) }
+      ? { kind, hold: payHold(unsaved, view.payment.refusal, queue.saving), onClick: () => setPaying(true) }
       : kind === 'check'
         ? { kind, hold: checkable?.ready ? null : 'Назовите причину и измените счёт — тогда исправление можно проверить', onClick: () => checkable?.check() }
         : null;

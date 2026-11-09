@@ -11,8 +11,12 @@
  * <p>Чистые функции над DOM — их проверяют тесты без формы.</p>
  */
 
-/** Слои, вынесенные порталом: фокус в них — не уход из строки. */
-const LAYER = '[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]';
+/**
+ * Слои, вынесенные порталом: фокус в них — не уход из строки. Снэкбар — тоже: «Вернуть» удалённой строки уводит фокус
+ * туда, и уход, принятый за повод, записал бы удаление раньше, чем человек решил (D-13.2).
+ */
+const LAYER = '[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"], '
+  + '[data-snackbar-viewport]';
 
 /** Строка сетки, в которой лежит элемент, — если он в этой таблице. */
 function rowOf(el: EventTarget | null, table: Element): Element | null {

@@ -168,7 +168,9 @@ export function savedExplains(view: InvoiceView): 'onTop' | 'included' | null {
 export interface ModePreview {
   /** Сколько строк сменят сумму с НДС. */
   changed: number;
-  /** Сумма строк с НДС до и после. */
+  /** Сколько строк в новом режиме суммы с НДС не получат: у них нет ставки (НДС сверху — не от чего считать). */
+  unknown: number;
+  /** Сумма строк с НДС до и после; строки без суммы в неё не входят. */
   before: number;
   after: number;
 }
@@ -179,12 +181,12 @@ export interface ModePreview {
  */
 export function modePreview(drafts: readonly LineDraft[], from: VatMode, to: VatMode): ModePreview {
   const next = withMode(drafts);
-  const changed = drafts.filter((draft, index) => {
+  let changed = 0;
+  let unknown = 0;
+  drafts.forEach((draft, index) => {
     const was = preview(draft, from).gross;
     const now = preview(next[index], to).gross;
-    return was !== now;
-  }).length;
-  return { changed, before: totalsOf(drafts, from), after: totalsOf(next, to) };
+    if (now === null) { if (was !== null) unknown += 1; } else if (was !== now) changed += 1;
+  });
+  return { changed, unknown, before: totals(drafts, from).amount, after: totals(next, to).amount };
 }
-
-const totalsOf = (drafts: readonly LineDraft[], mode: VatMode) => totals(drafts, mode).amount;
