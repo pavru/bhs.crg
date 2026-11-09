@@ -19,7 +19,7 @@ import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { ESTIMATE_ACCEPT, estimateFileHint, estimateFileRefusal } from './estimateFile';
 import { KIND_LABEL } from './estimateRows';
-import { importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
+import { carryOverPending, importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
 import { ParseReport } from './ParseReport';
 
 interface ImportDialogProps {
@@ -122,7 +122,8 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         toast.success(done.repeated
           ? `Ред. ${done.revisionNumber} сметы «${done.estimate.name}» уже создана из этого файла`
           : `Ред. ${done.revisionNumber} сметы «${done.estimate.name}» создана${revision?.current ? ' и стала действующей' : ''}`);
-        onCreated({ estimateId: done.estimate.id, revisionId: done.revisionId, unmatched: (revision?.unmatched ?? 0) > 0 });
+        onCreated({ estimateId: done.estimate.id, revisionId: done.revisionId, unmatched: (revision?.unmatched ?? 0) > 0,
+          carryOver: carryOverPending(done.distributionCarryOver) });
         onClose();
       },
       onSettled: () => setConfirming(false),

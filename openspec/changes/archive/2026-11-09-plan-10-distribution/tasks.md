@@ -72,23 +72,23 @@
   https://claude.ai/artifact/2JpT5oUZhSZr8bkVvv9iW1, Дизайнер §77; выбрана смесь по рекомендации Дизайнера —
   основа вариант 1 «режим таблицы в карточке сметы», из 2 и 3 — итог по целям и явная «стройка в целом»
   (`design.md`, «Макеты П2»)
-- [ ] 2.2 `shared/api/planningDistribution.ts` с `If-Match` и разбором 400 (`errors[]`) / 403 / 409 (`changedBy`,
+- [x] 2.2 `shared/api/planningDistribution.ts` с `If-Match` и разбором 400 (`errors[]`) / 403 / 409 (`changedBy`,
   `changedAt`) [PLAN-5.1]. Проверка — vitest на разбор отказов
-- [ ] 2.3 `features/planning/distribution/*` в карточке сметы на `DataGrid` П1: режим «Сопоставление |
+- [x] 2.3 `features/planning/distribution/*` в карточке сметы на `DataGrid` П1: режим «Сопоставление |
   Распределение», правило — `Select` в заголовке раздела ЛСР (с «Стройка в целом»), колонка «Распределено»,
   окно строки 512 с двумя связанными полями единиц, флажки и `SelectionBar` «На раздел… / К правилу», итог по
   целям с отбором, полоса «распределено N из M», чипы «Не распределено / Частично / Исключения / Перенос:
   проверить», снэкбар «Отменить» после правила; свой флаг правки — и у зафиксированной редакции [PLAN-5.1].
   Проверка — vitest: 409 — «перечитайте» с сохранением набранного; `ambiguous` и `lost` показаны и решаются в
   строке; у зафиксированной редакции правка доступна, с одним `read` — нет; у сметы на разделе режима нет
-- [ ] 2.4 Живой прогон: распределение в `e2e/planning-estimates-smoke.mjs` [PLAN-5.1]. Проверка — прогон
+- [x] 2.4 Живой прогон: распределение в `e2e/planning-estimates-smoke.mjs` [PLAN-5.1]. Проверка — прогон
   зелёный на стенде
-- [ ] 2.5 `docs/USER_GUIDE.md`: распределение по разделам; `npm run toc` в `docs/tools`. Проверка —
+- [x] 2.5 `docs/USER_GUIDE.md`: распределение по разделам; `npm run toc` в `docs/tools`. Проверка —
   проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Distribution|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Distribution|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

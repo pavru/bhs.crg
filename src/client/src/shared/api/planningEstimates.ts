@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import type { DistributionCounts } from './planningDistribution';
 import type { CommonDataEntry } from './types';
 
 /**
@@ -54,6 +55,8 @@ export interface EstimateRevision {
   partial: { parsed: number; inFile: number } | null;
   /** Из редакции сделана производная (КП, график) — строки не правятся (ТЗ PLAN-5). */
   frozen: { at: string; code: string; label: string } | null;
+  /** Счётчики распределения по разделам стройки (`plan-10`): полоса «распределено N из M» и чипы. */
+  distribution: DistributionCounts;
   version: string;
   /** Итог редакции — только с `plan.estimate.cost`. */
   cost?: { total: number };
