@@ -52,8 +52,16 @@ public static class ConjunctureReader
         var number = p.Text("Number") ?? throw new GrandSmetaFormatException("у позиции нет номера");
         var offers = p.Elements("Items").Elements("Item").Select(i => Offer(i, suppliers)).ToList();
         var prices = offers.Where(o => o.SellingPrice is not null).Select(o => o.SellingPrice!.Value).ToList();
+        int? chosen = null;
+        if (p.Number("MainSubPosition") is { } main)
+        {
+            if (main < 1 || main > offers.Count || main != Math.Floor(main))
+                throw new GrandSmetaFormatException(
+                    $"выбрано предложение {main}, а предложений у позиции {offers.Count}");
+            chosen = (int)main;
+        }
         return new ConjuncturePosition(index, number, p.Text("Caption") ?? "", p.Text("Units"), p.HasOption("Inactive"),
-            offers, prices.Count > 0 ? prices.Min() : null);
+            offers, prices.Count > 0 ? prices.Min() : null, chosen);
     }
 
     private static ConjunctureOffer Offer(XElement i, IReadOnlyList<ConjunctureSupplier> suppliers)

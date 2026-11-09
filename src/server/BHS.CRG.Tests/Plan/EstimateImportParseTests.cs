@@ -128,8 +128,8 @@ public class EstimateImportParseTests(PlanOnlyHost host)
     }
 
     /// <summary>
-    /// ВОР разбирается, но редакцией не становится: отчёт называет вид и говорит убрать импорт — приложить файл к
-    /// смете до plan-11 некуда, и отказ туда не зовёт.
+    /// ВОР и КА разбираются, но редакцией не становятся: отчёт называет вид и «N из M». Импорт в новую смету
+    /// приложить не к чему — отчёт говорит убрать импорт и приложить файл в карточке сметы (plan-11).
     /// </summary>
     [Theory]
     [InlineData("vor-15.3.7-no-attachments", "vor")]
@@ -144,11 +144,12 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         Assert.Equal("parsed", report.GetProperty("state").GetString());
         Assert.Equal(kind, report.GetProperty("kind").GetString());
         Assert.Equal(JsonValueKind.Null, report.GetProperty("summary").ValueKind);
-        Assert.Equal(JsonValueKind.Null, report.GetProperty("parsed").ValueKind);
+        Assert.True(report.GetProperty("parsed").GetInt32() > 0);
+        Assert.Equal(report.GetProperty("inFile").GetInt32(), report.GetProperty("parsed").GetInt32());
         var mark = Assert.Single(report.GetProperty("marks").EnumerateArray());
         Assert.Equal("notEstimate", mark.GetProperty("code").GetString());
         Assert.Contains("уберите импорт", mark.GetProperty("text").GetString());
-        Assert.DoesNotContain("Приложите", mark.GetProperty("text").GetString());
+        Assert.Contains("в карточке сметы", mark.GetProperty("text").GetString());
     }
 
     /// <summary>Без <c>plan.estimate.cost</c> сводка — без итогов, а корень называет скрытое (ТЗ PLAN-11, D4).</summary>

@@ -40,7 +40,13 @@ internal static class EstimateImportViews
         var unparsed = model?.Unparsed ?? EstimateImportJson.Unparsed(import);
         var positions = model?.Positions.ToList();
         if (import.State != EstimateImportState.Rejected && import.Kind is { } kind and not GrandSmetaKind.LocalEstimate)
-            marks.Add(new("notEstimate", NotEstimate(kind)));
+        {
+            marks.Add(new("notEstimate", NotEstimate(kind, import.EstimateId is not null)));
+            if (unparsed.Count > 0 && import.ParsedPositions is { } attached)
+                marks.Add(new("partial",
+                    $"Разобрано {attached} из {import.PositionsInFile}, {unparsed.Count} не разобрано — приложение из " +
+                    "такого файла заводится только с вашего согласия."));
+        }
         if (model is not null && positions is not null)
         {
             if (unparsed.Count > 0)
@@ -190,13 +196,18 @@ internal static class EstimateImportViews
     /// <summary>
     /// Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.
     ///
-    /// <para>⚠️ Приложить файл к смете пока некуда — хранилище ВОР и КА заводит <c>plan-11-conjuncture</c>. До него
-    /// отказ не зовёт туда, где пути нет (решение владельца 26.10.2026, <c>plan-09</c>): говорит убрать импорт.</para>
+    /// <para>Импорт в существующую смету зовёт приложить файл к ней (<c>plan-11</c>, решение В-7 (а)). Импорт,
+    /// заводящий новую смету, приложить не к чему — отказ туда не зовёт, а говорит, где путь есть.</para>
     /// </summary>
-    internal static string NotEstimate(GrandSmetaKind kind) =>
-        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится: уберите импорт. " +
-        "Приложения к смете — ведомость объёмов работ и конъюнктурный анализ — появятся позже.";
+    /// <param name="attachable">Импорт назвал смету — файл к ней прикладывается.</param>
+    internal static string NotEstimate(GrandSmetaKind kind, bool attachable) =>
+        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится: " + (attachable
+            ? $"приложите {Him(kind)} к смете — {Him(kind)} останется рядом с редакциями."
+            : $"уберите импорт и приложите файл в карточке сметы — импорт заводит новую смету, и приложить {Him(kind)} " +
+              "не к чему.");
 
     /// <summary>Местоимение по роду названия: «ведомость … — она», «конъюнктурный анализ — он».</summary>
     private static string Its(GrandSmetaKind kind) => kind == GrandSmetaKind.VolumeStatement ? "она" : "он";
+
+    private static string Him(GrandSmetaKind kind) => kind == GrandSmetaKind.VolumeStatement ? "её" : "его";
 }

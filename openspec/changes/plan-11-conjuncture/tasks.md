@@ -2,17 +2,17 @@
 
 ## 1. Сервер
 
-- [ ] 1.1 `Data/ConjunctureAnalysis.cs`, `ConjunctureItem`, `ConjunctureOffer`, миграция `Conjuncture`
+- [x] 1.1 `Data/ConjunctureAnalysis.cs`, `ConjunctureItem`, `ConjunctureOffer`, миграция `Conjuncture`
   (`--context PlanDbContext`); файл — `IModuleBlobs`, колонка в `IAppModule.Files` [PLAN-9]. Проверка —
   `ModuleFileInventoryTests` зелёный; на пересозданной базе старт применяет миграцию
-- [ ] 1.1а `Data/VolumeStatement.cs` — ВОР приложением к смете тем же путём (решение В-7) [PLAN-7].
+- [x] 1.1а `Data/VolumeStatement.cs` — ВОР приложением к смете тем же путём (решение В-7) [PLAN-7].
   Проверка — `VolumeStatementTests`: образец ВОР принят, план стройки не изменился
-- [ ] 1.2 Загрузка: разбор `plan-05` фоновой операцией, отчёт, `accept` создаёт запись [PLAN-9] [PLAN-7].
+- [x] 1.2 Загрузка: разбор `plan-05` фоновой операцией, отчёт, `accept` создаёт запись [PLAN-9] [PLAN-7].
   Проверка — `ConjunctureImportTests`: образец КА (из 0.2 зонтика) даёт позиции, предложения и выбранные
   цены; без `accept` записи нет
-- [ ] 1.3 Чтение: без `plan.estimate.cost` — без цен и с `hidden: ["cost"]` [PLAN-9] [PLAN-2]. Проверка —
+- [x] 1.3 Чтение: без `plan.estimate.cost` — без цен и с `hidden: ["cost"]` [PLAN-9] [PLAN-2]. Проверка —
   тест: в ответе нет ни одного денежного поля
-- [ ] 1.4 Удаление с `If-Match`; загрузка и удаление под `plan.estimate.edit` [AUTH-8] [AUTH-9]. Проверка —
+- [x] 1.4 Удаление с `If-Match`; загрузка и удаление под `plan.estimate.edit` [AUTH-8] [AUTH-9]. Проверка —
   тесты отказов: без `If-Match` — 400, устаревший — 409, только `plan.estimate.read` — 403, модуль
   выключен — 501; `EndpointGateInventoryTests` зелёный
 
