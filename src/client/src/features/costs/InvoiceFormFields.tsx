@@ -29,12 +29,19 @@ import { useExtraField } from './invoiceExtras';
  * узком экране. У «Кто и сколько» стороны — по половине, номер, дата и суммы — по четверти (как в Г).
  */
 export function BlockFields({
-  block, view, edits, organizations, organizationsUnread, value, set, locked,
+  block, view, edits, organizations, organizationsUnread, value, set, pick = set, onLeave, locked,
 }: {
   block: InvoiceBlock; locked: boolean;
   view: InvoiceView; edits: Record<string, unknown>; organizations: CostsOrganization[];
   organizationsUnread: boolean;
   value: (key: string) => unknown; set: (key: string, next: unknown) => void;
+  /**
+   * Значение ВЫБРАНО — организация, дата, предложение со скана (costs-invoice-screen-12-autosave, D-12.2): повод
+   * записи — само значение. Нет — как `set`.
+   */
+  pick?: (key: string, next: unknown) => void;
+  /** Фокус ушёл с поля — повод записи набранного (D-12.2). Повод — у обёртки поля, а не у общего поля ввода. */
+  onLeave?: () => void;
 }) {
   // В исправлении поля открыты, но то, что пишет само (прочитанное со скана), — нет.
   const correcting = useCorrecting() !== null;
@@ -46,11 +53,12 @@ export function BlockFields({
       <div className="grid grid-cols-1 @lg:grid-cols-2 @3xl:grid-cols-12 gap-3">
         {block.fields.map(key => (
           <div key={key} className={`min-w-0 ${block.id === 'who' ? (wide(key) ? '@3xl:col-span-6' : '@3xl:col-span-3') : '@3xl:col-span-4'}`}
-            {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}>
+            {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}
+            onBlur={onLeave ? (e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onLeave(); }) : undefined}>
             <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
-              organizationsUnread={organizationsUnread} value={value} set={set} locked={locked} />
+              organizationsUnread={organizationsUnread} value={value} set={set} pick={pick} locked={locked} />
             {!quiet && (
-              <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={set} organizations={organizations} />
+              <InvoiceFieldScan fieldKey={key} view={view} edits={edits} set={pick} organizations={organizations} />
             )}
           </div>
         ))}
@@ -77,8 +85,10 @@ export function ConfirmBlock({ blocks, view, locked, confirming, onConfirm }: {
   );
 }
 
-function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, locked }: {
+function Field({ fieldKey, view, edits, organizations, organizationsUnread, value, set, pick, locked }: {
   fieldKey: string; view: InvoiceView; edits: Record<string, unknown>;
+  /** Значение выбрано (список, дата) — запись сразу (D-12.2). */
+  pick: (key: string, next: unknown) => void;
   /** Счёт заперт закрытым периодом: поля только читаются. Читаются, а не отключены — приглушённое
    *  поле выглядит пустым, а причину называет полоса вверху. */
   locked: boolean;
@@ -149,7 +159,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
             : archived ? 'Запись в архиве. Счёт сохраняется как есть; после замены выбрать её заново будет нельзя'
             : undefined}
           value={entryId ?? NOT_CHOSEN} placeholder="Выберите организацию"
-          onValueChange={id => set(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
+          onValueChange={id => pick(fieldKey, id === NOT_CHOSEN ? null : catalogRef(id))}>
           {/* Пункт «не выбрано» — единственный способ СНЯТЬ ссылку: пустое значение Radix не
               отдаёт, и без него ошибочно распознанный плательщик оставался бы в записи навсегда. */}
           <SelectItem value={NOT_CHOSEN}>— не выбрано —</SelectItem>
@@ -164,7 +174,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
     }
 
     case K.dueDate:
-      return <InvoiceDueField view={view} edits={edits} current={current} set={set} locked={locked}
+      return <InvoiceDueField view={view} edits={edits} current={current} set={set} pick={pick} locked={locked}
         fromScan={marked} required={required} />;
 
     case K.date:
@@ -174,7 +184,9 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
           fromScan={marked}
           readOnly={locked}
-          onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)} />
+          // Набор — только правка; запись — когда дата выбрана (onCommit), а не на каждой полной дате посреди набора.
+          onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)}
+          onCommit={iso => pick(fieldKey, iso ? iso.slice(0, 10) : null)} />
       );
 
     default: {

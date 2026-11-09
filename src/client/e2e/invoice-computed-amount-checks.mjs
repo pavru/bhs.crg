@@ -7,6 +7,8 @@
 // здесь — что оно доходит до экрана и до ответа сервера целиком: запись, ответ, правка, вторая запись.
 //
 // Посчитанное в клетке — ПОДСКАЗКОЙ поля (placeholder), а не значением: пустое поле и значит «посчитай».
+import { commitInvoice, confirmVatMode } from './invoice-save.mjs';
+
 
 /**
  * Что показывает клетка — набранное либо посчитанное подсказкой, числом в записи «1000»: подсказка пишет
@@ -24,11 +26,11 @@ export async function shown(field) {
 export async function computedAmountChecks({ page, check, stamp, invoice, open, cell, addRow }) {
   const box = () => page.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' });
 
-  /** «Сохранить» — и ответ записи строк: по нему сверяется сумма, которую записал сервер. */
+  /** Уход из строки (запись строк, D-12.2) — и ответ записи: по нему сверяется сумма, которую записал сервер. */
   async function saveLines() {
     const answered = page.waitForResponse(
       r => r.request().method() === 'PUT' && r.url().endsWith('/lines'), { timeout: 15_000 });
-    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await commitInvoice(page);
     const answer = await answered;
     if (!answer.ok()) throw new Error(`строки не сохранились: ${answer.status()} ${(await answer.text()).slice(0, 200)}`);
     return (await answer.json()).lines;
@@ -44,7 +46,8 @@ export async function computedAmountChecks({ page, check, stamp, invoice, open, 
       await invoice(number, 1_200);
       await open(number);
       if (mode === 'OnTop') {
-        await box().check();
+        await box().click();
+        await confirmVatMode(page);
         if (!(await box().isChecked())) throw new Error('флажок «Цены без НДС, НДС сверху» не поставился');
       }
 

@@ -60,6 +60,8 @@ export interface InvoiceLineContext {
   /** Диалог разноски строки открыт или закрыт — пока открыт, таблица не пересобирается. */
   onAllocating: (open: boolean) => void;
   onEdit: (key: string, patch: Partial<LineDraft>) => void;
+  /** Правка цельным действием — выбор позиции, снятие и решения пометки: строки пишутся сразу (D-12.2). */
+  onChoose: (key: string, patch: Partial<LineDraft>) => void;
   /** Плотный вид — рядом список счетов: «Разноска» уже (D-10.10). Высоты строк те же. */
   compact?: boolean;
   /** Колонка «Примечание» включена (чип над таблицей) — у запертой строки она есть, только если примечания есть. */
@@ -144,12 +146,12 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
               supplierPending={ctx.supplierPending}
               leaving={foreignMark(draft, saved(draft), ctx.supplier)}
               supplierId={refEntryId(view.requisites[K.supplier])}
-              onCancel={() => ctx.onEdit(draft.key, cancelMatch(draft))}
-              onRestore={restored => ctx.onEdit(draft.key, applyOffer(restored))}
-              onRemember={remember => ctx.onEdit(draft.key, { remember })} />
+              onCancel={() => ctx.onChoose(draft.key, cancelMatch(draft))}
+              onRestore={restored => ctx.onChoose(draft.key, applyOffer(restored))}
+              onRemember={remember => ctx.onChoose(draft.key, { remember })} />
           )}
-          onPick={(id, name) => ctx.onEdit(draft.key, pickByHand(id, name))}
-          onClear={() => ctx.onEdit(draft.key, {
+          onPick={(id, name) => ctx.onChoose(draft.key, pickByHand(id, name))}
+          onClear={() => ctx.onChoose(draft.key, {
             nomenclatureId: null, nomenclatureName: null, matchedBy: null, match: null, ...NO_MARKS,
           })} />
       )),

@@ -1,9 +1,11 @@
 import { forwardRef, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { CheckCircle, Payments, Save, SearchCheck, type IconDef } from '@/shared/ui/icons';
+import { CheckCircle, Edit, Payments, SearchCheck, Undo, type IconDef } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
 import type { PrimaryAction } from './invoicePrimary';
+import type { SummarySave } from './invoiceSummarySave';
+import { InvoiceSaveState } from './InvoiceSaveState';
 
 /**
  * Сводка счёта — единственная неподвижная часть формы (costs-invoice-screen-10-layout, D-10.6, ТЗ
@@ -17,8 +19,12 @@ import type { PrimaryAction } from './invoicePrimary';
  * (D-10.3, D-10.4).</p>
  *
  * <p>Ширину меряет сама сводка (`@container`), а не окно: рядом со списком и файлом форма бывает уже
- * 400 px. Тогда «Сохранить» и основное действие становятся значками с тем же именем — иначе кнопки
- * выходили за колонку, и соседняя панель ложилась поверх «Разобран».</p>
+ * 400 px. Тогда «Изменить», «Отменить правку» и основное действие становятся значками с тем же именем — иначе
+ * кнопки выходили за колонку, и соседняя панель ложилась поверх «Разобран».</p>
+ *
+ * <p>Кнопки «Сохранить» в сводке нет ни у одного положения счёта (costs-invoice-screen-12-autosave, D-12.3): черновик
+ * пишется сам, разобранный правится режимом «Изменить» и пишется «Разобран», оплаченный черновик — «Сохранить» в
+ * «Сроках и оплате».</p>
  */
 export interface SummaryPrimary {
   kind: Exclude<PrimaryAction, null>;
@@ -45,8 +51,11 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
   nav?: ReactNode;
   /** Место индикатора состояния (ребёнок 11). */
   indicator?: ReactNode;
-  /** Запись: `null` — записывать нечего и некому (заперт, исправление, нет права). */
-  save: { unsaved: boolean; saving: boolean; savedAt: string; onSave: () => void } | null;
+  /**
+   * Запись (costs-invoice-screen-12-autosave, D-12.3) — см. `SummarySave`; `null` — записывать нечего и некому
+   * (заперт, исправление, нет права).
+   */
+  save: SummarySave | null;
   fromFile?: ReactNode;
   file?: ReactNode;
   primary: SummaryPrimary | null;
@@ -71,19 +80,27 @@ export const InvoiceSummary = forwardRef<HTMLDivElement, {
           <p className="truncate text-body-small text-on-surface-variant" onPointerEnter={fullTextIfCut(meta)}>{meta}</p>
         </div>
         {indicator}
-        {save && (
-          <Wide at="4xl">
-            <Button variant="tonal" icon={<Icon icon={Save} size={18} />} disabled={!save.unsaved}
-              loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`}>
-              Сохранить
-            </Button>
-          </Wide>
+        {save?.kind === 'carrier' && (
+          <>
+            <Wide at="4xl">
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={save.pending} />
+            </Wide>
+            <Narrow at="4xl">
+              <InvoiceSaveState status={save.status} savedAt={save.savedAt} onRetry={save.onRetry} pending={save.pending} narrow />
+            </Narrow>
+          </>
         )}
-        {save && (
-          <Narrow at="4xl">
-            <IconButton variant="tonal" icon={Save} label="Сохранить" disabled={!save.unsaved}
-              loading={save.saving} onClick={save.onSave} title={save.unsaved ? undefined : `Всё сохранено · ${save.savedAt}`} />
-          </Narrow>
+        {save?.kind === 'carrier' && save.onCancel && (
+          <>
+            <Wide at="4xl"><Button variant="text" icon={<Icon icon={Undo} size={18} />} onClick={save.onCancel}>Отменить правку</Button></Wide>
+            <Narrow at="4xl"><IconButton icon={Undo} label="Отменить правку" onClick={save.onCancel} /></Narrow>
+          </>
+        )}
+        {save?.kind === 'read' && (
+          <>
+            <Wide at="4xl"><Button variant="outlined" icon={<Icon icon={Edit} size={18} />} onClick={save.onEdit}>Изменить</Button></Wide>
+            <Narrow at="4xl"><IconButton variant="outlined" icon={Edit} label="Изменить" onClick={save.onEdit} /></Narrow>
+          </>
         )}
         {fromFile}
         {file}

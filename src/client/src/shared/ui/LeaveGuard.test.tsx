@@ -140,3 +140,75 @@ describe('запись, начатая кнопкой страницы', () => {
     expect(go).not.toHaveBeenCalled();
   });
 });
+
+/** Страница, что пишет сама (форма счёта, costs-invoice-screen-12-autosave, D-12.7): уход сначала дописывает. */
+describe('уход дописывает (`flush`)', () => {
+  const question = () => screen.queryByRole('alertdialog', { name: 'Запись не дошла — уйти без неё?' })
+    ?? screen.queryByRole('dialog', { name: 'Запись не дошла — уйти без неё?' });
+
+  it('запись дошла — уход без вопроса', async () => {
+    const flush = pending();
+    const { go, leave } = mount({ active: true, flush: flush.save });
+    leave();
+    expect(flush.save).toHaveBeenCalledOnce();
+    expect(go).not.toHaveBeenCalled();
+    await flush.finish(true);
+    expect(go).toHaveBeenCalledOnce();
+    expect(question()).toBeNull();
+    expect(dialog()).toBeNull();
+  });
+
+  it('запись не дошла — вопрос; «Остаться» оставляет', async () => {
+    const flush = pending();
+    const { go, leave } = mount({ active: true, flush: flush.save, failedMessage: 'Набранное не записано.' });
+    leave();
+    await flush.finish(false);
+    expect(question()).toBeTruthy();
+    expect(screen.getByText('Набранное не записано.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Остаться' }));
+    expect(go).not.toHaveBeenCalled();
+    expect(question()).toBeNull();
+  });
+
+  it('запись не дошла — «Уйти без записи» уходит', async () => {
+    const flush = pending();
+    const { go, leave } = mount({ active: true, flush: flush.save });
+    leave();
+    await flush.finish(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Уйти без записи' }));
+    expect(go).toHaveBeenCalledOnce();
+  });
+
+  it('уход во время записи не теряется: после неё идёт последний (ревью PR #1837)', async () => {
+    const flush = pending();
+    const other = vi.fn();
+    function Other() {
+      const guard = useNavigationGuard();
+      return <button type="button" onClick={() => { if (!guard?.attempt(other)) other(); }}>Отчёты</button>;
+    }
+    const go = vi.fn();
+    render(
+      <NavigationGuardProvider>
+        <LeaveGuard active flush={flush.save} />
+        <NavItem onGo={go} />
+        <Other />
+      </NavigationGuardProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Счета' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Отчёты' }));
+    expect(flush.save).toHaveBeenCalledOnce();
+    await flush.finish(true);
+    expect(other).toHaveBeenCalledOnce();
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it('запись дошла, пока вопрос открыт («Повторить» в сводке), — уход идёт сам', async () => {
+    const flush = pending();
+    const { go, leave, rerender } = mount({ active: true, flush: flush.save });
+    leave();
+    await flush.finish(false);
+    expect(question()).toBeTruthy();
+    rerender({ active: false, flush: flush.save });
+    expect(go).toHaveBeenCalledOnce();
+  });
+});

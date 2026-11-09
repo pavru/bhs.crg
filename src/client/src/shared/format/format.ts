@@ -342,6 +342,15 @@ export function formatTime(value: DateLike): string {
   return render(value, 'time', TIME);
 }
 
+/**
+ * Тот же ли это день, что сегодня, — по часам браузера. Одно правило на «сегодня в 14:32» и «Сохранено · 14:32»
+ * (ревью PR #1837): переедет на пояс компании — переедет везде.
+ */
+export function isToday(value: DateLike): boolean {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.toDateString() === new Date().toDateString();
+}
+
 /** Время до секунд: «14:32:07». */
 export function formatTimeSeconds(value: DateLike): string {
   return render(value, 'time:second', TIME_SECONDS);

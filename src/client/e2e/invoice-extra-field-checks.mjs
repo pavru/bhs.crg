@@ -6,6 +6,7 @@
 // спрятал бы поле. Дописанное поле прогон убирает за собой.
 
 import { login, callApi } from './harness.mjs';
+import { commitInvoice } from './invoice-save.mjs';
 
 const INVOICE_TYPE = 'СчётНаОплату';
 const KEY = 'ЦентрЗатратПрогона';
@@ -60,7 +61,7 @@ export async function extraFieldChecks({ browser, check, skip, seat, invoiceId, 
       await input.fill('ЦЗ-7');
       await Promise.all([
         page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith(`/costs/invoices/${invoiceId}`) && r.ok()),
-        page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+        commitInvoice(page),
       ]);
       const stored = (await ok(page, 'GET', `/costs/invoices/${invoiceId}`)).requisites[KEY];
       if (stored !== 'ЦЗ-7') throw new Error(`в реквизитах счёта «${stored}», ждали «ЦЗ-7»`);

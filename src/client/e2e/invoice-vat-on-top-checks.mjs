@@ -9,6 +9,7 @@
 // сохранение и перечитывание (а не превращённая в сумму с НДС); разноска «с НДС»; и «Разобран».
 
 import { shown } from './invoice-computed-amount-checks.mjs';
+import { confirmVatMode } from './invoice-save.mjs';
 
 /**
  * @param ctx то, чем живёт прогон строк счёта: страница, проверка, свои помощники и позиция номенклатуры.
@@ -39,7 +40,10 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
       .catch(() => { throw new Error('расхождение ровно на НДС, а подсказки «Считать НДС сверху» нет'); });
     if (await box().isChecked()) throw new Error('флажок «Цены без НДС» поставлен без нажатия');
 
+    // Подсказка, как и флажок, — через окно предпросмотра (costs-invoice-screen-12-autosave, D-12.6).
     await hint.click();
+    const said = await confirmVatMode(page);
+    if (!/Пересчитать 2 строки/.test(said)) throw new Error(`предпросмотр не назвал две строки: «${said}»`);
     if (!(await box().isChecked())) throw new Error('подсказка не поставила флажок');
     // Фокус — на флажке: кнопка подсказки пропала с нажатием.
     await page.waitForFunction(() => document.activeElement?.getAttribute('type') === 'checkbox', null, { timeout: 5_000 })

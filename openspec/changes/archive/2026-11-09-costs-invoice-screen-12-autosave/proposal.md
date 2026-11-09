@@ -57,7 +57,7 @@
   - `useInvoiceSave` (из 10) становится очередью автосохранения;
   - правятся `InvoiceForm.tsx`, `InvoiceSummary.tsx` (носитель, «Изменить»), `InvoiceLinesTable.tsx`
     (уход из строки, режим НДС), `draftBase.ts`, `InvoicesPage.tsx` (`switchTo` дописывает), `InvoicePayment.tsx`;
-  - новые — вид для чтения разобранного (части без полей ввода — по решению Э15 (зонтик, 0.1)) и
+  - новые — вид для чтения разобранного (поля `TextField readOnly` — решение Э15 от 08.11.2026) и
     предпросмотр режима НДС;
   - вопрос «Запись не дошла — уйти без неё?» — `ConfirmDialog` (`confirmLabel` «Уйти без записи»,
     `cancelLabel` «Остаться») или новый вид `shared/ui/LeaveGuardDialog.tsx`: у того текст зашит
@@ -67,13 +67,16 @@
 - **Предусловия:**
   - `core-journal-series` — **слит** (#1669, #1670), архив #1671 от 28.10.2026. Свёртка журнала: без неё
     автосохранение засыпало бы журнал записями «Счёт изменён»;
-  - ждут — пять change строк (открыты, ни одна задача не отмечена на 06.11.2026):
-    - `costs-invoice-lines-leave-guard` (#1653);
-    - `costs-invoice-line-computed-amount` (#1654);
-    - `costs-invoice-line-delete-allocation` (#1655);
-    - `costs-invoice-lines-save-race` (#1656);
-    - `costs-invoice-lines-unsaved-supplier` (#1657);
-  - ждёт — ребёнок 10.
+  - пять change строк — **слиты и в архиве** (08–09.11.2026):
+    - `costs-invoice-lines-leave-guard` (#1653) — #1817, архив #1820;
+    - `costs-invoice-line-computed-amount` (#1654) — #1827, архив #1828;
+    - `costs-invoice-line-delete-allocation` (#1655) — #1833, архив #1834;
+    - `costs-invoice-lines-save-race` (#1656) — #1811, архив #1816;
+    - `costs-invoice-lines-unsaved-supplier` (#1657) — #1830, архив #1831;
+  - ребёнок 10 — слит (#1786, #1787), архив #1788; `sharedui-snackbar-close-reason` (Э5) — #1804, архив #1805.
+- **Требования предусловий** «[COST-7] Уход из формы счёта с несохранёнными строками», «[COST-7] Правка
+  строк счёта во время их записи» и «[COST-7.1] Запоминание при несохранённой смене поставщика»
+  переписываются (MODIFIED): их сценарии называли «Сохранить строки» и «Сохранить».
 - **Документы:** ТЗ — абзац [COST-6.5]; `docs/USER_GUIDE.md` — «как счёт сохраняется», «Изменить».
 - **PR:** два, оба с меткой `version:minor`. Макет — «Экран счёта · критический пересмотр», вариант Г, лист
   0, раздел 3.2 — https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF.

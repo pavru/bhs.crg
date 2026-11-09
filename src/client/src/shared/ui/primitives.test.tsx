@@ -246,6 +246,143 @@ describe('Tabs', () => {
   });
 });
 
+describe('Tabs primary', () => {
+  type Top = 'revisions' | 'attachments';
+  type Rev = 'r1' | 'r2' | 'r3';
+  const TOP: TabItem<Top>[] = [
+    { value: 'revisions', label: 'Редакции' },
+    { value: 'attachments', label: 'Приложения', badge: <CountText>3</CountText> },
+  ];
+  const REVS: TabItem<Rev>[] = [
+    { value: 'r1', label: 'Ред. 1' }, { value: 'r2', label: 'Ред. 2' }, { value: 'r3', label: 'Ред. 3' },
+  ];
+
+  // Ряд primary над underline в его панели ([UI-91]): у каждого ряда свой id.
+  function Card() {
+    const [top, setTop] = useState<Top>('revisions');
+    const [rev, setRev] = useState<Rev>('r2');
+    return (
+      <>
+        <Tabs id="top" variant="primary" aria-label="Смета" items={TOP} value={top} onChange={setTop} />
+        <TabPanel id="top" value={top}>
+          {top === 'revisions' ? (
+            <>
+              <Tabs id="rev" aria-label="Редакции сметы" items={REVS} value={rev} onChange={setRev} />
+              <TabPanel id="rev" value={rev}>строки {rev}</TabPanel>
+            </>
+          ) : 'приложения'}
+        </TabPanel>
+      </>
+    );
+  }
+
+  const indicatorOf = (tab: HTMLElement) => tab.querySelector('[data-tab-indicator]');
+  const width = window.innerWidth;
+  afterEach(() => { window.innerWidth = width; });
+
+  it('индикатор только у выбранной и по содержимому, а не у кнопки', () => {
+    render(<Card />);
+    const revisions = screen.getByRole('tab', { name: 'Редакции' });
+    const attachments = screen.getByRole('tab', { name: /^Приложения/ });
+    const bar = indicatorOf(revisions)!;
+    expect(bar).toBeTruthy();
+    expect(bar.parentElement!.hasAttribute('data-tab-content')).toBe(true);
+    expect(bar.className).toContain('h-0.75');
+    expect(bar.className).toContain('bg-primary');
+    expect(revisions.className).toContain('text-primary');
+    expect(revisions.className).toContain('h-12');
+    expect(revisions.className).not.toContain('border-b-2');
+    expect(indicatorOf(attachments)).toBeNull();
+    expect(attachments.className).toContain('text-on-surface-variant');
+  });
+
+  it('стрелка двигает фокус, Enter переключает раздел', () => {
+    render(<Card />);
+    const revisions = screen.getByRole('tab', { name: 'Редакции' });
+    revisions.focus();
+    fireEvent.keyDown(revisions, { key: 'ArrowRight' });
+    const attachments = screen.getByRole('tab', { name: /^Приложения/ });
+    expect(document.activeElement).toBe(attachments);
+    expect(attachments.getAttribute('aria-selected')).toBe('false');
+    fireEvent.click(attachments);
+    expect(attachments.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel', { name: /^Приложения/ }).textContent).toBe('приложения');
+  });
+
+  it('у каждого ряда одна остановка Tab и своя панель', () => {
+    render(<Card />);
+    const stops = screen.getAllByRole('tab').filter(t => t.tabIndex === 0);
+    expect(stops.map(t => t.textContent)).toEqual(['Редакции', 'Ред. 2']);
+    expect(document.getElementById(stops[0].getAttribute('aria-controls')!)!.contains(stops[1])).toBe(true);
+    expect(document.getElementById(stops[1].getAttribute('aria-controls')!)!.textContent).toBe('строки r2');
+  });
+
+  it('пустой badge не меняет текст вкладки: экраны ищут её по подписи', () => {
+    // Редактор документа отдаёт badge фрагментом всегда, даже пустым (живой прогон ищет /^Генерация$/).
+    render(<Tabs id="b" variant="primary" aria-label="Разделы" value="a" onChange={() => {}}
+      items={[{ value: 'a', label: 'Генерация', badge: <>{false}</> }, { value: 'b', label: 'Ошибки', badge: <CountText>0</CountText> }]} />);
+    expect(screen.getByRole('tab', { name: 'Генерация' }).textContent).toBe('Генерация');
+    expect(screen.getByRole('tab', { name: /^Ошибки/ }).textContent).toBe('Ошибки0');
+  });
+
+  it('панель названа только у выбранной: невыбранной ссылаться не на что', () => {
+    render(<Card />);
+    expect(screen.getByRole('tab', { name: 'Редакции' }).getAttribute('aria-controls')).toBe('top-panel-revisions');
+    expect(screen.getByRole('tab', { name: /^Приложения/ }).hasAttribute('aria-controls')).toBe(false);
+  });
+
+  it('не влезающий ряд прокручивается, подписи не переносятся', () => {
+    render(<Card />);
+    const list = screen.getByRole('tablist', { name: 'Смета' });
+    expect(list.className).toContain('overflow-x-auto');
+    for (const t of screen.getAllByRole('tab').slice(0, 2)) {
+      expect(t.className).toContain('whitespace-nowrap');
+      expect(t.className).toContain('shrink-0');
+    }
+  });
+
+  it('недоступная вкладка — вид недоступной, стрелка её пропускает', () => {
+    render(<Tabs id="d" variant="primary" aria-label="Разделы" value="a" onChange={() => {}} items={[
+      { value: 'a', label: 'Смета' }, { value: 'b', label: 'Анализ', disabled: true }, { value: 'c', label: 'ВОР' },
+    ]} />);
+    const off = screen.getByRole('tab', { name: 'Анализ' }) as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.className).toContain('disabled-content');
+    const first = screen.getByRole('tab', { name: 'Смета' });
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'ВОР' }));
+  });
+
+  it('со значком — значок над подписью, ряд 64', () => {
+    render(<Tabs id="i" variant="primary" aria-label="Разделы" value="a" onChange={() => {}}
+      items={[{ value: 'a', label: 'Архив', icon: Archive }, { value: 'b', label: 'Черновики' }]} />);
+    const tab = screen.getByRole('tab', { name: 'Архив' });
+    const content = tab.querySelector('[data-tab-content]')!;
+    expect(content.className).toContain('flex-col');
+    expect(content.firstElementChild!.tagName.toLowerCase()).toBe('svg');
+    for (const t of screen.getAllByRole('tab')) expect(t.className).toContain('h-16');
+    // У вкладки без значка — пустое место под него: подписи ряда на одной высоте.
+    const bare = screen.getByRole('tab', { name: 'Черновики' }).querySelector('[data-tab-content]')!;
+    expect(bare.firstElementChild!.hasAttribute('data-tab-icon-slot')).toBe(true);
+    expect(tab.querySelector('[data-tab-icon-slot]')).toBeNull();
+  });
+
+  it('на телефоне вкладки делят ряд поровну, на рабочем столе — по содержимому', () => {
+    const { unmount } = render(<Card />);
+    expect(screen.getByRole('tab', { name: 'Редакции' }).className).not.toContain('flex-1');
+    unmount();
+    window.innerWidth = 375;
+    render(<Card />);
+    for (const name of ['Редакции', /^Приложения/]) {
+      const tab = screen.getByRole('tab', { name });
+      expect(tab.className).toContain('flex-1 min-w-max');
+      expect(tab.className).not.toContain('shrink-0');
+    }
+    expect(screen.getByRole('tab', { name: 'Ред. 2' }).className).not.toContain('flex-1');
+  });
+});
+
 describe('PageHeader', () => {
   it('заголовок — h1 страницы, действия и подзаголовок рядом', () => {
     render(<PageHeader title="Стройки" subtitle="Все стройки компании" actions={<button type="button">Новая стройка</button>} />);

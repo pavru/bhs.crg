@@ -10,6 +10,8 @@
 // Отдельным файлом: `invoice-lines-smoke` и так велик. Едет внутри него, с его помощниками.
 
 import { statusPhrase } from './invoice-status.mjs';
+import { until } from './harness.mjs';
+import { commitInvoice, untilSaveState } from './invoice-save.mjs';
 
 /** На сколько задержать запись строк — человек успевает набрать. */
 const HOLD_MS = 1_500;
@@ -43,7 +45,8 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
       try {
         const isLines = r => r.method() === 'PUT' && r.url().endsWith('/lines');
         const sent = page.waitForRequest(isLines, { timeout: 15_000 });
-        await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+        // Уход из строки — повод записи (D-12.2): первая запись уходит и задерживается.
+        await commitInvoice(page);
         await sent;
         // Ожидание ответа — после отправки: ответ задержан на HOLD_MS и раньше не придёт, а заведённое до
         // `sent` ожидание при его отказе осталось бы непойманным отказом.
@@ -59,7 +62,6 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
         const first = await answered;
         if (!first.ok()) throw new Error(`первая запись строк: ${first.status()}`);
         if (held !== 1) throw new Error(`запись строк задержана ${held} раз — набор шёл не во время записи`);
-        await page.waitForTimeout(300);
       } finally {
         await page.unroute('**/api/costs/invoices/*/lines', hold);
       }
@@ -70,11 +72,12 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
       // Строка под курсором не перемонтирована: её ключ — newId, ставший её id.
       const focused = await cell('Количество', 1).evaluate(el => el === document.activeElement);
       if (!focused) throw new Error('фокус ушёл из клетки «Количество, строка 1» после ответа записи');
-      if (!(await page.getByText('(посчитано в форме — строки ещё не сохранены)').isVisible()))
-        throw new Error('правки, набранные во время записи, не помечены несохранёнными');
       if (/Счёт изменили/.test(await statusPhrase(page))) throw new Error('свой ответ записи прочитан как чужая правка — «Счёт изменили»');
 
-      await saveLines();
+      // Набранное во время записи уходит СЛЕДУЮЩЕЙ записью очереди — само: из строк уходили, пока первая была в
+      // пути (costs-invoice-screen-12-autosave, D-12.1). Её и ждём, а не нажатия.
+      await until(() => { if (writes.length < 2) throw new Error(`записей строк ${writes.length}, следующая не ушла`); });
+      await untilSaveState(page, 'saved');
       if (writes.length !== 2) throw new Error(`записей строк ${writes.length}, ожидалось 2`);
       if (writes.some(w => w.status === 409)) throw new Error(`запись получила 409: ${JSON.stringify(writes)}`);
       if (writes[0].seen === writes[1].seen) throw new Error(`вторая запись назвала ту же версию, что первая: ${writes[0].seen}`);
