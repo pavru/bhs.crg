@@ -1,5 +1,6 @@
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Distribution;
 using BHS.CRG.Modules.Plan.Endpoints;
 using BHS.CRG.Modules.Plan.Import;
 using BHS.CRG.Modules.Plan.Matching;
@@ -150,6 +151,9 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<RowMatching>();
         services.AddScoped<MaterialMatching>();
         services.AddScoped<EstimateImportCommit>();
+        services.AddScoped<DistributionCarryOver>();
+        services.AddScoped<DistributionReader>();
+        services.AddScoped<DistributionWriter>();
     }
 
     /// <summary>
@@ -176,6 +180,7 @@ public sealed class PlanModule : IAppModule
         RevisionSectionsEndpoints.Map(endpoints);
         RevisionMaterialsEndpoints.Map(endpoints);
         NomenclatureSearchEndpoints.Map(endpoints);
+        DistributionEndpoints.Map(endpoints);
     }
 
     /// <summary>

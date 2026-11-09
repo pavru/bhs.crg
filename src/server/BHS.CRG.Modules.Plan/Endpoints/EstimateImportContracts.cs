@@ -89,6 +89,8 @@ public sealed record UnmatchedImportRowDto(int Row, string Reason);
 /// <param name="EstimateCreated">Импорт завёл новую смету.</param>
 /// <param name="Repeated">Редакция создана раньше — тем же импортом: ответ называет её, второй нет.</param>
 /// <param name="Unmatched">Строки, которым подстановка дала вид работы, но позиция перечня не заведена.</param>
+/// <param name="DistributionCarryOver">Перенос распределения из прежней редакции — источник и числа по категориям
+/// (<c>plan-10</c>); <c>null</c> — переносить было нечего. Сам отчёт — в <c>GET …/distribution</c>.</param>
 public sealed record EstimateImportCommitDto(
     EstimateImportDto Import, EstimateDto Estimate, Guid RevisionId, int RevisionNumber, bool EstimateCreated,
-    bool Repeated, IReadOnlyList<UnmatchedImportRowDto> Unmatched);
+    bool Repeated, IReadOnlyList<UnmatchedImportRowDto> Unmatched, CarryOverCountsDto? DistributionCarryOver);

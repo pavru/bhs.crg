@@ -23,6 +23,13 @@ public static class PlanReferences
     private static ReferenceDocument Import() =>
         new("estimate_imports", "file_name", "id", "импорты смет", PlanModule.EstimateEdit);
 
+    /// <summary>
+    /// Чем назвать редакцию, распределённую на раздел: ««Основная», ред. 3» — название в заголовке распределения, на
+    /// момент его последней правки (<c>plan-10</c>). Число в отказе — строк частей или правил разделов ЛСР.
+    /// </summary>
+    private static ReferenceDocument Distribution() =>
+        new("revision_distributions", "label", "revision_id", "сметы и редакции", PlanModule.EstimateRead, Key: "revision_id");
+
     public static IReadOnlyList<ModuleReference> All =>
     [
         ModuleReference.Holding("estimates", "construction_id", ReferenceTarget.Construction,
@@ -82,6 +89,25 @@ public static class PlanReferences
             "не разобранные позиции файла с причиной — тексты файла, идентификаторов записей в нём нет"),
         ModuleReference.Remembering("estimate_imports", "skipped", target: null,
             "пропущенные позиции файла (неактивные, plan-31) — тексты файла, идентификаторов записей в них нет"),
+
+        // Распределение держит раздел стройки (plan-10, CORE-34.1): раздел, на который распределены строки, не удалить,
+        // пока распределение не снято — иначе часть объёма корпуса молча ушла бы «в никуда».
+        ModuleReference.Holding("distribution_rules", "section_id", ReferenceTarget.Section,
+            "правила разделов ЛСР смет, распределённые на этот раздел", Distribution()),
+        ModuleReference.Holding("distribution_parts", "section_id", ReferenceTarget.Section,
+            "строки смет, части которых распределены на этот раздел", Distribution()),
+        ModuleReference.Remembering("revision_distributions", "changed_by", ReferenceTarget.User,
+            "кто менял распределение последним — справочное поле; удаление учётной записи его не касается"),
+        // Отчёт переноса помнит источник словами и числами (plan-10): источник могут удалить, а позиция обязана сказать,
+        // что было. На распределение он не влияет — решение по позиции проверяет раздел заново.
+        ModuleReference.Remembering("distribution_carry_over", "source_row_id", target: null,
+            "строка редакции-источника переноса — запись модуля, а не справочника ядра"),
+        ModuleReference.Remembering("distribution_carry_over", "parts", ReferenceTarget.Section,
+            "прежние части строки источника в отчёте переноса — справка; решение по позиции проверяет раздел заново"),
+        ModuleReference.Remembering("distribution_carry_over", "rule_section_id", ReferenceTarget.Section,
+            "прежняя цель правила раздела ЛСР в отчёте переноса — справка, правило уже перенесено или потеряно"),
+        ModuleReference.Remembering("distribution_carry_over", "candidates", target: null,
+            "строки-кандидаты новой редакции в отчёте переноса — записи модуля, а не справочника ядра"),
 
         // Импортировавший — справка, а не связь: удаление учётной записи редакций не касается, как у
         // автора счёта (ревью PR #1188).
