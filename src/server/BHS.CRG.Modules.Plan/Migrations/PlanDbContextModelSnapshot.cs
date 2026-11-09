@@ -23,6 +23,201 @@ namespace BHS.CRG.Modules.Plan.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.CarryOverItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<Guid[]>("Candidates")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("candidates");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("LsrSectionCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("lsr_section_code");
+
+                    b.Property<string>("LsrSectionName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("lsr_section_name");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<decimal?>("NewVolume")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("new_volume");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("number");
+
+                    b.Property<string>("NumberInSection")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("number_in_section");
+
+                    b.Property<string>("Parts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("parts");
+
+                    b.Property<string>("RateCode")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rate_code");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("resolution");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<Guid?>("RowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("row_id");
+
+                    b.Property<string>("RuleKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("rule_kind");
+
+                    b.Property<Guid?>("RuleSectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rule_section_id");
+
+                    b.Property<Guid?>("SourceRowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_row_id");
+
+                    b.Property<string>("SourceUnit")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source_unit");
+
+                    b.Property<decimal?>("SourceVolume")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("source_volume");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("subject");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevisionId")
+                        .HasDatabaseName("ix_distribution_carry_over_revision_id");
+
+                    b.HasIndex("RowId")
+                        .HasDatabaseName("ix_distribution_carry_over_row_id")
+                        .HasFilter("row_id IS NOT NULL");
+
+                    b.ToTable("distribution_carry_over", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionPart", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<Guid>("RowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("row_id");
+
+                    b.Property<Guid>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevisionId")
+                        .HasDatabaseName("ix_distribution_parts_revision_id");
+
+                    b.HasIndex("SectionId")
+                        .HasDatabaseName("ix_distribution_parts_section_id");
+
+                    b.HasIndex("RowId", "SectionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_distribution_parts_row_section");
+
+                    b.ToTable("distribution_parts", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LsrSectionCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("lsr_section_code");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<Guid?>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SectionId")
+                        .HasDatabaseName("ix_distribution_rules_section_id")
+                        .HasFilter("section_id IS NOT NULL");
+
+                    b.HasIndex("RevisionId", "LsrSectionCode")
+                        .IsUnique()
+                        .HasDatabaseName("ux_distribution_rules_revision_section");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("RevisionId", "LsrSectionCode"), false);
+
+                    b.ToTable("distribution_rules", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.Estimate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -687,6 +882,103 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("resource_matches", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RevisionDistribution", b =>
+                {
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<int?>("CarriedFromNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("carried_from_number");
+
+                    b.Property<Guid?>("CarriedFromRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("carried_from_revision_id");
+
+                    b.Property<int>("CarriedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("carried_rows");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<Guid?>("ChangedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by");
+
+                    b.Property<string>("ChangedByName")
+                        .HasColumnType("text")
+                        .HasColumnName("changed_by_name");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("label");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("RevisionId")
+                        .HasName("pk_revision_distributions");
+
+                    b.HasIndex("CarriedFromRevisionId")
+                        .HasDatabaseName("ix_revision_distributions_carried_from")
+                        .HasFilter("carried_from_revision_id IS NOT NULL");
+
+                    b.HasIndex("EstimateId")
+                        .HasDatabaseName("ix_revision_distributions_estimate_id");
+
+                    b.ToTable("revision_distributions", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.CarryOverItem", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRow", null)
+                        .WithMany()
+                        .HasForeignKey("RowId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionPart", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRow", null)
+                        .WithMany()
+                        .HasForeignKey("RowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.DistributionRule", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.Estimate", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
@@ -742,6 +1034,26 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRow", null)
                         .WithMany()
                         .HasForeignKey("RowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RevisionDistribution", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("CarriedFromRevisionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.Estimate", null)
+                        .WithMany()
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

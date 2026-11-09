@@ -39,10 +39,12 @@ public sealed record RevisionPartialDto(int Parsed, int InFile);
 /// <param name="ImportId">Импорт, из которого редакция создана; <c>null</c> — создана не импортом. Сам отчёт
 /// импорта — под <c>plan.estimate.edit</c>.</param>
 /// <param name="Partial">Создана из неполного разбора; <c>null</c> — из полного или не импортом.</param>
+/// <param name="Distribution">Счётчики распределения по разделам стройки (<c>plan-10</c>): полоса «распределено N из
+/// M» и чипы без второго запроса. У сметы на разделе все строки — «распределено»: они целиком в её разделе.</param>
 public sealed record EstimateRevisionDto(
     Guid Id, int Number, bool Current, DateTimeOffset ImportedAt, string? ImportedBy, string? SourceFileName,
     string? SchemaVersion, int Rows, int Unmatched, int MaterialsUnmatched, int UnitChanged, Guid? ImportId,
-    RevisionPartialDto? Partial, EstimateFrozenDto? Frozen, string Version,
+    RevisionPartialDto? Partial, EstimateFrozenDto? Frozen, RevisionDistributionDto Distribution, string Version,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RevisionCostDto? Cost);
 
 /// <param name="Kind"><c>main</c> — основная, <c>additional</c> — дополнительная.</param>

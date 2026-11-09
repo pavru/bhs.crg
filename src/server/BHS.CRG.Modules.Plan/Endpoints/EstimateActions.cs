@@ -65,10 +65,29 @@ public sealed class EstimateActions : IModuleActivityActions
     public static readonly ModuleActivityAction ResourceMatchForgotten =
         new("plan.resourcematch.forgotten", "Запомненное сопоставление ресурса забыто", PlanModule.EstimateRead);
 
+    /// <summary>
+    /// Правило раздела ЛСР распределения (<c>plan-10</c>, ТЗ PLAN-5.1): прежняя и новая цель; «сбросить исключения
+    /// раздела» — той же записью, с перечнем строк, чьи части сняты.
+    /// </summary>
+    public static readonly ModuleActivityAction DistributionRule =
+        new("plan.distribution.rule", "Правило распределения раздела ЛСР изменено", PlanModule.EstimateRead);
+
+    /// <summary>Части строк по разделам стройки (<c>plan-10</c>): набор строк — одной записью с перечнем строк.</summary>
+    public static readonly ModuleActivityAction DistributionLines =
+        new("plan.distribution.lines", "Распределение строк сметы по разделам изменено", PlanModule.EstimateRead);
+
+    /// <summary>
+    /// Перенос распределения при повторном импорте и решения по его отчёту (<c>plan-10</c>): откуда перенесено и
+    /// сколько; что решено по неоднозначной, не поместившейся и не перенесённой строке.
+    /// </summary>
+    public static readonly ModuleActivityAction DistributionCarryOver =
+        new("plan.distribution.carry-over", "Распределение перенесено из прежней редакции", PlanModule.EstimateRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
     [
         Created, Changed, Deleted, CurrentRevision, Imported, RevisionDeleted, Matched, Unmatched, RateMatchPointed,
         RateMatchForgotten, MaterialMatched, MaterialUnmatched, ResourceMatchPointed, ResourceMatchForgotten,
+        DistributionRule, DistributionLines, DistributionCarryOver,
     ];
 
     internal static string Label(Data.Estimate estimate) => $"Смета «{estimate.Name}»";

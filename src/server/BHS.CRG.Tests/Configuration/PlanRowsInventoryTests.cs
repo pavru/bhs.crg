@@ -46,6 +46,14 @@ public class PlanRowsInventoryTests
             "объёмы двух редакций ОДНОЙ сметы «было → станет» до смены действующей (plan-31) — не план стройки",
         [$"{Module}/Matching/RateMarks.cs"] =
             "счётчик «единица изменилась» редакций в ответе сметы (plan-31): шифры несопоставленных строк — не план стройки",
+        [$"{Module}/Distribution/DistributionCounts.cs"] =
+            "счётчики распределения редакций в ответе сметы (plan-10): строки по разделам ЛСР — не план стройки",
+        [$"{Module}/Distribution/DistributionReader.cs"] =
+            "распределение ОДНОЙ редакции для показа (plan-10): строки с частями — не план стройки",
+        [$"{Module}/Distribution/DistributionWriter.cs"] =
+            "строки ОДНОЙ редакции, которую распределяют (plan-10): объём для баланса частей — не план стройки",
+        [$"{Module}/Distribution/DistributionCarryOver.cs"] =
+            "строки редакции-источника при переносе распределения (plan-10) — не план стройки",
     };
 
     private static readonly Regex Rows = new(
