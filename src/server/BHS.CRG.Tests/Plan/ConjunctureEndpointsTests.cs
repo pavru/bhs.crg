@@ -49,7 +49,7 @@ public class ConjunctureEndpointsTests(PlanOnlyHost host)
     {
         var site = await EstimateSeed.SiteAsync(host);
         var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
-        var client = await EstimateImportFlow.EditorAsync(host);
+        var client = await EstimateImportFlow.CostEditorAsync(host);
         var attachment = await ConjunctureFlow.AttachedAsync(client, estimate, ConjunctureFlow.Ka);
         var path = $"/api/plan/conjuncture/{ConjunctureFlow.Id(attachment)}";
 
@@ -69,7 +69,7 @@ public class ConjunctureEndpointsTests(PlanOnlyHost host)
         Assert.Equal(0, list.GetArrayLength());
     }
 
-    /// <summary>Только чтение: загрузить, принять и удалить нельзя — 403; читать можно.</summary>
+    /// <summary>Только чтение: загрузить, принять и удалить нельзя — 403; позиции читать можно, файл с ценами — только с правом на стоимость.</summary>
     [Fact]
     public async Task Только_чтение_не_загружает_и_не_удаляет()
     {
@@ -88,7 +88,12 @@ public class ConjunctureEndpointsTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.Forbidden,
             (await reader.SendAsync(ConjunctureFlow.Delete(path, ConjunctureFlow.Version(attachment)))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync(path + "/items")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync(path + "/file")).StatusCode);
+        // Файл анализа несёт цены: без права на стоимость он не скачивается — отказ с названным правом.
+        var file = await reader.GetAsync(path + "/file");
+        Assert.Equal(HttpStatusCode.Forbidden, file.StatusCode);
+        Assert.Contains(PlanModule.EstimateCost, await file.Content.ReadAsStringAsync());
+        var withCost = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead, PlanModule.EstimateCost);
+        Assert.Equal(HttpStatusCode.OK, (await withCost.GetAsync(path + "/file")).StatusCode);
     }
 
     /// <summary>Имена всех полей ответа — вглубь.</summary>

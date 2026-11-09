@@ -114,10 +114,21 @@ public static class ConjunctureEndpoints
         return Results.Ok(await ConjunctureViews.LinesAsync(db, id, offset, limit, ct));
     }
 
+    /// <summary>
+    /// Файл анализа несёт все цены предложений — его отдаёт только право на стоимость (D4): иначе скачивание обходило бы
+    /// то, что скрывает чтение позиций. У ВОР денег нет, её файл — под чтением.
+    /// </summary>
     private static async Task<IResult> ConjunctureFileAsync(
-        Guid id, PlanDbContext db, [FromKeyedServices(PlanModule.ModuleCode)] IModuleBlobs blobs, CancellationToken ct) =>
-        await FileAsync(await db.ConjunctureAnalyses.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct)
-            ?? throw ConjunctureViews.NotFound("ka"), blobs, ct);
+        Guid id, PlanDbContext db, IModuleUser user, [FromKeyedServices(PlanModule.ModuleCode)] IModuleBlobs blobs,
+        CancellationToken ct)
+    {
+        var analysis = await db.ConjunctureAnalyses.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct)
+            ?? throw ConjunctureViews.NotFound("ka");
+        if (!await user.HasAsync(PlanModule.EstimateCost, ct))
+            throw new ForbiddenException(
+                $"В файле конъюнктурного анализа — цены предложений, а их показывает только право «{PlanModule.EstimateCost}» ({PlanModule.EstimateCostGives}).");
+        return await FileAsync(analysis, blobs, ct);
+    }
 
     private static async Task<IResult> VolumeFileAsync(
         Guid id, PlanDbContext db, [FromKeyedServices(PlanModule.ModuleCode)] IModuleBlobs blobs, CancellationToken ct) =>
