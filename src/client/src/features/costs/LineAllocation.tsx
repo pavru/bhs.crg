@@ -9,6 +9,7 @@ import {
 } from '@/shared/api/invoices';
 import { formatMoney, formatQuantity } from '@/shared/format/format';
 import { useDraftBase } from './draftBase';
+import { lineName } from './invoiceLines';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { EditGrid } from '@/shared/ui/EditGrid';
@@ -159,7 +160,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
     }
   }
 
-  const title = `Разноска строки ${number}: ${line.nomenclatureName ?? line.supplierText ?? 'без наименования'}`;
+  const title = `Разноска строки ${number}: ${lineName(line)}`;
   // Деньги на стройку — с НДС (issue #1499): у счёта сверху бумажная сумма строки без НДС, и сумма, которая
   // делится, обязана это назвать.
   const gross = vatModeOf(view) === 'OnTop' ? ' с НДС' : '';

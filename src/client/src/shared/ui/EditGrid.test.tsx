@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EditGrid, type EditGridColumn } from './EditGrid';
 import { Select, SelectItem } from './Select';
 import { TextField } from './TextField';
@@ -47,6 +47,25 @@ function Draft({ initial, readOnly = false }: { initial: Line[]; readOnly?: bool
 
 const field = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
 
+/** Экран, который сперва спрашивает (#1655): корзина ставит вопрос, строку убирает «Да», «Нет» её оставляет. */
+function Asking({ initial }: { initial: Line[] }) {
+  const [rows, setRows] = useState(initial);
+  const [asked, setAsked] = useState<{ key: string; answer: (removed: boolean) => void } | null>(null);
+  return (
+    <>
+      <EditGrid label="Строки" numbered rows={rows} rowKey={r => r.key} columns={COLUMNS(() => {})}
+        add={{ label: 'Добавить строку', onAdd: () => setRows(prev => [...prev, line()]) }}
+        onRemove={r => new Promise<boolean>(answer => setAsked({ key: r.key, answer }))} />
+      <button type="button" onClick={() => {
+        setRows(prev => prev.filter(x => x.key !== asked?.key)); setAsked(null); asked?.answer(true);
+      }}>Да</button>
+      <button type="button" onClick={() => { setAsked(null); asked?.answer(false); }}>Нет</button>
+      <button type="button" onClick={() => setRows(prev => [...prev, line('Вставлено')])}>Вставить</button>
+      <button type="button" onClick={() => setRows(prev => prev.slice(1))}>Перечитать</button>
+    </>
+  );
+}
+
 /** Поле со списком, который открывается вводом и закрывается Esc, — стрелок само не гасит: проверяется
  *  именно условие сетки «уступать только при aria-expanded="true"». */
 function SuggestCell({ label }: { label: string }) {
@@ -73,13 +92,38 @@ describe('EditGrid (#1354)', () => {
     expect(document.activeElement).toBe(field('Наименование, строка 2'));
   });
 
-  it('после удаления фокус встаёт на удаление соседней строки, а с последней — на «добавить»', () => {
+  it('после удаления фокус — на поле строки, вставшей на место, а не на её корзину; с последней — на «добавить» (D2 #1655)', () => {
     render(<Draft initial={[line('А'), line('Б')]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Удалить строку 1' }));
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Удалить строку 1' }));
+    // Enter, Enter больше не удаляет две строки: второй Enter приходится в поле, а не в корзину соседней строки.
+    expect(document.activeElement).toBe(field('Наименование, строка 1'));
     expect(field('Наименование, строка 1').value).toBe('Б');
     fireEvent.click(screen.getByRole('button', { name: 'Удалить строку 1' }));
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Добавить строку' }));
+  });
+
+  it('экран спросил: фокус ставит исход — удалена строка или отказ; строки, пришедшие потом, его не трогают (#1655)', async () => {
+    render(<Asking initial={[line('А'), line('Б'), line('В')]} />);
+    // Фокус — не на корзине: щелчок мышью в Safari кнопку не фокусирует.
+    field('Наименование, строка 3').focus();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить строку 2' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Нет' })); });
+    // Отказ — обратно на корзину той же строки (D2).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Удалить строку 2' })));
+    // Строк стало меньше — перечитыванием, не удалением в сетке (ревью #1833): отказ ничего не взвёл, фокус там, где был.
+    screen.getByRole('button', { name: 'Перечитать' }).focus();
+    fireEvent.click(screen.getByRole('button', { name: 'Перечитать' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Перечитать' }));
+    expect(field('Наименование, строка 1').value).toBe('Б');
+    // Стало больше — тоже не трогается.
+    screen.getByRole('button', { name: 'Вставить' }).focus();
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Вставить' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить строку 1' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Да' })); });
+    expect(document.activeElement).toBe(field('Наименование, строка 1'));
+    expect(field('Наименование, строка 1').value).toBe('В');
   });
 
   it('без строк говорит «Строк нет», и «добавить» остаётся на месте', () => {

@@ -179,6 +179,12 @@ export function formatQuantity(value: number): string {
   return numberFormat('quantity', QUANTITY).format(value);
 }
 
+/** Количество с единицей: «40 м»; без единицы — одно число. Одно правило для матрицы, разноски и окон о строке. */
+export function formatQuantityUnit(value: number, unit: string | null | undefined): string {
+  const name = unit?.trim();
+  return name ? `${formatQuantity(value)} ${name}` : formatQuantity(value);
+}
+
 /**
  * Из чего язык складывает число — для разбора набранного (`parseNumber`): какой знак у него
  * десятичный и чем он делит разряды. Язык здесь называют явно: разбор читает чужой текст и вправе

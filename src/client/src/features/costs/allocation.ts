@@ -1,5 +1,5 @@
 import { issueOf, issueText } from './lostReferences';
-import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
+import { formatInput, formatMoney, formatQuantityUnit } from '@/shared/format/format';
 import type { AllocationPartView, LineAllocationView } from '@/shared/api/invoices';
 import { toNumber } from './invoiceLines';
 
@@ -119,7 +119,7 @@ export function allocationStatus(
   // а минус у разных языков — разный знак, и вырезать его из готовой строки значило бы гадать.
   const left = (allocation.mode === 'quantity' ? allocation.unallocatedQuantity : allocation.unallocatedAmount) ?? 0;
   const rest = allocation.mode === 'quantity'
-    ? `${formatQuantity(Math.abs(left))}${unit ? ` ${unit}` : ''}`
+    ? formatQuantityUnit(Math.abs(left), unit)
     : formatMoney(Math.abs(left));
 
   return left < 0

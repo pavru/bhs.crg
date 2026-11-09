@@ -28,6 +28,7 @@ import { computedAmountChecks, shown } from './invoice-computed-amount-checks.mj
 import { candidateChecks } from './invoice-candidates-checks.mjs';
 import { suggestChecks } from './suggest-checks.mjs';
 import { unsavedSupplierChecks } from './invoice-unsaved-supplier-checks.mjs';
+import { deleteAllocationChecks } from './invoice-delete-allocation-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
 import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
 
@@ -231,6 +232,9 @@ try {
     if (JSON.stringify(saved) !== JSON.stringify(['Позиция 1', 'Позиция 2', 'Позиция 3']))
       throw new Error(`возвращённая после записи строка не записана на место: ${JSON.stringify(saved)}`);
   });
+
+  // ── 1б. Удаление строки с разноской — сперва окно, называющее её (#1655) — своим файлом ──
+  await deleteAllocationChecks({ page, check, stamp, api, invoice, open, cell, saveLines });
 
   // ── 2. Вставка из буфера: шапка не становится строкой счёта ──────────────────
   await check('вставка из буфера даёт строки таблицей, а шапка в счёт не идёт', async () => {

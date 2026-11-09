@@ -1,8 +1,8 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView, VatMode } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
-import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
+import { formatInput, formatMoney, formatQuantityUnit } from '@/shared/format/format';
 import { K } from './invoiceFields';
-import { preview as linePreview, toNumber, type LineDraft } from './invoiceLines';
+import { lineName, preview as linePreview, toNumber, type LineDraft } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
 
 /**
@@ -60,7 +60,7 @@ export function rowsOf(view: InvoiceView, total: number | null): MatrixRow[] {
   return view.lines.map(line => ({
     key: line.id,
     lineId: line.id,
-    title: `${line.ordinal}. ${line.nomenclatureName ?? line.supplierText ?? 'без наименования'}`,
+    title: `${line.ordinal}. ${lineName(line)}`,
     mode: line.allocation.mode,
     unit: line.unit,
     whole: line.allocation.mode === 'quantity' ? line.quantity : line.amount,
@@ -83,7 +83,7 @@ export function draftRows(drafts: readonly LineDraft[], total: number | null, va
     const mode = quantity !== null && quantity > 0 ? 'quantity' : amount !== null && amount !== 0 ? 'amount' : 'none';
     return {
       key: draft.key, lineId: draft.key,
-      title: `${index + 1}. ${draft.nomenclatureName ?? (draft.supplierText.trim() || 'без наименования')}`,
+      title: `${index + 1}. ${lineName(draft)}`,
       mode, unit: draft.unit.trim() || null, whole: mode === 'quantity' ? quantity : amount, amount,
     };
   });
@@ -223,7 +223,7 @@ export function estimateRest(row: MatrixRow, targets: MatrixTarget[], cells: Mat
 export function cellText(row: MatrixRow, part: AllocationPartView | undefined): string {
   if (!part) return '0';
   if (row.mode === 'quantity')
-    return `${part.quantity === null ? '' : formatQuantity(part.quantity)}${row.unit ? ` ${row.unit}` : ''}`
+    return (part.quantity === null ? (row.unit ? ` ${row.unit}` : '') : formatQuantityUnit(part.quantity, row.unit))
       + (part.amount === null ? '' : ` · ${formatMoney(part.amount)}`);
   return part.amount === null ? '0' : formatMoney(part.amount);
 }
@@ -232,7 +232,7 @@ export function cellText(row: MatrixRow, part: AllocationPartView | undefined): 
 export function restText(row: MatrixRow, allocation: LineAllocationView | undefined): string {
   if (!allocation) return '0';
   if (row.mode === 'quantity')
-    return `${formatQuantity(allocation.unallocatedQuantity ?? 0)}${row.unit ? ` ${row.unit}` : ''}`;
+    return formatQuantityUnit(allocation.unallocatedQuantity ?? 0, row.unit);
   return allocation.unallocatedAmount === null ? '—' : formatMoney(allocation.unallocatedAmount);
 }
 

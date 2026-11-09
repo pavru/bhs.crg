@@ -90,6 +90,12 @@ export interface LineDraft {
  */
 export const newLineKey = newUuid;
 
+/** Имя строки словами — позиция номенклатуры, иначе текст поставщика: одно правило для матрицы, разноски и окна
+ *  удаления (#1655). Подходит и черновику, и сохранённой строке. */
+export function lineName(line: { nomenclatureName: string | null; supplierText: string | null }): string {
+  return line.nomenclatureName ?? (line.supplierText?.trim() || 'без наименования');
+}
+
 /**
  * Есть ли у строки СОХРАНЁННАЯ разноска (costs-invoice-screen-13-undo, D-13.2). Её удаление идёт своим
  * правилом — вопросом, называющим каскад (#1655), а не снэкбаром «Вернуть»: разноску после записи строк не

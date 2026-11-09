@@ -25,6 +25,7 @@ import {
   modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
+import { LineDeleteDialog, type LineDeleteAsk } from './LineDeleteDialog';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
 import { READINESS_ATTR, lineAnchor } from './invoiceReadiness';
 import type { MatchFacts } from './invoiceStatus';
@@ -108,6 +109,8 @@ export function InvoiceLinesTable({
   // которую сосед удалил, — вместе с диалогом и набранными в нём частями, без единого слова (ревью
   // PR #1208). Диалог закрылся — пересборка происходит тем же рендером.
   const [allocating, setAllocating] = useState(false);
+  // Удаление строки с разноской, ждущее ответа (#1655).
+  const [asking, setAsking] = useState<LineDeleteAsk | null>(null);
   const base = useDraftBase(view, linesSignature, dirty || allocating);
   // Строки изменили, а своих правок нет — показываем свежие. Иначе таблица держала бы прежние до
   // перезагрузки страницы, и «сохранить» первой же правкой затёрло бы чужие.
@@ -347,16 +350,18 @@ export function InvoiceLinesTable({
   }
 
   /**
-   * Удаление строки — сразу, а у строки без сохранённой разноски — со снэкбаром «Строка N удалена · Вернуть»
-   * (costs-invoice-screen-13-undo, D-13.2). Строку с разноской удаляют своим правилом (#1655) — здесь она
-   * удаляется, как прежде. «Вернуть» сверяет строки счёта на миг нажатия: их могли записать.
+   * Удаление строки. Без сохранённой разноски — сразу, со снэкбаром «Строка N удалена · Вернуть»
+   * (costs-invoice-screen-13-undo, D-13.2); «Вернуть» сверяет строки счёта на миг нажатия: их могли записать. С
+   * разноской — сначала вопрос, называющий её (#1655, D1): разноску после записи не вернуть ничем, и «Вернуть» у
+   * неё нет — строка уходит, только когда человек подтвердил.
    */
-  function remove(key: string) {
+  function remove(key: string): Promise<boolean> | undefined {
     const index = drafts.findIndex(draft => draft.key === key);
     const line = drafts[index];
-    setDrafts(prev => prev.filter(draft => draft.key !== key));
-    setDirty(true);
-    if (!line || hasSavedAllocation(line, view.lines)) return;
+    // Исход вопроса — сетке: она ставит фокус в поле строки на месте удалённой или обратно на корзину (D2).
+    if (line && hasSavedAllocation(line, view.lines)) return new Promise(answer => setAsking({ key, answer }));
+    drop(key);
+    if (!line) return;
     const restore = () => {
       // Таблицы уже нет — ушли со счёта: «Вернуть», который молча ничего не делает, был бы ложью.
       if (!alive.current) { toast.info(`Строка ${index + 1} не возвращена: счёт закрыт. Откройте его и добавьте строку заново.`); return; }
@@ -364,6 +369,28 @@ export function InvoiceLinesTable({
       setDirty(true);
     };
     toast.success(`Строка ${index + 1} удалена.`, { duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore } });
+  }
+  function drop(key: string) {
+    setDrafts(prev => prev.filter(draft => draft.key !== key));
+    setDirty(true);
+  }
+
+  // Строка, о которой спрашивают, — какой она стала сейчас: пока окно открыто, таблицу могли запереть, а строки —
+  // перечитать (у другого номера, без разноски, без самой строки). Тогда вопроса больше нет: окно закрывается, а
+  // строка остаётся; исход сетке не сообщается — фокус не трогается.
+  const askingIndex = asking ? drafts.findIndex(draft => draft.key === asking.key) : -1;
+  const askingDraft = askingIndex >= 0 && !still ? drafts[askingIndex] : undefined;
+  const askingSaved = askingDraft && hasSavedAllocation(askingDraft, view.lines)
+    ? view.lines.find(saved => saved.id === askingDraft.id) ?? null
+    : null;
+  if (asking && !askingSaved) setAsking(null);
+
+  /** Ответ окна: подтверждение удаляет строку тем же рендером, что закрывает окно; отказ — оставляет. */
+  function answerAsking(confirmed: boolean) {
+    if (!asking) return;
+    if (confirmed) drop(asking.key);
+    setAsking(null);
+    asking.answer(confirmed);
   }
   const savedLines = useRef(view.lines);
   useLayoutEffect(() => { savedLines.current = view.lines; });
@@ -476,6 +503,7 @@ export function InvoiceLinesTable({
         add={still ? undefined : { label: 'Добавить строку', onAdd: () => add([emptyDraft()]) }}
         onRemove={still ? undefined : draft => remove(draft.key)}
         columns={columns} />
+      <LineDeleteDialog saved={askingSaved} number={askingIndex + 1} onClose={answerAsking} />
 
       {/* Сверка — липкой строкой под таблицей, пока таблица в окне (D1, ТЗ COST-6.2): у сорока строк она
           видна, где бы ни стояла прокрутка. Без своей рамки — черта сверху (`Divider`). */}
