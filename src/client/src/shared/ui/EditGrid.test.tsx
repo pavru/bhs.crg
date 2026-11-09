@@ -245,6 +245,20 @@ describe('EditGrid (#1354)', () => {
     expect(screen.getByRole('columnheader', { name: 'Остаток' }).style.right).toBe('0px');
   });
 
+  it('fill без minWidth: таблица не уже суммы колонок — колонка без ширины не сжимается в ноль, № и удаление в счёт', () => {
+    render(<EditGrid fill numbered rows={[line('А')]} rowKey={r => r.key} onRemove={() => {}}
+      columns={[{ key: 'unit', label: 'Ед.', width: 'w-16', cell: r => r.unit }, { key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    // № 8 + Ед. 16 + удаление 12 + минимум гибкой 48.
+    expect(screen.getByRole('table').style.minWidth).toBe('calc(var(--spacing) * 84)');
+  });
+
+  it('свой minWidth у fill побеждает расчёт: наименьшую ширину назвал экран', () => {
+    render(<EditGrid fill minWidth="min-w-160" rows={[line('А')]} rowKey={r => r.key}
+      columns={[{ key: 'unit', label: 'Ед.', width: 'w-16', cell: r => r.unit }, { key: 'name', label: 'Имя', cell: r => r.name }]} />);
+    expect(screen.getByRole('table').style.minWidth).toBe('');
+    expect(screen.getByRole('table').className).toContain('min-w-160');
+  });
+
   it('ширина в пикселях делает раскладку фиксированной', () => {
     render(<EditGrid rows={[line('А')]} rowKey={r => r.key}
       columns={[{ key: 'name', label: 'Имя', size: 120, cell: r => r.name }]} />);
