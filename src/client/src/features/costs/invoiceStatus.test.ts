@@ -215,8 +215,10 @@ describe('statusOf — отказ, а не пропуск (1.3)', () => {
     }));
     expect(s.items.map(i => i.key).filter(k => k.startsWith('matches-'))).toEqual(['matches-pending']);
     const item = s.items.find(i => i.key === 'matches-pending')!;
-    expect(item.text).toMatch(/Поставщик изменён и не сохранён/);
-    expect(item.detail).toMatch(/прежнего поставщика не подставляется/);
+    // Слова не о «прежнем»: в сохранённом счёте поставщика могло не быть вовсе (ревью PR #1830).
+    expect(item.text).toMatch(/Поставщик в шапке не сохранён/);
+    expect(item.detail).toMatch(/запомненное не подставляется/);
+    expect(`${item.text} ${item.detail}`).not.toMatch(/прежн/);
     expect(item.actions[0]).toMatchObject({ kind: 'goto', place: { place: 'field', key: 'Поставщик' } });
   });
 

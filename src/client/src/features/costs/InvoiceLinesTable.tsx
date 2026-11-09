@@ -14,8 +14,8 @@ import { K, PARSED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoic
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  HELD_MEMORY_NOTICE, applyOffer, dropForeignMarks, holdMemory, lineKey, memoryNotice, pending, sameKey, usable,
-  type MatchOffer, type SupplierChange,
+  HELD_MEMORY_NOTICE, applyOffer, dropForeignMarks, holdMemory, lineKey, memoryNotice, offerOfSupplier, pending, sameKey,
+  usable, type MatchOffer, type SupplierChange,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { mergeSaved } from './invoiceLinesMerge';
@@ -62,7 +62,10 @@ export function InvoiceLinesTable({
    * предлагается (D2), а строки, записанные без шапки, своего выбора не запоминают (решение (б)).
    */
   supplierChange?: SupplierChange | null;
-  /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
+  /**
+   * Поставщик названием — для плашки окна выбора позиции (issue #1517). Из шапки, если её смена не сохранена:
+   * окно подбирает подходящие по нему же (ревью PR #1830).
+   */
   supplierName?: string | null;
   /** Сюда таблица кладёт свой шаг записи — его зовёт «Сохранить» сводки после шапки (D-10.7). */
   saverRef?: MutableRefObject<LinesStep | null>;
@@ -149,7 +152,9 @@ export function InvoiceLinesTable({
   // Поставщик в шапке другой и не сохранён: опыт сохранённого — уже не про этот счёт (#1657, D2). Запомнится ли
   // выбор — судит поставщик из шапки: «Сохранить» записывает её раньше строк.
   const supplierPending = supplierChange !== null;
-  const hasSupplier = supplierPending ? supplierChange.to !== null : supplierId !== null;
+  // Поставщик, за которым строки запишутся: из шапки, если её смена не сохранена.
+  const supplierNow = supplierPending ? supplierChange.to : supplierId;
+  const hasSupplier = supplierNow !== null;
   const [askFailed, setAskFailed] = useState<string | null>(null);
   // Строки, о которых вопрос не прошёл, — «Повторить» спрашивает о них, а не обо всех: suggest подставляет
   // запомненное сам, а сохранённым строкам по C3 его подставляет только кнопка (ревью PR #1792).
@@ -168,17 +173,20 @@ export function InvoiceLinesTable({
    */
   function offerFor(draft: LineDraft): MatchOffer | null {
     if (supplierPending) return null;
-    if (draft.offer) return draft.offer;
+    // Предложение в черновике строки могло прийти по прежнему поставщику — шапку с тех пор сохранили, а
+    // строки нет (ревью PR #1830). Опыт другого поставщика этому счёту не предлагается.
+    if (draft.offer) return offerOfSupplier(draft.offer, supplierId) ? draft.offer : null;
     const saved = draft.id ? view.lines.find(line => line.id === draft.id) : undefined;
     if (!saved || !sameKey(lineKey(saved.supplierCode, saved.supplierText),
       lineKey(draft.supplierCode, draft.supplierText))) return null;
-    return laid.data?.get(saved.id) ?? null;
+    const found = laid.data?.get(saved.id);
+    return found ? { ...found, supplierId } : null;
   }
 
   // Строки и режим, как они есть СЕЙЧАС, — для ответа, пришедшего позже вопроса или записи. Слойным эффектом:
   // ответ, пришедший сразу за кадром, застал бы обычный эффект ещё не отработавшим.
-  const latest = useRef({ drafts, mode });
-  useLayoutEffect(() => { latest.current = { drafts, mode }; });
+  const latest = useRef({ drafts, mode, supplier: supplierNow });
+  useLayoutEffect(() => { latest.current = { drafts, mode, supplier: supplierNow }; });
   // О каком ключе строку уже спрашивали: уход с поля без правки вопроса не повторяет.
   const asked = useRef(new Map<string, string>());
 
@@ -204,12 +212,14 @@ export function InvoiceLinesTable({
     // Смена поставщика не сохранена — спрашивать прежнего незачем (D2). Строку не помечаем спрошенной: после
     // сохранения шапки о ней спросит правка ключа, а о лежащей — общий вопрос по новому поставщику.
     if (!supplierId || supplierPending) return;
+    const askedFor = supplierId;
     // Строка с позицией, выбранной руками, тоже спрашивается — подставлять ей нечего, но запомненное
     // знать надо: без него «запомнится» не отличить от «запомнится вместо прежнего».
     const fresh = born.filter(d => {
       const key = lineKey(d.supplierCode, d.supplierText);
       if (!key || d.declined || d.matchedBy !== null) return false;
-      const signature = `${key.by}:${key.value}`;
+      // Поставщик — часть вопроса: о той же строке у другого поставщика спрашивают заново.
+      const signature = `${askedFor}:${key.by}:${key.value}`;
       if (asked.current.get(d.key) === signature) return false;
       asked.current.set(d.key, signature);
       return true;
@@ -217,11 +227,17 @@ export function InvoiceLinesTable({
     if (fresh.length === 0) return;
 
     try {
-      const found = await askMatchSuggestions(supplierId,
+      const found = await askMatchSuggestions(askedFor,
         fresh.map(d => ({ supplierCode: blank(d.supplierCode), supplierText: blank(d.supplierText) })));
+      // Пока шёл вопрос, поставщика сменили — ответ про опыт другого поставщика, и в строки он не ложится
+      // (ревью PR #1830). О строках спросит следующий вопрос — по нынешнему.
+      if (latest.current.supplier !== askedFor) {
+        fresh.forEach(d => asked.current.delete(d.key));
+        return;
+      }
       setAskFailed(null);
       failedKeys.current = new Set();
-      const answers = new Map(found.map(item => [fresh[item.index].key, { offer: item, asked: fresh[item.index] }]));
+      const answers = new Map(found.map(item => [fresh[item.index].key, { offer: { ...item, supplierId: askedFor }, asked: fresh[item.index] }]));
       if (answers.size === 0) return;
 
       // Ответ про строку, которую тем временем отменили, пометили или переписали, к ней не относится.
@@ -249,6 +265,23 @@ export function InvoiceLinesTable({
       setAskFailed(apiError(e));
     }
   }
+
+  // Смену поставщика отменили, не сохраняя, — вернули прежнего (ревью PR #1830): о строках, родившихся за это
+  // время, спрашивают теперь. Смену сохранили — поставщик в виде другой, и не спрашиваем: строки лягут лежащими, и о
+  // них спросит общий вопрос по новому поставщику. Кадр между сбросом правок шапки и приходом её ответа выглядит
+  // отменой — ответ такого вопроса отбрасывает сверка поставщика в `suggest`.
+  const suggestNow = useRef(suggest);
+  useLayoutEffect(() => { suggestNow.current = suggest; });
+  const pendingFrom = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (supplierPending) {
+      if (pendingFrom.current === undefined) pendingFrom.current = supplierId;
+      return;
+    }
+    const from = pendingFrom.current;
+    pendingFrom.current = undefined;
+    if (from !== undefined && from === supplierId) void suggestNow.current(latest.current.drafts.filter(d => d.id === null));
+  }, [supplierPending, supplierId]);
 
   // Колонки, которых в таблице по умолчанию нет (D-10.10): НДС строки и примечание. Ни ввести примечание,
   // ни поправить НДС строки, неверно прочитанный со скана, иначе было бы негде (ревью PR #1786) — их
@@ -292,7 +325,7 @@ export function InvoiceLinesTable({
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
-    offerFor, hasSupplier, supplierPending, supplierName, onBorn: draft => void suggest([draft]),
+    offerFor, hasSupplier, supplierPending, supplier: supplierNow, supplierName, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
   });
 
@@ -342,9 +375,10 @@ export function InvoiceLinesTable({
    * нажатием: основа о нём ещё не знает, а версия у счёта одна.
    */
   async function save(after: InvoiceView | null): Promise<boolean> {
-    // Шапка этим нажатием сменила поставщика: подставленное из памяти прежнего за ним не числится.
-    const moved = after !== null && refEntryId(after.requisites[K.supplier]) !== supplierId;
-    const sent = moved ? dropForeignMarks(drafts, view.lines) : { drafts, dropped: 0 };
+    // Подставленное из памяти другого поставщика за тем, кто будет лежать в счёте, не числится: шапка сменила
+    // его этим нажатием либо прошлым, когда строки не записались (ревью PR #1830).
+    const target = after !== null ? refEntryId(after.requisites[K.supplier]) : supplierId;
+    const sent = dropForeignMarks(drafts, view.lines, target);
     // Строки уходят без шапки, а смена поставщика в ней не сохранена (#1657, решение (б)): выбор не запоминается
     // вовсе — сервер записал бы его за прежним поставщиком.
     const hold = supplierPending && after === null ? holdMemory(sent.drafts, view.lines) : { drafts: sent.drafts, held: false };

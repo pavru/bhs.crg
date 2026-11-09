@@ -384,7 +384,7 @@ export function InvoiceForm({
 
           <InvoicePart title={PART_TITLE.lines.title} step={2} open={open.lines} onToggle={() => toggle('lines')} line={lineOf('lines')}>
             <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
-              supplierName={savedSupplierName(view, organizations)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines}
+              supplierName={nameOf(K.supplier)} onReport={indicator.onLinesReport} saverRef={queue.lines} compact={compactLines}
               supplierChange={supplierChange} />
           </InvoicePart>
 

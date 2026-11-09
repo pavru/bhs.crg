@@ -8,8 +8,19 @@ import { K, refEntryId } from './invoiceFields';
  * ТЗ COST-7.1): что подставить, что запомнится сохранением и какими словами об этом сказать.
  */
 
-/** Запомненное для строки — то, что форма знает о ней от сервера. */
-export type MatchOffer = Omit<MatchSuggestion, 'index'>;
+/**
+ * Запомненное для строки — то, что форма знает о ней от сервера.
+ *
+ * <p>`supplierId` — чей это опыт: поставщик, по которому спросили (#1657). Предложение переживает смену
+ * поставщика в черновике строки, и без него опыт прежнего читался бы опытом нового. Нет — восстановлено из
+ * лежащей пометки строки: её сервер не сверяет.</p>
+ */
+export type MatchOffer = Omit<MatchSuggestion, 'index'> & { supplierId?: string | null };
+
+/** Опыт ли это поставщика `supplier`: неизвестное (из лежащей пометки) — да. */
+export function offerOfSupplier(offer: MatchOffer, supplier: string | null): boolean {
+  return offer.supplierId === undefined || offer.supplierId === supplier;
+}
 
 /** Что станет с выбором позиции при сохранении строк. */
 export type MemoryFate =
@@ -134,21 +145,33 @@ export function pickByHand(id: string, name: string | null): Partial<LineDraft> 
 }
 
 /**
- * Шапка тем же нажатием «Сохранить» сменила поставщика (D-10.7, ревью PR #1786): НОВЫЕ пометки
- * «запомнено» взяты из памяти прежнего, и сервер их отвергнет («это соответствие другого поставщика») —
- * уже после записи шапки. Позиция у таких строк остаётся выбранной, пометка снимается, и за новым
- * поставщиком выбор не запоминается: его делала память прежнего, а не человек.
+ * Новая пометка «запомнено» взята из памяти НЕ этого поставщика (#1657): сервер её отвергнет («это
+ * соответствие другого поставщика»). Пометки, что у строки уже лежали, сервер не сверяет — они не чужие.
  *
- * <p>Пометки, которые у строки уже лежали, сервер не сверяет — их не трогаем.</p>
+ * <p>Одно правило на снятие (`dropForeignMarks`) и на предупреждение у пометки: разойдись они — пометка
+ * обещала бы снятие, которого не будет, или молчала бы о том, что снимется.</p>
+ *
+ * @param supplier поставщик, за которым строки будут записаны.
  */
-export function dropForeignMarks(drafts: readonly LineDraft[], saved: readonly InvoiceLineView[]): {
+export function foreignMark(draft: LineDraft, saved: InvoiceLineView | undefined, supplier: string | null): boolean {
+  if (draft.matchedBy === null || (saved?.match?.id ?? null) === draft.matchedBy) return false;
+  return !!draft.offer && !offerOfSupplier(draft.offer, supplier);
+}
+
+/**
+ * Поставщика сменили (D-10.7, ревью PR #1786, #1657): НОВЫЕ пометки «запомнено» из памяти прежнего сервер
+ * отвергнет. Позиция у таких строк остаётся выбранной, пометка снимается, и за новым поставщиком выбор не
+ * запоминается: его делала память прежнего, а не человек.
+ *
+ * <p>Судит поставщик, за которым строки пишутся, а не то, сменила ли его шапка этим же нажатием: шапка могла
+ * записаться прошлым нажатием, а строки — нет (ревью PR #1830).</p>
+ */
+export function dropForeignMarks(drafts: readonly LineDraft[], saved: readonly InvoiceLineView[], supplier: string | null): {
   drafts: LineDraft[]; dropped: number;
 } {
   let dropped = 0;
   const next = drafts.map(draft => {
-    if (draft.matchedBy === null) return draft;
-    const was = draft.id ? saved.find(line => line.id === draft.id)?.match?.id ?? null : null;
-    if (was === draft.matchedBy) return draft;
+    if (!foreignMark(draft, draft.id ? saved.find(line => line.id === draft.id) : undefined, supplier)) return draft;
     dropped += 1;
     return { ...draft, matchedBy: null, match: null, offer: null, remember: false };
   });
