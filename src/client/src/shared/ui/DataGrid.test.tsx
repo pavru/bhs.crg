@@ -149,6 +149,16 @@ describe('DataGrid: клетка по строке (#1354)', () => {
     grid([{ key: 'name', label: 'Имя' }], { fixed: true });
     expect(screen.getByRole('table').className).toContain('table-fixed');
   });
+
+  it('фиксированная раскладка: таблица не уже суммы колонок — наименование не сжимается в ноль на телефоне', () => {
+    grid([{ key: 'code', label: 'Шифр', width: 'w-36' }, { key: 'name', label: 'Имя' }], { fixed: true });
+    expect(screen.getByRole('table').style.minWidth).toBe('calc(var(--spacing) * 84)');
+  });
+
+  it('обычная раскладка наименьшей ширины не ставит: колонки растут по содержимому', () => {
+    grid([{ key: 'code', label: 'Шифр', width: 'w-36' }, { key: 'name', label: 'Имя' }]);
+    expect(screen.getByRole('table').style.minWidth).toBe('');
+  });
 });
 
 describe('DataGrid: особые строки и шапка (#1354, 3/3)', () => {

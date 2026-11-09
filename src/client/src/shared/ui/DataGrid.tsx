@@ -7,6 +7,7 @@ import {
   dtTd, dtTdCompact, dtTh, dtThCompact,
 } from './dataTable';
 import { markScrolled, useStickyPadding } from './dataTableScroll';
+import { fixedTableMinWidth } from './dataGridLayout';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
@@ -184,7 +185,8 @@ export function DataGrid<Row extends object>({
   /**
    * Фиксированная раскладка: ширины берутся из шапки (`width`), а не из содержимого. Нужна, когда
    * в клетке обрезается длинный текст (`truncate`): при обычной раскладке клетка растягивается по
-   * содержимому, обрезка не работает, и правые колонки уезжают за край (#680).
+   * содержимому, обрезка не работает, и правые колонки уезжают за край (#680). Колонки без ширины
+   * не сжимаются уже `FLEX_COLUMN_MIN`: когда ширины не помещаются (телефон), таблица прокручивается вбок.
    */
   fixed?: boolean;
   /**
@@ -265,7 +267,10 @@ export function DataGrid<Row extends object>({
   return (
     <div className={`${framed ? dtCard : 'overflow-auto'} ${compact ? dtDensityCompact : dtDensity} ${className}`}
       onScroll={markScrolled}>
-      <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}>
+      {/* Фиксированная раскладка не уже суммы колонок и минимума гибких: на узком экране таблица
+          прокручивается вбок, а не сжимает наименование в ноль (dataGridLayout). */}
+      <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}
+        style={fixed ? { minWidth: fixedTableMinWidth(columns) } : undefined}>
         <thead>
           <tr>
             {columns.map((c, i) => {
