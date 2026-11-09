@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, LineAllocationView } from '@/shared/api/invoices';
-import { allocationStatus, estimateRemainder, toPartDrafts, toPartsPayload, type PartDraft } from './allocation';
+import { allocationStatus, estimateRemainder, nextPart, toPartDrafts, toPartsPayload, type PartDraft } from './allocation';
 
 function part(overrides: Partial<AllocationPartView> = {}): AllocationPartView {
   return {
@@ -76,5 +76,38 @@ describe('состояние в клетке таблицы', () => {
 
   it('сходится', () => {
     expect(allocationStatus(allocation({ balanced: true, unallocatedQuantity: 0 }), 'м').tone).toBe('ok');
+  });
+});
+
+describe('новая часть — с остатком строки (#1818, п. 5б)', () => {
+  const cable = { quantity: 30, amount: 4200 };
+
+  it('вторая часть строки: «Кабель, 30 м», первой набрано 20 — новая с 10, «Не разнесено» — 0', () => {
+    const added = nextPart([draft('20')], cable, 'quantity');
+    expect(added.value).toBe('10');
+    expect(added.id).toBeNull();
+    expect(added.constructionId).toBe('');
+    expect(estimateRemainder([draft('20'), added], cable, 'quantity')).toEqual({ quantity: 0, amount: 0 });
+  });
+
+  it('первая часть — пустая', () => {
+    expect(nextPart([], cable, 'quantity').value).toBe('');
+  });
+
+  it('пустая первая часть — вторая получает всю строку', () => {
+    expect(nextPart([draft('')], cable, 'quantity').value).toBe('30');
+  });
+
+  it('строка суммой — остаток суммой', () => {
+    expect(nextPart([draft('500')], { quantity: null, amount: 1500.5 }, 'amount').value).toBe('1000,5');
+  });
+
+  it('строка разнесена целиком или с лишним — пусто, а не «0»', () => {
+    expect(nextPart([draft('30')], cable, 'quantity').value).toBe('');
+    expect(nextPart([draft('31')], cable, 'quantity').value).toBe('');
+  });
+
+  it('у строки без количества и суммы — пусто', () => {
+    expect(nextPart([draft('1')], { quantity: null, amount: null }, 'none').value).toBe('');
   });
 });

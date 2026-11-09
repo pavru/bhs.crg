@@ -97,6 +97,26 @@ export function estimateRemainder(
 }
 
 /**
+ * Часть, которую добавляет кнопка «Добавить часть» (#1818, п. 5б; ТЗ COST-10, COST-11): вторая и следующая —
+ * с остатком строки, первая — пустая.
+ *
+ * <p>Остаток — ровно {@link estimateRemainder}, то самое «Не разнесено» окна. Нет остатка (строка разнесена
+ * целиком или с лишним, у строки нет ни количества, ни суммы) — значение пустое, а не «0»: ноль читался бы как
+ * намеренный. Текст — тем же `formatInput`, что у частей из ответа сервера.</p>
+ */
+export function nextPart(
+  drafts: readonly PartDraft[],
+  line: { quantity: number | null; amount: number | null },
+  mode: LineAllocationView['mode'],
+): PartDraft {
+  const part = emptyPart();
+  if (drafts.length === 0) return part;
+  const rest = estimateRemainder(drafts, line, mode);
+  const left = mode === 'quantity' ? rest.quantity : mode === 'amount' ? rest.amount : null;
+  return left !== null && left > 0 ? { ...part, value: formatInput(left, 3) } : part;
+}
+
+/**
  * Состояние разноски строки одной фразой — для клетки таблицы строк. Остаток виден ВСЕГДА (ТЗ COST-13),
  * в том числе когда разнесено больше, чем есть (строку уменьшили после разноски).
  */

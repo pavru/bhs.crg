@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { Place } from './places';
 import {
-  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, headerObject, headerPickMode, matrixSignature, restText, rowsOf, targetsOf, toState,
-  type MatrixRow,
+  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, estimateRest, headerObject, headerPickMode, matrixSignature, newTarget, remainderColumn,
+  restText, rowsOf, targetsOf, toState, type MatrixCells, type MatrixRow,
 } from './matrix';
 
 function part(construction: string, overrides: Partial<AllocationPartView> = {}): AllocationPartView {
@@ -249,5 +249,48 @@ describe('подпись матрицы', () => {
     expect(matrixSignature(invoice([line('l1', {}, { quantity: 99 })]))).not.toBe(matrixSignature(before));
     expect(matrixSignature({ ...before, allocation: { ...before.allocation, stamp: 'другая' } }))
       .not.toBe(matrixSignature(before));
+  });
+});
+
+describe('остаток во второй и следующий объект (#1818, п. 5б)', () => {
+  const row = (key: string, mode: MatrixRow['mode'], whole: number | null): MatrixRow => ({
+    key, lineId: key, title: key, mode, unit: mode === 'quantity' ? 'м' : null, whole, amount: whole,
+  });
+  const a = { ...newTarget(site('А')) };
+  const cable = row('кабель', 'quantity', 30);
+  const delivery = row('доставка', 'amount', 1500);
+
+  it('второй объект в матрице: строке «Кабель, 30 м» на А набрано 20 — у Б 10, «Не разнесено» — 0', () => {
+    const cells: MatrixCells = { кабель: { [a.key]: '20' } };
+    const rest = remainderColumn([cable], [a], cells);
+    expect(rest).toEqual({ кабель: '10' });
+
+    const b = newTarget();
+    expect(estimateRest(cable, [a, b], { кабель: { ...cells.кабель, [b.key]: rest.кабель } })).toBe(0);
+  });
+
+  it('строки без набранного: у Б вся строка — количество или сумма', () => {
+    expect(remainderColumn([cable, delivery], [a], {})).toEqual({ кабель: '30', доставка: '1500' });
+  });
+
+  it('строка суммой — остаток суммой, с копейками и запятой, как у поля ввода', () => {
+    expect(remainderColumn([delivery], [a], { доставка: { [a.key]: '499,5' } })).toEqual({ доставка: '1000,5' });
+  });
+
+  it('строка разнесена полностью или с лишним — клетка пустая, а не «0»', () => {
+    const cells: MatrixCells = { кабель: { [a.key]: '30' }, доставка: { [a.key]: '1600' } };
+    expect(remainderColumn([cable, delivery], [a], cells)).toEqual({});
+  });
+
+  it('строка без количества и суммы и строка без вида разноски — пусто', () => {
+    expect(remainderColumn([row('скидка', 'amount', null), row('пусто', 'none', 0)], [a], {})).toEqual({});
+  });
+
+  it('первый объект — пустой', () => {
+    expect(remainderColumn([cable, delivery], [], {})).toEqual({});
+  });
+
+  it('набранное, но не число, не считается — остаток по остальному', () => {
+    expect(remainderColumn([cable], [a], { кабель: { [a.key]: 'abc' } })).toEqual({ кабель: '30' });
   });
 });

@@ -15,8 +15,8 @@ import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
 import { useDraftBase, type DraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import {
-  allocationsOf, cellText, cellsFromState, cellsOf, draftRows, estimateRest, matrixSignature, newTarget, partAt, restText,
-  rowsOf, targetName, targetsOf, targetsOfState, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
+  allocationsOf, cellText, cellsFromState, cellsOf, draftRows, estimateRest, matrixSignature, newTarget, partAt, remainderColumn,
+  restText, rowsOf, targetName, targetsOf, targetsOfState, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
 import { toDrafts, type LineDraft } from './invoiceLines';
 import { vatModeOf } from './invoiceVat';
@@ -148,6 +148,20 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
     setDirty(true);
   }
 
+  // Второй и следующий объект приходит с остатком каждой строки — обычным набранным числом: правится,
+  // стирается, уходит только «Сохранить разноску» (#1818, п. 5б, ТЗ COST-12.1). Первый — пустой.
+  function addTarget() {
+    const column = newTarget();
+    const rest = remainderColumn(rows, targets, cells);
+    setTargets([...targets, column]);
+    setCells(prev => {
+      const next = { ...prev };
+      for (const [row, value] of Object.entries(rest)) next[row] = { ...next[row], [column.key]: value };
+      return next;
+    });
+    setDirty(true);
+  }
+
   function retarget(column: string, patch: Partial<MatrixTarget>) {
     setTargets(prev => prev.map(t => (t.key === column ? { ...t, ...patch } : t)));
     setDirty(true);
@@ -205,8 +219,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
         )}
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!editable}
-              onClick={() => { setTargets(prev => [...prev, newTarget()]); setDirty(true); }}>
+            <Button variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!editable} onClick={addTarget}>
               Добавить объект
             </Button>
             <Button variant="outlined" icon={<Icon icon={Equal} size={18} />} disabled={!editable || splitOff}

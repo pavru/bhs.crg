@@ -11,6 +11,8 @@
 //      #1087): статья стоит в выборе своей группой, не среди строек, и часть ложится на статью.
 //   3d. `header-section-without-matrix` — весь счёт на стройку, затем в шапке её раздел вторым шагом
 //      («›»): разноска ложится на раздел сразу, матрица не открывается (COST-12.1).
+//   3e. `remainder-fills-next-object`, `remainder-fills-next-part` — второй объект матрицы и вторая часть окна
+//      строки приходят с остатком, первый — пустым; пишется только «Сохранить разноску» (#1818, п. 5б).
 //   4. `matrix-under-read-only-right` — под «Руководителем» (чтение без права разноски) матрица
 //      открывается, но полей и кнопок «поровну» и «по %» НЕТ, и ни один запрос не получил отказа —
 //      а не «кнопки есть и получают 403».
@@ -33,6 +35,7 @@
 
 import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, shownValue, until, expandInvoiceParts } from './harness.mjs';
 import { sitePickerChecks } from './site-picker-checks.mjs';
+import { remainderChecks } from './allocation-remainder-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 // Читатель — «Руководитель»: бухгалтер с E2 (issue #1100) правит счета и разноску, и матрица «только для
@@ -318,6 +321,9 @@ await check('header-section-without-matrix', async () => {
 // ── 3c. Выбор стройки под фильтром избранного (issue #1219) ── см. site-picker-checks.mjs ──────────
 await page.setViewportSize({ width: 1500, height: 1000 });
 await sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp });
+
+// ── 3e. Остаток — сам во второй объект и во вторую часть (#1818, п. 5б) ── см. allocation-remainder-checks.mjs ──
+await remainderChecks({ page, check, api, invoice, openMatrix, sites, stamp });
 
 // ── 4. Руководитель: матрица только для чтения, и ни одного отказа ────────────────────────────────
 await check('matrix-under-read-only-right', async () => {
