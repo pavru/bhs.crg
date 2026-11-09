@@ -53,8 +53,11 @@ function Get-JobRefusal {
     $null
 }
 
-# Запуск хуком (а не точечным подключением из тестов).
-if ($MyInvocation.InvocationName -ne '.') {
+# Проверка идёт ВСЕГДА, кроме явной просьбы тестов. ⚠️ Отличать тесты по способу запуска нельзя:
+# раннер сам подключает хук точкой (`pwsh -command ". '<путь>'"`), и прежняя проверка
+# `$MyInvocation.InvocationName -ne '.'` в первом же прогоне (#1836) молча пропустила задание без
+# проверки. Переменную ставят только тесты, перед своим подключением; у раннера её нет.
+if (-not (Get-Variable -Name RunnerHookLibraryOnly -ValueOnly -ErrorAction SilentlyContinue)) {
     $ErrorActionPreference = 'Stop'
     try {
         $policy = Get-Content -Raw $PolicyPath | ConvertFrom-Json

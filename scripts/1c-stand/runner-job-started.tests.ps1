@@ -6,7 +6,10 @@
   проверку в хуке — краснеет её случай.
 #>
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'runner-job-started.ps1')
+$hookPath = Join-Path $PSScriptRoot 'runner-job-started.ps1'
+$RunnerHookLibraryOnly = $true   # только функция, без проверки окружения этого процесса
+. $hookPath
+Remove-Variable RunnerHookLibraryOnly
 
 $policy = [pscustomobject]@{ repository = 'pavru/bhs.crg'; users = @('pavru') }
 
@@ -43,5 +46,38 @@ foreach ($c in $cases) {
     if ($pass) { Write-Host "  ok   $($c.n)" }
     else { $failed++; Write-Host "  FAIL $($c.n) -> $(if ($r) { $r } else { 'допущено' })" -ForegroundColor Red }
 }
+# --- Хук целиком, ТЕМ ЖЕ вызовом, что у раннера --------------------------------------------------
+# Функция может быть верной, а хук — не проверять ничего: так и было в первом прогоне (#1836) —
+# раннер подключает хук точкой, а хук принимал точку за тесты и выходил молча. Поэтому отдельный
+# процесс, команда из журнала раннера («Run 'C:\ProgramData\gh-runner-1c\job-started.ps1'»:
+# shell: pwsh -command ". '{0}'»), и смотрим на код выхода.
+$tmp = Join-Path ([IO.Path]::GetTempPath()) "hooktest-$PID"
+New-Item -ItemType Directory -Force $tmp | Out-Null
+try {
+    Copy-Item $hookPath (Join-Path $tmp 'job-started.ps1')
+    '{"repository":"pavru/bhs.crg","users":["pavru"]}' | Set-Content (Join-Path $tmp 'policy.json')
+    $runs = @(
+        @{ n = 'как раннер: PR из форка — код 1'; actor = 'pavru'; head = 'evil/bhs.crg'; code = 1 }
+        @{ n = 'как раннер: свой PR — код 0';     actor = 'pavru'; head = 'pavru/bhs.crg'; code = 0 }
+        @{ n = 'как раннер: нет policy.json — код 1'; actor = 'pavru'; head = 'pavru/bhs.crg'; code = 1; nopolicy = $true }
+    )
+    foreach ($r in $runs) {
+        $ev = Join-Path $tmp 'event.json'
+        @{ pull_request = @{ head = @{ repo = @{ full_name = $r.head } }; user = @{ login = 'pavru' } } } |
+            ConvertTo-Json -Depth 5 | Set-Content $ev
+        $hook = Join-Path $tmp 'job-started.ps1'
+        if ($r.nopolicy) { $hook = Join-Path $tmp 'alone\job-started.ps1'; New-Item -ItemType Directory -Force (Split-Path $hook) | Out-Null; Copy-Item $hookPath $hook }
+        $saved = @{}
+        $vars = @{ GITHUB_REPOSITORY = 'pavru/bhs.crg'; GITHUB_EVENT_NAME = 'pull_request'; GITHUB_ACTOR = $r.actor
+                   GITHUB_TRIGGERING_ACTOR = $r.actor; GITHUB_EVENT_PATH = $ev }
+        foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+        try { $out = & pwsh -NoProfile -command ". '$hook'" 2>&1; $code = $LASTEXITCODE }
+        finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+        if ($code -eq $r.code) { Write-Host "  ok   $($r.n)" }
+        else { $failed++; Write-Host "  FAIL $($r.n) -> код $code`n$out" -ForegroundColor Red }
+        $cases += $r
+    }
+} finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+
 if ($failed) { Write-Host "Провалов: $failed" -ForegroundColor Red; exit 1 }
 Write-Host "Все $($cases.Count) случаев прошли." -ForegroundColor Green
