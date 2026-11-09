@@ -6,7 +6,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
-import { formatDate, formatDateTime, formatTime } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatTime, isToday } from '@/shared/format/format';
 import {
   useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
@@ -479,10 +479,7 @@ const LEAVE_FAILED = 'Набранное в счёте не записано: у
 
 /** «Сохранено · 12:04» — сегодня временем, раньше — датой со временем. */
 function savedTime(iso: string): string {
-  const when = new Date(iso);
-  return when.toDateString() === new Date().toDateString()
-    ? formatTime(when)
-    : formatDateTime(iso);
+  return isToday(iso) ? formatTime(iso) : formatDateTime(iso);
 }
 
 const STATE_TONE: Record<string, StatusTone> = { [PARSED]: 'success', [REJECTED]: 'error', 'Оплачен': 'success' };

@@ -67,6 +67,18 @@ describe('реквизиты черновика пишутся по уходу �
     expect(onLeave).not.toHaveBeenCalled();
   });
 
+  it('набор даты по сегментам — правка, а не запись: каждая полная дата посреди набора не пишется (ревью PR #1837)', () => {
+    const { pick } = mount();
+    const wrapper = document.querySelector<HTMLElement>(`[data-readiness="field:${K.date}"]`)!;
+    // Сегменты — по роли, а не по маске: порядок и подсказки зависят от языка.
+    const seg = (part: string) => wrapper.querySelector<HTMLInputElement>(`input[aria-label="${part}"]`)!;
+    for (const [ph, v] of [['day', '05'], ['month', '10'], ['year', '2026'], ['day', '12'], ['day', '']] as const) {
+      fireEvent.focus(seg(ph));
+      fireEvent.change(seg(ph), { target: { value: v } });
+    }
+    expect(pick).not.toHaveBeenCalled();
+  });
+
   it('выбор организации — повод сразу, не дожидаясь ухода с поля', () => {
     const { pick } = mount();
     const supplier = screen.getAllByRole('combobox')[0];

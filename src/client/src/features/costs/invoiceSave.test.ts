@@ -16,6 +16,8 @@ function gate<T>() {
   return { promise, open, fail };
 }
 
+/** Сбой связи — так его отдаёт axios: без ответа, с `isAxiosError`. */
+const netError = () => Object.assign(new Error('Network Error'), { isAxiosError: true });
 const refusal = (status: number, error = 'Номер счёта занят') => ({ response: { status, data: { error } } });
 
 function setup(sides: Partial<SaveSides> & { dirty: SaveSides['dirty'] }) {
@@ -116,7 +118,7 @@ describe('createSaveQueue', () => {
 
   it('сбой связи — «повторить», своих повторов нет; «Повторить» отправляет снова', async () => {
     let down = true;
-    const header = vi.fn(async () => { if (down) throw new Error('Network Error'); return viewAt('v2'); });
+    const header = vi.fn(async () => { if (down) throw netError(); return viewAt('v2'); });
     const { queue, reported } = setup({ dirty: { header: true, lines: false }, header });
     queue.mark('header');
     await queue.pump();
@@ -197,13 +199,19 @@ describe('createSaveQueue', () => {
 
 describe('classify', () => {
   it('нет ответа — сбой связи', () => {
-    expect(classify(new Error('Network Error'))).toEqual({ status: { kind: 'failed' }, report: false });
+    expect(classify(netError())).toEqual({ status: { kind: 'failed' }, report: false });
   });
   it('4xx — отказ словами сервера', () => {
     expect(classify(refusal(409, 'изменили'))).toEqual({ status: { kind: 'refused', text: 'изменили' }, report: false });
   });
   it('5xx — сбой, о котором скажет снэкбар', () => {
     expect(classify(refusal(503))).toEqual({ status: { kind: 'failed' }, report: true });
+  });
+  it('исключение не от запроса — ошибка программы: снэкбар назовёт её, а не «нет связи»', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(classify(new TypeError('x is undefined'))).toEqual({ status: { kind: 'failed' }, report: true });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

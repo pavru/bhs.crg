@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useLeaveGuard } from './NavigationGuard';
 import { LeaveGuardDialog } from './LeaveGuardDialog';
@@ -43,15 +43,22 @@ export function LeaveGuard({ active, save, saving = false, message, saveBlocked,
   // Уход, ждущий записи, и уход, запись которого не дошла, — у страницы, что пишет сама.
   const [failed, setFailed] = useState<(() => void) | null>(null);
   const [settled, setSettled] = useState<(() => void) | null>(null);
+  // Куда уйти после записи. Уход, попросившийся во время неё (вторая ссылка, «Назад»), заменяет ждущий: последний
+  // и есть тот, о котором человек просит сейчас, — молча проглоченный, он пропал бы без следа.
+  const target = useRef<(() => void) | null>(null);
   async function flushThenGo(write: () => Promise<boolean>, go: () => void) {
+    target.current = go;
     setWriting(true);
     let ok: boolean;
     try { ok = await write(); } finally { setWriting(false); }
-    if (ok) go(); else setFailed(() => go);
+    const to = target.current;
+    target.current = null;
+    if (!to) return;
+    if (ok) to(); else setFailed(() => to);
   }
   useLeaveGuard(active, proceed => {
     if (!flush) { setLeave(() => proceed); return; }
-    if (writing) return;
+    if (target.current) { target.current = proceed; return; }
     void flushThenGo(flush, proceed);
   });
   // Запись дошла, пока вопрос открыт (носитель «Повторить»), — уход, о котором просили, идёт сам.

@@ -12,12 +12,14 @@ import type { DatePrecision } from '@/shared/api/types';
  * подсказкой. Фокус ловим сами: он приходит на любой из сегментов, а не на единственный input.
  */
 export function DateField({
-  label, value, onChange, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max, density = 'form',
+  label, value, onChange, onCommit, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max, density = 'form',
   fromScan = false,
 }: {
   label: string;
   value: string;
   onChange: (iso: string) => void;
+  /** Человек закончил с полем — ушёл, изменив значение, Enter или день в календаре: см. `DateInput.onCommit`. */
+  onCommit?: (iso: string) => void;
   /** Набранное — не дата, и наружу не ушло: см. `DateInput.onIncomplete` (ревью PR #1556). */
   onIncomplete?: (message: string | null) => void;
   precision?: DatePrecision;
@@ -57,7 +59,7 @@ export function DateField({
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
-        <DateInput label={scan.name ?? label} value={value} onChange={iso => { scan.edited(iso !== value); onChange(iso); }} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
+        <DateInput label={scan.name ?? label} value={value} onChange={iso => { scan.edited(iso !== value); onChange(iso); }} onProblem={setProblem} onIncomplete={onIncomplete} onCommit={onCommit} precision={precision}
           disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max}
           hintId={hint || problem ? hintId : undefined} />
       </div>

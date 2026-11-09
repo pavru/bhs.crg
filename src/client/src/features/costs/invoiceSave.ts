@@ -58,7 +58,13 @@ export interface SaveSides {
 /** Ответ записи, которой не дошла связь, и ответ сервера — различает очередь: от этого зависит носитель. */
 export function classify(error: unknown): { status: Exclude<SaveStatus, { kind: 'idle' | 'saving' }>; report: boolean } {
   const status = (error as { response?: { status?: number } })?.response?.status;
-  if (status === undefined) return { status: { kind: 'failed' }, report: false };
+  if (status === undefined) {
+    // Без ответа — связь, только если это запрос axios. Иное исключение — ошибка программы (бросило уже после
+    // ответа, при слиянии или сборке тела): «нет связи» спрятало бы её, а запись, возможно, уже легла.
+    if ((error as { isAxiosError?: boolean })?.isAxiosError) return { status: { kind: 'failed' }, report: false };
+    console.error(error);
+    return { status: { kind: 'failed' }, report: true };
+  }
   // Сбой сервера — снэкбаром с «Сообщить» по `traceId`: носителю его некуда поставить (D-12.7).
   if (status >= 500) return { status: { kind: 'failed' }, report: true };
   return { status: { kind: 'refused', text: apiError(error, 'сервер отказал') }, report: false };
@@ -66,6 +72,9 @@ export function classify(error: unknown): { status: Exclude<SaveStatus, { kind: 
 
 /** Строки грязные, а шага нет — отказ, а не «сохранено» (ревью PR #1787). */
 export const LINES_NOT_READY = 'строки правлены, но таблица строк к записи не готова';
+
+/** Записи прошли, а правка так и не легла: набранное менялось всю `flush`. Носитель обязан это назвать — «Сохранено» солгало бы. */
+export const FLUSH_UNFINISHED = 'правка менялась, пока шла запись, — запись не закончена';
 
 /**
  * Очередь без React — её и проверяют тесты. `read` отдаёт стороны формы на миг решения; `notify` — новое
@@ -164,6 +173,12 @@ export function createSaveQueue(
       void pump();
       return done;
     },
+    /** Записи прошли, а грязь осталась (`FLUSH_UNFINISHED`) — встать отказом: грязное остаётся помеченным. */
+    refuse(text: string) {
+      const { dirty } = read();
+      (['header', 'lines'] as const).forEach(part => { if (dirty[part]) marked.add(part); });
+      set({ kind: 'refused', text });
+    },
     /** «Повторить» — снова то, что не дошло. */
     retry() {
       if (stopped()) set({ kind: 'idle' });
@@ -220,13 +235,23 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
     commits.current = [];
     ready.forEach(resolve => resolve());
   });
+  // Форма ушла посреди записи (счёт закрыт, пересоздан ключом) — отрисовки больше не будет: ждущих отпустить, иначе
+  // очередь не встанет никогда, и `flush`, которого ждёт уход, не кончится.
+  const gone = useRef(false);
+  useEffect(() => () => {
+    gone.current = true;
+    const ready = commits.current;
+    commits.current = [];
+    ready.forEach(resolve => resolve());
+  }, []);
   const made = useRef<SaveQueue | null>(null);
   const queue = () => {
     made.current ??= createSaveQueue(
       () => ({ ...sides.current, lines: lines.current }),
       (status, pending) => setSaid({ status, pending }),
       error => toast.apiError(error, 'Счёт не сохранён'),
-      () => new Promise<void>(resolve => { commits.current.push(resolve); setRender(n => n + 1); }),
+      () => (gone.current ? Promise.resolve()
+        : new Promise<void>(resolve => { commits.current.push(resolve); setRender(n => n + 1); })),
     );
     return made.current;
   };
@@ -259,6 +284,8 @@ export function useInvoiceSave({ headerDirty, linesDirty, saveHeader, auto }: {
       const { dirty } = sides.current;
       if (!dirty.header && !dirty.lines) return true;
     }
+    queue().refuse(FLUSH_UNFINISHED);
+    if (!autoNow.current) toast.error(`Счёт не сохранён: ${FLUSH_UNFINISHED}`);
     return false;
   }
 

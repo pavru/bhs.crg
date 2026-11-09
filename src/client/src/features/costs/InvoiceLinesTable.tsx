@@ -25,7 +25,7 @@ import {
   modeConsequences, modeHint, modePreview, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
 import { VatModeDialog } from './VatModeDialog';
-import { enterInLastField, leftRow } from './invoiceLineCommit';
+import { enterInLastField, inRow, leftRow } from './invoiceLineCommit';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { LineDeleteDialog, type LineDeleteAsk } from './LineDeleteDialog';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
@@ -150,7 +150,8 @@ export function InvoiceLinesTable({
   // и фокус без этого ушёл бы в никуда.
   const modeBox = useRef<HTMLInputElement>(null);
   // Режим, выбранный и ждущий подтверждения (D-12.6): у черновика смена режима — явный шаг с предпросмотром.
-  const [modeAsk, setModeAsk] = useState<{ to: VatMode; focus: boolean } | null>(null);
+  // `rows` — вставка, принёсшая режим: она ложится вместе с ним, а отказ не кладёт ни того, ни другого.
+  const [modeAsk, setModeAsk] = useState<{ to: VatMode; focus: boolean; rows?: LineDraft[] } | null>(null);
   function switchMode(next: VatMode, focus = false) {
     if (next === mode) return;
     if (autosave && !correcting) { setModeAsk({ to: next, focus }); return; }
@@ -166,7 +167,11 @@ export function InvoiceLinesTable({
     const ask = modeAsk;
     setModeAsk(null);
     if (!ask) return;
-    if (confirmed) { applyMode(ask.to, ask.focus); commit(); } else if (ask.focus) requestAnimationFrame(() => modeBox.current?.focus());
+    if (confirmed) {
+      applyMode(ask.to, ask.focus);
+      if (ask.rows) { const rows = ask.rows; setDrafts(prev => [...prev, ...rows]); void suggest(rows); }
+      commit();
+    } else if (ask.focus) requestAnimationFrame(() => modeBox.current?.focus());
   }
 
   const replace = useReplaceInvoiceLines();
@@ -236,6 +241,8 @@ export function InvoiceLinesTable({
       return keys.has(draft.key) && usable(offer) ? { ...draft, ...applyOffer(offer) } : draft;
     }));
     setDirty(true);
+    // «Применить» — цельное действие, как выбор позиции (D-12.2): кнопка вне строк, ухода из строки за ним не будет.
+    commit();
   }
 
   /**
@@ -292,7 +299,11 @@ export function InvoiceLinesTable({
         if (!offer) return draft;
         return fills(draft, offer) ? { ...draft, ...applyOffer(offer) } : { ...draft, offer };
       }));
-      if (touched) setDirty(true);
+      if (touched) {
+        setDirty(true);
+        // Позиция легла сама — после вставки или когда человек уже ушёл из строки, повода записи за ней не будет.
+        if (!inRow(document.activeElement, grid.current)) commit();
+      }
     } catch (e) {
       // Вопрос не прошёл — пусть следующий уход с поля задаст его заново.
       fresh.forEach(d => asked.current.delete(d.key));
@@ -380,12 +391,19 @@ export function InvoiceLinesTable({
 
   /** Строки добавлены; вставка с отметкой «цены без НДС» приносит и режим (issue #1499). */
   function add(added: LineDraft[], pastedMode?: VatMode) {
+    // Вставка сменила режим счёта, где строки уже есть, — они пересчитаются: у черновика это тот же явный шаг с
+    // предпросмотром, что и переключатель (D-12.6). Строки вставки прочитаны в новом режиме и без него не ложатся.
+    if (pastedMode && pastedMode !== mode && autosave && !correcting && drafts.length > 0) {
+      setModeAsk({ to: pastedMode, focus: false, rows: added });
+      return false;
+    }
     if (pastedMode && pastedMode !== mode) {
       setMode(pastedMode);
       setDrafts(prev => [...withMode(prev), ...added]);
     } else setDrafts(prev => [...prev, ...added]);
     setDirty(true);
     void suggest(added);
+    return true;
   }
 
   /**
@@ -411,9 +429,12 @@ export function InvoiceLinesTable({
     };
     // Удаление пишется, когда снэкбар закрылся — любым исходом (D-12.2, D-13.2): после «Вернуть» строка снова в
     // черновике, и запись положит то, что на экране. Без автосохранения отклик не нужен.
+    // Второе удаление сменяет снэкбар первого — его закрытие ещё не повод: окно «Вернуть» второго открыто, и запись
+    // унесла бы его удаление раньше срока. Пишет закрытие последнего из открытых.
+    undoing.current += 1;
     toast.success(`Строка ${index + 1} удалена.`, {
       duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore },
-      ...(onCommit ? { onClose: () => { if (alive.current) commit(); } } : {}),
+      ...(onCommit ? { onClose: () => { undoing.current -= 1; if (alive.current && undoing.current === 0) commit(); } } : {}),
     });
   }
   function drop(key: string) {
@@ -442,6 +463,8 @@ export function InvoiceLinesTable({
   const savedModeNow = useRef(savedMode);
   useLayoutEffect(() => { savedLines.current = view.lines; savedModeNow.current = savedMode; });
   const alive = useRef(true);
+  // Сколько снэкбаров удаления ещё открыто (D-13.2).
+  const undoing = useRef(0);
   const grid = useRef<HTMLDivElement>(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -523,7 +546,7 @@ export function InvoiceLinesTable({
               onClick={() => setNoteOn(on => !on)}>
               Примечание
             </Chip>
-            <InvoiceLinesPaste mode={mode} onAdd={(rows, pastedMode) => { add(rows, pastedMode); commit(); }} />
+            <InvoiceLinesPaste mode={mode} onAdd={(rows, pastedMode) => { if (add(rows, pastedMode)) commit(); }} />
           </>
         )}
       </div>

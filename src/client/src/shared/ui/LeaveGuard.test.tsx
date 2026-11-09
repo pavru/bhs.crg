@@ -179,6 +179,29 @@ describe('уход дописывает (`flush`)', () => {
     expect(go).toHaveBeenCalledOnce();
   });
 
+  it('уход во время записи не теряется: после неё идёт последний (ревью PR #1837)', async () => {
+    const flush = pending();
+    const other = vi.fn();
+    function Other() {
+      const guard = useNavigationGuard();
+      return <button type="button" onClick={() => { if (!guard?.attempt(other)) other(); }}>Отчёты</button>;
+    }
+    const go = vi.fn();
+    render(
+      <NavigationGuardProvider>
+        <LeaveGuard active flush={flush.save} />
+        <NavItem onGo={go} />
+        <Other />
+      </NavigationGuardProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Счета' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Отчёты' }));
+    expect(flush.save).toHaveBeenCalledOnce();
+    await flush.finish(true);
+    expect(other).toHaveBeenCalledOnce();
+    expect(go).not.toHaveBeenCalled();
+  });
+
   it('запись дошла, пока вопрос открыт («Повторить» в сводке), — уход идёт сам', async () => {
     const flush = pending();
     const { go, leave, rerender } = mount({ active: true, flush: flush.save });

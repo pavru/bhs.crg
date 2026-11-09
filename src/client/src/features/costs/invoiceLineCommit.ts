@@ -48,3 +48,12 @@ export function enterInLastField(key: string, target: EventTarget | null, table:
   const fields = row.querySelectorAll(FIELDS);
   return fields.length > 0 && fields[fields.length - 1] === target;
 }
+
+/**
+ * Фокус сейчас внутри строки таблицы — человек её набирает. Правка, пришедшая не от него (позиция из
+ * запомненного), тогда не пишется сразу: запись положила бы недонабранное в соседних клетках («1» вместо «10»).
+ * Она уйдёт с уходом из строки — грязь уже стоит.
+ */
+export function inRow(active: Element | null, table: Element | null): boolean {
+  return rowOf(active, table ?? document.createElement('div')) !== null;
+}

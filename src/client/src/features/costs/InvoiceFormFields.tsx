@@ -174,7 +174,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
     }
 
     case K.dueDate:
-      return <InvoiceDueField view={view} edits={edits} current={current} set={pick} locked={locked}
+      return <InvoiceDueField view={view} edits={edits} current={current} set={set} pick={pick} locked={locked}
         fromScan={marked} required={required} />;
 
     case K.date:
@@ -184,7 +184,9 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
         <DateField label={LABELS[fieldKey]} required={required} value={asInput(current).slice(0, 10)}
           fromScan={marked}
           readOnly={locked}
-          onChange={iso => pick(fieldKey, iso ? iso.slice(0, 10) : null)} />
+          // Набор — только правка; запись — когда дата выбрана (onCommit), а не на каждой полной дате посреди набора.
+          onChange={iso => set(fieldKey, iso ? iso.slice(0, 10) : null)}
+          onCommit={iso => pick(fieldKey, iso ? iso.slice(0, 10) : null)} />
       );
 
     default: {

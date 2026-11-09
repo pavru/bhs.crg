@@ -55,6 +55,8 @@ function mount(of: InvoiceView, autosave = true) {
   return commit;
 }
 
+const TAB = String.fromCharCode(9);
+const NL = String.fromCharCode(10);
 const field = (name: string) => screen.getByRole('textbox', { name }) as HTMLInputElement;
 
 describe('уход из строки — повод записи', () => {
@@ -158,6 +160,27 @@ describe('режим НДС — явный шаг', () => {
     mount(view([line('a', 1, 10, 20)]), false);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' }));
     expect(screen.queryByTestId('vat-mode-preview')).toBeNull();
+  });
+
+  it('вставка «цены без НДС» у счёта со строками — тот же предпросмотр; «Отмена» не кладёт ни строк, ни режима', () => {
+    const commit = mount(view([line('a', 1, 10, 20)]));
+    const paste = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Вставить из буфера' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Таблица из буфера' }),
+        { target: { value: 'Наименование' + TAB + 'Кол-во' + TAB + 'Цена без НДС' + NL + 'Провод' + TAB + '2' + TAB + '50' } });
+      fireEvent.click(screen.getByRole('button', { name: /Добавить строк: 1/ }));
+    };
+    paste();
+    expect(screen.getByTestId('vat-mode-preview').textContent).toContain('Пересчитать 1 строку');
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(commit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: 'Наименование, строка 2' })).toBeNull();
+    expect((screen.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' }) as HTMLInputElement).checked).toBe(false);
+
+    paste();
+    fireEvent.click(screen.getByRole('button', { name: 'Пересчитать 1 строку' }));
+    expect(commit).toHaveBeenCalledOnce();
+    expect((screen.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('предпросмотр считает строки со ставкой, строки без суммы и суммы до и после', () => {
