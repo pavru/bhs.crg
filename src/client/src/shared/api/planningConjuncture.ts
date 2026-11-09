@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { withBlobErrorBody } from '@/shared/utils/apiError';
+import { filenameFromContentDisposition, saveBlob } from './attachments';
 import { apiClient } from './client';
 import type { HiddenPart } from './planningEstimates';
 import type { EstimateImport } from './planningImports';
@@ -129,8 +131,14 @@ const listPath = (kind: AttachmentKind, estimateId: string) =>
 const onePath = (kind: AttachmentKind, id: string) =>
   `/plan/${kind === 'ka' ? 'conjuncture' : 'volume-statements'}/${id}`;
 
-/** Адрес файла источника — как его загрузили. */
-export const attachmentFileUrl = (a: Pick<EstimateAttachment, 'kind' | 'id'>) => `/api${onePath(a.kind, a.id)}/file`;
+/**
+ * Скачать файл источника, как его загрузили. Файл КА несёт все цены — сервер отдаёт его только с
+ * `plan.estimate.cost` (без права 403), файл ВОР — под чтением; экран без права кнопки не показывает.
+ */
+export async function downloadAttachmentFile(a: Pick<EstimateAttachment, 'kind' | 'id' | 'fileName'>): Promise<void> {
+  const response = await withBlobErrorBody(apiClient.get(`${onePath(a.kind, a.id)}/file`, { responseType: 'blob' }));
+  saveBlob(response.data as Blob, filenameFromContentDisposition(response.headers?.['content-disposition'], a.fileName));
+}
 
 /** Приложения сметы одного вида, новые сверху. */
 export function useEstimateAttachments(kind: AttachmentKind, estimateId: string) {
