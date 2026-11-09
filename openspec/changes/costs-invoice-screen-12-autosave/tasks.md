@@ -71,7 +71,7 @@
 - [x] 3.5 ТЗ `docs/tz/55-счета-и-накладные.md`: абзац **[COST-6.5]** «Запись формы счёта» — модель D5 и
   поводы. `docs/USER_GUIDE.md` — «счёт сохраняется сам»; оглавление — `cd docs/tools && npm run toc`.
   Проверка — дифф в PR 1; проверка оглавления зелёная.
-- [ ] 3.6 Снимки «после» PR 1 на четырёх размерах с названием макета «Экран счёта · критический
+- [x] 3.6 Снимки «после» PR 1 на четырёх размерах с названием макета «Экран счёта · критический
   пересмотр», вариант Г, и ссылкой https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF. Проверка — описание
   PR 1.
 
@@ -96,16 +96,16 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный.
-- [ ] 5.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста.
-- [ ] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 5.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный.
+- [x] 5.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста.
+- [x] 5.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный. Сервер не менялся; для уверенности в адресах записи — `--filter
   "FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~InvoiceLine"` зелёный.
-- [ ] 5.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke`,
+- [x] 5.4 Живые прогоны счёта на 1366×768, 1280×720, 1366×650 и 1024×768: `invoices-smoke`,
   `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-vat-on-top-checks`. Правится общий вопрос ухода
   (`LeaveGuardDialog` / `ConfirmDialog` — его зовут типы, документы, накладные), поэтому весь список
   `npm run -s test:e2e:ci` зелёный (зонтик 3.1).
-- [ ] 5.5 Журнал не засыпан: после правки черновика в десяти полях «Журнал действий» показывает ряд
+- [x] 5.5 Журнал не засыпан: после правки черновика в десяти полях «Журнал действий» показывает ряд
   «Счёт изменён ×N» (и, если правились строки, «Строки счёта изменены ×M») — в пределах окна 10/60 мин
   ([COST-6] [CORE-28.3]). Проверка — снимок в PR 1.
 - [ ] 5.6 Каждый PR — с меткой `version:minor`, названием макета и варианта, ссылкой на артефакт и снимками до и после;
