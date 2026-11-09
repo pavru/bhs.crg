@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronRight } from '@/shared/ui/icons';
 import { useMyPermissions } from '@/shared/api/account';
+import { contractPermissionNote } from '@/shared/api/roles';
 
 /**
  * «Мои роли и права» — только для чтения (issue #954, ТЗ AUTH-16.6).
@@ -67,6 +68,10 @@ export function MyPermissionsSection() {
                         тем, что видит администратор в редакторе ролей. */}
                     {holdsReadAll && p.readAll && (
                       <div className="text-label-small text-on-surface-variant">входит в право «читать всё»</div>
+                    )}
+                    {/* Право контракта (plan-21): отвечает на «право есть, а раздела нет». */}
+                    {p.contract && (
+                      <div className="text-label-small text-on-surface-variant">{contractPermissionNote(p, group.title)}</div>
                     )}
                   </li>
                 ))}

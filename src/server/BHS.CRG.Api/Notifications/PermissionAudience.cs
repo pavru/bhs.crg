@@ -51,7 +51,7 @@ public sealed class PermissionAudience(
         // ModuleAccess: правило «есть хоть одно право модуля» живёт там одно на всю систему.
         var keys = new HashSet<string>(granted, StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules.Enabled)
-            if (ModuleAccess.IsOpen(module.Code, granted))
+            if (ModuleAccess.IsOpen(module.Code, granted, catalog))
                 keys.Add(module.Code);
 
         cache.Set(key, (IReadOnlyCollection<string>)keys, Lifetime);

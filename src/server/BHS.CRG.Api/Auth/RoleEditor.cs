@@ -304,7 +304,7 @@ public sealed class RoleEditor(
                 g.Key,
                 GroupTitle(g.Key, modules),
                 [.. g.Select(p => new PermissionView(
-                    p.Code, p.Gives, p.Opens, p.UsuallyWith, p.ReadAll is { Included: true }))]))
+                    p.Code, p.Gives, p.Opens, p.UsuallyWith, p.ReadAll is { Included: true }, p.Contract))]))
             .OrderBy(g => g.Module switch
             {
                 "core" => 0,   // ядро первым: его прав больше всего и раздают их чаще прочих
@@ -444,8 +444,14 @@ public sealed class RoleEditor(
 /// составного права иначе не говорит, ЧТО она выдаёт: состав объявляют модули, и меняется он с
 /// каждым включённым модулем.
 /// </param>
+/// <param name="Contract">
+/// Право контракта (plan-21, AUTH-8.1): модуль своей группы оно не открывает, а отдаёт его данные
+/// другим модулям. Администратору это нужно знать до того, как он поставит галку: иначе он ждёт
+/// раздела «Планирование» у «Монтажника», а его там не будет — и это верно.
+/// </param>
 public sealed record PermissionView(
-    string Code, string Gives, string Opens, IReadOnlyList<string> UsuallyWith, bool ReadAll = false);
+    string Code, string Gives, string Opens, IReadOnlyList<string> UsuallyWith, bool ReadAll = false,
+    bool Contract = false);
 
 /// <summary>Права одного модуля (или ядра) под его названием.</summary>
 public sealed record PermissionGroupView(

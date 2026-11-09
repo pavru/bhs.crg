@@ -37,6 +37,7 @@ public sealed class ActivityActionCatalog : IActivityActionLookup
     // Право чтения записи — только у действий, которые его назвали.
     private readonly Dictionary<string, string> _readPermission = new(StringComparer.Ordinal);
     private readonly ModuleRegistry _modules;
+    private readonly PermissionCatalog _permissions;
 
     /// <summary>
     /// Виды ядра, которые не сворачиваются никогда (ТЗ CORE-28.3): пользователи, роли и права, состав
@@ -63,6 +64,7 @@ public sealed class ActivityActionCatalog : IActivityActionLookup
         PermissionCatalog permissions)
     {
         _modules = modules;
+        _permissions = permissions;
         CheckCoreFolds(ActivityActions.All);
         _byCode = ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
@@ -173,7 +175,7 @@ public sealed class ActivityActionCatalog : IActivityActionLookup
     public ActivityVisibility VisibleTo(IReadOnlyCollection<string> granted)
     {
         var owners = _modules.Enabled.Select(m => m.Code)
-            .Where(code => ModuleAccess.IsOpen(code, granted))
+            .Where(code => ModuleAccess.IsOpen(code, granted, _permissions))
             .Prepend(CoreOwner);
         var closed = _readPermission
             .Where(p => !granted.Contains(p.Value, StringComparer.OrdinalIgnoreCase))

@@ -145,15 +145,18 @@ public sealed class PermissionHandler(IUserPermissions permissions)
 /// ⚠️ Отсюда следствие для каждого адреса: ворота модуля проходит и тот, у кого в модуле одно
 /// чтение. Изменяющий адрес, закрытый ТОЛЬКО воротами модуля, открыт владельцу «читать всё» —
 /// такие перечисляет <c>ReadAllWritesNothingTests</c>.
+///
+/// Право контракта модуль не открывает (<see cref="AppPermission.Contract" />, plan-21): поэтому
+/// обработчику нужен справочник прав — по одному коду такое право не узнать.
 /// </summary>
-public sealed class ModuleAccessHandler(IUserPermissions permissions)
+public sealed class ModuleAccessHandler(IUserPermissions permissions, PermissionCatalog catalog)
     : AuthorizationHandler<ModuleAccessRequirement>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, ModuleAccessRequirement requirement)
     {
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
-        if (ModuleAccess.IsOpen(requirement.Code, granted))
+        if (ModuleAccess.IsOpen(requirement.Code, granted, catalog))
             context.Succeed(requirement);
     }
 }
