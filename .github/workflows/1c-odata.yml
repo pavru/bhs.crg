@@ -1,0 +1,62 @@
+# Стенд 1С: проверка публикации OData на self-hosted раннере с меткой `1c`.
+# Устройство стенда и почему раннер узкий — docs/DEV_NOTES.md, «Стенд 1С: OData и раннер».
+#
+# ⚠️ Репозиторий публичный, а этот раннер — машина разработчика. Пускает на него не `if:` ниже, а
+# хук на самом раннере (scripts/1c-stand/runner-job-started.ps1): PR из форка исполняется с ТОЙ
+# версией этого файла, что лежит в форке, и `if:` там вычеркнут. Хук роняет до первого шага всё, что
+# не от владельца из этого репозитория. `if:` здесь — чтобы чужой PR отдавал Skipped, а не висел в
+# очереди и не падал на хуке.
+#
+# pull_request — только по путям стенда: работа на машине разработчика, которая бывает выключена,
+# и PR, которому 1С не нужна, не должен ждать раннер. Пути интеграции добавляются сюда вместе с ней.
+# Будущие работы интеграции с 1С живут здесь же по тем же правилам.
+name: 1С OData (стенд)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/1c-stand/**
+      - .github/workflows/1c-odata.yml
+
+permissions:
+  contents: read
+
+# Одна группа на все ветки — нарочно: база стенда одна, и два прогона по ней разом мешали бы друг
+# другу, когда появятся пишущие тесты. Цена: GitHub держит один идущий и ОДИН ожидающий прогон, и
+# новый ожидающий отменяет прежний (cancel-in-progress его не спасает). Отменённый прогон своего
+# PR — не провал: «Re-run» после того, как раннер освободится.
+concurrency:
+  group: 1c-stand
+  cancel-in-progress: false
+
+jobs:
+  odata-smoke:
+    name: OData отвечает
+    if: >-
+      github.repository == 'pavru/bhs.crg' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.login == 'pavru'))
+    runs-on: [self-hosted, 1c]
+    environment: 1c
+    timeout-minutes: 10
+    # fsmonitor (checkout падал на EBUSY, #1836) отключён не здесь, а в .env раннера — для всех его
+    # заданий сразу (register-runner.ps1). Новой работе на `1c` ничего повторять не нужно.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/1c-stand
+          persist-credentials: false
+
+      - name: Логика хука раннера
+        shell: pwsh
+        run: ./scripts/1c-stand/runner-job-started.tests.ps1
+
+      - name: Состав интерфейса и чтение записи
+        shell: pwsh
+        env:
+          ONEC_ODATA_URL: ${{ vars.ONEC_ODATA_URL }}
+          ONEC_ODATA_USER: ${{ secrets.ONEC_ODATA_USER }}
+          ONEC_ODATA_PASSWORD: ${{ secrets.ONEC_ODATA_PASSWORD }}
+        run: ./scripts/1c-stand/check-odata.ps1
