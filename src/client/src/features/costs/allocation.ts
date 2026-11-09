@@ -97,6 +97,44 @@ export function estimateRemainder(
 }
 
 /**
+ * Остаток строки → текст поля нового объекта (#1818, п. 5б). ОДНО правило для матрицы и для окна строки: две
+ * копии развели бы их по одному и тому же сценарию.
+ *
+ * <p>Остаток подставляется, только если он того же знака, что сама строка: у строки-скидки и в корректировочном
+ * счёте строка отрицательная, и её остаток — тоже (сервер требует, чтобы знак части совпадал со знаком строки).
+ * Нет остатка, он нулевой или противоположного знака (разнесено целиком или с лишним), у строки нет ни
+ * количества, ни суммы — пусто, а не «0»: ноль читался бы как намеренный. Текст — тем же `formatInput`, что
+ * готовит число для поля, иначе `toNumber` прочёл бы подставленное иначе, чем набранное.</p>
+ *
+ * @param rest остаток в единицах строки (количество или сумма), `null` — не посчитан.
+ * @param whole сама строка в тех же единицах — по ней виден знак.
+ */
+export function remainderInput(rest: number | null, whole: number | null): string {
+  if (rest === null || whole === null || rest === 0 || Math.sign(rest) !== Math.sign(whole)) return '';
+  return formatInput(rest, 3);
+}
+
+/**
+ * Часть, которую добавляет кнопка «Добавить часть» (#1818, п. 5б; ТЗ COST-10, COST-11): вторая и следующая —
+ * с остатком строки ({@link remainderInput}), первая — пустая.
+ *
+ * <p>Остаток — ровно {@link estimateRemainder}, то самое «Не разнесено» окна.</p>
+ */
+export function nextPart(
+  drafts: readonly PartDraft[],
+  line: { quantity: number | null; amount: number | null },
+  mode: LineAllocationView['mode'],
+): PartDraft {
+  const part = emptyPart();
+  if (drafts.length === 0 || mode === 'none') return part;
+  const rest = estimateRemainder(drafts, line, mode);
+  const value = mode === 'quantity'
+    ? remainderInput(rest.quantity, line.quantity)
+    : remainderInput(rest.amount, line.amount);
+  return { ...part, value };
+}
+
+/**
  * Состояние разноски строки одной фразой — для клетки таблицы строк. Остаток виден ВСЕГДА (ТЗ COST-13),
  * в том числе когда разнесено больше, чем есть (строку уменьшили после разноски).
  */
