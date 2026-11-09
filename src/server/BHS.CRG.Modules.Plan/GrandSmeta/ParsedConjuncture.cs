@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
 /// <summary>
@@ -15,8 +17,10 @@ public sealed record ParsedConjuncture(
     IReadOnlyList<ConjunctureChapter> Chapters,
     IReadOnlyList<Unparsed> Unparsed)
 {
+    [JsonIgnore]
     public IEnumerable<ConjuncturePosition> Positions => Chapters.SelectMany(c => c.Positions);
 
+    [JsonIgnore]
     public int PositionsInFile => Chapters.Sum(c => c.Positions.Count) + Unparsed.Count;
 }
 
@@ -34,6 +38,10 @@ public sealed record ConjunctureSupplier(int Number, string? Caption, string? In
 
 public sealed record ConjunctureChapter(int Index, string Caption, IReadOnlyList<ConjuncturePosition> Positions);
 
+/// <param name="ChosenOffer">Предложение, выбранное в файле (<c>Position/@MainSubPosition</c>, «номер выбранной в КА
+/// вложенной позиции») — номер по порядку среди <see cref="Offers" />, с единицы; <c>null</c> — в файле не выбрано,
+/// цена позиции — минимальная (<see cref="MinSellingPrice" />). Ни в одном образце подборки атрибута нет: отсчёт с
+/// единицы взят из слова «номер» схемы и на файле не проверен (<c>plan-11</c>).</param>
 public sealed record ConjuncturePosition(
     int IndexInChapter,
     string Number,
@@ -41,7 +49,8 @@ public sealed record ConjuncturePosition(
     string? Units,
     bool IsInactive,
     IReadOnlyList<ConjunctureOffer> Offers,
-    decimal? MinSellingPrice);
+    decimal? MinSellingPrice,
+    int? ChosenOffer = null);
 
 /// <summary>Коммерческое предложение: <see cref="SellingPrice" /> — отпускная цена без НДС (<c>OptPrice</c>),
 /// <see cref="SellingPriceWithVat" /> — с НДС, <see cref="Vat" /> — ставка, %.</summary>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EstimateImport } from '@/shared/api/planningImports';
-import { carryOverPending, importVerdict, openingOf, partialCommitLabel, reasonGroups, targetLabel } from './importReport';
+import { attachLabel, carryOverPending, importVerdict, openingOf, partialCommitLabel, reasonGroups, targetLabel } from './importReport';
 
 /** Правила отчёта импорта (plan-09, PR 2, ТЗ PLAN-7): что можно сделать с импортом — по состоянию сервера. */
 
@@ -33,6 +33,18 @@ describe('что можно сделать с импортом', () => {
     const notEstimate = [{ code: 'notEstimate', text: 'Это ведомость объёмов работ — редакцией сметы она не становится.' }];
     expect(importVerdict(report({ kind: 'vor', marks: notEstimate, summary: null, parsed: null, inFile: null })).kind).toBe('attachment');
     expect(importVerdict(report({ kind: 'ka', summary: null })).kind).toBe('attachment');
+  });
+
+  it('КА в смету — прикладывается к ней; в новую смету — приложить не к чему; не разобранное — числом (plan-11)', () => {
+    expect(importVerdict(report({ kind: 'ka', summary: null }))).toEqual({ kind: 'attachment', estimateId: 'e1', unparsed: 0 });
+    expect(importVerdict(report({ kind: 'ka', summary: null, unparsed: unparsed(2, 'Нет цены.') })))
+      .toEqual({ kind: 'attachment', estimateId: 'e1', unparsed: 2 });
+    expect(importVerdict(report({ kind: 'vor', summary: null,
+      target: { estimateId: null, estimateName: null, newEstimate: { name: 'ЭОМ', sectionId: null, kind: 'main' } } })))
+      .toEqual({ kind: 'attachment', estimateId: null, unparsed: 0 });
+    expect(attachLabel('ЭОМ корпус 2', 0)).toBe('Приложить к смете «ЭОМ корпус 2»');
+    expect(attachLabel('ЭОМ корпус 2', 2)).toBe('Приложить без 2 позиций…');
+    expect(attachLabel('ЭОМ корпус 2', 1)).toBe('Приложить без 1 позиции…');
   });
 
   it('отказ разбора и прерванный разбор — отказ с причиной сервера, а не пустой отчёт', () => {

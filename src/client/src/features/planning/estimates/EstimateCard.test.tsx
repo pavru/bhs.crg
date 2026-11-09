@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import { apiClient } from '@/shared/api/client';
+import type { EstimateAttachment } from '@/shared/api/planningConjuncture';
 import type { Estimate, EstimateRow, HiddenPart } from '@/shared/api/planningEstimates';
 import { EstimateCard } from './EstimateCard';
 
@@ -49,9 +50,22 @@ function line(cost: boolean, over: Partial<EstimateRow> = {}): EstimateRow {
   };
 }
 
+const VOR: EstimateAttachment = {
+  id: 'vor1', kind: 'vor', estimateId: 'e1', fileName: 'ВОР-1.gsfx', number: null, name: null, programVersion: '16.2.0',
+  schemaVersion: null, creationDate: null, currentPriceDate: null, parsed: 1, inFile: 1, chapters: 1, suppliers: null,
+  importedAt: '2026-11-08T10:00:00Z', importedBy: 'Иванова А.', version: '5',
+};
+
 function serve(cost: boolean, over: Partial<EstimateRow> = {}, materialsUnmatched = 0) {
   vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
     if (url === '/plan/estimates/e1') return { data: estimate(cost, materialsUnmatched) } as never;
+    if (url === '/plan/estimates/e1/conjuncture') return { data: [] } as never;
+    if (url === '/plan/estimates/e1/volume-statements') return { data: [VOR] } as never;
+    if (url === '/plan/volume-statements/vor1/lines') return { data: {
+      total: 1, offset: 0, lines: [{ id: 'v1', order: 1, chapterIndex: 1, chapterCaption: 'Силовое электрооборудование', number: '1',
+        caption: 'Прокладка кабеля в лотке', code: null, units: '100 м', quantity: 12.24, formula: null, drawings: null, note: null,
+        subordinate: false, parentNumber: null }],
+    } } as never;
     if (url === '/plan/revisions/r1/rows') return { data: { items: [line(cost, over)], next: null, ...(cost ? {} : { hidden: HIDDEN }) } } as never;
     if (url === '/plan/revisions/r1/sections')
       return { data: { items: [{ code: '9', name: 'Групповые сети', rows: 1, unmatched: 1, materialsUnmatched: 0, units: [] }] } } as never;
@@ -62,14 +76,18 @@ function serve(cost: boolean, over: Partial<EstimateRow> = {}, materialsUnmatche
 
 /** Что лежит в состоянии перехода сейчас — то, что вернут «Назад» и перезагрузка. */
 function HistoryState() {
-  return <output data-testid="history-state">{JSON.stringify(useLocation().state ?? null)}</output>;
+  const location = useLocation();
+  return <>
+    <output data-testid="history-state">{JSON.stringify(location.state ?? null)}</output>
+    <output data-testid="search">{location.search}</output>
+  </>;
 }
 
-function mount(state?: unknown) {
+function mount(state?: unknown, search = '') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[{ pathname: '/estimates/e1', state }]}>
+      <MemoryRouter initialEntries={[{ pathname: '/estimates/e1', search, state }]}>
         <EstimateCard estimateId="e1" back={{ to: '/estimates', label: 'Сметы' }} />
         <HistoryState />
       </MemoryRouter>
@@ -175,5 +193,56 @@ describe('режим распределения (plan-10, задача 2.3)', ()
     await openSection();
     expect(screen.queryByText('Распределение')).toBeNull();
     expect(screen.queryByText(/распределено \d+ из/)).toBeNull();
+  });
+});
+
+describe('разделы «Редакции | Приложения» (plan-11, задача 2.2, макет П11 вариант 1)', () => {
+  it('ряд primary со счётчиками; редакции — в его панели, ряд редакций со своей панелью', async () => {
+    serve(false);
+    mount();
+    const revisions = await screen.findByRole('tab', { name: 'Редакции 1' });
+    expect(revisions.getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByRole('tab', { name: 'Приложения 1' })).toBeTruthy();
+    const top = screen.getByRole('tabpanel', { name: 'Редакции 1' });
+    // Строки редакции — в панели её вкладки: aria-controls ведёт туда, а не в никуда.
+    const revision = within(top).getByRole('tab', { name: 'Ред. 1 · действующая' });
+    const panel = within(top).getByRole('tabpanel', { name: 'Ред. 1 · действующая' });
+    expect(revision.getAttribute('aria-controls')).toBe(panel.id);
+    expect(within(panel).getByText(/распределено 0 из 1/)).toBeTruthy();
+    expect(screen.getByTestId('search').textContent).toBe('');
+  });
+
+  it('«Приложения» — в адресе; список вместо редакций, «Назад» адреса возвращает к редакциям', async () => {
+    serve(false);
+    mount();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Приложения 1' }));
+    await waitFor(() => expect(screen.getByTestId('search').textContent).toBe('?view=attachments'));
+    expect(await screen.findByText('Прокладка кабеля в лотке')).toBeTruthy();
+    expect(screen.queryByText(/распределено 0 из 1/)).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Редакции 1' }));
+    await waitFor(() => expect(screen.getByTestId('search').textContent).toBe(''));
+    expect(await screen.findByText(/распределено 0 из 1/)).toBeTruthy();
+  });
+
+  it('по адресу приложения открыт его раздел и оно само, без «Приложить файл» у читающего', async () => {
+    serve(false);
+    mount(undefined, '?view=attachments&attachment=vor:vor1');
+    expect((await screen.findByRole('tab', { name: 'Приложения 1' })).getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByText('Прокладка кабеля в лотке')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Приложить файл…' })).toBeNull();
+  });
+
+  it('с правом правки «Приложить файл…» открывает окно приложения к этой смете', async () => {
+    permissions = ['plan.estimate.read', 'plan.estimate.edit'];
+    serve(false);
+    const base = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url: string, config?: unknown) =>
+      (url === '/plan/imports' ? { data: [] } as never
+        : url === '/files/kinds' ? { data: { unknown: 'application/octet-stream', maxBytes: 50 * 1024 * 1024, kinds: [] } } as never
+          : url === '/constructions/c1' ? { data: { id: 'c1', name: 'Корпус 2', sections: [] } } as never
+            : base(url, config as never)));
+    mount(undefined, '?view=attachments');
+    fireEvent.click(await screen.findByRole('button', { name: 'Приложить файл…' }));
+    expect(await screen.findByRole('dialog', { name: 'Приложить файл к смете' })).toBeTruthy();
   });
 });
