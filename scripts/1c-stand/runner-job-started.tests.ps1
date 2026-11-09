@@ -81,3 +81,6 @@ try {
 
 if ($failed) { Write-Host "Провалов: $failed" -ForegroundColor Red; exit 1 }
 Write-Host "Все $($cases.Count) случаев прошли." -ForegroundColor Green
+# Явный код: шаг `shell: pwsh` в Actions кончается `exit $LASTEXITCODE`, а последний нативный вызов
+# выше — нарочно падающий хук (код 1). Без этой строки зелёные тесты дают красный шаг (#1836).
+exit 0

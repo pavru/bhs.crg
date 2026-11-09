@@ -75,3 +75,4 @@ $probe = $sets | Where-Object { $_ -like 'Catalog_*' } | Select-Object -First 1
 if (-not $probe) { $probe = $sets[0] }
 $one = (Get-OData "${probe}?`$top=1&`$format=json").Content | ConvertFrom-Json
 Write-Host "Чтение $probe : записей в ответе $(@($one.value).Count)" -ForegroundColor Green
+exit 0   # явно: шаг `shell: pwsh` в Actions кончается `exit $LASTEXITCODE`
