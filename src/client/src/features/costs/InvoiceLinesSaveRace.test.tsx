@@ -74,7 +74,7 @@ describe('правка строк во время их записи', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Добавить строку' }));
 
     const answer = answerLater();
-    let first!: Promise<boolean>;
+    let first!: Promise<InvoiceView>;
     act(() => { first = saver.current!(null); });
     await vi.waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
     const sent = vi.mocked(apiClient.put).mock.calls[0][1] as { lines: Record<string, unknown>[] };
@@ -86,7 +86,7 @@ describe('правка строк во время их записи', () => {
     fireEvent.change(quantity(2), { target: { value: '5' } });
 
     await answer(view('v2', [line(A, 1, 2), { ...line(newId, 2, 0), quantity: null, amount: null }]));
-    expect(await first).toBe(true);
+    expect(await first).toBeTruthy();
 
     expect(quantity(1).value).toBe('2');
     expect(quantity(2).value).toBe('5');
@@ -96,7 +96,7 @@ describe('правка строк во время их записи', () => {
 
     // Вторая запись: версия из ответа первой, новая строка — уже лежащей (`id`, без `newId`).
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: view('v3', [line(A, 1, 2), line(newId, 2, 5)]) } as never);
-    await act(async () => { expect(await saver.current!(null)).toBe(true); });
+    await act(async () => { expect(await saver.current!(null)).toBeTruthy(); });
     const [, body, config] = vi.mocked(apiClient.put).mock.calls[1] as [string, { lines: Record<string, unknown>[] }, { headers: Record<string, string> }];
     expect(JSON.stringify(config)).toContain('v2');
     expect(body.lines[1]).toMatchObject({ id: newId });

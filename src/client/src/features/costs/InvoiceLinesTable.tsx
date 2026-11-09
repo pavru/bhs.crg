@@ -22,8 +22,10 @@ import { mergeSaved } from './invoiceLinesMerge';
 import { formatMoney } from '@/shared/format/format';
 import { emptyDraft, hasSavedAllocation, restoreLine, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
-  modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
+  modeConsequences, modeHint, modePreview, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
+import { VatModeDialog } from './VatModeDialog';
+import { enterInLastField, leftRow } from './invoiceLineCommit';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { LineDeleteDialog, type LineDeleteAsk } from './LineDeleteDialog';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
@@ -46,9 +48,9 @@ const blank = (value: string) => value.trim() || null;
  * «разобран», а не при сохранении: наименования в бумаге — слова поставщика, и сопоставить их может
  * только человек или таблица соответствий (C3).</p>
  *
- * <p><b>Своей кнопки записи у строк нет</b> (costs-invoice-screen-10-layout, D-10.7): шапку и строки пишет
- * одна «Сохранить» в сводке, шапка раньше строк. Таблица отдаёт ей свой шаг — `saverRef`. «Разобран» и
- * «Вернуть в черновик» — тоже в сводке; под таблицей остаются сверка и строка готовности (до 11).</p>
+ * <p><b>Своей кнопки записи у строк нет</b> (D-10.7, costs-invoice-screen-12-autosave, D-12.1): шапку и строки
+ * пишет одна очередь формы, шапка раньше строк. Таблица отдаёт ей свой шаг — `saverRef` — и говорит, когда
+ * строки готовы к записи (`onCommit`): у черновика они пишутся сами, по уходу из строки и цельным действием.</p>
  *
  * <p>⚠️ Правки строк прежнего счёта сбрасывает ПЕРЕМОНТИРОВАНИЕ (`key={view.id}` у формы) — тем же
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
@@ -56,8 +58,19 @@ const blank = (value: string) => value.trim() || null;
  */
 export function InvoiceLinesTable({
   view, locked, readOnly = false, onDirty, onReport, supplierName = null, saverRef, compact = false, supplierChange = null,
+  autosave = false, onCommit,
 }: {
   view: InvoiceView;
+  /**
+   * Строки пишутся сами (черновик, costs-invoice-screen-12-autosave, D-12.3): смена режима НДС — окном с
+   * предпросмотром, повод записи — `onCommit`.
+   */
+  autosave?: boolean;
+  /**
+   * Строки готовы к записи (D-12.2): фокус ушёл из строки, Enter в последнем поле, вставка, выбор позиции,
+   * удаление (по закрытию снэкбара «Вернуть» или по подтверждению вопроса), смена режима. Пишет очередь формы.
+   */
+  onCommit?: () => void;
   /**
    * Поставщик в шапке изменён и не сохранён (#1657, D3). Запомненное прежнего тогда не подставляется и не
    * предлагается (D2), а строки, записанные без шапки, своего выбора не запоминают (решение (б)).
@@ -129,12 +142,24 @@ export function InvoiceLinesTable({
   // Флажок — сюда переводится фокус после подсказки (issue #1500): кнопка подсказки пропадает с нажатием,
   // и фокус без этого ушёл бы в никуда.
   const modeBox = useRef<HTMLInputElement>(null);
+  // Режим, выбранный и ждущий подтверждения (D-12.6): у черновика смена режима — явный шаг с предпросмотром.
+  const [modeAsk, setModeAsk] = useState<{ to: VatMode; focus: boolean } | null>(null);
   function switchMode(next: VatMode, focus = false) {
     if (next === mode) return;
+    if (autosave && !correcting) { setModeAsk({ to: next, focus }); return; }
+    applyMode(next, focus);
+  }
+  function applyMode(next: VatMode, focus: boolean) {
     setMode(next);
     setDrafts(prev => withMode(prev));
     setDirty(true);
     if (focus) requestAnimationFrame(() => modeBox.current?.focus());
+  }
+  function answerMode(confirmed: boolean) {
+    const ask = modeAsk;
+    setModeAsk(null);
+    if (!ask) return;
+    if (confirmed) { applyMode(ask.to, ask.focus); onCommit?.(); } else if (ask.focus) requestAnimationFrame(() => modeBox.current?.focus());
   }
 
   const replace = useReplaceInvoiceLines();
@@ -327,9 +352,11 @@ export function InvoiceLinesTable({
 
   const columns = useInvoiceLineColumns({
     view, drafts, still, mode, allocationLocked: locked || correcting !== null,
-    blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
+    blocked: dirty
+      ? autosave ? 'Разносить можно записанные строки: уйдите из строки — она запишется сама' : 'Разносить можно сохранённые строки: сохраните правки строк'
+      : null,
     offerFor, hasSupplier, supplierPending, supplier: supplierNow, supplierName, onBorn: draft => void suggest([draft]),
-    onAllocating: setAllocating, onEdit: edit, compact, note: noteOn, vat: vatOn,
+    onAllocating: setAllocating, onEdit: edit, onChoose: choose, compact, note: noteOn, vat: vatOn,
   });
 
   function edit(key: string, patch: Partial<LineDraft>) {
@@ -337,6 +364,11 @@ export function InvoiceLinesTable({
     const typed = 'vatAmount' in patch ? { vatAside: undefined } : {};
     setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch, ...typed } : draft)));
     setDirty(true);
+  }
+  /** Правка цельным действием — выбор позиции, решение пометки: пишется сразу (D-12.2). */
+  function choose(key: string, patch: Partial<LineDraft>) {
+    edit(key, patch);
+    onCommit?.();
   }
 
   /** Строки добавлены; вставка с отметкой «цены без НДС» приносит и режим (issue #1499). */
@@ -368,7 +400,12 @@ export function InvoiceLinesTable({
       setDrafts(prev => restoreLine(prev, line, index, savedLines.current));
       setDirty(true);
     };
-    toast.success(`Строка ${index + 1} удалена.`, { duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore } });
+    // Удаление пишется, когда снэкбар закрылся — любым исходом (D-12.2, D-13.2): после «Вернуть» строка снова в
+    // черновике, и запись положит то, что на экране. Без автосохранения отклик не нужен.
+    toast.success(`Строка ${index + 1} удалена.`, {
+      duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore },
+      ...(onCommit ? { onClose: () => { if (alive.current) onCommit(); } } : {}),
+    });
   }
   function drop(key: string) {
     setDrafts(prev => prev.filter(draft => draft.key !== key));
@@ -388,20 +425,21 @@ export function InvoiceLinesTable({
   /** Ответ окна: подтверждение удаляет строку тем же рендером, что закрывает окно; отказ — оставляет. */
   function answerAsking(confirmed: boolean) {
     if (!asking) return;
-    if (confirmed) drop(asking.key);
+    if (confirmed) { drop(asking.key); onCommit?.(); }
     setAsking(null);
     asking.answer(confirmed);
   }
   const savedLines = useRef(view.lines);
   useLayoutEffect(() => { savedLines.current = view.lines; });
   const alive = useRef(true);
+  const grid = useRef<HTMLDivElement>(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   /**
-   * Шаг записи строк в очереди «Сохранить» (D-10.7). `after` — вид из ответа шапки, записанной этим же
-   * нажатием: основа о нём ещё не знает, а версия у счёта одна.
+   * Шаг записи строк в очереди формы (D-12.1). `after` — вид из ответа шапки, записанной прямо перед строками:
+   * основа о нём ещё не знает, а версия у счёта одна. Отказ — исключением: его называет очередь (носитель).
    */
-  async function save(after: InvoiceView | null): Promise<boolean> {
+  async function save(after: InvoiceView | null): Promise<InvoiceView> {
     // Подставленное из памяти другого поставщика за тем, кто будет лежать в счёте, не числится: шапка сменила
     // его этим нажатием либо прошлым, когда строки не записались (ревью PR #1830).
     const target = after !== null ? refEntryId(after.requisites[K.supplier]) : supplierId;
@@ -411,31 +449,26 @@ export function InvoiceLinesTable({
     const hold = supplierPending && after === null ? holdMemory(sent.drafts, view.lines) : { drafts: sent.drafts, held: false };
     // Снимок черновика на миг отправки — с ним сверяется набранное, пока запись идёт (issue #1656).
     const snapshot = { drafts, mode };
-    try {
-      const saved = await base.save(seen => replace.mutateAsync({
-        id: view.id, seen, lines: toPayload(hold.drafts, mode), vatMode: mode,
-      }), after);
-      // Ответ своей записи — основа черновика, а не чужая правка: следующая запись назовёт его версию.
-      base.adopt(saved);
-      if (sent.dropped > 0)
-        toast.info(`Поставщик сменился: у ${sent.dropped === 1 ? 'одной строки' : `${sent.dropped} строк`} позиция была `
-          + 'подставлена из запомненного за прежним. Позиция оставлена, пометка «запомнено» снята, за новым поставщиком '
-          + 'выбор не запомнен.');
-      // Строки берём ИЗ ОТВЕТА — досчитанные суммы и идентификаторы, — но только те, что не правили, пока
-      // запись шла: набранное за это время остаётся на экране несохранённым (issue #1656, `mergeSaved`).
-      const merged = mergeSaved(snapshot, latest.current, saved);
-      setDrafts(merged.drafts);
-      setMode(merged.mode);
-      setDirty(merged.dirty);
-      // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
-      // следующих счетов этого поставщика — молча это делать нельзя.
-      const notice = hold.held ? { variant: 'info' as const, text: HELD_MEMORY_NOTICE } : memoryNotice(saved.memory);
-      if (notice) toast[notice.variant](notice.text);
-      return true;
-    } catch (e) {
-      toast.apiError(e, 'Строки не сохранены');
-      return false;
-    }
+    const saved = await base.save(seen => replace.mutateAsync({
+      id: view.id, seen, lines: toPayload(hold.drafts, mode), vatMode: mode,
+    }), after);
+    // Ответ своей записи — основа черновика, а не чужая правка: следующая запись назовёт его версию.
+    base.adopt(saved);
+    if (sent.dropped > 0)
+      toast.info(`Поставщик сменился: у ${sent.dropped === 1 ? 'одной строки' : `${sent.dropped} строк`} позиция была `
+        + 'подставлена из запомненного за прежним. Позиция оставлена, пометка «запомнено» снята, за новым поставщиком '
+        + 'выбор не запомнен.');
+    // Строки берём ИЗ ОТВЕТА — досчитанные суммы и идентификаторы, — но только те, что не правили, пока
+    // запись шла: набранное за это время остаётся на экране несохранённым (issue #1656, `mergeSaved`).
+    const merged = mergeSaved(snapshot, latest.current, saved);
+    setDrafts(merged.drafts);
+    setMode(merged.mode);
+    setDirty(merged.dirty);
+    // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
+    // следующих счетов этого поставщика — молча это делать нельзя.
+    const notice = hold.held ? { variant: 'info' as const, text: HELD_MEMORY_NOTICE } : memoryNotice(saved.memory);
+    if (notice) toast[notice.variant](notice.text);
+    return saved;
   }
   // Шаг отдаётся очереди свежим — слойным эффектом, как колбэк охраны ухода: замыкание помнит строки.
   // Запертым строкам и исправлению своей записи нет: у исправления запись одна, своя.
@@ -480,7 +513,7 @@ export function InvoiceLinesTable({
               onClick={() => setNoteOn(on => !on)}>
               Примечание
             </Chip>
-            <InvoiceLinesPaste mode={mode} onAdd={add} />
+            <InvoiceLinesPaste mode={mode} onAdd={(rows, pastedMode) => { add(rows, pastedMode); onCommit?.(); }} />
           </>
         )}
       </div>
@@ -492,6 +525,9 @@ export function InvoiceLinesTable({
       {/* Колонки с шириной — 492 px, две текстовые делят остаток (D-10.10): таблица шириной с часть «Строки»
           и вбок не прокручивается от 640 px — форма рядом с файлом на 1280 шире. Уже — прокручивается
           только сама таблица. */}
+      {/* Повод записи — уход из строки и Enter в последнем поле (D-12.2): слушаем вокруг сетки, сетка общая. */}
+      <div ref={grid} onBlur={e => { if (onCommit && leftRow(e.target, e.relatedTarget, grid.current)) onCommit(); }}
+        onKeyDown={e => { if (onCommit && enterInLastField(e.key, e.target, grid.current)) onCommit(); }}>
       <EditGrid label="Строки счёта" numbered fill minWidth="min-w-160" rows={drafts} rowKey={draft => draft.key}
         empty={(
           <>
@@ -503,6 +539,10 @@ export function InvoiceLinesTable({
         add={still ? undefined : { label: 'Добавить строку', onAdd: () => add([emptyDraft()]) }}
         onRemove={still ? undefined : draft => remove(draft.key)}
         columns={columns} />
+      </div>
+      <VatModeDialog to={modeAsk?.to ?? null} preview={modeAsk ? modePreview(drafts, mode, modeAsk.to) : null}
+        consequences={modeAsk && view.lines.length > 0 ? modeConsequences(view, withMode(drafts), parsed) : null}
+        onConfirm={() => answerMode(true)} onCancel={() => answerMode(false)} />
       <LineDeleteDialog saved={askingSaved} number={askingIndex + 1} onClose={answerAsking} />
 
       {/* Сверка — липкой строкой под таблицей, пока таблица в окне (D1, ТЗ COST-6.2): у сорока строк она

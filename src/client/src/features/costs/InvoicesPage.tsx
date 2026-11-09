@@ -93,14 +93,23 @@ export function InvoicesPage() {
    * что уход по ссылке: форма с несохранённым спрашивает своим вопросом и сама решает, уходить ли. Без
    * этого щелчок по соседнему счёту перемонтировал форму, и набранное пропадало без вопроса.
    *
+   * <p>Форма, что пишет сама (черновик, costs-invoice-screen-12-autosave, D-12.7), не спрашивает: смена сначала
+   * дописывает её. Дошло — переход; отказ или сбой — человек остаётся на счёте, причину называет носитель
+   * записи в сводке.</p>
+   *
    * <p>Выбор — из `now`, а не из замыкания: «Вернуть» снэкбара зовёт это из рендера, где удалённый черновик
    * ещё был выбранным, и прежний выбор принял бы возврат за щелчок по открытому.</p>
    */
   const switchTo = (id: string) => {
     if (id === now.current.selected) { ld.showDetail(); return; }
     const go = () => setSelected(id);
+    const flush = flushForm.current;
+    if (flush) { void flush().then(ok => { if (ok && alive.current) go(); }); return; }
     if (!guard?.attempt(go)) go();
   };
+  // Запись открытой формы, что пишет сама, — её зовёт смена счёта (`InvoiceForm.onFlush`).
+  const flushForm = useRef<(() => Promise<boolean>) | null>(null);
+  const noteFlush = useCallback((flush: (() => Promise<boolean>) | null) => { flushForm.current = flush; }, []);
   const [query, setQuery] = useState('');
   // Отбор списка — ОДНО состояние (ревью PR #1304): чип очереди либо «только счета этой загрузки»
   // (issue #1294). Двух сразу не бывает по устройству, а не по дисциплине вызовов: чип считает
@@ -645,7 +654,7 @@ export function InvoicesPage() {
                   opened.id, asInput(opened.data.requisites[K.number]) || null, how, send, otherwise, back)}
                 onDeleteLater={deleteLater}
                 focusHeader={led === opened.id}
-                onUnsaved={noteUnsaved}
+                onUnsaved={noteUnsaved} onFlush={noteFlush}
                 gone={gone} onClose={() => closeGone(opened.id)}
               />
               {/* Ширина панели — по месту (D-10.3): 38 % рабочей области, от 420 до 520. Форма — главное,
