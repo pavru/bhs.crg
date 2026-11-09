@@ -71,7 +71,8 @@ function Decision({ item, lines, busy, onDecide, onOpenLine }: {
   );
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {item.category === 'overflow' && item.rowId && onOpenLine && (
+      {/* Открыть можно только строку, которая есть в ответе и делится: иначе кнопка ничего бы не сделала. */}
+      {item.category === 'overflow' && item.rowId && onOpenLine && lines.get(item.rowId)?.splittable && (
         <Button variant="text" disabled={busy} onClick={() => onOpenLine(item.rowId!)}>Распределить строку</Button>
       )}
       <Button variant="text" disabled={busy} onClick={() => onDecide({ action: 'acknowledge' })}>Понятно</Button>

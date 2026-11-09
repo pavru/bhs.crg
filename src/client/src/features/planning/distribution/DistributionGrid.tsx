@@ -9,6 +9,7 @@ import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
+import { ruPlural } from '@/shared/utils/pluralize';
 import { lineSummary, lsrKey, targetText, type DistGridLine, type SectionName } from './distributionView';
 
 /** Что сетке можно делать; `null` у действия — здесь нельзя (нет права, телефон). */
@@ -141,7 +142,9 @@ function RuleHeading({ rule, open, shown, filtering, distribution, name, onToggl
         </button>
       )}
       <span className="text-body-small text-on-surface-variant">
-        {filtering ? `${formatCount(shown)} из ${formatCount(rule.rows)} строк` : `${formatCount(rule.rows)} строк`}
+        {filtering
+          ? `${formatCount(shown)} из ${formatCount(rule.rows)} ${ruPlural(rule.rows, 'строки', 'строк', 'строк')}`
+          : `${formatCount(rule.rows)} ${ruPlural(rule.rows, 'строка', 'строки', 'строк')}`}
       </span>
       {rule.undistributed > 0 && <StatusText tone="neutral">не распределено: {formatCount(rule.undistributed)}</StatusText>}
       {rule.exceptions > 0 && <StatusText tone="neutral">исключений: {formatCount(rule.exceptions)}</StatusText>}

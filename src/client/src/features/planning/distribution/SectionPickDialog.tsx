@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import {
-  distributionRefusal, useRereadDistribution, useWriteLines, type Distribution, type DistributionLine,
-  type DistributionRefusal,
+  distributionRefusal, useWriteLines, type Distribution, type DistributionLine, type DistributionRefusal,
 } from '@/shared/api/planningDistribution';
 import { Modal, ModalButtons, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
-import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { conflictText, wholeToSection } from './distributionView';
+import { wholeToSection } from './distributionView';
+import { RefusalBanner } from './RefusalBanner';
 
 const rowsWord = (n: number) => `${formatCount(n)} ${ruPlural(n, 'строку', 'строки', 'строк')}`;
 
@@ -24,7 +23,6 @@ export function SectionPickDialog({ distribution, lines, onClose, onDone }: {
   onDone: () => void;
 }) {
   const write = useWriteLines(distribution.revisionId);
-  const reread = useRereadDistribution(distribution.revisionId);
   const toast = useSnackbar();
   const [sectionId, setSectionId] = useState('');
   const [refusal, setRefusal] = useState<DistributionRefusal | null>(null);
@@ -46,12 +44,7 @@ export function SectionPickDialog({ distribution, lines, onClose, onDone }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`На раздел: ${rowsWord(lines.length)}`} busy={write.isPending}>
       <div className="space-y-4">
-        {refusal?.kind === 'conflict' && (
-          <ModalBanner tone="warning" actions={[{ label: 'Перечитать', onClick: () => { void reread(); setRefusal(null); } }]}>
-            {conflictText(refusal)}
-          </ModalBanner>
-        )}
-        {refusal && refusal.kind !== 'conflict' && <ModalBanner tone="error">{refusal.text}</ModalBanner>}
+        <RefusalBanner refusal={refusal} revisionId={distribution.revisionId} onClear={() => setRefusal(null)} />
         <Select label="Раздел стройки" value={sectionId} onValueChange={setSectionId} placeholder="Выберите раздел">
           {sections.map(s => <SelectItem key={s.sectionId} value={s.sectionId}>{s.name}</SelectItem>)}
         </Select>

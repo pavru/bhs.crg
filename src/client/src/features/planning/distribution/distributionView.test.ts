@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { distribution, item, line } from './distributionFixtures';
 import {
-  distGridLines, draftBalance, factorOf, inDistQueue, inTarget, lineSummary, lineWriteOf, pendingItems, queueCounts,
+  distGridLines, draftBalance, factorOf, incompleteDraft, inDistQueue, inTarget, lineSummary, lineWriteOf, pendingItems, queueCounts,
   sectionNamer, wholeToSection,
 } from './distributionView';
 
@@ -88,6 +88,16 @@ describe('окно строки', () => {
     expect(draftBalance([{ sectionId: 's1', row: '', plan: '600,5' }], l, 'plan')).toMatchObject({ sum: 600.5, rest: 599.5 });
     expect(draftBalance([{ sectionId: 's1', row: 'abc', plan: '' }], l, 'row').invalid).toBe(true);
     expect(draftBalance([{ sectionId: 's1', row: '0', plan: '' }], l, 'row').invalid).toBe(true);
+    // Пара без раздела не запишется — и в остаток не идёт.
+    expect(draftBalance([{ sectionId: 's1', row: '4', plan: '' }, { sectionId: '', row: '6', plan: '' }], l, 'row'))
+      .toMatchObject({ sum: 4, rest: 8, over: false });
+  });
+
+  it('неполная пара: раздел без количества или количество без раздела', () => {
+    expect(incompleteDraft({ sectionId: 's1', row: '', plan: '' }, 'row')).toBe(true);
+    expect(incompleteDraft({ sectionId: '', row: '6', plan: '' }, 'row')).toBe(true);
+    expect(incompleteDraft({ sectionId: '', row: '', plan: '' }, 'row')).toBe(false);
+    expect(incompleteDraft({ sectionId: 's1', row: '', plan: '600' }, 'plan')).toBe(false);
   });
 
   it('набор: пустые пары не пишутся, ни одной — «к правилу» (пустой массив сервер не принимает)', () => {

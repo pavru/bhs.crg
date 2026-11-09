@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  distributionRefusal, useDecideCarryOver, useDistribution, useDistributionVersion, useRereadDistribution, useWriteLines, useWriteRule,
+  distributionRefusal, useDecideCarryOver, useDistribution, useDistributionVersion, useWriteLines, useWriteRule,
   type CarryOverDecision, type CarryOverItem, type Distribution, type DistributionLine, type DistributionRefusal,
   type DistributionRule, type DistributionTarget, type DistributionWrite,
 } from '@/shared/api/planningDistribution';
@@ -17,12 +17,14 @@ import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount } from '@/shared/format/format';
+import { ruPlural } from '@/shared/utils/pluralize';
 import { CarryOverList } from './CarryOverList';
 import { DistributionGrid } from './DistributionGrid';
 import {
-  conflictText, distGridLines, pendingItems, queueCounts, sectionNamer, targetText, type DistQueue, type TargetFilter,
+  distGridLines, pendingItems, queueCounts, sectionNamer, targetText, type DistQueue, type TargetFilter,
 } from './distributionView';
 import { LineDialog } from './LineDialog';
+import { RefusalBanner } from './RefusalBanner';
 import { SectionPickDialog } from './SectionPickDialog';
 import { useDistributionEdit } from './useDistributionEdit';
 
@@ -43,6 +45,9 @@ export function RevisionDistribution({ revision, constructionId, initialQueue = 
   const rows = useRevisionRows(revision.id);
   if (distribution.isError)
     return <p role="alert" className="text-body-medium text-error">{apiError(distribution.error, 'Распределение не прочиталось')}</p>;
+  // Строки — ради шифра и стоимости; без них экран не рисуется, и их отказ — отказ, а не вечное «читаем».
+  if (rows.isError)
+    return <p role="alert" className="text-body-medium text-error">{apiError(rows.error, 'Строки редакции не прочитались')}</p>;
   if (!distribution.data || !rows.data) return <p className="text-body-medium text-on-surface-variant">Читаем распределение…</p>;
   const d = distribution.data;
   if (!d.available) return (
@@ -68,7 +73,6 @@ function DistributionView({ d, rows, initialQueue }: {
   const writeRule = useWriteRule(d.revisionId);
   const writeLines = useWriteLines(d.revisionId);
   const decide = useDecideCarryOver(d.revisionId);
-  const reread = useRereadDistribution(d.revisionId);
   const busy = writeRule.isPending || writeLines.isPending || decide.isPending;
   // Версия на момент «Отменить» — свежая, из кэша: снэкбар живёт дольше ответа, после которого появился.
   const versionNow = useDistributionVersion(d.revisionId);
@@ -87,7 +91,10 @@ function DistributionView({ d, rows, initialQueue }: {
   const lines = useMemo(() => distGridLines(d, queue, query, target, opened), [d, queue, query, target, opened]);
   const byRow = useMemo(() => new Map(rows.items.map(r => [r.id, r])), [rows.items]);
   const filtering = queue !== 'all' || query.trim() !== '' || target !== null;
-  const chosen = d.lines.filter(l => selected.has(l.rowId));
+  // Действия выбора — только над видимыми строками: отбор, поиск и свёрнутый раздел прячут строки, но не снимают
+  // отметку, и «На раздел…» иначе ушло бы на строки, которых на экране нет.
+  const visible = useMemo(() => new Set(lines.flatMap(l => (l.kind === 'row' ? [l.line.rowId] : []))), [lines]);
+  const chosen = d.lines.filter(l => selected.has(l.rowId) && visible.has(l.rowId));
   const items = pendingItems(d);
 
   const failed = (e: unknown) => {
@@ -143,15 +150,11 @@ function DistributionView({ d, rows, initialQueue }: {
       {d.carryOver && d.carryOver.pending > 0 && queue !== 'carry-over' && (
         <Banner tone="warning" actions={[{ label: 'Проверить', onClick: () => pickQueue('carry-over') }]}>
           Распределение перенесено из ред. {d.carryOver.counts.sourceNumber ?? '—'}: без пометки —{' '}
-          {formatCount(d.carryOver.counts.carried)} строк. Проверьте {formatCount(d.carryOver.pending)}.
+          {formatCount(d.carryOver.counts.carried)} {ruPlural(d.carryOver.counts.carried, 'строка', 'строки', 'строк')}.
+          Проверьте {formatCount(d.carryOver.pending)}.
         </Banner>
       )}
-      {refusal?.kind === 'conflict' && (
-        <Banner tone="warning" actions={[{ label: 'Перечитать', onClick: () => { void reread(); setRefusal(null); } }]}>
-          {conflictText(refusal)}
-        </Banner>
-      )}
-      {refusal?.kind === 'balance' && <Banner tone="error">{refusal.text}</Banner>}
+      <RefusalBanner refusal={refusal} revisionId={d.revisionId} onClear={() => setRefusal(null)} />
 
       <Totals d={d} target={target} onPick={pickTarget} />
 

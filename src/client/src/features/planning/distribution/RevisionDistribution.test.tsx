@@ -90,6 +90,60 @@ describe('окно строки', () => {
     expect(within(dialog).getByText(/13 · 100 м = 1\s300 м при 1\s200 м/)).toBeTruthy();
     expect((within(dialog).getByRole('button', { name: 'Записать' }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it('раздел без количества не записывается: «Записать» не превращает строку в «к правилу» и не стирает части', async () => {
+    serve(distribution({ lines: [line({ source: 'parts', targets: ['s1'], parts: [{ sectionId: 's1', quantity: { row: 7, plan: 700 } }] })] }));
+    mount();
+    await openSection();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить…' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'В ед. строки' }), { target: { value: '' } });
+    expect(within(dialog).getByText(/У каждой части — раздел и количество/)).toBeTruthy();
+    expect((within(dialog).getByRole('button', { name: 'Записать' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(apiClient.put).not.toHaveBeenCalled();
+  });
+
+  it('часть на удалённый раздел остаётся видна и не уходит на сервер, пока её не перенесли', async () => {
+    serve(distribution({
+      targets: {
+        sections: [{ sectionId: 's1', name: 'Корпус 1', deleted: false, rows: 0 }, { sectionId: 's3', name: 'Корпус 3', deleted: true, rows: 1 }],
+        wholeRows: 0, undistributedRows: 0,
+      },
+      lines: [line({ source: 'parts', targets: ['s3'], parts: [{ sectionId: 's3', quantity: { row: 7, plan: 700 } }] })],
+    }));
+    mount();
+    await openSection();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить…' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Раздела части в стройке больше нет/)).toBeTruthy();
+    expect((within(dialog).getByRole('button', { name: 'Записать' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('экран', () => {
+  it('отказ чтения строк редакции — отказом, а не вечным «читаем распределение»', async () => {
+    const d = distribution();
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/plan/revisions/r1/distribution') return { data: d } as never;
+      throw { response: { status: 500, data: { error: 'Сервер упал' } } };
+    });
+    mount();
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText('Читаем распределение…')).toBeNull();
+  });
+
+  it('действия выбора — только над видимыми строками: отмеченная и спрятанная отбором не уходит', async () => {
+    serve(distribution({ lines: [line(), line({ rowId: 'l3', order: 3, number: '3', name: 'Монтаж светильника', source: 'rule',
+      status: 'distributed', targets: ['s1'] })] }));
+    mount();
+    await openSection();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Выбрать строку 1' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Выбрать строку 3' }));
+    expect(screen.getAllByText('Выбрано: 2').length).toBeGreaterThan(0);
+    // Отбор итогом по целям: «не распределено» прячет строку 3, отметка с неё не снята.
+    fireEvent.click(within(screen.getByRole('group', { name: 'Итог по целям' })).getByRole('button', { name: /не распределено/ }));
+    await waitFor(() => expect(screen.getAllByText('Выбрано: 1').length).toBeGreaterThan(0));
+  });
 });
 
 describe('перенос распределения', () => {

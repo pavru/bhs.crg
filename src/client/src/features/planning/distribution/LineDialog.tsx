@@ -1,20 +1,24 @@
 import { useState } from 'react';
 import {
-  distributionRefusal, useRereadDistribution, useWriteLines, type Distribution, type DistributionLine,
-  type DistributionRefusal,
+  distributionRefusal, useWriteLines, type Distribution, type DistributionLine, type DistributionRefusal,
 } from '@/shared/api/planningDistribution';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Close } from '@/shared/ui/icons';
 import { Modal, ModalAction, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
-import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatInput, formatQuantity } from '@/shared/format/format';
 import {
-  bothUnits, conflictText, draftBalance, factorOf, lineWriteOf, quantityOf, toPlanUnits, toRowUnits, type PartDraft,
+  bothUnits, draftBalance, factorOf, incompleteDraft, lineWriteOf, quantityOf, toPlanUnits, toRowUnits, type PartDraft,
 } from './distributionView';
+import { RefusalBanner } from './RefusalBanner';
+
+/** Пара окна со своим ключом: пары убираются из середины, и ключ по месту отдал бы поля соседней паре. */
+type Draft = PartDraft & { key: number };
+let nextDraft = 0;
+const draft = (d: PartDraft = { sectionId: '', row: '', plan: '' }): Draft => ({ ...d, key: nextDraft++ });
 
 /**
  * Окно строки (макет П2, вариант 1): части строки парами «раздел — количество», количество — двумя связанными
@@ -29,16 +33,18 @@ export function LineDialog({ distribution, line, onClose }: {
   onClose: () => void;
 }) {
   const write = useWriteLines(distribution.revisionId);
-  const reread = useRereadDistribution(distribution.revisionId);
   const toast = useSnackbar();
   const factor = factorOf(line);
   const [unit, setUnit] = useState<'row' | 'plan'>('row');
-  const [drafts, setDrafts] = useState<PartDraft[]>(() => line.parts.length > 0
-    ? line.parts.map(p => ({ sectionId: p.sectionId, row: formatInput(p.quantity.row), plan: formatInput(p.quantity.plan) }))
-    : [{ sectionId: '', row: '', plan: '' }]);
+  const [drafts, setDrafts] = useState<Draft[]>(() => line.parts.length > 0
+    ? line.parts.map(p => draft({ sectionId: p.sectionId, row: formatInput(p.quantity.row), plan: formatInput(p.quantity.plan) }))
+    : [draft()]);
   const [refusal, setRefusal] = useState<DistributionRefusal | null>(null);
-  const [rereading, setRereading] = useState(false);
-  const sections = distribution.targets.sections.filter(s => !s.deleted);
+  const used = new Set(drafts.map(d => d.sectionId));
+  // Удалённый раздел остаётся в списке, пока на него стоит часть: иначе пара показала бы пустой раздел, а запись
+  // всё равно назвала бы его — и получила отказ сервера. Выбрать его заново нельзя.
+  const sections = distribution.targets.sections.filter(s => !s.deleted || used.has(s.sectionId));
+  const gone = drafts.some(d => sections.some(s => s.deleted && s.sectionId === d.sectionId));
   const balance = draftBalance(drafts, line, unit);
   const volume = line.volume;
 
@@ -69,22 +75,14 @@ export function LineDialog({ distribution, line, onClose }: {
 
   const unitName = unit === 'plan' ? line.units.plan : line.units.row;
   const volumeIn = unit === 'plan' ? volume?.plan : volume?.row;
-  const used = new Set(drafts.map(d => d.sectionId));
   const twice = drafts.some((d, i) => d.sectionId !== '' && drafts.findIndex(x => x.sectionId === d.sectionId) !== i);
-  const ready = !balance.over && !balance.invalid && !twice && drafts.some(d => d.sectionId !== '');
+  const incomplete = drafts.some(d => incompleteDraft(d, unit));
+  const ready = !balance.over && !balance.invalid && !twice && !incomplete && !gone && drafts.some(d => d.sectionId !== '');
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Строка ${line.number}: распределение`} busy={write.isPending}>
       <div className="space-y-4">
-        {refusal?.kind === 'conflict' && (
-          <ModalBanner tone="warning" actions={[{
-            label: 'Перечитать', loading: rereading,
-            onClick: () => { setRereading(true); void reread().finally(() => { setRereading(false); setRefusal(null); }); },
-          }]}>
-            {conflictText(refusal)}
-          </ModalBanner>
-        )}
-        {refusal && refusal.kind !== 'conflict' && <ModalBanner tone="error">{refusal.text}</ModalBanner>}
+        <RefusalBanner refusal={refusal} revisionId={distribution.revisionId} onClear={() => setRefusal(null)} />
 
         <div>
           <p className="text-body-medium text-on-surface">{line.name}</p>
@@ -93,12 +91,13 @@ export function LineDialog({ distribution, line, onClose }: {
 
         <div className="space-y-2">
           {drafts.map((d, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={d.key} className="flex items-center gap-2">
               <Select density="dense" className="flex-1 min-w-0" value={d.sectionId} aria-label={`Раздел стройки, часть ${i + 1}`}
                 placeholder="Раздел стройки" onValueChange={v => change(i, { sectionId: v })}>
                 {sections.map(s => (
-                  <SelectItem key={s.sectionId} value={s.sectionId} disabled={s.sectionId !== d.sectionId && used.has(s.sectionId)}>
-                    {s.name}
+                  <SelectItem key={s.sectionId} value={s.sectionId}
+                    disabled={s.sectionId !== d.sectionId && (used.has(s.sectionId) || s.deleted)}>
+                    {s.deleted ? `${s.name ?? 'Удалённый раздел'} — раздела больше нет` : s.name}
                   </SelectItem>
                 ))}
               </Select>
@@ -112,9 +111,9 @@ export function LineDialog({ distribution, line, onClose }: {
                 onClick={() => setDrafts(prev => prev.filter((_, j) => j !== i))} />
             </div>
           ))}
-          {drafts.length < sections.length && (
+          {sections.some(s => !s.deleted && !used.has(s.sectionId)) && (
             <Button variant="text" icon={<Icon icon={Add} size={18} aria-hidden />}
-              onClick={() => setDrafts(prev => [...prev, { sectionId: '', row: '', plan: '' }])}>
+              onClick={() => setDrafts(prev => [...prev, draft()])}>
               Добавить раздел
             </Button>
           )}
@@ -129,6 +128,14 @@ export function LineDialog({ distribution, line, onClose }: {
         )}
         {balance.invalid && <p role="alert" className="text-body-medium text-error">Количество — число больше нуля.</p>}
         {twice && <p role="alert" className="text-body-medium text-error">Раздел назван дважды — у строки одна часть на раздел.</p>}
+        {gone && (
+          <p role="alert" className="text-body-medium text-error">
+            Раздела части в стройке больше нет — выберите для неё другой раздел или уберите её.
+          </p>
+        )}
+        {incomplete && (
+          <p className="text-body-medium text-on-surface-variant">У каждой части — раздел и количество: дозаполните пару или уберите её.</p>
+        )}
 
         <ModalButtons>
           {line.source === 'parts' && (

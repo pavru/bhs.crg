@@ -160,7 +160,19 @@ export interface PartDraft {
   plan: string;
 }
 
-/** Остаток «стройки в целом» и превышение — по набранному, в единице, в которой набирали. */
+const draftText = (d: PartDraft, unit: 'row' | 'plan') => (unit === 'plan' ? d.plan : d.row);
+
+/**
+ * Пара набрана наполовину: раздел без количества или количество без раздела. Записать её нельзя — `lineWriteOf`
+ * такую пару отбросил бы молча, а без единой части запись стала бы «к правилу раздела» и стёрла бы части строки.
+ */
+export const incompleteDraft = (d: PartDraft, unit: 'row' | 'plan') =>
+  (d.sectionId === '') !== (quantityOf(draftText(d, unit)) === null);
+
+/**
+ * Остаток «стройки в целом» и превышение — по набранному, в единице, в которой набирали. Пары без раздела не
+ * считаются: они не запишутся, и остаток обязан совпасть с тем, что ляжет в «стройку в целом».
+ */
 export function draftBalance(drafts: readonly PartDraft[], line: Pick<DistributionLine, 'volume'>, unit: 'row' | 'plan'): {
   sum: number; rest: number; over: boolean; invalid: boolean;
 } {
@@ -168,7 +180,8 @@ export function draftBalance(drafts: readonly PartDraft[], line: Pick<Distributi
   let sum = 0;
   let invalid = false;
   for (const d of drafts) {
-    const q = quantityOf(unit === 'plan' ? d.plan : d.row);
+    if (d.sectionId === '') continue;
+    const q = quantityOf(draftText(d, unit));
     if (q === null) continue;
     if (Number.isNaN(q) || q <= 0) { invalid = true; continue; }
     sum += q;
@@ -184,7 +197,7 @@ export function draftBalance(drafts: readonly PartDraft[], line: Pick<Distributi
 export function lineWriteOf(rowId: string, drafts: readonly PartDraft[], unit: 'row' | 'plan'): LineWrite {
   const parts = drafts
     .filter(d => d.sectionId !== '')
-    .map(d => ({ sectionId: d.sectionId, quantity: quantityOf(unit === 'plan' ? d.plan : d.row) }))
+    .map(d => ({ sectionId: d.sectionId, quantity: quantityOf(draftText(d, unit)) }))
     .filter((p): p is { sectionId: string; quantity: number } => p.quantity !== null && !Number.isNaN(p.quantity));
   return { rowId, unit, parts: parts.length > 0 ? parts : null };
 }
