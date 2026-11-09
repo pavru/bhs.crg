@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { ArrowDownward, ArrowOutward, ArrowUpward, Close, LinkOff, VisibilityOff } from './icons';
@@ -7,6 +7,7 @@ import {
   dtTd, dtTdCompact, dtTh, dtThCompact,
 } from './dataTable';
 import { markScrolled, useStickyPadding } from './dataTableScroll';
+import { fixedTableMinWidth } from './dataGridLayout';
 import {
   ABSENT_CELL_HINT, DATA_GRID_STATES, cellKind,
   type ColumnUnavailable, type GridState,
@@ -184,7 +185,8 @@ export function DataGrid<Row extends object>({
   /**
    * Фиксированная раскладка: ширины берутся из шапки (`width`), а не из содержимого. Нужна, когда
    * в клетке обрезается длинный текст (`truncate`): при обычной раскладке клетка растягивается по
-   * содержимому, обрезка не работает, и правые колонки уезжают за край (#680).
+   * содержимому, обрезка не работает, и правые колонки уезжают за край (#680). Колонки без ширины
+   * не сжимаются уже `FLEX_COLUMN_MIN`: когда ширины не помещаются (телефон), таблица прокручивается вбок.
    */
   fixed?: boolean;
   /**
@@ -203,6 +205,11 @@ export function DataGrid<Row extends object>({
   const pinCount = Math.min(Math.max(pinned, 0), columns.length);
   const table = usePinOffsets(pinCount, columns.map(c => c.key).join('|'));
   const grouped = columns.some(c => c.group);
+  // Наименьшая ширина фиксированной раскладки — по ширинам колонок, а не по их объектам: экран обычно
+  // собирает колонки заново на каждую отрисовку, ширины же у них те же.
+  const widths = fixed && columns.length > 0 ? columns.map(c => c.width ?? '').join('|') : null;
+  const minWidth = useMemo(() => (widths === null ? undefined
+    : fixedTableMinWidth(widths.split('|').map(width => ({ width })))), [widths]);
   useStickyPadding(table, `${grouped}|${footer !== undefined}`);
   const compact = density === 'compact';
   const th = compact ? dtThCompact : dtTh;
@@ -265,7 +272,13 @@ export function DataGrid<Row extends object>({
   return (
     <div className={`${framed ? dtCard : 'overflow-auto'} ${compact ? dtDensityCompact : dtDensity} ${className}`}
       onScroll={markScrolled}>
-      <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}>
+      {/* Фиксированная раскладка не уже суммы колонок и минимума гибких: на узком экране таблица
+          прокручивается вбок, а не сжимает наименование в ноль (dataGridLayout). */}
+      <table ref={table} className={`${dtTable} ${fixed ? 'table-fixed' : ''}`}
+        style={minWidth ? { minWidth } : undefined}>
+        {/* Ширины фиксированной раскладки — колонками: `table-fixed` читает их из <col> либо из ПЕРВОЙ строки
+            шапки, а в двухэтажной шапке там стоят группы со своим colSpan, и ширины полей под ними пропадали. */}
+        {fixed && <colgroup>{columns.map(c => <col key={c.key} className={c.width} />)}</colgroup>}
         <thead>
           <tr>
             {columns.map((c, i) => {
