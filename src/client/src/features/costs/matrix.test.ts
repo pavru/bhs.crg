@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { Place } from './places';
+import { toNumber } from './invoiceLines';
 import {
   DOCUMENT_ROW, cellText, cellsFromState, cellsOf, estimateRest, headerObject, headerPickMode, matrixSignature, newTarget, remainderColumn,
   restText, rowsOf, targetsOf, toState, type MatrixCells, type MatrixRow,
@@ -292,5 +293,20 @@ describe('остаток во второй и следующий объект (#
 
   it('набранное, но не число, не считается — остаток по остальному', () => {
     expect(remainderColumn([cable], [a], { кабель: { [a.key]: 'abc' } })).toEqual({ кабель: '30' });
+  });
+
+  it('отрицательная строка (скидка, корректировочный счёт): остаток того же знака уходит во второй объект', () => {
+    const credit = row('возврат', 'amount', -1000);
+    const rest = remainderColumn([credit], [a], { возврат: { [a.key]: '-600' } });
+    expect(toNumber(rest.возврат)).toBe(-400);
+
+    const b = newTarget();
+    expect(estimateRest(credit, [a, b], { возврат: { [a.key]: '-600', [b.key]: rest.возврат } })).toBe(0);
+  });
+
+  it('отрицательная строка разнесена целиком или с лишним — пусто', () => {
+    const credit = row('возврат', 'amount', -1000);
+    expect(remainderColumn([credit], [a], { возврат: { [a.key]: '-1000' } })).toEqual({});
+    expect(remainderColumn([credit], [a], { возврат: { [a.key]: '-1200' } })).toEqual({});
   });
 });

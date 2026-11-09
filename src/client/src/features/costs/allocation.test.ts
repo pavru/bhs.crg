@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, LineAllocationView } from '@/shared/api/invoices';
-import { allocationStatus, estimateRemainder, nextPart, toPartDrafts, toPartsPayload, type PartDraft } from './allocation';
+import { allocationStatus, estimateRemainder, nextPart, remainderInput, toPartDrafts, toPartsPayload, type PartDraft } from './allocation';
+import { toNumber } from './invoiceLines';
 
 function part(overrides: Partial<AllocationPartView> = {}): AllocationPartView {
   return {
@@ -109,5 +110,30 @@ describe('новая часть — с остатком строки (#1818, п.
 
   it('у строки без количества и суммы — пусто', () => {
     expect(nextPart([draft('1')], { quantity: null, amount: null }, 'none').value).toBe('');
+  });
+
+  it('строка-скидка на −500: первой части −200 — новая с −300', () => {
+    const discount = { quantity: null, amount: -500 };
+    const added = nextPart([draft('-200')], discount, 'amount');
+    expect(toNumber(added.value)).toBe(-300);
+    expect(estimateRemainder([draft('-200'), added], discount, 'amount').amount).toBe(0);
+  });
+
+  it('отрицательная строка разнесена целиком или с лишним — пусто', () => {
+    const discount = { quantity: null, amount: -500 };
+    expect(nextPart([draft('-500')], discount, 'amount').value).toBe('');
+    expect(nextPart([draft('-600')], discount, 'amount').value).toBe('');
+  });
+});
+
+describe('remainderInput — одно правило «остаток → поле» для матрицы и окна строки', () => {
+  it('остаток того же знака, что строка, — текстом поля; иначе пусто', () => {
+    expect(remainderInput(10, 30)).toBe('10');
+    expect(toNumber(remainderInput(-400, -1000))).toBe(-400);
+    expect(remainderInput(0, 30)).toBe('');
+    expect(remainderInput(-1, 30)).toBe('');
+    expect(remainderInput(1, -30)).toBe('');
+    expect(remainderInput(null, 30)).toBe('');
+    expect(remainderInput(5, null)).toBe('');
   });
 });

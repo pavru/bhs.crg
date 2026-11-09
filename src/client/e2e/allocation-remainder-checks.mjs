@@ -61,7 +61,8 @@ export async function remainderChecks({ page, check, api, invoice, openMatrix, s
       if (JSON.stringify(filled) !== JSON.stringify([['20', '10'], ['', '1500']]))
         throw new Error(`объект 2 пришёл не с остатком строк: ${JSON.stringify(filled)}`);
       const zero = await rests(dialog);
-      if (!zero.every(text => /^≈\s*0(\D|$)/.test(text)))
+      // Ноль целиком: «≈ 0,5 м» или «≈ 0,50 ₽» — уже не ноль, хотя после «0» у них не цифра.
+      if (!zero.every(text => /^≈\s*0(,0+)?(\s|$)/.test(text)))
         throw new Error(`«Не разнесено» после подстановки не 0: ${zero.join(' | ')}`);
       await leaveUnsaved(dialog);
       if (writes.length) throw new Error(`подстановка ушла запросом на запись: ${writes.join(', ')}`);

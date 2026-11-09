@@ -1,6 +1,7 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView, VatMode } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatInput, formatMoney, formatQuantityUnit } from '@/shared/format/format';
+import { remainderInput } from './allocation';
 import { K } from './invoiceFields';
 import { lineName, preview as linePreview, toNumber, type LineDraft } from './invoiceLines';
 import { NO_PLACE, chosen, placeKey, placeName, placeOfPart, samePlace, type Place, type Places } from './places';
@@ -221,9 +222,9 @@ export function estimateRest(row: MatrixRow, targets: MatrixTarget[], cells: Mat
  * и следующего объекта — остаток каждой строки, у первого — пусто.
  *
  * <p>Остаток — ровно {@link estimateRest}, то самое «Не разнесено», что человек видит в строке: число в клетке
- * и обещание рядом не расходятся. Строка без остатка (разнесена целиком или с лишним) и строка без количества
- * и суммы получают ПУСТУЮ клетку, а не «0»: ноль читался бы как намеренный. Текст — тем же `formatInput`, что
- * готовит число для поля, иначе `toNumber` прочёл бы подставленное иначе, чем набранное.</p>
+ * и обещание рядом не расходятся. Когда клетка остаётся пустой (строка разнесена целиком или с лишним, нет
+ * количества и суммы) и как учитывается знак отрицательной строки — решает {@link remainderInput}, общий с
+ * окном строки.</p>
  *
  * <p>Поверх предпросмотра «поровну» / «по %» не зовётся: там остаток серверный, а кнопка заперта.</p>
  *
@@ -233,8 +234,8 @@ export function remainderColumn(rows: MatrixRow[], targets: MatrixTarget[], cell
   if (targets.length === 0) return {};
   return Object.fromEntries(rows.flatMap(row => {
     if (row.mode === 'none') return [];
-    const rest = estimateRest(row, targets, cells);
-    return rest !== null && rest > 0 ? [[row.key, formatInput(rest, 3)]] : [];
+    const text = remainderInput(estimateRest(row, targets, cells), row.whole);
+    return text === '' ? [] : [[row.key, text]];
   }));
 }
 
