@@ -24,6 +24,7 @@
 import { readFileSync } from 'node:fs';
 import {
   BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
+  callApiOk, freshPanels,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
@@ -163,7 +164,11 @@ const UNKNOWN_TYPE = 'application/octet-stream';
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
+// Подпанель и «Файл» — как у свежего пользователя, а прежние — уборкой в конце (`freshPanels`).
+let panels;
 try {
+  panels = await freshPanels(page);
+
   // ── 1. Черновик сохраняется без строк ───────────────────────────────────────
   //
   // Строк в первой версии нет вовсе, и проверка именно об этом: форма не требует НИЧЕГО. Заведи
@@ -455,8 +460,8 @@ try {
   await invoiceFileDropChecks(page, check, { api, requisites, named, stamp, base: BASE });
 
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
-  await api('PUT', '/account/settings', { invoiceFile: 'open' });
-  await page.evaluate(() => localStorage.setItem('crg-invoice-file', 'open'));
+  // Прежние настройки запомнены в начале набора — здесь возвращать нечего.
+  await freshPanels(page);
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
   //
@@ -743,6 +748,8 @@ try {
     }
   });
 } finally {
+  if (panels) await check.tidy('подпанель и «Файл» администратора не возвращены',
+    () => callApiOk(page, 'PUT', '/account/settings', panels));
   await browser.close();
 }
 

@@ -479,6 +479,23 @@ export async function callApiOk(page, method, path, body) {
   return answer.body;
 }
 
+/**
+ * Подпанель раздела и «Файл» счёта — как у СВЕЖЕГО пользователя; возвращает, что стояло, — для уборки
+ * (`check.tidy`, PUT того же адреса). Наборы счетов задуманы и проверены на свежем пользователе (в CI другого
+ * не бывает), а настройки — на сервере, у учётной записи: у того, кто закрыл подпанель или «Файл», краснели
+ * проверки скана рядом с формой и ухода по ссылке «Накладные» подпанели.
+ *
+ * Подпанель — `null`, «как без выбора»: по ширине окна (`'auto'` в AppShell — значение клиента, сервер его
+ * отвергает 400), то есть рядом с формой на окне наборов. Отсутствующий ключ возвращается тоже `null`.
+ * Зеркала в браузере — под стать: первый кадр после перехода берётся из них, до ответа сервера.
+ */
+export async function freshPanels(page) {
+  const stored = (await callApiOk(page, 'GET', '/account/settings')) ?? {};
+  await callApiOk(page, 'PUT', '/account/settings', { rail: null, invoiceFile: 'open' });
+  await page.evaluate(() => { localStorage.removeItem('crg-rail'); localStorage.setItem('crg-invoice-file', 'open'); });
+  return { rail: stored.rail ?? null, invoiceFile: stored.invoiceFile ?? null };
+}
+
 /** Адрес «Реестра счетов» с готовым отбором — тем же видом, каким его собирает клиент. */
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
