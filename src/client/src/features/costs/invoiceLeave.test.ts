@@ -66,3 +66,16 @@ describe('исправление (1.4, D3)', () => {
     expect(invoiceLeave(at({ correction: { active: true, dirty: false } }))).toMatchObject({ held: false, guard: false });
   });
 });
+
+describe('режим «Изменить» разобранного (D-12.4)', () => {
+  it('правка держит; вопрос называет «Разобран» и записи мимо перехода не предлагает', () => {
+    expect(invoiceLeave(at({ lines: true, editing: true }))).toMatchObject({
+      guard: true, savable: false,
+      question: expect.stringMatching(/^Правка разобранного счёта не записана: она записывается кнопкой «Разобран»/),
+    });
+  });
+
+  it('оплаченный черновик (не «Изменить») — вопрос пишет перед уходом', () => {
+    expect(invoiceLeave(at({ header: true }))).toMatchObject({ guard: true, savable: true });
+  });
+});

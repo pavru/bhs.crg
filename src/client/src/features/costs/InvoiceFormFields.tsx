@@ -54,7 +54,7 @@ export function BlockFields({
         {block.fields.map(key => (
           <div key={key} className={`min-w-0 ${block.id === 'who' ? (wide(key) ? '@3xl:col-span-6' : '@3xl:col-span-3') : '@3xl:col-span-4'}`}
             {...{ [READINESS_ATTR]: readinessAnchor({ place: 'field', key }) }}
-            onBlur={onLeave && (e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onLeave(); })}>
+            onBlur={onLeave ? (e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onLeave(); }) : undefined}>
             <Field fieldKey={key} view={view} edits={edits} organizations={organizations}
               organizationsUnread={organizationsUnread} value={value} set={set} pick={pick} locked={locked} />
             {!quiet && (

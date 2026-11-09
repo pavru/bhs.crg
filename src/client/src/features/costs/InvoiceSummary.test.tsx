@@ -1,15 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { InvoiceSummary, type SummarySave } from './InvoiceSummary';
+import { InvoiceSummary } from './InvoiceSummary';
+import { summarySave, type SummarySave } from './invoiceSummarySave';
 import { parsedHold, payHold } from './invoicePrimary';
-import type { SaveStatus } from './invoiceSave';
+import type { SaveModel, SaveStatus } from './invoiceSave';
 
 /** Носитель записи в сводке счёта (costs-invoice-screen-12-autosave, D-12.1, ТЗ COST-6.5). */
 
 afterEach(cleanup);
 
-const auto = (status: SaveStatus, onRetry = () => {}): SummarySave => ({ kind: 'auto', status, savedAt: '12:04', onRetry });
+const noop = () => {};
+/** Запись сводки — тем же построителем, что у формы. */
+const built = (model: SaveModel, at: { status?: SaveStatus; unsaved?: boolean; onRetry?: () => void; onEdit?: () => void;
+  onCancel?: () => void; onGo?: () => void } = {}): SummarySave => summarySave(model, {
+  status: at.status ?? { kind: 'idle' }, savedAt: '12:04', unsaved: at.unsaved ?? false, onRetry: at.onRetry ?? noop,
+  onEdit: at.onEdit ?? noop, onCancel: at.onCancel ?? noop, onGo: at.onGo ?? noop,
+})!;
+const auto = (status: SaveStatus, onRetry = noop): SummarySave => built('auto', { status, onRetry });
 
 function mount(save: SummarySave | null, hold: string | null = null) {
   return render(
@@ -53,10 +61,50 @@ describe('носитель записи', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).toBeNull();
   });
 
-  it('там, где автосохранения нет, — прежняя кнопка «Сохранить»', () => {
-    mount({ kind: 'button', unsaved: true, saving: false, savedAt: '09.11.2026 12:04', onSave: () => {} });
+});
+
+describe('явная запись (D-12.3 – D-12.5): кнопки «Сохранить» в сводке нет ни у одного положения', () => {
+  const models = ['auto', 'read', 'edit', 'terms'] as const;
+  it.each(models)('%s — «Сохранить» нет', model => {
+    mount(built(model, { unsaved: true }));
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+  });
+
+  it('разобранный читается — «Изменить», носителя нет', () => {
+    const edit = vi.fn();
+    mount(built('read', { onEdit: edit }));
     expect(screen.queryByTestId('invoice-save-state')).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Сохранить' }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Изменить' })[0]);
+    expect(edit).toHaveBeenCalledOnce();
+  });
+
+  it('режим «Изменить» с правкой — «Не сохранено» и «Отменить правку»', () => {
+    const cancel = vi.fn();
+    mount(built('edit', { unsaved: true, onCancel: cancel }));
+    expect(carrier().dataset.state).toBe('unsaved');
+    expect(carrier().textContent).toContain('Не сохранено');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Отменить правку' })[0]);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('режим «Изменить» без правки — «Сохранено · время»', () => {
+    mount(built('edit'));
+    expect(carrier().dataset.state).toBe('saved');
+  });
+
+  it('оплаченный черновик с правкой — носитель называет «Сохранить» в «Сроках и оплате» и ведёт туда', () => {
+    const go = vi.fn();
+    mount(built('terms', { unsaved: true, onGo: go }));
+    expect(carrier().dataset.state).toBe('unsaved');
+    const to = screen.getAllByRole('button', { name: /«Сохранить» в «Сроках и оплате»/ })[0];
+    fireEvent.click(to);
+    expect(go).toHaveBeenCalledOnce();
+  });
+
+  it('оплаченный черновик, отказ сервера — его словами', () => {
+    mount(built('terms', { status: { kind: 'refused', text: 'Оплаченный счёт обязан оставаться сведённым' }, unsaved: true }));
+    expect(carrier().dataset.state).toBe('refused');
+    expect(carrier().textContent).toContain('Оплаченный счёт обязан оставаться сведённым');
   });
 });
 

@@ -6,9 +6,11 @@
  * только реквизиты, и уход молча уносил набранные строки.</p>
  *
  * <p><b>Вопрос называет, что не сохранено, и не обещает лишнего</b> (D2, решение владельца 08.11.2026 — «(а)
- * Сохранить и строки»): «Сохранить и перейти» пишет реквизиты, затем строки — той же очередью, что кнопка
- * «Сохранить» сводки. Исправление этой кнопкой не пишется вовсе (у него одна запись — «Проверить
- * исправление…»), и в исправлении кнопки записи у вопроса нет (D3).</p>
+ * Сохранить и строки»): «Сохранить и перейти» пишет реквизиты, затем строки — той же очередью записи, что
+ * «Сохранить» в «Сроках и оплате» у оплаченного черновика. Черновик сюда не попадает: он дописывается перед
+ * уходом сам (D-12.7). Исправление этой кнопкой не пишется вовсе (у него одна запись — «Проверить
+ * исправление…»), и в исправлении кнопки записи у вопроса нет (D3). Так же и режим «Изменить» разобранного
+ * (D-12.4): его запись — «Разобран», и «Сохранить и перейти» записало бы правку мимо перехода.</p>
  */
 
 export interface InvoiceLeaveInput {
@@ -20,6 +22,8 @@ export interface InvoiceLeaveInput {
   correction: { active: boolean; dirty: boolean };
   /** Счёт удалён, пока был открыт: сохранять некуда, охрана молчит. */
   gone: boolean;
+  /** Режим «Изменить» разобранного (D-12.4): запись у него одна — «Разобран». */
+  editing?: boolean;
 }
 
 export interface InvoiceLeave {
@@ -29,19 +33,22 @@ export interface InvoiceLeave {
   guard: boolean;
   /** Текст вопроса. */
   question: string;
-  /** Пишет ли вопрос перед уходом: в исправлении — нет. */
+  /** Пишет ли вопрос перед уходом: в исправлении и в «Изменить» — нет. */
   savable: boolean;
 }
 
-export function invoiceLeave({ header, lines, correction, gone }: InvoiceLeaveInput): InvoiceLeave {
+export function invoiceLeave({ header, lines, correction, gone, editing = false }: InvoiceLeaveInput): InvoiceLeave {
   const held = header || lines || correction.dirty;
   const correcting = correction.active && !gone;
-  return { held, guard: held && !gone, question: leaveQuestion(header, lines, correcting), savable: !correcting };
+  return { held, guard: held && !gone, question: leaveQuestion(header, lines, correcting, editing),
+    savable: !correcting && !editing };
 }
 
-function leaveQuestion(header: boolean, lines: boolean, correcting: boolean): string {
+function leaveQuestion(header: boolean, lines: boolean, correcting: boolean, editing: boolean): string {
   if (correcting)
     return 'Исправление не записано: оно записывается только кнопкой «Проверить исправление…». Уйдя, вы потеряете набранное в нём.';
+  if (editing)
+    return 'Правка разобранного счёта не записана: она записывается кнопкой «Разобран». Уйдя, вы потеряете набранное.';
   if (header && lines)
     return 'Не сохранены реквизиты и строки счёта. Сохранить их перед переходом? Сначала запишутся реквизиты, затем строки.';
   if (lines) return 'Не сохранены строки счёта. Сохранить их перед переходом?';

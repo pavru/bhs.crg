@@ -43,6 +43,17 @@ describe('createSaveQueue', () => {
     expect(queue.status.kind).toBe('idle');
   });
 
+  it('flush помнит вид из ответа последней записи — версию для «Разобран» следом (D-12.4)', async () => {
+    const { queue, now } = setup({ dirty: { header: true, lines: true } });
+    now.header = async () => { now.dirty.header = false; return viewAt('v2'); };
+    now.lines = async () => { now.dirty.lines = false; return viewAt('v3'); };
+    await queue.flush();
+    expect(queue.written?.version).toBe('v3');
+    // Следующая flush, которой писать нечего, о прежней записи не говорит.
+    await queue.flush();
+    expect(queue.written).toBeNull();
+  });
+
   it('одна запись в полёте: пометка во время записи ждёт её конца', async () => {
     const first = gate<InvoiceView>();
     const header = vi.fn(() => first.promise);
@@ -229,7 +240,13 @@ describe('editsAfterSave', () => {
 describe('saveModel', () => {
   const view = (paid: boolean) => ({ requisites: {}, payment: { paid } } as never);
   it('черновик без оплаты пишется сам', () => expect(saveModel(view(false), true, false)).toBe('auto'));
-  it('оплаченный черновик — явной записью', () => expect(saveModel(view(true), true, false)).toBe('button'));
-  it('разобранный — явной записью', () => expect(saveModel(view(false), true, true)).toBe('button'));
+  it('оплаченный черновик — «Сохранить» в «Сроках и оплате»', () => expect(saveModel(view(true), true, false)).toBe('terms'));
+  it('разобранный — читается до «Изменить»', () => expect(saveModel(view(false), true, true)).toBe('read'));
+  it('режим «Изменить» держится, даже если сервер опустил счёт в черновик посреди «Разобран»', () => {
+    expect(saveModel(view(false), true, true, true)).toBe('edit');
+    expect(saveModel(view(false), true, false, true)).toBe('edit');
+    expect(saveModel(view(true), true, false, true)).toBe('edit');
+  });
+  it('без права режим не открывается', () => expect(saveModel(view(false), false, true, true)).toBeNull());
   it('без права, запертый, исправление — никак', () => expect(saveModel(view(false), false, false)).toBeNull());
 });

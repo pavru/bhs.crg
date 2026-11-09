@@ -40,6 +40,7 @@
 
 import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn, expandInvoiceParts, invoiceMenu } from './harness.mjs';
 import { statusItems, untilStatus } from './invoice-status.mjs';
+import { paidSaveChecks } from './invoice-paid-save-checks.mjs';
 
 
 const browser = await launchBrowser();
@@ -315,6 +316,10 @@ await check('payment-date-escape-reverts-and-keeps-dialog', async () => {
   if (after !== before) throw new Error(`Esc вернул ${after}, а при входе в поле было ${before}`);
   await leavePayment(dialog);
 });
+
+// ── 0. Оплаченный черновик открытого периода пишется явно (D-12.5) ──────────────────────────────────
+// Оплата сегодняшним днём: закрытие ниже идёт по `through` (пять дней назад) и этот счёт не запирает.
+await paidSaveChecks({ page, check, stamp, api, invoice, open, paidOn: today });
 
 // ── Данные: один счёт оплачен ДО закрытия (его запрёт), второй оплатим ПОСЛЕ (его перенесёт) ───────
 const lockedNumber = `ОПЛ-З-${stamp}`;
