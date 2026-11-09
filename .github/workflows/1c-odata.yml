@@ -37,6 +37,16 @@ jobs:
     runs-on: [self-hosted, 1c]
     environment: 1c
     timeout-minutes: 10
+    env:
+      # Системный gitconfig машины (C:\Program Files\Git\etc\gitconfig) включает встроенный
+      # fsmonitor — для всех учётных записей, и раннера тоже. Каждая команда git поднимает демона, тот
+      # держит каталоги открытыми, и checkout падает на EBUSY при удалении _work\_temp\… (наступили
+      # в первом же прогоне, #1836). Переменные GIT_CONFIG_* старше системного конфига.
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.fsmonitor
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.useBuiltinFSMonitor
+      GIT_CONFIG_VALUE_1: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
