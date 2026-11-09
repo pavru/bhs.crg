@@ -56,22 +56,32 @@ const UNDERLINE = {
  * Вид `primary` ([UI-90]). Индикатор — не рамка кнопки, а полоса внутри обёртки содержимого: у primary MD3 он
  * шириной по содержимому (значок, подпись, счётчик), а рамка кнопки дала бы всю вкладку с полями — это вид
  * secondary. Радиус 3 dp из MD3 в шкале формы нет — ближайшая ступень, `xs` (4 px). Со значком значок стоит над
- * подписью и ряд выше — 64 вместо 48; решает наличие значка у любой вкладки, чтобы высоты в ряду не расходились.
- * Ниже `md` вкладки делят ряд поровну (fixed tabs MD3), но не уже своего содержимого — иначе ряд прокручивается.
+ * подписью и ряд выше — 64 вместо 48; решает наличие значка у любой вкладки, чтобы высоты в ряду не расходились,
+ * а вкладка без значка держит под него пустое место — иначе её подпись встала бы по центру, выше соседних.
+ * Ниже `md` вкладки делят ряд поровну (fixed tabs MD3), но не уже своего содержимого — иначе ряд прокручивается;
+ * поэтому `shrink-0` у вкладки только на рабочем столе: с `flex-1` он спорил бы о сжатии порядком правил в CSS.
+ * Ряд — тот же, что у `underline` (`UNDERLINE.list`).
  */
 const PRIMARY = {
-  list: UNDERLINE.list,
-  tab: 'inline-flex shrink-0 justify-center px-4 text-label-large whitespace-nowrap state-layer focus-ring-inset',
+  tab: 'inline-flex justify-center px-4 text-label-large whitespace-nowrap state-layer focus-ring-inset',
   flat: 'h-12',
   stacked: 'h-16',
   fill: 'flex-1 min-w-max',
+  fit: 'shrink-0',
   on: 'text-primary',
   off: 'text-on-surface-variant',
   content: 'relative inline-flex min-w-6 items-center justify-center',
   flatContent: 'gap-1.5',
   stackedContent: 'flex-col gap-0.5',
   indicator: 'absolute inset-x-0 bottom-0 h-0.75 rounded-t-xs bg-primary',
+  iconSlot: 'size-6 shrink-0',
 } as const;
+
+/** Недоступная вкладка (`primary` и `underline`; у сегмента — свой вид в `segmentClass`). */
+const DISABLED = 'disabled-content disabled:pointer-events-none';
+
+/** Есть ли что показать в `badge`: `0` — показать, пусто и `false` — нет. */
+const hasBadge = (badge: ReactNode) => badge !== undefined && badge !== null && badge !== false && badge !== '';
 
 type Variant = 'primary' | 'underline' | 'segmented';
 
@@ -100,34 +110,41 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
   const p = PRIMARY;
 
   return (
-    <div role="tablist" className={`${segmented ? SEGMENT_ROW : primary ? p.list : s.list} ${className}`} {...aria}>
+    <div role="tablist" className={`${segmented ? SEGMENT_ROW : s.list} ${className}`} {...aria}>
       {items.map((it, i) => {
         const on = it.value === value;
         // У сегмента выбранный — с галочкой, как у `SegmentedButton`: вид один.
         const icon = segmented && on ? Check : it.icon;
+        // Пробел между подписью и счётчиком — для диктора: без него имя вкладки «Приложения3». В строке flex
+        // пробельный текст не рисуется, вид не меняется.
+        const badge = hasBadge(it.badge) ? <>{' '}{it.badge}</> : null;
+        const look = segmented
+          ? segmentClass({ selected: on, first: i === 0, last: i === items.length - 1 })
+          : primary
+            ? `${p.tab} ${stacked ? p.stacked : p.flat} ${narrow ? p.fill : p.fit} ${on ? p.on : p.off} ${DISABLED}`
+            : `${s.tab} ${on ? s.on : s.off} ${DISABLED}`;
         return (
           <Tooltip key={it.value} content={it.title}>
             <button type="button" role="tab" id={tabId(id, it.value)}
-              aria-selected={on} aria-controls={panelId(id, it.value)} {...roving.item(i)}
+              // Панель рисуется только у выбранной вкладки (`TabPanel` с текущим `value`): ссылка у остальных
+              // вела бы на элемент, которого нет.
+              aria-selected={on} aria-controls={on ? panelId(id, it.value) : undefined} {...roving.item(i)}
               disabled={it.disabled}
               onClick={() => { if (!on) onChange(it.value); }}
               onKeyDown={roving.onKeyDown}
-              className={segmented
-                ? segmentClass({ selected: on, first: i === 0, last: i === items.length - 1 })
-                : primary
-                  ? `${p.tab} ${stacked ? p.stacked : p.flat} ${narrow ? p.fill : ''} ${on ? p.on : p.off} disabled-content disabled:pointer-events-none`
-                  : `${s.tab} ${on ? s.on : s.off} disabled-content disabled:pointer-events-none`}>
+              className={look}>
               {primary ? (
                 <span data-tab-content className={`${p.content} ${stacked ? p.stackedContent : p.flatContent}`}>
-                  {icon && <Icon icon={icon} size={24} aria-hidden className="shrink-0" />}
-                  <span className="inline-flex items-center gap-1.5">{it.label}{it.badge}</span>
+                  {icon ? <Icon icon={icon} size={24} aria-hidden className="shrink-0" />
+                    : stacked && <span data-tab-icon-slot aria-hidden className={p.iconSlot} />}
+                  <span className="inline-flex items-center gap-1.5">{it.label}{badge}</span>
                   {on && <span data-tab-indicator aria-hidden className={p.indicator} />}
                 </span>
               ) : (
                 <>
                   {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
                   {it.label}
-                  {it.badge}
+                  {badge}
                 </>
               )}
             </button>
