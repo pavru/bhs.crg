@@ -16,7 +16,10 @@ import { fileURLToPath } from 'node:url';
  * записи — `.catch(e => console.log(…))` пишется в одну строку и выглядит заботой.
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SWALLOW = /\.catch\(\s*(?:\(\s*\w*\s*\)|\w+)\s*=>\s*\{?\s*console\.(?:log|warn|error)\(/;
+// Обработчик — стрелка (и `async`) с любыми параметрами, в том числе разбором `({ message })`, или
+// `function (e) {`. Немой `.catch(() => {})` сторож не ловит нарочно: так же пишутся ожидания, которым не
+// обязательно сбываться, — и отличить их от уборки по строке нельзя.
+const SWALLOW = /\.catch\(\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\s*\w*\s*\([^)]*\))\s*\{?\s*console\.(?:log|warn|error)\(/;
 /** Отказ напечатан, но не проглочен: процесс с ним кончается или он брошен дальше (`seed.mjs`). */
 const swallows = line => SWALLOW.test(line) && !/process\.exit|\bthrow\b/.test(line);
 
@@ -36,6 +39,10 @@ describe('уборка в живых прогонах', () => {
       "await x().catch(e => console.log('  ! не возвращён:', e.message));",
       '.catch((err) => { console.warn(err) })',
       '.catch(() => console.error("нет"))',
+      ".catch(async e => console.log('! не возвращён', e.message))",
+      '.catch((e, x) => console.log(e))',
+      ".catch(({ message }) => console.log('!', message))",
+      ".catch(function (e) { console.log('!', e.message); })",
     ]) expect(swallows(line), line).toBe(true);
     expect(swallows("page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));")).toBe(false);
     expect(swallows("main().catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });")).toBe(false);

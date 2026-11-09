@@ -122,8 +122,8 @@ export async function favoritesChecks(page, check) {
       // «С другого компьютера» заводят стройку и отмечают её — адресом, мимо кэша этой страницы.
       // Звезда здесь не должна снять её как «удалённую»: справочник этой страницы её ещё не видел, а
       // сервер — видит (ревью PR #1331).
-      const created = await callApi(page, 'POST', '/constructions', { name: `${SPARE} с другого компьютера` });
-      const elsewhere = created.body.id;
+      // `callApiOk`: отказ — провал этой проверки словами сервера, а не `undefined` в уборке ниже.
+      const elsewhere = (await callApiOk(page, 'POST', '/constructions', { name: `${SPARE} с другого компьютера` })).id;
       spare.push(elsewhere);
       const before = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions;
       await callApi(page, 'PUT', '/account/settings', { favoriteConstructions: `${before},${elsewhere}` });
