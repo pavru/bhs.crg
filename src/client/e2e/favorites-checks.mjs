@@ -8,7 +8,7 @@
 // избранное урезало бы им список строек, и они упали бы на чужом. Поэтому настройки сбрасываются и
 // до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, pickSites } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, pickSites } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
@@ -211,7 +211,7 @@ export async function favoritesChecks(page, check) {
       }
     });
   } finally {
-    await callApi(page, 'PUT', '/account/settings', RESET);
-    for (const id of spare) await callApi(page, 'DELETE', `/constructions/${id}`);
+    await check.tidy('настройки избранного не сброшены', () => callApiOk(page, 'PUT', '/account/settings', RESET));
+    for (const id of spare) await check.tidy(`запасная стройка ${id} не удалена`, () => callApiOk(page, 'DELETE', `/constructions/${id}`));
   }
 }
