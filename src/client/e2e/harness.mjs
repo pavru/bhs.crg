@@ -469,6 +469,16 @@ export function callApi(page, method, path, body) {
   }, [method, path, body ?? null]);
 }
 
+/**
+ * То же, что `callApi`, но отказ (код от 400) бросается — со словами сервера. Для уборки в `tidy`:
+ * ответа `callApi` никто не читает, и отказ сервера без этого проходил бы молча.
+ */
+export async function callApiOk(page, method, path, body) {
+  const answer = await callApi(page, method, path, body);
+  if (answer.status >= 400) throw new Error(`${method} ${path} → ${answer.status} ${String(answer.body).slice(0, 200)}`);
+  return answer.body;
+}
+
 /** Адрес «Реестра счетов» с готовым отбором — тем же видом, каким его собирает клиент. */
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
@@ -572,6 +582,13 @@ export async function clearSession(page) {
  *
  * Отказ 429 оформления, увиденный любой страницей прогона (`brandingRefusals`), итог тоже делает
  * провалом — даже когда все проверки прошли.
+ *
+ * `tidy(what, fn)` — уборка за проверками: вернуть настройку, удалить заведённое. Отказ уборки —
+ * ПРОВАЛ набора («✗ уборка: …» и в итоге), успех не считается проверкой и итог «N из M» не
+ * раздувает. Модулям проверок она приходит вместе с `check` — `check.tidy`, — как и сам `check`.
+ * Заведена после того, как уборка выбора подпанели на каждом прогоне получала 400 и сообщала об этом
+ * строкой «! … не возвращён», которой не видел никто: набор оставался зелёным, а следующий шёл на
+ * чужой настройке. Ловить отказ уборки и только печатать его запрещает `tidy.test.mjs`.
  */
 export function createChecks() {
   const results = [];
@@ -580,6 +597,16 @@ export function createChecks() {
     try { await fn(); results.push([name, true, '']); console.log(`  ✓ ${name}`); }
     catch (e) { results.push([name, false, e.message]); console.log(`  ✗ ${name} — ${e.message}`); }
   }
+  async function tidy(what, fn) {
+    try { await fn(); }
+    catch (e) {
+      const name = `уборка: ${what}`;
+      results.push([name, false, e.message]);
+      // Первая строка: отказ Playwright тянет за собой журнал вызова.
+      console.log(`  ✗ ${name} — ${e.message.split('\n')[0]}`);
+    }
+  }
+  check.tidy = tidy;
   function skip(name, reason) {
     skipped.push([name, reason]);
     console.log(`  — ${name} — пропущено: ${reason}`);
@@ -599,7 +626,7 @@ export function createChecks() {
     console.log(`${title} — OK`);
     return 0;
   }
-  return { check, skip, summarize };
+  return { check, skip, tidy, summarize };
 }
 
 /**
