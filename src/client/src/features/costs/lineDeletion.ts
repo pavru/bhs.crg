@@ -1,4 +1,4 @@
-import { formatMoney, formatQuantity } from '@/shared/format/format';
+import { formatMoney, formatQuantityUnit } from '@/shared/format/format';
 import type { AllocationPartView, InvoiceLineView } from '@/shared/api/invoices';
 import { issueOf, issueText } from './lostReferences';
 
@@ -21,7 +21,6 @@ export interface CascadeTarget {
  */
 export function cascadeTargets(saved: InvoiceLineView): CascadeTarget[] {
   const byQuantity = saved.allocation.mode !== 'amount';
-  const unit = saved.unit?.trim();
   return saved.allocation.parts.map((part: AllocationPartView) => {
     const issue = issueOf(part);
     const article = part.articleId !== null;
@@ -30,7 +29,7 @@ export function cascadeTargets(saved: InvoiceLineView): CascadeTarget[] {
       detail: issue ? issueText(issue) : article ? 'Статья вне строек' : part.sectionName ?? '',
       troubled: issue !== null,
       share: byQuantity
-        ? part.quantity === null ? '—' : `${formatQuantity(part.quantity)}${unit ? ` ${unit}` : ''}`
+        ? part.quantity === null ? '—' : formatQuantityUnit(part.quantity, saved.unit)
         : part.amount === null ? '—' : formatMoney(part.amount),
       amount: byQuantity && part.amount !== null ? formatMoney(part.amount) : '',
     };
@@ -40,7 +39,6 @@ export function cascadeTargets(saved: InvoiceLineView): CascadeTarget[] {
 /** Итог строки над перечнем: «100 м · 18 400,00 ₽» — чтобы «та ли это строка» было видно сразу. */
 export function lineTotal(saved: InvoiceLineView): string {
   const money = saved.amount === null ? null : formatMoney(saved.amount);
-  const unit = saved.unit?.trim();
-  const quantity = saved.quantity === null ? 'Без количества' : `${formatQuantity(saved.quantity)}${unit ? ` ${unit}` : ''}`;
+  const quantity = saved.quantity === null ? 'Без количества' : formatQuantityUnit(saved.quantity, saved.unit);
   return money === null ? quantity : `${quantity} · ${money}`;
 }

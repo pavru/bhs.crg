@@ -58,13 +58,23 @@ function view(lines: InvoiceLineView[]): InvoiceView {
   } as unknown as InvoiceView;
 }
 
+const LOCK = ['test-lock'];
+/** Новые данные запроса — и дождаться рассылки: TanStack Query рассылает таймером, а не сразу. */
+const put = (key: readonly unknown[], data: unknown) => act(async () => {
+  qc.setQueryData(key, data);
+  await new Promise(resolve => setTimeout(resolve, 0));
+});
+
 function Screen({ saver }: { saver: MutableRefObject<LinesStep | null> }) {
   const { data } = useQuery({ queryKey: [QK, 'i1'], queryFn: () => new Promise<InvoiceView>(() => {}), staleTime: Infinity });
-  return data ? <InvoiceLinesTable view={data} locked={false} saverRef={saver} /> : null;
+  const { data: locked } = useQuery({ queryKey: LOCK, queryFn: () => false, initialData: false, staleTime: Infinity });
+  return data ? <InvoiceLinesTable view={data} locked={false} readOnly={locked} saverRef={saver} /> : null;
 }
 
+let qc: QueryClient;
+
 function mount() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   qc.setQueryData([QK, 'i1'], view([allocated, plain]));
   const saver: MutableRefObject<LinesStep | null> = { current: null };
   render(<QueryClientProvider client={qc}><SnackbarProvider><Screen saver={saver} /></SnackbarProvider></QueryClientProvider>);
@@ -77,8 +87,8 @@ const bin = (row: number) => screen.getByRole('button', { name: `Удалить 
 describe('удаление строки с разноской (#1655)', () => {
   it('до записи названы обе стройки с долями и суммами и сказано, что разноску не вернуть; отказ оставляет строку', async () => {
     mount();
-    // Щелчок в браузере ставит фокус на кнопку; jsdom этого не делает — ставим сами.
-    bin(1).focus();
+    // Фокус — не на корзине: щелчок мышью в Safari и jsdom кнопку не фокусирует. Вернуть его на корзину обязана сетка.
+    text(2)!.focus();
     fireEvent.click(bin(1));
     const dialog = screen.getByRole('dialog', { name: 'Удалить строку 1?' });
     const cascade = within(dialog).getByRole('list', { name: 'Разноска строки' });
@@ -99,6 +109,29 @@ describe('удаление строки с разноской (#1655)', () => {
     expect(text(2)?.value).toBe('Труба без разноски');
     // Отказ возвращает фокус на корзину той же строки (D2).
     await vi.waitFor(() => expect(document.activeElement).toBe(bin(1)));
+  });
+
+  it('таблицу заперли, пока окно открыто: окно закрывается само, строка остаётся (ревью #1833)', async () => {
+    mount();
+    fireEvent.click(bin(1));
+    expect(screen.getByRole('dialog', { name: 'Удалить строку 1?' })).toBeTruthy();
+    await put(LOCK, true);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Отперли — вопрос сам не возвращается: его больше нет; строка на месте.
+    await put(LOCK, false);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(text(1)?.value).toBe('Кабель ВВГнг(А)-LS 3×2,5');
+  });
+
+  it('строки перечитались, пока окно открыто: номер в окне — нынешний, подтверждение удаляет ту же строку', async () => {
+    mount();
+    fireEvent.click(bin(1));
+    // Сосед записал строки в другом порядке; черновик не тронут — таблица берёт перечитанные.
+    await put([QK, 'i1'], { ...view([{ ...plain, ordinal: 1 }, { ...allocated, ordinal: 2 }]), version: 'v2' });
+    const dialog = screen.getByRole('dialog', { name: 'Удалить строку 2?' });
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить строку 2' })); });
+    expect(text(1)?.value).toBe('Труба без разноски');
+    expect(text(2)).toBeNull();
   });
 
   it('подтверждение убирает строку без «Вернуть», и запись строк её уже не несёт', async () => {

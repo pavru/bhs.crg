@@ -5,14 +5,12 @@ import { Warning } from '@/shared/ui/icons';
 import { ruPlural } from '@/shared/utils/pluralize';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { cascadeTargets, lineTotal } from './lineDeletion';
-import type { LineDraft } from './invoiceLines';
+import { lineName } from './invoiceLines';
 
-/** Строка, удаление которой ждёт ответа: черновик (что человек видит) и её номер в таблице. */
+/** Строка, удаление которой ждёт ответа: её ключ в черновике и кому сказать исход — сетке, она ставит фокус (D2). */
 export interface LineDeleteAsk {
-  line: LineDraft;
-  index: number;
-  /** Куда вернуть фокус по отказу — корзина строки. У окна нет `Dialog.Trigger`, и сам Radix его никуда не вернёт. */
-  returnTo: HTMLElement | null;
+  key: string;
+  answer: (removed: boolean) => void;
 }
 
 /**
@@ -20,47 +18,46 @@ export interface LineDeleteAsk {
  * куда и на сколько она разнесена и что после сохранения разноску не вернуть. Каскад на сервере верен —
  * окно его только называет.
  *
+ * <p>Всё в окне — от сохранённой строки: удаляется записанное, и разноска посчитана от записанных количеств. Правка
+ * черновика, ещё не сохранённая, в окне не видна — номер строки называет её однозначно.</p>
+ *
  * <p>`onClose(true)` зовётся при ЗАКРЫТИИ окна после подтверждения, а не в `onConfirm`: строка уходит из таблицы тем
- * же рендером, что и окно, — иначе фокус, поставленный таблицей на соседнюю строку (D2), забрала бы ловушка фокуса
- * ещё открытого окна. Отказ (Отмена, Esc, мимо) — `onClose(false)` и фокус на корзину строки (D2): уже после
- * закрытия, когда ловушка фокуса окна снята.</p>
+ * же рендером, что и окно, — иначе фокус, поставленный сеткой на соседнюю строку (D2), забрала бы ловушка фокуса
+ * ещё открытого окна.</p>
  */
-export function LineDeleteDialog({ asking, saved, onClose }: {
-  asking: LineDeleteAsk | null;
-  saved: readonly InvoiceLineView[];
+export function LineDeleteDialog({ saved, number, onClose }: {
+  /** Сохранённая строка, о которой спрашивают; нет — окно закрыто. */
+  saved: InvoiceLineView | null;
+  /** Номер строки в таблице сейчас, а не на миг нажатия: строки могли перечитаться. */
+  number: number;
   onClose: (confirmed: boolean) => void;
 }) {
   const confirmed = useRef(false);
-  const number = asking ? asking.index + 1 : 0;
-  const line = asking ? saved.find(s => s.id === asking.line.id) : undefined;
-  const targets = line ? cascadeTargets(line) : [];
-  const name = asking ? asking.line.nomenclatureName ?? (asking.line.supplierText.trim() || 'Без наименования') : '';
+  const targets = saved ? cascadeTargets(saved) : [];
   return (
-    <ConfirmDialog open={asking !== null}
+    <ConfirmDialog open={saved !== null}
       onOpenChange={open => {
         if (open) return;
         const yes = confirmed.current;
         confirmed.current = false;
-        const back = asking?.returnTo;
         onClose(yes);
-        if (!yes && back) setTimeout(() => { if (back.isConnected) back.focus(); });
       }}
       title={`Удалить строку ${number}?`}
       confirmLabel={`Удалить строку ${number}`}
       onConfirm={() => { confirmed.current = true; }}
-      description={(
+      description={saved && (
         <>
           <div className="flex flex-col pb-3">
-            <span className="text-on-surface">{name}</span>
-            {line && <span className="text-body-small">{lineTotal(line)}</span>}
+            <span className="text-on-surface">{lineName(saved)}</span>
+            <span className="text-body-small">{lineTotal(saved)}</span>
           </div>
           {targets.length > 0 && (
             <>
               <p className="text-title-small text-on-surface">
                 Разнесена на {targets.length} {ruPlural(targets.length, 'цель', 'цели', 'целей')}
               </p>
-              {/* Длинный перечень прокручивается сам: итог над ним и предупреждение под ним остаются на виду. */}
-              <ul aria-label="Разноска строки" className="max-h-64 overflow-y-auto">
+              {/* Длинный перечень прокручивает тело окна — одна прокрутка, без вложенной (её колесо и Tab путали). */}
+              <ul aria-label="Разноска строки">
                 {targets.map((t, i) => (
                   <li key={i} className="flex justify-between gap-3 py-2 border-t border-outline-variant">
                     <span className="flex flex-col min-w-0">
