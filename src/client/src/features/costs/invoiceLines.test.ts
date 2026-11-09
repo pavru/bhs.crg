@@ -395,7 +395,7 @@ describe('«Вернуть» удалённой строки (costs-invoice-scre
     expect(restoreLine(drafts, drafts[2], 2, six)).toBe(drafts);
   });
 
-  it('строка с сохранённой разноской снэкбара не даёт; новая и без долей — даёт', () => {
+  it('строка с сохранённой разноской спрашивается (#1655), снэкбара не даёт; новая и без долей — даёт', () => {
     const allocated = [line({ id: 'a', allocation: { parts: [{}] } as never }), line({ id: 'b' })];
     const [a, b] = toDrafts(allocated, 'Included');
     expect(hasSavedAllocation(a, allocated)).toBe(true);

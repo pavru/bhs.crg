@@ -93,7 +93,10 @@ export function EditGrid<Row>({
   numbered?: boolean;
   /** Добавить строку — кнопкой под сеткой. Нет — добавлять нельзя (нет права, строки заперты). */
   add?: EditGridAdd;
-  /** Удалить строку — кнопкой в её конце. Нет — колонки удаления нет вовсе. */
+  /**
+   * Удалить строку — кнопкой в её конце. Нет — колонки удаления нет вовсе. Экран может сперва спросить (#1655):
+   * фокус переходит на поле соседней строки, только когда строк стало меньше; отказ его не трогает.
+   */
   onRemove?: (row: Row, index: number) => void;
   /** Подпись кнопки удаления; по умолчанию «Удалить строку N». */
   removeLabel?: (row: Row, index: number) => string;
@@ -128,8 +131,9 @@ export function EditGrid<Row>({
 }) {
   const table = useRef<HTMLTableElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
-  // Куда поставить фокус, когда строки перерисуются: добавленная строка либо место удалённой.
-  const pendingFocus = useRef<{ kind: 'added' } | { kind: 'removed'; index: number } | null>(null);
+  // Куда поставить фокус, когда строки перерисуются: добавленная строка либо место удалённой. У удалённой
+  // помнится и число строк до нажатия: экран может сперва спросить (#1655), и строка уйдёт позже — или не уйдёт.
+  const pendingFocus = useRef<{ kind: 'added' } | { kind: 'removed'; index: number; from: number } | null>(null);
 
   const removable = onRemove !== undefined;
   const hasTotal = columns.some(c => c.total);
@@ -145,11 +149,14 @@ export function EditGrid<Row>({
       row?.querySelector<HTMLElement>(`[data-cell] :is(${FOCUSABLE})`)?.focus();
       return;
     }
+    // Строк не убыло — удаление не случилось (отказ в вопросе экрана), а строки сменило другое.
+    if (rows.length >= wanted.from) return;
+    // На поле строки, вставшей на место удалённой, а не на её корзину (D2 #1655): Enter, Enter удалял две строки.
     const next = Math.min(wanted.index, rows.length - 1);
-    const button = next >= 0
-      ? table.current.querySelector<HTMLElement>(`button[data-remove="${next}"]`)
+    const field = next >= 0
+      ? table.current.querySelector<HTMLElement>(`tbody tr[data-row="${next}"] [data-cell] :is(${FOCUSABLE})`)
       : null;
-    (button ?? addButton.current)?.focus();
+    (field ?? addButton.current)?.focus();
   }, [rows.length]);
 
   function focusCell(r: number, c: number): boolean {
@@ -271,7 +278,7 @@ export function EditGrid<Row>({
                           не действует (в собранном CSS `align-top` идёт позже). */}
                       {line(<RemoveButton index={i} label={removeLabel?.(row, i) ?? `Удалить строку ${i + 1}`}
                         onClick={() => {
-                          pendingFocus.current = { kind: 'removed', index: i };
+                          pendingFocus.current = { kind: 'removed', index: i, from: rows.length };
                           onRemove(row, i);
                         }} />)}
                     </td>

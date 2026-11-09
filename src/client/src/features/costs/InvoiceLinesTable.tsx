@@ -25,6 +25,7 @@ import {
   modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
+import { LineDeleteDialog, type LineDeleteAsk } from './LineDeleteDialog';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
 import { READINESS_ATTR, lineAnchor } from './invoiceReadiness';
 import type { MatchFacts } from './invoiceStatus';
@@ -347,16 +348,21 @@ export function InvoiceLinesTable({
   }
 
   /**
-   * Удаление строки — сразу, а у строки без сохранённой разноски — со снэкбаром «Строка N удалена · Вернуть»
-   * (costs-invoice-screen-13-undo, D-13.2). Строку с разноской удаляют своим правилом (#1655) — здесь она
-   * удаляется, как прежде. «Вернуть» сверяет строки счёта на миг нажатия: их могли записать.
+   * Удаление строки. Без сохранённой разноски — сразу, со снэкбаром «Строка N удалена · Вернуть»
+   * (costs-invoice-screen-13-undo, D-13.2); «Вернуть» сверяет строки счёта на миг нажатия: их могли записать. С
+   * разноской — сначала вопрос, называющий её (#1655, D1): разноску после записи не вернуть ничем, и «Вернуть» у
+   * неё нет — строка уходит, только когда человек подтвердил.
    */
   function remove(key: string) {
     const index = drafts.findIndex(draft => draft.key === key);
     const line = drafts[index];
-    setDrafts(prev => prev.filter(draft => draft.key !== key));
-    setDirty(true);
-    if (!line || hasSavedAllocation(line, view.lines)) return;
+    if (line && hasSavedAllocation(line, view.lines)) {
+      // Корзину, на которой фокус, окно вернёт по отказу (D2).
+      setAsking({ line, index, returnTo: document.activeElement instanceof HTMLElement ? document.activeElement : null });
+      return;
+    }
+    drop(key);
+    if (!line) return;
     const restore = () => {
       // Таблицы уже нет — ушли со счёта: «Вернуть», который молча ничего не делает, был бы ложью.
       if (!alive.current) { toast.info(`Строка ${index + 1} не возвращена: счёт закрыт. Откройте его и добавьте строку заново.`); return; }
@@ -364,6 +370,11 @@ export function InvoiceLinesTable({
       setDirty(true);
     };
     toast.success(`Строка ${index + 1} удалена.`, { duration: SNACKBAR_UNDO_MS, action: { label: 'Вернуть', onClick: restore } });
+  }
+  const [asking, setAsking] = useState<LineDeleteAsk | null>(null);
+  function drop(key: string) {
+    setDrafts(prev => prev.filter(draft => draft.key !== key));
+    setDirty(true);
   }
   const savedLines = useRef(view.lines);
   useLayoutEffect(() => { savedLines.current = view.lines; });
@@ -476,6 +487,8 @@ export function InvoiceLinesTable({
         add={still ? undefined : { label: 'Добавить строку', onAdd: () => add([emptyDraft()]) }}
         onRemove={still ? undefined : draft => remove(draft.key)}
         columns={columns} />
+      <LineDeleteDialog asking={asking} saved={view.lines}
+        onClose={confirmed => { if (confirmed && asking) drop(asking.line.key); setAsking(null); }} />
 
       {/* Сверка — липкой строкой под таблицей, пока таблица в окне (D1, ТЗ COST-6.2): у сорока строк она
           видна, где бы ни стояла прокрутка. Без своей рамки — черта сверху (`Divider`). */}
