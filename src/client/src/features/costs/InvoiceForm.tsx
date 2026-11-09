@@ -6,7 +6,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { RowAction } from '@/shared/ui/RowActionsMenu';
 import { apiError } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
-import { formatDate, formatDateTime } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatTime } from '@/shared/format/format';
 import {
   useConfirmInvoiceFields, useInvoiceState, useUpdateInvoice,
   type CostsOrganization, type InvoiceView,
@@ -481,7 +481,7 @@ const LEAVE_FAILED = 'Набранное в счёте не записано: у
 function savedTime(iso: string): string {
   const when = new Date(iso);
   return when.toDateString() === new Date().toDateString()
-    ? when.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    ? formatTime(when)
     : formatDateTime(iso);
 }
 
