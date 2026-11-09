@@ -35,6 +35,38 @@ describe('общий набор примеров с сервером (сторо
   });
 });
 
+describe('после сохранения посчитанное остаётся посчитанным (общий набор, issue #1654)', () => {
+  // Сервер проверяет по тому же набору stored и expect; здесь — что форма шлёт sent и показывает expect.
+  type Numbers = { quantity?: number; price?: number; rate?: number; paper?: number; vat?: number };
+  const fields = { quantity: 'quantity', price: 'price', rate: 'vatRate', paper: 'amount', vat: 'vatAmount' } as const;
+
+  it.each(cases.afterSave.map(c => [c.name, c] as const))('%s', (_, c) => {
+    const mode = c.mode as VatMode;
+    const saved: Numbers = c.saved;
+    const stored = line({
+      quantity: saved.quantity ?? null, price: saved.price ?? null, vatRate: saved.rate ?? null,
+      vatAmount: c.stored.vat, amount: c.stored.gross,
+      ...(mode === 'OnTop' ? { netAmount: c.stored.amount } : {}),
+    });
+    const [taken] = toDrafts([stored], mode);
+    const edit: Numbers = c.edit;
+    const edited = { ...taken };
+    for (const [key, value] of Object.entries(edit)) edited[fields[key as keyof Numbers]] = text(value);
+
+    expect(preview(edited, mode)).toEqual(c.expect);
+    const [payload] = toPayload([edited], mode);
+    const sent: Numbers = c.sent;
+    const number = (value: unknown) => (typeof value === 'string' ? Number(value.replace(',', '.')) : null);
+    expect({
+      quantity: number(payload.quantity), price: number(payload.price), rate: number(payload.vatRate),
+      paper: number(payload[mode === 'OnTop' ? 'netAmount' : 'amount']), vat: number(payload.vatAmount),
+    }).toEqual({
+      quantity: sent.quantity ?? null, price: sent.price ?? null, rate: sent.rate ?? null,
+      paper: sent.paper ?? null, vat: sent.vat ?? null,
+    });
+  });
+});
+
 describe('круг «прочитал → отправил без правок» у счёта сверху', () => {
   // Сервер отдаёт amount С НДС; взятый в черновик, он уехал бы бумагой, и НДС прибавился бы второй раз.
   const saved = line({ netAmount: 1000, amount: 1220, vatRate: 22, vatAmount: 220 });

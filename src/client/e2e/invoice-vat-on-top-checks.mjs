@@ -8,6 +8,8 @@
 // его (#1500); подписи колонок «без НДС»; «сходится» в полосе сверки; бумажная сумма, пережившая
 // сохранение и перечитывание (а не превращённая в сумму с НДС); разноска «с НДС»; и «Разобран».
 
+import { shown } from './invoice-computed-amount-checks.mjs';
+
 /**
  * @param ctx то, чем живёт прогон строк счёта: страница, проверка, свои помощники и позиция номенклатуры.
  */
@@ -58,7 +60,7 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
 
     if (!(await box().isChecked())) throw new Error('после перечитывания флажок «Цены без НДС» снят');
     // Бумажная сумма — как напечатана, а не сумма с НДС: иначе следующее сохранение прибавило бы НДС снова.
-    const paper = await cell('Сумма без НДС', 1).inputValue();
+    const paper = await shown(cell('Сумма без НДС', 1));
     if (paper !== '1000') throw new Error(`сумма без НДС строки 1 — «${paper}», ожидалась бумажная 1000`);
     await strip().waitFor({ timeout: 5_000 })
       .catch(() => { throw new Error('после перечитывания сверка не сходится'); });

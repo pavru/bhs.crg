@@ -313,6 +313,37 @@ describe('разбор вставки не сдвигает смысл', () => {
   });
 });
 
+describe('посчитанное в черновик ложится пустым (issue #1654)', () => {
+  // Пустое поле — «посчитай»; правку количества после сохранения сумма иначе бы не видела.
+  it('сумма, равная количеству × цену, — пустая; бумажная, отличная на копейку, — как есть', () => {
+    const [computed, paper] = toDrafts([
+      line({ quantity: 3, price: 33.33, amount: 99.99 }),
+      line({ quantity: 3, price: 33.33, amount: 100 }),
+    ], 'Included');
+    expect(computed.amount).toBe('');
+    expect(paper.amount).toBe('100');
+  });
+
+  it('НДС, равный посчитанному по ставке от суммы, — пустой; с бумаги — как есть', () => {
+    const [byRate, paper] = toDrafts([
+      line({ amount: 10000, vatRate: 20, vatAmount: 1666.67 }),
+      line({ amount: 10000, vatRate: 20, vatAmount: 1666.66 }),
+    ], 'Included');
+    expect(byRate).toMatchObject({ amount: '10000', vatAmount: '' });
+    expect(paper.vatAmount).toBe('1666,66');
+  });
+
+  it('сверху — сумма без НДС и НДС от неё; сумма с НДС из ответа в черновик не попадает', () => {
+    const [draft] = toDrafts([line({ quantity: 2, price: 500, vatRate: 22, vatAmount: 220, netAmount: 1000, amount: 1220 })], 'OnTop');
+    expect(draft).toMatchObject({ amount: '', vatAmount: '' });
+    expect(preview({ ...draft, quantity: '3' }, 'OnTop')).toEqual({ amount: 1500, vat: 330, gross: 1830 });
+  });
+
+  it('без количества или цены считать не из чего — сумма остаётся', () => {
+    expect(toDrafts([line({ quantity: 3, amount: 100 })], 'Included')[0].amount).toBe('100');
+  });
+});
+
 describe('потеря позиции приходит от сервера', () => {
   it('позиция без названия потерянной не считается', () => {
     const [draft] = toDrafts([line({
