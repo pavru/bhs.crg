@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
@@ -74,16 +73,8 @@ public class UserLibChecker : IUserLibChecker
             probe.Append("x\n");
             await File.WriteAllTextAsync(Path.Combine(tmp, UserLibAnalysis.ProbeName), probe.ToString(), Encoding.UTF8, ct);
 
-            var psi = new ProcessStartInfo
-            {
-                FileName = TypstProcess.ExecutablePath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                WorkingDirectory = tmp,
-            };
-            foreach (var a in new[] { "compile", UserLibAnalysis.ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
-                psi.ArgumentList.Add(a);
+            var psi = TypstProcess.StartInfo(tmp,
+                "compile", UserLibAnalysis.ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp);
 
             // Проверка библиотеки — тоже по нажатию в редакторе, срок как у проверки блоков.
             var (_, stderr) = await TypstProcess.RunAsync(psi, ct, TimeSpan.FromSeconds(10));

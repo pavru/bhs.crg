@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 using BHS.CRG.Tests.Branding;
+using BHS.CRG.Tests.Support;
 using static BHS.CRG.Tests.Branding.BrandIconSamples;
 
 namespace BHS.CRG.Tests.Integration;

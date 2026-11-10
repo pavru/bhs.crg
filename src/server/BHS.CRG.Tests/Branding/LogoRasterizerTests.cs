@@ -1,6 +1,7 @@
 using System.Text;
 using BHS.CRG.Application.Branding;
 using BHS.CRG.Infrastructure.Branding;
+using BHS.CRG.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using static BHS.CRG.Tests.Branding.BrandIconSamples;
 

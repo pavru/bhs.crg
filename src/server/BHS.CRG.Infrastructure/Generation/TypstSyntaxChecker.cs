@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using BHS.CRG.Application.Generation;
 using Microsoft.Extensions.Logging;
@@ -71,16 +70,8 @@ public class TypstSyntaxChecker(ILogger<TypstSyntaxChecker> logger) : ITypstSynt
         await File.WriteAllTextAsync(Path.Combine(tmp, ProbeName),
             $"#import \"{target}\": *\n" + "x\n", Encoding.UTF8, ct);
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = TypstProcess.ExecutablePath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            WorkingDirectory = tmp,
-        };
-        foreach (var a in new[] { "compile", ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
-            psi.ArgumentList.Add(a);
+        var psi = TypstProcess.StartInfo(tmp,
+            "compile", ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp);
 
         // Проверка синтаксиса идёт по нажатию в редакторе — срок короче генеративного:
         // блок, который не разбирается за десять секунд, всё равно не годится в шаблон.

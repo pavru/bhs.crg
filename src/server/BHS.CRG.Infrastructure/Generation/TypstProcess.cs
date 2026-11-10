@@ -40,8 +40,41 @@ public static class TypstProcess
     private static readonly TimeSpan KillGrace = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// Запуск Typst в рабочей папке с этими аргументами — одно место на все вызовы компилятора
+    /// (генерация, две проверки, значки из логотипа). Раньше каждый собирал его руками, и
+    /// пропущенное в одной копии расходилось с остальными молча.
+    /// </summary>
+    /// <remarks>
+    /// Кодировка потоков задана явно: Typst пишет stdout и stderr в UTF-8 всегда, а <c>Process</c>
+    /// без неё читает перенаправленный поток в кодировке консоли сервера. На Linux (поставка) это и
+    /// так UTF-8, а на Windows с русской локалью — OEM 866, и кириллица в отказе компилятора (текст
+    /// <c>panic</c> из шаблона, имя поля) доходила до пользователя кракозябрами «╨┐╤А╨╛…».
+    /// </remarks>
+    public static ProcessStartInfo StartInfo(string workingDirectory, params string[] arguments)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = ExecutablePath,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var a in arguments) psi.ArgumentList.Add(a);
+        return psi;
+    }
+
+    /// <summary>
     /// Запускает процесс, дожидается завершения и возвращает код возврата вместе с stderr.
     /// </summary>
+    /// <remarks>
+    /// Запуск самого Typst собирайте через <see cref="StartInfo"/> — там кодировка потоков. Здесь
+    /// она не навязывается: процесс может быть и не Typst (тесты срока гоняют оболочку), и у него
+    /// своя кодировка, которую вызывающий вправе назвать.
+    /// </remarks>
     /// <exception cref="TypstTimeoutException">Процесс не уложился в срок.</exception>
     public static async Task<(int ExitCode, string StdErr)> RunAsync(
         ProcessStartInfo psi, CancellationToken ct, TimeSpan? timeout = null)
@@ -51,14 +84,6 @@ public static class TypstProcess
         // тихо превратили бы «сети нет» в «сеть есть через прокси» (issue #936).
         foreach (var name in BHS.CRG.Infrastructure.Http.OutboundProxy.EnvironmentVariables)
             psi.Environment.Remove(name);
-
-        // Typst пишет оба потока в UTF-8 всегда, а Process без явной кодировки читает их в кодировке
-        // консоли сервера. На Linux (поставка) это и так UTF-8, а на Windows с русской локалью —
-        // OEM 866: кириллица в отказе компилятора (текст panic из шаблона, имя поля) доходила до
-        // пользователя кракозябрами «╨┐╤А╨╛…». Задаём здесь, а не у вызывающих: все четыре запуска
-        // идут через это место, и пятый не забудет.
-        psi.StandardOutputEncoding = Encoding.UTF8;
-        psi.StandardErrorEncoding = Encoding.UTF8;
 
         var limit = timeout ?? DefaultTimeout;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
