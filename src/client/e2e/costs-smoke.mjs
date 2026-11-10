@@ -32,7 +32,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import {
-  BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText, expandInvoiceParts,
+  BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText, expandInvoiceParts, unrouteQuiet,
 } from './harness.mjs';
 import { extraFieldChecks } from './invoice-extra-field-checks.mjs';
 import { waybillLeaveChecks } from './waybill-leave-checks.mjs';
@@ -492,7 +492,7 @@ async function waybillRereadPart(seat) {
   if (await page.getByLabel('Примечание').inputValue() !== 'набрано до обрыва')
     throw new Error('набранное пропало при неудачном перечитывании');
 
-  await page.unroute(address);
+  await unrouteQuiet(page, address);
   await page.getByTestId('reread-failed').getByRole('button', { name: 'Повторить' }).click();
   await page.getByTestId('reread-failed').waitFor({ state: 'detached', timeout: 10_000 })
     .catch(() => { throw new Error('после удачного повтора полоса осталась'); });

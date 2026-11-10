@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-lines-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until, unrouteQuiet } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { reconciliationChecks } from './invoice-reconciliation-checks.mjs';
 import { saveRaceChecks } from './invoice-save-race-checks.mjs';
@@ -675,9 +675,10 @@ try {
     if (!tally.unchecked?.some(u => u.what.includes('дополнительном поле')))
       throw new Error(`счётчик молчит о непроверенных дополнительных полях: ${JSON.stringify(tally.unchecked)}`);
 
-    // Главное: выход есть. Снимаем ссылку и сохраняем — до правки сервер отказывал, а снять было нечем.
+    // Главное: выход есть. Снимаем ссылку и сохраняем — до правки сервер отказывал, а снять было нечем. Подмену
+    // чтения снимаем раньше, на затихшей странице: дальше чтения настоящие.
+    await unrouteQuiet(page, invoiceRead);
     await page.getByRole('button', { name: 'Снять позицию' }).first().click();
-    await page.unroute(invoiceRead);
     await saveLines();
 
     await page.reload({ waitUntil: 'networkidle' });

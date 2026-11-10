@@ -41,7 +41,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-saved-views-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, pickOption } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, pickOption, underRoute } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows } from './seed-invoices.mjs';
 
 const ADDRESS = 'costs.invoices';
@@ -96,14 +96,15 @@ async function must(p, method, path, body, version) {
  */
 async function withAnswers(p, { views, access }, run) {
   const patterns = [[`**/api/tables/${ADDRESS}/views`, views], ['**/api/account/access', access]].filter(([, change]) => change);
-  for (const [pattern, change] of patterns)
-    await p.route(pattern, async route => {
-      if (route.request().method() !== 'GET') return route.continue();
-      const response = await route.fetch();
-      if (!response.ok()) return route.fulfill({ response });
-      await route.fulfill({ response, json: change(await response.json()) });
-    });
-  try { await run(); } finally { for (const [pattern] of patterns) await p.unroute(pattern); }
+  const answer = change => async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    if (!response.ok()) return route.fulfill({ response });
+    await route.fulfill({ response, json: change(await response.json()) });
+  };
+  // Перехваты вложены: каждый снимается на затихшей странице, внутренний — первым.
+  const under = ([next, ...rest]) => (next ? underRoute(p, next[0], answer(next[1]), () => under(rest)) : run());
+  await under(patterns);
 }
 
 /** Открыть адрес полной перезагрузкой: адрес обязан хватить сам. */

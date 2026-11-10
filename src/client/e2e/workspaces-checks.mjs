@@ -9,7 +9,7 @@
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
 // сбрасываются и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, callApiOk, railSection, accountAction } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, railSection, accountAction, underRoute } from './harness.mjs';
 
 const RESET = { workspaces: null, workspace: null, 'workspace.default': null };
 const OWN = 'Снабжение (проверка)';
@@ -36,13 +36,10 @@ async function relogInSameTab(page) {
     ['local', key, localStorage.getItem(key)], ['session', key, sessionStorage.getItem(key)],
   ]).filter(([, , value]) => value));
   if (!tokens.length) throw new Error('токены сессии не найдены — возвращать нечего');
-  await page.route('**/api/auth/logout', route => route.fulfill({ status: 204 }));
-  try {
+  await underRoute(page, '**/api/auth/logout', route => route.fulfill({ status: 204 }), async () => {
     await accountAction(page, 'Выйти');
     await page.waitForURL(/\/login/);
-  } finally {
-    await page.unroute('**/api/auth/logout');
-  }
+  });
   await page.evaluate(saved => {
     for (const [where, key, value] of saved) (where === 'local' ? localStorage : sessionStorage).setItem(key, value);
   }, tokens);

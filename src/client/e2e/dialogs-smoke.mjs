@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog, underRoute } from './harness.mjs';
 import { dialogLinesFollowBodyScroll } from './dialog-lines-checks.mjs';
 import { phoneDialogSavesFromHeader } from './dialog-phone-checks.mjs';
 
@@ -499,24 +499,31 @@ try {
     // диалог, и второй открывался бы уже после перечитывания (см. openProcessingDialog).
     const source = await smokeSource();
     const slowFiles = /\/api\/datasets\/files(\?|$)/;
-    await page.route(slowFiles, async route => {
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      // Перехват снимают раньше, чем истекает задержка: проверке хватает пары секунд. Задержанный
-      // запрос к тому времени уже отпущен самим снятием, и «продолжить» его второй раз — отказ,
-      // брошенный мимо check(): он ронял прогон целиком, вместе с проверками ниже.
+    // Перечитывание держим четыре секунды — или до конца проверки, что раньше. Снятие перехвата ждёт затихшей
+    // страницы, и держи его таймер дальше конца проверки, снятие платило бы за каждое перечитывание по
+    // четыре секунды, а на цепочке из нескольких упёрлось бы в срок затихания.
+    let release;
+    const done = new Promise(resolve => { release = resolve; });
+    await underRoute(page, slowFiles, async route => {
+      let timer;
+      await Promise.race([done, new Promise(resolve => { timer = setTimeout(resolve, 4000); })]);
+      clearTimeout(timer);
+      // Отказ продолжения гасим: страница могла закрыться посреди задержки, а «продолжить» на закрытой —
+      // отказ, брошенный мимо check(): он ронял прогон целиком.
       await route.continue().catch(() => {});
-    });
-    try {
-      const computed = await openProcessingDialog('Вычисляемые колонки', source);
-      await computed.getByRole('button', { name: /^Сбросить$/ }).click();
-      await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
+    }, async () => {
+      try {
+        const computed = await openProcessingDialog('Вычисляемые колонки', source);
+        await computed.getByRole('button', { name: /^Сбросить$/ }).click();
+        await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
 
-      const sort = await openSortDialog(source);
-      await saveButton(sort).click();
-      await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
-    } finally {
-      await page.unroute(slowFiles);
-    }
+        const sort = await openSortDialog(source);
+        await saveButton(sort).click();
+        await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
+      } finally {
+        release();
+      }
+    });
     if (((await smokeSource()).computedColumns ?? []).length)
       throw new Error('вычисляемые колонки не сброшены, хотя диалог закрылся');
   });

@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import {
   BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
-  FRESH_PANELS, takePanels, setPanels,
+  FRESH_PANELS, takePanels, setPanels, underRoute, unrouteQuiet,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
@@ -440,17 +440,16 @@ try {
   // проверки 8 под другим именем: черновик заводится, и о повторе говорит уже форма.
   await check('повтор, которого вопрос не увидел: оговорка на форме, черновик удаляется без окна', async () => {
     const was = new URL(page.url()).searchParams.get('invoice');
-    await page.route('**/api/costs/invoices/same-file?**', route => route.fulfill({
+    await underRoute(page, '**/api/costs/invoices/same-file?**', route => route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify(new URL(route.request().url()).searchParams.getAll('fingerprint').map(fingerprint => ({ fingerprint, twins: [] }))),
-    }));
-    try {
+    }), async () => {
       await page.locator('input[type=file][multiple][accept*=".pdf"]').setInputFiles({
         name: `Повтор-${stamp}-1.pdf`, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4 не настоящий Пакет-${stamp}-2.pdf`),
       });
       await named('черновик-повтор не открылся', () => page.waitForFunction(
         was => new URL(location.href).searchParams.get('invoice') !== was, was, { timeout: 15_000 }));
-    } finally { await page.unroute('**/api/costs/invoices/same-file?**'); }
+    });
     await untilStatus(page, items => items.some(i => i.key === 'same-file' && /приложен ещё к (\d+ )?сч/.test(i.text)),
       'на форме оговорки о том же файле нет', 15_000);
     // Черновик заведён этой вкладкой и не правлен — удаляется без окна, с «Вернуть» (13, D-13.5).
@@ -704,7 +703,7 @@ try {
     if (await page.getByLabel('Основание').inputValue() !== 'набрано до обрыва')
       throw new Error('набранное пропало при неудачном перечитывании');
 
-    await page.unroute(address);
+    await unrouteQuiet(page, address);
     await statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).getByRole('button', { name: 'Повторить' }).click();
     await named('после удачного повтора полоса осталась',
       () => statusBanner(page).filter({ hasText: 'Счёт не перечитался' }).waitFor({ state: 'detached', timeout: 10_000 }));

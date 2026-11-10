@@ -8,7 +8,7 @@
 // избранное урезало бы им список строек, и они упали бы на чужом. Поэтому настройки сбрасываются и
 // до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, callApiOk, pickSites } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, pickSites, underRoute } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
@@ -199,16 +199,13 @@ export async function favoritesChecks(page, check) {
     await check('favorites-settings-failure-shows-everything', async () => {
       // Настройки не пришли — фильтр не действует и говорит об этом, а список строек полный. Раньше
       // «загрузка» ждала настроек без конца и держала сам список (ревью PR #1331).
-      await page.route('**/api/account/settings', route =>
-        route.request().method() === 'GET' ? route.fulfill({ status: 500, body: '{}' }) : route.continue());
-      try {
+      await underRoute(page, '**/api/account/settings', route =>
+        route.request().method() === 'GET' ? route.fulfill({ status: 500, body: '{}' }) : route.continue(), async () => {
         await page.goto(`${BASE}/document-sets`);
         await page.getByTestId('sites-filter-error').waitFor({ timeout: 20000 });
         const seen = await cards(page).count();
         if (seen < all.length) throw new Error(`при сбое настроек видно ${seen} строек из ${all.length}`);
-      } finally {
-        await page.unroute('**/api/account/settings');
-      }
+      });
     });
   } finally {
     await check.tidy('настройки избранного не сброшены', () => callApiOk(page, 'PUT', '/account/settings', RESET));
