@@ -150,6 +150,14 @@ internal static class StartupTasks
         // заходе в журнал — то есть отказ увидел бы читатель журнала, а не тот, кто собирал поставку.
         _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Activity.ActivityActionCatalog>();
 
+        // Межмодульные контракты проверены при сборке служб (plan-22, CORE-34); здесь — только перепись
+        // контрактов со многими поставщиками: признак явный, и каждый такой контракт назван в журнале
+        // старта, чтобы он не стал тихой лазейкой для обычного.
+        var many = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleContractCatalog>().ManyProviders;
+        if (many.Count > 0)
+            app.Logger.LogInformation("Контракты со многими поставщиками: {Contracts}",
+                string.Join(", ", many.Select(c => $"«{c.Title}» ({c.Interface.Name})")));
+
         // Потребности модулей в справочниках ядра — тем же приёмом (issue #1101): роль, которой нет в
         // реестре, или тэг чужой роли обязаны остановить запуск, а не прийти отказом в форму счёта.
         var needs = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleNeeds>();

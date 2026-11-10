@@ -59,6 +59,11 @@ public static class ModulePorts
         services.AddScoped<IModuleNotifications, ModuleNotificationsPort>();
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();
+        // Параметр доступа контракта (plan-22, CORE-34) — из параметра доступа ядра, тем же счётчиком прав.
+        services.AddScoped<IModuleReaders, ModuleReadersPort>();
+        // Межмодульные контракты: каталог проверяется ЗДЕСЬ, при сборке служб, — негодная поставка
+        // (нет реализации у включённого поставщика, два поставщика, чужая регистрация) не стартует.
+        ModuleContractCatalog.AddTo(services);
         // Потребности модулей в справочниках ядра (issue #1101). Одиночка по той же причине, что
         // каталог действий: состав модулей не меняется, а объявления проверяются при старте.
         services.AddSingleton<ModuleNeeds>();

@@ -62,6 +62,23 @@ public class ModulePortMirrorTests
     /// <c>Integration.ModulePortsTests.Журнал_отказывает_коду_не_из_модуля</c>): порту не с чем
     /// сверить состав поставки. Одно без другого не работает, поэтому и проверяются они парой.
     /// </summary>
+    /// <summary>
+    /// Параметр доступа контракта — зеркало параметра доступа ядра (plan-22): строится из него переносом,
+    /// и поле, переименованное в одном, молча потерялось бы в другом. <c>EnabledModules</c> у контракта
+    /// не нужно — «не подключено» говорит порт контрактов, а не параметр.
+    /// </summary>
+    [Fact]
+    public void Параметр_доступа_контракта_повторяет_ядровой()
+    {
+        static IEnumerable<string> Names(Type t) => t
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Select(p => p.Name).Where(n => n != "EqualityContract").Order(StringComparer.Ordinal);
+
+        var core = Names(typeof(BHS.CRG.Application.DataSets.DataAccess)).Where(n => n != "EnabledModules");
+
+        Assert.Equal(core, Names(typeof(BHS.CRG.Modules.Access.ModuleReader)));
+    }
+
     [Theory]
     [InlineData("costs.invoice.paid", "Счёт оплачен", null)]
     [InlineData("", "Название", "пуст")]
