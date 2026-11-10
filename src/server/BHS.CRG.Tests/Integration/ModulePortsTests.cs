@@ -76,7 +76,11 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
         var keyed = (IKeyedServiceProvider)scope.ServiceProvider;
 
         var missing = typeof(IEnabledModules).Assembly.GetTypes()
-            .Where(t => t.IsInterface && t.Namespace == typeof(IEnabledModules).Namespace)
+            // Порт контрактов лежит рядом с самими контрактами (plan-22): интерфейс с [ModuleContract]
+            // реализует поставщик, а всё остальное в Exchange выдаёт ядро.
+            .Where(t => t.IsInterface && (t.Namespace == typeof(IEnabledModules).Namespace
+                                          || (t.Namespace == typeof(BHS.CRG.Modules.Exchange.IModuleContracts).Namespace
+                                              && !t.IsDefined(typeof(BHS.CRG.Modules.Exchange.ModuleContractAttribute), false))))
             .Where(t => !providedByModules.ContainsKey(t.Name))
             .Where(t => keyedByModule.Contains(t)
                 ? codes.Any(code => keyed.GetKeyedService(t, code) is null)
