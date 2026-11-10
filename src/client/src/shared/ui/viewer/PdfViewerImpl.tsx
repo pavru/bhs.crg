@@ -4,6 +4,8 @@ import { printPdf } from './printPdf';
 import { PdfPages } from './PdfPages';
 import { discard, prepare, shownScale, type Prepared, type Preparing, type Shown } from './swapDocument';
 import { NARROW_PX, ViewerToolbar } from './ViewerToolbar';
+import { Magnifier } from './Magnifier';
+import { useLoupe } from './useLoupe';
 import { ViewerMessage, type ViewerState } from './ViewerMessage';
 import {
   anchorOf, currentPage, layout, MAX_SCALE, MIN_SCALE, rotateClockwise, scrollTopFor,
@@ -154,7 +156,8 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     }
   };
 
-  const hover = useZoomInput(root, scroller, zoom, state === 'ready');
+  const { hover, hovered } = useZoomInput(root, scroller, zoom, state === 'ready');
+  const loupe = useLoupe({ documentKey, scale, root, hovered, setAnnounce });
 
   const frame = useRef(0);
   const onScroll = () => {
@@ -174,17 +177,19 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   return (
     <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} onScroll={onScroll} data-testid="viewer-region"
-        className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
+        data-loupe={(ready && loupe?.on) || undefined} className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {ready
           ? <PdfPages doc={doc} layout={l} scale={scale} rotation={rotation} range={range} prepared={prepared} dimmed={dimmed} />
           : <ViewerMessage state={state === 'ready' ? 'loading' : state} source={source} actions={actions} />}
+        {ready && loupe?.on && <Magnifier scroller={scroller} sheetScale={scale} rotation={rotation} doc={doc} dimmed={dimmed} />}
       </div>
       {ready && (
         <ViewerToolbar numPages={numPages} page={page} onPage={goTo} mode={mode} onMode={setMode}
           onZoomIn={() => zoom('in')} onZoomOut={() => zoom('out')}
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Лист повёрнут'); }}
-          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale} />
+          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale}
+          loupe={loupe} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>

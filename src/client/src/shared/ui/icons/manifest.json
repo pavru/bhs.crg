@@ -82,6 +82,9 @@
     "folder": {},
     "folder_copy": {},
     "folder_open": {},
+    "frame_inspect": {
+      "fill": true
+    },
     "function": {
       "export": "FunctionIcon"
     },

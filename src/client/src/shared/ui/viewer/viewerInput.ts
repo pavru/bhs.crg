@@ -99,7 +99,8 @@ export function handleViewerKey(e: KeyboardEvent<HTMLElement>, act: { print: () 
 /**
  * Масштаб снаружи фокуса: указатель над листом, фокус где-то ещё — Ctrl± масштабирует лист, а не
  * страницу браузера (поле ввода в фокусе — нет: человек набирает там, а не смотрит). Ctrl+колесо над
- * листом — тоже масштаб листа. Возвращает обработчики наведения для корня просмотрщика.
+ * листом — тоже масштаб листа. Возвращает обработчики наведения для корня просмотрщика (`hover`) и сам
+ * флаг наведения (`hovered`).
  */
 export function useZoomInput(root: RefObject<HTMLElement | null>, scroller: RefObject<HTMLElement | null>, zoom: (dir: ZoomDir) => void, ready: boolean) {
   const hovered = useRef(false);
@@ -134,7 +135,11 @@ export function useZoomInput(root: RefObject<HTMLElement | null>, scroller: RefO
   }, [scroller]);
 
   return {
-    onPointerEnter: () => { hovered.current = true; },
-    onPointerLeave: () => { hovered.current = false; },
+    /** Указатель над просмотрщиком — тот же флаг читает Esc лупы (`useLoupe`). */
+    hovered,
+    hover: {
+      onPointerEnter: () => { hovered.current = true; },
+      onPointerLeave: () => { hovered.current = false; },
+    },
   };
 }

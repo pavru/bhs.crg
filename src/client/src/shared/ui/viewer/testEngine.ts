@@ -17,6 +17,7 @@ export function fakeDocument(numPages: number): FakeDocument {
     destroyed: 0,
     pageSizes: () => Promise.resolve(Array.from({ length: numPages }, () => ({ width: 595, height: 842 }))),
     render: vi.fn(done),
+    renderArea: vi.fn(done),
     textLayer: vi.fn(done),
     text: () => Promise.resolve(''),
     release: () => {},

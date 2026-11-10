@@ -256,6 +256,26 @@ describe('отмена работы над листом', () => {
     expect(job.cancel).toHaveBeenCalledOnce();
   });
 
+  it('кусок листа: холст размера области, лист сдвинут на её начало, отмена доходит до pdf.js', async () => {
+    const { doc, job, page, canvas } = endlessRender();
+    const task = doc.renderArea(1, canvas, { scale: 2, rotation: 0, pixelRatio: 2, area: { x: 30, y: 40, width: 96, height: 48 } });
+    await vi.waitFor(() => expect(page.render).toHaveBeenCalled());
+    expect([canvas.width, canvas.height]).toEqual([192, 96]);
+    expect(page.render.mock.calls[0]).toEqual([expect.objectContaining({ transform: [2, 0, 0, 2, -60, -80] })]);
+    task.cancel();
+    expect(job.cancel).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, 90, 180, 270])('кусок повёрнутого на %i° листа — в повороте показа, размер холста от поворота не зависит', async rotation => {
+    const { doc, page, canvas } = endlessRender();
+    const getViewport = vi.spyOn(page, 'getViewport');
+    doc.renderArea(1, canvas, { scale: 1, rotation, pixelRatio: 1, area: { x: 0, y: 5, width: 20, height: 10 } });
+    await vi.waitFor(() => expect(page.render).toHaveBeenCalled());
+    expect(getViewport).toHaveBeenCalledWith(expect.objectContaining({ rotation }));
+    expect([canvas.width, canvas.height]).toEqual([20, 10]);
+    expect(page.render.mock.calls[0]).toEqual([expect.objectContaining({ transform: [1, 0, 0, 1, -0, -5] })]);
+  });
+
   it('отмена до получения листа — отрисовка не начинается', async () => {
     const { doc, page, canvas } = endlessRender();
     const task = doc.render(1, canvas, { scale: 1, rotation: 0, pixelRatio: 1 });

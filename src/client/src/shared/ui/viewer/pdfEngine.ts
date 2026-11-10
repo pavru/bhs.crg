@@ -45,6 +45,13 @@ export interface PdfDocument {
   pageSizes(): Promise<PageSize[]>;
   /** Рисует лист в холст. `pixelRatio` — плотность холста (DPR, уже срезанный потолком пикселей). */
   render(pageNumber: number, canvas: HTMLCanvasElement, view: PageView & { pixelRatio: number }): PageTask;
+  /**
+   * Рисует в холст кусок листа — область `area` показанного листа (масштаб и поворот — из `view`): для
+   * лупы ([UI-93]). Холст — размера области, а не листа: лист в масштабе лупы целиком вышел бы за потолок
+   * пикселей холста. Область — в пределах листа: pdf.js заливает белым весь холст, и часть за краем листа
+   * вышла бы белой, а не прозрачной (лупа режет кусок листом — `chunkFor`).
+   */
+  renderArea(pageNumber: number, canvas: HTMLCanvasElement, view: PageView & { pixelRatio: number; area: Area }): PageTask;
   /** Слой текста листа в `container`; масштаб и поворот — те же, что у холста. */
   textLayer(pageNumber: number, container: HTMLElement, view: PageView): PageTask;
   /** Текст листа одной строкой — для проверок, интерфейсу он не нужен. */
@@ -56,6 +63,9 @@ export interface PdfDocument {
 
 /** Масштаб (1 = 100 %) и поворот показа (0/90/180/270). */
 export interface PageView { scale: number; rotation: number }
+
+/** Прямоугольник на показанном листе, CSS-пиксели от его левого верхнего угла. */
+export interface Area { x: number; y: number; width: number; height: number }
 
 export interface LoadingDocument { promise: Promise<PdfDocument>; cancel(): void }
 
@@ -168,6 +178,32 @@ function pageTask(run: (signal: TaskSignal) => Promise<void>): PageTask {
   return { promise: run(signal), cancel() { signal.cancelled = true; signal.stop(); } };
 }
 
+/**
+ * Отрисовка листа или его куска. Кусок — тот же лист, сдвинутый на начало области: холст размера области,
+ * сдвиг — в преобразовании, которое pdf.js ставит перед видом листа.
+ */
+function draw(doc: PDFDocumentProxy, pageNumber: number, canvas: HTMLCanvasElement,
+  view: PageView & { pixelRatio: number }, area: Area | null): PageTask {
+  return pageTask(async signal => {
+    const page = await doc.getPage(pageNumber);
+    if (signal.cancelled) return;
+    const viewport = viewportOf(page, view);
+    const ratio = view.pixelRatio;
+    canvas.width = Math.floor((area ? area.width : viewport.width) * ratio);
+    canvas.height = Math.floor((area ? area.height : viewport.height) * ratio);
+    const shifted = area && (area.x !== 0 || area.y !== 0);
+    const job = page.render({
+      canvas,
+      canvasContext: canvas.getContext('2d')!,
+      viewport,
+      transform: ratio === 1 && !shifted ? undefined : [ratio, 0, 0, ratio, -(area?.x ?? 0) * ratio, -(area?.y ?? 0) * ratio],
+    });
+    signal.stop = () => job.cancel();
+    await job.promise;
+    signal.stop = () => {};
+  });
+}
+
 /** Обёртка документа pdf.js. Экспортируется для теста движка: отмену в Node без холста иначе не проверить. */
 export function wrap(doc: PDFDocumentProxy): PdfDocument {
   let destroyed: Promise<void> | null = null;
@@ -182,23 +218,10 @@ export function wrap(doc: PDFDocumentProxy): PdfDocument {
       return sizes;
     },
     render(pageNumber, canvas, view) {
-      return pageTask(async signal => {
-        const page = await doc.getPage(pageNumber);
-        if (signal.cancelled) return;
-        const viewport = viewportOf(page, view);
-        canvas.width = Math.floor(viewport.width * view.pixelRatio);
-        canvas.height = Math.floor(viewport.height * view.pixelRatio);
-        const ratio = view.pixelRatio;
-        const job = page.render({
-          canvas,
-          canvasContext: canvas.getContext('2d')!,
-          viewport,
-          transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
-        });
-        signal.stop = () => job.cancel();
-        await job.promise;
-        signal.stop = () => {};
-      });
+      return draw(doc, pageNumber, canvas, view, null);
+    },
+    renderArea(pageNumber, canvas, view) {
+      return draw(doc, pageNumber, canvas, view, view.area);
     },
     textLayer(pageNumber, container, view) {
       return pageTask(async signal => {

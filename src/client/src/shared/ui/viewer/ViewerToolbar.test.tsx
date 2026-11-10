@@ -130,3 +130,44 @@ describe('панель просмотрщика', () => {
     expect(p.onPage).toHaveBeenLastCalledWith(4);
   });
 });
+
+describe('кнопка «Лупа» [UI-11] [UI-92] [UI-94]', () => {
+  const loupe = (over: Partial<NonNullable<ToolbarProps['loupe']>> = {}) => ({ on: false, available: true, toggle: vi.fn(), ...over });
+  const button = () => screen.getByRole('button', { name: 'Лупа' });
+
+  it.each([false, true])('в панели перед поворотом — и в узкой колонке (%s)', narrow => {
+    render(<ViewerToolbar {...props({ narrow, loupe: loupe() })} />);
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.indexOf(button())).toBe(buttons.indexOf(screen.getByRole('button', { name: 'Повернуть по часовой' })) - 1);
+  });
+
+  it('выключена — как соседи, aria-pressed="false"; включена — тональная, aria-pressed="true"', () => {
+    const { rerender } = render(<ViewerToolbar {...props({ loupe: loupe() })} />);
+    expect(button().getAttribute('aria-pressed')).toBe('false');
+    expect(button().className).not.toContain('bg-secondary-container');
+    rerender(<ViewerToolbar {...props({ loupe: loupe({ on: true }) })} />);
+    expect(button().getAttribute('aria-pressed')).toBe('true');
+    expect(button().className).toContain('bg-secondary-container');
+  });
+
+  it('нажатие переключает', () => {
+    const onToggle = vi.fn();
+    render(<ViewerToolbar {...props({ loupe: loupe({ toggle: onToggle }) })} />);
+    fireEvent.click(button());
+    expect(onToggle).toHaveBeenCalledOnce();
+  });
+
+  // Неактивная кнопка с подсказкой — `aria-disabled` (Tooltip): подсказка объясняет, почему нельзя.
+  it('при листе от 300 % — неактивна и не переключает', () => {
+    const onToggle = vi.fn();
+    render(<ViewerToolbar {...props({ scale: 3, loupe: loupe({ available: false, toggle: onToggle }) })} />);
+    expect(button().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button());
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it('без точного указателя кнопки нет', () => {
+    render(<ViewerToolbar {...props({ loupe: null })} />);
+    expect(screen.queryByRole('button', { name: 'Лупа' })).toBeNull();
+  });
+});
