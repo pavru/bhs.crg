@@ -257,7 +257,8 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               key: 'row', label: 'Строка', rowHeader: true, pin: 'start',
               cell: row => (
                 <>
-                  <div className="text-on-surface max-w-64 truncate" title={row.title}>{row.title}</div>
+                  {/* Полное название обрезанной строки показывает сетка ([UI-52], п. 5а #1818): своего title нет. */}
+                  <div className="text-on-surface max-w-64 truncate">{row.title}</div>
                   <div className="text-on-surface-variant">
                     {row.mode === 'quantity'
                       ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()

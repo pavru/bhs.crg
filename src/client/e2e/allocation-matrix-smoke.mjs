@@ -36,6 +36,7 @@
 import { BASE, launchBrowser, login, createChecks, listOptions, pickOption, shownValue, until, expandInvoiceParts } from './harness.mjs';
 import { sitePickerChecks } from './site-picker-checks.mjs';
 import { remainderChecks } from './allocation-remainder-checks.mjs';
+import { truncatedCellChecks } from './truncated-cell-checks.mjs';
 
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
 // Читатель — «Руководитель»: бухгалтер с E2 (issue #1100) правит счета и разноску, и матрица «только для
@@ -324,6 +325,9 @@ await sitePickerChecks({ page, check, api, invoice, openMatrix, sites, stamp });
 
 // ── 3e. Остаток — сам во второй объект и во вторую часть (#1818, п. 5б) ── см. allocation-remainder-checks.mjs ──
 await remainderChecks({ page, check, api, invoice, openMatrix, sites, stamp });
+
+// ── 3f. Обрезанное название строки — одна подсказка сетки (#1519, #1818 п. 5а) ── см. truncated-cell-checks.mjs ──
+await truncatedCellChecks({ page, check, invoice, openMatrix, stamp });
 
 // ── 4. Руководитель: матрица только для чтения, и ни одного отказа ────────────────────────────────
 await check('matrix-under-read-only-right', async () => {
