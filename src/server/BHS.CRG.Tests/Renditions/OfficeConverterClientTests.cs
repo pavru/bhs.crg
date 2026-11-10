@@ -154,7 +154,7 @@ public class OfficeConverterClientTests
         RenditionRefusal.Protected)]
     [InlineData(HttpStatusCode.BadRequest, "Invalid form data", RenditionRefusal.Failed)]
     [InlineData(HttpStatusCode.InternalServerError,
-        "LibreOffice failed to convert the document 'file.xlsx'. The request is valid and may be retried.",
+        "LibreOffice failed to convert the document 'file.xls'. This is usually a resource issue: increase the container's memory and CPU, or reduce the document's size. The request is valid and may be retried.",
         RenditionRefusal.Failed)]
     [InlineData(HttpStatusCode.ServiceUnavailable, "Service Unavailable", RenditionRefusal.TooLarge)]
     [InlineData(HttpStatusCode.BadGateway, "", RenditionRefusal.Unavailable)]
