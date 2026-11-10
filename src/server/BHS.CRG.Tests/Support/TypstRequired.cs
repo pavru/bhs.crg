@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using BHS.CRG.Infrastructure.Generation;
 
-namespace BHS.CRG.Tests.Branding;
+namespace BHS.CRG.Tests.Support;
 
 /// <summary>
-/// Предпосылка тестов значков: настоящий Typst (issue #1315). Без этой проверки его отсутствие
-/// выглядело как полтора десятка несвязанных падений — «Expected: custom, Actual: failed»,
-/// несовпавшие размеры, — а про Typst говорило одно предупреждение в журнале (ревью PR #1320).
+/// Предпосылка тестов, которым нужен настоящий Typst: значки из логотипа (issue #1315), кодировка
+/// вывода компилятора. Без этой проверки его отсутствие выглядело как полтора десятка несвязанных
+/// падений — «Expected: custom, Actual: failed», несовпавшие размеры, — а про Typst говорило одно
+/// предупреждение в журнале (ревью PR #1320).
 /// </summary>
 public static class TypstRequired
 {
@@ -14,15 +15,7 @@ public static class TypstRequired
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = TypstProcess.ExecutablePath,
-                ArgumentList = { "--version" },
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            });
+            using var process = Process.Start(TypstProcess.StartInfo(Environment.CurrentDirectory, "--version"));
             if (process is null) return "процесс не запустился";
             process.WaitForExit(TimeSpan.FromSeconds(30));
             return process.HasExited && process.ExitCode == 0 ? null : "команда --version не ответила кодом 0";
@@ -38,7 +31,7 @@ public static class TypstRequired
     {
         if (Missing.Value is { } reason)
             throw new Xunit.Sdk.XunitException(
-                $"Тестам значков нужен настоящий Typst, а «{TypstProcess.ExecutablePath}» не запускается ({reason}). " +
+                $"Этому тесту нужен настоящий Typst, а «{TypstProcess.ExecutablePath}» не запускается ({reason}). " +
                 "Поставьте Typst CLI в PATH либо назовите путь переменной TYPST_PATH.");
     }
 }

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using BHS.CRG.Application.Branding;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Generation;
@@ -131,19 +130,9 @@ public sealed class TypstLogoRasterizer(ILogger<TypstLogoRasterizer> logger) : I
             await File.WriteAllBytesAsync(Path.Combine(dir, LogoFile), logo, ct);
             await File.WriteAllTextAsync(Path.Combine(dir, PageFile), PageOf(LogoFormat.IsVector(logo), view), ct);
 
-            var psi = new ProcessStartInfo
-            {
-                FileName = TypstProcess.ExecutablePath,
-                WorkingDirectory = dir,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            foreach (var arg in (string[])
-                     ["compile", PageFile, OutputFile, "--format", "png", "--ppi", "72", "--root", dir,
-                         "--diagnostic-format", "short"])
-                psi.ArgumentList.Add(arg);
+            var psi = TypstProcess.StartInfo(dir,
+                "compile", PageFile, OutputFile, "--format", "png", "--ppi", "72", "--root", dir,
+                "--diagnostic-format", "short");
 
             int exitCode;
             string stderr;

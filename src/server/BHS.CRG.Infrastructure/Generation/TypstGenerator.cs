@@ -112,24 +112,12 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
                 }
             }
 
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = TypstProcess.ExecutablePath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                WorkingDirectory = tmpDir,  // шаблон видит "typeblocks.typ" без пути
-            };
-            psi.ArgumentList.Add("compile");
-            psi.ArgumentList.Add("template.typ");   // относительный путь — tmpDir уже WorkingDirectory
-            psi.ArgumentList.Add("output.pdf");
-            // Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы отказ
-            // компиляции можно было РАЗОБРАТЬ и назвать пользователю место (issue #1047). Тот же
-            // формат и тот же разборщик, что у проверки блоков и библиотеки.
-            psi.ArgumentList.Add("--diagnostic-format");
-            psi.ArgumentList.Add("short");
-            psi.ArgumentList.Add("--root");
-            psi.ArgumentList.Add(tmpDir);
+            // Рабочая папка — tmpDir: шаблон видит "typeblocks.typ" без пути, и сам он назван
+            // относительно. Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы
+            // отказ компиляции можно было РАЗОБРАТЬ и назвать пользователю место (issue #1047). Тот
+            // же формат и тот же разборщик, что у проверки блоков и библиотеки.
+            var psi = TypstProcess.StartInfo(tmpDir,
+                "compile", "template.typ", "output.pdf", "--diagnostic-format", "short", "--root", tmpDir);
             if (fontsDirForCli is not null)
             {
                 psi.ArgumentList.Add("--font-path");
