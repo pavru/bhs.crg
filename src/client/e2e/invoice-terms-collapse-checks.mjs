@@ -63,7 +63,7 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
     if (!made.early) return;
 
     for (const [width, height] of SIZES) {
-      await check(`«Сроки и оплата» ${width}×${height}: срок не определён — свёрнута строкой, «Отметить оплату» в шапке`, async () => {
+      await check(`«Сроки и оплата» ${width}×${height}: срок не определён — свёрнута строкой, «Внести оплату…» в шапке`, async () => {
         await page.setViewportSize({ width, height });
         await openAsIs(page, h, made.plain);
         const part = page.getByRole('region', { name: TERMS, exact: true });
@@ -75,14 +75,14 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
           throw new Error(`строка-итог не назвала пустой срок: «${said.replace(/\s+/g, ' ').slice(0, 200)}»`);
         if (await part.getByLabel('Дата отгрузки', { exact: true }).isVisible())
           throw new Error('поле «Дата отгрузки» видно у свёрнутой части');
-        const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
-        if (!await pay.isVisible()) throw new Error('«Отметить оплату» не видна в шапке свёрнутой части');
+        const pay = part.getByRole('button', { name: 'Внести оплату…', exact: true });
+        if (!await pay.isVisible()) throw new Error('«Внести оплату…» не видна в шапке свёрнутой части');
 
         // Кнопка оплаты в шапке делает своё и часть не раскрывает: она над растянутой целью шапки
         // (costs-invoice-part-header-toggle, [COST-6.2]).
         await pay.click();
         const payment = page.getByRole('dialog', { name: /^Оплата: / });
-        await h.named('«Отметить оплату» в шапке не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
+        await h.named('«Внести оплату…» в шапке не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
         await payment.getByRole('button', { name: 'Отмена', exact: true }).click();
         await h.named('окно оплаты не закрылось', () => payment.waitFor({ state: 'hidden', timeout: 5_000 }));
         if (!await toggle.count()) throw new Error('кнопка оплаты в шапке раскрыла «Сроки и оплату»');
@@ -112,7 +112,7 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         await h.named('части «Сроки и оплата» нет', () => part.waitFor({ timeout: 10_000 }));
         await part.evaluate(el => { el.style.width = '400px'; });
         const heading = part.getByRole('heading', { name: TERMS, exact: true });
-        const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
+        const pay = part.getByRole('button', { name: 'Внести оплату…', exact: true });
         // Суженная часть выше прежней: строка действий уходила ниже окна, и щелчок по точке — мимо экрана.
         await pay.scrollIntoViewIfNeeded();
         const [title, action] = [await heading.boundingBox(), await pay.boundingBox()];
@@ -128,7 +128,7 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         // Кнопка действия делает своё: окно оплаты, а часть остаётся раскрытой.
         await clickAt(page, pay);
         const payment = page.getByRole('dialog', { name: /^Оплата: / });
-        await h.named('«Отметить оплату» в узкой части не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
+        await h.named('«Внести оплату…» в узкой части не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
         await payment.getByRole('button', { name: 'Отмена', exact: true }).click();
         await h.named('окно оплаты не закрылось', () => payment.waitFor({ state: 'hidden', timeout: 5_000 }));
         if (!await part.getByRole('button', { name: `Свернуть «${TERMS}»` }).count())

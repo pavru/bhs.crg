@@ -69,7 +69,7 @@ const CASES = [
   },
   {
     name: 'оплата счёта',
-    confirm: 'Отметить оплату',
+    confirm: 'Внести оплату',
     decline: 'Отмена',
     reason: null,
     preview: { today: '2026-10-13', paidOn: '2026-10-13', total: 100, refusal: null, dateRefusal: null, rows: [], stamp: 'p1' },

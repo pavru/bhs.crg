@@ -17,14 +17,14 @@ describe('расклад оплаты', () => {
   it('без переносов предупреждения нет, и кнопка называется обычно', () => {
     const summary = summarize([calmB, rest]);
     expect(movedWarning(summary, 60_500)).toBeNull();
-    expect(payLabel([calmB, rest])).toBe('Отметить оплату');
+    expect(payLabel([calmB, rest])).toBe('Внести оплату');
   });
 
   it('перенос назван числом строек и суммой, а подпись кнопки меняется', () => {
     const summary = summarize([movedA, calmB]);
     expect(summary.moved).toEqual([movedA]);
     expect(movedWarning(summary, 100_000)).toMatch(/^Переносится: 1 стройка, 40\s000,00\s₽ из 100\s000,00\s₽\.$/);
-    expect(payLabel([movedA, calmB])).toBe('Отметить оплату с переносом');
+    expect(payLabel([movedA, calmB])).toBe('Внести оплату с переносом');
   });
 
   it('перенесённый остаток — строка по компании, а не стройка', () => {

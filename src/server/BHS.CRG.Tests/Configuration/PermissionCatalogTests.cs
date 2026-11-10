@@ -277,7 +277,7 @@ public class PermissionCatalogTests
     public void Excluded_mark_without_reason_stops_startup()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => new PermissionCatalog(
-            [new AppPermission("costs.invoice.pay", "отмечать оплату", "суммы", ReadAll: ReadAllMark.Out(" "))]));
+            [new AppPermission("costs.invoice.pay", "вносить оплату", "суммы", ReadAll: ReadAllMark.Out(" "))]));
 
         Assert.Contains("costs.invoice.pay", ex.Message);
         Assert.Contains("почему право не входит", ex.Message);
