@@ -32,8 +32,19 @@ public abstract record ModuleContractAnswer<T> where T : class
 {
     private ModuleContractAnswer() { }
 
+    /// <summary>
+    /// Замок иерархии: записи с закрытым конструктором всё равно открыты наследованию — компилятор даёт им
+    /// защищённый конструктор копирования, и модуль мог бы завести свой вариант ответа, который
+    /// <c>switch</c> потребителя не знает. Переопределить член <c>private protected</c> из другой сборки
+    /// нельзя: вариантов ровно столько, сколько объявлено здесь.
+    /// </summary>
+    private protected abstract void Sealed();
+
     /// <summary>Поставщик включён: его реализация.</summary>
-    public sealed record Connected(T Contract) : ModuleContractAnswer<T>;
+    public sealed record Connected(T Contract) : ModuleContractAnswer<T>
+    {
+        private protected override void Sealed() { }
+    }
 
     /// <summary>
     /// Поставщик выключен на этом экземпляре (или его нет в сборке). <paramref name="ProviderTitle" /> —
@@ -42,6 +53,8 @@ public abstract record ModuleContractAnswer<T> where T : class
     public sealed record NotConnected(string Provider, string ProviderTitle, string ContractTitle)
         : ModuleContractAnswer<T>
     {
+        private protected override void Sealed() { }
+
         /// <summary>Что показать на месте ответа: «не подключено: модуль „Планирование“».</summary>
         public string Text => $"не подключено: модуль «{ProviderTitle}»";
     }

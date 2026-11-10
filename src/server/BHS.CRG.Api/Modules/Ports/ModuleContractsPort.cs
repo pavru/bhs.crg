@@ -17,8 +17,9 @@ public sealed class ModuleContractsPort(
             throw new InvalidOperationException(
                 $"Контракт {contract.Name} — со многими поставщиками: его спрашивают {nameof(GetAll)}, а не {nameof(Get)}.");
 
+        // Сверка точная, как у каталога: реализация лежит по ключу, а ключ сравнивается с регистром.
         var provider = contract.Declaration.Provider!;
-        if (!registry.IsEnabled(provider))
+        if (!registry.Enabled.Any(m => string.Equals(m.Code, provider, StringComparison.Ordinal)))
             return new ModuleContractAnswer<T>.NotConnected(provider, TitleOf(provider), contract.Title);
 
         // Реализация есть наверняка: включённый поставщик без неё не дал бы приложению стартовать.
@@ -38,8 +39,7 @@ public sealed class ModuleContractsPort(
         return
         [
             .. registry.Enabled
-                .Where(m => contract.Registrations.Any(r =>
-                    string.Equals(r.Module, m.Code, StringComparison.OrdinalIgnoreCase)))
+                .Where(m => contract.Registrations.Any(r => string.Equals(r.Module, m.Code, StringComparison.Ordinal)))
                 .Select(m => new ProvidedContract<T>(m.Code, services.GetRequiredKeyedService<T>(m.Code))),
         ];
     }
@@ -50,7 +50,7 @@ public sealed class ModuleContractsPort(
             "в контрактах ядра и не зарегистрирован ни одним модулем.");
 
     private string TitleOf(string provider) =>
-        registry.Disabled.FirstOrDefault(m => string.Equals(m.Code, provider, StringComparison.OrdinalIgnoreCase))
+        registry.Disabled.FirstOrDefault(m => string.Equals(m.Code, provider, StringComparison.Ordinal))
             ?.Title
         ?? provider;
 }

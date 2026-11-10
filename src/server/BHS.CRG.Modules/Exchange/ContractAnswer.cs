@@ -18,8 +18,19 @@ public abstract record ContractAnswer<T>
 {
     private ContractAnswer() { }
 
+    /// <summary>
+    /// Замок иерархии: записи с закрытым конструктором всё равно открыты наследованию — компилятор даёт им
+    /// защищённый конструктор копирования, и модуль мог бы завести свой вариант ответа, который
+    /// <c>switch</c> потребителя не знает. Переопределить член <c>private protected</c> из другой сборки
+    /// нельзя: вариантов ровно столько, сколько объявлено здесь.
+    /// </summary>
+    private protected abstract void Sealed();
+
     /// <summary>Данные — в правах спрашивающего.</summary>
-    public sealed record Shown(T Value) : ContractAnswer<T>;
+    public sealed record Shown(T Value) : ContractAnswer<T>
+    {
+        private protected override void Sealed() { }
+    }
 
     /// <summary>
     /// «Скрыто правами»: у спрашивающего нет права <paramref name="Permission" />. Данных в ответе нет —
@@ -27,6 +38,8 @@ public abstract record ContractAnswer<T>
     /// </summary>
     public sealed record Hidden(string Permission) : ContractAnswer<T>
     {
+        private protected override void Sealed() { }
+
         public string Text => $"скрыто правами: нужно право «{Permission}»";
     }
 
@@ -36,6 +49,8 @@ public abstract record ContractAnswer<T>
     /// </summary>
     public sealed record SystemRefused(string Reason) : ContractAnswer<T>
     {
+        private protected override void Sealed() { }
+
         public string Text => $"контракт не отвечает системе: {Reason}";
     }
 }

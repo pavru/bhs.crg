@@ -18,7 +18,7 @@ public class ModuleContractCatalogTests
     public void Включённый_поставщик_без_реализации_останавливает_старт()
     {
         var refusal = Assert.Throws<InvalidOperationException>(() =>
-            Services($"{Supplier},{Consumer}", [typeof(IProbePlan)], Supplying(null), Consuming()));
+            Build($"{Supplier},{Consumer}", [typeof(IProbePlan)], Supplying(null), Consuming()));
 
         Assert.Contains("Пробный план", refusal.Message);
         Assert.Contains($"«{Supplier}»", refusal.Message);
@@ -28,7 +28,7 @@ public class ModuleContractCatalogTests
     [Fact]
     public void Два_поставщика_одного_контракта_останавливают_старт_и_названы_оба()
     {
-        var refusal = Assert.Throws<InvalidOperationException>(() => Services($"{Supplier},{Consumer}",
+        var refusal = Assert.Throws<InvalidOperationException>(() => Build($"{Supplier},{Consumer}",
             Supplying((s, code) => s.AddModuleContract<IProbePlan, ProbePlan>(code)),
             Consuming((s, code) => s.AddModuleContract<IProbePlan, ProbeOtherPlan>(code))));
 
@@ -42,7 +42,7 @@ public class ModuleContractCatalogTests
     {
         // Поставщик выключен, и чужая реализация заняла бы его место молча — потребитель получил бы
         // «подключено» от модуля, который за контракт не отвечает.
-        var refusal = Assert.Throws<InvalidOperationException>(() => Services(Consumer,
+        var refusal = Assert.Throws<InvalidOperationException>(() => Build(Consumer,
             Supplying(null), Consuming((s, code) => s.AddModuleContract<IProbePlan, ProbeOtherPlan>(code))));
 
         Assert.Contains($"реализовал модуль «{Consumer}»", refusal.Message);
@@ -64,7 +64,7 @@ public class ModuleContractCatalogTests
     [Fact]
     public void Негодное_объявление_и_интерфейс_без_объявления_останавливают_старт()
     {
-        var refusal = Assert.Throws<InvalidOperationException>(() => Services(Supplier, [typeof(IProbeUnnamed)],
+        var refusal = Assert.Throws<InvalidOperationException>(() => Build(Supplier, [typeof(IProbeUnnamed)],
             Supplying((s, code) =>
             {
                 s.AddModuleContract<IProbeUnnamed, ProbeUnnamed>(code);
@@ -79,7 +79,7 @@ public class ModuleContractCatalogTests
     [Fact]
     public void Два_вклада_одного_модуля_в_контракт_со_многими_останавливают_старт()
     {
-        var refusal = Assert.Throws<InvalidOperationException>(() => Services(Supplier,
+        var refusal = Assert.Throws<InvalidOperationException>(() => Build(Supplier,
             Supplying((s, code) =>
             {
                 s.AddModuleContract<IProbeContribution, SupplierContribution>(code);
@@ -178,5 +178,70 @@ public class ModuleContractCatalogTests
         Assert.Contains("одного поставщика", Assert.Throws<InvalidOperationException>(() => contracts.GetAll<IProbePlan>()).Message);
         Assert.Contains("не межмодульный контракт",
             Assert.Throws<InvalidOperationException>(() => contracts.Get<IProbeNotContract>()).Message);
+    }
+
+    [Fact]
+    public void Код_модуля_в_другом_регистре_останавливает_старт()
+    {
+        // Реализация лежит по ключу, а ключ сравнивается точно: «SUPPLIER» вместо «supplier» прошёл бы
+        // нестрогую сверку и упал бы на первом вызове порта.
+        var refusal = Assert.Throws<InvalidOperationException>(() => Services(Supplier,
+            Supplying((s, _) => s.AddModuleContract<IProbePlan, ProbePlan>("SUPPLIER"))));
+
+        Assert.Contains("от имени другого модуля", refusal.Message);
+        Assert.Contains("«SUPPLIER»", refusal.Message);
+    }
+
+    [Fact]
+    public void Поставщик_в_другом_регистре_у_объявления_останавливает_старт()
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() => Build(Consumer, [typeof(IProbeShouting)],
+            Supplying(null), Consuming()));
+
+        Assert.Contains("называет поставщика «SUPPLIER», а модуль называется «supplier»", refusal.Message);
+    }
+
+    [Fact]
+    public void Поставщик_вне_сборки_не_отказ_но_назван()
+    {
+        using var sp = Build(Consumer, [typeof(IProbeFromElsewhere), typeof(IProbePlan)], Supplying(null), Consuming());
+        using var scope = sp.CreateScope();
+
+        var catalog = sp.GetRequiredService<BHS.CRG.Api.Modules.ModuleContractCatalog>();
+        Assert.Equal([typeof(IProbeFromElsewhere)], catalog.ProvidersNotInBuild.Select(c => c.Interface));
+
+        var off = Assert.IsType<ModuleContractAnswer<IProbeFromElsewhere>.NotConnected>(
+            scope.ServiceProvider.GetRequiredService<IModuleContracts>().Get<IProbeFromElsewhere>());
+        Assert.Equal("elsewhere", off.ProviderTitle);   // модуля нет в сборке — называем кодом
+    }
+
+    [Fact]
+    public void Регистрация_после_портов_видна_сторожам()
+    {
+        // Каталог собирается из собранного контейнера: реализация, добавленная позже (подмена в тестовом
+        // хосте), проверяется наравне с остальными — здесь как второй поставщик.
+        var services = Services($"{Supplier},{Consumer}",
+            Supplying((s, code) => s.AddModuleContract<IProbePlan, ProbePlan>(code)), Consuming());
+        services.AddModuleContract<IProbePlan, ProbeOtherPlan>(Consumer);
+        using var sp = services.BuildServiceProvider();
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => sp.GetRequiredService<BHS.CRG.Api.Modules.ModuleContractCatalog>());
+
+        Assert.Contains("несколько реализаций", refusal.Message);
+    }
+
+    [Fact]
+    public void Варианты_ответа_закрыты_от_чужой_сборки()
+    {
+        // Замок — член private protected: из другой сборки его не переопределить, своего варианта ответа
+        // модуль не заведёт.
+        foreach (var root in new[] { typeof(ContractAnswer<int>), typeof(ModuleContractAnswer<IProbePlan>) })
+        {
+            var seal = root.GetMethod("Sealed",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(seal);
+            Assert.True(seal!.IsAbstract && seal.IsFamilyAndAssembly, $"{root.Name}: замок не private protected abstract");
+        }
     }
 }

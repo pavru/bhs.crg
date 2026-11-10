@@ -16,10 +16,11 @@ public static class ModuleContractServices
     /// Регистрация реализации контракта — в <c>RegisterServices</c> поставщика (ТЗ CORE-34).
     ///
     /// <para>Реализация ложится в контейнер ПО КЛЮЧУ — коду модуля, — и без ключа её не выдать. Нарочно:
-    /// потребитель, попросивший интерфейс прямо (в конструкторе, <c>GetService</c>), не получит ничего
-    /// даже при включённом поставщике и узнает об этом сразу, а не в тот день, когда поставщика
-    /// выключат и разрешение служб упадёт. «Не подключено» умеет говорить только
-    /// <see cref="IModuleContracts" />.</para>
+    /// конструктор, требующий интерфейс, не разрешится и при включённом поставщике — ошибка видна сразу, а
+    /// не в тот день, когда поставщика выключат. ⚠️ Но тихие формы — <c>IEnumerable&lt;T&gt;</c> (пустой
+    /// список), необязательный <c>T? x = null</c>, <c>GetService&lt;T&gt;</c> (<c>null</c>) — отдают
+    /// пустоту без ошибки; их и запросы с ключом ловит перепись <c>ModuleContractRequestInventoryTests</c>.
+    /// «Не подключено» умеет говорить только <see cref="IModuleContracts" />.</para>
     ///
     /// <para><paramref name="module" /> сверяется дважды: при регистрации модулей — что это код того
     /// модуля, чьими руками сделана регистрация, и каталогом при старте — что это названный у
@@ -53,7 +54,9 @@ public static class ModuleContractServices
             .Where(d => !before.Contains(d) && d.ServiceType == typeof(ModuleContractRegistration))
             .Select(d => d.ImplementationInstance)
             .OfType<ModuleContractRegistration>()
-            .Where(r => !string.Equals(r.Module, module.Code, StringComparison.OrdinalIgnoreCase))
+            // Точно, с регистром: реализация лежит по ключу, а ключ сравнивается точно — «Costs» вместо
+            // «costs» прошёл бы здесь и не нашёлся бы при вызове.
+            .Where(r => !string.Equals(r.Module, module.Code, StringComparison.Ordinal))
             .ToList();
 
         if (foreign.Count > 0)

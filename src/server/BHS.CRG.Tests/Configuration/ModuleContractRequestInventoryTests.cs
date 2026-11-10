@@ -7,12 +7,14 @@ namespace BHS.CRG.Tests.Configuration;
 /// <summary>
 /// Реализацию контракта берут ТОЛЬКО портом <see cref="IModuleContracts" /> (ТЗ CORE-34; plan-22).
 ///
-/// <para>Реализация лежит в контейнере по ключу — коду поставщика, — поэтому запрос интерфейса без ключа
-/// (в конструкторе, <c>GetService&lt;T&gt;</c>) не даёт ничего уже при включённом поставщике и виден
-/// сразу. Опасен запрос С КЛЮЧОМ: <c>GetRequiredKeyedService&lt;T&gt;("plan")</c>,
-/// <c>[FromKeyedServices("plan")]</c> работают, пока поставщик включён, и падают исключением
-/// разрешения служб в день, когда его выключат, — вместо «не подключено». А <c>GetServices&lt;T&gt;</c>
-/// молча отдаёт пустоту. Всё это перепись и ловит — по исходникам ядра и модулей.</para>
+/// <para>Реализация лежит в контейнере по ключу — коду поставщика, — поэтому конструктор, требующий
+/// интерфейс, не разрешается уже при включённом поставщике, и это видно сразу. Опасны две другие группы.
+/// Запрос С КЛЮЧОМ (<c>GetRequiredKeyedService&lt;T&gt;("plan")</c>, <c>[FromKeyedServices("plan")]</c>)
+/// работает, пока поставщик включён, и падает разрешением служб в день, когда его выключат, — вместо
+/// «не подключено». ТИХИЕ формы — <c>GetService&lt;T&gt;</c>, <c>GetServices&lt;T&gt;</c>,
+/// <c>IEnumerable&lt;T&gt;</c> в параметре, необязательный <c>T? x = null</c> — отдают <c>null</c> или
+/// пустой список без ошибки, и потребитель рисует «данных нет». Всё это перепись и ловит — по исходникам
+/// ядра и модулей.</para>
 /// </summary>
 public class ModuleContractRequestInventoryTests
 {
@@ -26,6 +28,10 @@ public class ModuleContractRequestInventoryTests
         yield return new($@"\bGet(Required)?(Keyed)?Services?\s*<\s*{n}\s*>");
         yield return new($@"\bGet(Required)?(Keyed)?Services?\s*\(\s*typeof\s*\(\s*{n}\s*\)");
         yield return new($@"\[\s*From(Keyed)?Services\b[^\]]*\]\s*{n}\b");
+        // Перечисление по ключу не видит вовсе: в параметре или в запросе — всегда пустой список.
+        yield return new($@"\bIEnumerable\s*<\s*{n}\s*>");
+        // Необязательная зависимость: контейнер подставит null и не скажет ни слова.
+        yield return new($@"\b{n}\s*\?\s+\w+\s*=\s*null\b");
     }
 
     /// <summary>Строки исходника, где контракт просят у контейнера прямо.</summary>
@@ -83,8 +89,12 @@ public class ModuleContractRequestInventoryTests
             services.AddModuleContract<IProbePlan, ProbePlan>(code);
             public sealed class ProbePlan : IProbePlan { }
             var g = sp.GetService<IProbePlanner>();
+            public Consumer(IEnumerable<IProbePlan> plans) { }
+            var h = sp.GetRequiredService<IEnumerable<IProbePlan>>();
+            public Consumer(IProbePlan? plan = null) { }
+            IReadOnlyList<ProvidedContract<IProbePlan>> all = contracts.GetAll<IProbePlan>();
             """;
 
-        Assert.Equal([1, 2, 3, 4, 5, 6], DirectRequests(sample, [nameof(IProbePlan)]));
+        Assert.Equal([1, 2, 3, 4, 5, 6, 12, 13, 14], DirectRequests(sample, [nameof(IProbePlan)]));
     }
 }

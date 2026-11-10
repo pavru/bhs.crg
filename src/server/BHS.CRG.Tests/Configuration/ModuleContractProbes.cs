@@ -34,6 +34,14 @@ public interface IProbeVolumes
 [ModuleContract("Без поставщика")]
 public interface IProbeUnnamed;
 
+/// <summary>Поставщик назван кодом известного модуля в другом регистре.</summary>
+[ModuleContract("SUPPLIER", "Крикливый план")]
+public interface IProbeShouting;
+
+/// <summary>Поставщика нет в сборке: законно, «не подключено».</summary>
+[ModuleContract("elsewhere", "План извне")]
+public interface IProbeFromElsewhere;
+
 /// <summary>Не контракт: объявления нет.</summary>
 public interface IProbeNotContract;
 
@@ -93,8 +101,22 @@ public static class ContractProbes
     /// <paramref name="declared" /> — те, что нужны без регистрации («не подключено», включённый
     /// поставщик без реализации).
     /// </summary>
-    public static ServiceProvider Build(string enabled, Type[] declared, params IAppModule[] modules) =>
-        Services(enabled, declared, modules).BuildServiceProvider();
+    public static ServiceProvider Build(string enabled, Type[] declared, params IAppModule[] modules)
+    {
+        var sp = Services(enabled, declared, modules).BuildServiceProvider();
+        try
+        {
+            // Как StartupTasks: каталог разрешается сразу, и негодная поставка отказывает здесь, а не на
+            // первом вызове порта.
+            _ = sp.GetRequiredService<ModuleContractCatalog>();
+            return sp;
+        }
+        catch
+        {
+            sp.Dispose();
+            throw;
+        }
+    }
 
     public static ServiceProvider Build(string enabled, params IAppModule[] modules) =>
         Build(enabled, [], modules);

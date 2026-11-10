@@ -15,9 +15,29 @@ namespace BHS.CRG.Tests.Integration;
 /// поддельный контейнер проверил бы только переходник, а не это.
 /// </summary>
 [Collection("Integration")]
-public class ModuleReaderTests(IntegrationTestFixture fixture)
+public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
     private const string Permission = "id.document.read";
+
+    // Заведённое тестом убирается за собой: база коллекции общая, и чужие роли и учётные записи копились бы
+    // в списках, которые проверяют соседние классы.
+    private readonly List<Guid> _users = [];
+    private readonly List<Guid> _roles = [];
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        foreach (var id in _users)
+            if (await users.FindByIdAsync(id.ToString()) is { } user)
+                await users.DeleteAsync(user);
+        foreach (var id in _roles)
+            if (await roles.FindByIdAsync(id.ToString()) is { } role)
+                await roles.DeleteAsync(role);
+    }
 
     [Fact]
     public async Task Запрос_даёт_права_пользователя_и_открытые_ему_модули()
@@ -115,12 +135,14 @@ public class ModuleReaderTests(IntegrationTestFixture fixture)
 
         var role = new IdentityRole<Guid>($"Reader_{Guid.NewGuid():N}");
         Assert.True((await roles.CreateAsync(role)).Succeeded);
+        _roles.Add(role.Id);
         foreach (var code in permissions)
             Assert.True((await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
 
         var email = $"reader_{Guid.NewGuid():N}@test.local";
         var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
         Assert.True((await users.CreateAsync(user, "Passw0rd!Reader")).Succeeded);
+        _users.Add(user.Id);
         Assert.True((await users.AddToRoleAsync(user, role.Name!)).Succeeded);
         return (user.Id, await users.GetSecurityStampAsync(user));
     }
