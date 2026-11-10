@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { InvoiceListItem } from '@/shared/api/invoices';
+import { focusFromLayer } from '@/shared/ui/layerFocus';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 
 /**
@@ -56,6 +57,55 @@ describe('строка списка счетов', () => {
     Object.defineProperty(label, 'clientWidth', { configurable: true, value: 200 });
     fireEvent.pointerEnter(label);
     expect(label.getAttribute('title')).toBe('Счёт поставщика от 01.11.2026 номер 4011379.pdf');
+  });
+
+  // [COST-6.3], макет А: состояние — ведущим значком, слово — в имени строки и подсказкой значка.
+  it.each([
+    ['Черновик', 'Не оплачен', 'черновик', 'Черновик — ещё не разобран', 'text-on-surface-variant'],
+    ['Разобран', 'Не оплачен', 'разобран', 'Разобран, не оплачен', 'text-primary'],
+    ['Разобран', 'Оплачен', 'оплачен', 'Оплачен', 'text-success'],
+    ['Черновик', 'Оплачен', 'оплачен, черновик', 'Оплачен, но не разобран — черновик', 'text-success'],
+    ['Отклонён', 'Не оплачен', 'отклонён', 'Отклонён — по счёту не платим', 'text-on-surface-variant'],
+  ])('%s, %s: значок и слово «%s»', (state, payment, word, hint, tone) => {
+    mount({ ...ITEM, state, payment });
+    const row = screen.getByTestId('invoice-row');
+    expect(row.textContent).toContain(`, ${word}, `);
+    const mark = screen.getByTestId('row-state');
+    expect(mark.getAttribute('aria-description')).toBe(hint);
+    expect(mark.querySelector('svg')!.getAttribute('class')).toContain(tone);
+  });
+
+  it('отклонённый назван один раз: значком, без пометки словом во второй строке', () => {
+    mount({ ...ITEM, state: 'Отклонён', payment: 'Не оплачен' });
+    expect(screen.getByTestId('invoice-row').textContent!.match(/отклонён/g)).toHaveLength(1);
+  });
+
+  it('выбранная строка: громкий значок держит цвет, тихий берёт тон заливки, слово на месте', () => {
+    // jsdom без scrollIntoView, а выбранная строка зовёт его; заглушку снимаем, чтобы она не прятала его отсутствие
+    // в других тестах процесса.
+    const had = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView ??= () => {};
+    onTestFinished(() => { Element.prototype.scrollIntoView = had; });
+    render(<InvoiceListRow item={{ ...ITEM, payment: 'Оплачен' }} active queue={null} onClick={() => {}} />);
+    expect(screen.getByTestId('row-state').querySelector('svg')!.getAttribute('class')).toContain('text-success');
+    expect(screen.getByTestId('invoice-row').textContent).toContain(', оплачен, ');
+    cleanup();
+    render(<InvoiceListRow item={{ ...ITEM, state: 'Черновик', payment: 'Не оплачен' }} active queue={null} onClick={() => {}} />);
+    expect(screen.getByTestId('row-state').querySelector('svg')!.getAttribute('class')).toContain('text-on-secondary-container');
+  });
+
+  it('фокус строки с клавиатуры открывает подсказку значка, уход фокуса — закрывает', () => {
+    mount({ ...ITEM, payment: 'Оплачен' });
+    act(() => screen.getByTestId('invoice-row').focus());
+    expect(screen.getByRole('tooltip').textContent).toBe('Оплачен');
+    act(() => screen.getByTestId('invoice-row').blur());
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('фокус, который вернул закрывшийся слой, подсказку значка не открывает: первый Esc — не ей', () => {
+    mount({ ...ITEM, payment: 'Оплачен' });
+    act(() => focusFromLayer(screen.getByTestId('invoice-row')));
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   it('без книги исправлений — и без пометки, и когда сервер о ней молчит', () => {
