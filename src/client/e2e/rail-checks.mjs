@@ -8,7 +8,7 @@
 // подпанель прятала бы страницы разделов, и чужие локаторы по тексту меню упали бы. Поэтому
 // настройка сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, callApiOk, until, railSection, accountAction, emulateTouch } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, railSection, accountAction, emulateTouch } from './harness.mjs';
 
 const RESET = { rail: null };
 
@@ -20,14 +20,26 @@ const panel = page => page.getByTestId('section-panel');
  * ничего. Без ожидания ответа следующий переход страницы обрывал запись или читал прежнее «скрыто» —
  * и следующая проверка падала через раз (прогон 42744201478 на PR #1862). Ждём каждую запись, а не
  * только последнюю: две записи подряд по разным соединениям сервер вправе применить в любом порядке.
+ *
+ * Именно ответ на ЭТОТ запрос, а не `settled()`: та дождалась бы тишины и тогда, когда записи не было
+ * вовсе, — а сценарий стережёт как раз то, что выбор дошёл до сервера. Ответ записи — все настройки
+ * учётной записи после неё, поэтому состояние сервера сверяется по нему, без отдельного чтения.
  */
-async function toggled(page, rail, act) {
+async function toggled(page, rail, what, act) {
   const [answer] = await Promise.all([
     page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/account/settings')
-      && r.request().postDataJSON()?.rail === rail),
+      && sentRail(r.request()) === rail, { timeout: 10_000 })
+      .catch(e => { throw new Error(`${what}: запись «${rail}» на сервер не ушла (${e.message.split('\n')[0]})`); }),
     act(),
   ]);
-  if (!answer.ok()) throw new Error(`подпанель «${rail}» не записана на сервер: ${answer.status()}`);
+  if (!answer.ok()) throw new Error(`${what}: запись «${rail}» отклонена сервером — ${answer.status()}`);
+  const stored = (await answer.json())?.rail;
+  if (stored !== rail) throw new Error(`${what}: после записи «${rail}» на сервере «${stored}»`);
+}
+
+/** Что запрос записывает в `rail`; тело не JSON — значит, не наша запись, а не повод уронить ожидание. */
+function sentRail(request) {
+  try { return request.postDataJSON()?.rail; } catch { return undefined; }
 }
 
 export async function railChecks(page, check) {
@@ -101,31 +113,27 @@ export async function railChecks(page, check) {
     });
 
     await check('section-panel-hides-and-lives-on-server', async () => {
-      await panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click();
+      const hide = () => panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click();
+      await toggled(page, 'collapsed', 'скрытие подпанели', hide);
       await panel(page).waitFor({ state: 'detached' });
-      await until(async () => {
-        const { body } = await callApi(page, 'GET', '/account/settings');
-        if (body?.rail !== 'collapsed') throw new Error(`скрытая подпанель не записана на сервер: ${body?.rail}`);
-      });
 
       await page.reload();
       await settled(page);
       if (await panel(page).count()) throw new Error('после перезагрузки подпанель вернулась');
 
       // Свой раздел в рейле при скрытой подпанели — «покажи страницы», а не переход на первую.
-      await toggled(page, 'expanded', () => railSection(page, 'Система').click());
+      await toggled(page, 'expanded', 'щелчок по своему разделу в рейле', () => railSection(page, 'Система').click());
       await panel(page).waitFor();
       if (new URL(page.url()).pathname !== '/roles')
         throw new Error(`щелчок по своему разделу увёл на ${new URL(page.url()).pathname}`);
 
-      // И кнопка у края страницы — второй вход к скрытой подпанели.
-      await toggled(page, 'collapsed', () => panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click());
+      // И кнопка у края страницы — второй вход к скрытой подпанели. Последняя запись тоже дождана:
+      // следующая проверка уходит на другую страницу и читает выбор с сервера.
+      await toggled(page, 'collapsed', 'повторное скрытие подпанели', hide);
       await panel(page).waitFor({ state: 'detached' });
-      await toggled(page, 'expanded', () => page.getByRole('button', { name: 'Показать панель раздела' }).click());
+      await toggled(page, 'expanded', 'кнопка «Показать панель раздела»',
+        () => page.getByRole('button', { name: 'Показать панель раздела' }).click());
       await panel(page).waitFor();
-      // Следующая проверка уходит на другую страницу и читает выбор с сервера: он обязан быть там.
-      const { body } = await callApi(page, 'GET', '/account/settings');
-      if (body?.rail !== 'expanded') throw new Error(`показанная подпанель на сервере — «${body?.rail}»`);
     });
 
     // В карточке стройки подпанели нет: её место у навигации стройки, две панели рядом не стоят.
