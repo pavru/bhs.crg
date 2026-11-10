@@ -14,6 +14,22 @@ const RESET = { rail: null };
 
 const panel = page => page.getByTestId('section-panel');
 
+/**
+ * Действие, переключающее подпанель, — и ответ на ЕГО запись. Экран показывает выбор по нажатию, а
+ * запись уходит следом (`useSyncedPreference`), поэтому появление подпанели в DOM о сервере не говорит
+ * ничего. Без ожидания ответа следующий переход страницы обрывал запись или читал прежнее «скрыто» —
+ * и следующая проверка падала через раз (прогон 42744201478 на PR #1862). Ждём каждую запись, а не
+ * только последнюю: две записи подряд по разным соединениям сервер вправе применить в любом порядке.
+ */
+async function toggled(page, rail, act) {
+  const [answer] = await Promise.all([
+    page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/account/settings')
+      && r.request().postDataJSON()?.rail === rail),
+    act(),
+  ]);
+  if (!answer.ok()) throw new Error(`подпанель «${rail}» не записана на сервер: ${answer.status()}`);
+}
+
 export async function railChecks(page, check) {
   const reset = await callApi(page, 'PUT', '/account/settings', RESET);
   if (reset.status !== 200) throw new Error(`настройка подпанели не сброшена: ${reset.status}`);
@@ -97,16 +113,19 @@ export async function railChecks(page, check) {
       if (await panel(page).count()) throw new Error('после перезагрузки подпанель вернулась');
 
       // Свой раздел в рейле при скрытой подпанели — «покажи страницы», а не переход на первую.
-      await railSection(page, 'Система').click();
+      await toggled(page, 'expanded', () => railSection(page, 'Система').click());
       await panel(page).waitFor();
       if (new URL(page.url()).pathname !== '/roles')
         throw new Error(`щелчок по своему разделу увёл на ${new URL(page.url()).pathname}`);
 
       // И кнопка у края страницы — второй вход к скрытой подпанели.
-      await panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click();
+      await toggled(page, 'collapsed', () => panel(page).getByRole('button', { name: 'Скрыть панель раздела' }).click());
       await panel(page).waitFor({ state: 'detached' });
-      await page.getByRole('button', { name: 'Показать панель раздела' }).click();
+      await toggled(page, 'expanded', () => page.getByRole('button', { name: 'Показать панель раздела' }).click());
       await panel(page).waitFor();
+      // Следующая проверка уходит на другую страницу и читает выбор с сервера: он обязан быть там.
+      const { body } = await callApi(page, 'GET', '/account/settings');
+      if (body?.rail !== 'expanded') throw new Error(`показанная подпанель на сервере — «${body?.rail}»`);
     });
 
     // В карточке стройки подпанели нет: её место у навигации стройки, две панели рядом не стоят.
