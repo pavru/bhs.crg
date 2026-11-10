@@ -18,7 +18,7 @@ import {
 import { K, asInput } from './invoiceFields';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
-import { changedRows, paidToast, payLabel } from './paymentPosting';
+import { PAY_ENTRY, changedRows, paidToast, payLabel } from './paymentPosting';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { mayMarkPaid, payHold } from './invoicePrimary';
 
@@ -39,7 +39,7 @@ function invoiceTitle(view: InvoiceView): string {
 }
 
 /**
- * «Отметить оплату» — в шапке части «Сроки и оплата» (costs-invoice-screen-10-layout, как в Г): видна и у
+ * «Внести оплату…» — в шапке части «Сроки и оплата» (costs-invoice-screen-10-layout, как в Г): видна и у
  * свёрнутой части. Нет её у оплаченного, отклонённого и без права оплаты (`mayMarkPaid`); у разобранного
  * неоплаченного оплата — основное действие сводки, и вторую кнопку форма не рисует.
  *
@@ -58,14 +58,14 @@ export function InvoicePayButton({ view, dirty, onPay }: {
   return (
     <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={hold !== null}
       title={hold ?? undefined} onClick={onPay}>
-      Отметить оплату
+      {PAY_ENTRY}
     </Button>
   );
 }
 
 /**
  * Тело части «Сроки и оплата» об оплате — как счёт оплачен. Почему оплатить нельзя, говорят подсказка
- * неактивной «Отметить оплату…» и пункт индикатора состояния (costs-invoice-screen-11, D-11.2, 47–48).
+ * неактивной «Внести оплату…» и пункт индикатора состояния (costs-invoice-screen-11, D-11.2, 47–48).
  */
 export function InvoicePayment({ view }: { view: InvoiceView }) {
   const can = useCan();
@@ -144,7 +144,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
 }
 
 /**
- * Диалог отметки оплаты.
+ * Диалог внесения оплаты.
  *
  * <p>⚠️ Записать можно только по СВЕЖЕМУ раскладу: пока идёт пересчёт после смены даты, кнопка
  * неактивна — иначе человек подтвердил бы расклад прежней даты. Сервер это ловит отметкой расклада,
@@ -231,7 +231,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         <>
           <ModalExit />
           <ModalPrimary disabled={!payable} loading={pay.isPending} onClick={submit}>
-            {posting && payable ? payLabel(posting.rows) : 'Отметить оплату'}
+            {payLabel(posting && payable ? posting.rows : [])}
           </ModalPrimary>
         </>}>
       <div className="space-y-4">
