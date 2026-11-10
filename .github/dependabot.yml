@@ -80,6 +80,13 @@ updates:
       # DEPLOYMENT.md, а не PR от бота, который выглядит как остальные.
       - dependency-name: postgres
         update-types: [version-update:semver-major]
+      # Мажор Gotenberg 9 — НЕ бамп тега: с ним молча пропадает русская локаль чисел («3,834.16»).
+      # LibreOffice там работает через LibreOfficeKit, а тот при запуске сам ставит en-US и LANG не
+      # читает; язык Gotenberg 9 передать не даёт. Ветка 8 закрыта (8.40.0 — последний выпуск),
+      # так что PR внутри неё больше не придут. Снимать — вместе с переходом; что найдено и чем
+      # закрывается — docs/DEV_NOTES.md, «Конвертер офисных файлов: почему не Gotenberg 9».
+      - dependency-name: gotenberg/gotenberg
+        update-types: [version-update:semver-major]
       # Наша копия архивированного MinIO (issue #882): тег заморожен навсегда, обновлять неоткуда.
       - dependency-name: ghcr.io/pavru/minio
       - dependency-name: ghcr.io/pavru/mc
