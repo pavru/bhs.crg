@@ -21,7 +21,7 @@
 - [x] 1.2 `InvoiceListRow`: ведущий значок через `icon` / `iconTone` у `ListItem`, слово — подсказкой и в
   имени строки; дублирующая пометка «отклонён» снята, если так в макете [COST-6.3]. Проверка —
   `InvoiceListRow.test.tsx`: значок и слово у каждого состояния, у выбранной строки слово на месте
-- [ ] 1.3 Живой прогон: лента со всеми состояниями на 1366×768 и 1024×768 — значки видны, у оплаченного
+- [x] 1.3 Живой прогон: лента со всеми состояниями на 1366×768 и 1024×768 — значки видны, у оплаченного
   слово «оплачен» в подсказке. Проверка — сценарий в `invoices-smoke` (или `invoice-layout-checks`)
   зелёный; снимки до и после — в описании PR с названием выбранного макета и ссылкой на него
 
@@ -32,7 +32,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный (и `~InvoiceList`, если добавлен `paidOn`)
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm test` — зелёный
-- [ ] 3.4 `cd src/client && npm run ui:ratchet` — без роста (`list-row`, `container-text`, `icon-size`)
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный (и `~InvoiceList`, если добавлен `paidOn`)
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm test` — зелёный
+- [x] 3.4 `cd src/client && npm run ui:ratchet` — без роста (`list-row`, `container-text`, `icon-size`)
