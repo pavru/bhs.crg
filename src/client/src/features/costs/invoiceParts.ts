@@ -1,6 +1,7 @@
 import { createContext } from 'react';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
+import { shippedBeforeIssued } from './invoiceDue';
 import { BLOCKS, K, PARSED, REJECTED, asInput, isMarked, refEntryId } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 import type { ReadinessTarget } from './invoiceReadiness';
@@ -11,6 +12,10 @@ import type { ReadinessTarget } from './invoiceReadiness';
  * <p>Форма — одна прокрутка частей в порядке работы: сначала кто и сколько, потом строки, разноска, сроки.
  * Незаполненная часть открывается раскрытой, заполненная — свёрнутой в строку-итог. Решение принимается
  * ОДИН раз, при открытии счёта: запись не схлопывает часть у человека под руками.</p>
+ *
+ * <p>«Сроки и оплата» заполнена, когда в ней нечего решать: нет метки, ошибки значения, пункта готовности
+ * о её поле и замечания «Отгрузка раньше даты счёта». Неопределённый срок её не раскрывает — строка-итог
+ * говорит «срок не определён» (costs-invoice-terms-collapse, D1).</p>
  *
  * <p>⚠️ Свёрнутая часть не прячет того, что требует решения: метка «со скана, не проверено» и ошибка
  * значения держат часть раскрытой, как бы полно она ни была заполнена. Метка, пришедшая ПОСЛЕ открытия
@@ -85,6 +90,17 @@ function needsDecision(view: InvoiceView, draft: PartDraft, fields: readonly str
 }
 
 /**
+ * Что требует решения в «Сроках и оплате»: метка или пункт готовности о её поле — и отгрузка раньше даты
+ * счёта (пункт 32 перечня, `invoiceStatus`): чаще опечатка, и срок от неё уезжает. Пока срок что-то значит —
+ * у оплаченного и отклонённого замечания нет и в перечне (ревью PR #1855).
+ */
+function termsNeedDecision(view: InvoiceView, draft: PartDraft): boolean {
+  if (needsDecision(view, draft, fieldsOf('terms'))) return true;
+  return !view.payment.paid && view.requisites[K.state] !== REJECTED
+    && shippedBeforeIssued(valueOf(view, draft, K.shippedOn), valueOf(view, draft, K.date));
+}
+
+/**
  * Где сейчас стоит то, что требует решения: метка, пункт готовности о поле, удалённая запись. Части
  * без своих полей (строки, разноска, история) — `false`: их раскрытость решает заполненность.
  */
@@ -93,7 +109,7 @@ export function attentionOf(view: InvoiceView, draft: PartDraft, more: PartExtra
     who: needsDecision(view, draft, fieldsOf('who')) || more.attention,
     lines: false,
     allocation: false,
-    terms: needsDecision(view, draft, fieldsOf('terms')),
+    terms: termsNeedDecision(view, draft),
     more: needsDecision(view, draft, [...fieldsOf('more'), ...more.extra]),
     history: false,
   };
@@ -109,8 +125,11 @@ export function partFilled(part: PartId, view: InvoiceView, draft: PartDraft, mo
       return view.lines.length > 0 && view.lines.every(line => line.nomenclatureId !== null) && !draft.linesDirty;
     case 'allocation':
       return view.allocation.allocated;
+    // «Сроки и оплата» — только то, что требует решения (costs-invoice-terms-collapse, D1, COST-6.2): срок,
+    // неопределённый без даты отгрузки, часть не раскрывает — дату отгрузки почти не вносят, и часть
+    // открывалась бы почти у каждого счёта (#1818, п. 7). Пустой срок называет строка-итог.
     case 'terms':
-      return given(K.dueDate, valueOf(view, draft, K.dueDate)) && !attentionOf(view, draft, more).terms;
+      return !termsNeedDecision(view, draft);
     // «Ещё» и «История» открываются свёрнутыми — кроме «Ещё» с меткой со скана или пунктом готовности, и у
     // полей, дописанных в тип, тоже: метку прятать нельзя.
     case 'more':
