@@ -3,8 +3,9 @@
  * у которого своё правило ширины (`Tabs` на телефоне — `underline`), ронял бы свои тесты, а обходить это
  * проверкой в коде приложения — значит писать код под тесты.
  *
- * <p>Отвечает как рабочий стол шириной окна jsdom (1024 px): `min-width` и `max-width` сверяются с
- * `innerWidth`, остальное (`prefers-color-scheme`, `pointer`) не совпадает. «Не совпадает ничего» не годится:
+ * <p>Отвечает как рабочий стол с мышью шириной окна jsdom (1024 px): `min-width` и `max-width` сверяются с
+ * `innerWidth`, точный указатель (`pointer: fine`, `any-pointer: fine` — лупа просмотрщика) есть, остальное
+ * (`prefers-color-scheme`, `pointer: coarse`) не совпадает. «Не совпадает ничего» не годится:
  * `WIDE` тогда не совпал бы, и слои истории (`historyLayers`) во всех тестах решили бы, что они на телефоне.
  * Тест, которому нужна другая ширина, ставит свой `window.matchMedia` — заглушка ему не мешает.</p>
  *
@@ -12,7 +13,10 @@
  */
 const WIDTH = /\((min|max)-width:\s*([\d.]+)px\)/g;
 
+const FINE = /\((any-)?pointer:\s*fine\)/;
+
 function matches(query: string): boolean {
+  if (FINE.test(query)) return true;
   const found = [...query.matchAll(WIDTH)];
   return found.length > 0 && found.every(([, side, px]) =>
     side === 'min' ? window.innerWidth >= Number(px) : window.innerWidth <= Number(px));

@@ -8,6 +8,10 @@
   background-color: #fff;
   box-shadow: var(--md-sys-elevation-level1);
 }
+/* Лупа включена: курсор над листом скрыт — место показывает само окно, стрелка закрыла бы знак (макет А). */
+[data-loupe] .bhs-sheet {
+  cursor: none;
+}
 :root[data-theme="dark"] .bhs-sheet {
   box-shadow: none;
   outline: 1px solid var(--md-sys-color-outline-variant);

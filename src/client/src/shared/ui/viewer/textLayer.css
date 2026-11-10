@@ -64,6 +64,16 @@
   color: transparent;
 }
 
+/*
+ * Лупа включена ([UI-94]): мышь над листом ведёт лупу, а не выделяет текст — выделение под окном, которого
+ * не видно, только мешало бы. Выделить и скопировать — выключить лупу.
+ */
+[data-loupe] .bhs-text-layer,
+[data-loupe] .bhs-text-layer :is(span, br) {
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Поворот показа: слой разложен по неповёрнутому листу и поворачивается целиком. */
 .bhs-text-layer[data-main-rotation='90'] {
   transform: rotate(90deg) translateY(-100%);

@@ -1,4 +1,4 @@
-import { Add, ChevronLeft, ChevronRight, Remove, RotateRight } from '../icons';
+import { Add, ChevronLeft, ChevronRight, FrameInspect, Remove, RotateRight } from '../icons';
 import { useId, useState, type KeyboardEvent } from 'react';
 import { IconButton } from '../Button';
 import { Chip } from '../Chip';
@@ -12,9 +12,15 @@ import { normalizePage, ZOOM_PRESETS, zoomLabel, type ZoomMode } from './viewerS
  * буквально», выбор владельца 03.11.2026; [UI-11]). Поверх листа она не плавает: закрывала бы низ
  * листа — печать и итоги счёта. Группы разделены промежутком 16, а не чертой.
  *
- * Уже 420 px (колонка счёта на 1366 — 340) `−` и `+` уходят в меню масштаба, а чип показывает
- * действующий масштаб в процентах: «По ширине» в узкую панель не входит. Режим тогда виден галочкой в
- * меню. `group`, а не `toolbar`: тот обещает переход стрелками, а стрелки заняты полем номера ([UI-19]).
+ * Уже 420 px (поле-файл, панель файла счёта у нижней границы ширины) `−` и `+` уходят в меню масштаба, а
+ * чип показывает действующий масштаб в процентах: «По ширине» в узкую панель не входит. Режим тогда виден
+ * галочкой в меню. Лупа и поворот остаются в панели и там ([UI-92]).
+ *
+ * «Лупа» — переключатель перед поворотом: выключена — как соседи, включена — тональная (`secondary-
+ * container`): режим меняет поведение мыши, одного цвета знака мало (макет А, 11.11.2026). Нет `loupe` —
+ * нет и кнопки: устройство без точного указателя.
+ *
+ * `group`, а не `toolbar`: тот обещает переход стрелками, а стрелки заняты полем номера ([UI-19]).
  */
 
 export const NARROW_PX = 420;
@@ -33,6 +39,8 @@ export interface ToolbarProps {
   narrow: boolean;
   /** Действующий масштаб (1 = 100 %) — его показывает чип узкой панели. */
   scale: number;
+  /** Лупа ([UI-92]); нет — нет и кнопки. */
+  loupe?: { on: boolean; available: boolean; onToggle: () => void } | null;
 }
 
 export function ViewerToolbar(p: ToolbarProps) {
@@ -56,6 +64,11 @@ export function ViewerToolbar(p: ToolbarProps) {
         <IconButton label="Увеличить" title="Увеличить (Ctrl +)" disabled={!p.canZoomIn} onClick={p.onZoomIn} icon={Add} />
       )}
       <span className="flex-1" />
+      {p.loupe && (
+        <IconButton label="Лупа" icon={FrameInspect} variant={p.loupe.on ? 'tonal' : 'standard'} selected={p.loupe.on}
+          title={p.loupe.available ? 'Лупа (Esc — выключить)' : 'Лупа недоступна при масштабе от 300 %'}
+          disabled={!p.loupe.available} onClick={p.loupe.onToggle} data-testid="viewer-loupe-toggle" />
+      )}
       <IconButton label="Повернуть по часовой" onClick={p.onRotate} icon={RotateRight} />
     </div>
   );

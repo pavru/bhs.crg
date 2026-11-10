@@ -1,6 +1,8 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { printPdf } from './printPdf';
 import { NARROW_PX, ViewerToolbar } from './ViewerToolbar';
+import { Magnifier } from './Magnifier';
+import { useLoupe } from './useLoupe';
 import { ViewerMessage } from './ViewerMessage';
 import {
   anchorOf, CANVAS_PADDING, layout, MAX_SCALE, MIN_SCALE, resolveScale, rotateClockwise, scrollTopFor,
@@ -58,6 +60,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
   // Число масштаба области не ждёт; «по ширине» без измеренной области — пока 100 %.
   const scale = pages && (box.width || typeof mode === 'number') ? resolveScale(mode, pages, rotation, box) : 1;
   const l = useMemo(() => (pages ? layout(pages, scale, rotation) : null), [pages, scale, rotation]);
+  const loupe = useLoupe({ documentKey, scale, root, setAnnounce });
 
   // Смена масштаба или поворота держит ту же долю картинки вверху — как лента PDF.
   const shown = useRef<Layout | null>(null);
@@ -84,7 +87,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
   return (
     <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} data-testid="viewer-region" data-view="image"
-        className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
+        data-loupe={(ready && loupe?.on) || undefined} className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {failed && <ViewerMessage state="broken" source={source} actions={actions} />}
         {!failed && !ready && <ViewerMessage state="loading" source={source} />}
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}
@@ -112,13 +115,17 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
                 : undefined} />
           </div>
         </div>
+        {ready && size && loupe?.on && (
+          <Magnifier scroller={scroller} sheetScale={scale} rotation={rotation} image={{ el: img, natural: size }} dimmed={dimmed} />
+        )}
       </div>
       {ready && (
         <ViewerToolbar numPages={1} page={1} onPage={() => {}} mode={mode} onMode={setMode}
           onZoomIn={() => zoom('in')} onZoomOut={() => zoom('out')}
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Картинка повёрнута'); }}
-          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale} />
+          narrow={box.width > 0 && box.width < NARROW_PX} scale={scale}
+          loupe={loupe && { on: loupe.on, available: loupe.available, onToggle: loupe.toggle }} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>
