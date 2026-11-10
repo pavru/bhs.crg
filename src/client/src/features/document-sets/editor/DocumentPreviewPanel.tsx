@@ -86,20 +86,26 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
             <CircularProgress size={24} />
           </div>
         )}
-        {state.kind === 'no-template' && (
-          <div data-testid="preview-failure" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
-            <Icon icon={ScanDelete} size={40} />
-            <p className="text-body-medium">Нет шаблона для предпросмотра</p>
-            <p className="text-body-small">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
-          </div>
-        )}
-        {state.kind === 'error' && (
-          <div data-testid="preview-failure" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
-            <Icon icon={ScanDelete} size={40} className="text-error" />
-            <p className="text-body-medium text-error">Не удалось построить предпросмотр</p>
-            {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
-            <p className="text-body-small break-words max-w-full whitespace-pre-line">{state.message}</p>
-            <Button variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
+        {/* Отказ панели — один узел на все его виды, как `viewer-failure` у просмотрщика: метка, вид в
+            data-state и объявление читалке. Новый вид отказа добавляется внутрь и метку получает сам. */}
+        {(state.kind === 'no-template' || state.kind === 'error') && (
+          <div data-testid="preview-failure" data-state={state.kind} role="alert"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
+            {state.kind === 'no-template' ? (
+              <>
+                <Icon icon={ScanDelete} size={40} />
+                <p className="text-body-medium">Нет шаблона для предпросмотра</p>
+                <p className="text-body-small">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
+              </>
+            ) : (
+              <>
+                <Icon icon={ScanDelete} size={40} className="text-error" />
+                <p className="text-body-medium text-error">Не удалось построить предпросмотр</p>
+                {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
+                <p className="text-body-small break-words max-w-full whitespace-pre-line">{state.message}</p>
+                <Button variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
+              </>
+            )}
           </div>
         )}
         {state.kind === 'idle' && (
