@@ -68,6 +68,36 @@ describe('truncatedAt', () => {
     // Значок со своей подсказкой рядом с обрезанным именем: наводят на значок — показ значка, не сетки.
     const icon = cell('<span data-clip>имя</span><span data-tooltip id="i">!</span>');
     expect(truncatedAt(document.getElementById('i')!, icon)).toBeNull();
+    // Нативный title — тоже свой показ (браузерный): из компонента клетки храповик его не видит.
+    const native = cell('<span data-clip id="a" title="имя">имя</span>');
+    expect(truncatedAt(document.getElementById('a')!, native)).toBeNull();
+  });
+
+  it('запасной поиск (указатель на отступе) не берёт поле и свой показ', () => {
+    const own = cell('<span data-clip data-tooltip>имя</span>');
+    expect(truncatedAt(own, own)).toBeNull();
+    const field = cell('<input data-clip value="очень длинное значение" />');
+    expect(truncatedAt(field, field)).toBeNull();
+  });
+
+  it('запасной поиск не заходит во вложенную сетку', () => {
+    const outer = cell('<table><tbody><tr><td><span data-clip>чужое</span></td></tr></tbody></table>');
+    expect(truncatedAt(outer, outer)).toBeNull();
+  });
+
+  it('переполнение меньше пикселя: целые меры равны, многоточие уже нарисовано — обрезано', () => {
+    const td = cell('<span data-clip id="a">почти влезло</span>', { scroll: 100, client: 100 });
+    const el = document.getElementById('a')!;
+    el.getBoundingClientRect = () => ({ width: 100 }) as DOMRect;
+    const make = document.createRange.bind(document);
+    document.createRange = () => Object.assign(make(), { getBoundingClientRect: () => ({ width: 100.4 }) as DOMRect });
+    try {
+      expect(truncatedAt(el, td)?.id).toBe('a');
+      document.createRange = () => Object.assign(make(), { getBoundingClientRect: () => ({ width: 100 }) as DOMRect });
+      expect(truncatedAt(el, td)).toBeNull();
+    } finally {
+      document.createRange = make;
+    }
   });
 });
 

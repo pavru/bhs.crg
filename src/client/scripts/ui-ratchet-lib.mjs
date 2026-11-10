@@ -587,11 +587,18 @@ function repeatsContent(init, element) {
   return kids.some(c => ts.isJsxExpression(c) && c.expression && norm(c.expression.getText()) === want);
 }
 
-/** Узел внутри клетки колонки сетки: свойство или метод `cell` объектного литерала (`cell: row => …`). */
+/**
+ * Узел внутри клетки колонки сетки: свойство или метод `cell` объектного литерала, у которого есть и `key`, —
+ * так выглядит колонка `DataGrid` и `EditGrid` (`{ key, label, cell: row => … }`). Без `key` это чужой `cell`
+ * (печать, настройки), и законный `title` обрезанной строки там остаётся законным. Клетку в отдельном
+ * компоненте правило не видит — там двух подсказок всё равно не будет: сетка уступает нативному `title`
+ * (`truncation.ts`).
+ */
 function inGridCell(node, sf) {
+  const name = p => p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : null;
   for (let p = node.parent; p; p = p.parent) {
     if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p)) && ts.isObjectLiteralExpression(p.parent)
-      && p.name.getText(sf) === 'cell') return true;
+      && name(p) === 'cell' && p.parent.properties.some(q => name(q) === 'key')) return true;
   }
   return false;
 }

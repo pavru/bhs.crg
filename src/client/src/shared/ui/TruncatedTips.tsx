@@ -20,8 +20,8 @@ import { fullText, truncatedAt, truncatedIn } from './truncation';
  * зовут. Фокус с клавиатуры — у фокусируемого содержимого клетки (ссылка, кнопка), не у строки.</p>
  *
  * <p>Диктору показ не нужен — он и так читает текст клетки целиком: слой скрыт от него (`aria-hidden`), и ни
- * `aria-description`, ни `aria-describedby` клетка не получает. Слой пропускает щелчок (`pointer-events-none`),
- * поэтому строка открывается как прежде; Esc закрывает показ, а не окно под ним.</p>
+ * `aria-description`, ни `aria-describedby` клетка не получает. Слой пропускает указатель (`TooltipLayer`, и в
+ * окне тоже), поэтому строка под ним открывается как прежде; Esc закрывает показ, а не окно под ним.</p>
  */
 export const TruncatedTips = memo(function TruncatedTips({ table }: { table: RefObject<HTMLTableElement | null> }) {
   const [tip, setTip] = useState<{ text: string; align: 'start' | 'end' } | null>(null);
@@ -32,10 +32,13 @@ export const TruncatedTips = memo(function TruncatedTips({ table }: { table: Ref
     const root = table.current;
     if (!root) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let hovered: EventTarget | null = null;
+    // Элемент, у которого ждут показа (таймер) или он открыт либо уже измерен: повторное движение по нему —
+    // ничего. Сбрасывается всем, что ожидание отменяет, — иначе показ у него не вернулся бы до ухода на другой.
+    let hovered: Element | null = null;
     let focusOwner: EventTarget | null = null;
-    // После нажатия и Esc — молчать, пока указатель не уйдёт на другой элемент.
-    let blocked = false;
+    // После нажатия и Esc — молчать, пока указатель не уйдёт из этой клетки: переход на вложенный `<b>` или
+    // значок того же текста — не уход, и закрытый показ не открывается снова.
+    let blockedIn: Element | null = null;
 
     // Клетка СВОЕЙ сетки: событие из вложенной сетки всплывает и сюда, а показать её клетку — дело её самой (А2).
     const ownCell = (el: EventTarget | null): HTMLElement | null => {
@@ -52,23 +55,31 @@ export const TruncatedTips = memo(function TruncatedTips({ table }: { table: Ref
       clearTimeout(timer);
       if (anchor.current) noteClosed();
       anchor.current = null;
+      hovered = null;
       focusOwner = null;
       setTip(null);
     };
-    actions.current = { hide, escape: () => { hide(); blocked = true; } };
+    const block = (el: EventTarget | null) => {
+      blockedIn = el instanceof Element ? el.closest('td, th') ?? el : null;
+    };
+    actions.current = {
+      hide,
+      escape: () => { block(anchor.current); hide(); },
+    };
 
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType === 'touch' || e.target === hovered) return;
-      hovered = e.target;
-      blocked = false;
-      if (anchor.current && e.target instanceof Node && anchor.current.contains(e.target)) return;
+      if (e.pointerType === 'touch' || !(e.target instanceof Element) || e.target === hovered) return;
+      const target = e.target;
+      if (blockedIn && !blockedIn.contains(target)) blockedIn = null;
+      if (anchor.current?.contains(target)) { hovered = target; return; }
       if (anchor.current) hide();
       clearTimeout(timer);
-      const cell = ownCell(e.target);
-      if (!cell || e.buttons !== 0) return;
-      const target = e.target as Element;
+      hovered = null;
+      const cell = ownCell(target);
+      if (!cell || e.buttons !== 0 || blockedIn) return;
+      hovered = target;
       const fire = () => {
-        if (hovered !== target || blocked) return;
+        if (hovered !== target) return;
         const el = truncatedAt(target, cell);
         if (el) show(el, cell);
       };
@@ -76,10 +87,9 @@ export const TruncatedTips = memo(function TruncatedTips({ table }: { table: Ref
     };
     const onOut = (e: PointerEvent) => {
       if (e.relatedTarget instanceof Node && root.contains(e.relatedTarget)) return;
-      hovered = null;
-      if (focusOwner === null) hide(); else clearTimeout(timer);
+      if (focusOwner === null) hide(); else { clearTimeout(timer); hovered = null; }
     };
-    const onDown = () => { hide(); blocked = true; };
+    const onDown = (e: PointerEvent) => { hide(); block(e.target); };
     const onFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       // Фокус на самой строке (`<tr tabIndex=0>`) клетки не находит — у строки показа нет.
@@ -108,18 +118,23 @@ export const TruncatedTips = memo(function TruncatedTips({ table }: { table: Ref
     };
   }, [table]);
 
-  // Строку под открытым показом перерисовали (данные обновились): якорь, ушедший из документа, оставил бы слой в
-  // углу экрана — показ закрывается; текст сменился — показ его перечитывает (А8). Наблюдатель — только пока открыт.
+  // Строку под открытым показом перерисовали (данные обновились, колонку сузили или расширили): якорь, ушедший из
+  // документа, оставил бы слой в углу экрана — показ закрывается; текст больше не обрезан (стал короче, снят
+  // `truncate`) — тоже: показ только у обрезанного ([UI-53]); текст сменился — показ его перечитывает (А8).
+  // Наблюдатель — за всей таблицей (шапка меняет ширины) и только пока показ открыт.
   useEffect(() => {
-    const body = table.current?.tBodies[0];
-    if (!tip || !body) return;
+    const root = table.current;
+    if (!tip || !root) return;
     const observer = new MutationObserver(() => {
       const el = anchor.current;
-      if (!el || !el.isConnected) { actions.current.hide(); return; }
+      const cell = el?.closest<HTMLElement>('td, th');
+      if (!el || !el.isConnected || !cell || truncatedAt(el, cell) !== el) { actions.current.hide(); return; }
       const text = fullText(el);
       if (text !== tip.text) setTip({ ...tip, text });
     });
-    observer.observe(body, { childList: true, subtree: true, characterData: true });
+    observer.observe(root, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style'],
+    });
     return () => observer.disconnect();
   }, [table, tip]);
 

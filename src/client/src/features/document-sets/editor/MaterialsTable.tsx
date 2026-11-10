@@ -71,6 +71,7 @@ export function MaterialsTable({
       cell: m => {
         const link = findLink(m);
         const suggestion = !link ? suggestionByKey.get(m.key) : undefined;
+        const linkedName = link ? docName.get(link.qualityDocumentId) ?? '(документ)' : '';
         return (
           <>
             {link ? (
@@ -91,9 +92,9 @@ export function MaterialsTable({
                     которое она занимала, ушло под «Перепривязать». Своей подсказки у имени нет: обрезанное
                     имя целиком показывает сетка ([UI-52]), а действие — в имени кнопки для диктора (Д4). */}
                 <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
-                  aria-label={`Просмотреть документ «${docName.get(link.qualityDocumentId) ?? '(документ)'}»`}
+                  aria-label={`Просмотреть документ «${linkedName}»`}
                   className="flex-1 min-w-0 text-left text-primary hover:underline truncate">
-                  {docName.get(link.qualityDocumentId) ?? '(документ)'}
+                  {linkedName}
                 </button>
                 {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
                     одну ошибку («не тот документ») на другую («документа нет»). До этого

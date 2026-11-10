@@ -155,6 +155,59 @@ describe('DataGrid: полный текст обрезанной клетки', 
     expect(document.querySelectorAll('[data-truncated-tip]')).toHaveLength(1);
   });
 
+  it('после Esc переход на вложенный элемент того же текста показа не возвращает; уход из клетки — возвращает', async () => {
+    grid([{ key: 'name', label: 'Наименование',
+      cell: i => <span data-testid={`name-${i.id}`} style={CLIP}>Кабель <b data-testid={`b-${i.id}`}>{i.name}</b></span> }]);
+    const name = screen.getByTestId('name-1');
+    sizes(name, 600, 200);
+    await hover(name);
+    expect(tip()).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(tip()).toBeNull();
+    await hover(screen.getByTestId('b-1'));
+    expect(tip()).toBeNull();
+    await hover(name);
+    expect(tip()).toBeNull();
+    await act(async () => { vi.advanceTimersByTime(1000); });
+    await hover(screen.getByTestId('name-2'));
+    await hover(name);
+    expect(tip()).not.toBeNull();
+  });
+
+  it('кнопку отпустили над тем же текстом — показ приходит при следующем движении', async () => {
+    grid([nameCell()]);
+    const name = screen.getByTestId('name-1');
+    sizes(name, 600, 200);
+    await hover(name, { buttons: 1 });
+    expect(tip()).toBeNull();
+    await hover(name);
+    expect(tip()).not.toBeNull();
+  });
+
+  it('слой пропускает указатель — и в окне, где тело окна в pointer-events: none', async () => {
+    render(<MemoryRouter><Modal open onOpenChange={() => {}} title="Ведомость">
+      <DataGrid columns={[nameCell()]} rows={ITEMS} rowKey={i => i.id} />
+    </Modal></MemoryRouter>);
+    const name = screen.getByTestId('name-1');
+    sizes(name, 600, 200);
+    await hover(name);
+    const layer = tip() as HTMLElement;
+    expect(layer.style.pointerEvents).toBe('none');
+    // Обёртку Popper отпускает правило index.css по этой метке.
+    expect(layer.hasAttribute('data-tooltip-passive')).toBe(true);
+    expect(layer.parentElement!.hasAttribute('data-radix-popper-content-wrapper')).toBe(true);
+  });
+
+  it('текст под открытым показом перестал быть обрезанным — показ закрылся', async () => {
+    grid([nameCell()]);
+    const name = screen.getByTestId('name-1');
+    sizes(name, 600, 200);
+    await hover(name);
+    expect(tip()).not.toBeNull();
+    await act(async () => { name.style.textOverflow = 'clip'; await Promise.resolve(); });
+    expect(tip()).toBeNull();
+  });
+
   it('строку под открытым показом перерисовали — показ закрылся', async () => {
     const view = grid([nameCell()]);
     const name = screen.getByTestId('name-1');

@@ -1,7 +1,7 @@
 // Полный текст обрезанной клетки (change `sharedui-truncated-cell-tooltip`, [UI-52] [UI-53], #1519; п. 5а #1818) —
 // живым браузером, задача 2.1: в матрице разноски обрезанное название строки показывает ОДНА подсказка — сетки;
 // своего нативного `title` у названия больше нет. Короткое название подсказки не получает; Esc закрывает показ,
-// а не окно матрицы.
+// а не окно матрицы; слой показа пропускает указатель к строкам под ним.
 //
 // Отдельным файлом: `allocation-matrix-smoke` и так велик. Едет внутри него, с его страницей и помощниками.
 
@@ -33,6 +33,15 @@ export async function truncatedCellChecks({ page, check, invoice, openMatrix, st
     // Название строки матрицы — с её номером («1. Кабель…»): сверяется с текстом самого названия, целиком.
     const full = (await longTitle.textContent()).trim();
     if (shown[0] !== full || !full.endsWith(long)) throw new Error(`показано «${shown[0]}», а не полное название «${full}»`);
+
+    // Слой пропускает указатель и в окне (там DismissableLayer ставит слою pointer-events: auto): под серединой
+    // подсказки — то, что под ней, а не сама подсказка и не обёртка Popper.
+    const hit = await page.locator(TIP).evaluate(el => {
+      const r = el.getBoundingClientRect();
+      const under = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return under?.closest('[data-radix-popper-content-wrapper]') ? 'слой' : 'мимо';
+    });
+    if (hit !== 'мимо') throw new Error('подсказка перехватывает указатель — щелчок по строке под ней до строки не дойдёт');
 
     // Esc закрывает показ, а окно матрицы остаётся.
     await page.keyboard.press('Escape');

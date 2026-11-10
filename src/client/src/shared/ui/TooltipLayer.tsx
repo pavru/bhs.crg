@@ -15,8 +15,14 @@ export type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
  * с действиями (`interactive`) ещё и держит своё `FocusScope`: в окне фокус, ушедший в подсказку в
  * `body`, иначе вернула бы ловушка фокуса окна — Tab до действия не доходил бы. Своего автофокуса у
  * области нет: фокус в подсказку ведёт человек.</p>
+ *
+ * <p>Простой слой указатель пропускает — щелчок и наведение уходят тому, что под ним. Класса
+ * `pointer-events-none` для этого мало: в окне `DismissableLayer` ставит слою `pointer-events: auto` прямо
+ * в стиль (тело окна — `none`), а обёртка Popper (`data-radix-popper-content-wrapper`) и вовсе своего не
+ * снимает. Поэтому — свой стиль слою (он побеждает стиль `DismissableLayer`) и метка `data-tooltip-passive`,
+ * по которой обёртку отпускает правило в `index.css`.</p>
  */
-export function TooltipLayer({ anchor, side, align = 'center', onClose, onEscape, interactive = false, layerRef, className, children, ...rest }: {
+export function TooltipLayer({ anchor, side, align = 'center', onClose, onEscape, interactive = false, layerRef, className, children, style, ...rest }: {
   anchor: RefObject<HTMLElement | null>;
   side: TooltipSide;
   /** Выравнивание вдоль стороны; `start` — по началу элемента (полный текст клетки продолжает её текст). */
@@ -39,7 +45,9 @@ export function TooltipLayer({ anchor, side, align = 'center', onClose, onEscape
 
   const content = (
     <Popper.Content ref={layerRef} side={side} align={align} sideOffset={6} collisionPadding={8}
-      className={`z-[60] ${interactive ? '' : 'pointer-events-none select-none '}${className}`} {...rest}>
+      className={`z-[60] ${interactive ? '' : 'pointer-events-none select-none '}${className}`}
+      style={interactive ? style : { ...style, pointerEvents: 'none' }}
+      {...(!interactive && { 'data-tooltip-passive': '' })} {...rest}>
       {children}
     </Popper.Content>
   );

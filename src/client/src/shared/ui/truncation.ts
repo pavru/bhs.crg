@@ -35,9 +35,28 @@ function declares(el: Element): 'ellipsis' | 'clamp' | null {
   return clipKind(getComputedStyle(el) as unknown as ClipStyle);
 }
 
-/** Обрезка случилась: содержимое не поместилось. */
+/**
+ * Обрезка случилась: содержимое не поместилось. `scrollWidth` и `clientWidth` — целые, а многоточие браузер
+ * рисует и при переполнении меньше пикселя (дробные ширины колонок, масштаб 125 %): там они равны, и строка с «…»
+ * осталась бы без показа. Поэтому при равенстве — ещё и дробная мера: ширина самого текста (Range) против ширины
+ * содержимого элемента.
+ */
 function clipped(el: HTMLElement, kind: 'ellipsis' | 'clamp'): boolean {
-  return kind === 'clamp' ? el.scrollHeight > el.clientHeight : el.scrollWidth > el.clientWidth;
+  if (kind === 'clamp') return el.scrollHeight > el.clientHeight;
+  return el.scrollWidth > el.clientWidth || (el.scrollWidth === el.clientWidth && subpixelOverflow(el));
+}
+
+/** Текст шире содержимого элемента на долю пикселя. Без мер (тестовый DOM) — нет. */
+function subpixelOverflow(el: HTMLElement): boolean {
+  const range = document.createRange?.();
+  if (!range || typeof range.getBoundingClientRect !== 'function') return false;
+  range.selectNodeContents(el);
+  const text = range.getBoundingClientRect().width;
+  const s = getComputedStyle(el);
+  const inset = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+    .reduce((sum, k) => sum + (parseFloat(s[k as 'paddingLeft']) || 0), 0);
+  const box = el.getBoundingClientRect().width - inset;
+  return box > 0 && text - box > 0.01;
 }
 
 /**
@@ -47,11 +66,14 @@ function clipped(el: HTMLElement, kind: 'ellipsis' | 'clamp'): boolean {
 const FIELD = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="combobox"], [role="textbox"], [role="spinbutton"]';
 
 /**
- * Свой показ у элемента: `Tooltip`, `RichTooltip`, `title` у `Button` ставят метку `data-tooltip`. Сетка
- * уступает элементу с меткой — у него самого или у предка в клетке: двух подсказок не бывает никогда, выбор
- * остаётся за экраном (разбор, А7 и Д4).
+ * Свой показ у элемента: `Tooltip`, `RichTooltip`, `title` у `Button` ставят метку `data-tooltip`; нативный
+ * `title` — тоже свой показ, браузерный. Сетка уступает такому элементу — у него самого или у предка в клетке:
+ * двух подсказок не бывает никогда, выбор остаётся за экраном (разбор, А7 и Д4). Нативный `title` в клетке
+ * храповик гонит к показу сеткой, но ловит его только в самом `cell:` — из компонента клетки он доходит сюда.
  */
-const OWN_TIP = '[data-tooltip]';
+const OWN_TIP = '[data-tooltip], [title]:not([title=""])';
+/** Мимо: поле или свой показ. */
+const SKIP = `${FIELD}, ${OWN_TIP}`;
 
 /** Метка внутри клетки — у элемента или у предка до клетки включительно. */
 function inside(el: Element, selector: string, cell: Element): boolean {
@@ -66,16 +88,18 @@ function inside(el: Element, selector: string, cell: Element): boolean {
  * null — показывать нечего: не обрезано, поле, свой показ.
  */
 export function truncatedAt(target: Element, cell: HTMLElement): HTMLElement | null {
-  if (!cell.contains(target) || inside(target, FIELD, cell) || inside(target, OWN_TIP, cell)) return null;
+  if (!cell.contains(target) || inside(target, SKIP, cell)) return null;
   for (let el: Element | null = target; el && cell.contains(el); el = el.parentElement) {
     const kind = declares(el);
-    if (kind) return el instanceof HTMLElement && clipped(el, kind) && accept(el, cell) ? el : null;
+    if (kind) return el instanceof HTMLElement && clipped(el, kind) && accept(el) ? el : null;
   }
   if (target !== cell) return null;
-  const declared = [...cell.querySelectorAll<HTMLElement>('*')].filter(el => declares(el));
+  // Только своя клетка: узлы вложенной сетки — её клетки, показывает их она сама (А2).
+  const declared = [...cell.querySelectorAll<HTMLElement>('*')]
+    .filter(el => el.closest('td, th') === cell && declares(el));
   if (declared.length !== 1) return null;
   const [only] = declared;
-  return clipped(only, declares(only)!) && accept(only, cell) ? only : null;
+  return clipped(only, declares(only)!) && accept(only) ? only : null;
 }
 
 /**
@@ -83,17 +107,20 @@ export function truncatedAt(target: Element, cell: HTMLElement): HTMLElement | n
  * обрезанный. Фокус на самой строке (`<tr tabIndex=0>`) клеткой не считается — там показа нет.
  */
 export function truncatedIn(focused: HTMLElement, cell: HTMLElement): HTMLElement | null {
-  if (!cell.contains(focused) || inside(focused, FIELD, cell) || inside(focused, OWN_TIP, cell)) return null;
+  if (!cell.contains(focused) || inside(focused, SKIP, cell)) return null;
   for (const el of [focused, ...focused.querySelectorAll<HTMLElement>('*')]) {
     const kind = declares(el);
-    if (kind && clipped(el, kind) && accept(el, cell)) return el;
+    if (kind && clipped(el, kind) && accept(el)) return el;
   }
   return null;
 }
 
-/** Внутри обрезанного нет своего показа и поля — иначе подсказки две или показ у поля. */
-function accept(el: HTMLElement, cell: HTMLElement): boolean {
-  return !el.querySelector(`${FIELD}, ${OWN_TIP}`) && cell.contains(el);
+/**
+ * Обрезанный — не поле и не свой показ, и внутри их нет: иначе подсказки две или показ у поля. Сам элемент
+ * важен в запасном поиске: туда он приходит не от указателя, и проверка `target` его не видела.
+ */
+function accept(el: HTMLElement): boolean {
+  return !el.matches(SKIP) && !el.querySelector(SKIP);
 }
 
 /**
