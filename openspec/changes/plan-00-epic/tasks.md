@@ -94,8 +94,8 @@
 
 - [x] 5.1 `plan-21-contract-permissions` (1) — «право контракта»; ядро, этап 4 [AUTH-8.1]. Проверка —
   change заархивирован (слит #1853, ca022c72; архив `2026-11-10-plan-21-contract-permissions`)
-- [ ] 5.2 `plan-22-module-exchange` (1) — механизм контракта и параметр доступа; ядро, этап 4 [CORE-34]
-  [OVW-12]. Проверка — change заархивирован
+- [x] 5.2 `plan-22-module-exchange` (1) — механизм контракта и параметр доступа; ядро, этап 4 [CORE-34]
+  [OVW-12]. Проверка — change заархивирован (слит #1858, e4ba80b8; архив `2026-11-10-plan-22-module-exchange`)
 - [ ] 5.3 `plan-23-planned-works-contract` (1) — «Плановые работы» и права контракта [PLAN-9.1]
   [PLAN-23] [WORK-57] [WORK-59]. Проверка — change заархивирован
 - [ ] 5.4 `plan-24-actual-costs-contract` (1) — «Фактические затраты» у `costs` [PLAN-21.1] [COST-21].
