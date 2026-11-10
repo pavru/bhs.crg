@@ -113,9 +113,11 @@
   **10.11.2026, свой стенд (API :5141, клиент :4241):** на ветке `invoice-lines` 38/38; на сборке master
   проверка падает — «карточка сдвинула строки: было 439, стало 415». Первый прогон ветки нашёл второй механизм
   скачка — рост окна по центру экрана (101 px) — он закрыт D8.
-- [ ] 2.2 Снимки окна до и после — 1366×768 и 768×768, обе темы — в описании PR кода, со ссылкой на макет Е′
+- [x] 2.2 Снимки окна до и после — 1366×768 и 768×768, обе темы — в описании PR кода, со ссылкой на макет Е′
   (https://claude.ai/artifact/U2EvjgBH6fpVNJpFkVuWe7) и на выбор (`docs/UI.md`, шаг 4). Проверка — ссылки в
   описании PR
+
+  **10.11.2026:** https://claude.ai/artifact/WGtxZwgZKVX6dtGT8nNiwH — в описании PR #1883 вместе с макетом Е′.
 
 ## 3. Верификация
 
@@ -123,7 +125,7 @@
 - [x] 3.2 `cd src/client && npm run ui:ratchet` — без роста ни по одному правилу
 - [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [x] 3.4 e2e `invoice-candidates-checks` и `costs-smoke` на стенде — зелёные (38/38 и 29/29, 10.11.2026)
-- [ ] 3.5 PR кода — с метками `version:minor` и `ui`; `<Version>` не тронут
+- [x] 3.5 PR кода — с метками `version:minor` и `ui`; `<Version>` не тронут (#1883)
 
 ## Workflow follow-up
 
