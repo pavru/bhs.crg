@@ -40,13 +40,18 @@ const CONTENT = `#set page(paper: "a4")
 `;
 
 export async function ensurePreviewTemplate({ api, typeId }) {
-  const existing = (await api('GET', `/templates?documentTypeId=${typeId}`))
-    .find(t => t.name === PREVIEW_TEMPLATE && t.isActive !== false);
+  // Версии шаблона живут под одним именем; правится активная, а нет её — любая с этим именем: заводить
+  // второй шаблон с тем же именем нельзя — по какому из них строится предпросмотр, тогда не угадать.
+  // Историческую версию сервер править не даст (409) — посев тогда откажет вслух, а не заведёт двойника.
+  const named = (await api('GET', `/templates?documentTypeId=${typeId}`)).filter(t => t.name === PREVIEW_TEMPLATE);
+  const existing = named.find(t => t.isActive) ?? named[0];
   if (!existing) {
     await api('POST', '/templates', { documentTypeId: typeId, name: PREVIEW_TEMPLATE, content: CONTENT });
     console.log(`  + шаблон «${PREVIEW_TEMPLATE}»`);
-  } else if (existing.content !== CONTENT) {
-    // Стенд, засеянный прежним посевом: шаблон без проверочного отказа, и проверка ждала бы его зря.
+  } else if (!existing.content.includes(BROKEN_MESSAGE)) {
+    // Стенд, засеянный прежним посевом: шаблон без проверочного отказа, и проверка ждала бы его зря. Узнаётся
+    // по отказу, а не равенством текста: при создании сервер дописывает в шаблон системные импорты
+    // (`EnsureImports`), и равенство не сошлось бы никогда — посев переписывал бы шаблон каждым запуском.
     await api('PUT', `/templates/${existing.id}/content`, { content: CONTENT });
     console.log(`  ~ шаблон «${PREVIEW_TEMPLATE}» обновлён`);
   }

@@ -22,7 +22,7 @@ import './sheet.css';
 
 interface Size { width: number; height: number }
 
-export function ImageView({ source, documentKey, title, actions, rememberZoomAs }: Omit<PdfViewerProps, 'source' | 'overlay'> & { source: Blob }) {
+export function ImageView({ source, documentKey, title, actions, rememberZoomAs, dimmed }: Omit<PdfViewerProps, 'source' | 'overlay'> & { source: Blob }) {
   const [shownKey, setShownKey] = useState(documentKey);
   const { mode, setMode, reset: resetZoom, announce, setAnnounce } = useZoomMode(rememberZoomAs);
   const [rotation, setRotation] = useState(0);
@@ -88,7 +88,8 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
         {failed && <ViewerMessage state="broken" source={source} actions={actions} />}
         {!failed && !ready && <ViewerMessage state="loading" source={source} />}
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}
-        <div className={ready ? 'relative' : 'absolute invisible w-0 h-0 overflow-hidden'} style={l ? { height: l.total, minWidth: l.width } : undefined}>
+        <div className={ready ? `relative transition-opacity ${dimmed ? 'opacity-60' : ''}` : 'absolute invisible w-0 h-0 overflow-hidden'}
+          data-dimmed={(ready && dimmed) || undefined} style={l ? { height: l.total, minWidth: l.width } : undefined}>
           <div data-page={1} data-testid="viewer-image-sheet"
             className="absolute bhs-sheet overflow-hidden"
             style={sheet

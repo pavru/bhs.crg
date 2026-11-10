@@ -35,20 +35,29 @@ async function refused(panel) {
 }
 
 /**
- * Отказ обновления — строка `preview-stale` над прежним PDF. Текст сервера в ней свёрнут, и чтобы назвать
- * причину, его раскрывают; без строки — пусто.
+ * Отказ обновления — строка `preview-stale` над прежним PDF: `{ text, message }`, без строки — `null`. Текст
+ * сервера в ней свёрнут, и чтобы его прочесть, строку раскрывают.
  */
-async function staleReason(panel) {
+async function staleRefusal(panel) {
   const stale = panel.getByTestId('preview-stale');
-  if (!(await stale.count())) return '';
+  if (!(await stale.count())) return null;
   const more = stale.getByRole('button', { name: 'Подробнее' });
   if (await more.count()) await more.click();
-  const message = stale.getByTestId('preview-stale-message');
-  return `${await stale.getByRole('status').innerText()}: «${(await message.innerText()).replace(/\s+/g, ' ').trim()}»`;
+  const [text, message] = await Promise.all([
+    stale.getByTestId('preview-stale-text').innerText(), stale.getByTestId('preview-stale-message').innerText()]);
+  return { text, message: message.replace(/\s+/g, ' ').trim() };
 }
 
-/** Приглушён ли лист: прозрачность области просмотра, как её посчитал браузер. */
-const opacity = region => region.evaluate(el => getComputedStyle(el).opacity);
+/**
+ * Приглушены ли листы: прозрачность ленты листов, как её посчитал браузер (строку инструментов не трогает).
+ * Смена плавная (`transition-opacity`), поэтому сначала дожидаемся конца перехода: прочитанное посреди него
+ * значение между 0,6 и 1 выдало бы удачный вариант за «остался приглушённым».
+ */
+const opacity = region => region.evaluate(async el => {
+  const strip = el.querySelector('[data-page]').parentElement;
+  await Promise.all(strip.getAnimations().map(a => a.finished.catch(() => {})));
+  return getComputedStyle(strip).opacity;
+});
 
 export async function previewKeepsPage(page, editor, named) {
   // Панель по умолчанию свёрнута; ширина окна прогона — выше `xl`, иначе её нет вовсе.
@@ -117,17 +126,19 @@ async function regenerate(page, editor, named, panel, second, field) {
 
   // Новый вариант пришёл, когда его номер напечатан на втором листе. Лист ищется заново на каждом
   // шаге, а не держится ручкой: ушедший и вставший заново лист ручка не увидела бы, и провал назвал
-  // бы «не встал» вместо настоящей причины. Ищется в панели, а не в области: отказ перегенерации
-  // снимает область вместе с прежним PDF, и ручка на неё указывала бы на отсоединённый узел.
+  // бы «не встал» вместо настоящей причины. Ищется в панели, а не в области: отказ ПЕРВОГО показа ставит
+  // плашку вместо области, и ручка на неё указывала бы на отсоединённый узел.
   const area = await panel.elementHandle();
   // Строку отказа от проверочного номера сменит только удачный вариант, поэтому ждать её ухода нельзя: она
-  // и есть «ещё не встал». Не встал за отведённое — причину называет она, если ещё стоит.
+  // и есть «ещё не встал». Не встал за отведённое — причину называет строка, но только чужим отказом: свой,
+  // проверочный, засчитан выше, и назвать его причиной значило бы соврать (запрос не ушёл, Typst не успел).
   await named(`второй лист не показал «${NEW_NUMBER}» — новый вариант не встал`, () => page.waitForFunction(
     ([el, text, failure]) => !!el.querySelector(failure)
       || (el.querySelector('[data-page="2"] .bhs-text-layer')?.textContent ?? '').replace(/\s+/g, '').includes(text),
     [area, NEW_NUMBER, FAILURE], { timeout: 30_000 })).catch(async e => {
-    const reason = await staleReason(panel);
-    if (reason) throw new Error(`новый вариант не встал, отказ обновления: ${reason}`);
+    const stale = await staleRefusal(panel);
+    if (stale && !stale.message.includes(BROKEN_MESSAGE))
+      throw new Error(`новый вариант не встал, отказ обновления: ${stale.text}: «${stale.message}»`);
     throw e;
   });
   await refused(panel);
@@ -162,6 +173,7 @@ async function brokenUpdate(page, named, panel, number, second, field) {
   const dim = await opacity(region);
   if (dim === '1') throw new Error('устаревший лист не приглушён');
 
-  const reason = await staleReason(panel);
-  if (!reason.includes(BROKEN_MESSAGE)) throw new Error(`в строке отказа не текст сервера: ${reason}`);
+  const refusal = await staleRefusal(panel);
+  if (!refusal?.message.includes(BROKEN_MESSAGE))
+    throw new Error(`в строке отказа не текст сервера: ${refusal?.text}: «${refusal?.message}»`);
 }

@@ -22,10 +22,10 @@ vi.mock('@/shared/ui/viewer/viewerGate', () => ({ preloadPdfViewer: vi.fn() }));
 // это и есть потеря листа: настоящий просмотрщик держит место документа в своём состоянии.
 const viewer = vi.hoisted(() => ({ mounts: 0 }));
 vi.mock('@/shared/ui/viewer/PdfViewer', () => ({
-  PdfViewer: ({ source, documentKey }: { source: Blob; documentKey: string }) => {
+  PdfViewer: ({ source, documentKey, dimmed }: { source: Blob; documentKey: string; dimmed?: boolean }) => {
     useEffect(() => { viewer.mounts++; }, []);
     return <div role="region" aria-label="Предпросмотр документа" data-testid="viewer"
-      data-key={documentKey} data-source={(source as Blob & { tag?: string }).tag} />;
+      data-key={documentKey} data-source={(source as Blob & { tag?: string }).tag} data-dimmed={String(!!dimmed)} />;
   },
 }));
 
@@ -58,6 +58,10 @@ describe('DocumentPreviewPanel — отказ обновления', () => {
     await settle();
     expect(screen.getByTestId('viewer').dataset.source).toBe('v1');
     expect(screen.queryByTestId('preview-stale')).toBeNull();
+    // Живая область стоит в панели с самого начала, пустой: вставленную сразу с текстом диктор бы пропустил.
+    const live = screen.getByTestId('preview-live');
+    expect(live.getAttribute('role')).toBe('status');
+    expect(live.textContent).toBe('');
 
     // Правка ломает шаблон — сервер отказал.
     preview.mockResolvedValueOnce({ kind: 'error', message: COMPILER });
@@ -71,15 +75,20 @@ describe('DocumentPreviewPanel — отказ обновления', () => {
     expect(screen.queryByTestId('preview-failure')).toBeNull();
     const stale = screen.getByTestId('preview-stale');
     expect(stale.dataset.state).toBe('error');
-    expect(screen.getByRole('status').textContent).toMatch(/^Не обновлён: не удалось построить · вариант от \d\d:\d\d$/);
-    // Устаревший лист приглушён — классом на том же узле, что и всегда держит просмотрщик.
-    expect(shown.parentElement!.className).toContain('[&_[role=region]]:opacity-60');
+    expect(screen.getByTestId('preview-stale-text').textContent).toMatch(/^Не обновлён: не удалось построить · вариант от \d\d:\d\d$/);
+    expect(screen.getByTestId('preview-live')).toBe(live);
+    expect(live.textContent).toBe('Предпросмотр не обновлён: не удалось построить');
+    // Устаревший лист приглушает сам просмотрщик.
+    expect(shown.dataset.dimmed).toBe('true');
 
-    // Текст сервера — по «Подробнее», целиком, с переносами строк.
-    expect(screen.queryByTestId('preview-stale-message')).toBeNull();
+    // Текст сервера — по «Подробнее», целиком, с переносами строк. Свёрнутый — в разметке, но скрыт:
+    // `aria-controls` кнопки указывает на него и тогда.
     const toggle = screen.getByRole('button', { name: 'Подробнее' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    const details = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    expect(details.hidden).toBe(true);
     fireEvent.click(toggle);
+    expect(details.hidden).toBe(false);
     expect(screen.getByTestId('preview-stale-message').textContent).toBe(COMPILER);
     expect(screen.getByRole('button', { name: 'Скрыть' }).getAttribute('aria-expanded')).toBe('true');
 
@@ -89,14 +98,22 @@ describe('DocumentPreviewPanel — отказ обновления', () => {
     await settle();
     expect(screen.getByTestId('preview-stale-message').textContent).toBe('error: expected expression');
 
-    // «Повторить» после исправления — новый вариант в том же просмотрщике, строка отказа ушла.
-    preview.mockResolvedValueOnce(pdf('v2'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Повторить' })); });
+    // «Повторить» после исправления: пока запрос в пути, кнопка занята и второго запроса не шлёт; затем новый
+    // вариант в том же просмотрщике, строка отказа ушла.
+    let answer!: (r: PreviewResult) => void;
+    preview.mockImplementationOnce(() => new Promise(r => { answer = r; }));
+    const retry = screen.getByRole('button', { name: 'Повторить' });
+    await act(async () => { fireEvent.click(retry); });
+    expect((retry as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(retry);
+    expect(preview).toHaveBeenCalledTimes(4);
+    await act(async () => { answer(pdf('v2')); });
     expect(screen.getByTestId('viewer').dataset.source).toBe('v2');
     expect(viewer.mounts).toBe(1);
     expect(screen.queryByTestId('preview-stale')).toBeNull();
+    expect(live.textContent).toBe('');
     expect(screen.getByText('обновлено только что')).toBeTruthy();
-    expect(screen.getByTestId('viewer').parentElement!.className).not.toContain('opacity');
+    expect(screen.getByTestId('viewer').dataset.dimmed).toBe('false');
   });
 
   it('пропавший шаблон после показанного PDF — тоже строка, PDF на месте', async () => {
@@ -107,7 +124,9 @@ describe('DocumentPreviewPanel — отказ обновления', () => {
     await settle();
     expect(screen.getByTestId('viewer').dataset.source).toBe('v1');
     expect(screen.getByTestId('preview-stale').dataset.state).toBe('no-template');
-    expect(screen.getByRole('status').textContent).toMatch(/^Не обновлён: нет шаблона/);
+    expect(screen.getByTestId('preview-stale-text').textContent).toMatch(/^Не обновлён: нет шаблона/);
+    // Подсказка человеку — обычным текстом, а не моноширинным блоком отказа компилятора.
+    expect(screen.getByTestId('preview-stale-message').tagName).toBe('P');
   });
 
   it('отказ первого показа — плашка вместо PDF, как раньше', async () => {
