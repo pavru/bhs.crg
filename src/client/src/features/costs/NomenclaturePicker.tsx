@@ -1,6 +1,6 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
-import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, Search, Warning } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
@@ -20,7 +20,8 @@ import { trimText, type LineWords } from './newNomenclature';
 import {
   candidateRows, foundRows, lineVsCard, looksLikeArticle, neighbourCandidates, type NeighbourLine, type PickerRow,
 } from './pickerCandidates';
-import { CandidatesBlock, PickerOption, type PickerCurrent } from './PickerRows';
+import { CandidatesBlock, CandidatesNotices, CandidatesTail, PickerOption, type PickerCurrent } from './PickerRows';
+import { candidatesView } from './candidatesView';
 import { plateMeta, type PickerLine } from './pickerLine';
 import { usePickerSelection } from './pickerSelection';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -167,7 +168,13 @@ function useNarrow() {
  * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции — side sheet в слое окна
  * ([UI-81]): Esc закрывает сначала его, фокус остаётся в поиске. Одно выделение на список
  * (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой. Крестик прячет лист
- * до выделения другой строки. Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
+ * до выделения другой строки, и строка, оказавшаяся под курсором после закрытия, его не открывает (сторож
+ * `usePickerSelection.guard`). Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
+ *
+ * <p><b>Лист не сдвигает строки</b> ([COST-7], costs-picker-sheet-reflow, вариант Е′): на столе всё, что
+ * переносится по ширине, — плашка строки, «Сейчас», отказы, поиск — стоит полосой во всю ширину тела над рядом
+ * «список | лист», а оговорки к спискам — под списками. Открытый лист меняет только ширину колонки, а в ней нет
+ * ничего, что от ширины меняет высоту: имя в строке — в одну линию. На узком порядок тот же, в одной прокрутке.</p>
  *
  * <p><b>Пустой запрос — кандидаты, а не голова алфавита</b> (issue #1518): первые 25 позиций по алфавиту
  * этой строке не подходят ничем. Набор — обычный поиск; стёр — кандидаты снова, из кэша.</p>
@@ -234,6 +241,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const rows = searching ? results : [...picked.rows, ...directory];
   const best = searching ? null : picked.rows.find(r => r.best)?.id ?? null;
   const selection = usePickerSelection(rows.map(r => r.id), best);
+  const view = candidatesView({ asked: question !== null, answer: candidates, rows: picked.rows.length, more: picked.more, current });
   const optionId = (id: string) => `${listId}-${id}`;
   // Вид у строки — только когда в выдаче их больше одного: одинаковая метка у всех ничего не различает.
   const kinds = new Set(rows.map(r => r.type).filter(Boolean)).size > 1;
@@ -271,6 +279,22 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   // Выделенная стрелкой строка — в поле зрения; выделенная мышью под ней и так видна (useKeyScroll).
   const activeOption = selection.index >= 0 && selection.active ? optionId(selection.active) : undefined;
   const byKeys = useKeyScroll(activeOption);
+  // Сторож закрытия (D7): базу называет первое движение мыши после закрытия листа, где бы оно ни было, — перехватом
+  // на уровне окна, до `onHover` строки: над строкой (и над активной, она `onHover` не шлёт) — её `id`, мимо — null.
+  const unwatch = useRef<(() => void) | null>(null);
+  useEffect(() => () => unwatch.current?.(), []);
+  function closeSheet() {
+    setDismissed(selection.active);
+    selection.guard();
+    unwatch.current?.();
+    const first = (e: MouseEvent) => {
+      unwatch.current = null;
+      const id = e.target instanceof Element ? e.target.closest('[role="option"]')?.id : undefined;
+      selection.over(id?.startsWith(`${listId}-`) ? id.slice(listId.length + 1) : null);
+    };
+    window.addEventListener('mousemove', first, { capture: true, once: true });
+    unwatch.current = () => window.removeEventListener('mousemove', first, { capture: true });
+  }
 
   const plate = <LinePlate from={from} line={line} />;
   // Сравнение со строкой — у любой позиции: артикул и единицу сверяет карточка по тэгам полей, слова — сервер.
@@ -316,9 +340,15 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           <ModalExit>Закрыть</ModalExit>
         </>
       )}>
+      {/* На столе тело — постоянной высоты: окно стоит по центру экрана, и высота по содержимому означала бы, что
+          лист, открывшись выше короткого списка, растит окно — а оно, оставаясь по центру, уводит все строки вверх
+          из-под мыши ([COST-7], D8). Высота — предел окна (90vh), но не выше 44rem: на большом экране окно не
+          растягивается в пустое полотно. Ряд «список | лист» не уже 16rem: полоса выше остатка (низкий экран,
+          крупный масштаб) — тело прокручивается целиком, и список не сжимается в щель (D6). */}
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'flex-1 min-h-0 flex border-t border-outline-variant'}>
-        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'flex-1 min-w-0 overflow-y-auto'}`}>
+        : 'h-[min(90vh,44rem)] min-h-0 shrink overflow-y-auto flex flex-col border-t border-outline-variant'}>
+        {/* Полоса над колонками: её высота не зависит от того, открыт ли лист. */}
+        <div className="shrink-0 space-y-3 px-6 pt-3">
           {plate}
           <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
             <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
@@ -337,6 +367,11 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                 «позиций нет»: их список сюда не доехал.</span>
             </p>
           )}
+          {!searching && <CandidatesNotices view={view} answer={candidates} />}
+        </div>
+
+        <div className={narrow ? '' : 'flex-1 min-h-64 flex'}>
+        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'flex-1 min-w-0 overflow-y-auto'}`}>
 
           {/* В списке — только строки: заголовки, оговорки и «Повторить» стоят вне его, иначе экранное
               чтение не дошло бы до кнопки и читало бы оговорку вариантом выбора. */}
@@ -347,8 +382,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               </div>
             ) : (
               <>
-                <CandidatesBlock asked={question !== null} answer={candidates} rows={picked.rows.length}
-                  more={picked.more} current={current} headingId={headingId}>
+                <CandidatesBlock view={view} headingId={headingId}>
                   {picked.rows.length > 0 && (
                     <div id={listId} role="listbox" aria-labelledby={headingId} className="-mx-4">
                       {picked.rows.map(option)}
@@ -369,6 +403,10 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               </>
             )}
           </div>
+
+          {!searching && (
+            <CandidatesTail view={view} />
+          )}
 
           {head?.more && (
             <p className="text-body-small text-on-surface-variant">Ищите по наименованию — справочник большой, весь список здесь не показывается.</p>
@@ -413,13 +451,14 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
           <SideSheet variant="standard" open={!!selection.active && selection.active !== dismissed}
-            onClose={() => setDismissed(selection.active)} autoFocus={false}
+            onClose={closeSheet} autoFocus={false}
             title={sheetTitle} label="Карточка позиции">
             <NomenclatureCardPanel id={selection.active} titled
               compare={selection.active ? compare(active?.matched ?? null) : undefined}
               head={active ? { name: active.name, type: active.type, why: active.why } : null} onPick={onPick} />
           </SideSheet>
         )}
+        </div>
       </div>
 
       {opened && (

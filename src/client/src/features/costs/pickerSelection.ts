@@ -28,11 +28,23 @@ export function stepIndex(current: number, delta: 1 | -1, length: number): numbe
  * <p>`fallback` — что выделено, пока человек не выделил ничего сам: «лучшее совпадение» при открытии
  * (issue #1518). Выводится, а не ставится эффектом: ответ о кандидатах приходит после открытия, и
  * поставленное эффектом выделение мигнуло бы пустым кадром.</p>
+ *
+ * <p><b>Сторож закрытия</b> ([COST-7], D7 costs-picker-sheet-reflow): карточку закрыли — под курсором могла
+ * оказаться строка, к которой мышь не шла (крестик стоит над списком, и после закрытия под ним строка). После
+ * `guard()` базу называет ПЕРВОЕ движение мыши, где бы оно ни было (`over`): над строкой — эта строка база и не
+ * выделяется, сколько бы мышь над ней ни стояла; мимо строк — сторож снимается, и следующая строка, куда мышь
+ * придёт сама, выделяется как обычно. Иначе строка, в которую человек повёл мышь от листа или полосы, молча не
+ * выделялась бы. Строка с другим `id` — мышь перешла сама — выделяется как обычно. Сравнение по строке, а не по
+ * пикселям: порог в пикселях не отличил бы медленную проводку внутри строки от сдвига раскладки. `over` зовут
+ * до `hover` (перехват движения на уровне окна): активная строка `hover` не шлёт (`ListOption`), и иначе после
+ * Esc базой стала бы первая соседняя. Стрелки, выбор и уход мыши со списка сторожа снимают.</p>
  */
 export function usePickerSelection(ids: readonly string[], fallback: string | null = null) {
   const [chosen, setActive] = useState<string | null>(null);
   const active = chosen ?? fallback;
   const timer = useRef<number | null>(null);
+  // Сторож закрытия: `undefined` — снят; `null` — взведён, базы ещё нет; строка — база.
+  const base = useRef<string | null | undefined>(undefined);
 
   function settle() {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -47,17 +59,39 @@ export function usePickerSelection(ids: readonly string[], fallback: string | nu
     index,
     /** Мышь двигается над строкой: пауза отсчитывается заново с каждым движением. */
     hover(id: string) {
+      if (base.current !== undefined) {
+        if (base.current === null) base.current = id;
+        if (base.current === id) return;
+        base.current = undefined;
+      }
       settle();
       timer.current = window.setTimeout(() => { timer.current = null; setActive(id); }, HOVER_REST);
     },
+    /**
+     * Первое движение мыши после `guard()`: над строкой (активной в том числе) — она база; мимо строк (`null`) —
+     * сторож снят. Дальнейшие движения сторожа не трогают.
+     */
+    over(id: string | null) {
+      if (base.current === null) base.current = id ?? undefined;
+    },
     /** Мышь ушла: недостоявшееся не выделяется, выделенное остаётся. */
-    leave: settle,
+    leave() {
+      base.current = undefined;
+      settle();
+    },
+    /** Карточку закрыли: строка, оказавшаяся под курсором, не выделяется, пока мышь не перейдёт в другую. */
+    guard() {
+      base.current = null;
+      settle();
+    },
     step(delta: 1 | -1) {
+      base.current = undefined;
       settle();
       const next = stepIndex(index, delta, ids.length);
       if (next >= 0) setActive(ids[next]);
     },
     select(id: string | null) {
+      base.current = undefined;
       settle();
       setActive(id);
     },

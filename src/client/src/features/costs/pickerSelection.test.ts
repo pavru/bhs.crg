@@ -85,3 +85,84 @@ describe('выделение в окне выбора (#1517)', () => {
     expect(result.current.active).toBe('c');
   });
 });
+
+describe('сторож закрытия карточки ([COST-7], costs-picker-sheet-reflow D7)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  function rest(result: { current: ReturnType<typeof usePickerSelection> }, id: string) {
+    act(() => { result.current.over(id); result.current.hover(id); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+  }
+
+  it('крестиком: строка, подъехавшая под курсор, не выделяется и после паузы; другая — выделяется', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'c');
+    expect(result.current.active).toBe('c');
+    act(() => { result.current.guard(); });
+    rest(result, 'a');
+    rest(result, 'a');
+    expect(result.current.active).toBe('c');
+    rest(result, 'b');
+    expect(result.current.active).toBe('b');
+  });
+
+  it('Esc: курсор остался на активной — первая соседняя, куда мышь перешла сама, выделяется', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'b');
+    act(() => { result.current.guard(); });
+    // Активная строка `hover` не шлёт — только движение над списком.
+    act(() => { result.current.over('b'); });
+    rest(result, 'c');
+    expect(result.current.active).toBe('c');
+  });
+
+  it('при закрытии курсор не над строкой: первое движение мимо строк снимает сторожа, строка R выделяется', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    // Мышь двигается над листом или полосой — строки под ней нет.
+    act(() => { result.current.over(null); });
+    act(() => { result.current.hover('c'); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+    expect(result.current.active).toBe('c');
+  });
+
+  it('база — только первое движение: последующие over сторожа не перевзводят', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    act(() => { result.current.over('b'); result.current.hover('b'); });
+    act(() => { result.current.over('c'); result.current.hover('c'); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+    expect(result.current.active).toBe('c');
+  });
+
+  it('недостоявшееся до закрытия не выделяется после него', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b']));
+    rest(result, 'a');
+    act(() => { result.current.hover('b'); });
+    act(() => { result.current.guard(); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+    expect(result.current.active).toBe('a');
+  });
+
+  it('стрелки работают сразу и снимают сторожа', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    act(() => { result.current.step(1); });
+    expect(result.current.active).toBe('b');
+    rest(result, 'c');
+    expect(result.current.active).toBe('c');
+  });
+
+  it('мышь ушла со списка и вернулась — сторож снят', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    act(() => { result.current.leave(); });
+    rest(result, 'b');
+    expect(result.current.active).toBe('b');
+  });
+});
