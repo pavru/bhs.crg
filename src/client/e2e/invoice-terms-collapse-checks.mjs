@@ -31,6 +31,7 @@ async function openAsIs(page, h, id) {
  * ждёт, что щелчок достанется самому элементу, а строку-итог накрывает растянутая цель шапки.
  */
 export async function clickAt(page, locator) {
+  await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
   if (!box) throw new Error('элемента для щелчка нет на экране');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -121,6 +122,8 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         await part.evaluate(el => { const card = el.parentElement; card.style.width = '400px'; card.style.alignSelf = 'flex-start'; });
         const heading = part.getByRole('heading', { name: `Развернуть «${TERMS}»` });
         const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
+        // Суженная карточка выше прежней: строка действий уходила ниже окна, и щелчок по точке — мимо экрана.
+        await pay.scrollIntoViewIfNeeded();
         const [title, action] = [await heading.boundingBox(), await pay.boundingBox()];
         if (!title || !action || action.y < title.y + title.height)
           throw new Error('в части шириной 400 действия не перенесены строкой ниже заголовка');

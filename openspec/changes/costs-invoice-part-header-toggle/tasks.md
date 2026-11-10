@@ -19,10 +19,10 @@
   D3 [COST-6.2]. Проверка — vitest `InvoicePart.test.tsx`: щелчок по строке-итогу раскрывает, по заголовку
   раскрытой — сворачивает, по действию — не переключает; Enter и Пробел; имя и `aria-expanded` в обоих
   состояниях; набранное в теле переживает свёртку щелчком по шапке
-- [ ] 1.2 Живой прогон: щелчок по строке-итогу свёрнутой части раскрывает её; кнопка оплаты в шапке
+- [x] 1.2 Живой прогон: щелчок по строке-итогу свёрнутой части раскрывает её; кнопка оплаты в шапке
   свёрнутых «Сроков и оплаты» открывает окно, не раскрывая часть [COST-6.2]. Проверка — сценарии в
   `invoice-terms-collapse-checks` и `invoice-screen-layout-checks` зелёные
-- [ ] 1.3 Проверка глазами на 1366×768 и 1024×768 (часть рядом со списком и файлом): слой состояния
+- [x] 1.3 Проверка глазами на 1366×768 и 1024×768 (часть рядом со списком и файлом): слой состояния
   шапки, фокус-кольцо, свой слой у кнопок действий поверх слоя шапки, промахи мимо действий в узкой части
   (design.md, Risks). Проверка — снимки «наведение» и «фокус» в описании PR
 
@@ -33,7 +33,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm test` — зелёный
-- [ ] 3.4 `cd src/client && npm run ui:ratchet` — без роста (`raw-state`, `hand-card`, `button-size`)
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm test` — зелёный
+- [x] 3.4 `cd src/client && npm run ui:ratchet` — без роста (`raw-state`, `hand-card`, `button-size`)
