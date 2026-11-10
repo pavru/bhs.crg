@@ -49,3 +49,12 @@ export function listRowBox({ form, twoLine, lead, tail, depth }: {
   const pad = `${lead ? 'pl-2' : listDepthPad(depth)} ${tail ? 'pr-2' : 'pr-4'}`;
   return `flex-1 min-w-0 flex items-center gap-4 ${pad} py-2 ${twoLine ? 'min-h-16' : 'min-h-12'}`;
 }
+
+/**
+ * Тон второстепенного текста и тихого знака строки: на залитой (`secondary-container`) — парный
+ * `on-secondary-container`. Наружу — для ведущего знака, который строка рисует сама (`leading`): иначе его тон
+ * разошёлся бы с тоном остальной строки (ревью PR #1860).
+ */
+export function quietTone(filled: boolean) {
+  return filled ? 'text-on-secondary-container' : 'text-on-surface-variant';
+}

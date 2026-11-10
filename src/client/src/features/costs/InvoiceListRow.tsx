@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Alarm, Archive, Block, Check, Checklist, DocumentScanner, HistoryIcon, Schedule, StarShine, Warning } from '@/shared/ui/icons';
+import { Alarm, Archive, Check, Checklist, HistoryIcon, Schedule, StarShine, Warning } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
@@ -10,7 +10,10 @@ import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
 import { rowDue } from './invoiceDue';
+import { headlineByFile, rowState } from './invoiceRowState';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { focusCallsTooltip } from '@/shared/ui/tooltipTrigger';
+import { quietTone } from '@/shared/ui/listRowBox';
 import { ListItem } from '@/shared/ui/ListItem';
 
 /**
@@ -18,6 +21,8 @@ import { ListItem } from '@/shared/ui/ListItem';
  * текст, остальное — вторая часть, которая растёт строчками (поставщик и значки / место / готовность / скан),
  * а не режется на 64. Тихие пометки своего цвета не ставят — берут тон второй строки: на выбранной это
  * `on-secondary-container`, и `on-surface-variant` поверх контейнера читался бы чужим.
+ *
+ * Ведущий значок — состояние счёта ([COST-6.3], макет А): черновик, разобран, оплачен, отклонён (`rowState`).
  *
  * @param queue отбор, под которым стоит список: под «удалёнными» и «архивом» строка называет места.
  */
@@ -45,110 +50,110 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   // Срок оплаты — под любым отбором (C4, issue #1080): просроченный счёт помечен без чьего-либо действия.
   const due = rowDue(item);
 
-  // Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. Имя — прямо текстом
-  // подписи, без своей обёртки с обрезкой: тогда обрезку меряет сама подпись, и полное имя приходит в `title`.
-  // Что это имя файла, а не номер, объясняет подсказка знака.
-  const byFile = !item.number && !!item.scanFileName;
-  const headline = byFile
-    ? (
-      <>
-        <Tooltip content="Номера ещё нет — это имя файла счёта">
-          <span className="inline-flex align-text-bottom mr-1"><Icon icon={DocumentScanner} size={18} aria-hidden /></span>
-        </Tooltip>
-        {item.scanFileName}
-      </>
-    )
-    : (item.number ?? 'без номера');
+  // Номера нет, скан есть — имя файла (`headlineByFile`). Имя — прямо текстом подписи: тогда обрезку меряет сама
+  // подпись, и полное имя приходит в `title`. Что это имя файла, а не номер, говорит подсказка значка при любом
+  // состоянии (макет А: знак скана у подписи ушёл — место занял значок).
+  const headline = headlineByFile(item) ? item.scanFileName! : (item.number ?? 'без номера');
+
+  // Состояние — ведущим значком. Подсказка — у самого значка, а не у строки: подсказка строки открывалась бы
+  // вместе с подсказками счётчиков внутри неё (разбор Дизайнера, §79). Значок фокуса не получает — фокус строки
+  // с клавиатуры открывает его подсказку сам ([UI-88]) по тому же правилу, что и у `Tooltip` (`focusCallsTooltip`:
+  // фокус, вернутый закрывшимся слоем, не зовёт); диктору слово приходит в имени строки. Тихий значок — тон строки.
+  const state = rowState(item);
+  const [focused, setFocused] = useState(false);
+  const lead = (
+    <Tooltip content={state.hint} open={focused}>
+      <span className="shrink-0 inline-flex" aria-hidden data-testid="row-state">
+        <Icon icon={state.icon} size={24}
+          className={state.tone ?? quietTone(active)} />
+      </span>
+    </Tooltip>
+  );
 
   return (
-    <ListItem ref={row} data-testid="invoice-row" selected={active} onClick={onClick}
-      headline={headline} title={byFile ? item.scanFileName ?? undefined : undefined}
-      trailing={(item.total != null || item.issuedOn) && (
-        <span className="flex flex-col items-end">
-          {item.total != null && <span>{formatMoney(item.total)}</span>}
-          {item.issuedOn && <span>{formatDate(item.issuedOn)}</span>}
-        </span>
-      )}
-      supporting={(
-        <span className="flex flex-col">
-          <span className="flex items-center gap-2">
-            <SupplierName item={item} />
-            <span className="flex-1" />
-            {/* Значки-счётчики. Нулей не рисуем: число «0» у каждой строки читается как шум. */}
-            {lost > 0 && (
-              <Tooltip content={lostTitle(item)}>
-                <span className="inline-flex items-center gap-0.5 text-body-small text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
-                  <Icon icon={Warning} size={18} aria-hidden />{lost}
+    <div onFocus={e => setFocused(focusCallsTooltip(e.target))} onBlur={() => setFocused(false)}>
+      <ListItem ref={row} data-testid="invoice-row" selected={active} onClick={onClick}
+        headline={headline} leading={lead}
+        trailing={(item.total != null || item.issuedOn) && (
+          <span className="flex flex-col items-end">
+            {item.total != null && <span>{formatMoney(item.total)}</span>}
+            {item.issuedOn && <span>{formatDate(item.issuedOn)}</span>}
+          </span>
+        )}
+        supporting={(
+          <span className="flex flex-col">
+            <span className="flex items-center gap-2">
+              <span className="sr-only">{`, ${state.word}, `}</span>
+              <SupplierName item={item} />
+              <span className="flex-1" />
+              {/* Значки-счётчики. Нулей не рисуем: число «0» у каждой строки читается как шум. */}
+              {lost > 0 && (
+                <Tooltip content={lostTitle(item)}>
+                  <span className="inline-flex items-center gap-0.5 text-body-small text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
+                    <Icon icon={Warning} size={18} aria-hidden />{lost}
+                  </span>
+                </Tooltip>
+              )}
+              {archived > 0 && (
+                <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
+                  <span className="inline-flex items-center gap-0.5 text-body-small shrink-0" aria-label={`Записей в архиве: ${archived}`}>
+                    <Icon icon={Archive} size={18} aria-hidden />{archived}
+                  </span>
+                </Tooltip>
+              )}
+              {item.unconfirmedCount > 0 && (
+                <Tooltip content="Распознано, не подтверждено">
+                  <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
+                    <Icon icon={StarShine} size={18} />{item.unconfirmedCount}
+                  </span>
+                </Tooltip>
+              )}
+              {due && (
+                <Tooltip content={due.title}>
+                  <span className={`inline-flex items-center gap-0.5 text-body-small shrink-0 ${TONE[due.tone]}`} data-testid="row-due">
+                    {due.tone === 'danger' ? <Icon icon={Alarm} size={18} aria-hidden /> : <Icon icon={Schedule} size={18} aria-hidden />}{due.text}
+                  </span>
+                </Tooltip>
+              )}
+              {/* Исправленный — тихим словом (разбор Дизайнера, п. 6): это не задача, а след. Без
+                  пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
+              {item.corrected && (
+                <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
+                  <span className="inline-flex items-center gap-0.5 text-body-small shrink-0">
+                    <Icon icon={HistoryIcon} size={18} aria-hidden />исправлен
+                  </span>
+                </Tooltip>
+              )}
+              {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
+                  У отклонённого его нет: разбирать такой счёт незачем. К очереди «Разобрать» счётчик не
+                  относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
+              {!rejected && item.linesWithoutNomenclature > 0 && (
+                <Tooltip content={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
+                  <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
+                    <Icon icon={Checklist} size={18} />{item.linesWithoutNomenclature}
+                  </span>
+                </Tooltip>
+              )}
+            </span>
+            {where && (
+              <span className={`mt-0.5 text-body-small truncate ${queue === 'lost' ? 'text-error' : ''}`}>{where}</span>
+            )}
+            {readiness && (
+              <Tooltip content={readiness.title}>
+                <span className={`mt-0.5 text-body-small truncate ${readiness.ready ? 'text-success' : ''}`} data-testid="row-readiness">
+                  {readiness.text}
                 </span>
               </Tooltip>
             )}
-            {archived > 0 && (
-              <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
-                <span className="inline-flex items-center gap-0.5 text-body-small shrink-0" aria-label={`Записей в архиве: ${archived}`}>
-                  <Icon icon={Archive} size={18} aria-hidden />{archived}
-                </span>
-              </Tooltip>
-            )}
-            {item.unconfirmedCount > 0 && (
-              <Tooltip content="Распознано, не подтверждено">
-                <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
-                  <Icon icon={StarShine} size={18} />{item.unconfirmedCount}
-                </span>
-              </Tooltip>
-            )}
-            {due && (
-              <Tooltip content={due.title}>
-                <span className={`inline-flex items-center gap-0.5 text-body-small shrink-0 ${TONE[due.tone]}`} data-testid="row-due">
-                  {due.tone === 'danger' ? <Icon icon={Alarm} size={18} aria-hidden /> : <Icon icon={Schedule} size={18} aria-hidden />}{due.text}
-                </span>
-              </Tooltip>
-            )}
-            {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
-            {rejected && (
-              <Tooltip content="По счёту не платим">
-                <span className="inline-flex items-center gap-0.5 text-body-small shrink-0">
-                  <Icon icon={Block} size={18} aria-hidden />отклонён
-                </span>
-              </Tooltip>
-            )}
-            {/* Исправленный — тихим словом, как «отклонён» (разбор Дизайнера, п. 6): это не задача, а след. Без
-                пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
-            {item.corrected && (
-              <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
-                <span className="inline-flex items-center gap-0.5 text-body-small shrink-0">
-                  <Icon icon={HistoryIcon} size={18} aria-hidden />исправлен
-                </span>
-              </Tooltip>
-            )}
-            {/* Счётчик «ждут позиции» — затем, чтобы не открывать счёт ради ответа «а с этим что делать».
-                У отклонённого его нет: разбирать такой счёт незачем. К очереди «Разобрать» счётчик не
-                относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
-            {!rejected && item.linesWithoutNomenclature > 0 && (
-              <Tooltip content={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
-                <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
-                  <Icon icon={Checklist} size={18} />{item.linesWithoutNomenclature}
-                </span>
-              </Tooltip>
+            {scan && (
+              <span className={`mt-0.5 flex items-center gap-1 text-body-small ${TONE[scan.tone]}`}>
+                {scan.running && <CircularProgress size={18} className="shrink-0" />}
+                <span className="truncate">{scan.text}</span>
+              </span>
             )}
           </span>
-          {where && (
-            <span className={`mt-0.5 text-body-small truncate ${queue === 'lost' ? 'text-error' : ''}`}>{where}</span>
-          )}
-          {readiness && (
-            <Tooltip content={readiness.title}>
-              <span className={`mt-0.5 text-body-small truncate ${readiness.ready ? 'text-success' : ''}`} data-testid="row-readiness">
-                {readiness.text}
-              </span>
-            </Tooltip>
-          )}
-          {scan && (
-            <span className={`mt-0.5 flex items-center gap-1 text-body-small ${TONE[scan.tone]}`}>
-              {scan.running && <CircularProgress size={18} className="shrink-0" />}
-              <span className="truncate">{scan.text}</span>
-            </span>
-          )}
-        </span>
-      )} />
+        )} />
+    </div>
   );
 }
 
