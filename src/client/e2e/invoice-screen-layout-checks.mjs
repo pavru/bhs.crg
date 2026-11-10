@@ -292,7 +292,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       const stored = (await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[2].supplierText;
       if (stored !== typed) throw new Error(`на сервере строка 3 — «${stored}», а набрано «${typed}»`);
     } finally {
-      await unrouteQuiet(page, lines, undefined, { timeout: 5_000 }).catch(() => {});
+      await unrouteQuiet(page, lines, { timeout: 5_000 }).catch(() => {});
       // Брошенная недошедшая запись держала бы `beforeunload`, и `goto` соседних проверок висел бы до таймаута.
       const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
       page.on('dialog', leave);

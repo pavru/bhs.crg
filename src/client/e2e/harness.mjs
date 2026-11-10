@@ -344,7 +344,7 @@ export async function underRoute(page, address, handler, body) {
     red = e;
     throw e;
   } finally {
-    await unrouteQuiet(page, address, handler, failed ? { timeout: 5_000 } : {}).catch(e => {
+    await unrouteQuiet(page, address, { handler, timeout: failed ? 5_000 : undefined }).catch(e => {
       if (!failed) throw e;
       if (red instanceof Error) red.message += `; ${e.message}`;
     });
@@ -355,8 +355,11 @@ export async function underRoute(page, address, handler, body) {
  * Снять перехват, поставленный НЕ `underRoute`, на затихшей странице — когда снять надо посреди
  * проверки, а не по её концу. Незатихшая страница — отказ; перехват при этом снят всё равно. Почему
  * так, а не голым `unroute`, — у `underRoute`.
+ *
+ * `handler` — снять один обработчик, а не все на адресе; `timeout` — свой срок затихания (умолчание —
+ * у `settled()`).
  */
-export async function unrouteQuiet(page, address, handler, { timeout } = {}) {
+export async function unrouteQuiet(page, address, { handler, timeout } = {}) {
   try {
     if (!watched.has(page))
       throw new Error('страница не под наблюдением — её ставит login(), а без входа — watchRequests(page) до первого перехода');

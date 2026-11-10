@@ -499,20 +499,30 @@ try {
     // диалог, и второй открывался бы уже после перечитывания (см. openProcessingDialog).
     const source = await smokeSource();
     const slowFiles = /\/api\/datasets\/files(\?|$)/;
+    // Перечитывание держим четыре секунды — или до конца проверки, что раньше. Снятие перехвата ждёт затихшей
+    // страницы, и держи его таймер дальше конца проверки, снятие платило бы за каждое перечитывание по
+    // четыре секунды, а на цепочке из нескольких упёрлось бы в срок затихания.
+    let release;
+    const done = new Promise(resolve => { release = resolve; });
     await underRoute(page, slowFiles, async route => {
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      // Снятие ждёт затихшей страницы, то есть и этой задержки. Отказ продолжения гасим всё равно:
-      // красная проверка ждёт затихания недолго, и снятие могло отпустить запрос само, а
-      // «продолжить» второй раз — отказ, брошенный мимо check(): он ронял прогон целиком.
+      let timer;
+      await Promise.race([done, new Promise(resolve => { timer = setTimeout(resolve, 4000); })]);
+      clearTimeout(timer);
+      // Отказ продолжения гасим: страница могла закрыться посреди задержки, а «продолжить» на закрытой —
+      // отказ, брошенный мимо check(): он ронял прогон целиком.
       await route.continue().catch(() => {});
     }, async () => {
-      const computed = await openProcessingDialog('Вычисляемые колонки', source);
-      await computed.getByRole('button', { name: /^Сбросить$/ }).click();
-      await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
+      try {
+        const computed = await openProcessingDialog('Вычисляемые колонки', source);
+        await computed.getByRole('button', { name: /^Сбросить$/ }).click();
+        await closedAfterSave(computed, 'сброс вычисляемых колонок из свежего диалога');
 
-      const sort = await openSortDialog(source);
-      await saveButton(sort).click();
-      await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
+        const sort = await openSortDialog(source);
+        await saveButton(sort).click();
+        await closedAfterSave(sort, 'сохранение сортировки сразу после своей же правки');
+      } finally {
+        release();
+      }
     });
     if (((await smokeSource()).computedColumns ?? []).length)
       throw new Error('вычисляемые колонки не сброшены, хотя диалог закрылся');
