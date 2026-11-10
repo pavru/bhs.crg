@@ -8,21 +8,9 @@
 
 import { BASE } from './harness.mjs';
 
-/** Размеры из задачи 1.3 change: ноутбук и 125 % на 1280. */
+/** Размеры из задачи 1.3 change: ноутбук и 125 % на 1280. Первый — основной: на нём и проверки после цикла. */
 const SIZES = [[1366, 768], [1024, 768]];
-
-/** Переход состояния с версией счёта заголовком `If-Match`: переходы её требуют. */
-async function transition(page, id, path) {
-  return page.evaluate(async ([id, path]) => {
-    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-    const auth = { Authorization: `Bearer ${token}` };
-    const seen = await (await fetch(`/api/costs/invoices/${id}`, { headers: auth })).json();
-    const res = await fetch(`/api/costs/invoices/${id}/${path}`, {
-      method: 'POST', headers: { ...auth, 'Content-Type': 'application/json', 'If-Match': `"${seen.version}"` },
-    });
-    if (!res.ok) throw new Error(`${path} → ${res.status} ${(await res.text()).slice(0, 200)}`);
-  }, [id, path]);
-}
+const [MAIN_W, MAIN_H] = SIZES[0];
 
 const yesterday = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
@@ -42,6 +30,8 @@ export async function listStateChecks({ page, check, stamp, api, invoice, positi
     });
     return created.id;
   }
+  /** Переход состояния. Версию счёта заголовком `If-Match` ставит обвязка (`nameSeenVersion` в `harness.mjs`). */
+  const transition = (id, path) => api('POST', `/costs/invoices/${id}/${path}`);
   async function pay(id) {
     const paidOn = yesterday();
     const seen = await api('POST', `/costs/invoices/${id}/paid/preview`, { paidOn });
@@ -55,17 +45,17 @@ export async function listStateChecks({ page, check, stamp, api, invoice, positi
     made.draft.id = (await invoice(made.draft.number)).id;
     made.parsed = { number: `ЛС-Р-${stamp}`, word: 'разобран', hint: 'Разобран, не оплачен', tone: 'text-primary' };
     made.parsed.id = await lined(made.parsed.number, positionId);
-    await transition(page, made.parsed.id, 'parsed');
+    await transition(made.parsed.id, 'parsed');
     made.paid = { number: `ЛС-О-${stamp}`, word: 'оплачен', hint: 'Оплачен', tone: 'text-success' };
     made.paid.id = await lined(made.paid.number, positionId);
-    await transition(page, made.paid.id, 'parsed');
+    await transition(made.paid.id, 'parsed');
     await pay(made.paid.id);
     made.paidDraft = { number: `ЛС-ОЧ-${stamp}`, word: 'оплачен, черновик', hint: 'Оплачен, но не разобран — черновик', tone: 'text-success' };
     made.paidDraft.id = await lined(made.paidDraft.number);
     await pay(made.paidDraft.id);
     made.rejected = { number: `ЛС-Х-${stamp}`, word: 'отклонён', hint: 'Отклонён — по счёту не платим', tone: 'text-on-surface-variant' };
     made.rejected.id = (await invoice(made.rejected.number)).id;
-    await transition(page, made.rejected.id, 'rejected');
+    await transition(made.rejected.id, 'rejected');
   });
   if (!made.rejected?.id) return;
 
@@ -99,6 +89,9 @@ export async function listStateChecks({ page, check, stamp, api, invoice, positi
     }
 
     await check('лента: наведение на строку мимо значка подсказки состояния не открывает, фокус с клавиатуры — открывает', async () => {
+      // На основном размере, а не на последнем из цикла: на узком открытый счёт встаёт вместо ленты.
+      await page.setViewportSize({ width: MAIN_W, height: MAIN_H });
+      await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
       // Ровно «Оплачен»: у соседней строки оплаченного черновика подсказка начинается тем же словом.
       const paidTip = tooltip('Оплачен');
       const r = row(made.paid.number);

@@ -1,7 +1,6 @@
 import type { InvoiceListItem } from '@/shared/api/invoices';
 import { Block, CheckCircle, Draft, Help, Payments, type IconDef } from '@/shared/ui/icons';
-import { PAID, PARSED, REJECTED } from './invoiceFields';
-import { DRAFT } from './invoiceDelete';
+import { DRAFT, PAID, PARSED, REJECTED } from './invoiceFields';
 
 /**
  * Состояние счёта в строке ленты (costs-invoice-list-state-mark, [COST-6.3], макет А): ведущий значок, его
@@ -18,6 +17,10 @@ import { DRAFT } from './invoiceDelete';
  *
  * <p>Состояние, которого клиент не знает (сервер новее), — не черновик: значок вопроса и слово сервера.
  * Иначе новое состояние молча выглядело бы самым ранним.</p>
+ *
+ * <p>Номера нет, а скан есть — подпись строки берёт имя файла (`headlineByFile`). Что это файл, а не номер,
+ * подсказка говорит при ЛЮБОМ состоянии: отклонить и оплатить можно и черновик без номера (ревью PR #1860), а
+ * прежний знак скана у подписи макет А снял.</p>
  */
 export interface RowState {
   icon: IconDef;
@@ -29,7 +32,21 @@ export interface RowState {
   hint: string;
 }
 
+/** Подпись строки — имя файла: номера нет, скан есть. Иначе три черновика из скана подряд неразличимы. */
+export function headlineByFile(item: Pick<InvoiceListItem, 'number' | 'scanFileName'>): boolean {
+  return !item.number && !!item.scanFileName;
+}
+
+/** Строка подсказки о подписи-имени файла. */
+export const BY_FILE_HINT = 'Номера ещё нет — в подписи имя файла';
+
 export function rowState(item: Pick<InvoiceListItem, 'state' | 'payment' | 'number' | 'scanFileName'>): RowState {
+  const state = bareState(item);
+  return headlineByFile(item) ? { ...state, hint: `${state.hint}
+${BY_FILE_HINT}` } : state;
+}
+
+function bareState(item: Pick<InvoiceListItem, 'state' | 'payment'>): RowState {
   if (item.state === REJECTED) return { icon: Block, word: 'отклонён', hint: 'Отклонён — по счёту не платим' };
   if (item.payment === PAID) {
     return item.state === PARSED
@@ -37,10 +54,7 @@ export function rowState(item: Pick<InvoiceListItem, 'state' | 'payment' | 'numb
       : { icon: Payments, tone: 'text-success', word: 'оплачен, черновик', hint: 'Оплачен, но не разобран — черновик' };
   }
   if (item.state === PARSED) return { icon: CheckCircle, tone: 'text-primary', word: 'разобран', hint: 'Разобран, не оплачен' };
-  if (item.state === DRAFT) {
-    const byFile = !item.number && !!item.scanFileName;
-    return { icon: Draft, word: 'черновик', hint: byFile ? 'Черновик — номера ещё нет, это имя файла' : 'Черновик — ещё не разобран' };
-  }
+  if (item.state === DRAFT) return { icon: Draft, word: 'черновик', hint: 'Черновик — ещё не разобран' };
   const word = item.state.toLowerCase();
   return { icon: Help, word, hint: `Состояние «${item.state}»` };
 }

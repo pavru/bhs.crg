@@ -35,6 +35,15 @@ function focusVisible(el: Element): boolean {
 }
 
 /**
+ * Зовёт ли фокус на `el` подсказку: он виден (пришёл с клавиатуры) и поставлен не слоем — не открывшимся окном
+ * и не закрывшимся, вернувшим его открывшему (`layerFocus.ts`). Правило одно и для подсказки, которой фокус
+ * управляет снаружи (`Tooltip open`, [UI-88]): второй его список забыл бы о слое (ревью PR #1860).
+ */
+export function focusCallsTooltip(el: Element): boolean {
+  return !isLayerFocus() && focusVisible(el);
+}
+
+/**
  * Неактивная кнопка, которая говорит почему: `aria-disabled`, а не `disabled`. Настоящий `disabled` не
  * получает ни наведения, ни фокуса — причину не увидеть ни мышью, ни с клавиатуры, а обёртка вокруг неё
  * сбивала раскладку и пересоздавала кнопку на каждом переключении (ревью #1396). Такая кнопка остаётся
@@ -129,7 +138,7 @@ export function useTooltipTrigger(children: ReactElement, opt: TooltipTriggerOpt
     // подсказке, а не окну. Фокус, поставленный открывшимся слоем, — тоже не зов (см. `layerFocus.ts`).
     onFocus: (e: FocusEvent<HTMLElement>) => {
       own.onFocus?.(e);
-      if (!isLayerFocus() && focusVisible(e.currentTarget)) show(true);
+      if (focusCallsTooltip(e.currentTarget)) show(true);
     },
     onBlur: (e: FocusEvent<HTMLElement>) => { own.onBlur?.(e); if (opt.onBlur) opt.onBlur(e); else hide(); },
     ...((own.onKeyDown || opt.onKeyDown) && {

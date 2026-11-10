@@ -54,6 +54,7 @@ export const UNCONFIRMED_HINT = 'Распознано, не подтвержде
 export const VAT_MODE_MARK = 'vatMode';
 
 /** Состояния счёта — теми словами, какими их отдаёт сервер в реквизите «Состояние». */
+export const DRAFT = 'Черновик';
 export const PARSED = 'Разобран';
 export const REJECTED = 'Отклонён';
 /** Оплата счёта — словом сервера (`InvoiceRequisites.Label`): «Оплачен» / «Не оплачен». */

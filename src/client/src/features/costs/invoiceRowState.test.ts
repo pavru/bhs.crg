@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Block, CheckCircle, Draft, Help, Payments } from '@/shared/ui/icons';
-import { rowState } from './invoiceRowState';
+import { BY_FILE_HINT, headlineByFile, rowState } from './invoiceRowState';
 
 /**
  * Состояние счёта в строке ленты ([COST-6.3], макет А). Чем ломается: оплаченный не отличить от разобранного,
@@ -15,8 +15,21 @@ describe('rowState', () => {
     expect(rowState(item('Черновик'))).toEqual({ icon: Draft, word: 'черновик', hint: 'Черновик — ещё не разобран' });
   });
 
-  it('черновик из файла: подсказка объясняет, что подпись — имя файла', () => {
-    expect(rowState(item('Черновик', 'Не оплачен', null, 'скан.pdf')).hint).toBe('Черновик — номера ещё нет, это имя файла');
+  // Отклонить и оплатить можно и черновик без номера (ревью PR #1860): подпись — имя файла при любом состоянии.
+  it.each([
+    ['Черновик', 'Не оплачен', 'Черновик — ещё не разобран'],
+    ['Отклонён', 'Не оплачен', 'Отклонён — по счёту не платим'],
+    ['Черновик', 'Оплачен', 'Оплачен, но не разобран — черновик'],
+    ['Сверен', 'Не оплачен', 'Состояние «Сверен»'],
+  ])('%s, %s, без номера, со сканом: подсказка объясняет, что подпись — имя файла', (state, payment, hint) => {
+    expect(rowState(item(state, payment, null, 'скан.pdf')).hint).toBe(`${hint}
+${BY_FILE_HINT}`);
+  });
+
+  it('номер есть — о файле подсказка молчит, даже если скан приложен', () => {
+    expect(rowState(item('Отклонён', 'Не оплачен', '17', 'скан.pdf')).hint).toBe('Отклонён — по счёту не платим');
+    expect(headlineByFile({ number: '17', scanFileName: 'скан.pdf' })).toBe(false);
+    expect(headlineByFile({ number: null, scanFileName: null })).toBe(false);
   });
 
   it('разобранный неоплаченный — check_circle цвета primary', () => {

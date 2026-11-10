@@ -10,8 +10,10 @@ import { REJECTED } from './invoiceFields';
 import { LOST, MISSING } from './lostReferences';
 import { rowScan } from './recognition';
 import { rowDue } from './invoiceDue';
-import { rowState } from './invoiceRowState';
+import { headlineByFile, rowState } from './invoiceRowState';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { focusCallsTooltip } from '@/shared/ui/tooltipTrigger';
+import { quietTone } from '@/shared/ui/listRowBox';
 import { ListItem } from '@/shared/ui/ListItem';
 
 /**
@@ -48,28 +50,28 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   // Срок оплаты — под любым отбором (C4, issue #1080): просроченный счёт помечен без чьего-либо действия.
   const due = rowDue(item);
 
-  // Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. Имя — прямо текстом
-  // подписи: тогда обрезку меряет сама подпись, и полное имя приходит в `title`. Что это имя файла, а не номер,
-  // говорит подсказка значка черновика (макет А: знак скана у подписи ушёл — место занял значок).
-  const byFile = !item.number && !!item.scanFileName;
-  const headline = byFile ? item.scanFileName! : (item.number ?? 'без номера');
+  // Номера нет, скан есть — имя файла (`headlineByFile`). Имя — прямо текстом подписи: тогда обрезку меряет сама
+  // подпись, и полное имя приходит в `title`. Что это имя файла, а не номер, говорит подсказка значка при любом
+  // состоянии (макет А: знак скана у подписи ушёл — место занял значок).
+  const headline = headlineByFile(item) ? item.scanFileName! : (item.number ?? 'без номера');
 
   // Состояние — ведущим значком. Подсказка — у самого значка, а не у строки: подсказка строки открывалась бы
   // вместе с подсказками счётчиков внутри неё (разбор Дизайнера, §79). Значок фокуса не получает — фокус строки
-  // с клавиатуры открывает его подсказку сам ([UI-88]); диктору слово приходит в имени строки.
+  // с клавиатуры открывает его подсказку сам ([UI-88]) по тому же правилу, что и у `Tooltip` (`focusCallsTooltip`:
+  // фокус, вернутый закрывшимся слоем, не зовёт); диктору слово приходит в имени строки. Тихий значок — тон строки.
   const state = rowState(item);
   const [focused, setFocused] = useState(false);
   const lead = (
     <Tooltip content={state.hint} open={focused}>
       <span className="shrink-0 inline-flex" aria-hidden data-testid="row-state">
         <Icon icon={state.icon} size={24}
-          className={state.tone ?? (active ? 'text-on-secondary-container' : 'text-on-surface-variant')} />
+          className={state.tone ?? quietTone(active)} />
       </span>
     </Tooltip>
   );
 
   return (
-    <div onFocus={e => setFocused(keyboardFocus(e.target))} onBlur={() => setFocused(false)}>
+    <div onFocus={e => setFocused(focusCallsTooltip(e.target))} onBlur={() => setFocused(false)}>
       <ListItem ref={row} data-testid="invoice-row" selected={active} onClick={onClick}
         headline={headline} leading={lead}
         trailing={(item.total != null || item.issuedOn) && (
@@ -157,12 +159,6 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
 
 /** Тихий тон — тон второй строки, своего цвета у него нет. */
 const TONE = { quiet: '', danger: 'text-error', warning: 'text-warning' } as const;
-
-/** Фокус пришёл с клавиатуры, а не щелчком. Движок без `:focus-visible` (тестовый DOM) — считаем, что да. */
-function keyboardFocus(el: EventTarget): boolean {
-  try { return (el as Element).matches(':focus-visible'); }
-  catch { return true; }
-}
 
 /**
  * Строка открытого счёта, который под отбор больше не попадает: держится, пока с него не ушли, —

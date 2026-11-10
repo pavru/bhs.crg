@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { InvoiceListItem } from '@/shared/api/invoices';
+import { focusFromLayer } from '@/shared/ui/layerFocus';
 import { InvoiceLeftRow, InvoiceListRow } from './InvoiceListRow';
 
 /**
@@ -80,7 +81,11 @@ describe('строка списка счетов', () => {
   });
 
   it('выбранная строка: громкий значок держит цвет, тихий берёт тон заливки, слово на месте', () => {
+    // jsdom без scrollIntoView, а выбранная строка зовёт его; заглушку снимаем, чтобы она не прятала его отсутствие
+    // в других тестах процесса.
+    const had = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView ??= () => {};
+    onTestFinished(() => { Element.prototype.scrollIntoView = had; });
     render(<InvoiceListRow item={{ ...ITEM, payment: 'Оплачен' }} active queue={null} onClick={() => {}} />);
     expect(screen.getByTestId('row-state').querySelector('svg')!.getAttribute('class')).toContain('text-success');
     expect(screen.getByTestId('invoice-row').textContent).toContain(', оплачен, ');
@@ -94,6 +99,12 @@ describe('строка списка счетов', () => {
     act(() => screen.getByTestId('invoice-row').focus());
     expect(screen.getByRole('tooltip').textContent).toBe('Оплачен');
     act(() => screen.getByTestId('invoice-row').blur());
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('фокус, который вернул закрывшийся слой, подсказку значка не открывает: первый Esc — не ей', () => {
+    mount({ ...ITEM, payment: 'Оплачен' });
+    act(() => focusFromLayer(screen.getByTestId('invoice-row')));
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
