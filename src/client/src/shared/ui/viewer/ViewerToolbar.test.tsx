@@ -132,7 +132,7 @@ describe('панель просмотрщика', () => {
 });
 
 describe('кнопка «Лупа» [UI-11] [UI-92] [UI-94]', () => {
-  const loupe = (over: Partial<NonNullable<ToolbarProps['loupe']>> = {}) => ({ on: false, available: true, onToggle: vi.fn(), ...over });
+  const loupe = (over: Partial<NonNullable<ToolbarProps['loupe']>> = {}) => ({ on: false, available: true, toggle: vi.fn(), ...over });
   const button = () => screen.getByRole('button', { name: 'Лупа' });
 
   it.each([false, true])('в панели перед поворотом — и в узкой колонке (%s)', narrow => {
@@ -152,7 +152,7 @@ describe('кнопка «Лупа» [UI-11] [UI-92] [UI-94]', () => {
 
   it('нажатие переключает', () => {
     const onToggle = vi.fn();
-    render(<ViewerToolbar {...props({ loupe: loupe({ onToggle }) })} />);
+    render(<ViewerToolbar {...props({ loupe: loupe({ toggle: onToggle }) })} />);
     fireEvent.click(button());
     expect(onToggle).toHaveBeenCalledOnce();
   });
@@ -160,7 +160,7 @@ describe('кнопка «Лупа» [UI-11] [UI-92] [UI-94]', () => {
   // Неактивная кнопка с подсказкой — `aria-disabled` (Tooltip): подсказка объясняет, почему нельзя.
   it('при листе от 300 % — неактивна и не переключает', () => {
     const onToggle = vi.fn();
-    render(<ViewerToolbar {...props({ scale: 3, loupe: loupe({ available: false, onToggle }) })} />);
+    render(<ViewerToolbar {...props({ scale: 3, loupe: loupe({ available: false, toggle: onToggle }) })} />);
     expect(button().getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(button());
     expect(onToggle).not.toHaveBeenCalled();

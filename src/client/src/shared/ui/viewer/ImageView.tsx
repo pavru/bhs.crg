@@ -60,7 +60,6 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
   // Число масштаба области не ждёт; «по ширине» без измеренной области — пока 100 %.
   const scale = pages && (box.width || typeof mode === 'number') ? resolveScale(mode, pages, rotation, box) : 1;
   const l = useMemo(() => (pages ? layout(pages, scale, rotation) : null), [pages, scale, rotation]);
-  const loupe = useLoupe({ documentKey, scale, root, setAnnounce });
 
   // Смена масштаба или поворота держит ту же долю картинки вверху — как лента PDF.
   const shown = useRef<Layout | null>(null);
@@ -77,7 +76,8 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
   const ready = !failed && !!(size && l);
   const print = useCallback(() => printPdf(source), [source]);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => { handleViewerKey(e, { print, zoom, ready }); };
-  const hover = useZoomInput(root, scroller, zoom, ready);
+  const { hover, hovered } = useZoomInput(root, scroller, zoom, ready);
+  const loupe = useLoupe({ documentKey, scale, root, hovered, setAnnounce });
 
   // Картинка внутри листа повёрнутого размера: свои ширина и высота, по центру, повёрнута вокруг центра.
   const imgW = size ? size.width * scale : 0;
@@ -116,7 +116,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
           </div>
         </div>
         {ready && size && loupe?.on && (
-          <Magnifier scroller={scroller} sheetScale={scale} rotation={rotation} image={{ el: img, natural: size }} dimmed={dimmed} />
+          <Magnifier scroller={scroller} sheetScale={scale} rotation={rotation} imageEl={img} natural={size} dimmed={dimmed} />
         )}
       </div>
       {ready && (
@@ -125,7 +125,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs,
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Картинка повёрнута'); }}
           narrow={box.width > 0 && box.width < NARROW_PX} scale={scale}
-          loupe={loupe && { on: loupe.on, available: loupe.available, onToggle: loupe.toggle }} />
+          loupe={loupe} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>

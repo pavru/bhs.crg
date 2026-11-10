@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { loupeAvailable } from './magnifierGeometry';
 import { isEditable } from './viewerInput';
 
@@ -10,9 +10,12 @@ import { isEditable } from './viewerInput';
  * - **Esc — слушателем `window` в фазе перехвата**, пока фокус в просмотрщике или указатель над ним.
  *   Окно поверх экрана (`Modal`) ловит Esc на документе тоже перехватом; слушатель окна браузера идёт
  *   раньше, и первый Esc выключает лупу, а не закрывает окно — даже когда фокус в его шапке. Esc поля
- *   (номер страницы) и открытого меню остаётся им.
+ *   (номер страницы), открытого меню и диалога, открытого поверх просмотрщика, остаётся им: указатель
+ *   мог так и остаться над листом, а фокус уже в подтверждении.
  * - Без точного указателя (`any-pointer: fine` ложно — только сенсор) лупы нет вовсе: `null`. Именно
- *   `any-pointer`, а не принятое в проекте `pointer: coarse`: перо и мышь у планшета дают лупу.
+ *   `any-pointer`, а не принятое в проекте `pointer: coarse`: перо и мышь у планшета дают лупу. Мышь
+ *   отключили при включённой лупе — лупа выключена: невидимая лупа не должна забирать Esc, а вернувшаяся
+ *   мышь — включать её сама.
  */
 
 export interface Loupe {
@@ -40,10 +43,18 @@ function useFinePointer(): boolean {
 /** Фокус в слое поверх просмотрщика, у которого Esc свой: меню масштаба, список. */
 const inLayer = (el: Element | null) => !!el?.closest('[role="menu"], [role="listbox"]');
 
-export function useLoupe({ documentKey, scale, root, setAnnounce }: {
+/** Фокус в диалоге, который просмотрщик не содержит: открытом поверх него, а не его собственном окне. */
+function inOtherDialog(active: Element | null, root: HTMLElement): boolean {
+  const dialog = active?.closest('[role="dialog"], [role="alertdialog"]');
+  return !!dialog && !dialog.contains(root);
+}
+
+export function useLoupe({ documentKey, scale, root, hovered, setAnnounce }: {
   documentKey: string;
   scale: number;
   root: RefObject<HTMLElement | null>;
+  /** Указатель над просмотрщиком — флаг `useZoomInput`: для Esc при фокусе снаружи. */
+  hovered: RefObject<boolean>;
   setAnnounce: (text: string) => void;
 }): Loupe | null {
   const fine = useFinePointer();
@@ -56,36 +67,20 @@ export function useLoupe({ documentKey, scale, root, setAnnounce }: {
     setShownKey(documentKey);
     setOn(false);
   }
-  if (on && !available) setOn(false);
+  if (on && (!available || !fine)) setOn(false);
 
   const toggle = useCallback(() => {
     setAnnounce(on ? 'Лупа выключена' : 'Лупа включена');
     setOn(!on);
   }, [on, setAnnounce]);
 
-  // Указатель над просмотрщиком — для Esc при фокусе снаружи.
-  const hovered = useRef(false);
-  useEffect(() => {
-    const el = root.current;
-    if (!el) return;
-    const enter = () => { hovered.current = true; };
-    const leave = () => { hovered.current = false; };
-    el.addEventListener('pointerover', enter);
-    el.addEventListener('pointerleave', leave);
-    return () => {
-      el.removeEventListener('pointerover', enter);
-      el.removeEventListener('pointerleave', leave);
-    };
-  }, [root]);
-
   useEffect(() => {
     if (!on) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
-      const active = document.activeElement;
-      if (isEditable(active) || inLayer(active)) return;
-      const inside = !!root.current && (root.current.contains(active) || hovered.current);
-      if (!inside) return;
+      const active = document.activeElement, el = root.current;
+      if (!el || isEditable(active) || inLayer(active) || inOtherDialog(active, el)) return;
+      if (!el.contains(active) && !hovered.current) return;
       e.preventDefault();
       e.stopPropagation();
       setOn(false);
@@ -93,7 +88,7 @@ export function useLoupe({ documentKey, scale, root, setAnnounce }: {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [on, root, setAnnounce]);
+  }, [on, root, hovered, setAnnounce]);
 
   if (!fine) return null;
   return { on: on && available, available, toggle };

@@ -5,6 +5,7 @@ import { Chip } from '../Chip';
 import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator } from '../Menu';
 import { TextField } from '../TextField';
 import { normalizePage, ZOOM_PRESETS, zoomLabel, type ZoomMode } from './viewerState';
+import type { Loupe } from './useLoupe';
 
 /**
  * Панель просмотрщика — docked toolbar 64 у нижнего края области листов, одной плоскостью с холстом
@@ -40,7 +41,7 @@ export interface ToolbarProps {
   /** Действующий масштаб (1 = 100 %) — его показывает чип узкой панели. */
   scale: number;
   /** Лупа ([UI-92]); нет — нет и кнопки. */
-  loupe?: { on: boolean; available: boolean; onToggle: () => void } | null;
+  loupe?: Loupe | null;
 }
 
 export function ViewerToolbar(p: ToolbarProps) {
@@ -67,7 +68,7 @@ export function ViewerToolbar(p: ToolbarProps) {
       {p.loupe && (
         <IconButton label="Лупа" icon={FrameInspect} variant={p.loupe.on ? 'tonal' : 'standard'} selected={p.loupe.on}
           title={p.loupe.available ? 'Лупа (Esc — выключить)' : 'Лупа недоступна при масштабе от 300 %'}
-          disabled={!p.loupe.available} onClick={p.loupe.onToggle} data-testid="viewer-loupe-toggle" />
+          disabled={!p.loupe.available} onClick={p.loupe.toggle} data-testid="viewer-loupe-toggle" />
       )}
       <IconButton label="Повернуть по часовой" onClick={p.onRotate} icon={RotateRight} />
     </div>

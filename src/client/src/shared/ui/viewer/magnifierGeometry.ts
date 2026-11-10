@@ -40,11 +40,16 @@ export const loupeScale = (sheetScale: number) => Math.min(LOUPE_MAX, Math.max(L
 
 const clamp = (x: number, lo: number, hi: number) => (hi < lo ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, x)));
 
-/** Окно лупы в области — у указателя, целиком внутри области. */
+/**
+ * Окно лупы в области — у указателя, целиком внутри области. Область ниже окна с отступами (панель
+ * в 150 px) окно сжимает по высоте: торчащее за край окно стоит в прокрутке и растило бы её — прокрутка
+ * вниз сдвигала бы окно и снова удлиняла область.
+ */
 export function loupeWindow(area: Size, pointer: Point): Rect {
   const strip = area.width < STRIP_BELOW;
-  const width = strip ? Math.max(0, area.width - 2 * EDGE) : WINDOW.width;
-  const height = strip ? STRIP_HEIGHT : WINDOW.height;
+  const room = { width: Math.max(0, area.width - 2 * EDGE), height: Math.max(0, area.height - 2 * EDGE) };
+  const width = strip ? room.width : WINDOW.width; // шире 520 окно 320 входит всегда
+  const height = Math.min(strip ? STRIP_HEIGHT : WINDOW.height, room.height);
   return {
     x: clamp(pointer.x - width / 2, EDGE, area.width - width - EDGE),
     y: clamp(pointer.y - height / 2, EDGE, area.height - height - EDGE),

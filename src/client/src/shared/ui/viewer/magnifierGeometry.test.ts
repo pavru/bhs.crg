@@ -43,9 +43,14 @@ describe('окно у указателя в пределах области [UI-
     expect(b).toEqual(a);
   });
 
-  it('область ниже окна — окно по середине, а не за краем', () => {
-    const w = loupeWindow({ width: 900, height: 100 }, { x: 450, y: 90 });
-    expect(w.y + w.height / 2).toBe(50);
+  it.each([
+    ['прямоугольник', { width: 900, height: 150 }],
+    ['полоса', { width: 400, height: 120 }],
+  ])('область ниже окна (%s) — окно сжато по высоте и не выходит за край: прокрутку не растит', (_k, area) => {
+    for (const y of [0, area.height / 2, area.height]) {
+      const w = loupeWindow(area, { x: area.width / 2, y });
+      expect(w).toMatchObject({ y: EDGE, height: area.height - 2 * EDGE });
+    }
   });
 });
 

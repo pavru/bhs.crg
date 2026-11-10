@@ -4,16 +4,17 @@
  * проверкой в коде приложения — значит писать код под тесты.
  *
  * <p>Отвечает как рабочий стол с мышью шириной окна jsdom (1024 px): `min-width` и `max-width` сверяются с
- * `innerWidth`, точный указатель (`pointer: fine`, `any-pointer: fine` — лупа просмотрщика) есть, остальное
- * (`prefers-color-scheme`, `pointer: coarse`) не совпадает. «Не совпадает ничего» не годится:
- * `WIDE` тогда не совпал бы, и слои истории (`historyLayers`) во всех тестах решили бы, что они на телефоне.
+ * `innerWidth`, точный указатель (`pointer: fine`, `any-pointer: fine` — лупа просмотрщика; запрос из одного
+ * этого условия) есть, остальное (`prefers-color-scheme`, `pointer: coarse`) не совпадает. «Не совпадает
+ * ничего» не годится: `WIDE` тогда не совпал бы, и слои истории (`historyLayers`) во всех тестах решили бы, что они на телефоне.
  * Тест, которому нужна другая ширина, ставит свой `window.matchMedia` — заглушка ему не мешает.</p>
  *
  * Подключён в `vite.config.ts` (`test.setupFiles`); в окружении node окна нет, и файл ничего не делает.
  */
 const WIDTH = /\((min|max)-width:\s*([\d.]+)px\)/g;
 
-const FINE = /\((any-)?pointer:\s*fine\)/;
+/** Только запрос из одного этого условия: составной (`… and (min-width: …)`, `not …`) так не ответить. */
+const FINE = /^\s*\((any-)?pointer:\s*fine\)\s*$/;
 
 function matches(query: string): boolean {
   if (FINE.test(query)) return true;

@@ -13,7 +13,9 @@ import type { PageTask } from './pdfEngine';
  * размеры области и листов заданы руками; движок подменный.
  */
 
-const AREA = { width: 900, height: 1400 };
+let AREA = { width: 900, height: 1400 };
+/** Замеры листов — сколько раз читали раскладку. */
+let sheetReads = 0;
 // Лист 794 × 1123 (100 %) в 10 px от края области, второй — ниже через зазор 8.
 const SHEETS = [{ x: 53, y: 10, width: 794, height: 1123 }, { x: 53, y: 1141, width: 794, height: 1123 }];
 
@@ -27,12 +29,12 @@ function Area(p: Omit<MagnifierProps, 'scroller'>) {
     <div ref={el => {
       scroller.current = el;
       if (!el) return;
-      Object.defineProperty(el, 'clientWidth', { configurable: true, value: AREA.width });
-      Object.defineProperty(el, 'clientHeight', { configurable: true, value: AREA.height });
+      Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => AREA.width });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => AREA.height });
       el.getBoundingClientRect = () => rect({ x: 0, y: 0, ...AREA });
     }} data-testid="area">
       {SHEETS.map((s, i) => (
-        <div key={i} data-page={i + 1} ref={el => { if (el) el.getBoundingClientRect = () => rect(s); }} />
+        <div key={i} data-page={i + 1} ref={el => { if (el) el.getBoundingClientRect = () => { sheetReads++; return rect(s); }; }} />
       ))}
       <Magnifier scroller={scroller} {...p} />
     </div>
@@ -58,7 +60,16 @@ const move = (x: number, y: number, pointerType = 'mouse') =>
 const loupe = () => screen.getByTestId('viewer-loupe');
 const flush = () => new Promise(r => setTimeout(r, 0));
 
+let resize: (() => void)[];
 beforeEach(() => {
+  AREA = { width: 900, height: 1400 };
+  sheetReads = 0;
+  resize = [];
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(cb: () => void) { resize.push(cb); }
+    observe() {}
+    disconnect() {}
+  });
   // jsdom холст не рисует: без подмены каждая отрисовка печатала бы «Not implemented».
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0; });
@@ -143,10 +154,29 @@ describe('окно лупы', () => {
 
   it('картинка — окно рисует её само, без движка', () => {
     const img = createRef<HTMLImageElement>();
-    render(<Area image={{ el: img, natural: { width: 1588, height: 2246 } }} sheetScale={0.5} rotation={90} />);
+    render(<Area imageEl={img} natural={{ width: 1588, height: 2246 }} sheetScale={0.5} rotation={90} />);
     move(450, 300);
     expect(loupe().hidden).toBe(false);
     expect(loupe().dataset.source).toBe('image');
+  });
+
+  it('раскладку листов замеряет один раз; смена размера — замер заново', () => {
+    render(<Area doc={engine()} sheetScale={1} rotation={0} />);
+    move(450, 300);
+    move(470, 320);
+    fireEvent.scroll(screen.getByTestId('area'));
+    expect(sheetReads).toBe(SHEETS.length);
+    resize.forEach(f => f());
+    expect(sheetReads).toBe(2 * SHEETS.length);
+  });
+
+  it('область сузилась без хода указателя — окно становится полосой сразу', () => {
+    render(<Area doc={engine()} sheetScale={1} rotation={0} />);
+    move(450, 300);
+    expect(loupe().style.width).toBe('320px');
+    AREA = { width: 480, height: 1400 };
+    resize.forEach(f => f());
+    expect(loupe().style.width).toBe(`${480 - 16}px`);
   });
 
   it('приглушено вместе с листом', () => {

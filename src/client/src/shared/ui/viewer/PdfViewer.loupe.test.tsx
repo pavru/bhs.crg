@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { openPdf } from './pdfEngine';
 import { PdfViewer, type PdfViewerProps } from './PdfViewer';
 import { fakeDocument, opening, supportedBrowser } from './testEngine';
@@ -111,6 +111,25 @@ describe.each([
   });
 });
 
+describe('Esc и чужой диалог', () => {
+  it('диалог открыт поверх просмотрщика, указатель остался над листом — Esc диалогу, лупа включена', async () => {
+    render(<>
+      <PdfViewer {...props()} />
+      <div role="dialog" aria-label="Подтверждение"><button>Ок</button></div>
+    </>);
+    const button = await toggle();
+    fireEvent.click(button);
+    fireEvent.pointerOver(screen.getByTestId('viewer-region'));
+    const ok = screen.getByRole('button', { name: 'Ок' });
+    ok.focus();
+    const got = vi.fn();
+    screen.getByRole('dialog').addEventListener('keydown', e => got(e.defaultPrevented));
+    fireEvent.keyDown(ok, { key: 'Escape' });
+    expect(got).toHaveBeenCalledWith(false);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
 describe('лупа без точного указателя', () => {
   it('устройство только с сенсором — кнопки «Лупа» нет', async () => {
     const had = window.matchMedia;
@@ -119,6 +138,36 @@ describe('лупа без точного указателя', () => {
       render(<PdfViewer {...props()} />);
       await screen.findByTestId('viewer-toolbar');
       expect(screen.queryByRole('button', { name: 'Лупа' })).toBeNull();
+    } finally {
+      window.matchMedia = had;
+    }
+  });
+
+  it('мышь отключили при включённой лупе — лупа выключена и Esc не забирает; вернулась — лупа не включается сама', async () => {
+    const had = window.matchMedia;
+    let fine = true;
+    const listeners = new Set<() => void>();
+    window.matchMedia = ((query: string) => (query === '(any-pointer: fine)'
+      ? { ...had(query), get matches() { return fine; },
+        addEventListener: (_: string, f: () => void) => listeners.add(f),
+        removeEventListener: (_: string, f: () => void) => listeners.delete(f) }
+      : had(query))) as typeof window.matchMedia;
+    const flip = (v: boolean) => act(() => { fine = v; listeners.forEach(f => f()); });
+    try {
+      render(<PdfViewer {...props()} />);
+      fireEvent.click(await toggle());
+      const region = screen.getByTestId('viewer-region');
+      region.focus();
+
+      flip(false);
+      expect(screen.queryByTestId('viewer-loupe-toggle')).toBeNull();
+      const got = vi.fn();
+      window.addEventListener('keydown', e => got(e.defaultPrevented), { once: true });
+      fireEvent.keyDown(region, { key: 'Escape' });
+      expect(got).toHaveBeenCalledWith(false);
+
+      flip(true);
+      expect((await toggle()).getAttribute('aria-pressed')).toBe('false');
     } finally {
       window.matchMedia = had;
     }

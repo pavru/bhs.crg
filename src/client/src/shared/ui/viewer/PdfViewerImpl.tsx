@@ -110,7 +110,6 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   }, [source, documentKey]);
 
   const scale = sizes ? shownScale(mode, sizes, rotation, box) : 1;
-  const loupe = useLoupe({ documentKey, scale, root, setAnnounce });
   const l = useMemo(() => (sizes ? layout(sizes, scale, rotation) : null), [sizes, scale, rotation]);
 
   useLayoutEffect(() => {
@@ -157,7 +156,8 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     }
   };
 
-  const hover = useZoomInput(root, scroller, zoom, state === 'ready');
+  const { hover, hovered } = useZoomInput(root, scroller, zoom, state === 'ready');
+  const loupe = useLoupe({ documentKey, scale, root, hovered, setAnnounce });
 
   const frame = useRef(0);
   const onScroll = () => {
@@ -189,7 +189,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
           canZoomIn={scale < MAX_SCALE} canZoomOut={scale > MIN_SCALE}
           onRotate={() => { setRotation(rotateClockwise); setAnnounce('Лист повёрнут'); }}
           narrow={box.width > 0 && box.width < NARROW_PX} scale={scale}
-          loupe={loupe && { on: loupe.on, available: loupe.available, onToggle: loupe.toggle }} />
+          loupe={loupe} />
       )}
       <div aria-live="polite" className="sr-only" data-testid="viewer-live">{announce}</div>
     </div>
