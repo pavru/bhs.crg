@@ -52,18 +52,18 @@ describe('InvoicePart', () => {
     expect(button.getAttribute('aria-describedby')).toBeNull();
   });
 
-  it('цель — кнопка в заголовке части, растянутая на всю шапку; строка-итог — её описание, тело — её цель', () => {
+  it('цель — кнопка в заголовке части; у заголовка имя — название части; строка-итог — описание цели, тело — её цель', () => {
     render(<InvoicePart title="Кто и сколько" step={1} line="ООО «СЭМ»" open={false} onToggle={() => {}}>тело</InvoicePart>);
-    const heading = screen.getByRole('heading', { level: 3 });
+    // Список заголовков диктора читает названия частей, а не «Развернуть …».
+    const heading = screen.getByRole('heading', { level: 3, name: 'Кто и сколько' });
     const button = within(heading).getByRole('button', { name: 'Развернуть «Кто и сколько»' });
     expect(button.getAttribute('aria-describedby')).toBeTruthy();
     expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe('ООО «СЭМ»');
     expect(document.getElementById(button.getAttribute('aria-controls')!)?.textContent).toBe('тело');
-    // Растянутая цель: `::after` кнопки — на всю шапку, а шапка — его опора и носитель слоя состояния.
-    expect(button.className).toMatch(/after:absolute/);
-    expect(button.className).toMatch(/after:inset-0/);
+    // Слой состояния — у шапки, нажатие и фокус — по цели (`state-layer-row` находит её в заголовке). Кому
+    // достаётся щелчок по строке-итогу и шеврону, jsdom не знает: это проверяет живой прогон
+    // (`invoice-terms-collapse-checks`).
     const header = heading.parentElement!;
-    expect(header.className).toMatch(/\brelative\b/);
     expect(header.className).toMatch(/state-layer-row/);
     expect(button.hasAttribute('data-li-target')).toBe(true);
     // Шеврон — не вторая цель: кнопка в шапке одна.
@@ -75,9 +75,7 @@ describe('InvoicePart', () => {
     render(<Part onPay={pay} />);
     const action = screen.getByRole('button', { name: 'Внести оплату…' });
     expect(action.closest('h3')).toBeNull();
-    const side = action.closest('[data-li-side]')!;
-    expect(side.className).toMatch(/\brelative\b/);
-    expect(side.className).toMatch(/\bz-10\b/);
+    expect(action.closest('[data-li-side]')).not.toBeNull();
     await userEvent.click(action);
     expect(pay).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Развернуть «Сроки и оплата»' }).getAttribute('aria-expanded')).toBe('false');
@@ -113,6 +111,19 @@ describe('InvoicePart', () => {
     fireEvent.pointerEnter(button);
     expect(button.getAttribute('title')).toBe('очень длинная строка-итог');
     Object.defineProperty(line, 'scrollWidth', { configurable: true, value: 100 });
+    fireEvent.pointerEnter(button);
+    expect(button.hasAttribute('title')).toBe(false);
+  });
+
+  it('раскрытая часть подсказку свёрнутой не держит', () => {
+    const { rerender } = render(<InvoicePart title="Кто и сколько" line="очень длинная строка-итог" open={false} onToggle={() => {}} />);
+    const button = screen.getByRole('button');
+    const line = screen.getByText('очень длинная строка-итог');
+    Object.defineProperty(line, 'clientWidth', { configurable: true, value: 100 });
+    Object.defineProperty(line, 'scrollWidth', { configurable: true, value: 300 });
+    fireEvent.pointerEnter(button);
+    expect(button.getAttribute('title')).toBe('очень длинная строка-итог');
+    rerender(<InvoicePart title="Кто и сколько" line="очень длинная строка-итог" open onToggle={() => {}} />);
     fireEvent.pointerEnter(button);
     expect(button.hasAttribute('title')).toBe(false);
   });

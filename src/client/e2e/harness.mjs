@@ -730,6 +730,17 @@ export function createChecks() {
 }
 
 /**
+ * Щелчок мышью в середину элемента — что под курсором, то и получит. `locator.click()` здесь не годится: он
+ * ждёт, что щелчок достанется самому элементу, а строку-итог накрывает растянутая цель шапки.
+ */
+export async function clickAt(page, locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('элемента для щелчка нет на экране');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+/**
  * Раскрыть свёрнутые части формы счёта (costs-invoice-screen-10-layout, D-10.2): заполненная часть
  * открывается свёрнутой в строку-итог, и поле в ней не найти по подписи, пока часть не раскрыта. Прогон,
  * который проверяет не свёртку, а то, что в части, раскрывает их все — как сделал бы человек.

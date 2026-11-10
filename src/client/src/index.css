@@ -89,13 +89,13 @@ body {
    Сосед цели (`data-li-side`: флажок участия, «⋮») — отдельная цель: под курсором горит он, а не строка, иначе
    строка читалась бы тем, что сейчас нажмётся. Поэтому и запрет круга флажка из state-layer (флажок в строке
    со слоем — часть строки) здесь снят.
-   Цель бывает и в заголовке — аккордеон WAI-ARIA, `<h3><button>`: шапка части счёта (`InvoicePart`,
-   costs-invoice-part-header-toggle). */
+   Цель бывает и в заголовке любого уровня — аккордеон WAI-ARIA, `<h3><button>`: шапка части счёта
+   (`InvoicePart`, costs-invoice-part-header-toggle). */
 @utility state-layer-row {
   &:has(> [data-li-side]:hover) { --_s: 0; }
   & > [data-li-side] input[type=checkbox].state-layer:hover:not(:focus-visible, :active) { --_s: var(--md-sys-state-hover); }
-  &:has(> [data-li-target]:is(:focus-visible, :active), > h3 > [data-li-target]:is(:focus-visible, :active)) { --_s: var(--md-sys-state-pressed); }
-  &:has(> [data-li-target]:focus-visible, > h3 > [data-li-target]:focus-visible) { outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-inset); }
+  &:has(> [data-li-target]:is(:focus-visible, :active), > :is(h1, h2, h3, h4, h5, h6) > [data-li-target]:is(:focus-visible, :active)) { --_s: var(--md-sys-state-pressed); }
+  &:has(> [data-li-target]:focus-visible, > :is(h1, h2, h3, h4, h5, h6) > [data-li-target]:focus-visible) { outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-inset); }
 }
 
 /* Кольцо фокуса с клавиатуры — одно на весь клиент: 3 px secondary, отступ 2 px (выбор владельца

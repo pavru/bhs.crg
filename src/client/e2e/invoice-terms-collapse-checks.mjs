@@ -11,6 +11,7 @@
 // отгрузка раньше даты счёта.
 
 import { invoiceOpened } from './invoice-save.mjs';
+import { clickAt } from './harness.mjs';
 
 /** Размеры из задачи 1.2 change: ноутбук и 125 % на 1280. */
 const SIZES = [[1366, 768], [1024, 768]];
@@ -24,17 +25,6 @@ const TERMS = 'Сроки и оплата';
 async function openAsIs(page, h, id) {
   await page.goto(`${h.BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
   await invoiceOpened(page);
-}
-
-/**
- * Щелчок мышью в середину элемента — что под курсором, то и получит. `locator.click()` здесь не годится: он
- * ждёт, что щелчок достанется самому элементу, а строку-итог накрывает растянутая цель шапки.
- */
-export async function clickAt(page, locator) {
-  await locator.scrollIntoViewIfNeeded();
-  const box = await locator.boundingBox();
-  if (!box) throw new Error('элемента для щелчка нет на экране');
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 /** Реквизиты без срока: даты отгрузки нет — срок не определён. */
@@ -103,34 +93,35 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         await h.named('щелчок по строке-итогу не раскрыл часть',
           () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
         // И сворачивает её щелчок по заголовку раскрытой.
-        await clickAt(page, part.getByRole('heading', { name: `Свернуть «${TERMS}»` }));
+        await clickAt(page, part.getByRole('button', { name: `Свернуть «${TERMS}»` }));
         await h.named('щелчок по заголовку раскрытой части её не свернул',
           () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ state: 'hidden', timeout: 5_000 }));
-        await clickAt(page, part.getByRole('heading', { name: `Развернуть «${TERMS}»` }));
+        await clickAt(page, part.getByRole('button', { name: `Развернуть «${TERMS}»` }));
         await h.named('повторный щелчок по заголовку не раскрыл часть',
           () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
       });
 
       // Узкая часть переносит действия строкой ниже (`@container` уже `@md`). На экранах ноутбука часть так не
-      // сужается — форме остаётся не меньше 720, — поэтому карточку сужают руками: проверяется, кому достаётся
-      // щелчок, когда строка действий лежит над растянутой целью шапки.
+      // сужается — форме остаётся не меньше 720, — поэтому часть сужают руками: проверяется, кому достаётся
+      // щелчок, когда строка действий лежит над растянутой целью шапки. Сужается сама часть — её `@container`, —
+      // а не обёртки карточки: прогон не зависит от того, как `Card` устроен внутри.
       await check(`«Сроки и оплата» ${width}×${height}: в узкой части щелчок мимо действий переключает часть, по действию — нет`, async () => {
         await page.setViewportSize({ width, height });
         await openAsIs(page, h, made.plain);
         const part = page.getByRole('region', { name: TERMS, exact: true });
         await h.named('части «Сроки и оплата» нет', () => part.waitFor({ timeout: 10_000 }));
-        await part.evaluate(el => { const card = el.parentElement; card.style.width = '400px'; card.style.alignSelf = 'flex-start'; });
-        const heading = part.getByRole('heading', { name: `Развернуть «${TERMS}»` });
+        await part.evaluate(el => { el.style.width = '400px'; });
+        const heading = part.getByRole('heading', { name: TERMS, exact: true });
         const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
-        // Суженная карточка выше прежней: строка действий уходила ниже окна, и щелчок по точке — мимо экрана.
+        // Суженная часть выше прежней: строка действий уходила ниже окна, и щелчок по точке — мимо экрана.
         await pay.scrollIntoViewIfNeeded();
         const [title, action] = [await heading.boundingBox(), await pay.boundingBox()];
         if (!title || !action || action.y < title.y + title.height)
           throw new Error('в части шириной 400 действия не перенесены строкой ниже заголовка');
 
         // Пустое место строки действий, правее кнопки, — часть шапки: щелчок туда раскрывает часть.
-        const card = await part.boundingBox();
-        await page.mouse.click(Math.min(action.x + action.width + 40, card.x + card.width - 24), action.y + action.height / 2);
+        const narrow = await part.boundingBox();
+        await page.mouse.click(Math.min(action.x + action.width + 40, narrow.x + narrow.width - 24), action.y + action.height / 2);
         await h.named('щелчок мимо действия в узкой части её не раскрыл',
           () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
 
