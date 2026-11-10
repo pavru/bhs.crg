@@ -16,9 +16,11 @@ export type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
  * `body`, иначе вернула бы ловушка фокуса окна — Tab до действия не доходил бы. Своего автофокуса у
  * области нет: фокус в подсказку ведёт человек.</p>
  */
-export function TooltipLayer({ anchor, side, onClose, onEscape, interactive = false, layerRef, className, children, ...rest }: {
+export function TooltipLayer({ anchor, side, align = 'center', onClose, onEscape, interactive = false, layerRef, className, children, ...rest }: {
   anchor: RefObject<HTMLElement | null>;
   side: TooltipSide;
+  /** Выравнивание вдоль стороны; `start` — по началу элемента (полный текст клетки продолжает её текст). */
+  align?: 'start' | 'center' | 'end';
   onClose: () => void;
   /** Esc; без своего — `onClose`. */
   onEscape?: () => void;
@@ -36,7 +38,7 @@ export function TooltipLayer({ anchor, side, onClose, onEscape, interactive = fa
   }, [anchor, onClose]);
 
   const content = (
-    <Popper.Content ref={layerRef} side={side} sideOffset={6} collisionPadding={8}
+    <Popper.Content ref={layerRef} side={side} align={align} sideOffset={6} collisionPadding={8}
       className={`z-[60] ${interactive ? '' : 'pointer-events-none select-none '}${className}`} {...rest}>
       {children}
     </Popper.Content>

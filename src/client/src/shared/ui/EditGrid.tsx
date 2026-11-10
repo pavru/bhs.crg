@@ -11,6 +11,7 @@ import { fixedTableMinWidth } from './dataGridLayout';
 import type { DataGridDrag } from './DataGrid';
 import { FieldDensityContext } from './fieldBox';
 import { Tooltip } from './Tooltip';
+import { TruncatedTips } from './TruncatedTips';
 
 /**
  * Сетка правки (#1354): черновик строк, которые правят вместе и сохраняют целиком, — строки
@@ -341,6 +342,8 @@ export function EditGrid<Row>({
           )}
         </table>
         </FieldDensityContext.Provider>
+        {/* Полный текст обрезанной текстовой клетки (название строки) — сетка сама; поля ввода — без показа ([UI-52]). */}
+        <TruncatedTips table={table} />
       </div>
       {add && (
         <Button ref={addButton} variant="outlined" icon={<Icon icon={Add} size={18} />}

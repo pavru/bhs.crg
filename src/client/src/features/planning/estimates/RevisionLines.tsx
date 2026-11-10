@@ -10,7 +10,6 @@ import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { StatusText } from '@/shared/ui/StatusText';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
 import { gridLines, queueCount, rowNumber, sectionKey, type GridLine, type RowQueue } from './estimateRows';
@@ -114,7 +113,8 @@ function lineColumns(hidden: HiddenPart[] | undefined, names: Names, onMatch: On
     {
       key: 'rateCode', label: 'Шифр', width: 'w-36',
       // Шифр — в одну строку с обрезкой (макет П1): ширина нужна наименованию.
-      cell: l => <Tooltip content={row(l)!.rateCode ?? undefined}><span className="block truncate font-mono text-body-small">{row(l)!.rateCode}</span></Tooltip>,
+      // Обрезанный шифр целиком показывает сетка — и только обрезанный ([UI-53]).
+      cell: l => <span className="block truncate font-mono text-body-small">{row(l)!.rateCode}</span>,
     },
     { key: 'name', label: 'Наименование', wrap: true, rowHeader: true, cell: l => <span className="text-body-medium">{row(l)!.name}</span> },
     {

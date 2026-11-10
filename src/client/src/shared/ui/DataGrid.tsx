@@ -13,6 +13,7 @@ import {
   type ColumnUnavailable, type GridState,
 } from './dataGridStates';
 import { Tooltip } from './Tooltip';
+import { TruncatedTips } from './TruncatedTips';
 
 /**
  * Общая сетка данных (задача G1a этапа 2, issue #1088, ТЗ CORE-33). Первый потребитель —
@@ -413,6 +414,8 @@ export function DataGrid<Row extends object>({
           </tfoot>
         )}
       </table>
+      {/* Полный текст обрезанной клетки — сетка показывает сама ([UI-52]), экрану ничего не нужно. */}
+      <TruncatedTips table={table} />
     </div>
   );
 }
