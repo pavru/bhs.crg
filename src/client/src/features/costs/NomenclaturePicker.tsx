@@ -1,6 +1,6 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
-import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, Search, Warning } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
@@ -21,6 +21,7 @@ import {
   candidateRows, foundRows, lineVsCard, looksLikeArticle, neighbourCandidates, type NeighbourLine, type PickerRow,
 } from './pickerCandidates';
 import { CandidatesBlock, CandidatesNotices, CandidatesTail, PickerOption, type PickerCurrent } from './PickerRows';
+import { candidatesView } from './candidatesView';
 import { plateMeta, type PickerLine } from './pickerLine';
 import { usePickerSelection } from './pickerSelection';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -240,6 +241,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const rows = searching ? results : [...picked.rows, ...directory];
   const best = searching ? null : picked.rows.find(r => r.best)?.id ?? null;
   const selection = usePickerSelection(rows.map(r => r.id), best);
+  const view = candidatesView({ asked: question !== null, answer: candidates, rows: picked.rows.length, more: picked.more, current });
   const optionId = (id: string) => `${listId}-${id}`;
   // Вид у строки — только когда в выдаче их больше одного: одинаковая метка у всех ничего не различает.
   const kinds = new Set(rows.map(r => r.type).filter(Boolean)).size > 1;
@@ -277,10 +279,21 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   // Выделенная стрелкой строка — в поле зрения; выделенная мышью под ней и так видна (useKeyScroll).
   const activeOption = selection.index >= 0 && selection.active ? optionId(selection.active) : undefined;
   const byKeys = useKeyScroll(activeOption);
-  // Над какой строкой мышь — и над активной тоже (она `onHover` не шлёт): базу сторожа закрытия называет это.
-  function overRow(e: React.MouseEvent) {
-    const id = (e.target as Element).closest('[role="option"]')?.id;
-    if (id?.startsWith(`${listId}-`)) selection.over(id.slice(listId.length + 1));
+  // Сторож закрытия (D7): базу называет первое движение мыши после закрытия листа, где бы оно ни было, — перехватом
+  // на уровне окна, до `onHover` строки: над строкой (и над активной, она `onHover` не шлёт) — её `id`, мимо — null.
+  const unwatch = useRef<(() => void) | null>(null);
+  useEffect(() => () => unwatch.current?.(), []);
+  function closeSheet() {
+    setDismissed(selection.active);
+    selection.guard();
+    unwatch.current?.();
+    const first = (e: MouseEvent) => {
+      unwatch.current = null;
+      const id = e.target instanceof Element ? e.target.closest('[role="option"]')?.id : undefined;
+      selection.over(id?.startsWith(`${listId}-`) ? id.slice(listId.length + 1) : null);
+    };
+    window.addEventListener('mousemove', first, { capture: true, once: true });
+    unwatch.current = () => window.removeEventListener('mousemove', first, { capture: true });
   }
 
   const plate = <LinePlate from={from} line={line} />;
@@ -327,11 +340,13 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           <ModalExit>Закрыть</ModalExit>
         </>
       )}>
-      {/* На столе тело просит высоту предела окна (90vh) и ужимается под шапку и подвал: окно стоит по центру
-          экрана, и высота по содержимому означала бы, что лист, открывшись выше короткого списка, растит окно —
-          а оно, оставаясь по центру, уводит все строки вверх из-под мыши ([COST-7], D8). */}
+      {/* На столе тело — постоянной высоты: окно стоит по центру экрана, и высота по содержимому означала бы, что
+          лист, открывшись выше короткого списка, растит окно — а оно, оставаясь по центру, уводит все строки вверх
+          из-под мыши ([COST-7], D8). Высота — предел окна (90vh), но не выше 44rem: на большом экране окно не
+          растягивается в пустое полотно. Ряд «список | лист» не уже 16rem: полоса выше остатка (низкий экран,
+          крупный масштаб) — тело прокручивается целиком, и список не сжимается в щель (D6). */}
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'h-[90vh] min-h-0 shrink flex flex-col border-t border-outline-variant'}>
+        : 'h-[min(90vh,44rem)] min-h-0 shrink overflow-y-auto flex flex-col border-t border-outline-variant'}>
         {/* Полоса над колонками: её высота не зависит от того, открыт ли лист. */}
         <div className="shrink-0 space-y-3 px-6 pt-3">
           {plate}
@@ -352,23 +367,22 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                 «позиций нет»: их список сюда не доехал.</span>
             </p>
           )}
-          {!searching && <CandidatesNotices asked={question !== null} answer={candidates} current={current} />}
+          {!searching && <CandidatesNotices view={view} answer={candidates} />}
         </div>
 
-        <div className={narrow ? '' : 'flex-1 min-h-0 flex'}>
+        <div className={narrow ? '' : 'flex-1 min-h-64 flex'}>
         <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'flex-1 min-w-0 overflow-y-auto'}`}>
 
           {/* В списке — только строки: заголовки, оговорки и «Повторить» стоят вне его, иначе экранное
               чтение не дошло бы до кнопки и читало бы оговорку вариантом выбора. */}
-          <div onMouseLeave={selection.leave} onMouseMove={overRow} className="space-y-3">
+          <div onMouseLeave={selection.leave} className="space-y-3">
             {searching ? (
               <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-4">
                 {results.map(option)}
               </div>
             ) : (
               <>
-                <CandidatesBlock asked={question !== null} answer={candidates} rows={picked.rows.length}
-                  headingId={headingId}>
+                <CandidatesBlock view={view} headingId={headingId}>
                   {picked.rows.length > 0 && (
                     <div id={listId} role="listbox" aria-labelledby={headingId} className="-mx-4">
                       {picked.rows.map(option)}
@@ -391,7 +405,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           </div>
 
           {!searching && (
-            <CandidatesTail asked={question !== null} answer={candidates} rows={picked.rows.length} more={picked.more} />
+            <CandidatesTail view={view} />
           )}
 
           {head?.more && (
@@ -437,7 +451,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
           <SideSheet variant="standard" open={!!selection.active && selection.active !== dismissed}
-            onClose={() => { setDismissed(selection.active); selection.guard(); }} autoFocus={false}
+            onClose={closeSheet} autoFocus={false}
             title={sheetTitle} label="Карточка позиции">
             <NomenclatureCardPanel id={selection.active} titled
               compare={selection.active ? compare(active?.matched ?? null) : undefined}

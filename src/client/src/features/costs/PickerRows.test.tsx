@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { NomenclatureCandidates } from '@/shared/api/nomenclatureCandidates';
-import { CandidatesBlock, CandidatesNotices, CandidatesTail, type CandidatesAnswer } from './PickerRows';
+import { CandidatesBlock, CandidatesNotices, CandidatesStack, CandidatesTail, type CandidatesAnswer } from './PickerRows';
+import { candidatesView } from './candidatesView';
 
 /*
  * Части блока подбора по месту ([COST-7], D6 costs-picker-sheet-reflow): каждое состояние подбора по-прежнему
@@ -23,15 +24,16 @@ const failed: CandidatesAnswer = {
 
 /** Три части в том порядке, в каком их ставит окно: полоса, колонка, под списками. */
 function Parts({ answer, rows = 0, more = false, asked = true }: { answer: CandidatesAnswer; rows?: number; more?: boolean; asked?: boolean }) {
+  const view = candidatesView({ asked, answer, rows, more, current: { name: 'Кабель ВВГ', archived: true } });
   return (
     <>
-      <section data-testid="band"><CandidatesNotices asked={asked} answer={answer} current={{ name: 'Кабель ВВГ', archived: true }} /></section>
+      <section data-testid="band"><CandidatesNotices view={view} answer={answer} /></section>
       <section data-testid="column">
-        <CandidatesBlock asked={asked} answer={answer} rows={rows} headingId="h">
+        <CandidatesBlock view={view} headingId="h">
           {rows > 0 && <div role="listbox" aria-labelledby="h"><div role="option" aria-selected={false}>строка</div></div>}
         </CandidatesBlock>
       </section>
-      <section data-testid="tail"><CandidatesTail asked={asked} answer={answer} rows={rows} more={more} /></section>
+      <section data-testid="tail"><CandidatesTail view={view} /></section>
     </>
   );
 }
@@ -53,6 +55,20 @@ describe('блок подбора разложен по месту ([COST-7])', 
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
     expect(textOf('column')).toBe('');
     expect(textOf('tail')).toBe('');
+  });
+
+  it('отказ, но строки есть (соседние строки счёта, прежний ответ): строки видны под заголовком — выделение ведёт к видимым', () => {
+    render(<Parts answer={failed} rows={1} />);
+    expect(textOf('band')).toMatch(/Подбор не сработал/);
+    expect(textOf('column')).toContain('Подходящие для этой строки');
+    expect(screen.getByRole('listbox', { name: 'Подходящие для этой строки' })).toBeTruthy();
+  });
+
+  it('перезапрос отказал, прежний ответ остался: оговорки о его числах держатся', () => {
+    const stale: CandidatesAnswer = { ...answered({ inArchive: 2, unreadable: 1 }), isError: true, isSuccess: false, error: new Error('сбой') };
+    render(<Parts answer={stale} rows={1} more />);
+    for (const words of ['Есть ещё подходящие', 'Похожих в архиве: 2', 'Не сверено позиций: 1']) expect(textOf('tail')).toContain(words);
+    expect(textOf('column')).not.toContain('не нашлось');
   });
 
   it('ничего не нашлось: в колонке одна строка, пояснение — под списками', () => {
@@ -89,5 +105,19 @@ describe('блок подбора разложен по месту ([COST-7])', 
     render(<Parts answer={answered({ recalledUnusable: { id: 'x', name: 'Кабель старый', issue: 'archived' } })} rows={1} />);
     expect(textOf('band')).toContain('запомнена позиция «Кабель старый» — она в архиве');
     expect(textOf('column')).not.toContain('запомнена');
+  });
+});
+
+describe('окно без листа — CandidatesStack', () => {
+  it('три части подряд: отказ с «Повторить», строки, оговорки — в одном блоке', () => {
+    const stale: CandidatesAnswer = { ...answered({ inArchive: 1 }), isError: true, isSuccess: false, error: new Error('сбой') };
+    render(
+      <CandidatesStack view={candidatesView({ asked: true, answer: stale, rows: 1, more: false, current: null })} answer={stale} headingId="h">
+        <div role="listbox" aria-labelledby="h"><div role="option" aria-selected={false}>строка</div></div>
+      </CandidatesStack>,
+    );
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Подходящие для этой строки' })).toBeTruthy();
+    expect(screen.getByText(/Похожих в архиве: 1/)).toBeTruthy();
   });
 });

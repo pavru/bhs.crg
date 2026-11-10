@@ -117,6 +117,27 @@ describe('сторож закрытия карточки ([COST-7], costs-picker
     expect(result.current.active).toBe('c');
   });
 
+  it('при закрытии курсор не над строкой: первое движение мимо строк снимает сторожа, строка R выделяется', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    // Мышь двигается над листом или полосой — строки под ней нет.
+    act(() => { result.current.over(null); });
+    act(() => { result.current.hover('c'); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+    expect(result.current.active).toBe('c');
+  });
+
+  it('база — только первое движение: последующие over сторожа не перевзводят', () => {
+    const { result } = renderHook(() => usePickerSelection(['a', 'b', 'c']));
+    rest(result, 'a');
+    act(() => { result.current.guard(); });
+    act(() => { result.current.over('b'); result.current.hover('b'); });
+    act(() => { result.current.over('c'); result.current.hover('c'); });
+    act(() => { vi.advanceTimersByTime(HOVER_REST * 2); });
+    expect(result.current.active).toBe('c');
+  });
+
   it('недостоявшееся до закрытия не выделяется после него', () => {
     const { result } = renderHook(() => usePickerSelection(['a', 'b']));
     rest(result, 'a');

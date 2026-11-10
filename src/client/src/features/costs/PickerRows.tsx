@@ -8,6 +8,7 @@ import type { NomenclatureCandidates } from '@/shared/api/nomenclatureCandidates
 import { LOST } from './lostReferences';
 import { Refusal } from './NomenclatureCardPanel';
 import type { PickerRow } from './pickerCandidates';
+import type { CandidatesView } from './candidatesView';
 
 /** Строка списка окна выбора: кандидат, находка поиска или запись справочника ([UI-87], `ListOption` формы `list`). */
 export function PickerOption({ row, id, active, current = false, enter, narrow, kinds, onChoose, onHover }: {
@@ -69,19 +70,11 @@ export type CandidatesAnswer = Pick<UseQueryResult<NomenclatureCandidates>, 'dat
  * переносила бы оговорку и сдвигала строки справочника из-под мыши.
  */
 
+
 /** Полоса над колонками: что стоит в строке сейчас, запомненная позиция, отказ подбора, «спросить не о чем». */
-export function CandidatesNotices({ asked, answer, current }: {
-  /** Спросить было о чём: у строки есть наименование или артикул. */
-  asked: boolean;
-  answer: CandidatesAnswer;
-  current: PickerCurrent | null;
-}) {
-  const data = answer.data;
-  // Запомненная позиция и есть выбранная (окно соответствий, строка с архивной позицией): о ней уже
-  // сказано «Сейчас: … (в архиве)», второй абзац повторил бы то же другими словами.
-  const unusable = data?.recalledUnusable?.id === current?.id ? null : data?.recalledUnusable;
-  const failed = asked && answer.isError;
-  if (!current && !unusable && asked && !failed) return null;
+export function CandidatesNotices({ view, answer }: { view: CandidatesView; answer: CandidatesAnswer }) {
+  const { current, unusable, noQuestion, failed } = view;
+  if (!current && !unusable && !noQuestion && !failed) return null;
   return (
     <div className="space-y-1.5">
       {current && (
@@ -100,7 +93,7 @@ export function CandidatesNotices({ asked, answer, current }: {
             : 'Для этой строки поставщика запомнена позиция, которой в справочнике больше нет. Выберите другую.'}
         </p>
       )}
-      {!asked && (
+      {noQuestion && (
         <p className="text-body-small text-on-surface-variant">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
       )}
       {failed && (
@@ -116,23 +109,22 @@ export function CandidatesNotices({ asked, answer, current }: {
   );
 }
 
-/** Колонка списка: заголовок, ожидание, строки кандидатов и одна строка «не нашлось» — ничего, что переносится. */
-export function CandidatesBlock({ asked, answer, rows, headingId, children }: {
-  asked: boolean;
-  answer: CandidatesAnswer;
-  /** Строки кандидатов уже стоят в списке окна — сюда приходит только их число. */
-  rows: number;
+/**
+ * Колонка списка: заголовок, ожидание, строки кандидатов и строка «не нашлось». Строка не обрезается: рядом с
+ * листом она занимает около половины колонки, а обрезанное «не нашлось» не было бы сказано своими словами (#1518).
+ */
+export function CandidatesBlock({ view, headingId, children }: {
+  view: CandidatesView;
   /** Заголовок блока подписывает список кандидатов. */
   headingId: string;
   /** Список кандидатов — строки окна, им ведёт одно выделение. */
   children: ReactNode;
 }) {
-  // Спросить не о чем или подбор отказал — сказано в полосе; заголовок без строк под ним читался бы «подходящих нет».
-  if (!asked || answer.isError) return null;
+  if (!view.heading) return null;
   return (
     <div className="space-y-1.5">
       <h4 id={headingId} className="text-body-small font-medium text-on-surface-variant">Подходящие для этой строки</h4>
-      {answer.isPending && (
+      {view.pending && (
         <div aria-busy="true" className="space-y-1">
           <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
           <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
@@ -140,41 +132,50 @@ export function CandidatesBlock({ asked, answer, rows, headingId, children }: {
         </div>
       )}
       {children}
-      {answer.isSuccess && rows === 0 && (
-        <p className="truncate text-body-small text-on-surface-variant">По словам строки подходящих не нашлось.</p>
+      {view.notFound && (
+        <p className="text-body-small text-on-surface-variant">По словам строки подходящих не нашлось.</p>
       )}
     </div>
   );
 }
 
 /** Под списками: оговорки к подбору — их обрезать нельзя, а между списками они сдвигали бы строки справочника. */
-export function CandidatesTail({ asked, answer, rows, more }: {
-  asked: boolean;
-  answer: CandidatesAnswer;
-  rows: number;
-  more: boolean;
-}) {
-  const data = answer.data;
-  if (!asked || !answer.isSuccess) return null;
-  const empty = rows === 0;
-  if (!empty && !more && !data?.inArchive && !data?.unreadable) return null;
+export function CandidatesTail({ view }: { view: CandidatesView }) {
+  const { notFound, more, inArchive, unreadable } = view;
+  if (!notFound && !more && !inArchive && !unreadable) return null;
   return (
     <div className="space-y-1.5">
-      {empty && (
+      {notFound && (
         <p className="text-body-small text-on-surface-variant">
           Это не значит, что позиции в справочнике нет: подбор сравнивает слова и артикул, а написанное
           иначе («3х2,5» и «3*2.5») не сводит. Найдите поиском — или заведите новую позицию.
         </p>
       )}
       {more && <p className="text-body-small text-on-surface-variant">Есть ещё подходящие — уточните поиском.</p>}
-      {!!data?.inArchive && (
-        <p className="text-body-small text-on-surface-variant">Похожих в архиве: {data.inArchive} — заводить заново не нужно.</p>
+      {!!inArchive && (
+        <p className="text-body-small text-on-surface-variant">Похожих в архиве: {inArchive} — заводить заново не нужно.</p>
       )}
-      {!!data?.unreadable && (
+      {!!unreadable && (
         <p className="text-body-small text-warning">
-          Не сверено позиций: {data.unreadable} — их записи прочитать не удалось. Это не «не подходят».
+          Не сверено позиций: {unreadable} — их записи прочитать не удалось. Это не «не подходят».
         </p>
       )}
+    </div>
+  );
+}
+
+/** Окно без листа (окно соответствий сметы): три части подряд, как один блок. */
+export function CandidatesStack({ view, answer, headingId, children }: {
+  view: CandidatesView;
+  answer: CandidatesAnswer;
+  headingId: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <CandidatesNotices view={view} answer={answer} />
+      <CandidatesBlock view={view} headingId={headingId}>{children}</CandidatesBlock>
+      <CandidatesTail view={view} />
     </div>
   );
 }
