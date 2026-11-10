@@ -5,7 +5,7 @@
 
 ## 0. До кода
 
-- [ ] 0.1 Решения владельца записаны в design.md с датой: подписи (D1) и существительное в текстах (D2).
+- [x] 0.1 Решения владельца записаны в design.md с датой: подписи (D1) и существительное в текстах (D2).
   Если выбран не рекомендованный вариант, delta-спецификация и tasks обновлены через `/opsx:update`.
   Проверка — дата и вариант в D1 и D2
 
@@ -18,7 +18,7 @@
 - [ ] 1.2 Живые прогоны: `costs-smoke`, `invoice-payment-smoke`, `invoices-smoke`,
   `invoice-terms-collapse-checks` и `e2e/README.md` ищут кнопку по новой подписи (D4) [COST-4]. Проверка —
   эти прогоны зелёные на стенде; `grep -rn "Отметить оплату" src docs` пуст
-- [ ] 1.3 Сервер (если так в D2): описание права `costs.invoice.pay` (`CostsModule.cs`) и роли «Бухгалтер»
+- [ ] 1.3 Сервер (D2): описание права `costs.invoice.pay` (`CostsModule.cs`) и роли «Бухгалтер»
   (`SystemRoles.cs`); выяснено, обновляется ли описание у существующей роли (D3). Проверка —
   `dotnet test … --filter "FullyQualifiedName~SystemRoles|FullyQualifiedName~Permission"` зелёный;
   ответ по D3 — в описании PR
