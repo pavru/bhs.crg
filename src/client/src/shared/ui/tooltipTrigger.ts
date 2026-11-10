@@ -18,15 +18,24 @@ import { isLayerFocus } from './layerFocus';
  * тысячи строк на три секунды медленнее (PR 2/2). Нативный `title` такой цены не имел.</p>
  */
 
+const PLAIN_LOOK = 'min-h-6 rounded-xs bg-inverse-surface px-2 py-1 text-body-small text-inverse-on-surface whitespace-pre-line';
 /** Вид простой подсказки MD3 ([UI-72]): `inverse-surface`, `body-small`, форма 4, без рамки и тени. */
-export const PLAIN_TOOLTIP = 'max-w-60 min-h-6 rounded-xs bg-inverse-surface px-2 py-1 text-body-small text-inverse-on-surface whitespace-pre-line';
+export const PLAIN_TOOLTIP = `max-w-60 ${PLAIN_LOOK}`;
+/**
+ * Тот же вид шире — 384 px, только для полного текста обрезанной клетки (`TruncatedTips`, разбор Дизайнера,
+ * Д2): наименование в 250 знаков в 240 px выходит столбиком в восемь строк. Короткие подсказки кнопок — 240.
+ */
+export const PLAIN_TOOLTIP_WIDE = `max-w-96 ${PLAIN_LOOK}`;
 
-const DELAY = 400;
+/** Задержка показа при наведении — одна на все подсказки приложения: два ритма в одном интерфейсе путают. */
+export const TOOLTIP_DELAY = 400;
 /** Ушли с одной подсказки на соседнюю быстрее этого — она открывается сразу, без задержки. */
 const SKIP = 300;
 let lastClosed = 0;
-const noteClosed = () => { lastClosed = Date.now(); };
-const justClosed = () => Date.now() - lastClosed < SKIP;
+/** Подсказка закрылась — следующая в пределах `SKIP` откроется сразу. Звать, только если она была открыта. */
+export const noteClosed = () => { lastClosed = Date.now(); };
+/** Только что закрылась соседняя — показывать без задержки. */
+export const justClosed = () => Date.now() - lastClosed < SKIP;
 
 /** Виден ли фокус. Движок без `:focus-visible` (старый браузер, тестовый DOM) — считаем видимым. */
 function focusVisible(el: Element): boolean {
@@ -108,7 +117,7 @@ export function useTooltipTrigger(children: ReactElement, opt: TooltipTriggerOpt
     clearTimeout(timer.current);
     opt.onShow?.();
     if (now || justClosed()) setOpen(true);
-    else timer.current = setTimeout(() => setOpen(true), DELAY);
+    else timer.current = setTimeout(() => setOpen(true), TOOLTIP_DELAY);
   };
   const hide = () => {
     clearTimeout(timer.current);
@@ -120,6 +129,9 @@ export function useTooltipTrigger(children: ReactElement, opt: TooltipTriggerOpt
     ...own,
     ref,
     ...opt.aria,
+    // Метка «у элемента свой показ»: сетка, показывающая полный текст обрезанной клетки, ему уступает —
+    // две подсказки у одного элемента не открываются (`truncation.ts`).
+    ...(!opt.empty && { 'data-tooltip': '' }),
     ...(reason && {
       disabled: false,
       'aria-disabled': true,

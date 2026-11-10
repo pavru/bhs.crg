@@ -72,9 +72,11 @@ export const RULES = [
     // глуха. Текстом её не поймать — `title` носят и наши компоненты (окно, заголовок страницы), и
     // атрибут бывает в любой строке многострочного тега; поэтому — по синтаксическому дереву.
     // Законна одна: у обрезанной строки (truncate, line-clamp) — её же полный текст, когда подсказка
-    // совпадает с содержимым. Фреймов в разметке нет вовсе (native-pdf-frame, [UI-26]).
+    // совпадает с содержимым, — и только вне клетки сетки: в клетке (`cell:` колонки DataGrid / EditGrid)
+    // полный текст показывает сама сетка, и свой title дал бы вторую подсказку ([UI-52]). Фреймов в разметке
+    // нет вовсе (native-pdf-frame, [UI-26]).
     count: countNativeTitles,
-    instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
+    instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки вне таблиц; в клетке DataGrid / EditGrid (cell:) полный текст обрезанной клетки показывает сама сетка — свой title не нужен (docs/UI.md, «Подсказка»)',
   },
   {
     id: 'native-checkbox',
@@ -585,6 +587,22 @@ function repeatsContent(init, element) {
   return kids.some(c => ts.isJsxExpression(c) && c.expression && norm(c.expression.getText()) === want);
 }
 
+/**
+ * Узел внутри клетки колонки сетки: свойство или метод `cell` объектного литерала, у которого есть и `key`, —
+ * так выглядит колонка `DataGrid` и `EditGrid` (`{ key, label, cell: row => … }`). Без `key` это чужой `cell`
+ * (печать, настройки), и законный `title` обрезанной строки там остаётся законным. Клетку в отдельном
+ * компоненте правило не видит — там двух подсказок всё равно не будет: сетка уступает нативному `title`
+ * (`truncation.ts`).
+ */
+function inGridCell(node, sf) {
+  const name = p => p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : null;
+  for (let p = node.parent; p; p = p.parent) {
+    if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p)) && ts.isObjectLiteralExpression(p.parent)
+      && name(p) === 'cell' && p.parent.properties.some(q => name(q) === 'key')) return true;
+  }
+  return false;
+}
+
 /** Нативные `title` у элементов разметки — кроме законных (см. правило `native-title`). */
 function countNativeTitles(text) {
   if (!text.includes('title')) return 0;
@@ -597,7 +615,8 @@ function countNativeTitles(text) {
       const element = ts.isJsxSelfClosingElement(opening) ? opening : opening.parent;
       const cls = opening.attributes.properties
         .find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className')?.initializer?.getText(sf) ?? '';
-      const truncated = /\b(?:truncate|line-clamp-\d+)\b/.test(cls) && repeatsContent(node.initializer, element);
+      const truncated = /\b(?:truncate|line-clamp-\d+)\b/.test(cls) && repeatsContent(node.initializer, element)
+        && !inGridCell(node, sf);
       if (/^[a-z]/.test(tag) && !truncated) n++;
     }
     ts.forEachChild(node, visit);

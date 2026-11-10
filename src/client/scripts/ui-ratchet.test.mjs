@@ -66,6 +66,17 @@ describe('храповик интерфейса: счёт', () => {
     ].join(' '))).toEqual({});
   });
 
+  it('в клетке сетки полный текст обрезанной строки — нарушение: его показывает сетка ([UI-52])', () => {
+    expect(countViolations('const c = { key: "row", cell: row => <div className="truncate" title={row.title}>{row.title}</div> };'))
+      .toEqual({ 'native-title': 1 });
+    expect(countViolations('const c = { key: "t", cell(row) { return <span className="truncate" title={row.t}>{row.t}</span>; } };'))
+      .toEqual({ 'native-title': 1 });
+    expect(countViolations(`const c = { 'key': "t", 'cell': r => <span className="truncate" title={r.t}>{r.t}</span> };`))
+      .toEqual({ 'native-title': 1 });
+    // `cell` без `key` — не колонка сетки (печать, настройки): законный title обрезанной строки остаётся законным.
+    expect(countViolations('const p = { cell: () => <span className="truncate" title={t}>{t}</span> };')).toEqual({});
+  });
+
   it('у фрейма исключения больше нет: фреймов в разметке нет вовсе ([UI-26])', () => {
     expect(countViolations('<iframe title="Скан" />')).toEqual({ 'native-title': 1, 'native-pdf-frame': 1 });
   });
