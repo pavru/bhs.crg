@@ -162,7 +162,7 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
             .Where(x => Gate(x.Method) switch
             {
                 McpPermissionAttribute p => p.Codes.Any(granted.Contains),
-                McpModuleAttribute m => ModuleAccess.IsOpen(m.Code, granted),
+                McpModuleAttribute m => ModuleAccess.IsOpen(m.Code, granted, catalog),
                 _ => false,   // без ворот — «личный» инструмент, у него свой сторож выше
             })
             .Select(x => x.Attr.Name ?? x.Method.Name)

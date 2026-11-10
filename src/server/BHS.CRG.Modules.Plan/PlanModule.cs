@@ -151,6 +151,7 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<RowMatching>();
         services.AddScoped<MaterialMatching>();
         services.AddScoped<EstimateImportCommit>();
+        services.AddScoped<EstimateAttach>();
         services.AddScoped<DistributionCarryOver>();
         services.AddScoped<DistributionReader>();
         services.AddScoped<DistributionWriter>();
@@ -181,6 +182,7 @@ public sealed class PlanModule : IAppModule
         RevisionMaterialsEndpoints.Map(endpoints);
         NomenclatureSearchEndpoints.Map(endpoints);
         DistributionEndpoints.Map(endpoints);
+        ConjunctureEndpoints.Map(endpoints);
     }
 
     /// <summary>

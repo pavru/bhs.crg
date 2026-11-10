@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
 /// <summary>Разобранная ведомость объёмов работ (ТЗ PLAN-7). Вложения (PDF чертежей) не читаются: в модели
@@ -11,8 +13,10 @@ public sealed record ParsedVolumeStatement(
     IReadOnlyList<VolumeAttachment> Attachments,
     IReadOnlyList<Unparsed> Unparsed)
 {
+    [JsonIgnore]
     public IEnumerable<VolumeWork> Works => Chapters.SelectMany(c => c.Works);
 
+    [JsonIgnore]
     public int PositionsInFile => Chapters.Sum(c => c.Works.Count) + Unparsed.Count;
 }
 

@@ -97,18 +97,22 @@ public sealed class EstimateImportJob(
                         model.Positions.Count(), model.PositionsInFile, DateTimeOffset.UtcNow);
                 };
             case GrandSmetaKind.VolumeStatement:
-                VolumeStatementReader.Read(file);
-                break;
+                var statement = VolumeStatementReader.Read(file);
+                var (works, notWorks) = EstimateImportJson.Write(statement);
+                return Attachment(source, works, notWorks, statement.Works.Count(), statement.PositionsInFile);
             default:
-                ConjunctureReader.Read(file);
-                break;
+                var analysis = ConjunctureReader.Read(file);
+                var (items, notItems) = EstimateImportJson.Write(analysis);
+                return Attachment(source, items, notItems, analysis.Positions.Count(), analysis.PositionsInFile);
         }
-        return i =>
+    }
+
+    private static Action<EstimateImport> Attachment(GrandSmetaSource source, string parsed, string unparsed, int positions, int inFile) =>
+        i =>
         {
             i.Opened(source);
-            i.ParsedOther(DateTimeOffset.UtcNow);
+            i.ParsedAttachment(parsed, unparsed, positions, inFile, DateTimeOffset.UtcNow);
         };
-    }
 
     /// <summary>
     /// Записать исход. Проиграв по версии записи (адрес загрузки дописал номер задачи), исход перечитывает

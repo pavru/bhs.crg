@@ -70,7 +70,7 @@ export async function extraFieldChecks({ browser, check, skip, seat, invoiceId, 
       if (shown !== 'ЦЗ-7') throw new Error(`после перечитывания в поле «${shown}»`);
     });
   } finally {
-    await placeField(admin, false).catch(e => console.log('  ! поле прогона из типа не убрано:', e.message));
+    await check.tidy('поле прогона из типа не убрано', () => placeField(admin, false));
     await context.close();
   }
 }

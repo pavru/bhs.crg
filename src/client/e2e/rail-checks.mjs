@@ -8,7 +8,7 @@
 // подпанель прятала бы страницы разделов, и чужие локаторы по тексту меню упали бы. Поэтому
 // настройка сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, until, railSection, accountAction, emulateTouch } from './harness.mjs';
+import { BASE, settled, callApi, callApiOk, until, railSection, accountAction, emulateTouch } from './harness.mjs';
 
 const RESET = { rail: null };
 
@@ -136,7 +136,7 @@ export async function railChecks(page, check) {
 
     await narrowChecks(page, check);
   } finally {
-    await callApi(page, 'PUT', '/account/settings', RESET);
+    await check.tidy('настройка подпанели не сброшена', () => callApiOk(page, 'PUT', '/account/settings', RESET));
     await page.evaluate(() => localStorage.removeItem('crg-rail'));
   }
 }

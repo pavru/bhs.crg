@@ -11,6 +11,7 @@ import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision } from './estimateRows';
+import { attachmentSearch } from './attachmentRows';
 import { EstimateCard } from './EstimateCard';
 import { ImportDialog } from './ImportDialog';
 import { openingOf } from './importReport';
@@ -71,7 +72,8 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
         onOpen={id => setImporting({ importId: id })} />
       <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={constructionId}
         sectionId={sectionId} importId={importing?.importId}
-        onCreated={created => navigate(`${base}/${created.estimateId}`, { state: openingOf(created) })} />
+        onCreated={created => navigate(`${base}/${created.estimateId}`, { state: openingOf(created) })}
+        onAttached={a => navigate(`${base}/${a.estimateId}${attachmentSearch(a)}`)} />
       {items.length === 0 ? (
         <EmptyState icon={<Icon icon={TableChart} size={40} aria-hidden />}
           title={sectionId ? 'У раздела смет нет' : 'У стройки смет нет'}

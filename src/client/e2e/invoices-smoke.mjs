@@ -24,9 +24,11 @@
 import { readFileSync } from 'node:fs';
 import {
   BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
+  FRESH_PANELS, takePanels, setPanels,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
+import { invoiceTermsCollapseChecks } from './invoice-terms-collapse-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 import { invoiceFileDropChecks } from './invoice-file-drop-checks.mjs';
@@ -163,7 +165,15 @@ const UNKNOWN_TYPE = 'application/octet-stream';
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
+// Подпанель и «Файл» — как у свежего пользователя, а прежние — уборкой в конце (`takePanels` в обвязке).
+// Взятое запоминается ДО записи: упади запись на полпути, уборка всё равно вернёт.
+let panels;
 try {
+  await check('подпанель и «Файл» поставлены как у свежего пользователя', async () => {
+    panels = await takePanels(page);
+    await setPanels(page, FRESH_PANELS);
+  });
+
   // ── 1. Черновик сохраняется без строк ───────────────────────────────────────
   //
   // Строк в первой версии нет вовсе, и проверка именно об этом: форма не требует НИЧЕГО. Заведи
@@ -455,8 +465,8 @@ try {
   await invoiceFileDropChecks(page, check, { api, requisites, named, stamp, base: BASE });
 
   // Файл, закрытый проверкой 7, — снова «открыт», как без выбора: следующие проверки смотрят панель файла.
-  await api('PUT', '/account/settings', { invoiceFile: 'open' });
-  await page.evaluate(() => localStorage.setItem('crg-invoice-file', 'open'));
+  // Прежние настройки запомнены в начале набора — здесь возвращать нечего.
+  await check('«Файл» снова открыт, как без выбора', () => setPanels(page, FRESH_PANELS));
 
   // ── 9. Счёт в Excel: рядом с формой — вид для чтения, а документ — оригинал (issue #1270) ───────
   //
@@ -531,6 +541,8 @@ try {
   await invoiceUndoChecks(page, check, { named, stamp, BASE });
   // Раскладка экрана по варианту Г (costs-invoice-screen-10-layout) — на четырёх размерах ноутбука.
   await invoiceScreenLayoutChecks(page, check, { api, requisites, attachScan, named, stamp, BASE });
+  // «Сроки и оплата» свёрнута, если решать в ней нечего (costs-invoice-terms-collapse, #1818 п. 7).
+  await invoiceTermsCollapseChecks(page, check, { api, requisites, named, stamp, BASE });
 
   // ── 10. Файл под паролем ПРИЛОЖЕН, а причина названа словами (issue #1270) ──────────────────────
   //
@@ -743,6 +755,7 @@ try {
     }
   });
 } finally {
+  if (panels) await check.tidy('подпанель и «Файл» администратора не возвращены', () => setPanels(page, panels));
   await browser.close();
 }
 

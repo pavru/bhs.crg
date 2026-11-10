@@ -27,7 +27,8 @@ namespace BHS.CRG.Api.Auth;
 public sealed class DataAccessResolver(
     IUserPermissions permissions,
     IServiceScopeFactory scopes,
-    ModuleRegistry modules) : IDataAccessResolver
+    ModuleRegistry modules,
+    PermissionCatalog catalog) : IDataAccessResolver
 {
     /// <summary>Параметр доступа владельца токена.</summary>
     public async Task<DataAccess> ForAsync(ClaimsPrincipal principal, CancellationToken ct)
@@ -92,7 +93,7 @@ public sealed class DataAccessResolver(
         // Правило «доступ к модулю = есть хоть одно его право» живёт в ModuleAccess одно на всю
         // систему (ТЗ AUTH-8.1): свой второй экземпляр здесь разошёлся бы с воротами адресов.
         foreach (var module in modules.Enabled)
-            if (ModuleAccess.IsOpen(module.Code, granted))
+            if (ModuleAccess.IsOpen(module.Code, granted, catalog))
                 keys.Add(module.Code);
         return keys;
     }

@@ -44,6 +44,23 @@ export interface PermissionInfo {
    * Состав объявляют модули — на клиенте его не вывести ни из кода права, ни из названия.
    */
   readAll: boolean;
+  /**
+   * Право контракта (plan-21, ТЗ AUTH-8.1): модуль своей группы оно НЕ открывает, а отдаёт его данные
+   * другим модулям. Без подписи администратор ждал бы раздела модуля у роли с одной такой галкой.
+   */
+  contract: boolean;
+}
+
+/**
+ * Подпись права контракта — одна на редактор ролей и «Мои права» (ТЗ AUTH-5, AUTH-16.7): иначе
+ * у одного признака появились бы два описания, и разошлись бы они молча. У обычного права — `null`.
+ *
+ * @param moduleTitle Название группы права — модуля, который право не открывает.
+ */
+export function contractPermissionNote(permission: Pick<PermissionInfo, 'contract'>, moduleTitle: string): string | null {
+  return permission.contract
+    ? `право контракта: не открывает модуль „${moduleTitle}“, данные отдаются другим модулям`
+    : null;
 }
 
 export interface PermissionGroup {

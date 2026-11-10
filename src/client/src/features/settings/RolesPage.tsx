@@ -14,7 +14,7 @@ import { Card } from '@/shared/ui/Card';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useRoles, usePermissionCatalog, useCreateRole, useRenameRole, useSetRolePermissions, useDeleteRole,
-  type AppRole, type PermissionInfo,
+  type AppRole, type PermissionInfo, contractPermissionNote,
 } from '@/shared/api/roles';
 
 /**
@@ -195,6 +195,11 @@ export function RolesPage() {
                         )}
                         {p.readAll && (
                           <span className="block text-label-small text-on-surface-variant">входит в право «читать всё»</span>
+                        )}
+                        {p.contract && (
+                          <span className="block text-label-small text-on-surface-variant">
+                            {contractPermissionNote(p, group.title)}
+                          </span>
                         )}
                       </span>
                     </label>

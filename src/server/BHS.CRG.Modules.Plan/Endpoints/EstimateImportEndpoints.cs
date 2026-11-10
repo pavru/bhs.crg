@@ -65,10 +65,7 @@ public static class EstimateImportEndpoints
         IModuleJobs jobs, [FromKeyedServices(PlanModule.ModuleCode)] IModuleBlobs blobs, ILoggerFactory logs,
         CancellationToken ct)
     {
-        if (file.Length == 0) throw new InvalidRequestException("Файл пуст — импортировать нечего.");
-        if (file.Length > MaxFileBytes)
-            throw new InvalidRequestException($"Файл больше {MaxFileBytes / (1024 * 1024)} МБ — это не файл сметы.");
-
+        EnsureFile(file);
         var form = request.Form;
         var siteId = FormGuid(form, "constructionId")
             ?? throw new InvalidRequestException("Не названа стройка (constructionId): смета импортируется в стройку.");
@@ -102,6 +99,29 @@ public static class EstimateImportEndpoints
         var kind = EstimateEndpoints.Kind(kindCode);
         if (estimate is null) Estimate.CheckedName(newName);
 
+        var import = await StartAsync(file, db, jobs, blobs, logs, (path, now) => estimate is not null
+            ? EstimateImport.IntoEstimate(estimate, path, file.FileName, user.Id, user.Name, now)
+            : EstimateImport.IntoNewEstimate(site.Id, newName!, sectionId, kind, path, file.FileName, user.Id, user.Name, now), ct);
+        return Results.Created($"/api/plan/imports/{import.Id}",
+            await EstimateImportViews.OneAsync(db, user, jobs, import.Id, CancellationToken.None));
+    }
+
+    /// <summary>Файл сметы не пуст и не больше предела — до того, как он ляжет в хранилище.</summary>
+    internal static void EnsureFile(IFormFile file)
+    {
+        if (file.Length == 0) throw new InvalidRequestException("Файл пуст — импортировать нечего.");
+        if (file.Length > MaxFileBytes)
+            throw new InvalidRequestException($"Файл больше {MaxFileBytes / (1024 * 1024)} МБ — это не файл сметы.");
+    }
+
+    /// <summary>
+    /// Файл — в хранилище, импорт — в базу, разбор — в очередь: одним путём для загрузки сметы и приложения к ней
+    /// (<c>plan-11</c>). Цель импорта называет <paramref name="make" />; после сохранения импорта отказа нет.
+    /// </summary>
+    internal static async Task<EstimateImport> StartAsync(
+        IFormFile file, PlanDbContext db, IModuleJobs jobs, IModuleBlobs blobs, ILoggerFactory logs,
+        Func<string, DateTimeOffset, EstimateImport> make, CancellationToken ct)
+    {
         // Тип — всегда «байты»: вид файла определяет разбор по содержимому, а тип, названный клиентом, лёг бы в
         // хранилище его словами — и стал бы чужим заголовком, если файл когда-нибудь отдадут. Своего перечня
         // типов рядом с реестром ядра у модуля нет (FileKindCatalog): файл сметы — не вложение, которое показывают.
@@ -109,12 +129,10 @@ public static class EstimateImportEndpoints
         await using (var content = file.OpenReadStream())
             path = await blobs.PutAsync(file.FileName, content, MediaTypeNames.Application.Octet, ct);
 
-        var now = DateTimeOffset.UtcNow;
-        var import = estimate is not null
-            ? EstimateImport.IntoEstimate(estimate, path, file.FileName, user.Id, user.Name, now)
-            : EstimateImport.IntoNewEstimate(site.Id, newName!, sectionId, kind, path, file.FileName, user.Id, user.Name, now);
+        EstimateImport import;
         try
         {
+            import = make(path, DateTimeOffset.UtcNow);
             db.EstimateImports.Add(import);
             await db.SaveChangesAsync(ct);
         }
@@ -128,9 +146,8 @@ public static class EstimateImportEndpoints
 
         // ⚠️ Импорт ЗАВЕДЁН — с этой строки ответом может быть только он: отказ после сохранения оставил бы
         // человека с ошибкой и импортом, о котором он не знает. Поэтому дальше — без токена отмены.
-        var none = CancellationToken.None;
-        await QueueAsync(db, jobs, import, logs.CreateLogger(typeof(EstimateImportEndpoints)), none);
-        return Results.Created($"/api/plan/imports/{import.Id}", await EstimateImportViews.OneAsync(db, user, jobs, import.Id, none));
+        await QueueAsync(db, jobs, import, logs.CreateLogger(typeof(EstimateImportEndpoints)), CancellationToken.None);
+        return import;
     }
 
     /// <summary>
@@ -245,15 +262,20 @@ public static class EstimateImportEndpoints
     }
 
     /// <summary>Убрать файл ушедшего импорта. Не удалось — не отказ: импорта уже нет, файл найдёт уборка.</summary>
-    internal static async Task DeleteFileAsync(IModuleBlobs blobs, EstimateImport import, ILogger logger)
+    internal static Task DeleteFileAsync(IModuleBlobs blobs, EstimateImport import, ILogger logger) =>
+        DeleteFileAsync(blobs, import.BlobPath, $"Импорт {import.Id}", logger);
+
+    /// <summary>Убрать файл ушедшей записи (<paramref name="what" /> — её имя для журнала). Не удалось — не отказ:
+    /// записи уже нет, файл без ссылки найдёт уборка осиротевших.</summary>
+    internal static async Task DeleteFileAsync(IModuleBlobs blobs, string path, string what, ILogger logger)
     {
         try
         {
-            await blobs.DeleteAsync(import.BlobPath, CancellationToken.None);
+            await blobs.DeleteAsync(path, CancellationToken.None);
         }
         catch (Exception lost)
         {
-            logger.LogWarning(lost, "Импорт {ImportId} отменён, но его файл {Path} убрать не удалось.", import.Id, import.BlobPath);
+            logger.LogWarning(lost, "{What} удалён(а), но файл {Path} убрать не удалось.", what, path);
         }
     }
 

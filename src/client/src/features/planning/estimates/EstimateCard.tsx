@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Menu, MenuItem } from '@/shared/ui/Menu';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronLeft, LockIcon, Upload } from '@/shared/ui/icons';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
+import { CountText } from '@/shared/ui/CountText';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { StatusText } from '@/shared/ui/StatusText';
-import { Tabs } from '@/shared/ui/Tabs';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
+import { attachmentKey } from './attachmentRows';
+import { EstimateAttachments } from './EstimateAttachments';
 import { KIND_LABEL, latestRevision, visibleRevisions } from './estimateRows';
 import { ImportDialog } from './ImportDialog';
 import { openingOf, type RevisionOpening } from './importReport';
@@ -18,6 +21,7 @@ import { MakeCurrentDialog } from './MakeCurrentDialog';
 import { PendingImports } from './PendingImports';
 import { RevisionDistribution } from '../distribution/RevisionDistribution';
 import { RevisionLines } from './RevisionLines';
+import { useAttachmentsOf } from './useAttachmentsOf';
 import { useEstimateEdit } from './useEstimateEdit';
 
 /**
@@ -34,6 +38,11 @@ import { useEstimateEdit } from './useEstimateEdit';
  *
  * Над строками — режим «Сопоставление | Распределение» (`plan-10`, макет П2): распределение по разделам стройки.
  * У сметы на разделе стройки режима нет — её строки целиком в том разделе (ответ листа 0 П2).
+ *
+ * Над всем этим — разделы верхнего уровня «Редакции N | Приложения N» (`plan-11`, макет П11, вариант 1), primary-вид
+ * `Tabs` ([UI-90]); ряд редакций — `underline` в его панели ([UI-91]). Раздел — в адресе: `?view=attachments`, выбранное
+ * приложение — `?attachment=ka:<id>`; редакции — без параметра. Приложенный файл (из «Приложить файл…» или КА, брошенный
+ * в «Новую редакцию») открывается в «Приложениях»; редакция, созданная из «Приложить файл…», — в «Редакциях».
  */
 export function EstimateCard({ estimateId, back }: { estimateId: string; back: { to: string; label: string } }) {
   const estimate = useEstimate(estimateId);
@@ -46,8 +55,24 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
   useEffect(() => {
     if (arrived) void navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
   }, [arrived, navigate, location.pathname, location.search, location.hash]);
-  const [importing, setImporting] = useState<{ importId?: string } | null>(null);
+  const [importing, setImporting] = useState<{ importId?: string; attach?: boolean } | null>(null);
   const [mode, setMode] = useState<Mode>(opening?.mode ?? 'match');
+  const [params, setParams] = useSearchParams();
+  const view: View = params.get('view') === 'attachments' ? 'attachments' : 'revisions';
+  const attachments = useAttachmentsOf(estimateId);
+  // Раздел — шаг истории («Назад» возвращает к редакциям), выбор приложения — нет: листая список, назад не копят.
+  const showView = (next: View, attachment?: string) => setParams(prev => {
+    const p = new URLSearchParams(prev);
+    p.delete('attachment');
+    if (next === 'attachments') { p.set('view', 'attachments'); if (attachment) p.set('attachment', attachment); }
+    else p.delete('view');
+    return p;
+  });
+  const pick = (key: string | null) => setParams(prev => {
+    const p = new URLSearchParams(prev);
+    if (key) p.set('attachment', key); else p.delete('attachment');
+    return p;
+  }, { replace: true });
 
   if (estimate.isError) return (
     <div className="space-y-3">
@@ -59,6 +84,8 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
 
   const data = estimate.data;
   const shown = data.revisions.find(r => r.id === chosen) ?? latestRevision(data);
+  const viewId = `estimate-${data.id}-view`;
+  const revisionsId = `estimate-${data.id}`;
   return (
     <div className="space-y-3">
       <BackLink back={back} />
@@ -72,32 +99,57 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
       <PendingImports constructionId={data.constructionId} enabled={editable} only={i => i.target.estimateId === data.id}
         onOpen={id => setImporting({ importId: id })} />
       <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={data.constructionId}
-        estimateId={data.id} importId={importing?.importId}
-        onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); setMode(next.mode ?? 'match'); }} />
+        estimateId={data.id} importId={importing?.importId} attach={importing?.attach}
+        onCreated={created => {
+          const next = openingOf(created); setOpening(next); setChosen(next.revisionId); setMode(next.mode ?? 'match');
+          if (view !== 'revisions') showView('revisions');
+        }}
+        onAttached={a => showView('attachments', attachmentKey(a))} />
 
-      {shown === null ? (
-        <p className="text-body-medium text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
-      ) : (
-        <>
-          <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
-          <RevisionBand estimate={data} revision={shown} />
-          {data.sectionId === null && (
-            <SegmentedButton aria-label="Режим строк редакции" value={mode} onChange={setMode}
-              items={[{ value: 'match', label: 'Сопоставление' }, { value: 'distribution', label: 'Распределение' }]} />
-          )}
-          {mode === 'distribution' && data.sectionId === null ? (
-            <RevisionDistribution key={shown.id} revision={shown} constructionId={data.constructionId}
-              initialQueue={opening?.revisionId === shown.id && opening.mode === 'distribution' ? 'carry-over' : 'all'} />
-          ) : (
-            <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
-          )}
-        </>
-      )}
+      <Tabs id={viewId} variant="primary" aria-label="Разделы сметы" value={view} onChange={next => showView(next)}
+        items={[
+          { value: 'revisions', label: 'Редакции', badge: <Count n={data.revisions.length} /> },
+          { value: 'attachments', label: 'Приложения', badge: attachments.count !== null ? <Count n={attachments.count} /> : undefined },
+        ]} />
+      <TabPanel id={viewId} value={view} className="space-y-3">
+        {view === 'attachments' ? (
+          <EstimateAttachments estimateId={data.id} selected={params.get('attachment')} onSelect={pick}
+            attach={() => setImporting({ attach: true })} />
+        ) : shown === null ? (
+          <p className="text-body-medium text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
+        ) : (
+          <>
+            <RevisionTabs id={revisionsId} estimate={data} selected={shown.id} onSelect={setChosen} />
+            <TabPanel id={revisionsId} value={shown.id} className="space-y-3">
+              <RevisionBand estimate={data} revision={shown} />
+              {data.sectionId === null && (
+                <SegmentedButton aria-label="Режим строк редакции" value={mode} onChange={setMode}
+                  items={[{ value: 'match', label: 'Сопоставление' }, { value: 'distribution', label: 'Распределение' }]} />
+              )}
+              {mode === 'distribution' && data.sectionId === null ? (
+                <RevisionDistribution key={shown.id} revision={shown} constructionId={data.constructionId}
+                  initialQueue={opening?.revisionId === shown.id && opening.mode === 'distribution' ? 'carry-over' : 'all'} />
+              ) : (
+                <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
+              )}
+            </TabPanel>
+          </>
+        )}
+      </TabPanel>
     </div>
   );
 }
 
 type Mode = 'match' | 'distribution';
+type View = 'revisions' | 'attachments';
+
+/**
+ * Счётчик вкладки раздела. Пробел перед числом — для диктора: без него имя вкладки «Приложения3» (`Tabs` ставит счётчик
+ * вплотную к подписи, зазор у них — отступом ряда). В ряду flex пробельный текст не рисуется, вид не меняется.
+ */
+function Count({ n }: { n: number }) {
+  return <>{' '}<CountText>{formatCount(n)}</CountText></>;
+}
 
 function BackLink({ back }: { back: { to: string; label: string } }) {
   return (
@@ -110,13 +162,13 @@ function BackLink({ back }: { back: { to: string; label: string } }) {
 const revisionLabel = (r: EstimateRevision) =>
   `Ред. ${r.number}${r.current ? ' · действующая' : r.frozen ? ` · ${r.frozen.label}` : ''}`;
 
-function RevisionTabs({ estimate, selected, onSelect }: {
-  estimate: Estimate; selected: string; onSelect: (id: string) => void;
+function RevisionTabs({ id, estimate, selected, onSelect }: {
+  id: string; estimate: Estimate; selected: string; onSelect: (id: string) => void;
 }) {
   const { tabs, more } = visibleRevisions(estimate, selected);
   return (
     <div className="flex items-center gap-2">
-      <Tabs id={`estimate-${estimate.id}`} aria-label="Редакции сметы" className="flex-1 min-w-0"
+      <Tabs id={id} aria-label="Редакции сметы" className="flex-1 min-w-0"
         items={tabs.map(r => ({ value: r.id, label: revisionLabel(r) }))} value={selected} onChange={onSelect} />
       {more.length > 0 && (
         <Menu trigger={<Chip selected={false} menu className="shrink-0">ещё {formatCount(more.length)}</Chip>}>

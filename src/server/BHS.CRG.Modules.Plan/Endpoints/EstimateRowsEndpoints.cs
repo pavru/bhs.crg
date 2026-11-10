@@ -32,6 +32,10 @@ public static class EstimateRowsEndpoints
     public const int DefaultLimit = 200;
     public const int MaxLimit = 1000;
 
+    /// <summary>Строк на странице: названо — в пределах 1…<see cref="MaxLimit" />, не названо — <see cref="DefaultLimit" />.
+    /// Одно правило на постраничное чтение модуля — строки редакции и приложения сметы (<c>plan-11</c>).</summary>
+    internal static int PageSize(int? limit) => limit is { } l ? Math.Clamp(l, 1, MaxLimit) : DefaultLimit;
+
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/plan/revisions/{id:guid}/rows", RowsAsync)
             .WithTags("Сметы")
@@ -46,7 +50,7 @@ public static class EstimateRowsEndpoints
         var after = 0;
         if (!string.IsNullOrEmpty(cursor) && !int.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out after))
             throw new InvalidRequestException("Курсор страницы записан не так: ожидается значение поля «next» из прежнего ответа.");
-        var take = limit is { } l ? Math.Clamp(l, 1, MaxLimit) : DefaultLimit;
+        var take = PageSize(limit);
 
         var rows = await db.EstimateRows.AsNoTracking()
             .Where(r => r.RevisionId == id && r.Order > after)
