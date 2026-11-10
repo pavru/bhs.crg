@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -50,6 +51,14 @@ public static class TypstProcess
         // тихо превратили бы «сети нет» в «сеть есть через прокси» (issue #936).
         foreach (var name in BHS.CRG.Infrastructure.Http.OutboundProxy.EnvironmentVariables)
             psi.Environment.Remove(name);
+
+        // Typst пишет оба потока в UTF-8 всегда, а Process без явной кодировки читает их в кодировке
+        // консоли сервера. На Linux (поставка) это и так UTF-8, а на Windows с русской локалью —
+        // OEM 866: кириллица в отказе компилятора (текст panic из шаблона, имя поля) доходила до
+        // пользователя кракозябрами «╨┐╤А╨╛…». Задаём здесь, а не у вызывающих: все четыре запуска
+        // идут через это место, и пятый не забудет.
+        psi.StandardOutputEncoding = Encoding.UTF8;
+        psi.StandardErrorEncoding = Encoding.UTF8;
 
         var limit = timeout ?? DefaultTimeout;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
