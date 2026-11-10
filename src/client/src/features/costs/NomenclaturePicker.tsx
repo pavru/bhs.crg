@@ -327,8 +327,11 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           <ModalExit>Закрыть</ModalExit>
         </>
       )}>
+      {/* На столе тело просит высоту предела окна (90vh) и ужимается под шапку и подвал: окно стоит по центру
+          экрана, и высота по содержимому означала бы, что лист, открывшись выше короткого списка, растит окно —
+          а оно, оставаясь по центру, уводит все строки вверх из-под мыши ([COST-7], D8). */}
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'flex-1 min-h-0 flex flex-col border-t border-outline-variant'}>
+        : 'h-[90vh] min-h-0 shrink flex flex-col border-t border-outline-variant'}>
         {/* Полоса над колонками: её высота не зависит от того, открыт ли лист. */}
         <div className="shrink-0 space-y-3 px-6 pt-3">
           {plate}
