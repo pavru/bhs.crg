@@ -10,7 +10,7 @@
 // Отдельным файлом: `invoice-lines-smoke` и так велик. Едет внутри него, с его помощниками.
 
 import { statusPhrase } from './invoice-status.mjs';
-import { until } from './harness.mjs';
+import { until, underRoute } from './harness.mjs';
 import { commitInvoice, untilSaveState } from './invoice-save.mjs';
 
 /** На сколько задержать запись строк — человек успевает набрать. */
@@ -41,8 +41,9 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
     };
     page.on('response', onResponse);
     try {
-      await page.route('**/api/costs/invoices/*/lines', hold);
-      try {
+      // Снятие перехвата — не сразу по ответу: следом за ним очередь шлёт вторую запись, и запрос, ушедший в миг
+      // снятия, повис бы навсегда (см. `underRoute`). Снятие дождётся и её — задержанной тем же маршрутом.
+      await underRoute(page, '**/api/costs/invoices/*/lines', hold, async () => {
         const isLines = r => r.method() === 'PUT' && r.url().endsWith('/lines');
         const sent = page.waitForRequest(isLines, { timeout: 15_000 });
         // Уход из строки — повод записи (D-12.2): первая запись уходит и задерживается.
@@ -62,9 +63,7 @@ export async function saveRaceChecks({ page, check, stamp, invoice, open, cell, 
         const first = await answered;
         if (!first.ok()) throw new Error(`первая запись строк: ${first.status()}`);
         if (held !== 1) throw new Error(`запись строк задержана ${held} раз — набор шёл не во время записи`);
-      } finally {
-        await page.unroute('**/api/costs/invoices/*/lines', hold);
-      }
+      });
 
       const one = await cell('Количество', 1).inputValue();
       const two = await cell('Количество', 2).inputValue();

@@ -10,7 +10,7 @@
 // Файлы нарочно нечитаемы (`%PDF-1.4 …`): исход распознавания `BadFile` без запроса к движку (#1344).
 
 import { createHash } from 'node:crypto';
-import { invoiceMenu } from './harness.mjs';
+import { invoiceMenu, underRoute } from './harness.mjs';
 
 const WIDTHS = [{ width: 1366, height: 768 }, { width: 1280, height: 720 }];
 const WIDE = { width: 1500, height: 1000 };
@@ -214,15 +214,14 @@ export async function invoiceFileDropChecks(page, check, h) {
 
   // Проверка не ответила (D3): заводим и говорим «повтор не проверен»; пакет не останавливается.
   await check('вопрос отвечает 503: черновики заведены, «повтор не проверен»', async () => {
-    await page.route('**/api/costs/invoices/same-file?**', route => route.fulfill({ status: 503, body: '{"error":"недоступно"}' }));
-    try {
+    await underRoute(page, '**/api/costs/invoices/same-file?**', route => route.fulfill({ status: 503, body: '{"error":"недоступно"}' }), async () => {
       const was = openedId(page);
       await dropOn(page, page.getByTestId('invoice-header'), [{ name: `Без-проверки-${h.stamp}.pdf`, buffer: bytesOf(`503 ${h.stamp}`) }], h);
       await h.named('черновик не заведён, когда проверка не ответила', () => page.waitForFunction(
         was => new URL(location.href).searchParams.get('invoice') !== was, was, { timeout: 15_000 }));
       await h.named('«повтор не проверен» не сказано', () => page.getByText('Повтор не проверен — если файл уже был, счёт скажет об этом.')
         .first().waitFor({ timeout: 10_000 }));
-    } finally { await page.unroute('**/api/costs/invoices/same-file?**'); }
+    });
   });
 
   // Пустой ответ — «двойников среди проверяемых нет», а не «файл новый» (счёт до #1295 и недоверенная печать в
@@ -231,18 +230,17 @@ export async function invoiceFileDropChecks(page, check, h) {
   await check('счёт до отпечатка: окна нет, слов «файл новый» нет нигде', async () => {
     const buffer = bytesOf(`старый ${h.stamp}`);
     await fromScanApi(page, `Старый-${h.stamp}.pdf`, buffer);
-    await page.route('**/api/costs/invoices/same-file?**', route => {
+    await underRoute(page, '**/api/costs/invoices/same-file?**', route => {
       const prints = new URL(route.request().url()).searchParams.getAll('fingerprint');
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(prints.map(fingerprint => ({ fingerprint, twins: [] }))) });
-    });
-    try {
+    }, async () => {
       const was = openedId(page);
       await dropOn(page, page.getByTestId('invoice-header'), [{ name: `Старый-повтор-${h.stamp}.pdf`, buffer }], h);
       await h.named('черновик не заведён', () => page.waitForFunction(
         was => new URL(location.href).searchParams.get('invoice') !== was, was, { timeout: 15_000 }));
       if (await repeatDialog().count()) throw new Error('пустой ответ открыл окно повтора');
       if (/файл новый/i.test(await page.locator('body').innerText())) throw new Error('экран сказал «файл новый»');
-    } finally { await page.unroute('**/api/costs/invoices/same-file?**'); }
+    });
   });
 
   // Файл к счёту — только явным действием (D6): окно с площадкой, у замены — вопрос. Без согласия файл и версия
