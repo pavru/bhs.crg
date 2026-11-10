@@ -28,11 +28,22 @@ export function stepIndex(current: number, delta: 1 | -1, length: number): numbe
  * <p>`fallback` — что выделено, пока человек не выделил ничего сам: «лучшее совпадение» при открытии
  * (issue #1518). Выводится, а не ставится эффектом: ответ о кандидатах приходит после открытия, и
  * поставленное эффектом выделение мигнуло бы пустым кадром.</p>
+ *
+ * <p><b>Сторож закрытия</b> ([COST-7], D7 costs-picker-sheet-reflow): карточку закрыли — под курсором оказалась
+ * строка, к которой мышь не шла (крестик стоит над списком, и после закрытия под ним строка). `guard()` делает
+ * первую строку, пришедшую в `hover`, базой: она не выделяется, сколько бы мышь над ней ни стояла. Строка с
+ * другим `id` — мышь перешла сама — выделяется как обычно. Сравнение по строке, а не по пикселям: порог в
+ * пикселях не отличил бы медленную проводку внутри строки от сдвига раскладки. Активная строка `hover` не шлёт
+ * (`ListOption`), поэтому базу называет и `over` — движение над списком целиком: после Esc курсор обычно на
+ * активной, и иначе базой стала бы первая соседняя, куда мышь перешла сама. Стрелки, выбор и уход мыши со
+ * списка сторожа снимают.</p>
  */
 export function usePickerSelection(ids: readonly string[], fallback: string | null = null) {
   const [chosen, setActive] = useState<string | null>(null);
   const active = chosen ?? fallback;
   const timer = useRef<number | null>(null);
+  // Сторож закрытия: `undefined` — снят; `null` — взведён, базы ещё нет; строка — база.
+  const base = useRef<string | null | undefined>(undefined);
 
   function settle() {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -47,17 +58,36 @@ export function usePickerSelection(ids: readonly string[], fallback: string | nu
     index,
     /** Мышь двигается над строкой: пауза отсчитывается заново с каждым движением. */
     hover(id: string) {
+      if (base.current !== undefined) {
+        if (base.current === null) base.current = id;
+        if (base.current === id) return;
+        base.current = undefined;
+      }
       settle();
       timer.current = window.setTimeout(() => { timer.current = null; setActive(id); }, HOVER_REST);
     },
+    /** Мышь двигается над строкой списка, активной в том числе: при взведённом стороже она становится базой. */
+    over(id: string) {
+      if (base.current === null) base.current = id;
+    },
     /** Мышь ушла: недостоявшееся не выделяется, выделенное остаётся. */
-    leave: settle,
+    leave() {
+      base.current = undefined;
+      settle();
+    },
+    /** Карточку закрыли: строка, оказавшаяся под курсором, не выделяется, пока мышь не перейдёт в другую. */
+    guard() {
+      base.current = null;
+      settle();
+    },
     step(delta: 1 | -1) {
+      base.current = undefined;
       settle();
       const next = stepIndex(index, delta, ids.length);
       if (next >= 0) setActive(ids[next]);
     },
     select(id: string | null) {
+      base.current = undefined;
       settle();
       setActive(id);
     },

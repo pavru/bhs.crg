@@ -53,33 +53,35 @@ export interface PickerCurrent {
 }
 
 /**
- * Блок «Подходящие для этой строки» над списком при пустом запросе (issue #1518). Каждое состояние —
- * своими словами: «подбираем», «не нашлось», «не сработал» — разные вещи, и пустой блок на месте любого
- * из них читался бы как «подходящих нет», а за ним — вторая такая же позиция в справочнике.
- */
-/**
- * Что блок читает у ответа подбора. Уже, чем весь результат запроса, чтобы вызывающий мог подменить данные, не
- * копируя результат целиком: копия читает все его поля и выключает отслеживание прочитанного у React Query.
+ * Что части блока читают у ответа подбора. Уже, чем весь результат запроса, чтобы вызывающий мог подменить данные,
+ * не копируя результат целиком: копия читает все его поля и выключает отслеживание прочитанного у React Query.
  */
 export type CandidatesAnswer = Pick<UseQueryResult<NomenclatureCandidates>, 'data' | 'isPending' | 'isError' | 'isSuccess' | 'error' | 'refetch'>;
 
-export function CandidatesBlock({ asked, answer, rows, more, current, headingId, children }: {
+/*
+ * Блок «Подходящие для этой строки» при пустом запросе (issue #1518). Каждое состояние — своими словами:
+ * «подбираем», «не нашлось», «не сработал» — разные вещи, и пустой блок на месте любого из них читался бы как
+ * «подходящих нет», а за ним — вторая такая же позиция в справочнике.
+ *
+ * Блок разложен на три части по месту ([COST-7], D6 costs-picker-sheet-reflow): всё, что переносится по ширине,
+ * стоит либо в полосе над колонками (CandidatesNotices), либо под списками (CandidatesTail). Между строками
+ * кандидатов и справочника — только однострочные заголовки: иначе карточка, открывшись рядом и сузив колонку,
+ * переносила бы оговорку и сдвигала строки справочника из-под мыши.
+ */
+
+/** Полоса над колонками: что стоит в строке сейчас, запомненная позиция, отказ подбора, «спросить не о чем». */
+export function CandidatesNotices({ asked, answer, current }: {
   /** Спросить было о чём: у строки есть наименование или артикул. */
   asked: boolean;
   answer: CandidatesAnswer;
-  /** Строки кандидатов уже стоят в списке окна — сюда приходит только их число. */
-  rows: number;
-  more: boolean;
   current: PickerCurrent | null;
-  /** Заголовок блока подписывает список кандидатов. */
-  headingId: string;
-  /** Список кандидатов — строки окна, им ведёт одно выделение. */
-  children: ReactNode;
 }) {
   const data = answer.data;
   // Запомненная позиция и есть выбранная (окно соответствий, строка с архивной позицией): о ней уже
   // сказано «Сейчас: … (в архиве)», второй абзац повторил бы то же другими словами.
   const unusable = data?.recalledUnusable?.id === current?.id ? null : data?.recalledUnusable;
+  const failed = asked && answer.isError;
+  if (!current && !unusable && asked && !failed) return null;
   return (
     <div className="space-y-1.5">
       {current && (
@@ -98,48 +100,80 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
             : 'Для этой строки поставщика запомнена позиция, которой в справочнике больше нет. Выберите другую.'}
         </p>
       )}
-
-      {!asked ? (
+      {!asked && (
         <p className="text-body-small text-on-surface-variant">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
-      ) : (
-        <>
-          <h4 id={headingId} className="text-body-small font-medium text-on-surface-variant">Подходящие для этой строки</h4>
-          {answer.isPending && (
-            <div aria-busy="true" className="space-y-1">
-              <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
-              <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
-              <p className="text-body-small text-on-surface-variant">Подбираем по словам строки…</p>
-            </div>
-          )}
-          {answer.isError && (
-            <div>
-              <Refusal>
-                Подбор не сработал: {apiError(answer.error, 'сервер отказал')}. Это не «подходящих нет» — найдите
-                позицию поиском.
-              </Refusal>
-              <Button variant="text" onClick={() => void answer.refetch()}>Повторить</Button>
-            </div>
-          )}
-          {children}
-          {answer.isSuccess && rows === 0 && (
-            <>
-              <p className="text-body-small text-on-surface-variant">По словам строки подходящих не нашлось.</p>
-              <p className="text-body-small text-on-surface-variant">
-                Это не значит, что позиции в справочнике нет: подбор сравнивает слова и артикул, а написанное
-                иначе («3х2,5» и «3*2.5») не сводит. Найдите поиском — или заведите новую позицию.
-              </p>
-            </>
-          )}
-          {more && <p className="text-body-small text-on-surface-variant">Есть ещё подходящие — уточните поиском.</p>}
-          {!!data?.inArchive && (
-            <p className="text-body-small text-on-surface-variant">Похожих в архиве: {data.inArchive} — заводить заново не нужно.</p>
-          )}
-          {!!data?.unreadable && (
-            <p className="text-body-small text-warning">
-              Не сверено позиций: {data.unreadable} — их записи прочитать не удалось. Это не «не подходят».
-            </p>
-          )}
-        </>
+      )}
+      {failed && (
+        <div>
+          <Refusal>
+            Подбор не сработал: {apiError(answer.error, 'сервер отказал')}. Это не «подходящих нет» — найдите
+            позицию поиском.
+          </Refusal>
+          <Button variant="text" onClick={() => void answer.refetch()}>Повторить</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Колонка списка: заголовок, ожидание, строки кандидатов и одна строка «не нашлось» — ничего, что переносится. */
+export function CandidatesBlock({ asked, answer, rows, headingId, children }: {
+  asked: boolean;
+  answer: CandidatesAnswer;
+  /** Строки кандидатов уже стоят в списке окна — сюда приходит только их число. */
+  rows: number;
+  /** Заголовок блока подписывает список кандидатов. */
+  headingId: string;
+  /** Список кандидатов — строки окна, им ведёт одно выделение. */
+  children: ReactNode;
+}) {
+  // Спросить не о чем или подбор отказал — сказано в полосе; заголовок без строк под ним читался бы «подходящих нет».
+  if (!asked || answer.isError) return null;
+  return (
+    <div className="space-y-1.5">
+      <h4 id={headingId} className="text-body-small font-medium text-on-surface-variant">Подходящие для этой строки</h4>
+      {answer.isPending && (
+        <div aria-busy="true" className="space-y-1">
+          <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
+          <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
+          <p className="text-body-small text-on-surface-variant">Подбираем по словам строки…</p>
+        </div>
+      )}
+      {children}
+      {answer.isSuccess && rows === 0 && (
+        <p className="truncate text-body-small text-on-surface-variant">По словам строки подходящих не нашлось.</p>
+      )}
+    </div>
+  );
+}
+
+/** Под списками: оговорки к подбору — их обрезать нельзя, а между списками они сдвигали бы строки справочника. */
+export function CandidatesTail({ asked, answer, rows, more }: {
+  asked: boolean;
+  answer: CandidatesAnswer;
+  rows: number;
+  more: boolean;
+}) {
+  const data = answer.data;
+  if (!asked || !answer.isSuccess) return null;
+  const empty = rows === 0;
+  if (!empty && !more && !data?.inArchive && !data?.unreadable) return null;
+  return (
+    <div className="space-y-1.5">
+      {empty && (
+        <p className="text-body-small text-on-surface-variant">
+          Это не значит, что позиции в справочнике нет: подбор сравнивает слова и артикул, а написанное
+          иначе («3х2,5» и «3*2.5») не сводит. Найдите поиском — или заведите новую позицию.
+        </p>
+      )}
+      {more && <p className="text-body-small text-on-surface-variant">Есть ещё подходящие — уточните поиском.</p>}
+      {!!data?.inArchive && (
+        <p className="text-body-small text-on-surface-variant">Похожих в архиве: {data.inArchive} — заводить заново не нужно.</p>
+      )}
+      {!!data?.unreadable && (
+        <p className="text-body-small text-warning">
+          Не сверено позиций: {data.unreadable} — их записи прочитать не удалось. Это не «не подходят».
+        </p>
       )}
     </div>
   );

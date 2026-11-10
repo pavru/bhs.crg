@@ -13,7 +13,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { NewNomenclatureStep } from '@/features/costs/NewNomenclatureStep';
-import { CandidatesBlock, PickerOption, type CandidatesAnswer } from '@/features/costs/PickerRows';
+import { CandidatesBlock, CandidatesNotices, CandidatesTail, PickerOption, type CandidatesAnswer } from '@/features/costs/PickerRows';
 import { candidateRows, foundRows, type PickerRow } from '@/features/costs/pickerCandidates';
 import { usePickerSelection } from '@/features/costs/pickerSelection';
 import { memoryText } from './matchRows';
@@ -176,11 +176,16 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
             )}
           </div>
         ) : (
-          <CandidatesBlock asked answer={answer} rows={picked.rows.length} more={picked.more} current={null} headingId={`${listId}-h`}>
-            {picked.rows.length > 0 && (
-              <div id={listId} role="listbox" aria-labelledby={`${listId}-h`} className="-mx-4">{picked.rows.map(option)}</div>
-            )}
-          </CandidatesBlock>
+          // Листа рядом нет — части блока подбора стоят подряд, как один блок.
+          <div className="space-y-1.5">
+            <CandidatesNotices asked answer={answer} current={null} />
+            <CandidatesBlock asked answer={answer} rows={picked.rows.length} headingId={`${listId}-h`}>
+              {picked.rows.length > 0 && (
+                <div id={listId} role="listbox" aria-labelledby={`${listId}-h`} className="-mx-4">{picked.rows.map(option)}</div>
+              )}
+            </CandidatesBlock>
+            <CandidatesTail asked answer={answer} rows={picked.rows.length} more={picked.more} />
+          </div>
         )}
       </div>
 
