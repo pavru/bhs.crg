@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
-import { RightPanelOpen } from '@/shared/ui/icons';
+import { OpenInFull, RightPanelClose, RightPanelOpen } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
@@ -12,7 +12,8 @@ import { saveScan } from './scanView';
 import { FILE_OVER_REASON, type InvoicePlace } from './invoicePlace';
 
 /**
- * «Файл» в сводке счёта (costs-invoice-screen-10-layout, D-10.3, ТЗ COST-6.2 и COST-6.3).
+ * «Файл» в сводке счёта (costs-invoice-screen-10-layout, D-10.3, ТЗ COST-6.2 и COST-6.3; значок по месту —
+ * costs-invoice-file-button-icon).
  *
  * <p>Рядом с формой место есть — кнопка открывает и закрывает панель файла справа, и выбор помнится
  * (`onToggle`). Места нет — открывает файл просмотрщиком ПОВЕРХ формы, а причину называет подсказка: молча
@@ -102,7 +103,15 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
     } else void openFile();
   };
 
-  const beside = file === 'beside';
+  // Что видно у кнопки в каждом месте файла — одной записью: значок, подсказка, состояние и действие меняются
+  // вместе. Значок называет, что сделает нажатие ([COST-6.3], issue #1874): открыть панель, закрыть её или
+  // развернуть файл поверх формы. Подпись «Файл» одна во всех местах — имя переключателя не меняется, состояние
+  // называет `aria-pressed` (у «поверх» его нет: там кнопка не переключает, а открывает).
+  const look = {
+    closed: { icon: RightPanelOpen, title: 'Показать файл рядом с формой', pressed: false, onClick: onToggle },
+    beside: { icon: RightPanelClose, title: 'Скрыть файл', pressed: true, onClick: onToggle },
+    over: { icon: OpenInFull, title: FILE_OVER_REASON, pressed: undefined, onClick: over },
+  }[file];
   // Пока виды файлов и вид для чтения не пришли, решать, чем показывать, не по чему: поверх формы открылся бы
   // не вид для чтения, а скачанный оригинал. И повторный щелчок не начинает второе открытие (ревью PR #1794).
   const waiting = file === 'over' && (kinds.isLoading || image.isLoading);
@@ -131,10 +140,8 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   useImperativeHandle(showRef, () => ({ show: () => showNow.current() }), []);
   return (
     <>
-      <IconButton icon={RightPanelOpen} label="Файл" aria-pressed={file === 'over' ? undefined : beside}
-        title={file === 'over' ? FILE_OVER_REASON : beside ? 'Скрыть файл' : 'Показать файл рядом с формой'}
-        loading={loading}
-        onClick={file === 'over' ? over : onToggle} />
+      <IconButton icon={look.icon} label="Файл" aria-pressed={look.pressed} title={look.title}
+        loading={loading} onClick={look.onClick} />
       {shown && (
         <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}
           title={shown.title} rememberZoomAs="invoice-overlay"
