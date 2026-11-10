@@ -10,9 +10,44 @@
 // Черновики, заведённые здесь, здесь же и удаляются (ревью PR #1821): иначе каждый прогон засорял бы список.
 //
 // Отдельным файлом: `costs-smoke` у порога размера. Едет внутри него, с его помощниками.
+//
+// ⚠️ Перехват записи снимается ТОЛЬКО на затихшей странице (`settled`), а не сразу по её ответу. Удачная запись
+// тут же уводит на новую накладную, и POST её заведения уходит в ту же миллисекунду, когда проверка снимала
+// маршрут. Снятие последнего маршрута выключает перехват в браузере, и запрос, начатый в этот миг вслед за
+// запросом, который маршрут держал, Playwright 1.62 не отпускает НИКОГДА: «новая накладная не открылась», а
+// «Новая накладная» заперта висящим заведением — и следующая проверка ждёт её 30 с (CI 09.11 и 10.11.2026).
+// Голым Playwright, без приложения: 17 зависших из 300 при снятии по ответу задержанного, 0 из 300 при снятии
+// после конца цепочки и 0 из 400, если маршрут ничего не держал. Окно этим сужено, а не закрыто: фоновый опрос
+// приложения может уйти в тот же миг и на затихшей странице. Закрыть его можно только в обвязке — маршрутом,
+// который не снимается и держит перехват включённым.
+
+import { settled } from './harness.mjs';
 
 /** На сколько задержать запись накладной — вопрос успевают увидеть занятым. */
 const HOLD_MS = 1_500;
+
+/**
+ * `body` под перехватом `address`; снят он — когда приложение закончило отвечать: запрос, начатый в миг
+ * снятия, повис бы навсегда (см. шапку). Не затихла зелёная проверка — она красная, словами `settled`.
+ */
+async function underRoute(page, address, handler, body) {
+  await page.route(address, handler);
+  let red;
+  try {
+    return await body();
+  } catch (e) {
+    red = e;
+    throw e;
+  } finally {
+    // Красная ждёт недолго — она могла покраснеть как раз из-за повисшего запроса, — и не прячет, кого ждала:
+    // это разгадка её отказа.
+    const quiet = settled(page, red ? { timeout: 5_000 } : undefined).catch(e => {
+      if (!red) throw e;
+      red.message += `; снятие перехвата: ${e.message}`;
+    });
+    try { await quiet; } finally { await page.unroute(address, handler); }
+  }
+}
 
 export async function waybillLeaveChecks({ seat, check, api, visit }) {
   const { page } = seat;
@@ -64,11 +99,11 @@ export async function waybillLeaveChecks({ seat, check, api, visit }) {
     const hold = async route => {
       if (route.request().method() !== 'PUT') return route.continue();
       await new Promise(resolve => setTimeout(resolve, HOLD_MS));
-      // Проверка могла упасть и снять перехват, пока запись держали: запрос тогда уже отпущен.
+      // Снятие перехвата задержанную запись дожидается (`settled` видит её в полёте); отказ `continue` — лишь
+      // у страницы, закрытой посреди задержки оборванным набором.
       await route.continue().catch(() => {});
     };
-    await page.route(`**/api/costs/waybills/${id}`, hold);
-    try {
+    await underRoute(page, `**/api/costs/waybills/${id}`, hold, async () => {
       await page.getByRole('button', { name: 'Новая накладная' }).click();
       await question.waitFor({ timeout: 10_000 })
         .catch(() => { throw new Error('«Новая накладная» при набранном ушла без вопроса'); });
@@ -84,11 +119,10 @@ export async function waybillLeaveChecks({ seat, check, api, visit }) {
       const write = await answered;
       if (write instanceof Error) throw write;
       if (!write.ok()) throw new Error(`запись накладной: ${write.status()}`);
-    } finally {
-      await page.unroute(`**/api/costs/waybills/${id}`, hold);
-    }
-    await question.waitFor({ state: 'hidden', timeout: 10_000 });
-    await leftFrom(id).catch(() => { throw new Error('после удачной записи новая накладная не открылась'); });
+      // Уход — внутри перехвата: он и есть те запросы, которые снятие маршрута могло подвесить (см. шапку).
+      await question.waitFor({ state: 'hidden', timeout: 10_000 });
+      await leftFrom(id).catch(() => { throw new Error('после удачной записи новая накладная не открылась'); });
+    });
     const saved = await api(page, 'GET', `/costs/waybills/${id}`);
     if (saved.note !== `набрано до ухода ${stamp}`) throw new Error(`правка не записана перед уходом: «${saved.note}»`);
   }
@@ -104,20 +138,23 @@ export async function waybillLeaveChecks({ seat, check, api, visit }) {
       ? route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Накладную тем временем изменили (проба)."}' })
       : route.continue();
     page.on('request', onRequest);
-    await page.route(`**/api/costs/waybills/${id}`, refuse);
     try {
-      await page.getByRole('button', { name: 'Новая накладная' }).click();
-      await question.waitFor({ timeout: 10_000 });
-      await saveAndGo.click();
-      await question.waitFor({ state: 'hidden', timeout: 10_000 })
-        .catch(() => { throw new Error('после отказа записи вопрос остался'); });
-      await page.waitForTimeout(500);
-      if (opened() !== id) throw new Error('отказ записи не отменил уход: открыта другая накладная');
-      if (posted) throw new Error('отказ записи не отменил уход: заведена новая накладная');
-      if (await page.getByLabel('Примечание').inputValue() !== `набрано до ухода ${stamp}`)
-        throw new Error('после отказа записи набранное пропало');
+      await underRoute(page, `**/api/costs/waybills/${id}`, refuse, async () => {
+        await page.getByRole('button', { name: 'Новая накладная' }).click();
+        await question.waitFor({ timeout: 10_000 });
+        await saveAndGo.click();
+        await question.waitFor({ state: 'hidden', timeout: 10_000 })
+          .catch(() => { throw new Error('после отказа записи вопрос остался'); });
+        // Уход, если отказ его не отменил, — запросом вслед за ответом на запись. Ждём, пока приложение ответит
+        // на отказ целиком (и перечитает накладную), а не паузу: паузы на медленном раннере могло не хватить.
+        // Снятие перехвата следом ждёт того же — на затихшей уже странице это два спокойных круга.
+        await settled(page);
+        if (opened() !== id) throw new Error('отказ записи не отменил уход: открыта другая накладная');
+        if (posted) throw new Error('отказ записи не отменил уход: заведена новая накладная');
+        if (await page.getByLabel('Примечание').inputValue() !== `набрано до ухода ${stamp}`)
+          throw new Error('после отказа записи набранное пропало');
+      });
     } finally {
-      await page.unroute(`**/api/costs/waybills/${id}`, refuse);
       page.off('request', onRequest);
     }
   }
