@@ -334,15 +334,18 @@ export async function settled(page, { timeout = 20_000 } = {}) {
  */
 export async function underRoute(page, address, handler, body) {
   await page.route(address, handler);
-  let red = null;
+  // Красна ли проверка — флагом, а не по брошенному: брошенным бывает и `undefined`.
+  let failed = false;
+  let red;
   try {
     return await body();
   } catch (e) {
+    failed = true;
     red = e;
     throw e;
   } finally {
-    await unrouteQuiet(page, address, handler, red ? { timeout: 5_000 } : {}).catch(e => {
-      if (!red) throw e;
+    await unrouteQuiet(page, address, handler, failed ? { timeout: 5_000 } : {}).catch(e => {
+      if (!failed) throw e;
       if (red instanceof Error) red.message += `; ${e.message}`;
     });
   }
@@ -359,7 +362,7 @@ export async function unrouteQuiet(page, address, handler, { timeout } = {}) {
       throw new Error('страница не под наблюдением — её ставит login(), а без входа — watchRequests(page) до первого перехода');
     await settled(page, timeout ? { timeout } : undefined);
   } catch (e) {
-    throw new Error(`снятие перехвата: ${e.message}`);
+    throw new Error(`снятие перехвата: ${e.message}`, { cause: e });
   } finally {
     await page.unroute(address, handler);
   }

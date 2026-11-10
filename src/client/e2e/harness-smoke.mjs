@@ -256,13 +256,17 @@ await check('under-route-waits-for-the-request-sent-after-the-intercepted-answer
 // Красная проверка ждёт затихания недолго и дописывает, кого ждала, — свои слова оставляя первыми.
 await check('under-route-of-a-red-check-names-what-it-waited-for', async () => {
   const started = Date.now();
-  await refused(underRoute(page, '**/never', route => route.continue(), async () => {
-    await page.evaluate(() => { fetch('/hang?who=red'); });
-    await hangs('red');
-    throw new Error('тело красное');
-  }), /^тело красное; снятие перехвата: страница не затихла за 5 с: в полёте GET \/hang\?who=red/);
-  if (Date.now() - started > 9_000) throw new Error(`красная проверка ждала затихания ${Date.now() - started} мс`);
-  await page.goto(`${ORIGIN}/blank`);   // висящий запрос снимает только новый документ
+  try {
+    await refused(underRoute(page, '**/never', route => route.continue(), async () => {
+      await page.evaluate(() => { fetch('/hang?who=red'); });
+      await hangs('red');
+      throw new Error('тело красное');
+    }), /^тело красное; снятие перехвата: страница не затихла за 5 с: в полёте GET \/hang\?who=red/);
+    if (Date.now() - started > 9_000) throw new Error(`красная проверка ждала затихания ${Date.now() - started} мс`);
+  } finally {
+    // Висящий запрос снимает только новый документ — и при провале тоже, иначе краснели бы проверки ниже.
+    await page.goto(`${ORIGIN}/blank`);
+  }
 });
 
 await check('unroute-quiet-refuses-a-page-nobody-watches-and-still-unroutes', async () => {
