@@ -103,10 +103,15 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
     } else void openFile();
   };
 
-  const beside = file === 'beside';
-  // Значок называет, что сделает нажатие ([COST-6.3], issue #1874): открыть панель, закрыть её или развернуть
-  // файл поверх формы. Подпись и `aria-pressed` от значка не зависят — имя переключателя не меняется.
-  const icon = file === 'over' ? OpenInFull : beside ? RightPanelClose : RightPanelOpen;
+  // Что видно у кнопки в каждом месте файла — одной записью: значок, подсказка, состояние и действие меняются
+  // вместе. Значок называет, что сделает нажатие ([COST-6.3], issue #1874): открыть панель, закрыть её или
+  // развернуть файл поверх формы. Подпись «Файл» одна во всех местах — имя переключателя не меняется, состояние
+  // называет `aria-pressed` (у «поверх» его нет: там кнопка не переключает, а открывает).
+  const look = {
+    closed: { icon: RightPanelOpen, title: 'Показать файл рядом с формой', pressed: false, onClick: onToggle },
+    beside: { icon: RightPanelClose, title: 'Скрыть файл', pressed: true, onClick: onToggle },
+    over: { icon: OpenInFull, title: FILE_OVER_REASON, pressed: undefined, onClick: over },
+  }[file];
   // Пока виды файлов и вид для чтения не пришли, решать, чем показывать, не по чему: поверх формы открылся бы
   // не вид для чтения, а скачанный оригинал. И повторный щелчок не начинает второе открытие (ревью PR #1794).
   const waiting = file === 'over' && (kinds.isLoading || image.isLoading);
@@ -135,10 +140,8 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   useImperativeHandle(showRef, () => ({ show: () => showNow.current() }), []);
   return (
     <>
-      <IconButton icon={icon} label="Файл" aria-pressed={file === 'over' ? undefined : beside}
-        title={file === 'over' ? FILE_OVER_REASON : beside ? 'Скрыть файл' : 'Показать файл рядом с формой'}
-        loading={loading}
-        onClick={file === 'over' ? over : onToggle} />
+      <IconButton icon={look.icon} label="Файл" aria-pressed={look.pressed} title={look.title}
+        loading={loading} onClick={look.onClick} />
       {shown && (
         <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}
           title={shown.title} rememberZoomAs="invoice-overlay"
