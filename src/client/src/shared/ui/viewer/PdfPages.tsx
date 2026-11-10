@@ -25,13 +25,16 @@ import './sheet.css';
 /** Перерисовка после смены масштаба — с задержкой: до неё лист растягивает CSS. */
 const RERENDER_MS = 150;
 
-export function PdfPages({ doc, layout, scale, rotation, range, prepared }: {
+export function PdfPages({ doc, layout, scale, rotation, range, prepared, dimmed }: {
   doc: PdfDocument; layout: Layout; scale: number; rotation: number; range: [number, number];
   /** Листы этого документа, нарисованные до подмены. */
   prepared: Prepared | null;
+  /** Показанное устарело — листы приглушены (`PdfViewerProps.dimmed`). */
+  dimmed?: boolean;
 }) {
   return (
-    <div className="relative" style={{ height: layout.total, minWidth: layout.width }}>
+    <div className={`relative transition-opacity ${dimmed ? 'opacity-60' : ''}`} data-dimmed={dimmed || undefined}
+      style={{ height: layout.total, minWidth: layout.width }}>
       {layout.tops.map((top, i) => {
         const n = i + 1;
         return (

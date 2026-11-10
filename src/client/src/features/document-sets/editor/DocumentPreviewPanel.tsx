@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { Refresh, ScanDelete } from '@/shared/ui/icons';
+import { ErrorIcon, KeyboardArrowDown, KeyboardArrowUp, Refresh, ScanDelete } from '@/shared/ui/icons';
 import { previewDocument, type PreviewResult } from '@/shared/api/documentSets';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { SideSheet } from '@/shared/ui/SideSheet';
+import { formatTime } from '@/shared/format/format';
 import { setDocumentPreviewOpen, useDocumentPreview } from './documentPreviewOpen';
 import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
+/** Отказ сервера: построить PDF не вышло (`error`) или строить не по чему (`no-template`). */
+type Failure = Exclude<PreviewResult, { kind: 'pdf' }>;
+
 type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'pdf'; blob: Blob }
-  | { kind: 'no-template' }
-  | { kind: 'error'; message: string };
+  // `failure` — последний запрос отказал, а на экране прежний PDF: он устарел, но лист, масштаб и поворот целы.
+  | { kind: 'pdf'; blob: Blob; failure?: Failure }
+  | Failure;
+
+const NO_TEMPLATE_HINT = 'Добавьте шаблон типа документа и отметьте его по умолчанию.';
 
 /**
  * Живой предпросмотр документа (issue #193): справа от формы, реальный PDF по дефолтному шаблону.
@@ -25,6 +31,13 @@ type State =
  *
  * PDF показывает общий просмотрщик (issue #1493): ключ документа — сам документ, поэтому новый вариант
  * встаёт на том же листе и месте, с тем же масштабом и поворотом, без пустого кадра.
+ *
+ * Отказ ОБНОВЛЕНИЯ прежний PDF не стирает (макет «Отказ обновления предпросмотра», вариант В,
+ * https://claude.ai/artifact/WGUgN3ALJt6qGs8pMDXaFc): пока правят реквизит, промежуточное значение ломает
+ * компиляцию шаблона, и плашка вместо PDF размонтировала бы просмотрщик — исправленный вариант открывался бы
+ * с 1-го листа. Поэтому PDF остаётся (приглушённым), а строка времени постоянной высоты становится строкой
+ * отказа: лист под ней не прыгает, сколько бы отказов ни пришло при наборе. Текст сервера — по «Подробнее».
+ * Плашка по центру панели — только у отказа первого показа, когда PDF ещё не было.
  *
  * Монтируется заново на каждый документ (`key={instance.id}` во вкладке реквизитов): вкладка при переходе
  * к другому документу не пересоздаётся, и панель показала бы PDF прежнего под ключом нового, а его
@@ -39,6 +52,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   // Идёт перегенерация. На обновлении прежний PDF остаётся на экране — крутится только «Обновить».
   const [busy, setBusy] = useState(false);
+  // Раскрыт ли текст отказа. Следующий отказ его не схлопывает (текст сменится на месте), удачный вариант — да.
+  const [details, setDetails] = useState(false);
   const reqId = useRef(0);
 
   const run = useCallback(async () => {
@@ -53,8 +68,10 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
     if (res.kind === 'pdf') {
       setState({ kind: 'pdf', blob: res.blob });
       setUpdatedAt(Date.now());
+      setDetails(false);
     } else {
-      setState(res);
+      // Отказ обновления: тот же объект Blob и тот же ключ — просмотрщик не перемонтируется и не перечитывает файл.
+      setState(s => s.kind === 'pdf' ? { kind: 'pdf', blob: s.blob, failure: res } : res);
     }
   }, [instanceId, requisites]);
 
@@ -68,18 +85,32 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   // Открытая панель покажет PDF — ядро просмотрщика грузится, пока строится первый вариант.
   useEffect(() => { if (open) preloadPdfViewer(); }, [open]);
 
+  const stale = state.kind === 'pdf' ? state.failure : undefined;
+  // Объявление отказа обновления. Живая область стоит в панели всегда и меняет только текст: вставленную
+  // сразу с текстом дикторы не объявляют. Вежливо (`status`), а не `alert`: отказы приходят, пока человек
+  // печатает в форме, и перебивать чтение поля каждые полторы секунды нельзя. Тот же текст повторно не
+  // объявляется — и не надо: набор продолжается, а отказ всё тот же.
+  const announce = stale ? `Предпросмотр не обновлён: ${staleWhat(stale)}` : '';
   return (
     <SideSheet variant="standard" open={open} onClose={() => setDocumentPreviewOpen(false)} autoFocus={false}
       title="Предпросмотр" label="Предпросмотр документа" closeLabel="Скрыть предпросмотр"
       actions={<IconButton label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'} loading={busy} icon={Refresh} />}>
       <div data-testid="document-preview" className="flex flex-col h-full gap-2">
-      {updatedAt && state.kind === 'pdf' && (
-        <p className="shrink-0 text-body-small text-on-surface-variant">обновлено {timeAgo(updatedAt)}</p>
+      <div role="status" className="sr-only" data-testid="preview-live">{announce}</div>
+      {state.kind === 'pdf' && (
+        stale
+          ? <StaleNotice failure={stale} shownAt={updatedAt} open={details} onToggle={() => setDetails(d => !d)}
+              onRetry={() => void run()} busy={busy} />
+          // Высота строки — та же, что у строки отказа: смена одной на другую лист не сдвигает.
+          : <p className="shrink-0 h-10 flex items-center text-body-small text-on-surface-variant">
+              {updatedAt ? `обновлено ${timeAgo(updatedAt)}` : ''}
+            </p>
       )}
       <div className="flex-1 min-h-0 relative">
+        {/* Устаревший PDF приглушает сам просмотрщик — листы, но не строку инструментов и не своё сообщение. */}
         {state.kind === 'pdf' && (
           <PdfViewer source={state.blob} documentKey={instanceId} title="Предпросмотр документа"
-            rememberZoomAs="document-preview" />
+            rememberZoomAs="document-preview" dimmed={!!stale} />
         )}
         {state.kind === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center text-on-surface-variant">
@@ -95,7 +126,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
               <>
                 <Icon icon={ScanDelete} size={40} />
                 <p className="text-body-medium">Нет шаблона для предпросмотра</p>
-                <p className="text-body-small">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
+                <p className="text-body-small">{NO_TEMPLATE_HINT}</p>
               </>
             ) : (
               <>
@@ -103,7 +134,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
                 <p className="text-body-medium text-error">Не удалось построить предпросмотр</p>
                 {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
                 <p className="text-body-small break-words max-w-full whitespace-pre-line">{state.message}</p>
-                <Button variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
+                <Button variant="text" onClick={() => void run()} loading={busy} className="mt-1">Повторить</Button>
               </>
             )}
           </div>
@@ -114,6 +145,55 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
       </div>
       </div>
     </SideSheet>
+  );
+}
+
+/** Что не так — коротко, для строки отказа и объявления. */
+function staleWhat(failure: Failure): string {
+  return failure.kind === 'no-template' ? 'нет шаблона' : 'не удалось построить';
+}
+
+/**
+ * Строка отказа обновления (вариант В): знак, что не так и от какого времени показанный вариант, «Подробнее».
+ * Раскрытое — текст сервера и «Повторить» под строкой. Объявляет отказ живая область панели, а не строка:
+ * строка появляется сразу с текстом. Раскрытая часть стоит в разметке и свёрнутой (`hidden`) — иначе
+ * `aria-controls` указывал бы в пустоту.
+ */
+function StaleNotice({ failure, shownAt, open, onToggle, onRetry, busy }: {
+  failure: Failure;
+  shownAt: number | null;
+  open: boolean;
+  onToggle: () => void;
+  onRetry: () => void;
+  /** Повтор уже в пути: кнопка показывает ход и второй запрос не шлёт. */
+  busy: boolean;
+}) {
+  const detailsId = useId();
+  return (
+    <div data-testid="preview-stale" data-state={failure.kind} className="shrink-0 flex flex-col gap-2">
+      <div className="h-10 flex items-center gap-1.5">
+        <Icon icon={ErrorIcon} size={18} className="shrink-0 text-error" />
+        <p data-testid="preview-stale-text" className="flex-1 min-w-0 text-body-small text-error">
+          Не обновлён: {staleWhat(failure)}{shownAt ? ` · вариант от ${formatTime(shownAt)}` : ''}
+        </p>
+        <Button variant="text" aria-expanded={open} aria-controls={detailsId} onClick={onToggle}
+          trailingIcon={<Icon icon={open ? KeyboardArrowUp : KeyboardArrowDown} size={18} />}>
+          {open ? 'Скрыть' : 'Подробнее'}
+        </Button>
+      </div>
+      <div id={detailsId} hidden={!open} className="flex flex-col gap-1 rounded-sm bg-surface-container-highest pt-3 px-3 pb-1">
+        {failure.kind === 'error'
+          // Отказ компилятора — несколько строк с отступами и указателем под словом (issue #1047).
+          ? <pre data-testid="preview-stale-message"
+              className="max-h-24 overflow-auto font-mono text-body-small text-on-surface whitespace-pre-wrap break-words">
+              {failure.message}
+            </pre>
+          : <p data-testid="preview-stale-message" className="text-body-small text-on-surface">{NO_TEMPLATE_HINT}</p>}
+        <div className="flex justify-end">
+          <Button variant="text" onClick={onRetry} loading={busy}>Повторить</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

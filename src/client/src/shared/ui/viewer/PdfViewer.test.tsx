@@ -93,6 +93,23 @@ describe('просмотрщик: страница и границы', () => {
     await waitFor(async () => expect((await pageField()).value).toBe('1'));
   });
 
+  it('dimmed приглушает листы, но не строку инструментов; позиция при смене признака остаётся', async () => {
+    const { rerender } = shown(<PdfViewer {...props()} />);
+    await goToPage(3);
+    const sheets = () => screen.getByTestId('viewer-region').querySelector('[data-page="3"]')!.parentElement!;
+    expect(sheets().hasAttribute('data-dimmed')).toBe(false);
+
+    rerender(<StrictMode><PdfViewer {...props({ dimmed: true })} /></StrictMode>);
+    expect(sheets().getAttribute('data-dimmed')).toBe('true');
+    expect(sheets().className).toContain('opacity-60');
+    expect(screen.getByTestId('viewer-toolbar').closest('[data-dimmed]')).toBeNull();
+    expect((await pageField()).value).toBe('3');
+
+    rerender(<StrictMode><PdfViewer {...props()} /></StrictMode>);
+    expect(sheets().hasAttribute('data-dimmed')).toBe(false);
+    expect((await pageField()).value).toBe('3');
+  });
+
   it('новый ключ при тех же байтах — документ открывается заново, а не «загружается» навсегда', async () => {
     const { rerender } = shown(<PdfViewer {...props()} />);
     await goToPage(3);

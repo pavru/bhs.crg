@@ -24,7 +24,7 @@ import type { PdfViewerProps } from './PdfViewer';
  * - **Документ уничтожается ровно раз**: при замене другим и при уходе со страницы.
  */
 
-export default function PdfViewerImpl({ source, documentKey, title, actions, rememberZoomAs }: PdfViewerProps) {
+export default function PdfViewerImpl({ source, documentKey, title, actions, rememberZoomAs, dimmed }: PdfViewerProps) {
   const [shownKey, setShownKey] = useState(documentKey);
   const { mode, setMode, reset: resetZoom, announce, setAnnounce } = useZoomMode(rememberZoomAs);
   const [rotation, setRotation] = useState(0);
@@ -176,7 +176,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} onScroll={onScroll} data-testid="viewer-region"
         className="relative flex-1 min-h-0 overflow-auto focus-ring-inset">
         {ready
-          ? <PdfPages doc={doc} layout={l} scale={scale} rotation={rotation} range={range} prepared={prepared} />
+          ? <PdfPages doc={doc} layout={l} scale={scale} rotation={rotation} range={range} prepared={prepared} dimmed={dimmed} />
           : <ViewerMessage state={state === 'ready' ? 'loading' : state} source={source} actions={actions} />}
       </div>
       {ready && (
