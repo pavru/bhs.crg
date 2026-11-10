@@ -13,7 +13,8 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { NewNomenclatureStep } from '@/features/costs/NewNomenclatureStep';
-import { CandidatesBlock, PickerOption, type CandidatesAnswer } from '@/features/costs/PickerRows';
+import { CandidatesStack, PickerOption, type CandidatesAnswer } from '@/features/costs/PickerRows';
+import { candidatesView } from '@/features/costs/candidatesView';
 import { candidateRows, foundRows, type PickerRow } from '@/features/costs/pickerCandidates';
 import { usePickerSelection } from '@/features/costs/pickerSelection';
 import { memoryText } from './matchRows';
@@ -176,11 +177,13 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
             )}
           </div>
         ) : (
-          <CandidatesBlock asked answer={answer} rows={picked.rows.length} more={picked.more} current={null} headingId={`${listId}-h`}>
+          // Листа рядом нет — части блока подбора стоят подряд, как один блок.
+          <CandidatesStack view={candidatesView({ asked: true, answer, rows: picked.rows.length, more: picked.more, current: null })}
+            answer={answer} headingId={`${listId}-h`}>
             {picked.rows.length > 0 && (
               <div id={listId} role="listbox" aria-labelledby={`${listId}-h`} className="-mx-4">{picked.rows.map(option)}</div>
             )}
-          </CandidatesBlock>
+          </CandidatesStack>
         )}
       </div>
 

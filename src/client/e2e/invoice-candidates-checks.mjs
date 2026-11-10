@@ -65,6 +65,117 @@ export async function candidateChecks({ page, check, stamp, invoice, open, cell,
     await saveLines();
   });
 
+  // [COST-7] (costs-picker-sheet-reflow, вариант Е′): карточка, открывшись рядом со списком, сужает колонку. Раньше
+  // от этого переносилась плашка строки, а окно по центру экрана росло под лист, — строки сдвигались, под неподвижным
+  // курсором оказывалась соседняя, и первое же движение мыши показывало в карточке не ту позицию. Курсор ставится у
+  // верхнего края строки: туда сдвиг и уводил соседнюю.
+  //
+  // Высота 600: пять кандидатов в колонке не помещаются, и шаг с колесом действительно прокручивает список. Шаги
+  // закрытия ставят курсор над НЕактивной строкой: активная наведения не шлёт, и без сторожа (D7) такие шаги
+  // прошли бы и так.
+  await check('карточка позиции не уводит строку из-под мыши: открытие, дрожь мыши, колесо, Esc, крестик', async () => {
+    const before = page.viewportSize();
+    await page.setViewportSize({ width: 1366, height: 600 });
+    const card = picker().getByRole('complementary', { name: 'Карточка позиции' });
+    try {
+      // Пять позиций, имя каждой в строке целиком: пять кандидатов «по словам», ни одного сильного.
+      for (const extra of ['кабель', 'силовой', 'ГОСТ']) await position(`${name} ${extra}`);
+      const number = `СЧ-ПК${stamp}`;
+      await invoice(number);
+      await open(number);
+      await addRow(1);
+      // Длинные слова поставщика: на всю ширину окна — в одну строку плашки, рядом с карточкой — в две.
+      await cell('Наименование в счёте', 1)
+        .fill(`${name} медная в бухте, кабель силовой медный ГОСТ 31996-2012 для прокладки в лотках и трубах`);
+      await cell('Количество', 1).fill('1');
+      await choose().click();
+      const options = picker().getByRole('listbox', { name: 'Подходящие для этой строки' }).getByRole('option');
+      await options.nth(3).waitFor({ timeout: 15_000 })
+        .catch(() => { throw new Error('у строки «по словам» меньше четырёх кандидатов — колесу и закрытию не на чем'); });
+      if (await picker().getByText('Лучшее совпадение').count())
+        throw new Error('у строки «по словам» есть «Лучшее совпадение» — карточка открыта с первого кадра, сдвига не проверить');
+      const search = picker().getByRole('combobox', { name: 'Поиск позиции' });
+      const idOf = i => options.nth(i).getAttribute('id');
+      const active = () => search.getAttribute('aria-activedescendant');
+      const middle = async i => { const b = await options.nth(i).boundingBox(); return b.y + b.height / 2; };
+      const target = options.nth(1);
+      const box = await target.boundingBox();
+      if (!box) throw new Error('у второго кандидата нет места на экране');
+      const x = box.x + 160, y = box.y + 6;
+
+      // 1. Открытие и дрожь мыши.
+      await page.mouse.move(x, y - 1);
+      await page.mouse.move(x, y);
+      await card.waitFor({ timeout: 5_000 }).catch(() => { throw new Error('наведение не открыло карточку'); });
+      await page.mouse.move(x, y + 2);
+      await page.waitForTimeout(500);
+      if ((await active()) !== await idOf(1))
+        throw new Error('карточка открылась, мышь дрогнула на 2 px — и выделение ушло на соседнюю строку');
+      const after = await target.boundingBox();
+      if (!after || Math.abs(after.y - box.y) > 1)
+        throw new Error(`карточка сдвинула строки: было ${box.y}, стало ${after?.y}`);
+
+      // 2. Колесо под открытой карточкой: строки под курсором едут, выделение и карточка — нет.
+      const scrolled = () => target.evaluate(el => {
+        for (let n = el.parentElement; n; n = n.parentElement) if (n.scrollHeight > n.clientHeight + 1) return n.scrollTop;
+        return -1;
+      });
+      const top = await scrolled();
+      if (top < 0) throw new Error('список кандидатов не прокручивается — колесу проверять нечего');
+      await page.mouse.wheel(0, 120);
+      await page.waitForTimeout(500);
+      if ((await scrolled()) === top) throw new Error('колесо не прокрутило список');
+      if ((await active()) !== await idOf(1)) throw new Error('прокрутка колесом сама сменила выделение');
+      await page.mouse.wheel(0, -400);
+      await page.waitForTimeout(300);
+
+      // 3. Esc: выделение стрелкой ушло на первую строку, курсор — над второй. Строка под курсором карточку не открывает.
+      await search.focus();
+      await page.keyboard.press('ArrowUp');
+      if ((await active()) !== await idOf(0)) throw new Error('↑ не перевела выделение на первую строку');
+      await page.keyboard.press('Escape');
+      await card.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => { throw new Error('Esc не закрыл карточку'); });
+      await page.mouse.move(x, y + 4);
+      await page.mouse.move(x, y + 6);
+      await page.waitForTimeout(500);
+      if (await card.isVisible()) throw new Error('карточку закрыли Esc, мышь дрогнула — и строка под курсором открыла её снова');
+      // Мышь перешла в другую строку сама — карточка открывается, как обычно.
+      await page.mouse.move(x, await middle(2));
+      await card.waitFor({ timeout: 5_000 }).catch(() => { throw new Error('после Esc наведение на другую строку не открыло карточку'); });
+
+      // 4. Крестик: выделение стрелкой на второй строке, первое движение после закрытия — над третьей (так под
+      // курсором оказывается строка, подъехавшая на место листа).
+      await search.focus();
+      await page.keyboard.press('ArrowUp');
+      if ((await active()) !== await idOf(1)) throw new Error('↑ не перевела выделение на вторую строку');
+      await card.getByRole('button', { name: /Закрыть/ }).click();
+      await card.waitFor({ state: 'hidden', timeout: 5_000 });
+      const third = await middle(2);
+      await page.mouse.move(x, third);
+      await page.mouse.move(x, third + 2);
+      await page.waitForTimeout(500);
+      if (await card.isVisible()) throw new Error('карточку закрыли крестиком — и строка, оказавшаяся под курсором, открыла её снова');
+
+      // 5. Курсор при закрытии не над строкой: первое движение — над полем поиска, затем в строку — карточка открывается.
+      await page.mouse.move(x, await middle(0));
+      await card.waitFor({ timeout: 5_000 }).catch(() => { throw new Error('после крестика наведение на другую строку не открыло карточку'); });
+      await search.focus();
+      await page.keyboard.press('Escape');
+      await card.waitFor({ state: 'hidden', timeout: 5_000 });
+      const field = await search.boundingBox();
+      await page.mouse.move(field.x + 40, field.y + field.height / 2);
+      await page.mouse.move(x, await middle(1));
+      await card.waitFor({ timeout: 5_000 })
+        .catch(() => { throw new Error('после Esc мышь пришла в строку от поля поиска — а карточка не открылась'); });
+    } finally {
+      // Окно выбора закрыто целиком (Esc сначала закрывает лист), строка записана: иначе `beforeunload` черновика
+      // держал бы `goto` следующих проверок до таймаута.
+      for (let i = 0; i < 3 && await picker().isVisible(); i++) await page.keyboard.press('Escape');
+      await check.tidy('строка проверки карточки записана', saveLines);
+      if (before) await page.setViewportSize(before);
+    }
+  });
+
   await check('окно соответствий: выбранная позиция — «Сейчас», среди подходящих её нет', async () => {
     await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: 'Соответствия', exact: true }).click();
