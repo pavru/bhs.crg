@@ -128,8 +128,9 @@ public class SystemRolesTests(IntegrationTestFixture fixture)
 
     /// <summary>
     /// Описание системной роли — за кодом и у роли, заведённой прежним выпуском, даже правленой (issue #1866,
-    /// D3): «Бухгалтер» с прежним «Отметка оплаты, …» после старта говорит «Внесение оплаты, …». Иначе на
-    /// существующих установках описание роли и подпись кнопки разошлись бы навсегда.
+    /// D3): описание, записанное прежним выпуском, после старта заменяется объявленным в коде. На этом держится
+    /// смена слов в описании «Бухгалтера» без миграции данных — иначе на существующих установках описание роли
+    /// и подпись кнопки разошлись бы навсегда.
     /// </summary>
     [Fact]
     public async Task Old_summary_of_an_existing_system_role_is_rewritten_on_start()
@@ -140,12 +141,18 @@ public class SystemRolesTests(IntegrationTestFixture fixture)
         var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
         var accountant = SystemRoles.All.Single(r => r.Name == "Accountant");
 
-        var role = await roles.FindByNameAsync(accountant.Name);
-        foreach (var claim in (await roles.GetClaimsAsync(role!)).Where(c => c.Type == RoleSynchronizer.SummaryClaim))
-            await roles.RemoveClaimAsync(role!, claim);
-        await roles.AddClaimAsync(role!, new Claim(RoleSynchronizer.SummaryClaim, "Отметка оплаты, реестр счетов"));
-        var edited = new Claim(RoleSynchronizer.EditedClaim, "да");
-        await roles.AddClaimAsync(role!, edited);
+        var role = (await roles.FindByNameAsync(accountant.Name))!;
+        var before = await roles.GetClaimsAsync(role);
+        foreach (var claim in before.Where(c => c.Type == RoleSynchronizer.SummaryClaim))
+            await roles.RemoveClaimAsync(role, claim);
+        await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.SummaryClaim, "Отметка оплаты, реестр счетов"));
+
+        // Отметку правки ставим, только если её не было, и снимаем только свою: правку состава, сделанную
+        // соседним тестом коллекции, этот тест стирать не вправе.
+        var edited = before.Any(c => c.Type == RoleSynchronizer.EditedClaim)
+            ? null
+            : new Claim(RoleSynchronizer.EditedClaim, "да");
+        if (edited is not null) await roles.AddClaimAsync(role, edited);
 
         try
         {
@@ -155,13 +162,11 @@ public class SystemRolesTests(IntegrationTestFixture fixture)
                 .Where(c => c.Type == RoleSynchronizer.SummaryClaim)
                 .Select(c => c.Value);
             Assert.Equal([accountant.Summary], summaries);
-            Assert.StartsWith("Внесение оплаты", accountant.Summary);
         }
         finally
         {
-            // Отметка правки заморозила бы состав роли для соседних тестов коллекции.
-            await roles.RemoveClaimAsync((await roles.FindByNameAsync(accountant.Name))!, edited);
-            await RoleSynchronizer.SyncAsync(roles, catalog, NullLogger.Instance);
+            if (edited is not null)
+                await roles.RemoveClaimAsync((await roles.FindByNameAsync(accountant.Name))!, edited);
         }
     }
 

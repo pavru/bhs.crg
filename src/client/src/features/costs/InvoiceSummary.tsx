@@ -6,6 +6,7 @@ import { fullTextIfCut } from '@/shared/ui/fullTextIfCut';
 import type { PrimaryAction } from './invoicePrimary';
 import type { SummarySave } from './invoiceSummarySave';
 import { InvoiceSaveState } from './InvoiceSaveState';
+import { PAY_ENTRY } from './paymentPosting';
 
 /**
  * Сводка счёта — единственная неподвижная часть формы (costs-invoice-screen-10-layout, D-10.6, ТЗ
@@ -36,7 +37,7 @@ export interface SummaryPrimary {
 
 const PRIMARY: Record<SummaryPrimary['kind'], { label: string; icon: IconDef }> = {
   parsed: { label: 'Разобран', icon: CheckCircle },
-  pay: { label: 'Внести оплату…', icon: Payments },
+  pay: { label: PAY_ENTRY, icon: Payments },
   check: { label: 'Проверить исправление…', icon: SearchCheck },
 };
 

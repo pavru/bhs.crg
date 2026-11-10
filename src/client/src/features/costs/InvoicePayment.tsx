@@ -18,7 +18,7 @@ import {
 import { K, asInput } from './invoiceFields';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
-import { changedRows, paidToast, payLabel } from './paymentPosting';
+import { PAY_ENTRY, changedRows, paidToast, payLabel } from './paymentPosting';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { mayMarkPaid, payHold } from './invoicePrimary';
 
@@ -58,7 +58,7 @@ export function InvoicePayButton({ view, dirty, onPay }: {
   return (
     <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={hold !== null}
       title={hold ?? undefined} onClick={onPay}>
-      Внести оплату…
+      {PAY_ENTRY}
     </Button>
   );
 }
@@ -231,7 +231,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         <>
           <ModalExit />
           <ModalPrimary disabled={!payable} loading={pay.isPending} onClick={submit}>
-            {posting && payable ? payLabel(posting.rows) : 'Внести оплату'}
+            {payLabel(posting && payable ? posting.rows : [])}
           </ModalPrimary>
         </>}>
       <div className="space-y-4">

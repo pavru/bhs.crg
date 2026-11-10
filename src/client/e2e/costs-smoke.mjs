@@ -215,7 +215,7 @@ async function supplierPart() {
 
   await check('supplier-cannot-mark-payment', async () => {
     await openInvoice(supplier, invoiceId, 'счёт: оплата');
-    await absent(supplier, ['Внести оплату', 'Отменить оплату']);
+    await absent(supplier, ['Внести оплату…', 'Отменить оплату']);
 
     // Спрятанная кнопка не доказывает, что сервер закрыт: спрашиваем его самого. Этот отказ — ожидаемый.
     const path = `/costs/invoices/${invoiceId}/paid/preview`;
