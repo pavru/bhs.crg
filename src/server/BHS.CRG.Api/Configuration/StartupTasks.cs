@@ -150,6 +150,22 @@ internal static class StartupTasks
         // заходе в журнал — то есть отказ увидел бы читатель журнала, а не тот, кто собирал поставку.
         _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Activity.ActivityActionCatalog>();
 
+        // Межмодульные контракты — тем же приёмом (plan-22, CORE-34): каталог собирается и проверяется
+        // ЗДЕСЬ, из собранного контейнера, — нет реализации у включённого поставщика, два поставщика или
+        // чужая регистрация останавливают запуск. Исключение не ловится намеренно.
+        var contracts = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleContractCatalog>();
+        // Контракты со многими поставщиками — в журнал: признак явный, и каждый такой контракт назван,
+        // чтобы он не стал тихой лазейкой для обычного.
+        if (contracts.ManyProviders is { Count: > 0 } many)
+            app.Logger.LogInformation("Контракты со многими поставщиками: {Contracts}",
+                string.Join(", ", many.Select(c => $"«{c.Title}» ({c.Interface.Name})")));
+        // Поставщика нет в сборке — законно, но словами: опечатка в коде поставщика иначе выглядела бы как
+        // выключенный модуль навсегда.
+        foreach (var c in contracts.ProvidersNotInBuild)
+            app.Logger.LogWarning(
+                "Поставщика «{Provider}» контракта «{Contract}» ({Interface}) нет в этой сборке: потребитель получит «не подключено».",
+                c.Declaration.Provider, c.Title, c.Interface.Name);
+
         // Потребности модулей в справочниках ядра — тем же приёмом (issue #1101): роль, которой нет в
         // реестре, или тэг чужой роли обязаны остановить запуск, а не прийти отказом в форму счёта.
         var needs = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleNeeds>();

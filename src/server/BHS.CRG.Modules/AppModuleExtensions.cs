@@ -85,6 +85,9 @@ public static class AppModuleExtensions
             module.RegisterServices(services, configuration);
             Data.ModuleDataDeclaration.Ensure(module, services, before);
             Tables.ModuleTableCatalog.EnsureReaders(module, services);
+            // Реализации контрактов названы кодом этого модуля (plan-22, CORE-34) — по той же причине:
+            // чьими руками сделана регистрация, видно только здесь.
+            Exchange.ModuleContractServices.EnsureOwn(module, services, before);
         }
 
         // Таблицы — из ВСЕЙ сборки, а не из включённых (G1b, issue #1089): таблица выключенного модуля
