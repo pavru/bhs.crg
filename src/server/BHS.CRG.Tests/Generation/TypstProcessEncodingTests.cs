@@ -40,12 +40,14 @@ public class TypstProcessEncodingTests
         // Собран из nameof, а не записан строкой: иначе сторож нашёл бы сам себя.
         var handBuilt = new System.Text.RegularExpressions.Regex(
             $@"(FileName\s*=|ProcessStartInfo\s*\()\s*({nameof(TypstProcess)}\.)?{nameof(TypstProcess.ExecutablePath)}\b");
-        var factory = RepoPaths.File("src", "server", "BHS.CRG.Infrastructure", "Generation", "TypstProcess.cs");
+        // Фабрику узнаём по имени файла, а не по пути к проекту: обход и так идёт по всему src/server,
+        // модули включительно.
+        var factory = Path.Combine("Generation", "TypstProcess.cs");
         var offenders = Directory
             .EnumerateFiles(RepoPaths.File("src", "server"), "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                         && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                        && !string.Equals(Path.GetFullPath(f), Path.GetFullPath(factory), StringComparison.OrdinalIgnoreCase))
+                        && !f.EndsWith(Path.DirectorySeparatorChar + factory, StringComparison.OrdinalIgnoreCase))
             .Where(f => handBuilt.IsMatch(File.ReadAllText(f)))
             .Select(f => Path.GetRelativePath(RepoPaths.Root, f))
             .ToList();
