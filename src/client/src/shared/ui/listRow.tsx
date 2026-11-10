@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { fullTextIfCut } from './fullTextIfCut';
-import { present, type ListRowContent, type ListRowForm } from './listRowBox';
+import { present, quietTone, type ListRowContent, type ListRowForm } from './listRowBox';
 
 /**
  * Тело строки: ведущий знак, подпись с пояснением, замыкающий слот. `filled` — строка залита
@@ -10,7 +10,7 @@ import { present, type ListRowContent, type ListRowForm } from './listRowBox';
  */
 export function ListRowBody({ form, filled, icon, iconTone, leading, headline, title, supporting, trailing, overline }:
   ListRowContent & { form: ListRowForm; filled: boolean; /** Надпись над подписью (`ListOption`, форма `list`). */ overline?: ReactNode }) {
-  const tone = filled ? 'text-on-secondary-container' : 'text-on-surface-variant';
+  const tone = quietTone(filled);
   const full = title ?? (typeof headline === 'string' ? headline : undefined);
   const lead = icon ? <Icon icon={icon} size={24} className={`shrink-0 ${iconTone ?? tone}`} /> : leading;
   if (form === 'menu') {

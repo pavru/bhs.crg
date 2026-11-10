@@ -30,6 +30,7 @@ import { suggestChecks } from './suggest-checks.mjs';
 import { unsavedSupplierChecks } from './invoice-unsaved-supplier-checks.mjs';
 import { deleteAllocationChecks } from './invoice-delete-allocation-checks.mjs';
 import { editModeChecks } from './invoice-edit-mode-checks.mjs';
+import { listStateChecks } from './invoice-list-state-checks.mjs';
 import { statusBanner, statusPhrase, untilStatus } from './invoice-status.mjs';
 import { oneLineOnFocus, rowsAtLeast } from './edit-grid-layout.mjs';
 import { commitInvoice, invoiceOpened, saveInvoice } from './invoice-save.mjs';
@@ -703,6 +704,9 @@ try {
 
   // ── Разобранный правится режимом «Изменить» (D-12.4) — своим файлом ────────────
   await editModeChecks({ page, check, stamp, api, invoice, open, cell, addRow, position });
+
+  // ── Состояние счёта значком в ленте ([COST-6.3], #1818 п. 1) — своим файлом ────
+  await listStateChecks({ page, check, stamp, api, invoice, position });
 
   // ── Посчитанная сумма строки после сохранения (#1654) — своим файлом ───────────
   await computedAmountChecks({ page, check, stamp, invoice, open, cell, addRow });

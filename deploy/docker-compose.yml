@@ -111,7 +111,7 @@ services:
   #   COMPOSE_PROFILES=ollama     — поднять контейнеры
   #   OLLAMA_MODEL=qwen2.5vl:7b   — какую модель качать и какой пользоваться приложению
   ollama:
-    image: ollama/ollama:0.40.13
+    image: ollama/ollama:0.40.15
     profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
@@ -126,7 +126,7 @@ services:
 
   # Одноразовый сервис: загружает модель в Ollama (тяжёлая ~6 ГБ)
   ollama-init:
-    image: ollama/ollama:0.40.13
+    image: ollama/ollama:0.40.15
     profiles: ["ollama"]
     depends_on:
       - ollama
@@ -158,7 +158,7 @@ services:
   # кодом 200 и выглядит работающим. Проверяет их `deploy/converter.tests.sh` (в CI — в проверке
   # «Скрипт обновления»), он же сверяет этот блок с дев-стендом.
   converter:
-    image: gotenberg/gotenberg:8.37.0-libreoffice
+    image: gotenberg/gotenberg:8.40.0-libreoffice
     environment:
       # Русская локаль чисел. Без неё «3 834,16» выводится как «3,834.16» — молча: сумма счёта
       # в образе становится другой строкой, и распознавание читает уже её. Самой локали в образе

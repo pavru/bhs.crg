@@ -14,7 +14,7 @@ import {
   type CostsOrganization, type InvoiceView,
 } from '@/shared/api/invoices';
 import {
-  BLOCKS, FIELD_LABEL, K, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
+  BLOCKS, FIELD_LABEL, K, PAID, PARSED, REJECTED, VAT_MODE_MARK, asInput, refEntryId, toRequisites, unconfirmedOutsideBlocks, type InvoiceBlock,
 } from './invoiceFields';
 import { InvoiceLinesTable } from './InvoiceLinesTable';
 import { supplierChangeOf } from './supplierMatches';
@@ -544,11 +544,11 @@ function savedTime(iso: string): string {
   return isToday(iso) ? formatTime(iso) : formatDateTime(iso);
 }
 
-const STATE_TONE: Record<string, StatusTone> = { [PARSED]: 'success', [REJECTED]: 'error', 'Оплачен': 'success' };
+const STATE_TONE: Record<string, StatusTone> = { [PARSED]: 'success', [REJECTED]: 'error', [PAID]: 'success' };
 
 function StateText({ text }: { text: string }) {
   if (!text) return null;
-  return <StatusText tone={STATE_TONE[text] ?? (text.startsWith('Оплачен') ? 'success' : 'neutral')}>{text}</StatusText>;
+  return <StatusText tone={STATE_TONE[text] ?? (text.startsWith(PAID) ? 'success' : 'neutral')}>{text}</StatusText>;
 }
 
 /** Скан из реквизитов — значение файлового поля общего контракта. */
