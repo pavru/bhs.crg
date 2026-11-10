@@ -56,7 +56,7 @@ const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 
 // Обвязка читает адрес приложения из окружения В МИГ ЗАГРУЗКИ — поэтому подделку называем раньше.
 process.env.SMOKE_BASE = ORIGIN;
-const { launchBrowser, login, submitLogin, createChecks, watchRequests, settled, until, brandingRefusals }
+const { launchBrowser, login, submitLogin, createChecks, watchRequests, settled, until, underRoute, unrouteQuiet, brandingRefusals }
   = await import('./harness.mjs');
 
 const unhandled = [];
@@ -233,6 +233,47 @@ await check('settled-refuses-a-page-nobody-watches', async () => {
   const stray = await browser.newPage();
   try { await refused(settled(stray), /не под наблюдением/); }
   finally { await stray.close(); }
+});
+
+// ── underRoute(): перехват снимается после конца цепочки ───────────────────────
+//
+// Сама ловушка (запрос, начатый в миг снятия, висит вечно) вероятностна — 17 из 300 — и одним прогоном не
+// ловится. Стережём то, на чём держится защита: к возврату помощника запрос, ушедший ВСЛЕД за ответом
+// перехваченного, уже завершён. Голый `unroute` вернулся бы, пока он в пути.
+await check('under-route-waits-for-the-request-sent-after-the-intercepted-answer', async () => {
+  await underRoute(page, '**/slow?who=held', route => route.continue(), async () => {
+    const answered = page.waitForResponse(r => r.url().includes('who=held'));
+    await page.evaluate(() => {
+      window.next = false;
+      fetch('/slow?who=held').then(r => r.text()).then(() => fetch('/slow?ms=300')).then(r => r.text())
+        .then(() => { window.next = true; });
+    });
+    await answered;
+  });
+  if (!(await page.evaluate(() => window.next))) throw new Error('перехват снят, пока запрос вслед за ответом был в пути');
+});
+
+// Красная проверка ждёт затихания недолго и дописывает, кого ждала, — свои слова оставляя первыми.
+await check('under-route-of-a-red-check-names-what-it-waited-for', async () => {
+  const started = Date.now();
+  await refused(underRoute(page, '**/never', route => route.continue(), async () => {
+    await page.evaluate(() => { fetch('/hang?who=red'); });
+    await hangs('red');
+    throw new Error('тело красное');
+  }), /^тело красное; снятие перехвата: страница не затихла за 5 с: в полёте GET \/hang\?who=red/);
+  if (Date.now() - started > 9_000) throw new Error(`красная проверка ждала затихания ${Date.now() - started} мс`);
+  await page.goto(`${ORIGIN}/blank`);   // висящий запрос снимает только новый документ
+});
+
+await check('unroute-quiet-refuses-a-page-nobody-watches-and-still-unroutes', async () => {
+  const stray = await browser.newPage();
+  try {
+    await stray.route('**/slow**', route => route.abort());
+    await refused(unrouteQuiet(stray, '**/slow**'), /^снятие перехвата: страница не под наблюдением/);
+    await stray.goto(`${ORIGIN}/`);
+    const got = await stray.evaluate(() => fetch('/slow').then(r => r.ok, () => false));
+    if (!got) throw new Error('после отказа перехват остался на странице');
+  } finally { await stray.close(); }
 });
 
 // Срок обязан действовать и тогда, когда страница не отвечает вовсе: занятый поток не пускает

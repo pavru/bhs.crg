@@ -8,6 +8,7 @@
 //
 // Отдельным файлом: `invoice-lines-smoke` и так велик. Едет внутри него, с его помощниками.
 
+import { underRoute } from './harness.mjs';
 import { untilStatus } from './invoice-status.mjs';
 
 export async function unsavedSupplierChecks({ page, check, stamp, api, invoice, open, cell, addRow, saveLines, cable, organizations }) {
@@ -38,47 +39,51 @@ export async function unsavedSupplierChecks({ page, check, stamp, api, invoice, 
     const header = `**/api/costs/invoices/${created.id}`;
     let release;
     const released = new Promise(resolve => { release = resolve; });
-    await page.route(header, async route => {
-      if (route.request().method() === 'PUT') await released;
-      await route.continue();
-    });
     const order = [];
     const onRequest = r => {
       if (r.method() === 'PUT' && r.url().includes(`/costs/invoices/${created.id}`)) order.push(r.url().endsWith('/lines') ? 'строки' : 'шапка');
     };
     page.on('request', onRequest);
     try {
-      await page.getByLabel('Поставщик').click();
-      await page.getByRole('option', { name: afterName, exact: true }).click();
+      await underRoute(page, header, async route => {
+        if (route.request().method() === 'PUT') await released;
+        await route.continue();
+      }, async () => {
+        try {
+          await page.getByLabel('Поставщик').click();
+          await page.getByRole('option', { name: afterName, exact: true }).click();
 
-      await addRow(1);
-      await cell('Наименование в счёте', 1).fill(text);
-      await cell('Количество', 1).fill('1');
-      await cell('Цена', 1).fill('10');
-      const lines = page.getByRole('table', { name: 'Строки счёта' });
-      // Ответ на вопрос о запомненном пришёл бы за долю секунды — ждём заведомо дольше.
-      await page.waitForTimeout(1_500);
-      if (await lines.getByRole('button', { name: 'запомнено' }).count())
-        throw new Error('строка получила позицию из памяти прежнего поставщика, хотя в шапке уже другой');
-      await untilStatus(page, items => items.some(i => i.key === 'matches-pending'),
-        'перечень не назвал, почему запомненное не подставлено');
+          await addRow(1);
+          await cell('Наименование в счёте', 1).fill(text);
+          await cell('Количество', 1).fill('1');
+          await cell('Цена', 1).fill('10');
+          const lines = page.getByRole('table', { name: 'Строки счёта' });
+          // Ответ на вопрос о запомненном пришёл бы за долю секунды — ждём заведомо дольше.
+          await page.waitForTimeout(1_500);
+          if (await lines.getByRole('button', { name: 'запомнено' }).count())
+            throw new Error('строка получила позицию из памяти прежнего поставщика, хотя в шапке уже другой');
+          await untilStatus(page, items => items.some(i => i.key === 'matches-pending'),
+            'перечень не назвал, почему запомненное не подставлено');
 
-      // Выбор руками — пометка говорит, за кем он запомнится.
-      await page.getByRole('button', { name: 'выбрать позицию' }).first().click();
-      await page.getByPlaceholder('часть наименования').fill(stamp);
-      await page.getByRole('option', { name: cable }).click();
-      await lines.getByRole('button', { name: 'запомнится' }).click();
-      await page.getByText(/выбор запомнится за новым/).waitFor({ timeout: 5_000 })
-        .catch(() => { throw new Error('пометка «запомнится» не сказала, что выбор уйдёт за поставщиком из шапки'); });
-      await page.keyboard.press('Escape');
+          // Выбор руками — пометка говорит, за кем он запомнится.
+          await page.getByRole('button', { name: 'выбрать позицию' }).first().click();
+          await page.getByPlaceholder('часть наименования').fill(stamp);
+          await page.getByRole('option', { name: cable }).click();
+          await lines.getByRole('button', { name: 'запомнится' }).click();
+          await page.getByText(/выбор запомнится за новым/).waitFor({ timeout: 5_000 })
+            .catch(() => { throw new Error('пометка «запомнится» не сказала, что выбор уйдёт за поставщиком из шапки'); });
+          await page.keyboard.press('Escape');
 
-      // Запись реквизитов дошла — очередь пишет строки следом: шапка раньше строк, выбор — за новым поставщиком.
-      release();
-      await saveLines();
+          // Запись реквизитов дошла — очередь пишет строки следом: шапка раньше строк, выбор — за новым поставщиком.
+          release();
+          await saveLines();
+        } finally {
+          // Ворота открыты до снятия перехвата и у красной проверки: иначе снятие ждало бы держанную запись.
+          release();
+        }
+      });
     } finally {
-      release();
       page.off('request', onRequest);
-      await page.unroute(header);
     }
     if (order.join(',') !== 'шапка,строки') throw new Error(`запись шла не шапкой раньше строк: ${order.join(', ')}`);
 

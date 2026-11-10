@@ -6,6 +6,8 @@
 // отказ подбора сказан отказом, и «не нашлось» не мелькает ни на кадр; Enter, нажатый до ответа, не
 // выбирает пришедшее после; в окне соответствий выбранная позиция стоит «Сейчас», а не кандидатом.
 
+import { underRoute } from './harness.mjs';
+
 /**
  * @param ctx то, чем живёт прогон строк счёта: страница, проверка, свои помощники.
  */
@@ -89,59 +91,59 @@ export async function candidateChecks({ page, check, stamp, invoice, open, cell,
 
   await check('Enter, нажатый до ответа подбора, не выбирает пришедшее после', async () => {
     const slow = '**/api/costs/nomenclature/candidates';
-    await page.route(slow, async route => {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      await route.continue().catch(() => {});
-    });
     try {
-      const number = `СЧ-ПЖ${stamp}`;
-      await invoice(number);
-      await open(number);
-      await addRow(1);
-      // Своё наименование у позиции есть, соответствия для него нет — ответ придёт с «Лучшим совпадением».
-      await cell('Наименование в счёте', 1).fill(`${name} медная`);
-      await choose().click();
-      await picker().getByText('Подбираем по словам строки…').waitFor({ timeout: 10_000 });
-      await page.keyboard.press('Enter');
-      await picker().getByRole('option', { name: /Лучшее совпадение/ }).waitFor({ timeout: 15_000 })
-        .catch(() => { throw new Error('после ответа подбора нет «Лучшего совпадения»'); });
-      await page.waitForTimeout(500);
-      if (!(await picker().isVisible())) throw new Error('Enter, нажатый до ответа, выбрал позицию задним числом');
+      await underRoute(page, slow, async route => {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await route.continue().catch(() => {});
+      }, async () => {
+        const number = `СЧ-ПЖ${stamp}`;
+        await invoice(number);
+        await open(number);
+        await addRow(1);
+        // Своё наименование у позиции есть, соответствия для него нет — ответ придёт с «Лучшим совпадением».
+        await cell('Наименование в счёте', 1).fill(`${name} медная`);
+        await choose().click();
+        await picker().getByText('Подбираем по словам строки…').waitFor({ timeout: 10_000 });
+        await page.keyboard.press('Enter');
+        await picker().getByRole('option', { name: /Лучшее совпадение/ }).waitFor({ timeout: 15_000 })
+          .catch(() => { throw new Error('после ответа подбора нет «Лучшего совпадения»'); });
+        await page.waitForTimeout(500);
+        if (!(await picker().isVisible())) throw new Error('Enter, нажатый до ответа, выбрал позицию задним числом');
+      });
     } finally {
-      await page.unroute(slow);
       await page.keyboard.press('Escape');
     }
   });
 
   await check('подбор отказал — сказано отказом, «не нашлось» не появляется ни на кадр', async () => {
     const failing = '**/api/costs/nomenclature/candidates';
-    await page.route(failing, route => route.fulfill({
-      status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'сбой прогона' }),
-    }));
     try {
-      const number = `СЧ-ПО${stamp}`;
-      await invoice(number);
-      await open(number);
-      await addRow(1);
-      await cell('Наименование в счёте', 1).fill(`Изделие без пары ${stamp}`);
-      // Сторож «ни на кадр»: фраза пустого ответа, появившаяся хоть раз, остаётся записанной.
-      await page.evaluate(() => {
-        window.__sawNothing = false;
-        new MutationObserver(() => {
-          if (document.body.innerText.includes('подходящих не нашлось')) window.__sawNothing = true;
-        }).observe(document.body, { subtree: true, childList: true, characterData: true });
+      await underRoute(page, failing, route => route.fulfill({
+        status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'сбой прогона' }),
+      }), async () => {
+        const number = `СЧ-ПО${stamp}`;
+        await invoice(number);
+        await open(number);
+        await addRow(1);
+        await cell('Наименование в счёте', 1).fill(`Изделие без пары ${stamp}`);
+        // Сторож «ни на кадр»: фраза пустого ответа, появившаяся хоть раз, остаётся записанной.
+        await page.evaluate(() => {
+          window.__sawNothing = false;
+          new MutationObserver(() => {
+            if (document.body.innerText.includes('подходящих не нашлось')) window.__sawNothing = true;
+          }).observe(document.body, { subtree: true, childList: true, characterData: true });
+        });
+        await choose().click();
+        await picker().getByText(/Подбор не сработал: сбой прогона/).waitFor({ timeout: 15_000 })
+          .catch(() => { throw new Error('отказ подбора не назван отказом'); });
+        if (await page.evaluate(() => window.__sawNothing))
+          throw new Error('при отказе подбора мелькнуло «подходящих не нашлось»');
+        // Поиск при этом работает.
+        await picker().getByPlaceholder('часть наименования').fill(name);
+        await picker().getByRole('option', { name: new RegExp(name) }).first().waitFor({ timeout: 10_000 })
+          .catch(() => { throw new Error('при отказе подбора не работает поиск'); });
       });
-      await choose().click();
-      await picker().getByText(/Подбор не сработал: сбой прогона/).waitFor({ timeout: 15_000 })
-        .catch(() => { throw new Error('отказ подбора не назван отказом'); });
-      if (await page.evaluate(() => window.__sawNothing))
-        throw new Error('при отказе подбора мелькнуло «подходящих не нашлось»');
-      // Поиск при этом работает.
-      await picker().getByPlaceholder('часть наименования').fill(name);
-      await picker().getByRole('option', { name: new RegExp(name) }).first().waitFor({ timeout: 10_000 })
-        .catch(() => { throw new Error('при отказе подбора не работает поиск'); });
     } finally {
-      await page.unroute(failing);
       await page.keyboard.press('Escape');
     }
   });

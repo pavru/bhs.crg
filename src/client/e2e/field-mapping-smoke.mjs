@@ -14,7 +14,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/field-mapping-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, callApi, until } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, callApi, until, underRoute } from './harness.mjs';
 
 const TAX_ID = 'org.inn';
 const ORG = 'role.organization';
@@ -147,15 +147,15 @@ let change = body => body;
 let failing = false;
 async function withChangedAnswers(run) {
   const pattern = '**/api/field-mapping';
-  await page.route(pattern, async route => {
-    if (failing)
-      return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"стенд перезапускается"}' });
-    const response = await route.fetch();
-    if (!response.ok()) return route.fulfill({ response });
-    await route.fulfill({ response, json: change(await response.json()) });
-  });
-  try { await run(); } finally {
-    await page.unroute(pattern);
+  try {
+    await underRoute(page, pattern, async route => {
+      if (failing)
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"стенд перезапускается"}' });
+      const response = await route.fetch();
+      if (!response.ok()) return route.fulfill({ response });
+      await route.fulfill({ response, json: change(await response.json()) });
+    }, run);
+  } finally {
     change = body => body;
     failing = false;
   }

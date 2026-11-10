@@ -66,7 +66,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-view-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption, railSection, expandInvoiceParts } from './harness.mjs';
+import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption, railSection, expandInvoiceParts, underRoute } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
@@ -121,12 +121,11 @@ async function rowsBecome(p, count, what) {
  */
 async function withAnswers(p, change, run) {
   const pattern = '**/api/tables/costs.invoices**';
-  await p.route(pattern, async route => {
+  await underRoute(p, pattern, async route => {
     const response = await route.fetch();
     if (!response.ok()) return route.fulfill({ response });
     await route.fulfill({ response, json: change(await response.json()) });
-  });
-  try { await run(); } finally { await p.unroute(pattern); }
+  }, run);
 }
 
 await login(page);

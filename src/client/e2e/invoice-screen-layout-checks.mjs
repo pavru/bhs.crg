@@ -12,7 +12,7 @@
 // ⚠️ Подпанель раздела у пользователя ОТКРЫТА — так было в разборе Дизайнера. Выбор — настройка человека
 // на сервере: прогон ставит её и возвращает прежнюю в finally, иначе соседние прогоны шли бы с ней.
 
-import { expandInvoiceParts, takePanels, setPanels } from './harness.mjs';
+import { expandInvoiceParts, takePanels, setPanels, underRoute, unrouteQuiet } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
@@ -216,10 +216,9 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     const lines = `**/api/costs/invoices/${invoice.id}/lines`;
 
     // Отказ сервера: человек остаётся, носитель называет причину словами сервера, вопроса нет.
-    await page.route(lines, route => (route.request().method() === 'PUT'
+    await underRoute(page, lines, route => (route.request().method() === 'PUT'
       ? route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"Строки не приняты (проба)."}' })
-      : route.continue()));
-    try {
+      : route.continue()), async () => {
       await name.fill('Правка, которой откажут');
       await statusOpen(page, 'duplicate');
       await h.named('носитель не назвал отказ', () => untilSaveState(page, 'refused'));
@@ -229,9 +228,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       const said = await page.getByTestId('invoice-save-state').first().innerText();
       if (!said.includes('Строки не приняты (проба).')) throw new Error(`носитель не назвал причину словами сервера: «${said}»`);
       if ((await name.inputValue()) !== 'Правка, которой откажут') throw new Error('после отказа набранное пропало');
-    } finally {
-      await page.unroute(lines);
-    }
+    });
 
     // Запись проходит: сначала строка записана, затем открыт другой счёт.
     await name.fill('Дописано при смене счёта');
@@ -286,7 +283,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       if ((await name.inputValue()) !== typed) throw new Error('перезагрузка, отменённая в вопросе, унесла набранное');
 
       // Связь вернулась: «Повторить» в сводке дописывает, уход идёт без вопроса.
-      await page.unroute(lines);
+      await unrouteQuiet(page, lines);
       await page.getByTestId('invoice-header').getByRole('button', { name: 'Повторить' }).first().click();
       await h.named('«Повторить» не дописал строку', () => untilSaveState(page, 'saved'));
       await toInvoices();
@@ -295,7 +292,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       const stored = (await h.api('GET', `/costs/invoices/${invoice.id}`)).lines[2].supplierText;
       if (stored !== typed) throw new Error(`на сервере строка 3 — «${stored}», а набрано «${typed}»`);
     } finally {
-      await page.unroute(lines).catch(() => {});
+      await unrouteQuiet(page, lines, undefined, { timeout: 5_000 }).catch(() => {});
       // Брошенная недошедшая запись держала бы `beforeunload`, и `goto` соседних проверок висел бы до таймаута.
       const leave = d => { if (d.type() === 'beforeunload') void d.accept(); };
       page.on('dialog', leave);
