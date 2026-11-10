@@ -26,6 +26,16 @@ async function openAsIs(page, h, id) {
   await invoiceOpened(page);
 }
 
+/**
+ * Щелчок мышью в середину элемента — что под курсором, то и получит. `locator.click()` здесь не годится: он
+ * ждёт, что щелчок достанется самому элементу, а строку-итог накрывает растянутая цель шапки.
+ */
+export async function clickAt(page, locator) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('элемента для щелчка нет на экране');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 /** Реквизиты без срока: даты отгрузки нет — срок не определён. */
 function withoutTerms(h, number, purpose) {
   const { ['Срок']: _due, ...rest } = h.requisites(number, purpose);
@@ -77,10 +87,58 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
         if (!await pay.isVisible()) throw new Error('«Отметить оплату» не видна в шапке свёрнутой части');
 
-        // Раскрывает и сворачивает человек — как прежде.
-        await toggle.click();
-        await h.named('раскрытая часть не показала «Дату отгрузки»',
+        // Кнопка оплаты в шапке делает своё и часть не раскрывает: она над растянутой целью шапки
+        // (costs-invoice-part-header-toggle, [COST-6.2]).
+        await pay.click();
+        const payment = page.getByRole('dialog', { name: /^Оплата: / });
+        await h.named('«Отметить оплату» в шапке не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
+        await payment.getByRole('button', { name: 'Отмена', exact: true }).click();
+        await h.named('окно оплаты не закрылось', () => payment.waitFor({ state: 'hidden', timeout: 5_000 }));
+        if (!await toggle.count()) throw new Error('кнопка оплаты в шапке раскрыла «Сроки и оплату»');
+
+        // Цель — вся шапка: щелчок по строке-итогу раскрывает часть. Мышью в точку строки, а не `click()` по ней:
+        // строка лежит под растянутой целью, и щелчок туда получает цель — ровно это и проверяется.
+        await clickAt(page, part.getByText('срок не определён · не оплачен', { exact: false }));
+        await h.named('щелчок по строке-итогу не раскрыл часть',
           () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
+        // И сворачивает её щелчок по заголовку раскрытой.
+        await clickAt(page, part.getByRole('heading', { name: `Свернуть «${TERMS}»` }));
+        await h.named('щелчок по заголовку раскрытой части её не свернул',
+          () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ state: 'hidden', timeout: 5_000 }));
+        await clickAt(page, part.getByRole('heading', { name: `Развернуть «${TERMS}»` }));
+        await h.named('повторный щелчок по заголовку не раскрыл часть',
+          () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
+      });
+
+      // Узкая часть переносит действия строкой ниже (`@container` уже `@md`). На экранах ноутбука часть так не
+      // сужается — форме остаётся не меньше 720, — поэтому карточку сужают руками: проверяется, кому достаётся
+      // щелчок, когда строка действий лежит над растянутой целью шапки.
+      await check(`«Сроки и оплата» ${width}×${height}: в узкой части щелчок мимо действий переключает часть, по действию — нет`, async () => {
+        await page.setViewportSize({ width, height });
+        await openAsIs(page, h, made.plain);
+        const part = page.getByRole('region', { name: TERMS, exact: true });
+        await h.named('части «Сроки и оплата» нет', () => part.waitFor({ timeout: 10_000 }));
+        await part.evaluate(el => { const card = el.parentElement; card.style.width = '400px'; card.style.alignSelf = 'flex-start'; });
+        const heading = part.getByRole('heading', { name: `Развернуть «${TERMS}»` });
+        const pay = part.getByRole('button', { name: 'Отметить оплату', exact: true });
+        const [title, action] = [await heading.boundingBox(), await pay.boundingBox()];
+        if (!title || !action || action.y < title.y + title.height)
+          throw new Error('в части шириной 400 действия не перенесены строкой ниже заголовка');
+
+        // Пустое место строки действий, правее кнопки, — часть шапки: щелчок туда раскрывает часть.
+        const card = await part.boundingBox();
+        await page.mouse.click(Math.min(action.x + action.width + 40, card.x + card.width - 24), action.y + action.height / 2);
+        await h.named('щелчок мимо действия в узкой части её не раскрыл',
+          () => part.getByLabel('Дата отгрузки', { exact: true }).waitFor({ timeout: 5_000 }));
+
+        // Кнопка действия делает своё: окно оплаты, а часть остаётся раскрытой.
+        await clickAt(page, pay);
+        const payment = page.getByRole('dialog', { name: /^Оплата: / });
+        await h.named('«Отметить оплату» в узкой части не открыла окно оплаты', () => payment.waitFor({ timeout: 5_000 }));
+        await payment.getByRole('button', { name: 'Отмена', exact: true }).click();
+        await h.named('окно оплаты не закрылось', () => payment.waitFor({ state: 'hidden', timeout: 5_000 }));
+        if (!await part.getByRole('button', { name: `Свернуть «${TERMS}»` }).count())
+          throw new Error('кнопка оплаты в узкой части переключила часть');
       });
 
       await check(`«Сроки и оплата» ${width}×${height}: метка со скана и отгрузка раньше счёта — часть раскрыта`, async () => {

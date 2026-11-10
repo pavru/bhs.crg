@@ -17,6 +17,7 @@ import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
 import { saveState, untilSaveState } from './invoice-save.mjs';
+import { clickAt } from './invoice-terms-collapse-checks.mjs';
 
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
 export const LAPTOPS = [[1366, 768], [1280, 720], [1366, 650], [1024, 768]];
@@ -308,9 +309,12 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     await h.named('сводки счёта нет', () => page.getByTestId('invoice-header').waitFor({ timeout: 10_000 }));
     const name = page.getByLabel('Наименование в счёте, строка 2', { exact: true });
     await name.fill('Правка до свёртки');
-    await page.getByRole('button', { name: 'Свернуть «Строки»' }).click();
-    if (await name.isVisible()) throw new Error('свёрнутая часть «Строки» тело показывает');
-    await page.getByRole('button', { name: 'Развернуть «Строки»' }).click();
+    // Сворачивает и раскрывает щелчок по шапке части, а не только шеврон (costs-invoice-part-header-toggle,
+    // [COST-6.2]): мышью в заголовок, как человек.
+    await clickAt(page, page.getByRole('heading', { name: 'Свернуть «Строки»' }));
+    await h.named('щелчок по заголовку раскрытых «Строк» их не свернул', () => name.waitFor({ state: 'hidden', timeout: 5_000 }));
+    await clickAt(page, page.getByRole('heading', { name: 'Развернуть «Строки»' }));
+    await h.named('щелчок по заголовку свёрнутых «Строк» их не раскрыл', () => name.waitFor({ timeout: 5_000 }));
     if ((await name.inputValue()) !== 'Правка до свёртки')
       throw new Error(`свёртка «Строк» выбросила набранное: «${await name.inputValue()}»`);
 

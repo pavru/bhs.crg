@@ -1,11 +1,24 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { InvoicePart } from './InvoicePart';
 
-/** Часть формы счёта (costs-invoice-screen-10-layout, D-10.1). */
+/** Часть формы счёта (costs-invoice-screen-10-layout, D-10.1; шапка — цель, costs-invoice-part-header-toggle). */
 
 afterEach(cleanup);
+
+/** Часть со своим состоянием раскрытия — как в форме счёта. */
+function Part({ initial = false, onPay }: { initial?: boolean; onPay?: () => void }) {
+  const [open, setOpen] = useState(initial);
+  return (
+    <InvoicePart title="Сроки и оплата" step={4} line="оплатить до 20.11.2026" open={open} onToggle={() => setOpen(o => !o)}
+      actions={<button type="button" onClick={onPay}>Внести оплату…</button>}>
+      <input aria-label="Количество" />
+    </InvoicePart>
+  );
+}
 
 describe('InvoicePart', () => {
   it('свёрнутая — строка-итог видна, тело спрятано; кнопка называет действие и держит aria-expanded', () => {
@@ -33,17 +46,75 @@ describe('InvoicePart', () => {
     );
     expect(screen.getByRole('textbox', { name: 'Номер' })).toBeTruthy();
     expect(screen.queryByText('строк: 6')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Свернуть «Строки»' }).getAttribute('aria-expanded')).toBe('true');
+    const button = screen.getByRole('button', { name: 'Свернуть «Строки»' });
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    // Описания у раскрытой нет: строка-итог пуста.
+    expect(button.getAttribute('aria-describedby')).toBeNull();
   });
 
-  it('свёртка тело не размонтирует: набранное в нём переживает «свернуть — развернуть»', () => {
-    const { rerender } = render(
-      <InvoicePart title="Строки" open onToggle={() => {}}><input aria-label="Количество" /></InvoicePart>,
-    );
+  it('цель — кнопка в заголовке части, растянутая на всю шапку; строка-итог — её описание, тело — её цель', () => {
+    render(<InvoicePart title="Кто и сколько" step={1} line="ООО «СЭМ»" open={false} onToggle={() => {}}>тело</InvoicePart>);
+    const heading = screen.getByRole('heading', { level: 3 });
+    const button = within(heading).getByRole('button', { name: 'Развернуть «Кто и сколько»' });
+    expect(button.getAttribute('aria-describedby')).toBeTruthy();
+    expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe('ООО «СЭМ»');
+    expect(document.getElementById(button.getAttribute('aria-controls')!)?.textContent).toBe('тело');
+    // Растянутая цель: `::after` кнопки — на всю шапку, а шапка — его опора и носитель слоя состояния.
+    expect(button.className).toMatch(/after:absolute/);
+    expect(button.className).toMatch(/after:inset-0/);
+    const header = heading.parentElement!;
+    expect(header.className).toMatch(/\brelative\b/);
+    expect(header.className).toMatch(/state-layer-row/);
+    expect(button.hasAttribute('data-li-target')).toBe(true);
+    // Шеврон — не вторая цель: кнопка в шапке одна.
+    expect(within(header).getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('действие шапки делает своё и часть не переключает: оно над целью, а не внутри неё', async () => {
+    const pay = vi.fn();
+    render(<Part onPay={pay} />);
+    const action = screen.getByRole('button', { name: 'Внести оплату…' });
+    expect(action.closest('h3')).toBeNull();
+    const side = action.closest('[data-li-side]')!;
+    expect(side.className).toMatch(/\brelative\b/);
+    expect(side.className).toMatch(/\bz-10\b/);
+    await userEvent.click(action);
+    expect(pay).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Развернуть «Сроки и оплата»' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('клавиатура: Enter и Пробел на шапке переключают часть, имя и aria-expanded следуют', async () => {
+    const user = userEvent.setup();
+    render(<Part />);
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Развернуть «Сроки и оплата»' }));
+    await user.keyboard('{Enter}');
+    const open = screen.getByRole('button', { name: 'Свернуть «Сроки и оплата»' });
+    expect(open.getAttribute('aria-expanded')).toBe('true');
+    await user.keyboard(' ');
+    expect(screen.getByRole('button', { name: 'Развернуть «Сроки и оплата»' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('набранное в теле переживает свёртку и раскрытие щелчком по шапке', async () => {
+    render(<Part initial />);
     fireEvent.change(screen.getByLabelText('Количество'), { target: { value: '12' } });
-    rerender(<InvoicePart title="Строки" open={false} onToggle={() => {}}><input aria-label="Количество" /></InvoicePart>);
-    rerender(<InvoicePart title="Строки" open onToggle={() => {}}><input aria-label="Количество" /></InvoicePart>);
+    await userEvent.click(screen.getByRole('button', { name: 'Свернуть «Сроки и оплата»' }));
+    expect(screen.queryByRole('textbox', { name: 'Количество' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Развернуть «Сроки и оплата»' }));
     expect((screen.getByLabelText('Количество') as HTMLInputElement).value).toBe('12');
+  });
+
+  it('подсказка с полным текстом строки-итога — у цели и только у обрезанной строки', () => {
+    render(<InvoicePart title="Кто и сколько" line="очень длинная строка-итог" open={false} onToggle={() => {}} />);
+    const button = screen.getByRole('button');
+    const line = screen.getByText('очень длинная строка-итог');
+    Object.defineProperty(line, 'clientWidth', { configurable: true, value: 100 });
+    Object.defineProperty(line, 'scrollWidth', { configurable: true, value: 300 });
+    fireEvent.pointerEnter(button);
+    expect(button.getAttribute('title')).toBe('очень длинная строка-итог');
+    Object.defineProperty(line, 'scrollWidth', { configurable: true, value: 100 });
+    fireEvent.pointerEnter(button);
+    expect(button.hasAttribute('title')).toBe(false);
   });
 
   it('часть — именованная область: к ней ведёт читалка и живой прогон', () => {
