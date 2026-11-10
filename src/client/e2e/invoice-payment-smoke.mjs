@@ -141,14 +141,14 @@ await invoice(broken, 100, 150);
 
 await check('refusal-is-shown-instead-of-the-form', async () => {
   await open(broken);
-  // Причина — подсказкой неактивной «Отметить оплату», словами сервера (11, D-11.2, 47–48): окна с полем
+  // Причина — подсказкой неактивной «Внести оплату», словами сервера (11, D-11.2, 47–48): окна с полем
   // даты, которое заведомо откажет, нет.
-  const pay = page.getByRole('button', { name: 'Отметить оплату' });
+  const pay = page.getByRole('button', { name: 'Внести оплату' });
   const hint = await pay.getAttribute('aria-description') ?? '';
   if (!/Оплатить нельзя: сумма строк 100[.,]00 расходится с суммой к оплате 150[.,]00 на 50[.,]00/.test(hint))
     throw new Error(`подсказка кнопки оплаты не назвала расхождение числом сервера: «${hint}»`);
   if (!(await pay.isDisabled()) && (await pay.getAttribute('aria-disabled')) !== 'true')
-    throw new Error('«Отметить оплату» активна, хотя сервер оплату отвергнет');
+    throw new Error('«Внести оплату» активна, хотя сервер оплату отвергнет');
   // Расхождение — одним пунктом перечня, с «мешает: … оплата» (COST-6.4).
   const named = (await statusItems(page)).filter(i => /расход/.test(i.text));
   if (named.length !== 1 || !/оплат/.test(named[0].text))
@@ -173,7 +173,7 @@ function dateField(scope, name) {
 /** Окно оплаты счёта прогона и в нём — открытый календарь «Даты платежа». */
 async function openPaymentCalendar() {
   await open(calendarNumber);
-  await page.getByRole('button', { name: 'Отметить оплату' }).click();
+  await page.getByRole('button', { name: 'Внести оплату' }).click();
   const dialog = page.getByRole('dialog').first();
   await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
   await dialog.getByRole('button', { name: 'Открыть календарь' }).click();
@@ -292,7 +292,7 @@ await check('payment-date-calendar-tab-goes-to-next-field', async () => {
 // отдать дату по пути к 31.02 — вернуться обязана прежняя, а не она.
 await check('payment-date-escape-reverts-and-keeps-dialog', async () => {
   await open(calendarNumber);
-  await page.getByRole('button', { name: 'Отметить оплату' }).click();
+  await page.getByRole('button', { name: 'Внести оплату' }).click();
   const dialog = page.getByRole('dialog').first();
   await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
   const field = dateField(dialog, 'Дата платежа');
@@ -418,7 +418,7 @@ if (closedThrough) {
 // ── 2. Перенос назван до сохранения, и записанное равно показанному ────────────────────────────────
 await check('preview-matches-recorded', async () => {
   await open(movedNumber);
-  await page.getByRole('button', { name: 'Отметить оплату' }).click();
+  await page.getByRole('button', { name: 'Внести оплату' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
 
@@ -437,7 +437,7 @@ await check('preview-matches-recorded', async () => {
   await field.y.blur();
   await previewed;
 
-  const button = dialog.getByRole('button', { name: 'Отметить оплату с переносом' });
+  const button = dialog.getByRole('button', { name: 'Внести оплату с переносом' });
   await button.waitFor({ timeout: 10_000 });
   const shown = await dialog.innerText();
   const accounting = ru(shift(through, 1));

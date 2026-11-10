@@ -36,7 +36,7 @@ export interface SummaryPrimary {
 
 const PRIMARY: Record<SummaryPrimary['kind'], { label: string; icon: IconDef }> = {
   parsed: { label: 'Разобран', icon: CheckCircle },
-  pay: { label: 'Отметить оплату…', icon: Payments },
+  pay: { label: 'Внести оплату…', icon: Payments },
   check: { label: 'Проверить исправление…', icon: SearchCheck },
 };
 

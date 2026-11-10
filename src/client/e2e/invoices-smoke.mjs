@@ -624,8 +624,8 @@ try {
     if (await queued()) throw new Error('отклонённый счёт остался в очереди «Разобрать»');
     if (await page.getByRole('button', { name: 'Разобран', exact: true }).count())
       throw new Error('у отклонённого счёта предложено «Разобран» — сервер на это отвечает отказом');
-    if (await page.getByRole('button', { name: 'Отметить оплату' }).count())
-      throw new Error('у отклонённого счёта предложено «Отметить оплату» — сервер на это отвечает отказом');
+    if (await page.getByRole('button', { name: 'Внести оплату' }).count())
+      throw new Error('у отклонённого счёта предложено «Внести оплату» — сервер на это отвечает отказом');
 
     // У отклонённого в «⋮» нет «Отклонить» — а возврат стоит там же (D-10.6), одним входом.
     await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();

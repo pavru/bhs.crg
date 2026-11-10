@@ -48,7 +48,7 @@ export function movedWarning(summary: PostingSummary, total: number | null): str
  * привычке там, где деньги уйдут в другой месяц.
  */
 export function payLabel(rows: readonly PostingRow[]): string {
-  return rows.some(r => r.moved) ? 'Отметить оплату с переносом' : 'Отметить оплату';
+  return rows.some(r => r.moved) ? 'Внести оплату с переносом' : 'Внести оплату';
 }
 
 /** Свёрнутые спокойные строки одной: «Ещё 7 строк — 360 000,00». */

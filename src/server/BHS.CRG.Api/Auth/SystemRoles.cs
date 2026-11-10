@@ -126,7 +126,7 @@ public static class SystemRoles
             ]),
 
         new("Accountant", "Бухгалтер",
-            "Отметка оплаты, реестр счетов, отчёты по затратам, исправление счетов закрытого периода",
+            "Внесение оплаты, реестр счетов, отчёты по затратам, исправление счетов закрытого периода",
             [
                 "core.employees.read", CorePermissions.PeriodClose, CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.pay", "costs.report.read", "costs.articles.edit",

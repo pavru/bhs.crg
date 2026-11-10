@@ -215,7 +215,7 @@ async function supplierPart() {
 
   await check('supplier-cannot-mark-payment', async () => {
     await openInvoice(supplier, invoiceId, 'счёт: оплата');
-    await absent(supplier, ['Отметить оплату', 'Отменить оплату']);
+    await absent(supplier, ['Внести оплату', 'Отменить оплату']);
 
     // Спрятанная кнопка не доказывает, что сервер закрыт: спрашиваем его самого. Этот отказ — ожидаемый.
     const path = `/costs/invoices/${invoiceId}/paid/preview`;
@@ -623,14 +623,14 @@ async function accountantPart() {
 
   await check('accountant-marks-payment', async () => {
     await openInvoice(accountant, invoiceId, 'счёт: оплата');
-    const mark = accountant.page.getByRole('button', { name: 'Отметить оплату' });
+    const mark = accountant.page.getByRole('button', { name: 'Внести оплату' });
     if ((await mark.count()) === 0)
-      throw new Error('на экране счёта нет кнопки «Отметить оплату»: бухгалтеру нечем отметить оплату');
+      throw new Error('на экране счёта нет кнопки «Внести оплату»: бухгалтеру нечем внести оплату');
     await mark.click();
     const dialog = accountant.page.getByRole('dialog');
     // Дату сервер предлагает сам (сегодня). Подпись кнопки зависит от закрытых периодов стенда:
-    // «Отметить оплату» либо «…с переносом» — годятся обе, отказ вместо формы — нет.
-    const pay = dialog.getByRole('button', { name: /^Отметить оплату/ });
+    // «Внести оплату» либо «…с переносом» — годятся обе, отказ вместо формы — нет.
+    const pay = dialog.getByRole('button', { name: /^Внести оплату/ });
     await pay.waitFor({ timeout: 10_000 });
     await settled(accountant.page);
     if (await pay.isDisabled()) throw new Error(`оплата недоступна: ${(await dialog.innerText()).slice(0, 300)}`);

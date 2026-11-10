@@ -126,6 +126,45 @@ public class SystemRolesTests(IntegrationTestFixture fixture)
         Assert.True(await roles.RoleExistsAsync("Installer"));
     }
 
+    /// <summary>
+    /// Описание системной роли — за кодом и у роли, заведённой прежним выпуском, даже правленой (issue #1866,
+    /// D3): «Бухгалтер» с прежним «Отметка оплаты, …» после старта говорит «Внесение оплаты, …». Иначе на
+    /// существующих установках описание роли и подпись кнопки разошлись бы навсегда.
+    /// </summary>
+    [Fact]
+    public async Task Old_summary_of_an_existing_system_role_is_rewritten_on_start()
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
+        var accountant = SystemRoles.All.Single(r => r.Name == "Accountant");
+
+        var role = await roles.FindByNameAsync(accountant.Name);
+        foreach (var claim in (await roles.GetClaimsAsync(role!)).Where(c => c.Type == RoleSynchronizer.SummaryClaim))
+            await roles.RemoveClaimAsync(role!, claim);
+        await roles.AddClaimAsync(role!, new Claim(RoleSynchronizer.SummaryClaim, "Отметка оплаты, реестр счетов"));
+        var edited = new Claim(RoleSynchronizer.EditedClaim, "да");
+        await roles.AddClaimAsync(role!, edited);
+
+        try
+        {
+            await RoleSynchronizer.SyncAsync(roles, catalog, NullLogger.Instance);
+
+            var summaries = (await roles.GetClaimsAsync((await roles.FindByNameAsync(accountant.Name))!))
+                .Where(c => c.Type == RoleSynchronizer.SummaryClaim)
+                .Select(c => c.Value);
+            Assert.Equal([accountant.Summary], summaries);
+            Assert.StartsWith("Внесение оплаты", accountant.Summary);
+        }
+        finally
+        {
+            // Отметка правки заморозила бы состав роли для соседних тестов коллекции.
+            await roles.RemoveClaimAsync((await roles.FindByNameAsync(accountant.Name))!, edited);
+            await RoleSynchronizer.SyncAsync(roles, catalog, NullLogger.Instance);
+        }
+    }
+
     /// <summary>Повторный старт не задваивает утверждения: сверка идёт при каждом запуске.</summary>
     [Fact]
     public async Task Sync_is_idempotent()

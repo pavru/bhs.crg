@@ -11,14 +11,14 @@
 
 ## 1. Подписи
 
-- [ ] 1.1 Клиент: «Внести оплату…» в сводке (`InvoiceSummary.tsx`) и в шапке части (`InvoicePayButton`);
+- [x] 1.1 Клиент: «Внести оплату…» в сводке (`InvoiceSummary.tsx`) и в шапке части (`InvoicePayButton`);
   «Внести оплату» / «Внести оплату с переносом» в окне оплаты (`InvoicePayment.tsx`, `payLabel`);
   комментарии с цитатой подписи — туда же [COST-4] [COST-6.2]. Проверка — vitest:
   `paymentPosting.test.ts`, `invoicePrimary.test.ts`, `operationDialogs.test.tsx` с новыми подписями зелёные
 - [ ] 1.2 Живые прогоны: `costs-smoke`, `invoice-payment-smoke`, `invoices-smoke`,
   `invoice-terms-collapse-checks` и `e2e/README.md` ищут кнопку по новой подписи (D4) [COST-4]. Проверка —
   эти прогоны зелёные на стенде; `grep -rn "Отметить оплату" src docs` пуст
-- [ ] 1.3 Сервер (D2): описание права `costs.invoice.pay` (`CostsModule.cs`) и роли «Бухгалтер»
+- [x] 1.3 Сервер (D2): описание права `costs.invoice.pay` (`CostsModule.cs`) и роли «Бухгалтер»
   (`SystemRoles.cs`); выяснено, обновляется ли описание у существующей роли (D3). Проверка —
   `dotnet test … --filter "FullyQualifiedName~SystemRoles|FullyQualifiedName~Permission"` зелёный;
   ответ по D3 — в описании PR
@@ -31,7 +31,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm test` — зелёный
-- [ ] 3.4 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FileSizeRatchet"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm test` — зелёный
+- [x] 3.4 `cd src/client && npm run ui:ratchet` — без роста
