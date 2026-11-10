@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { OpenInFull, RightPanelClose, RightPanelOpen, type IconDef } from '@/shared/ui/icons';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
@@ -192,5 +193,25 @@ describe('рядом с формой место есть', () => {
   it('панель открыта — кнопка нажата', async () => {
     shown('Счёт 417', 'beside');
     expect((await screen.findByRole('button', { name: 'Файл' })).getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('значок называет, что сделает нажатие ([COST-6.3], issue #1874)', () => {
+  const drawn = (button: HTMLElement) => button.querySelector('path')?.getAttribute('d');
+  const cases: Array<[file: 'closed' | 'beside' | 'over', icon: IconDef, pressed: string | null, hint: string]> = [
+    ['closed', RightPanelOpen, 'false', 'Показать файл рядом с формой'],
+    ['beside', RightPanelClose, 'true', 'Скрыть файл'],
+    ['over', OpenInFull, null, FILE_OVER_REASON],
+  ];
+  it.each(cases)('%s — свой значок; имя «Файл», aria-pressed и подсказка прежние', async (file, icon, pressed, hint) => {
+    shown('Счёт 417', file);
+    const button = await screen.findByRole('button', { name: 'Файл' });
+    // Пока виды файлов не пришли, «поверх» показывает ход загрузки, а не значок.
+    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+    expect(drawn(button)).toBe(icon.d);
+    expect(button.getAttribute('aria-pressed')).toBe(pressed);
+    fireEvent.pointerEnter(button);
+    fireEvent.focus(button);
+    expect((await screen.findAllByText(hint)).length).toBeGreaterThan(0);
   });
 });

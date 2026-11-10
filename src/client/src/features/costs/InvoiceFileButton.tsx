@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
-import { RightPanelOpen } from '@/shared/ui/icons';
+import { OpenInFull, RightPanelClose, RightPanelOpen } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
@@ -12,7 +12,8 @@ import { saveScan } from './scanView';
 import { FILE_OVER_REASON, type InvoicePlace } from './invoicePlace';
 
 /**
- * «Файл» в сводке счёта (costs-invoice-screen-10-layout, D-10.3, ТЗ COST-6.2 и COST-6.3).
+ * «Файл» в сводке счёта (costs-invoice-screen-10-layout, D-10.3, ТЗ COST-6.2 и COST-6.3; значок по месту —
+ * costs-invoice-file-button-icon).
  *
  * <p>Рядом с формой место есть — кнопка открывает и закрывает панель файла справа, и выбор помнится
  * (`onToggle`). Места нет — открывает файл просмотрщиком ПОВЕРХ формы, а причину называет подсказка: молча
@@ -103,6 +104,9 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   };
 
   const beside = file === 'beside';
+  // Значок называет, что сделает нажатие ([COST-6.3], issue #1874): открыть панель, закрыть её или развернуть
+  // файл поверх формы. Подпись и `aria-pressed` от значка не зависят — имя переключателя не меняется.
+  const icon = file === 'over' ? OpenInFull : beside ? RightPanelClose : RightPanelOpen;
   // Пока виды файлов и вид для чтения не пришли, решать, чем показывать, не по чему: поверх формы открылся бы
   // не вид для чтения, а скачанный оригинал. И повторный щелчок не начинает второе открытие (ревью PR #1794).
   const waiting = file === 'over' && (kinds.isLoading || image.isLoading);
@@ -131,7 +135,7 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   useImperativeHandle(showRef, () => ({ show: () => showNow.current() }), []);
   return (
     <>
-      <IconButton icon={RightPanelOpen} label="Файл" aria-pressed={file === 'over' ? undefined : beside}
+      <IconButton icon={icon} label="Файл" aria-pressed={file === 'over' ? undefined : beside}
         title={file === 'over' ? FILE_OVER_REASON : beside ? 'Скрыть файл' : 'Показать файл рядом с формой'}
         loading={loading}
         onClick={file === 'over' ? over : onToggle} />
