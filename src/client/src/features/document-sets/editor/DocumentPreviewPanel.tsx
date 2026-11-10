@@ -87,14 +87,14 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
           </div>
         )}
         {state.kind === 'no-template' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
+          <div data-testid="preview-failure" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
             <Icon icon={ScanDelete} size={40} />
             <p className="text-body-medium">Нет шаблона для предпросмотра</p>
             <p className="text-body-small">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
           </div>
         )}
         {state.kind === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
+          <div data-testid="preview-failure" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
             <Icon icon={ScanDelete} size={40} className="text-error" />
             <p className="text-body-medium text-error">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}

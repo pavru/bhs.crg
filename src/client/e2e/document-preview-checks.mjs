@@ -21,7 +21,14 @@ export async function previewKeepsPage(page, editor, named) {
   await page.getByRole('button', { name: 'Показать предпросмотр' }).click();
   const panel = page.getByTestId('document-preview');
   const region = panel.getByRole('region', { name: 'Предпросмотр документа' });
-  await named('просмотрщика в панели предпросмотра нет', () => region.waitFor({ timeout: 30_000 }));
+  // Ждём исхода — просмотрщик ИЛИ отказ панели («Не удалось построить предпросмотр», «Нет шаблона»).
+  // Иначе отказ сервера — например, Typst на стенде не запускается — краснел бы тридцатисекундным
+  // «просмотрщика нет», и причину пришлось бы искать по ответам сети.
+  const failure = panel.getByTestId('preview-failure');
+  await named('панель предпросмотра не показала ни просмотрщик, ни отказ',
+    () => region.or(failure).first().waitFor({ timeout: 30_000 }));
+  if (await failure.count())
+    throw new Error(`предпросмотр отказал: «${(await failure.locator('p').allInnerTexts()).join(' ')}»`);
   if (await panel.locator('iframe').count()) throw new Error('в панели остался фрейм браузера');
   const toolbar = panel.getByTestId('viewer-toolbar');
   await named(`панель не говорит «из ${PREVIEW_PAGES}» — шаблона посева нет?`,
