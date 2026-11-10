@@ -15,7 +15,7 @@
   «Внести оплату» / «Внести оплату с переносом» в окне оплаты (`InvoicePayment.tsx`, `payLabel`);
   комментарии с цитатой подписи — туда же [COST-4] [COST-6.2]. Проверка — vitest:
   `paymentPosting.test.ts`, `invoicePrimary.test.ts`, `operationDialogs.test.tsx` с новыми подписями зелёные
-- [ ] 1.2 Живые прогоны: `costs-smoke`, `invoice-payment-smoke`, `invoices-smoke`,
+- [x] 1.2 Живые прогоны: `costs-smoke`, `invoice-payment-smoke`, `invoices-smoke`,
   `invoice-terms-collapse-checks` и `e2e/README.md` ищут кнопку по новой подписи (D4) [COST-4]. Проверка —
   эти прогоны зелёные на стенде; `grep -rn "Отметить оплату" src docs` пуст
 - [x] 1.3 Сервер (D2): описание права `costs.invoice.pay` (`CostsModule.cs`) и роли «Бухгалтер»
@@ -25,7 +25,7 @@
 
 ## 2. Документы
 
-- [ ] 2.1 `docs/USER_GUIDE.md` (оплата, сводка, «Сроки и оплата», отклонённый счёт) и `docs/ADMIN_GUIDE.md`
+- [x] 2.1 `docs/USER_GUIDE.md` (оплата, сводка, «Сроки и оплата», отклонённый счёт) и `docs/ADMIN_GUIDE.md`
   (права бухгалтера) — новая подпись; снимки с видимой кнопкой пересняты. Проверка — `grep` по
   «Отметить оплату» пуст; оглавление перестроено `npm run toc`, если менялись главы
 
