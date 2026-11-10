@@ -30,6 +30,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Простая подсказка пропускает указатель (TooltipLayer): обёртка Popper своего pointer-events не снимает и
+   перехватывала бы щелчок по строке под подсказкой. */
+[data-radix-popper-content-wrapper]:has(> [data-tooltip-passive]) { pointer-events: none; }
+
 /* ── Состояния MD3 ([UI-64], docs/UI.md «Состояния») ───────────────────────────
    Слой состояния — цвет содержимого поверх заливки элемента: картинкой фона, без ::before и
    position: relative (они ломали бы абсолютно позиционированное и чужие before:). Прозрачность —

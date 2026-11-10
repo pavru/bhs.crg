@@ -7,7 +7,6 @@ import { Icon } from '@/shared/ui/Icon';
 import { ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { StatusText } from '@/shared/ui/StatusText';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { lineSummary, lsrKey, targetText, type DistGridLine, type SectionName } from './distributionView';
@@ -60,7 +59,8 @@ export function DistributionGrid({ distribution, lines, rows, hidden, name, filt
     { key: 'number', label: '№', width: 'w-12', cell: l => <span className="tabular-nums text-on-surface-variant">{line(l).number}</span> },
     {
       key: 'rateCode', label: 'Шифр', width: 'w-36',
-      cell: l => { const code = rows.get(line(l).rowId)?.rateCode; return <Tooltip content={code ?? undefined}><span className="block truncate font-mono text-body-small">{code}</span></Tooltip>; },
+      // Обрезанный шифр целиком показывает сетка — и только обрезанный ([UI-53]).
+      cell: l => <span className="block truncate font-mono text-body-small">{rows.get(line(l).rowId)?.rateCode}</span>,
     },
     { key: 'name', label: 'Наименование', wrap: true, rowHeader: true, cell: l => <span className="text-body-medium">{line(l).name}</span> },
     {

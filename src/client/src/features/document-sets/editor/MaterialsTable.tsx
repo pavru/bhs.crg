@@ -71,6 +71,7 @@ export function MaterialsTable({
       cell: m => {
         const link = findLink(m);
         const suggestion = !link ? suggestionByKey.get(m.key) : undefined;
+        const linkedName = link ? docName.get(link.qualityDocumentId) ?? '(документ)' : '';
         return (
           <>
             {link ? (
@@ -88,13 +89,13 @@ export function MaterialsTable({
                 )}
                 {/* Имя документа — единственный вход в просмотр: рядом стояла иконка
                     Eye с тем же обработчиком и той же подсказкой (issue #682). Место,
-                    которое она занимала, ушло под «Перепривязать». */}
-                <Tooltip content="Просмотреть документ">
-                  <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
-                    className="flex-1 min-w-0 text-left text-primary hover:underline truncate">
-                    {docName.get(link.qualityDocumentId) ?? '(документ)'}
-                  </button>
-                </Tooltip>
+                    которое она занимала, ушло под «Перепривязать». Своей подсказки у имени нет: обрезанное
+                    имя целиком показывает сетка ([UI-52]), а действие — в имени кнопки для диктора (Д4). */}
+                <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
+                  aria-label={`Просмотреть документ «${linkedName}»`}
+                  className="flex-1 min-w-0 text-left text-primary hover:underline truncate">
+                  {linkedName}
+                </button>
                 {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
                     одну ошибку («не тот документ») на другую («документа нет»). До этого
                     единственный путь починки шёл через destructive-действие. */}
@@ -106,12 +107,11 @@ export function MaterialsTable({
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">
                 <span className="text-label-small px-1 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
-                <Tooltip content="Просмотреть предложенный документ">
-                  <button onClick={() => setViewDoc(suggestion.doc)}
-                    className="flex-1 min-w-0 text-left text-on-surface-variant italic hover:underline truncate">
-                    {suggestion.doc.displayName}
-                  </button>
-                </Tooltip>
+                <button onClick={() => setViewDoc(suggestion.doc)}
+                  aria-label={`Просмотреть предложенный документ «${suggestion.doc.displayName}»`}
+                  className="flex-1 min-w-0 text-left text-on-surface-variant italic hover:underline truncate">
+                  {suggestion.doc.displayName}
+                </button>
                 {/* Действие в строке (issue #680) — `Chip` без нажатия, assist chip MD3 ([UI-42]). Не
                     `Button size="sm"`: у кнопки 32 px, а строк на живом реестре 130 — лишний экран
                     прокрутки. Согласие с догадкой отличает галочка и место первым в паре. */}
