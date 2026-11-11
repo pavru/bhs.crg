@@ -34,7 +34,9 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
     private const string EditedName = "Счёт на оплату (правлено исходной системой)";
 
     public Task InitializeAsync() => FreshSystemAsync();
-    public Task DisposeAsync() => Task.CompletedTask;
+    // Уборка и за собой: профили сброс базы не чистит, и правленные встроенные под чужими
+    // идентификаторами достались бы следующему классу на той же базе (ревью PR #1896).
+    public Task DisposeAsync() => FreshSystemAsync();
 
     [Fact]
     public async Task Копия_с_правленным_профилем_ложится_на_заново_засеянную_систему()
@@ -133,6 +135,111 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
         Assert.DoesNotContain(report.Warnings, w => w.Contains("заменён профилем из копии"));
     }
 
+    [Fact]
+    public async Task Нетронутый_встроенный_из_копии_даёт_здешнему_свой_идентификатор()
+    {
+        // Профиль не правлен: восстановление его не кладёт, но наборы копии ссылаются на него.
+        var copiedTable = await ProfileIdAsync(IdRecognitionProfiles.SpecificationTableCode);
+        var copiedFile = await FileAsync(file => file.SetGrouping(GroupingWith(copiedTable)));
+        var copy = await ExportAsync(BackupScope.Full);
+        Assert.Contains(copy.DataSetFiles ?? [], f => f.Id == copiedFile);
+
+        await FreshSystemAsync();
+        var hereTable = await ProfileIdAsync(IdRecognitionProfiles.SpecificationTableCode);
+        var hereName = await ProfileNameAsync(hereTable);
+        var hereFile = await FileAsync(file => file.SetGrouping(GroupingWith(hereTable)));
+        var report = await ImportAsync(copy);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        // Профиль один — под идентификатором копии, в здешней (заводской) редакции.
+        Assert.Equal(copiedTable, await ProfileIdAsync(IdRecognitionProfiles.SpecificationTableCode));
+        Assert.Equal(hereName, await ProfileNameAsync(copiedTable));
+        // На него указывают и набор из копии, и набор этой системы.
+        Assert.Contains(copiedTable.ToString(), (await FileRefsAsync(copiedFile)).Grouping);
+        Assert.Contains(copiedTable.ToString(), (await FileRefsAsync(hereFile)).Grouping);
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("заменён профилем из копии"));
+    }
+
+    [Fact]
+    public async Task Ссылка_заглавными_тоже_переводится()
+    {
+        var copiedTable = await EditProfileAsync(IdRecognitionProfiles.SpecificationTableCode, "Спецификация (правлено)");
+        var copy = await ExportAsync();
+
+        await FreshSystemAsync();
+        var hereTable = await ProfileIdAsync(IdRecognitionProfiles.SpecificationTableCode);
+        var fileId = await FileAsync(file => file.SetGrouping(GroupingWith(hereTable, upper: true)));
+        var report = await ImportAsync(copy);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        var grouping = (await FileRefsAsync(fileId)).Grouping;
+        Assert.Contains(copiedTable.ToString(), grouping);
+        Assert.DoesNotContain(hereTable.ToString(), grouping, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Набор_из_копии_переведённым_не_считается()
+    {
+        var copiedId = await EditProfileAsync(CostsRecognitionProfiles.InvoiceCode, EditedName);
+        var fileId = await FileAsync(file => file.SetRecognitionProfiles(InvoiceMap(copiedId)));
+        var copy = await ExportAsync(BackupScope.Full);
+        Assert.Contains(copy.DataSetFiles ?? [], f => f.Id == fileId);
+
+        // Та же система после пересева: набор из копии привязан к здешнему тёзке.
+        await ReseedProfilesAsync();
+        var hereId = await ProfileIdAsync(CostsRecognitionProfiles.InvoiceCode);
+        await SetFileProfilesAsync(fileId, InvoiceMap(hereId));
+        var report = await ImportAsync(copy);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Contains(copiedId.ToString(), (await FileRefsAsync(fileId)).Profiles);
+        Assert.Contains(report.Warnings, w => w.Contains("заменён профилем из копии"));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("переведены"));
+    }
+
+    [Fact]
+    public async Task Обмен_кодами_с_профилем_копии_не_падает_на_индексе()
+    {
+        var hereId = await EditProfileAsync(CostsRecognitionProfiles.InvoiceCode, EditedName);
+        var exported = await ExportAsync();
+        var invoice = exported.RecognitionProfiles!.Single(p => p.Id == hereId);
+        // Копия уносит здешний профиль под другим кодом, а его код отдаёт своему профилю.
+        var copy = exported with
+        {
+            RecognitionProfiles =
+            [
+                // Новичок — первым: самый неудобный порядок для одного сохранения. Сегодня EF и без
+                // снятия кода ставит обновление раньше вставки; тест закрепляет итог, а не его порядок.
+                invoice with { Id = Guid.NewGuid(), Name = "Счёт на оплату (новая редакция)" },
+                .. exported.RecognitionProfiles!.Where(p => p.Id != hereId),
+                invoice with { Code = "invoice-прежний" },
+            ],
+        };
+        var report = await ImportAsync(copy);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.NotEqual(hereId, await ProfileIdAsync(CostsRecognitionProfiles.InvoiceCode));
+        Assert.Equal(hereId, await ProfileIdAsync("invoice-прежний"));
+    }
+
+    [Fact]
+    public async Task Упоминание_в_истории_держателем_не_считается()
+    {
+        await EditProfileAsync(CostsRecognitionProfiles.InvoiceCode, EditedName);
+        var copy = await ExportAsync();
+
+        await FreshSystemAsync();
+        var hereId = await ProfileIdAsync(CostsRecognitionProfiles.InvoiceCode);
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync($"""
+                INSERT INTO notifications ("Id", "Severity", "Title", "Message", "CreatedAt", "UpdatedAt")
+                VALUES ({Guid.NewGuid()}, 'Info', 'Распознавание', {"Профиль " + hereId + " применён"}, now(), now())
+                """);
+        var report = await ImportAsync(copy);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -143,8 +250,15 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
     private async Task FreshSystemAsync()
     {
         await host.ResetDatabaseAsync();
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.ProjectModuleTypesAsync();
+        await ReseedProfilesAsync();
+    }
+
+    /// <summary>Встроенные профили — заново, под новыми идентификаторами.</summary>
+    private async Task ReseedProfilesAsync()
+    {
         using var scope = host.Services.CreateScope();
-        await scope.ServiceProvider.ProjectModuleTypesAsync();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.RecognitionProfiles.ExecuteDeleteAsync();
         await RecognitionProfileSeeder.SeedAsync(
@@ -198,15 +312,27 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
         return (file.RecognitionProfiles ?? "", file.Grouping ?? "");
     }
 
-    private static string GroupingWith(Guid profileId) => $$"""
-        {"Groups":[{"Kind":0,"Code":"ЭОМ.С","Name":"Спецификация","Pages":[],"Id":"{{Guid.NewGuid()}}","ProfileId":"{{profileId}}"}],"ManuallyEdited":false}
+    private static string GroupingWith(Guid profileId, bool upper = false) => $$"""
+        {"Groups":[{"Kind":0,"Code":"ЭОМ.С","Name":"Спецификация","Pages":[],"Id":"{{Guid.NewGuid()}}","ProfileId":"{{(upper ? profileId.ToString().ToUpperInvariant() : profileId.ToString())}}"}],"ManuallyEdited":false}
         """;
 
-    /// <summary>Манифест настройки этой системы — так, как его кладёт в архив сама копия.</summary>
-    private async Task<BackupManifest> ExportAsync()
+    private static string InvoiceMap(Guid profileId) => JsonSerializer.Serialize(
+        new Dictionary<string, Guid> { [nameof(RecognitionProfileKind.Invoice)] = profileId });
+
+    private async Task SetFileProfilesAsync(Guid fileId, string map)
     {
         using var scope = host.Services.CreateScope();
-        var (zip, _) = await scope.ServiceProvider.GetRequiredService<BackupService>().ExportAsync();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var file = await db.Set<DataSetFile>().SingleAsync(f => f.Id == fileId);
+        file.SetRecognitionProfiles(map);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Манифест настройки этой системы — так, как его кладёт в архив сама копия.</summary>
+    private async Task<BackupManifest> ExportAsync(BackupScope backupScope = BackupScope.Configuration)
+    {
+        using var scope = host.Services.CreateScope();
+        var (zip, _) = await scope.ServiceProvider.GetRequiredService<BackupService>().ExportAsync(backupScope);
         await using var _zipHandle = zip;
         using var archive = new ZipArchive(zip, ZipArchiveMode.Read);
         await using var entry = archive.GetEntry("manifest.json")!.Open();

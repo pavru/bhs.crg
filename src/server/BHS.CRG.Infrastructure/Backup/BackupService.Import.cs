@@ -89,7 +89,8 @@ public partial class BackupService
             await RestoreEnumTypesAsync(manifest.EnumTypes ?? [], stats, warnings, ct);
             // Тёзки профилей — до самих профилей (issue #1570): встроенный профиль новая система
             // завела под своим идентификатором, и вставка правленного из копии упала бы на коде.
-            await ReplaceProfileNamesakesAsync(manifest.RecognitionProfiles ?? [], warnings, ct);
+            await ReplaceProfileNamesakesAsync(
+                manifest.RecognitionProfiles ?? [], manifest.DataSetFiles ?? [], warnings, ct);
             await RestoreRecognitionProfilesAsync(manifest.RecognitionProfiles ?? [], stats, warnings, ct);
             // Тёзки — до типов (issue #1400): тип, который новая система завела сама, стоит под своим
             // идентификатором, и вставка одноимённого из копии упала бы на уникальности кода.

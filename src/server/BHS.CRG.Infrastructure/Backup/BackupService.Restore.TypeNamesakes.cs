@@ -37,7 +37,7 @@ public partial class BackupService
             // восстановление обновит само.
             if (namesake is null || copyIds.Contains(namesake.Id)) continue;
 
-            if (await HolderOfAsync(namesake.Id, TypeIdColumn, skipActivityLog: false, ct) is { } holder)
+            if (await HolderOfAsync(namesake.Id, ct) is { } holder)
                 throw new ConflictException(Occupied(item, holder));
 
             await db.DocumentTypes.Where(t => t.Id == namesake.Id).ExecuteDeleteAsync(ct);
@@ -56,41 +56,43 @@ public partial class BackupService
     private static readonly (string Table, string Column) TypeIdColumn = ("document_types", "Id");
 
     /// <summary>
-    /// Кто держит здешнюю запись ядра (тип, профиль распознавания), — словами, или <c>null</c>.
+    /// Кто держит здешний тип, — словами, или <c>null</c>.
     ///
     /// <para>Сначала порт держателей в модулях (<see cref="IRecordHolders" />), как у всякого удаления
     /// записи ядра: данные модулей — в том числе выключенного — он находит по схеме модулей и называет
     /// словами. Не ответил — удалять нельзя: «проверить не удалось» не значит «никто не держит».</para>
     /// </summary>
-    private async Task<string?> HolderOfAsync(
-        Guid id, (string Table, string Column) own, bool skipActivityLog, CancellationToken ct)
+    private async Task<string?> HolderOfAsync(Guid id, CancellationToken ct)
     {
         var held = await holders.FindAsync([id], ct);
         if (held.Any) return held.IsUnverified ? "проверить не удалось: " + held.Lines[0] : held.Lines[0];
-        return await CoreHolderOfAsync(id, own, skipActivityLog, ct);
+        return (await CoreHolderOfAsync([id], TypeIdColumn, history: [], ct))?.Address;
     }
 
     /// <summary>
-    /// Где в базе упомянут идентификатор, — «схема.таблица.колонка» первого держателя, или <c>null</c>.
+    /// Где в базе упомянут один из идентификаторов, — он сам и «схема.таблица.колонка» первого
+    /// держателя, или <c>null</c>.
     ///
     /// <para>По схеме, а не по списку держателей: на тип ссылаются колонки ядра (объекты, шаблоны,
     /// планы комплектов, привязки) И таблицы модулей (счёт — своей колонкой), о которых ядро не знает
     /// ничего. Список, выписанный руками, пропустил бы держателя — и тип с данными был бы удалён.
     /// Тот же приём, что у сбора живых путей хранилища (<c>LiveBlobPathScan</c>): колонки-идентификаторы
-    /// сравниваются точно, текст и JSON — по вхождению строки.</para>
+    /// сравниваются точно, текст и JSON — по вхождению строки, без учёта регистра: GUID, записанный
+    /// заглавными, — та же ссылка, и пропустить её значило бы оборвать её молча (ревью PR #1896).</para>
     ///
     /// <para><paramref name="own" /> — собственная колонка записи (<c>public</c>): строка самой записи
-    /// держателем не считается. <paramref name="skipActivityLog" /> исключает журнал действий — так
-    /// делает проход для профилей (issue #1570), у типов журнал по-прежнему держатель.</para>
+    /// держателем не считается. <paramref name="history" /> — таблицы <c>public</c>, где упоминание —
+    /// история, а не ссылка (у профилей — журнал, задачи, уведомления; у типов — ни одной).</para>
     ///
-    /// <para>Цена — проход по таблицам целиком. Платится только при тёзке, то есть на чужой для копии
-    /// системе: на пустой проверяется тип, заведённый при старте, и таблицы почти пусты.</para>
+    /// <para>Цена — проход по таблицам целиком, ОДИН на все спрошенные идентификаторы: запрос на
+    /// колонку отвечает «есть ли хоть один», и только найденный уточняется. Платится лишь при тёзке, то
+    /// есть на чужой для копии системе.</para>
     /// </summary>
-    private async Task<string?> CoreHolderOfAsync(
-        Guid id, (string Table, string Column) own, bool skipActivityLog, CancellationToken ct)
+    private async Task<(Guid Id, string Address)?> CoreHolderOfAsync(
+        IReadOnlyList<Guid> ids, (string Table, string Column) own, string[] history, CancellationToken ct)
     {
+        if (ids.Count == 0) return null;
         var (ownTable, ownColumn) = own;
-        var logTable = skipActivityLog ? ActivityLogTable : "";
         var columns = await db.Database.SqlQuery<HolderColumn>($"""
             SELECT table_schema AS "Schema", table_name AS "Table", column_name AS "Column",
                    data_type = 'uuid' AS "IsUuid"
@@ -98,31 +100,44 @@ public partial class BackupService
             WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
               AND data_type IN ('uuid', 'jsonb', 'json', 'text', 'character varying', 'ARRAY')
               AND NOT (table_schema = 'public' AND table_name = {ownTable} AND column_name = {ownColumn})
-              AND NOT (table_schema = 'public' AND table_name = {logTable})
+              AND NOT (table_schema = 'public' AND table_name = ANY({history}))
               AND EXISTS (SELECT 1 FROM information_schema.tables t
                           WHERE t.table_schema = c.table_schema AND t.table_name = c.table_name
                             AND t.table_type = 'BASE TABLE')
             ORDER BY 1, 2, 3
             """).ToListAsync(ct);
 
-        var text = id.ToString();
+        var idArray = ids.ToArray();
+        var patterns = ids.Select(Contains).ToArray();
         foreach (var c in columns)
         {
             var target = $"{Quoted(c.Schema)}.{Quoted(c.Table)}";
-            var found = c.IsUuid
-                ? await db.Database.SqlQueryRaw<bool>(
-                    $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {Quoted(c.Column)} = {{0}}) AS \"Value\"", id)
-                    .SingleAsync(ct)
-                : await db.Database.SqlQueryRaw<bool>(
-                    $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {Quoted(c.Column)}::text LIKE {{0}}) AS \"Value\"",
-                    "%" + text + "%")
-                    .SingleAsync(ct);
-            if (found) return $"{c.Schema}.{c.Table}.{c.Column}";
+            var column = Quoted(c.Column);
+            if (c.IsUuid)
+            {
+                var hit = await db.Database.SqlQueryRaw<Guid>(
+                    $"SELECT {column} AS \"Value\" FROM {target} WHERE {column} = ANY({{0}}) LIMIT 1", (object)idArray)
+                    .ToListAsync(ct);
+                if (hit.Count > 0) return (hit[0], Address(c));
+                continue;
+            }
+            if (!await MentionsAsync(target, column, patterns, ct)) continue;
+            // Хоть один упомянут — уточняем, какой: путь отказа, его цена значения не имеет.
+            foreach (var id in ids)
+                if (await MentionsAsync(target, column, [Contains(id)], ct)) return (id, Address(c));
         }
         return null;
+
+        static string Contains(Guid id) => "%" + id + "%";
+        static string Address(HolderColumn c) => $"{c.Schema}.{c.Table}.{c.Column}";
     }
 
-    private const string ActivityLogTable = "activity_log";
+    private Task<bool> MentionsAsync(string target, string column, string[] patterns, CancellationToken ct) =>
+        db.Database.SqlQueryRaw<bool>(
+            $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {column}::text ILIKE ANY({{0}})) AS \"Value\"",
+            // string[] — сам по себе params object[]: без приведения массив разошёлся бы на параметры.
+            (object)patterns)
+            .SingleAsync(ct);
 
     private static string Quoted(string name) => '"' + name.Replace("\"", "\"\"") + '"';
 

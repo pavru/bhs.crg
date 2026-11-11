@@ -27,6 +27,11 @@
 - [x] 1.6 Доккомментарий нового partial — правило и причина, как у `ReplaceTypeNamesakesAsync`;
   `docs/DEV_NOTES.md`, раздел о резервной копии: тёзки встроенных профилей. Проверка — ревью PR
 
+- [x] 1.7 Ревью PR #1896: нетронутый встроенный из копии передаёт здешнему свой идентификатор (D7) — тест
+  «Нетронутый_встроенный_из_копии…»; без смены `Id` — красный
+- [x] 1.8 Ревью PR #1896: тёзки разом (D8), сравнение без учёта регистра (D6), таблицы истории, счёт без
+  наборов копии, снятие уходящего кода, уборка класса тестов за собой. Проверка — тесты класса
+
 ## 2. Верификация
 
 - [x] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RestoreModuleTypes|FullyQualifiedName~RestoreRecognitionProfile|FullyQualifiedName~BackupService|FullyQualifiedName~BackupManifest"` — зелёный
