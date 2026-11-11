@@ -11,6 +11,11 @@ import { NavigationGuardProvider } from './NavigationGuardProvider';
 let access: AccessInfo;
 vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ logout: vi.fn() }) }));
 vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ setTheme: vi.fn() }) }));
+// Поиск записей ходит на сервер — здесь записей не ищут (shell-05).
+vi.mock('@/shared/api/recordSearch', async importOriginal => ({
+  ...await importOriginal<typeof import('@/shared/api/recordSearch')>(),
+  useRecordSearch: () => ({ groups: undefined, failed: false, pending: false }),
+}));
 vi.mock('@/shared/api/access', async importOriginal => ({
   ...await importOriginal<typeof import('@/shared/api/access')>(),
   useAccess: () => ({ data: access }),

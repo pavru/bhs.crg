@@ -183,6 +183,19 @@ async function supplierPart() {
   });
   if (invoiceId === null) return;
 
+  // Палитра находит счёт по номеру — в правах роли, сервером (shell-05, [UI-30]): Ctrl K → номер → Enter.
+  await check('palette-finds-the-invoice-by-number', async () => {
+    await visit(supplier, 'стартовая страница', '/document-sets');
+    supplier.screen = 'палитра: поиск счёта';
+    await supplier.page.keyboard.press('Control+k');
+    const input = supplier.page.locator('input[aria-label="Поиск и действия"]');
+    await input.waitFor({ state: 'visible', timeout: 3000 });
+    await input.fill(number);
+    await supplier.page.getByRole('option', { name: new RegExp(number) }).first().waitFor({ timeout: 10_000 });
+    await supplier.page.keyboard.press('Enter');
+    await supplier.page.waitForURL(u => new URL(u).searchParams.get('invoice') === invoiceId, { timeout: 10_000 });
+  });
+
   // Поле, дописанное администратором в тип «Счёт», рабочая роль видит и правит (issue #1482).
   await extraFieldChecks({ browser, check, skip, seat: supplier, invoiceId, open: id => openInvoice(supplier, id, 'счёт: дописанное поле') });
 

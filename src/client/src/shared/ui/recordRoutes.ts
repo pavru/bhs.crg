@@ -1,4 +1,5 @@
 import type { AccessInfo } from '@/shared/api/access';
+import type { RecordLevel } from '@/shared/api/recordSearch';
 import { workNav, settingsNav } from './navConfig';
 import { allowed } from './navAccess';
 
@@ -18,25 +19,66 @@ import { allowed } from './navAccess';
 export interface RecordRoute {
   /** Экран записи — адрес раздела из `navConfig`. */
   screen: string;
-  /** Параметр адреса, которым экран называет открытую запись. */
-  param: string;
+  /** Параметр адреса, которым экран называет открытую запись. Без него запись — шаг пути:
+   *  `/document-sets/<id>` (стройка открывается своей страницей, а не выбором в списке). */
+  param?: string;
   /** Что сказано на ссылке: «Открыть счёт». */
   label: string;
+  /** Адрес, к которому прикладывается запись, если он не сам экран: панель наборов данных стройки
+   *  (`/document-sets/<id>/datasets`) закрыта правом экрана строек, а адрес у неё свой. */
+  path?: string;
 }
 
 /** Счёт на оплату — на экране счетов; он же читает параметр, чтобы открыть названный счёт. */
-export const INVOICE_RECORD: RecordRoute = { screen: '/invoices', param: 'invoice', label: 'Открыть счёт' };
+export const INVOICE_RECORD = { screen: '/invoices', param: 'invoice', label: 'Открыть счёт' } as const satisfies RecordRoute;
+
+/** Стройка — своей страницей под экраном строек (shell-05, палитра находит записи). */
+export const CONSTRUCTION_RECORD = { screen: '/document-sets', label: 'Открыть стройку' } as const satisfies RecordRoute;
+
+/**
+ * Набор данных — на экране своего уровня (shell-05, решение «А»): системный — на «Наборах данных», набор
+ * стройки, раздела и комплекта — на их панели «Наборы данных». Здесь — экран группы (чип, Tab, «Ещё в
+ * разделе»); адрес найденного набора строит `hitRoute` по его уровню. Набор экран называет `?file=`.
+ */
+export const DATASET_RECORD = { screen: '/datasets', param: 'file', label: 'Открыть набор данных' } as const satisfies RecordRoute;
 
 /**
  * Запись общих данных системного уровня — на странице «Общие данные» (issue #1517): экран открывает
  * названную окном записи. Записи стройки, раздела и комплекта там нет — на них ссылки не дают.
  */
-export const CATALOG_RECORD: RecordRoute = { screen: '/common-data', param: 'entry', label: 'Открыть в справочнике' };
+export const CATALOG_RECORD = { screen: '/common-data', param: 'entry', label: 'Открыть в справочнике' } as const satisfies RecordRoute;
 
 /** Ключ — код типа записи, тем же письмом, что у модуля на сервере (`CostsRecordTypes`). */
 export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
   'СчётНаОплату': INVOICE_RECORD,
+  // Коды типов ядра — те же, что у групп поиска ядра на сервере (`CoreRecordSearch`).
+  'Стройка': CONSTRUCTION_RECORD,
+  'НаборДанных': DATASET_RECORD,
 };
+
+/** Панель наборов данных уровня под стройкой; уровень без стройки или без своей записи адреса не имеет. */
+function dataSetPath(level: RecordLevel): string | null {
+  const { scope, scopeId, constructionId } = level;
+  if (!constructionId || !scopeId) return null;
+  const site = `${CONSTRUCTION_RECORD.screen}/${encodeURIComponent(constructionId)}`;
+  if (scope === 'Construction') return `${site}/datasets`;
+  if (scope === 'Section') return `${site}/sections/${encodeURIComponent(scopeId)}/datasets`;
+  if (scope === 'Set') return `${site}/sets/${encodeURIComponent(scopeId)}/datasets`;
+  return null;
+}
+
+/**
+ * Экран найденной записи — либо null. У большинства типов он один (`group` — экран группы); у набора
+ * данных — свой на каждом уровне, и закрыт он правом СВОЕГО раздела: набор стройки — правом строек,
+ * системный — правом наборов данных. Нет уровня или экран закрыт — строки нет: она вела бы в отказ.
+ */
+export function hitRoute(recordType: string, group: RecordRoute, level: RecordLevel | null | undefined,
+  access: AccessInfo): RecordRoute | null {
+  if (recordType !== 'НаборДанных') return group;
+  if (level?.scope === 'System') return openTo(DATASET_RECORD, access);
+  const path = level ? dataSetPath(level) : null;
+  return path ? openTo({ ...DATASET_RECORD, screen: CONSTRUCTION_RECORD.screen, path }, access) : null;
+}
 
 export interface RecordLink {
   to: string;
@@ -70,7 +112,15 @@ export function openTo(route: RecordRoute, access: AccessInfo): RecordRoute | nu
 export function recordLink(screen: RecordRoute | null, id: string | null, name?: string): RecordLink | null {
   if (!screen || !id) return null;
   return {
-    to: `${screen.screen}?${new URLSearchParams({ [screen.param]: id })}`,
+    to: recordHref(screen, id),
     label: name ? `${screen.label}: ${name}` : screen.label,
   };
+}
+
+/** Адрес записи на её экране. Ключ кодируется: в адресе он — значение, а не кусок пути. */
+export function recordHref(screen: RecordRoute, id: string): string {
+  const base = screen.path ?? screen.screen;
+  return screen.param
+    ? `${base}?${new URLSearchParams({ [screen.param]: id })}`
+    : `${base}/${encodeURIComponent(id)}`;
 }

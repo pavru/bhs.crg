@@ -57,9 +57,12 @@ export function rank(label: string, query: string[]): number {
 /**
  * Порядок выдачи: группа — по лучшему пункту в ней, пункты внутри — по своему месту; при равенстве
  * держится исходный порядок. Группа не рвётся: заголовок у неё один.
+ *
+ * <p>Найденное в данных (`found`, shell-05) началом подписи не выигрывает: совпадение подписью раздела
+ * выше совпадения в данных — «счета» ведёт в раздел, а не в счёт «Счета за май».</p>
  */
-export function ranked<T extends { label: string; group: string }>(items: T[], query: string[]): T[] {
-  const scored = items.map((it, at) => ({ it, at, score: rank(it.label, query) }));
+export function ranked<T extends { label: string; group: string; found?: true }>(items: T[], query: string[]): T[] {
+  const scored = items.map((it, at) => ({ it, at, score: Math.max(rank(it.label, query), it.found ? 1 : 0) }));
   const best = new Map<string, number>();
   for (const s of scored) best.set(s.it.group, Math.min(best.get(s.it.group) ?? Infinity, s.score));
   const first = new Map<string, number>();

@@ -1,7 +1,9 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Icon } from './Icon';
-import { ArrowBack, DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search, type IconDef } from './icons';
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { Apartment, ArrowBack, ArrowForward, DarkMode, KeyboardReturn, Layers, LightMode, Logout, Monitor, ReceiptLong, Search,
+  type IconDef } from './icons';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useLocation } from 'react-router';
 import { dockedPlace, fullPlace, PALETTE_SURFACE } from './paletteDock';
 import { IconButton } from './Button';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
@@ -15,10 +17,15 @@ import { useGuardedIntent, useGuardedLeave, useGuardedNavigate } from './Navigat
 import { useHistoryLayer } from './historyLayers';
 import { useWorkspace } from './workspaceContext';
 import { Chip } from './Chip';
-import { availableActions, intentHref } from './paletteActions';
+import { ListOption } from './ListOption';
+import { availableActions, intentHref, recordActions } from './paletteActions';
 import { highlight, matches, queryWords, ranked } from './paletteSearch';
+import { foundGroups, hitText, openGroups, tabGroup, type FoundGroup } from './paletteRecords';
+import { hitRoute, recordHref } from './recordRoutes';
+import { SEARCH_MAX_LENGTH, searchTooLong, useRecordSearch } from '@/shared/api/recordSearch';
+import type { AccessInfo } from '@/shared/api/access';
 
-type Kind = 'action' | 'section';
+type Kind = 'action' | 'section' | 'record';
 
 interface Cmd {
   id: string;
@@ -30,16 +37,19 @@ interface Cmd {
   kind: Kind;
   icon: IconDef;
   run: () => void;
+  /** Найдено сервером (запись и действие с ней): клиентом не отбирается, а подписью раздела уступает. */
+  found?: true;
+  /** Группа данных записи — для чипа её области. */
+  area?: string;
+  supporting?: string;
+  trailing?: string;
 }
 
-/** Где искать. Чипы данных («Счета», «Стройки»…) придут с поиском по данным — второй PR #1433. */
-const SCOPES: { id: 'all' | Kind; label: string }[] = [
-  { id: 'all', label: 'Везде' },
-  { id: 'action', label: 'Действия' },
-  { id: 'section', label: 'Разделы' },
-];
+/** Где искать: «Везде», группы данных — те, что открыты человеку ([UI-31]), — «Действия», «Разделы». */
+type Scope = 'all' | 'action' | 'section' | (string & {});
 
 const ACTIONS = 'Действия';
+const GROUP_ICON: Record<string, IconDef> = { invoices: ReceiptLong, constructions: Apartment, datasets: Layers };
 
 /**
  * Командная палитра (issue #107, Ctrl+K) — один вход в «сделать» и «перейти» (issue #1433).
@@ -48,6 +58,10 @@ const ACTIONS = 'Действия';
  *
  * <p>Действия — «Новый счёт», «Счёт из файла», «Новая накладная», «Новая стройка» — исполняет экран
  * своей кнопкой (`paletteActions.ts`); здесь только переход к нему. Плюс тема и выход.</p>
+ *
+ * <p>Записи — счета, стройки, наборы данных — ищет сервер в правах спрашивающего (shell-05, [UI-30]); у
+ * найденной записи — действие её экрана с ней ([UI-32], «Новая накладная на стройку „…“»). Отказ поиска
+ * сказан словами, а не «Ничего не найдено». Все строки — `ListOption` (М-2): фокус живёт в поле.</p>
  *
  * <p>Тело монтируется по открытию (issue #858): строка поиска и выделение заводятся заново, и
  * эффект «закрылось — очисти запрос» не нужен.</p>
@@ -110,6 +124,10 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   // Палитра ищет разделы ВСЕХ доступных модулей, а не только пространства (ТЗ AUTH-16.1, issue
   // #1001): иначе скрытый раздел недостижим ни меню, ни палитрой. Найденное вне пространства помечено.
   const { inside } = useWorkspace();
+  const { pathname } = useLocation();
+  const groups = openGroups(access ?? NO_ACCESS);
+  // Tab сужает поиск до группы раздела, где человек ([UI-31]); на экране без своей группы — ничего.
+  const tab = tabGroup(pathname, groups);
 
   // Без useMemo: источники — новые массивы на каждую отрисовку, и запоминание не срабатывало бы
   // никогда (ревью PR #1478); список из трёх десятков пунктов дешевле, чем видимость оптимизации.
@@ -123,29 +141,44 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   ].map<Cmd>(n => ({
     id: n.to, label: n.label, words: n.group, group: n.group, kind: 'section', icon: n.icon, run: () => navigate(n.to),
   }));
+  const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<Scope>('all');
+  const [active, setActive] = useState(0);
+  const words = queryWords(query);
+  const area = groups.some(g => g.def.code === scope) ? scope : null;
+  const search = useRecordSearch(query, area, scope === 'all' || area !== null);
+  const found = foundGroups(search.groups, groups);
+  const { records, withRecord } = recordCmds(found, words, inside, access ?? NO_ACCESS, navigate, toScreen);
   const items: Cmd[] = [
+    // Действия с найденной записью — в начале «Действий» (М-3).
+    ...withRecord,
     ...actions.map(a => act(a.id, a.label, a.words, a.icon, () => toScreen(intentHref(a)))),
     act('theme-light', 'Тема: светлая', 'оформление день', LightMode, () => setTheme('light')),
     act('theme-dark', 'Тема: тёмная', 'оформление ночь', DarkMode, () => setTheme('dark')),
     act('theme-system', 'Тема: авто (как в системе)', 'оформление', Monitor, () => setTheme('system')),
     act('logout', 'Выйти', 'выход из системы', Logout, () => leave(logout)),
+    ...records,
     ...nav,
   ];
 
-  const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'all' | Kind>('all');
-  const [active, setActive] = useState(0);
-  const words = queryWords(query);
-  const filtered = ranked(items.filter(i => (scope === 'all' || i.kind === scope) && matches(i.label, i.words, words)), words);
+  const filtered = ranked(items.filter(i =>
+    (scope === 'all' || i.kind === scope || i.area === scope) && (i.found || matches(i.label, i.words, words))), words);
+  const refusals = [
+    ...(search.failed ? ['Записи не найдены: поиск не ответил. Действия и разделы ищутся как прежде.'] : []),
+    ...(searchTooLong(query) ? [`Записи не ищутся: запрос длиннее ${SEARCH_MAX_LENGTH} знаков.`] : []),
+    ...found.filter(f => f.answer.refused).map(f => `${f.def.label} не найдены: ${f.answer.refused}`),
+  ];
+  const listId = useId();
+  const optionId = (i: number) => `${listId}-${i}`;
   // Выдача может сократиться сама — пришли права, сменилось пространство, — и выделение за её концом
   // не показывалось бы, а Enter молчал (ревью PR #1478).
   const current = Math.min(active, filtered.length - 1);
   const input = useRef<HTMLInputElement>(null);
-  const list = useRef<HTMLUListElement>(null);
   // Выделение стрелками не уходит за край списка: список длиннее окна.
   useEffect(() => {
-    list.current?.querySelector('[data-active="true"]')?.scrollIntoView?.({ block: 'nearest' });
-  }, [current, query, scope]);
+    document.getElementById(`${listId}-${current}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [current, query, scope, listId]);
+  const choose = (s: Scope) => { setScope(s); setActive(0); };
   // Пример запроса — из того, что человеку доступно: «новый счёт» тому, у кого нет такой кнопки, был бы
   // дверью в «Ничего не найдено».
   const example = actions[0]?.label.toLowerCase() ?? 'выйти';
@@ -158,7 +191,19 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, filtered.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); const it = filtered[current]; if (it) exec(it); }
+    // Tab остаётся в поле (палитра — модальное окно, Esc её закрывает): сужает до группы раздела, повторный
+    // — «Везде». На экране без своей группы область не меняется. Shift+Tab не перехватывается.
+    else if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      if (tab) choose(scope === tab.def.code ? 'all' : tab.def.code);
+    }
   }
+  const scopes: { id: Scope; label: string }[] = [
+    { id: 'all', label: 'Везде' },
+    ...groups.map(g => ({ id: g.def.code, label: g.def.label })),
+    { id: 'action', label: 'Действия' },
+    { id: 'section', label: 'Разделы' },
+  ];
 
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
@@ -178,65 +223,75 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
               : <Icon icon={Search} size={24} aria-hidden className="shrink-0 text-on-surface" />}
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
+              aria-controls={listId} aria-activedescendant={filtered[current] ? optionId(current) : undefined}
               onChange={e => { setQuery(e.target.value); setActive(0); }}
-              placeholder="Найти раздел или действие…"
+              placeholder={groups.length ? 'Найти запись, раздел или действие…' : 'Найти раздел или действие…'}
               className="h-14 flex-1 bg-transparent text-body-large text-on-surface outline-none placeholder:text-on-surface-variant"
             />
             {!full && <kbd className="rounded-sm bg-surface-container-high px-2 py-0.5 font-mono text-label-small text-on-surface-variant">Esc</kbd>}
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
-            {SCOPES.map(s => (
+            {scopes.map(s => (
               // Фокус возвращается в поле: стрелки и Enter слушает оно, и после щелчка по чипу клавиатура
               // палитру иначе больше не вела бы (ревью PR #1478).
-              <Chip key={s.id} selected={scope === s.id} onClick={() => { setScope(s.id); setActive(0); input.current?.focus(); }}>
+              <Chip key={s.id} selected={scope === s.id} onClick={() => { choose(s.id); input.current?.focus(); }}>
                 {s.label}
               </Chip>
             ))}
           </div>
 
-          <ul ref={list} className={`${full ? 'flex-1 min-h-0' : 'max-h-[55vh]'} overflow-y-auto px-2 pb-3 pt-1`}>
+          {refusals.length > 0 && (
+            // Отказ ≠ пусто: сказан словами и диктору, а действия и разделы ищутся как прежде.
+            <div role="status" aria-label="Отказ поиска" className="px-5 pt-2 text-body-small text-error">
+              {refusals.map(r => <p key={r}>{r}</p>)}
+            </div>
+          )}
+
+          <div id={listId} role="listbox" aria-label="Найденное"
+            className={`${full ? 'flex-1 min-h-0' : 'max-h-[55vh]'} overflow-y-auto pb-3 pt-1`}>
             {filtered.length === 0 ? (
-              <li className="px-3 py-6 text-center text-body-medium text-on-surface-variant">Ничего не найдено</li>
+              refusals.length > 0 ? null : (
+                <p role="presentation" className="px-3 py-6 text-center text-body-medium text-on-surface-variant">
+                  {search.pending ? 'Ищу записи…' : 'Ничего не найдено'}
+                </p>
+              )
             ) : filtered.map((it, i) => (
               <Fragment key={it.id}>
                 {it.group !== filtered[i - 1]?.group && (
-                  <li aria-hidden className="px-3 pb-1 pt-3 text-body-small font-medium text-on-surface-variant">{it.group}</li>
+                  <div role="presentation" aria-hidden className="px-4 pb-1 pt-3 text-body-small font-medium text-on-surface-variant">{it.group}</div>
                 )}
-                <li>
-                  <button
-                    type="button" onMouseEnter={() => setActive(i)} onClick={() => exec(it)} data-active={i === current}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-body-medium ${
-                      i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
-                  >
-                    <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
-                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>
-                      <Icon icon={it.icon} size={18} aria-hidden />
-                    </span>
-                    <span className="flex-1">
-                      {highlight(it.label, words).map((p, k) => p.hit
-                        ? <mark key={k} className="rounded-xs bg-warning-container text-inherit">{p.text}</mark>
-                        : <Fragment key={k}>{p.text}</Fragment>)}
-                      {/* Заголовок группы диктору не читается — группа звучит у самого пункта: «Вне
-                          пространства» иначе слышно не было бы (ревью PR #1478). */}
-                      <span className="sr-only">, {it.group}</span>
-                    </span>
+                <ListOption
+                  id={optionId(i)} active={i === current} icon={it.icon} onChoose={() => exec(it)} onHover={() => setActive(i)}
+                  supporting={it.supporting}
+                  trailing={(it.trailing || (i === current && !full)) && <>
+                    {it.trailing}
                     {i === current && !full && (
                       <span className="flex items-center gap-1 text-label-small">
                         Enter <Icon icon={KeyboardReturn} size={18} aria-hidden />
                       </span>
                     )}
-                  </button>
-                </li>
+                  </>}
+                  headline={<span data-palette-label>
+                    {highlight(it.label, words).map((p, k) => p.hit
+                      ? <mark key={k} className="rounded-xs bg-warning-container text-inherit">{p.text}</mark>
+                      : <Fragment key={k}>{p.text}</Fragment>)}
+                    {/* Заголовок группы диктору не читается — группа звучит у самого пункта: «Вне
+                        пространства» иначе слышно не было бы (ревью PR #1478). */}
+                    <span className="sr-only">, {it.group}</span>
+                  </span>}
+                />
               </Fragment>
             ))}
-          </ul>
+          </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant px-5 py-3 text-label-small text-on-surface-variant">
             {/* Клавиши — рабочему столу: на телефоне клавиатуры нет, подсказка запроса остаётся. */}
             {!full && <>
               <span><b className="font-medium">↑ ↓</b> выбрать</span>
               <span><b className="font-medium">Enter</b> открыть</span>
+              {/* Строка о Tab — только там, где у раздела своя группа данных ([UI-31]). */}
+              {tab && <span><b className="font-medium">Tab</b> {scope === tab.def.code ? 'искать везде' : `искать только в ${tab.def.within}`}</span>}
               <span className="flex-1" />
             </>}
             <span>Подсказка: напишите «тёмная тема» или «{example}»</span>
@@ -245,4 +300,38 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/**
+ * Строки найденных записей и действия с ними ([UI-30], [UI-32]). Группа записи вне пространства помечена
+ * в своём заголовке, и пометку слышит диктор у каждой строки (`AUTH-16.1`: пространство не граница).
+ */
+function recordCmds(found: FoundGroup[], words: string[], inside: (item: { module?: string; section?: string }) => boolean,
+  access: AccessInfo, navigate: (to: string) => void, toScreen: (to: string) => void) {
+  const records: Cmd[] = [];
+  const withRecord: Cmd[] = [];
+  for (const { def, route, answer } of found) {
+    const screen = [...workNav, ...settingsNav].find(n => n.to === route.screen);
+    const group = screen && !inside(screen) ? `${def.label} — вне пространства` : def.label;
+    const actions = recordActions(access, def.recordType);
+    for (const hit of answer.items) {
+      // Экран записи — по её уровню (набор данных): закрытый или неизвестный — строки нет, а не отказ за ней.
+      const at = hitRoute(def.recordType, route, hit.level, access);
+      if (!at) continue;
+      records.push({
+        id: `${def.code}:${hit.id}`, label: hit.title, words: '', group, kind: 'record', area: def.code, found: true,
+        icon: GROUP_ICON[def.code] ?? Search, run: () => navigate(recordHref(at, hit.id)), ...hitText(hit),
+      });
+      for (const a of actions) withRecord.push({
+        id: `${a.id}:${hit.id}`, label: a.withRecord!.label(hit.title), words: '', group: ACTIONS, kind: 'action',
+        found: true, icon: a.icon, run: () => toScreen(intentHref(a, hit.id)),
+      });
+    }
+    // «Ещё в разделе»: экраны запроса из адреса пока не принимают — строка ведёт в раздел.
+    if (answer.more) records.push({
+      id: `${def.code}:more`, label: `Ещё в разделе «${def.label}»`, words: words.join(' '), group, kind: 'record',
+      area: def.code, found: true, icon: ArrowForward, run: () => navigate(route.screen),
+    });
+  }
+  return { records, withRecord };
 }
