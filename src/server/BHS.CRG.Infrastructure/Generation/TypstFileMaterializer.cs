@@ -84,7 +84,7 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
 
         if (!placed.TryGetValue(blobPath, out var already))
         {
-            var bytes = await TryDownload(blobPath, ct);
+            var bytes = await TryDownloadAsync(blob, blobPath, ct);
             if (bytes is null) return; // отсутствует/слишком большой — оставляем узел как есть, не роняем генерацию
 
             var ext = ExtFor(fileName, mimeType);
@@ -106,7 +106,12 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
         fileNode.ReplaceWith(replacement);
     }
 
-    private async Task<byte[]?> TryDownload(string blobPath, CancellationToken ct)
+    /// <summary>
+    /// Файл из хранилища целиком — или <c>null</c>, если его нет, он недоступен или больше
+    /// <see cref="MaxAttachmentBytes" />. Одна политика на вложения и ассеты шаблона
+    /// (<see cref="TypstCompileDirectory" />): пропуск, а не отказ; отмену — пробросить.
+    /// </summary>
+    internal static async Task<byte[]?> TryDownloadAsync(IBlobStorage blob, string blobPath, CancellationToken ct)
     {
         try
         {
@@ -123,8 +128,9 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
             }
             return buffer.ToArray();
         }
-        // Отмену не глотаем: она не «недоступный blob», и отменённая генерация не должна доехать до
-        // PDF без вложения.
+        // Отмену не глотаем: она не «недоступный blob», и отменённая работа не должна дойти до PDF без
+        // вложения или шрифта. Чтение тела файла отмену слышит — она приходит на всём протяжении
+        // загрузки, а не только до заголовков ответа.
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch { return null; } // недоступный blob не должен прерывать генерацию документа
     }

@@ -1,6 +1,3 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
@@ -28,89 +25,13 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
 
         try
         {
-            // Поля-изображения (data-URI) декодируем в файлы assets/ и подставляем пути,
-            // чтобы шаблон мог обращаться к ним через image(it.Поле). Размер/выравнивание — из самого
-            // значения-объекта {src, width, ...} (issue #246).
+            // Каталог — той же записью, что у отладочного пакета (D3): пакет обещает ровно эти файлы.
+            var layout = await new TypstCompileDirectory(blob).WriteAsync(request, tmpDir, JsonLayout.Compact, ct);
+
             // Картинка, которой хранилище не отдало, — отказ с именем поля, и ДО компиляции (ТЗ CORE-37.2):
             // шаблон, выводящий её под условием, собрался бы, и PDF без подписи вышел бы молча.
-            var unreadable = new List<string>();
-            var dataJson = await TypstImageMaterializer.MaterializeAsync(
-                request.Context.Data, tmpDir, blob, unreadable: unreadable, ct: ct);
-            if (unreadable.Count > 0)
-                throw new UnreadableImagesException(unreadable);
-
-            // Поля-вложения ({$type:"file"}) скачиваем из blob-хранилища в assets/ и подставляем путь+
-            // pageCount, чтобы шаблон вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.
-            var node = JsonNode.Parse(dataJson) ?? new JsonObject();
-            var assetsDir = Path.Combine(tmpDir, AssetsSubdir);
-            var attCount = 0;
-            await new TypstFileMaterializer(blob).MaterializeAsync(node, (bytes, ext) =>
-            {
-                Directory.CreateDirectory(assetsDir);
-                var name = $"att_{attCount++}.{ext}";
-                File.WriteAllBytes(Path.Combine(assetsDir, name), bytes);
-                return AssetPath.FromRoot(AssetsSubdir, name);
-            }, ct);
-            dataJson = node.ToJsonString();
-
-            await File.WriteAllTextAsync(Path.Combine(tmpDir, DataFileName), dataJson, ct);
-
-            // template.typ пишется ДОСЛОВНО (issue #353): стандартные импорты живут в самом шаблоне
-            // (добавляются при его создании), компиляция их не подставляет → номера строк ошибок = строки редактора.
-            await File.WriteAllTextAsync(
-                Path.Combine(tmpDir, "template.typ"),
-                request.TemplateContent, Encoding.UTF8, ct);
-
-            // systemlib.typ — системная библиотека (хардкод, issue #344). Всегда присутствует в tmpDir,
-            // чтобы `#import "systemlib.typ"` в шаблоне резолвился.
-            await File.WriteAllTextAsync(Path.Combine(tmpDir, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
-
-            // Блоки типов: агрегатор typeblocks.typ + модули typeblocks/<слаг>.typ (issue #772).
-            // Шаблон импортирует напрямую только агрегатор (#import "typeblocks.typ": *), поэтому он
-            // пишется ВСЕГДА, хотя бы заглушкой: без файла упал бы каждый документ.
-            var typeBlocksPath = Path.Combine(tmpDir, TypeBlocksFileName);
-            await TypeBlocksMaterializer.WriteAsync(tmpDir, request.TypeBlocksFiles, ct);
-
-            if (!File.Exists(typeBlocksPath))
-                throw new InvalidOperationException($"Failed to write {TypeBlocksFileName} to {tmpDir}");
-
-            // userlib.typ — точка входа пользовательской библиотеки; всегда присутствует в tmpDir.
-            // Рядом раскладывается дерево userlib/ (issue #473), структуру которого задаёт пользователь;
-            // точка входа реэкспортирует его, поэтому шаблон с дословным `#import "userlib.typ": *`
-            // (#353) видит всё вложенное и переписывать историю шаблонов не нужно.
-            await UserLibMaterializer.WriteAsync(tmpDir, request.UserLibContent, request.UserLibFiles, ct);
-
-            // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету Template>DocumentType>System
-            // резолвером (ITemplateAssetResolver). Картинки — в assets/ по стабильному Name (шаблон
-            // обращается через image("/assets/{Name}.{ext}")); шрифты — в отдельную fonts/, путь к
-            // которой передаётся компилятору через --font-path (сам файл на диске может называться
-            // как угодно — Typst резолвит шрифт по имени семейства, зашитому в файл, не по filename).
-            string? fontsDirForCli = null;
-            if (request.TemplateAssets is { } assets)
-            {
-                foreach (var img in assets.Images)
-                {
-                    var bytes = await TryDownloadAsync(img.BlobPath, ct);
-                    if (bytes is null) continue;
-                    Directory.CreateDirectory(assetsDir);
-                    var ext = Path.GetExtension(img.FileName);
-                    await File.WriteAllBytesAsync(Path.Combine(assetsDir, $"{img.Name}{ext}"), bytes, ct);
-                }
-                if (assets.Fonts.Count > 0)
-                {
-                    var fontsDir = Path.Combine(tmpDir, FontsSubdir);
-                    Directory.CreateDirectory(fontsDir);
-                    var fontIndex = 0;
-                    foreach (var font in assets.Fonts)
-                    {
-                        var bytes = await TryDownloadAsync(font.BlobPath, ct);
-                        if (bytes is null) continue;
-                        var ext = Path.GetExtension(font.FileName);
-                        await File.WriteAllBytesAsync(Path.Combine(fontsDir, $"font_{fontIndex++}{ext}"), bytes, ct);
-                    }
-                    if (fontIndex > 0) fontsDirForCli = fontsDir;
-                }
-            }
+            if (layout.UnreadableImages.Count > 0)
+                throw new UnreadableImagesException(layout.UnreadableImages);
 
             // Рабочая папка — tmpDir: шаблон видит "typeblocks.typ" без пути, и сам он назван
             // относительно. Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы
@@ -118,10 +39,10 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             // же формат и тот же разборщик, что у проверки блоков и библиотеки.
             var psi = TypstProcess.StartInfo(tmpDir,
                 "compile", "template.typ", "output.pdf", "--diagnostic-format", "short", "--root", tmpDir);
-            if (fontsDirForCli is not null)
+            if (layout.FontsDir is not null)
             {
                 psi.ArgumentList.Add("--font-path");
-                psi.ArgumentList.Add(fontsDirForCli);
+                psi.ArgumentList.Add(layout.FontsDir);
             }
 
             var (exitCode, err) = await TypstProcess.RunAsync(psi, ct);
@@ -152,32 +73,18 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
         }
     }
 
-    private const long MaxAssetBytes = 100L * 1024 * 1024;
-
-    // Скачивание ассета шаблона из blob — тот же толерантный паттерн, что и
-    // TypstFileMaterializer.TryDownload (отсутствие/превышение размера — не критично, просто
-    // пропускаем конкретный ассет, не прерываем генерацию).
-    private async Task<byte[]?> TryDownloadAsync(string blobPath, CancellationToken ct)
+    public async Task<byte[]> DebugBundleAsync(GenerationRequest request, BundleNotes notes, CancellationToken ct = default)
     {
+        var tmpDir = Path.Combine(Path.GetTempPath(), "dbgbundle-" + Guid.NewGuid());
+        Directory.CreateDirectory(tmpDir);
         try
         {
-            await using var stream = await blob.DownloadAsync(blobPath, ct);
-            using var buffer = new MemoryStream();
-            var pool = new byte[81920];
-            int read;
-            long total = 0;
-            while ((read = await stream.ReadAsync(pool, ct)) > 0)
-            {
-                total += read;
-                if (total > MaxAssetBytes) return null;
-                buffer.Write(pool, 0, read);
-            }
-            return buffer.ToArray();
+            var layout = await new TypstCompileDirectory(blob).WriteAsync(request, tmpDir, JsonLayout.Indented, ct);
+            return await DebugBundleArchive.PackAsync(tmpDir, layout, notes, ct);
         }
-        // Отмену не глотаем: иначе «отменённая» генерация пошла бы к следующему ассету и доехала бы
-        // до PDF без шрифта. Чтение тела файла отмену слышит — значит, сюда она приходит на всём
-        // протяжении загрузки, а не только до заголовков ответа.
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch { return null; }
+        finally
+        {
+            try { Directory.Delete(tmpDir, recursive: true); } catch { /* best effort */ }
+        }
     }
 }

@@ -6,6 +6,23 @@ namespace BHS.CRG.Application.Generation;
 public interface IDocumentGenerator
 {
     Task<byte[]> GenerateAsync(GenerationRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Отладочный пакет (ZIP): каталог компиляции, записанный ТЕМ ЖЕ кодом, что у генерации, и README —
+    /// чем компилировать и почему генерация этого документа откажет (change
+    /// core-generation-input-one-path, D3, D5). Каталог и его архив — забота генератора: вызывающий не
+    /// знает ни раскладки, ни материализаторов.
+    /// </summary>
+    Task<byte[]> DebugBundleAsync(GenerationRequest request, BundleNotes notes, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Что пакет говорит о генерации сверх каталога: ошибки проверок, на которых она откажет. Картинки,
+/// которых хранилище не отдало, добавляет сам генератор — их знает только запись каталога.
+/// </summary>
+public sealed record BundleNotes(IReadOnlyList<ResolutionDiagnostic> Refusals)
+{
+    public static readonly BundleNotes None = new([]);
 }
 
 public record GenerationRequest(
