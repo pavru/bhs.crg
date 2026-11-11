@@ -192,7 +192,7 @@ public class ModuleNeedsTests
             new[] { FunctionalTag.OrgTaxId, FunctionalTag.OrgName }.Order(),
             fields.Where(f => f.Required).Select(f => f.Tag).Order());
         Assert.Equal(
-            new[] { FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit },
+            new[] { FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit, FunctionalTag.OrgShortName }.Order(),
             fields.Where(f => !f.Required).Select(f => f.Tag).Order());
     }
 

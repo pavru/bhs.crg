@@ -127,7 +127,10 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
       // едет с самим счётом. Пункт держится за СОХРАНЁННЫМ значением, а не за текущим: заменил,
       // передумал — вернул; сервер стоявшую ссылку принимает. После сохранения с другой он исчезнет.
       const kept = state === 'archived' && storedId !== null
-        ? { id: storedId, name: withArchiveWord(view.references?.[`${side}Name`] ?? 'организация', true) }
+        ? {
+          id: storedId, name: withArchiveWord(view.references?.[`${side}Name`] ?? 'организация', true),
+          fullName: view.references?.[`${side}FullName`] ?? null,
+        }
         : null;
       const archived = kept !== null && entryId === kept.id && !organizations.some(o => o.id === kept.id);
       const lost = entryId !== null && (view.references
@@ -167,8 +170,11 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
           {foreign && <SelectItem value={entryId}>{LOST.movedOrganization}</SelectItem>}
           {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
               вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
-          {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
-          {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+          {kept && !organizations.some(o => o.id === kept.id) && (
+            <SelectItem value={kept.id} supporting={kept.fullName}>{kept.name}</SelectItem>
+          )}
+          {/* Сокращённое название — строкой пункта, полное — второй строкой (issue #1473, В1). */}
+          {organizations.map(o => <SelectItem key={o.id} value={o.id} supporting={o.fullName}>{o.name}</SelectItem>)}
         </Select>
       );
     }

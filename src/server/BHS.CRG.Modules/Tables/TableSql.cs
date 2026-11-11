@@ -69,9 +69,14 @@ public sealed partial class TableSql<T> where T : class
     /// НАЗВАНИЮ: названия сверяются в памяти правилом ядра, в запрос уходят подошедшие ссылки.
     /// Ссылка, которой в справочнике нет, — пустая клетка, как на экране.
     /// </summary>
+    /// <param name="alsoNamed">Второе название записи, которого в клетке нет, — полное название организации,
+    /// когда клетка показывает сокращённое (issue #1473). Отбор находит запись и по нему: человек ищет
+    /// по любому слову названия. Отрицание («не содержит») — по обоим сразу: запись, одно из названий
+    /// которой подходит, под «не» не попадает. Сортировка — только по видимому.</param>
     public TableSql<T> Lookup<TKey>(
-        string key, Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels)
-        where TKey : struct => Add(key, new LookupColumn<TKey>(id, labels, ModuleTableColumnKind.Text));
+        string key, Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels,
+        IReadOnlyDictionary<TKey, string>? alsoNamed = null)
+        where TKey : struct => Add(key, new LookupColumn<TKey>(id, labels, ModuleTableColumnKind.Text, alsoNamed));
 
     /// <summary>
     /// Колонка-выбор: в базе код, человеку — слово из ЗАКРЫТОГО перечня (G1d, issue #1091). Запрос тот

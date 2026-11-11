@@ -396,6 +396,9 @@ export interface InvoiceReferences {
    */
   supplierName?: string | null;
   payerName?: string | null;
+  /** Полное название архивной стороны, когда `supplierName` — сокращённое (issue #1473). */
+  supplierFullName?: string | null;
+  payerFullName?: string | null;
 }
 
 export interface InvoiceListItem {
@@ -479,10 +482,16 @@ export type InvoiceQueue = 'parsing' | 'unrecognized' | 'lost' | 'archived';
 
 export interface CostsOrganization {
   id: string;
+  /** Название для показа — сокращённое, если оно заполнено (issue #1473). */
   name: string;
   type: string;
   /** В архиве — бывает только в списке на показ. */
   archived: boolean;
+  /**
+   * Полное название — когда `name` сокращённое; иначе пусто. Выбор показывает его второй строкой
+   * пункта (решение владельца 22.10.2026): похожие сокращённые названия иначе путают.
+   */
+  fullName?: string | null;
 }
 
 /** Позиция номенклатуры в выборе строки. */

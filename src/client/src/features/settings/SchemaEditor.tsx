@@ -17,7 +17,7 @@ import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType } from '@/shared/api/types';
-import { chainFieldKeys, parseSchemaFields, resolveEffectiveFields, typeHasTag, type SchemaField, type SchemaDefinition, type FieldGroup, type TypstRender } from '@/shared/api/schema';
+import { chainFieldKeys, parseSchemaFields, partTagCodes, resolveEffectiveFields, typeHasTag, type SchemaField, type SchemaDefinition, type FieldGroup, type TypstRender } from '@/shared/api/schema';
 import { danglingKeyRefs, danglingRefPlaces } from './schemaKeyChecks';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { TypstBlocksPanel } from './TypstBlocksCheck';
@@ -119,7 +119,9 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   // сразу, до сохранения. У предков — по сохранённому: их черновика здесь нет.
   const roles = roleCodes(tagRegistry).filter(code =>
     hasTag(docTypeTags, code) || (!!parentType && typeHasTag(parentType, code, allDocTypes)));
-  const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry, roles };
+  // Части составного поля справочника (issue #1473): «Сокращённое» в «Наименовании» организации.
+  const partTags = partTagCodes(docType, allDocTypes, tagRegistry);
+  const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry, roles, partTags };
   // Унаследованные поля для группировки — активные (исключённые не показываем в раскладке).
   const activeInheritedFields = parentEffectiveFields.filter(f => !excludedFields.includes(f.key));
 

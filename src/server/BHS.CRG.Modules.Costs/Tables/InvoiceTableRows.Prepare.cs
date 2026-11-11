@@ -16,13 +16,18 @@ public sealed partial class InvoiceTableRows : IModuleTableCounts
     /// <summary>
     /// Названия организаций — одним списком: вида «Организация» на чистой установке может не быть
     /// вовсе (см. InvoiceEndpoints.SupplierNamesAsync). Нужны и строкам, и отбору по названию.
+    ///
+    /// <para>Названия — для показа, от порта: у организации сокращённое, если оно есть (issue #1473).
+    /// Полное — вторым словарём, только у тех, чьё название для показа другое: отбор находит счёт и по
+    /// нему (решение владельца 22.10.2026, В2), а клетка его не показывает.</para>
     /// </summary>
-    private async Task<Dictionary<Guid, string>> OrganizationNamesAsync(CancellationToken ct)
+    private async Task<(Dictionary<Guid, string> Names, Dictionary<Guid, string> Full)> OrganizationNamesAsync(
+        CancellationToken ct)
     {
         // Показ: названия нужны счетам, которые уже есть, — архивный поставщик в реестре читается.
-        var names = (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))
-            ?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];
-        return names;
+        var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct) ?? [];
+        return (organizations.ToDictionary(o => o.Id, o => o.DisplayName),
+            organizations.Where(o => o.FullName is not null).ToDictionary(o => o.Id, o => o.FullName!));
     }
 
     /// <summary>
@@ -32,7 +37,7 @@ public sealed partial class InvoiceTableRows : IModuleTableCounts
     /// </summary>
     private async Task<Prepared> PrepareAsync(IReadOnlyList<ModuleTableQuery> queries, CancellationToken ct)
     {
-        var names = await OrganizationNamesAsync(ct);
+        var (names, fullNames) = await OrganizationNamesAsync(ct);
 
         // Объекты разноски — стройки и статьи вне строек одним списком названий: цель части — ровно
         // одно из двух. Раздел стройки — своей колонкой: отбор «по стройке» — по стройке целиком.
@@ -52,7 +57,7 @@ public sealed partial class InvoiceTableRows : IModuleTableCounts
             : InvoiceTroubles.None;
 
         var calendar = InvoicePeriods.Labels(today);
-        return new(names, shares, calendar, today, troubles, Sql(names, shares, calendar, today, troubles));
+        return new(names, shares, calendar, today, troubles, Sql(names, fullNames, shares, calendar, today, troubles));
     }
 
     /// <summary>

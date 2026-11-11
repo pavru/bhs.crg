@@ -355,6 +355,21 @@ describe('список полей строки', () => {
     expect(selectedKey(row(none), {})).toBeUndefined();
   });
 
+  // Тэг на части составного (ревью PR #1898): выбор здесь тэг части не снял бы — строка не правится.
+  it('тэг на части составного — выбора нет, и правок не бывает', () => {
+    const NAME_TYPE: CoverageType = { id: 'name', name: 'Наименование организации', code: 'Н', kind: 'Composite' };
+    const r = row({
+      tag: 'org.shortName', required: false, key: null,
+      fields: [field('Наименование', { type: 'complex', fits: false }), field('Краткое')],
+      part: { whole: 'Наименование', key: 'Сокращённое', in: NAME_TYPE },
+    });
+
+    expect(offeredFields(r)).toEqual([]);
+    expect(changedRows(group(r), { 'org.shortName': null })).toHaveLength(0);
+    expect(changedRows(group(r), { 'org.shortName': 'Краткое' })).toHaveLength(0);
+    expect(schemaWrites(group(r), { 'org.shortName': 'Краткое' })).toEqual([]);
+  });
+
   it('ключ дописывается только полям с одинаковым названием', () => {
     const a = field('Наим', { title: 'Наименование' });
     const b = field('Наим2', { title: 'Наименование' });

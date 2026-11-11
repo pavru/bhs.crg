@@ -4,6 +4,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
+using MediatR;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -15,7 +16,8 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// служба ядра (<see cref="ICatalogIntake" />).</para>
 /// </summary>
 public sealed class ModuleCatalogIntakePort(
-    ModuleRegistry modules, ICatalogIntake intake, IRepository<DocumentType> types, TagCatalog tags)
+    ModuleRegistry modules, ICatalogIntake intake, IRepository<DocumentType> types, TagCatalog tags,
+    IMediator mediator)
     : IModuleCatalogIntake
 {
     public async Task<ModuleIntakeResult?> CreateAsync(
@@ -47,14 +49,19 @@ public sealed class ModuleCatalogIntakePort(
         var outcome = await intake.CreateAsync(
             new CatalogIntakeRequest(type.Id, nameKey, uniqueKey, name, uniqueValue), ct);
 
-        // Код вида у найденных — код ИХ типа: совпасть мог и подтип.
+        // Код вида у найденных — код ИХ типа: совпасть мог и подтип. Название — для показа, как у
+        // читающего порта (issue #1473): найденная по ИНН организация называется сокращённым, если оно
+        // есть. Новая сокращённого не имеет — заведение его не выдумывает.
         var codes = all.ToDictionary(t => t.Id, t => t.Code);
+        var names = outcome.Existing.Count == 0
+            ? null
+            : await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct, [.. outcome.Existing.Select(r => r.Id)]);
         return new ModuleIntakeResult(
             outcome.Created is { } created
                 ? new ModuleCatalogRef(created.Id, type.Code, created.DisplayName, created.IsArchived)
                 : null,
-            [.. outcome.Existing.Select(r => new ModuleCatalogRef(
-                r.Id, codes.GetValueOrDefault(r.CompositeTypeId, type.Code), r.DisplayName, r.Archived))],
+            [.. outcome.Existing.Select(r => names!.Apply(new ModuleCatalogRef(
+                r.Id, codes.GetValueOrDefault(r.CompositeTypeId, type.Code), r.DisplayName, r.Archived)))],
             outcome.Refusals);
     }
 
@@ -63,9 +70,12 @@ public sealed class ModuleCatalogIntakePort(
         var tag = tags.Find(tagCode) ?? throw new InvalidOperationException(
             $"Тэга «{tagCode}», названного в IntakeTypes, в реестре нет.");
         var field = RoleResolution.Field(role, tag, all);
-        if (field.Key is not null) return field.Key;
+        if (field.DirectKey is not null) return field.DirectKey;
 
-        refusals.Add(field.Describe(tag)!);
+        // Тэг на части составного (issue #1473): заведение пишет значение в поле целиком и в часть не
+        // попало бы — ключ составного означал бы «записать название не туда» (ревью PR #1898).
+        refusals.Add(field.Describe(tag)
+            ?? $"поле «{tag.Label}» назначено части составного поля «{field.Key}» — заводить запись по нему нельзя");
         return null;
     }
 }

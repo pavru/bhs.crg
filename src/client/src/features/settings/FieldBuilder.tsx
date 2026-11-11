@@ -178,9 +178,10 @@ export function FieldCard({
     if (field.type === 'primitive') {
       const pt = primitiveTypes.find(p => p.id === field.typeId);
       const codes = new Set(pt?.allowedTags ?? []);
-      return offeredInRoles((tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code)), reg.roles, tags);
+      return offeredInRoles((tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code)), reg.roles, tags,
+        reg.partTags);
     }
-    return fieldTags(tagRegistry, field.type, reg.roles, tags);
+    return fieldTags(tagRegistry, field.type, reg.roles, tags, reg.partTags);
   })());
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;

@@ -102,8 +102,13 @@ public sealed record InvoiceView(
 /// ответом счёта, а не берётся формой из списка на выбор: архивной организации в том списке нет, и
 /// поле открылось бы пустым (issue #1185). Действующего поставщика форма называет по списку.</param>
 /// <param name="PayerName">То же для плательщика.</param>
+/// <param name="SupplierFullName">Полное название архивного поставщика, когда показ взял сокращённое
+/// (issue #1473); иначе <c>null</c>. Пункт выбора архивной стороны — второй строкой, как у остальных
+/// (решение В1; ревью PR #1898).</param>
+/// <param name="PayerFullName">То же для плательщика.</param>
 public sealed record InvoiceReferencesView(
-    string? Supplier, string? Payer, string DocumentType, string? SupplierName, string? PayerName)
+    string? Supplier, string? Payer, string DocumentType, string? SupplierName, string? PayerName,
+    string? SupplierFullName = null, string? PayerFullName = null)
 {
     public const string Present = "present";
     public const string Archived = "archived";

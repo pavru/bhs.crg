@@ -21,6 +21,7 @@ export const FUNCTIONAL_TAG = {
   profileSet: 'profile.set',
   orgInn: 'org.inn',
   orgName: 'org.name',
+  orgShortName: 'org.shortName',
   employeePersonnelNumber: 'employee.personnelNumber',
   employeeAccount: 'employee.account',
   nomenclatureArticle: 'nomenclature.article',
@@ -121,6 +122,11 @@ export interface TagDefinition {
   directory?: boolean;
   /** Тэг ПОЛЯ относится к справочнику с этой ролью и вне его ничего не значит. */
   role?: string | null;
+  /**
+   * Тэг поля роли уместен и в ЧАСТЯХ составного поля с этим тэгом (issue #1473): `org.shortName` —
+   * на части «Сокращённое» поля с `org.name`. Часть лежит в составном типе, роли не несущем.
+   */
+  partOf?: string | null;
 }
 
 export function useTagRegistry() {
@@ -132,11 +138,11 @@ export function useTagRegistry() {
 }
 
 export function fieldTags(
-  all: TagDefinition[] | undefined, fieldType: string, roles?: string[], placed?: string[],
+  all: TagDefinition[] | undefined, fieldType: string, roles?: string[], placed?: string[], parts?: string[],
 ): TagDefinition[] {
   return offeredInRoles(
     (all ?? []).filter(t => t.scope === 'Field' && (t.appliesTo.length === 0 || t.appliesTo.includes(fieldType))),
-    roles, placed);
+    roles, placed, parts);
 }
 
 /**
@@ -147,9 +153,11 @@ export function fieldTags(
  * Уже поставленный тэг остаётся в списке при любых ролях — иначе снять его было бы нечем.
  * `roles` не названы — отбора нет: так живёт форма создания типа, где ролей ещё не знают.
  */
-export function offeredInRoles(tags: TagDefinition[], roles?: string[], placed?: string[]): TagDefinition[] {
+export function offeredInRoles(
+  tags: TagDefinition[], roles?: string[], placed?: string[], parts?: string[],
+): TagDefinition[] {
   if (!roles) return tags;
-  return tags.filter(t => !t.role || roles.includes(t.role) || hasTag(placed, t.code));
+  return tags.filter(t => !t.role || roles.includes(t.role) || hasTag(placed, t.code) || !!parts?.includes(t.code));
 }
 
 /** Коды ролей справочников из реестра. */

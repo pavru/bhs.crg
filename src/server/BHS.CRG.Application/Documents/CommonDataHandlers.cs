@@ -247,7 +247,7 @@ public partial class CommonDataHandlers(
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
 
     public async Task<IReadOnlyList<CommonDataFieldValue>> Handle(CommonDataFieldValuesQuery q, CancellationToken ct)
-        => await objects.FieldValuesAsync(q.TypeIds, q.FieldKey, q.For, ct);
+        => await objects.FieldValuesAsync(q.TypeIds, q.FieldKey, q.For, q.PartKey, q.Ids, ct);
 
     public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
         => [.. (await objects.ArchivedAmongAsync(q.Ids, ct)).Select(a => a.Id)];

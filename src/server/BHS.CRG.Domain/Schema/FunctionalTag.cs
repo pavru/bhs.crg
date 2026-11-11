@@ -167,6 +167,13 @@ public static class FunctionalTag
     /// </summary>
     public const string OrgName = "org.name";
 
+    /// <summary>
+    /// Сокращённое название организации (issue #1473) — им порт справочника называет организацию для
+    /// показа в модулях, если оно заполнено. Стоит на строковом поле организации либо на строковой
+    /// части составного поля с <see cref="OrgName" /> («Полное / Сокращённое»).
+    /// </summary>
+    public const string OrgShortName = "org.shortName";
+
     // ── Тэги поля: справочник номенклатуры (issue #1512, эпик #1511) ────────────
 
     /// <summary>

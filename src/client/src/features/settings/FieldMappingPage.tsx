@@ -331,7 +331,17 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
       </div>
 
       <div>
-        {row.fault === 'DiffersInSubtype' ? (
+        {row.part ? (
+          // Тэг на части составного: правится в схеме составного типа, не здесь (ревью PR #1898).
+          <>
+            <p className="text-body-medium text-on-surface">
+              Часть «{row.part.key}» поля «{row.fields.find(f => f.key === row.part?.whole)?.title ?? row.part.whole}»
+            </p>
+            <p className="text-body-small text-on-surface-variant mt-0.5">
+              Меняется в редакторе типа «{row.part.in.name}».
+            </p>
+          </>
+        ) : row.fault === 'DiffersInSubtype' ? (
           <p className="text-body-medium text-on-surface-variant">{listed.find(f => f.tagged)?.title ?? '—'}</p>
         ) : selectable ? (
           // Рамка поля о состоянии не говорит ([UI-69]): «не назначено» — предупреждение, а у плотного поля
@@ -381,7 +391,10 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
       </p>
     );
 
-  const way = row.fault === 'Several'
+  const way = row.part
+    ? `Исправляется в редакторе типов: тэг стоит на части «${row.part.key}» типа «${row.part.in.name}»${
+      row.fault === 'Several' ? ' и ещё в одном месте — оставьте одно' : ''}.`
+    : row.fault === 'Several'
     ? 'Выберите одно — с остальных назначение снимется при сохранении.'
     : row.fault === 'WrongKind'
       ? 'Выберите другое поле или верните полю прежний вид в редакторе типа.'

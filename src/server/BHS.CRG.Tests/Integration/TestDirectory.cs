@@ -33,6 +33,8 @@ internal sealed class TestDirectory
         var mark = Guid.NewGuid().ToString("N")[..8];
         Role = $"role.test.{mark}";
         FieldTag = $"test.{mark}.field";
+        NameTag = $"test.{mark}.name";
+        ShortTag = $"test.{mark}.short";
 
         _tags = TagCatalog.Build(TagRegistry.Core,
         [
@@ -40,6 +42,11 @@ internal sealed class TestDirectory
                 Restriction: new(MaxBearers: 1), Owner: Probe.ModuleCode, Directory: true),
             new(FieldTag, "Тестовое поле", "Поле справочника одного теста.", TagScope.Field,
                 ["string", "text", "number", "primitive"], Multiple: false, Owner: Probe.ModuleCode, Role: Role),
+            // Название и название для показа (issue #1473) — как org.name и org.shortName, но своей роли.
+            new(NameTag, "Тестовое название", "Название записи одного теста.", TagScope.Field,
+                ["string", "text", "complex"], Multiple: false, Owner: Probe.ModuleCode, Role: Role),
+            new(ShortTag, "Тестовое короткое название", "Название для показа одного теста.", TagScope.Field,
+                ["string", "text"], Multiple: false, Owner: Probe.ModuleCode, Role: Role, PartOf: NameTag, Names: true),
         ]);
         _needs = new ModuleNeeds(new ModuleRegistry([new Probe(Role, FieldTag)], []), _tags);
     }
@@ -52,6 +59,12 @@ internal sealed class TestDirectory
 
     /// <summary>Тэг поля, которое порт читает у записей.</summary>
     public string FieldTag { get; }
+
+    /// <summary>Тэг поля названия — как <c>org.name</c>: бывает составным.</summary>
+    public string NameTag { get; }
+
+    /// <summary>Тэг названия для показа — как <c>org.shortName</c>: на поле или на части поля названия.</summary>
+    public string ShortTag { get; }
 
     /// <summary>Схема типа-справочника: роль — тэгом типа, тэг поля — на поле с ключом <paramref name="taggedKey" />.</summary>
     public string Schema(string taggedKey = "ИНН", string kind = "string") =>

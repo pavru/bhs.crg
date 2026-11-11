@@ -61,7 +61,7 @@ public static class OrganizationEndpoints
             ?? throw new ConflictException(CostsDirectories.NoOrganizations("выбрать поставщика не из чего"));
 
         return TypedResults.Ok<IReadOnlyList<CostsOrganization>>(
-            [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived))]);
+            [.. entries.Select(e => new CostsOrganization(e.Id, e.DisplayName, e.EntityType, e.Archived, e.FullName))]);
     }
 }
 
@@ -69,4 +69,8 @@ public static class OrganizationEndpoints
 /// <param name="Type">Код типа записи — у подтипа свой («ОрганизацияСРО»). Форме он нужен затем,
 /// чтобы человек различил однофамильцев, а не для отбора: отбор уже сделан.</param>
 /// <param name="Archived">Организация в архиве — бывает только в списке на показ.</param>
-public sealed record CostsOrganization(Guid Id, string Name, string Type, bool Archived);
+/// <param name="Name">Название для показа — сокращённое, если оно заполнено (issue #1473).</param>
+/// <param name="FullName">Полное название — когда <paramref name="Name" /> сокращённое; иначе <c>null</c>.
+/// Выбор показывает его второй строкой пункта (решение владельца 22.10.2026, В1): похожие сокращённые
+/// названия иначе путают.</param>
+public sealed record CostsOrganization(Guid Id, string Name, string Type, bool Archived, string? FullName = null);

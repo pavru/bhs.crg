@@ -140,7 +140,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
           hint={organizations.isError ? 'Справочник организаций не прочитан — выбор недоступен'
             : organizations.data && offered.length === 0 ? 'Условия заведены у всех организаций' : undefined}
           onValueChange={setSupplierId}>
-          {offered.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+          {offered.map(o => <SelectItem key={o.id} value={o.id} supporting={o.fullName}>{o.name}</SelectItem>)}
         </Select>
         <TextField label="Отсрочка, дней" value={newDays} inputMode="numeric" containerClassName="w-36"
           error={parsedNew === 'bad' ? BAD_DAYS : undefined}

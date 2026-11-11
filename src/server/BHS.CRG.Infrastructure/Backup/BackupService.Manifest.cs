@@ -174,6 +174,7 @@ public partial class BackupService
             IncludesProjectData: full,
             KnowsRecordArchive: true,
             KnowsDirectoryRoles: true,
+            KnowsOrgShortName: true,
             KnowsCoreFileScan: true,
             Constructions: full ? constructions.Select(c => new BackupConstruction(
                 c.Id, c.Name, c.CreatedByUserId, c.ProfileObjectId, c.CreatedAt, c.UpdatedAt,

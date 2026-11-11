@@ -29,6 +29,8 @@
       "field": { "type": "string", "computed": false, "locked": false, "tags": ["nomenclature.article"] }, "expect": "article" },
     { "name": "название организации",
       "field": { "type": "string", "computed": false, "locked": false, "tags": ["org.name"] }, "expect": "orgName" },
+    { "name": "сокращённое название организации",
+      "field": { "type": "string", "computed": false, "locked": false, "tags": ["org.shortName"] }, "expect": "orgName" },
     { "name": "учётная запись сотрудника на незапертом поле",
       "field": { "type": "string", "computed": false, "locked": false, "tags": ["employee.account"] }, "expect": "account" },
     { "name": "выключено вручную",

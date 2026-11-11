@@ -183,6 +183,30 @@ public class ModuleCoverageTests
         Assert.Equal("Организация", Assert.Single(row.Fields, f => f.Key == "Наименование").DeclaredIn.Code);
     }
 
+    /// <summary>
+    /// Тэг на части составного «Наименования» (issue #1473; ревью PR #1898): строка сопоставлена, но
+    /// поле справочника не выбрано — тэг лежит в схеме составного типа, и экран называет его, а не даёт
+    /// выбор, который тэг части не снял бы. Само составное тэгом не помечено.
+    /// </summary>
+    [Fact]
+    public void Тэг_на_части_составного_назван_частью_а_не_полем_справочника()
+    {
+        var name = Type("НаименованиеОрганизации",
+            """{"fields":[{"key":"Полное","type":"string"},{"key":"Сокращённое","type":"string","tags":["org.shortName"]}]}""");
+        var view = ModuleCoverage.Of(Costs, Tags,
+        [
+            name,
+            Organizations(TaxIdField,
+                $$"""{"key":"Наименование","title":"Наименование","type":"complex","typeId":"{{name.Id}}","tags":["org.name"]}"""),
+            Nomenclature(),
+        ]);
+
+        var row = Row(view, FunctionalTag.OrgShortName);
+        Assert.Equal((CoverageState.Mapped, null), (row.State, row.Key));
+        Assert.Equal(("Наименование", "Сокращённое", name.Id), (row.Part!.Whole, row.Part.Key, row.Part.In.Id));
+        Assert.DoesNotContain(row.Fields, f => f.Tagged);
+    }
+
     private static CoverageRow Row(ModuleCoverageView view, string tag) =>
         Assert.Single(view.Groups.SelectMany(g => g.Rows), r => r.Tag == tag);
 

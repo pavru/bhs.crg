@@ -110,6 +110,105 @@ public static class DirectoryRoleDefaults
             .Select(t => (t, JsonDocument.Parse(schemas[t.Id].ToJsonString())))];
     }
 
+    /// <summary>
+    /// Тэг ЧАСТИ составного поля роли (issue #1473): у поля с <paramref name="Whole" /> составного вида
+    /// часть с ключом <paramref name="Key" /> получает <paramref name="Tag" />.
+    /// </summary>
+    /// <param name="Kinds">Виды части — те же, что <c>AppliesTo</c> тэга в реестре (сверяет тест).</param>
+    public sealed record PartRule(string Role, string Whole, string Key, string Tag, IReadOnlyList<string> Kinds);
+
+    /// <summary>
+    /// Правила частей — отдельно от <see cref="Rules" />, потому что появились позже: копия, снятая
+    /// после ролей, но до сокращённого названия, ролей не теряла, а этого тэга не знает. Исполняются
+    /// они, как и роли, дважды: миграцией ядра <c>OrgShortNameTag</c> в SQL и восстановлением такой
+    /// копии — этой функцией (<see cref="ApplyParts" />); сходство сверяет <c>OrganizationShortNameTests</c>.
+    /// </summary>
+    public static readonly IReadOnlyList<PartRule> Parts =
+    [
+        new(FunctionalTag.RoleOrganization, FunctionalTag.OrgName, "Сокращённое", FunctionalTag.OrgShortName,
+            ["string", "text"]),
+    ];
+
+    /// <summary>
+    /// Тэги частей — тем же осторожным правилом, что поля: только туда, где свободно. Тэг уже стоит на
+    /// любом поле справочника — у носителя, его предков или ПОДТИПОВ (ревью PR #1898) — или любой части
+    /// составного — не трогается (это решение человека); часть не того вида тэга не получает; составное
+    /// поле названия ищется у носителя роли и выше по родителям, ближайшее первым. Сокращённое из
+    /// полного не выводится — только тэг.
+    /// </summary>
+    /// <param name="writable">Чьи схемы правилу можно менять; <c>null</c> — любые (миграция). Восстановление
+    /// копии называет типы, пришедшие из копии: тип живой системы, которого в копии не было, правило не
+    /// трогает — снятый там тэг остаётся решением администратора (ревью PR #1898). «Тэг уже стоит»
+    /// смотрится по всем типам.</param>
+    public static IReadOnlyList<(DocumentType Type, JsonDocument Schema)> ApplyParts(
+        IReadOnlyList<DocumentType> all, IReadOnlySet<Guid>? writable = null)
+    {
+        var byId = all.ToDictionary(t => t.Id);
+        var changed = new Dictionary<Guid, JsonObject>();
+
+        JsonArray? FieldsOf(DocumentType type)
+        {
+            if (!changed.TryGetValue(type.Id, out var schema))
+            {
+                if (JsonNode.Parse(type.Schema.RootElement.GetRawText()) is not JsonObject parsed) return null;
+                schema = parsed;
+            }
+            return schema["fields"] as JsonArray;
+        }
+
+        foreach (var rule in Parts)
+        {
+            var bearers = all.Where(t => SchemaTags.SchemaHasTypeTag(t.Schema, rule.Role)).ToList();
+            if (bearers is not [{ Kind: DocumentTypeKind.Composite } bearer]) continue;
+
+            var chain = Chain(bearer, byId);
+            var whole = chain
+                .Select(t => FieldsOf(t)?.OfType<JsonObject>()
+                    .FirstOrDefault(f => f["tags"] is JsonArray tags && tags.Any(t => IsTag(t, rule.Whole))))
+                .FirstOrDefault(f => f is not null);
+            if (whole is null || Text(whole["type"]) != "complex"
+                || !Guid.TryParse(Text(whole["typeId"]), out var partTypeId)
+                || byId.GetValueOrDefault(partTypeId) is not { Kind: DocumentTypeKind.Composite } partType) continue;
+
+            if (writable is not null && !writable.Contains(partType.Id)) continue;
+
+            // Тэг уже где-то стоит — у справочника (с предками и подтипами) или у частей (с их
+            // предками): решение человека. Подтип с тэгом на своём поле иначе получил бы «расходится в
+            // подтипе», и сокращённые пропали бы у всего справочника.
+            var family = RoleResolution.Family(bearer, all).Keys.Select(id => byId[id]);
+            if (chain.Concat(family).Concat(Chain(partType, byId)).Any(t => FieldsOf(t)?.OfType<JsonObject>()
+                    .Any(f => f["tags"] is JsonArray tags && tags.Any(t => IsTag(t, rule.Tag))) == true))
+                continue;
+
+            // Часть — собственное поле составного, первое с этим ключом; не того вида — тэга нет никому.
+            if (!changed.TryGetValue(partType.Id, out var target))
+            {
+                if (JsonNode.Parse(partType.Schema.RootElement.GetRawText()) is not JsonObject parsed) continue;
+                target = parsed;
+            }
+            var part = (target["fields"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(f => Text(f["key"]) == rule.Key);
+            if (part is null || !rule.Kinds.Contains(Text(part["type"]) ?? "", StringComparer.Ordinal)) continue;
+
+            var own = part["tags"] as JsonArray ?? [];
+            own.Add(rule.Tag);
+            part["tags"] = own;
+            changed[partType.Id] = target;
+        }
+
+        return [.. all.Where(t => changed.ContainsKey(t.Id))
+            .Select(t => (t, JsonDocument.Parse(changed[t.Id].ToJsonString())))];
+    }
+
+    /// <summary>Тип и его предки, ближайший первым; цикл в цепочке родителей обход помнит.</summary>
+    private static List<DocumentType> Chain(DocumentType type, IReadOnlyDictionary<Guid, DocumentType> byId)
+    {
+        var chain = new List<DocumentType>();
+        for (var cur = type; cur is not null && chain.All(c => c.Id != cur.Id);
+             cur = cur.ParentId is { } p ? byId.GetValueOrDefault(p) : null)
+            chain.Add(cur);
+        return chain;
+    }
+
     /// <returns>Тип, чьё поле получило тэг; <c>null</c> — не получило ничьё.</returns>
     private static Guid? Tag(IReadOnlyList<(DocumentType Type, JsonArray Fields)> chain, FieldRule rule)
     {

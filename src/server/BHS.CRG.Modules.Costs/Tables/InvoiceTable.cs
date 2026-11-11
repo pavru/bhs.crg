@@ -538,7 +538,7 @@ public sealed partial class InvoiceTableRows(
     /// остальное — поля, которые заказчик дописал в тип, они лежат в <see cref="Invoice.Data" />.
     /// </summary>
     private TableSql<Invoice> Sql(
-        Dictionary<Guid, string> names, InvoiceShares shares,
+        Dictionary<Guid, string> names, Dictionary<Guid, string> fullNames, InvoiceShares shares,
         IReadOnlyDictionary<int, string> months, DateOnly today, InvoiceTroubles troubles)
     {
         // Множества приходят от ядра ключами счетов: модуль к его таблицам не соединяется, и «потеряна
@@ -565,8 +565,9 @@ public sealed partial class InvoiceTableRows(
         return TableSql<Invoice>.Describe(InvoiceTable.Declaration, sql => sql
             .Text(InvoiceRequisites.NumberKey, i => i.Number)
             .Date(InvoiceRequisites.DateKey, i => i.IssuedOn)
-            .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names)
-            .Lookup(InvoiceRequisites.PayerKey, i => i.PayerId, names)
+            // Отбор по названию организации — и по видимому, и по полному (issue #1473, В2).
+            .Lookup(InvoiceRequisites.SupplierKey, i => i.SupplierId, names, fullNames)
+            .Lookup(InvoiceRequisites.PayerKey, i => i.PayerId, names, fullNames)
             .Text(InvoiceRequisites.PurposeKey, i => i.Purpose)
             // Условие по дочернему зерну: в базе это EXISTS по частям разноски счёта.
             .List(InvoiceTable.ObjectsKey,

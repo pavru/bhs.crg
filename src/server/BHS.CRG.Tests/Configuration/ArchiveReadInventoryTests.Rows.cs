@@ -40,11 +40,14 @@ public partial class ArchiveReadInventoryTests
             Documents("документ по идентификатору"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));"] =
             ByPurpose("назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. codes.Keys], ids), ct), codes);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var byShown = await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], extra), ct);"] =
+            Choice("поиск порта по видимому сокращённому названию: архивные отсеиваются и идут числом",
+                nameof(OrganizationShortNamePortTests.Поиск_находит_по_сокращённому_и_называет_полное_найденным_по_нему)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
         ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
@@ -81,9 +84,9 @@ public partial class ArchiveReadInventoryTests
             Seen("карточка позиции: есть ли справочник вовсе — чтобы не назвать неназначенный «позицию удалили»"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Card.cs|var found = await Db.Set<DomainObject>().AsNoTracking()"] =
             Seen("карточка записи (#1516): запись по идентификатору и её основы — показ, архивная с признаком"),
-        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o =>"] =
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|var own = Db.Set<DomainObject>().AsNoTracking().Where(o =>"] =
             Shown("значения поля у записей вида (сопоставление по ИНН, issue #1077): назначение называет звавший, выбор архивные скрывает, показ отдаёт с признаком"),
-        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id)))"] =
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|var bases = await Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id))"] =
             Seen("основы наследников — по идентификатору из _baseRef: значение архивной основы у живой роли не пропадает"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|ownerId is { } id && await repo.GetByIdAsync(id, ct) is { } owner"] =
             Seen("вынос в общие данные: объект-источник читается ради стоявших в нём ссылок, архив ли он сам — не важно"),
@@ -414,7 +417,7 @@ public partial class ArchiveReadInventoryTests
             Seen("названия поставщиков уже заведённых счетов"),
         ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct))"] =
             Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
-        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var names = (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
+        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct) ?? [];"] =
             Seen("названия поставщиков уже заведённых счетов"),
     };
 }
