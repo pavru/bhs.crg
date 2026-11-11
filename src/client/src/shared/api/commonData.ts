@@ -8,6 +8,9 @@ const QK = 'common-data';
 /** Код классификатора видов работ — зеркало серверного `CoreRecordTypes.WorkTypeCode`. */
 export const WORK_TYPE_CODE = 'ВидРаботы';
 
+/** Код справочника сотрудников — зеркало серверного `CoreRecordTypes.EmployeeCode`. */
+export const EMPLOYEE_CODE = 'Сотрудник';
+
 /**
  * Справочники, которые пишутся СВОЕЙ дверью под своим правом (WORK-59), — зеркало серверного
  * `OwnDoorTypes`. Ключ — код КОРНЯ семьи: подтип вида работы — тоже вид работы, и общий адрес сервер
@@ -15,6 +18,8 @@ export const WORK_TYPE_CODE = 'ВидРаботы';
  */
 const OWN_DOORS: Readonly<Record<string, { base: string; permission: string }>> = {
   [WORK_TYPE_CODE]: { base: '/work-types', permission: 'core.worktypes.edit' },
+  // Реквизиты сотрудника правит один экран — «Сотрудники» (решение владельца по C15, work-01).
+  [EMPLOYEE_CODE]: { base: '/employees', permission: 'core.employees.edit' },
 };
 
 const COMMON = { base: '/common-data', permission: 'core.catalog.edit' };

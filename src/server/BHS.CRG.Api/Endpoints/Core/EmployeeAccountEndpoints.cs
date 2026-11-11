@@ -1,5 +1,7 @@
 using BHS.CRG.Api.Endpoints.Documents;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules;
 using MediatR;
@@ -87,10 +89,11 @@ public static class EmployeeAccountEndpoints
             return Results.Ok(new { items, more });
         });
 
-        edit.MapGet("/account-matches", async (EmployeeAccountReads accounts, CancellationToken ct) =>
+        edit.MapGet("/account-matches", async (EmployeeAccountReads accounts, IRepository<DocumentType> types,
+            CancellationToken ct) =>
             await accounts.MatchesAsync(ct) is { } rows
                 ? Results.Ok(rows)
-                : Results.Conflict(new { code = EmployeeAccountReads.DirectoryMissing, error = DirectoryMissingText }));
+                : EmployeeEndpoints.DirectoryMissingResult(await types.GetAllAsync(ct)));
 
         // ── «Завести» справочник ──────────────────────────────────────────────────────────────
         edit.MapPost("/directory", async (IMediator m, CancellationToken ct) =>
@@ -116,9 +119,6 @@ public static class EmployeeAccountEndpoints
             code = result.Outcome, error = result.Error, linkedTo = result.LinkedTo, accountName = result.AccountName,
         });
     }
-
-    internal const string DirectoryMissingText =
-        "Справочник сотрудников ещё не заведён. Сопоставлять не с кем: сначала заведите справочник.";
 
     private const string PersonMissingText =
         "Справочник сотрудников не заведён: нет типа «Персона», от которого он производен. Заведите " +
