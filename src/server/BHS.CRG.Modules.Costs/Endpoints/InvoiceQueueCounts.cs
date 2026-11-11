@@ -8,41 +8,66 @@ using Microsoft.Extensions.Logging;
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
 /// <summary>
-/// Числа очередей счетов — одной службой на всех, кто их показывает (shell-08): адреса чипов экрана
-/// (<c>/queues</c>, <c>/queues/parsing</c>) и Главная. Второй расчёт числа однажды разошёлся бы с
-/// первым, а карточка Главной, обещающая «3» над списком из двух, хуже, чем никакой.
+/// Число «Разобрать» — счёт по своей таблице, отказывать ему нечем (ревью PR #1302). Отдельной службой
+/// с одной базой модуля: адрес чипа (<c>/queues/parsing</c>) и Главная не должны падать вместе с портами
+/// ядра, которые нужны остальным очередям, — даже на сборке зависимостей.
+/// </summary>
+public sealed class InvoiceParsingQueue(CostsDbContext db)
+{
+    /// <summary>Черновиков под отбором «Разобрать» — тем же условием, каким отбирает список.</summary>
+    public Task<int> CountAsync(CancellationToken ct) =>
+        InvoiceListEndpoint.Queue(db.Invoices.AsNoTracking()).CountAsync(ct);
+}
+
+/// <summary>Числа «удалённых записей» и «в архиве» — из одного обратного опроса ссылок ядра.</summary>
+public sealed record InvoiceReferenceCounts(int Lost, int Archived, int Locked, string? Doubt);
+
+/// <summary>
+/// Числа очередей «наведите порядок» — одной службой на всех, кто их показывает (shell-08): адрес чипов
+/// экрана (<c>/queues</c>) и Главная. Второй расчёт числа однажды разошёлся бы с первым, а карточка
+/// Главной, обещающая «3» над списком из двух, хуже, чем никакой.
 ///
-/// <para>«Разобрать» считается отдельно от остальных трёх (ревью PR #1302): те стоят на обратном
-/// опросе ядра и падают вместе с ним, а это число — счёт по своей таблице, отказывать ему нечем.</para>
+/// <para>Источники у них разные, и отказывают они порознь: «удалённые» и «в архиве» — обратный опрос
+/// ссылок ядра, «Не распознано» — задачи распознавания (<see cref="InvoiceListRecognition" />). Главная
+/// спрашивает их по отдельности: отказ одного не прячет число другого и называет свою причину.</para>
 /// </summary>
 public sealed class InvoiceQueueCounts(
     CostsDbContext db, InvoiceReferenceTrouble trouble, InvoiceListRecognition recognition)
 {
-    /// <summary>Черновиков под отбором «Разобрать» — тем же условием, каким отбирает список.</summary>
-    public Task<int> ParsingAsync(CancellationToken ct) =>
-        InvoiceListEndpoint.Queue(db.Invoices.AsNoTracking()).CountAsync(ct);
-
-    /// <summary>Числа чипов «наведите порядок» — одним опросом ядра на все три.</summary>
-    public async Task<InvoiceQueuesView> TroublesAsync(CancellationToken ct)
+    /// <summary>«Удалённые записи» и «в архиве» — одним опросом ядра на обе.</summary>
+    public async Task<InvoiceReferenceCounts> ReferencesAsync(CancellationToken ct)
     {
         var troubles = await trouble.ReadAsync(withArchive: true, ct);
         var archived = troubles.Archived.ToArray();
         var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({archived}) AS \"Value\"");
-        return new InvoiceQueuesView(
+        return new InvoiceReferenceCounts(
             troubles.With(LostMark.Fixable).Length,
             archived.Length == 0 ? 0 : await InvoiceReferenceTrouble.InWork(db.Invoices.AsNoTracking())
                 .CountAsync(i => keys.Contains(i.Id), ct),
             troubles.With(LostMark.Locked).Length + troubles.With(LostMark.Corrected).Length,
-            troubles.Doubt,
-            InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length);
+            troubles.Doubt);
+    }
+
+    /// <summary>«Не распознано» — по задачам распознавания, без опроса ссылок.</summary>
+    public async Task<int> UnrecognizedAsync(CancellationToken ct) =>
+        InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length;
+
+    /// <summary>Числа чипов «наведите порядок» одним ответом — для адреса экрана (<c>/queues</c>).</summary>
+    public async Task<InvoiceQueuesView> TroublesAsync(CancellationToken ct)
+    {
+        var references = await ReferencesAsync(ct);
+        return new InvoiceQueuesView(references.Lost, references.Archived, references.Locked, references.Doubt,
+            await UnrecognizedAsync(ct));
     }
 }
 
 /// <summary>
 /// Очереди счетов на Главной (shell-08, ТЗ UI-34) — поставщик контракта «Очереди Главной». Объявления —
-/// <see cref="Declarations" />; числа — <see cref="InvoiceQueueCounts" />, та же служба, что у чипов.
+/// <see cref="Declarations" />; числа — <see cref="InvoiceParsingQueue" /> и <see cref="InvoiceQueueCounts" />,
+/// те же службы, что у чипов.
 /// </summary>
-public sealed class CostsHomeQueueCounts(InvoiceQueueCounts counts, ILogger<CostsHomeQueueCounts> log)
+public sealed class CostsHomeQueueCounts(
+    InvoiceParsingQueue parsing, InvoiceQueueCounts counts, ILogger<CostsHomeQueueCounts> log)
     : IHomeQueueCounts
 {
     public const string Parsing = "parsing";
@@ -72,17 +97,20 @@ public sealed class CostsHomeQueueCounts(InvoiceQueueCounts counts, ILogger<Cost
         ModuleReader reader, IReadOnlyList<string> codes, CancellationToken ct)
     {
         var result = new List<HomeQueueCount>();
-        if (codes.Contains(Parsing)) result.Add(new(Parsing, await counts.ParsingAsync(ct)));
+        if (codes.Contains(Parsing)) result.Add(new(Parsing, await parsing.CountAsync(ct)));
 
-        string[] troubleCodes = [Unrecognized, Lost, Archived];
-        var asked = troubleCodes.Where(codes.Contains).ToList();
+        if (codes.Contains(Unrecognized))
+            result.Add(await AskAsync(Unrecognized, "задачи распознавания не ответили",
+                async () => new HomeQueueCount(Unrecognized, await counts.UnrecognizedAsync(ct))));
+
+        string[] referenceCodes = [Lost, Archived];
+        var asked = referenceCodes.Where(codes.Contains).ToList();
         if (asked.Count == 0) return result;
-
-        // Опрос ссылок ядра отказал — «не посчитано» трём, а «Разобрать» уже пришла с числом.
-        InvoiceQueuesView view;
+        // Опрос ссылок ядра отказал — «не посчитано» обеим его очередям; прочие пришли со своими числами.
+        InvoiceReferenceCounts view;
         try
         {
-            view = await counts.TroublesAsync(ct);
+            view = await counts.ReferencesAsync(ct);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -90,15 +118,23 @@ public sealed class CostsHomeQueueCounts(InvoiceQueueCounts counts, ILogger<Cost
             result.AddRange(asked.Select(code => new HomeQueueCount(code, null, Refused: "проверка ссылок не ответила")));
             return result;
         }
-
-        foreach (var code in asked)
-            result.Add(code switch
-            {
-                // Сомнение — у тех же очередей, что у чипа экрана: у «удалённых» и «в архиве».
-                Lost => new HomeQueueCount(code, view.Lost, view.Doubt),
-                Archived => new HomeQueueCount(code, view.Archived, view.Doubt),
-                _ => new HomeQueueCount(code, view.Unrecognized),
-            });
+        // Сомнение — у тех же очередей, что у чипа экрана: у «удалённых» и «в архиве».
+        result.AddRange(asked.Select(code =>
+            new HomeQueueCount(code, code == Lost ? view.Lost : view.Archived, view.Doubt)));
         return result;
+    }
+
+    /// <summary>Одна очередь со своим источником: его отказ — «не посчитано» с причиной, в журнал — исключение.</summary>
+    private async Task<HomeQueueCount> AskAsync(string code, string refused, Func<Task<HomeQueueCount>> count)
+    {
+        try
+        {
+            return await count();
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            log.LogWarning(e, "Очередь счетов Главной {Code} без числа: источник отказал", code);
+            return new HomeQueueCount(code, null, Refused: refused);
+        }
     }
 }

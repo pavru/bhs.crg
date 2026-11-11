@@ -1,6 +1,8 @@
 import type { InvoiceListItem, InvoiceQueue, InvoiceReferencePlace } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { queueCountText } from '@/shared/ui/queueCount';
+import { Archive, Checklist, DocumentScanner, Help, Warning } from '@/shared/ui/icons';
+import type { IconDef } from '@/shared/ui/icons/types';
 
 /**
  * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — чипами над
@@ -14,6 +16,23 @@ export const QUEUE_LABEL: Record<InvoiceQueue, string> = {
   lost: 'Удалённые записи',
   archived: 'В архиве',
 };
+
+/** Знак очереди: значок, тон и имя для читалки, когда знак говорит о состоянии. */
+export interface QueueMark { icon: IconDef; tone?: 'error' | 'warning'; iconLabel?: string }
+
+/**
+ * Знаки очередей — ОДНА таблица на чип экрана и карточку Главной (shell-08): у очереди один знак, и
+ * смена его здесь доходит до обоих мест.
+ */
+export const QUEUE_MARK: Record<InvoiceQueue, QueueMark> = {
+  parsing: { icon: Checklist },
+  unrecognized: { icon: DocumentScanner, tone: 'warning', iconLabel: 'внимание' },
+  lost: { icon: Warning, tone: 'error', iconLabel: 'ошибка' },
+  archived: { icon: Archive },
+};
+
+/** Знак «удалённых записей», когда проверено не всё: сомнение отличает знак, а не цвет (WCAG 1.4.1). */
+export const LOST_DOUBT_MARK = { icon: Help, tone: 'warning', iconLabel: 'проверено не всё' } as const satisfies QueueMark;
 
 /** Параметр адреса экрана счетов, которым названа очередь (shell-08, ТЗ COST-6.2): `/invoices?queue=parsing`. */
 export const QUEUE_PARAM = 'queue';

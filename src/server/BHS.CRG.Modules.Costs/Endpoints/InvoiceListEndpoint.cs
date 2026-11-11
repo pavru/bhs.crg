@@ -244,9 +244,9 @@ public static class InvoiceListEndpoint
     /// обратным опросом ядра и спрашивается только у того, кто счёт может править. А это число — счёт
     /// по своей таблице: ему нечем отказать, и нужно оно каждому, кто видит очередь.</para>
     /// </summary>
-    /// <para>Считает <see cref="InvoiceQueueCounts" /> — та же служба, что даёт число карточке Главной.</para>
-    public static async Task<Ok<InvoiceParsingCount>> ParsingCountAsync(InvoiceQueueCounts counts, CancellationToken ct) =>
-        TypedResults.Ok(new InvoiceParsingCount(await counts.ParsingAsync(ct)));
+    /// <para>Считает <see cref="InvoiceParsingQueue" /> — та же служба, что даёт число карточке Главной.</para>
+    public static async Task<Ok<InvoiceParsingCount>> ParsingCountAsync(InvoiceParsingQueue parsing, CancellationToken ct) =>
+        TypedResults.Ok(new InvoiceParsingCount(await parsing.CountAsync(ct)));
 
     private static async Task<Dictionary<Guid, ModuleCatalogEntry>> SupplierNamesAsync(
         IModuleCatalog catalog, List<Invoice> invoices, CancellationToken ct)

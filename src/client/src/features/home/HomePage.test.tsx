@@ -12,7 +12,7 @@ import { HomePage } from './HomePage';
 const home = workNav.find(i => i.to === '/home')!;
 const sites = workNav.find(i => i.to === '/document-sets')!;
 
-let nav: { allWork: NavItem[]; settings: NavItem[] } = { allWork: [home, sites], settings: [] };
+let nav: { work: NavItem[]; settings: NavItem[] } = { work: [home, sites], settings: [] };
 vi.mock('@/shared/ui/navSections', () => ({ useNavSections: () => nav }));
 
 let queues: { data?: HomeQueue[]; isPending: boolean; isError: boolean } = { data: [], isPending: false, isError: false };
@@ -24,10 +24,15 @@ vi.mock('@/shared/api/jobs', () => ({ useActiveJobList: () => jobs }));
 vi.mock('@/features/jobs/JobRow', () => ({ JobRow: ({ job }: { job: { title: string } }) => <div>{job.title}</div> }));
 
 let permissions: string[] = [];
+let accessPending = false;
 vi.mock('@/shared/api/access', async importOriginal => ({
   ...await importOriginal<typeof import('@/shared/api/access')>(),
-  useAccess: () => ({ data: { permissions, modules: [] } }),
+  useAccess: () => (accessPending
+    ? { data: undefined, isPending: true }
+    : { data: { permissions, modules: [] }, isPending: false }),
 }));
+vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+vi.mock('@/shared/api/userSettings', () => ({ useUserSettings: () => ({ isPending: false }) }));
 
 let tipsShown = true;
 const setTipsShown = vi.fn();
@@ -41,7 +46,8 @@ vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info, error: vi.f
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
-  nav = { allWork: [home, sites], settings: [] };
+  nav = { work: [home, sites], settings: [] };
+  accessPending = false;
   queues = { data: [], isPending: false, isError: false };
   jobs = [];
   permissions = [];
@@ -65,8 +71,15 @@ describe('Главная', () => {
     expect(screen.getByRole('heading', { name: 'Полезно знать' })).toBeTruthy();
   });
 
+  it('доступ в пути — ни блоков, ни «нет доступа»: меню из одной Главной ещё не ответ', () => {
+    accessPending = true;
+    nav = { work: [home], settings: [] };
+    const { container } = shown();
+    expect(container.textContent).toBe('');
+  });
+
   it('кроме Главной ничего не открыто — страница «нет доступа» тем же правилом, что расчёт входа', () => {
-    nav = { allWork: [home], settings: [] };
+    nav = { work: [home], settings: [] };
     shown();
     expect(screen.getByRole('heading', { name: 'Нет доступных разделов' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Продолжить работу' })).toBeNull();
@@ -117,6 +130,13 @@ describe('«Ждут вас»', () => {
     shown();
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(refetch).toHaveBeenCalled();
+  });
+
+  it('перечитывание отказало при прежних данных — «не обновились» и без старых чисел', () => {
+    queues = { data: [queue('parsing', 'Разобрать', 3)], isPending: false, isError: true };
+    shown();
+    expect(screen.getByText('Числа очередей не обновились.')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Разобрать' })).toBeNull();
   });
 
   it('очередь без адреса на клиенте карточки не даёт — она звала бы туда, куда не попасть', () => {

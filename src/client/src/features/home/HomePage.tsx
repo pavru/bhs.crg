@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { useActiveJobList } from '@/shared/api/jobs';
+import { useUserSettings } from '@/shared/api/userSettings';
+import { useAuth } from '@/shared/hooks/useAuth';
 import { useHomeQueues, type HomeQueue } from '@/shared/api/homeQueues';
 import { useHomeTips } from '@/shared/hooks/useHomeTips';
 import { Button } from '@/shared/ui/Button';
@@ -26,11 +28,18 @@ import { JobRow } from '@/features/jobs/JobRow';
  * <p>Главная ничего не считает сама: очереди и их числа отдаёт сервер в правах спрашивающего
  * (`/api/home/queues`), задачи — тот же кэш, что у кнопки активности. Без прав на модули их блоков нет, и
  * это не отказ — остальные блоки остаются ([UI-33]). Кроме Главной не открыто ничего — страница «нет
- * доступа» (AUTH-15) тем же правилом, что расчёт входа (`hasWork`).</p>
+ * доступа» (AUTH-15) тем же правилом и тем же меню, что расчёт входа (`hasWork`, `EntryRedirect`).</p>
  */
 export function HomePage() {
-  const { allWork, settings } = useNavSections();
-  if (!hasWork([...allWork, ...settings])) return <NoAccessPage missing={null} />;
+  const { user } = useAuth();
+  const { isPending } = useAccess();
+  const { isPending: settingsPending } = useUserSettings(!!user);
+  const { work, settings } = useNavSections();
+  // Ждёт и судит, как расчёт входа (`EntryRedirect`): пока доступ в пути, меню — одна Главная, и «нет
+  // доступа» мелькнуло бы у всех; пространство приходит настройкой. Меню — суженное пространством, иначе
+  // `/` и `/home` отвечали бы одному человеку по-разному.
+  if (isPending || settingsPending) return null;
+  if (!hasWork([...work, ...settings])) return <NoAccessPage missing={null} />;
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl px-6 py-5 space-y-6">
@@ -55,7 +64,9 @@ function BlockTitle({ id, children }: { id: string; children: string }) {
  */
 function Waiting() {
   const { data, isPending, isError, refetch } = useHomeQueues();
-  const cards = (data ?? []).flatMap(q => {
+  // Отказ перечитывания при прежних данных — тоже отказ: старые числа под словами «не обновились» без
+  // карточек, а не уверенное «3» рядом с ошибкой.
+  const cards = isError ? [] : (data ?? []).flatMap(q => {
     const route = homeQueueRoute(q.module, q.id);
     const shown = cardNumber(q);
     return route && shown !== null ? [{ q, route, shown }] : [];
@@ -69,7 +80,7 @@ function Waiting() {
       {isError && (
         <p className="flex items-center gap-2 text-body-medium text-on-surface-variant">
           <Icon icon={Warning} size={20} className="text-error shrink-0" aria-label="ошибка" />
-          <span>Очереди не загрузились.</span>
+          <span>{data ? 'Числа очередей не обновились.' : 'Очереди не загрузились.'}</span>
           <Button variant="text" onClick={() => void refetch()}>Повторить</Button>
         </p>
       )}

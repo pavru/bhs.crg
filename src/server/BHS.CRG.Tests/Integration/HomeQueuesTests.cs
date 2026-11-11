@@ -57,7 +57,9 @@ public sealed class HomeQueuesTests(InvoiceLineHost host) : InvoiceLineTestBase(
         Assert.Equal(["parsing", "unrecognized", "lost", "archived"], Ids(cards));
         Assert.Equal(parsing.GetProperty("count").GetInt32(), Card(cards, "parsing").GetProperty("count").GetInt32());
         Assert.True(Card(cards, "parsing").GetProperty("count").GetInt32() > 0);
-        foreach (var id in new[] { "unrecognized", "lost", "archived" })
+        // «Не распознано» считается по задачам распознавания, а не по ссылкам: отказ опроса его не прячет.
+        Assert.Equal(JsonValueKind.Number, Card(cards, "unrecognized").GetProperty("count").ValueKind);
+        foreach (var id in new[] { "lost", "archived" })
             Assert.Equal(queues.GetProperty(id).GetInt32(), Card(cards, id).GetProperty("count").GetInt32());
 
         Assert.Equal(queues.GetProperty("doubt").ValueKind, Card(cards, "lost").GetProperty("doubt").ValueKind);
@@ -93,7 +95,7 @@ public sealed class HomeQueuesTests(InvoiceLineHost host) : InvoiceLineTestBase(
     /// числом: отказ не переодет ни в ноль, ни в пропажу карточек.
     /// </summary>
     [Fact]
-    public async Task Отказ_опроса_ссылок_даёт_отказ_трём_а_Разобрать_с_числом()
+    public async Task Отказ_опроса_ссылок_даёт_отказ_двум_а_прочие_с_числом()
     {
         var (admin, _) = await SignInAsync("Admin");
         await CreateAsync(admin);
@@ -107,7 +109,9 @@ public sealed class HomeQueuesTests(InvoiceLineHost host) : InvoiceLineTestBase(
 
         var cards = await HomeAsync(client);
         Assert.True(Card(cards, "parsing").GetProperty("count").GetInt32() > 0);
-        foreach (var id in new[] { "unrecognized", "lost", "archived" })
+        // «Не распознано» считается по задачам распознавания, а не по ссылкам: отказ опроса его не прячет.
+        Assert.Equal(JsonValueKind.Number, Card(cards, "unrecognized").GetProperty("count").ValueKind);
+        foreach (var id in new[] { "lost", "archived" })
         {
             Assert.Equal(JsonValueKind.Null, Card(cards, id).GetProperty("count").ValueKind);
             Assert.False(string.IsNullOrWhiteSpace(Card(cards, id).GetProperty("refused").GetString()));

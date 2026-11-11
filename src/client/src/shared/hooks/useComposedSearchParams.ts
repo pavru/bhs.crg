@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, type NavigateOptions } from 'react-router';
 
 /** Правка параметров адреса — от последнего записанного, а не от отрисованного. */
@@ -21,6 +21,12 @@ export function useComposedSearchParams(): [URLSearchParams, SearchUpdate] {
   // Что записано поверх какого отрисованного адреса. Отрисовка того же адреса записанного не
   // сбрасывает: она может быть срочной отрисовкой ДО перехода.
   const pending = useRef<{ base: string; latest: string } | null>(null);
+  // Отрисовка ушла от адреса, поверх которого писали, — записанное догнано или перебито чужим переходом.
+  // Без сброса переход, вернувший тот же адрес (ссылка «Счета» на открытом экране, «назад»), заставил бы
+  // следующую правку начать с давно закрытого счёта.
+  useEffect(() => {
+    if (pending.current && pending.current.base !== rendered) pending.current = null;
+  }, [rendered]);
 
   const update = useCallback<SearchUpdate>((change, options) => {
     const start = pending.current?.base === rendered ? pending.current.latest : rendered;

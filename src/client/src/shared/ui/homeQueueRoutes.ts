@@ -1,5 +1,4 @@
-import { Archive, Checklist, DocumentScanner, Help, Warning } from './icons';
-import type { IconDef } from './icons/types';
+import { LOST_DOUBT_MARK, QUEUE_MARK, type QueueMark } from '@/features/costs/invoiceQueues';
 
 /**
  * Куда ведёт карточка очереди Главной и каким знаком она говорит (shell-08, ТЗ UI-34) — по паре «модуль,
@@ -10,26 +9,19 @@ import type { IconDef } from './icons/types';
  * `homeQueues.test.ts` требует, чтобы у каждой здесь был адрес и экран принимал её параметр. Карточку
  * без адреса Главная не показывает: она звала бы туда, куда не попасть.
  */
-export interface HomeQueueRoute {
+/** Знак — из таблицы знаков экрана очереди (у счетов — `QUEUE_MARK`): одна очередь, один знак. */
+export interface HomeQueueRoute extends QueueMark {
   href: string;
-  /** Знак — тот же, что у чипа очереди на её экране: одна очередь, один знак. */
-  icon: IconDef;
-  tone?: 'error' | 'warning';
-  /** Имя знака для читалки, когда знак говорит о состоянии. */
-  iconLabel?: string;
   /** Знак при «проверено не всё»: сомнение отличает знак, а не цвет. */
-  doubt?: { icon: IconDef; tone: 'warning'; iconLabel: string };
+  doubt?: QueueMark;
 }
 
-/** Ключ — `модуль/очередь`, как в переписи. Знаки и тона — как у `InvoiceQueueChips`. */
+/** Ключ — `модуль/очередь`, как в переписи. */
 export const HOME_QUEUE_ROUTES: Readonly<Record<string, HomeQueueRoute>> = {
-  'costs/parsing': { href: '/invoices?queue=parsing', icon: Checklist },
-  'costs/unrecognized': { href: '/invoices?queue=unrecognized', icon: DocumentScanner, tone: 'warning', iconLabel: 'внимание' },
-  'costs/lost': {
-    href: '/invoices?queue=lost', icon: Warning, tone: 'error', iconLabel: 'ошибка',
-    doubt: { icon: Help, tone: 'warning', iconLabel: 'проверено не всё' },
-  },
-  'costs/archived': { href: '/invoices?queue=archived', icon: Archive },
+  'costs/parsing': { href: '/invoices?queue=parsing', ...QUEUE_MARK.parsing },
+  'costs/unrecognized': { href: '/invoices?queue=unrecognized', ...QUEUE_MARK.unrecognized },
+  'costs/lost': { href: '/invoices?queue=lost', ...QUEUE_MARK.lost, doubt: LOST_DOUBT_MARK },
+  'costs/archived': { href: '/invoices?queue=archived', ...QUEUE_MARK.archived },
 };
 
 /** Адрес и знак экрана очереди или `null` — тогда карточки нет. */

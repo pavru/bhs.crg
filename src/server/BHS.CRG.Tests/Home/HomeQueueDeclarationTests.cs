@@ -7,7 +7,8 @@ namespace BHS.CRG.Tests.Home;
 
 /// <summary>
 /// Объявления очередей Главной (shell-08, ТЗ UI-34): что каталог отвергает негодное и что перепись
-/// клиента совпадает с объявлениями сборки — иначе новая очередь пришла бы карточкой без адреса.
+/// клиента совпадает с объявлениями сборки, подписями тоже — иначе новая очередь пришла бы карточкой без
+/// адреса, а переименованная — карточкой, названной не так, как отбор на её экране.
 /// </summary>
 public class HomeQueueDeclarationTests
 {
@@ -17,11 +18,11 @@ public class HomeQueueDeclarationTests
     public void Перепись_клиента_равна_объявлениям_сборки()
     {
         var declared = DeliveredModules.All()
-            .SelectMany(m => m.HomeQueues.Select(q => $"{m.Code}/{q.Code}"))
+            .SelectMany(m => m.HomeQueues.Select(q => $"{m.Code}/{q.Code} «{q.Title}»"))
             .ToList();
         using var file = JsonDocument.Parse(File.ReadAllText(Census));
         var listed = file.RootElement.GetProperty("queues").EnumerateArray()
-            .Select(q => $"{q.GetProperty("module").GetString()}/{q.GetProperty("id").GetString()}")
+            .Select(q => $"{q.GetProperty("module").GetString()}/{q.GetProperty("id").GetString()} «{q.GetProperty("title").GetString()}»")
             .ToList();
 
         Assert.Equal(declared, listed);

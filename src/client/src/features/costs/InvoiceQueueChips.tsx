@@ -1,9 +1,8 @@
 import { Chip } from '@/shared/ui/Chip';
-import { Archive, Checklist, DocumentScanner, Help, Warning } from '@/shared/ui/icons';
 import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
-import { QUEUE_LABEL, queueChip } from './invoiceQueues';
+import { LOST_DOUBT_MARK, QUEUE_LABEL, QUEUE_MARK, queueChip } from './invoiceQueues';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
@@ -37,7 +36,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}
-      <Chip selected={queue === 'parsing'} icon={Checklist} count={parsing ? String(parsing) : undefined}
+      <Chip selected={queue === 'parsing'} icon={QUEUE_MARK.parsing.icon} count={parsing ? String(parsing) : undefined}
         title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
           + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
         onClick={() => toggle('parsing')}
@@ -49,24 +48,24 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
           к распознаванию не относящимся, а сам отбор при этом работает. */}
       {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
-        <Chip selected={queue === 'unrecognized'} icon={DocumentScanner} count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
+        <Chip selected={queue === 'unrecognized'} icon={QUEUE_MARK.unrecognized.icon} count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
           title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
             + (queues ? '' : ' Сколько их — не посчитано.')}
-          iconTone="warning" onClick={() => toggle('unrecognized')}
+          iconTone={QUEUE_MARK.unrecognized.tone} onClick={() => toggle('unrecognized')}
           aria-label={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`}>
           {QUEUE_LABEL.unrecognized}
         </Chip>
       )}
       {lost && (
         // «Возможно» и «точно потеряно» — разными знаками, а не цветом одного (WCAG 1.4.1, [UI-68]).
-        <Chip selected={queue === 'lost'} icon={lost.doubt ? Help : Warning} iconTone={lost.doubt ? 'warning' : 'error'}
+        <Chip selected={queue === 'lost'} icon={(lost.doubt ? LOST_DOUBT_MARK : QUEUE_MARK.lost).icon} iconTone={(lost.doubt ? LOST_DOUBT_MARK : QUEUE_MARK.lost).tone}
           count={lost.count} title={lost.title} onClick={() => toggle('lost')}
           aria-label={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`}>
           {QUEUE_LABEL.lost}
         </Chip>
       )}
       {archived && (
-        <Chip selected={queue === 'archived'} icon={Archive} count={archived.count}
+        <Chip selected={queue === 'archived'} icon={QUEUE_MARK.archived.icon} count={archived.count}
           title={archived.title} onClick={() => toggle('archived')}
           aria-label={`${QUEUE_LABEL.archived}, счетов: ${archived.count || 'нет'}`}>
           {QUEUE_LABEL.archived}

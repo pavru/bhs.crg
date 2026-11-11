@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { invalidatePlans } from './plans';
 
@@ -20,6 +20,16 @@ export interface ActiveJob {
 const RECOGNITION_KINDS = ['RecognizeGostSet', 'RecognizeDocument', 'RecognizeTable'];
 
 /**
+ * Запрос живых задач — ОДИН объект на всех наблюдателей кэша `['jobs','active']`: адрес, форма ответа и
+ * ритм поллинга не расходятся между копиями (часто, пока есть задачи; редко в простое).
+ */
+const activeJobsQuery = queryOptions({
+  queryKey: ['jobs', 'active'],
+  queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
+  refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
+});
+
+/**
  * Активные фоновые задачи пользователя (источник данных индикатора). Поллит `/jobs/active`: часто, пока
  * есть активные; редко в простое (ловит задачи, запущенные в других вкладках — сессионность). При
  * ЗАВЕРШЕНИИ задачи (была активной, пропала из списка) инвалидирует наборы данных и уведомления —
@@ -30,12 +40,7 @@ export function useActiveJobs(): ActiveJob[] {
   const qc = useQueryClient();
   const prevIds = useRef<Set<string>>(new Set());
 
-  const query = useQuery<ActiveJob[]>({
-    queryKey: ['jobs', 'active'],
-    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
-    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
-    refetchOnWindowFocus: true,
-  });
+  const query = useQuery({ ...activeJobsQuery, refetchOnWindowFocus: true });
 
   const jobs = query.data;
   useEffect(() => {
@@ -71,11 +76,7 @@ export function useActiveJobs(): ActiveJob[] {
  * единственном `useActiveJobs` в оболочке, и второй его экземпляр сбрасывал бы данные дважды.
  */
 export function useActiveJobList(): ActiveJob[] {
-  const { data } = useQuery<ActiveJob[]>({
-    queryKey: ['jobs', 'active'],
-    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
-    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
-  });
+  const { data } = useQuery(activeJobsQuery);
   return data ?? [];
 }
 
@@ -85,22 +86,14 @@ export function useActiveJobList(): ActiveJob[] {
  * side-эффектов инвалидции (они живут в единственном useActiveJobs в AppShell).
  */
 export function useSourceRecognizing(sourceId: string): boolean {
-  const { data } = useQuery<ActiveJob[]>({
-    queryKey: ['jobs', 'active'],
-    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
-    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
-  });
+  const { data } = useQuery(activeJobsQuery);
   return (data ?? []).some(j => j.targetId === sourceId && RECOGNITION_KINDS.includes(j.kind));
 }
 
 /** Активные задачи распознавания текущего пользователя (для статуса набора: спиннер в рейле, баннер
  *  прогресса «лист N из M» в шапке). Тот же кэш `['jobs','active']`, что и индикатор. */
 export function useRecognitionJobs(): ActiveJob[] {
-  const { data } = useQuery<ActiveJob[]>({
-    queryKey: ['jobs', 'active'],
-    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
-    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
-  });
+  const { data } = useQuery(activeJobsQuery);
   return (data ?? []).filter(j => RECOGNITION_KINDS.includes(j.kind));
 }
 

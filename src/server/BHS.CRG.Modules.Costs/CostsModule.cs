@@ -332,6 +332,7 @@ public sealed class CostsModule : IAppModule
         services.AddScoped<InvoiceReferenceTrouble>();
         // Числа очередей счетов — одной службой на чипы экрана и Главную (shell-08); Главная спрашивает
         // их контрактом «Очереди Главной».
+        services.AddScoped<InvoiceParsingQueue>();
         services.AddScoped<InvoiceQueueCounts>();
         services.AddModuleContract<IHomeQueueCounts, CostsHomeQueueCounts>(ModuleCode);
 
