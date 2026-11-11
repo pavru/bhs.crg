@@ -292,6 +292,84 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
         Assert.Empty(await SettingsAsync(client));
     }
 
+    /// <summary>
+    /// Закреплённые страницы (ТЗ AUTH-16.4, work-04) хранит сервер: с чистого браузера на другой машине
+    /// приезжает тот же список и в том же порядке — порядок выбирает человек. Предел — ровно двадцать;
+    /// рядом едет свёрнутость группы.
+    /// </summary>
+    [Fact]
+    public async Task Закреплённые_страницы_приезжают_на_другую_машину_в_том_же_порядке()
+    {
+        var email = await CreateUserAsync();
+        var twenty = JsonSerializer.Serialize(
+            new[] { "/waybills", "/invoices", "/tables/costs.invoices/registry" }
+                .Concat(Enumerable.Range(0, 17).Select(i => $"/page-{i}")));
+        (await (await SignInAsync(email)).PutAsJsonAsync("/api/account/settings", new Dictionary<string, string?>
+        {
+            ["pinnedSections"] = twenty, ["pinnedGroup"] = "collapsed",
+        })).EnsureSuccessStatusCode();
+
+        var settings = await SettingsAsync(await SignInAsync(email));
+
+        Assert.Equal(twenty, settings["pinnedSections"]);
+        Assert.Equal("collapsed", settings["pinnedGroup"]);
+    }
+
+    /// <summary>
+    /// Негодный список закреплений — отказ ВСЕГО набора правки: двадцать первый адрес, адрес с хостом
+    /// (и его переодетые формы `//host`, `/\host` — браузер читает их как чужой сайт), строка запроса,
+    /// повтор, пустой список, не массив строк. Прежний список при этом не меняется, и соседний ключ того
+    /// же набора не применяется.
+    /// </summary>
+    [Theory]
+    [InlineData("twenty-one")]
+    [InlineData("""["https://evil.example/invoices"]""")]
+    [InlineData("""["//evil.example/invoices"]""")]
+    [InlineData("""["/\\evil.example"]""")]
+    [InlineData("""["invoices"]""")]
+    [InlineData("""["/invoices?filter=1"]""")]
+    [InlineData("""["/invoices#top"]""")]
+    [InlineData("""["/invoices","/invoices"]""")]
+    [InlineData("""[]""")]
+    [InlineData("""[1]""")]
+    [InlineData("""{"to":"/invoices"}""")]
+    [InlineData("/invoices")]
+    [InlineData("long")]
+    public async Task Негодные_закрепления_отвергаются_и_набор_не_применяется(string variant)
+    {
+        var value = variant switch
+        {
+            "twenty-one" => JsonSerializer.Serialize(Enumerable.Range(0, 21).Select(i => $"/page-{i}")),
+            "long" => JsonSerializer.Serialize(new[] { "/" + new string('a', 200) }),
+            _ => variant,
+        };
+        var client = await SignInAsync(await CreateUserAsync());
+        var before = """["/invoices"]""";
+        (await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["pinnedSections"] = before })).EnsureSuccessStatusCode();
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["pinnedSections"] = value, ["pinnedGroup"] = "collapsed" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("pinnedSections", await response.Content.ReadAsStringAsync());
+        var settings = await SettingsAsync(client);
+        Assert.Equal(before, settings["pinnedSections"]);
+        Assert.False(settings.ContainsKey("pinnedGroup"));
+    }
+
+    /// <summary>Свёрнутость группы — закрытый список: иное значение клиент прочитал бы как «развёрнута» молча.</summary>
+    [Fact]
+    public async Task Негодное_состояние_группы_закреплённых_отвергается()
+    {
+        var client = await SignInAsync(await CreateUserAsync());
+
+        var response = await client.PutAsJsonAsync("/api/account/settings",
+            new Dictionary<string, string?> { ["pinnedGroup"] = "hidden" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     /// <summary>Фильтр — только «on» или «off»: иное значение клиент прочитал бы как «включён» молча.</summary>
     [Fact]
     public async Task Негодное_состояние_фильтра_отвергается()

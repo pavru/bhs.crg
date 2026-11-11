@@ -2,9 +2,9 @@
 
 ## 1. Макет и серверный ключ
 
-- [ ] 1.1 Вписать ссылку на выбранный владельцем макет Р0 (закрепление) в `design.md` этого change
+- [x] 1.1 Вписать ссылку на выбранный владельцем макет Р0 (закрепление) в `design.md` этого change
   [AUTH-16.4]. Проверка — ссылка в разделе «Макеты»
-- [ ] 1.2 `PinnedSectionValues.IsList` и ключи `pinnedSections`, `pinnedGroup` в `UserSettingKeys.All`:
+- [x] 1.2 `PinnedSectionValues.IsList` и ключи `pinnedSections`, `pinnedGroup` в `UserSettingKeys.All`:
   не больше 20 адресов, без повторов, только путь без хоста и строки запроса; `pinnedGroup` —
   `expanded | collapsed` [AUTH-16.4] [CORE-25.3]. Проверка — `AccountSettingsTests`: 21 адрес и адрес
   с хостом — 400 и набор не применён; правильный список читается обратно в том же порядке
