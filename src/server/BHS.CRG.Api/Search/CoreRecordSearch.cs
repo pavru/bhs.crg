@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.Persistence;

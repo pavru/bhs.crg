@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Exchange;
 
-namespace BHS.CRG.Modules.Exchange;
+namespace BHS.CRG.Modules.Search;
 
 /// <summary>
 /// Межмодульный контракт «Поиск записей» (ТЗ AUTH-16.1, CORE-34; shell-05, В-1 — Б): каждый включённый

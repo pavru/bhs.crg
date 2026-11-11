@@ -377,7 +377,7 @@ public partial class ArchiveReadInventoryTests
             Seen("название поставщика удалённого счёта — в запись журнала; стоял в счёте, архивный назван так же"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceListEndpoint.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct);"] =
             Shown("реестр счетов: названия поставщиков уже заведённых счетов, признак значком"),
-        ["BHS.CRG.Modules.Costs/Search/InvoiceRecordSearch.cs|(await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
+        ["BHS.CRG.Modules.Costs/Search/CostsRecordSearch.cs|(await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
             Seen("поиск счетов палитры (shell-05): найден СЧЁТ, а не поставщик, и счёт архивного поставщика "
                  + "находится по его имени, как в реестре; признака у поставщика в карточке поиска нет — его там не показывают"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct);"] =

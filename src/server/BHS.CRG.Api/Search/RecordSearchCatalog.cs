@@ -1,3 +1,5 @@
+using BHS.CRG.Api.Modules.Ports;
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Exchange;
 
@@ -94,5 +96,5 @@ public sealed class RecordSearchCatalog
 /// отказом у своей группы — как таймаут подсказок поля (#1530).</param>
 public sealed record RecordSearchLimits(int Take = 5, TimeSpan PerGroup = default)
 {
-    public TimeSpan PerGroup { get; init; } = PerGroup == default ? TimeSpan.FromSeconds(2) : PerGroup;
+    public TimeSpan PerGroup { get; init; } = PerGroup == default ? ModuleContributions.DefaultTimeout : PerGroup;
 }

@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Api.Search;
 using BHS.CRG.Modules.Exchange;
 

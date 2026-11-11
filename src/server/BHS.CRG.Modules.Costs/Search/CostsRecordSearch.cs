@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Exchange;
@@ -18,7 +19,7 @@ namespace BHS.CRG.Modules.Costs.Search;
 /// выбором: найден счёт, а не поставщик, и счёт архивного поставщика обязан находиться по его имени — как
 /// он читается по имени в списке (issue #1185). Место чтения вписано в <c>ArchiveReadInventoryTests</c>.</para>
 /// </summary>
-public sealed class InvoiceRecordSearch(CostsDbContext db, IModuleCatalog catalog) : IRecordSearch
+public sealed class CostsRecordSearch(CostsDbContext db, IModuleCatalog catalog) : IRecordSearch
 {
     public const string Group = "invoices";
 

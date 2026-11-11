@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Search;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -161,11 +162,11 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 
         Assert.Single(groups["invoices"].GetProperty("items").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, groups["invoices"].GetProperty("refused").ValueKind);
-        Assert.Contains("отказал", groups[FailingSearch.Broken].GetProperty("refused").GetString());
+        Assert.Contains("ошибка сервера", groups[FailingSearch.Broken].GetProperty("refused").GetString());
         // Текст исключения — в журнал, а не человеку: в нём бывают имена таблиц.
         Assert.DoesNotContain("probe_secret", groups[FailingSearch.Broken].GetProperty("refused").GetString());
         Assert.Empty(groups[FailingSearch.Broken].GetProperty("items").EnumerateArray());
-        Assert.Contains("не ответила", groups[FailingSearch.Slow].GetProperty("refused").GetString());
+        Assert.Contains("нет ответа", groups[FailingSearch.Slow].GetProperty("refused").GetString());
     }
 
     /// <summary>
@@ -184,11 +185,11 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var reader = ModuleReader.Of(Guid.NewGuid(), "проверка", ["costs.invoice.read"]);
 
         var shown = Assert.IsType<ContractAnswer<IReadOnlyList<RecordSearchHit>>.Shown>(
-            await search.CardsAsync(InvoiceRecordSearch.Group, [id, Guid.NewGuid()], reader, default));
+            await search.CardsAsync(CostsRecordSearch.Group, [id, Guid.NewGuid()], reader, default));
         Assert.Equal([id], shown.Value.Select(c => c.Id));
 
         var hidden = Assert.IsType<ContractAnswer<IReadOnlyList<RecordSearchHit>>.Hidden>(
-            await search.CardsAsync(InvoiceRecordSearch.Group, [id], ModuleReader.Of(Guid.NewGuid(), "чужой", []), default));
+            await search.CardsAsync(CostsRecordSearch.Group, [id], ModuleReader.Of(Guid.NewGuid(), "чужой", []), default));
         Assert.Equal("costs.invoice.read", hidden.Permission);
     }
 

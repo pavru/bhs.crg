@@ -1,3 +1,5 @@
+using BHS.CRG.Api.Modules.Ports;
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
@@ -25,19 +27,18 @@ public sealed record RecordRef(string RecordType, Guid Id);
 /// <summary>
 /// Поиск записей по всем модулям в правах спрашивающего (ТЗ AUTH-16.1, CORE-34; shell-05, задачи 1.1, 1.5).
 ///
-/// <para><b>Каждая группа — в своей области служб и со своим пределом времени.</b> Своя область — потому
-/// что группы спрашиваются одновременно, а контекст базы одновременных запросов не терпит: две группы ядра
-/// на одном <c>AppDbContext</c> уронили бы друг друга. Свой предел — потому что медленный поставщик не
-/// держит ответ остальных: он отвечает отказом у своей группы (<see cref="RecordSearchLimits.PerGroup" />).
-/// Отказ одной группы — исключение, таймаут — не роняет остальные (сценарий «Отказ одной группы»).</para>
+/// <para><b>Каждая группа — в своей области служб и со своим пределом времени</b>
+/// (<see cref="ModuleContributions" />, <see cref="RecordSearchLimits.PerGroup" />): медленный или упавший
+/// поставщик отвечает отказом у своей группы и не держит остальные (сценарий «Отказ одной группы»).
+/// Спрашивается группа, а не модуль: групп у модуля бывает несколько, и предел — у каждой.</para>
 ///
-/// <para><b>Права — дважды.</b> Группу, на ключ которой права нет, служба не спрашивает вовсе; ответ
-/// поставщика «скрыто правами» тоже убирает группу. Первый пояс держит забывчивого поставщика, второй —
-/// изоляцию строк, которую поставщик знает, а ядро нет (<c>work-07</c>).</para>
+/// <para><b>Права — дважды</b> (правило соглашения shell-05 и shell-08 от 12.11.2026). Право, известное до
+/// вызова, модуль объявляет ключом группы, и ядро группу без права не спрашивает вовсе; право, зависящее от
+/// данных поставщика, — его ответ «скрыто правами», и группа тоже пропадает. Первый пояс держит
+/// забывчивого поставщика, второй — изоляцию строк, которую поставщик знает, а ядро нет (<c>work-07</c>).</para>
 /// </summary>
 public sealed class RecordSearchService(
-    RecordSearchCatalog catalog, IServiceScopeFactory scopes, IModuleReaders readers, RecordSearchLimits limits,
-    ILogger<RecordSearchService> log)
+    RecordSearchCatalog catalog, ModuleContributions contributions, IModuleReaders readers, RecordSearchLimits limits)
 {
     /// <summary>Группы по словам запроса; <paramref name="only" /> — одна группа (Tab, чип области).</summary>
     public async Task<IReadOnlyList<RecordSearchGroupAnswer>> SearchAsync(
@@ -74,47 +75,19 @@ public sealed class RecordSearchService(
 
     private async Task<RecordSearchGroupAnswer?> AskAsync<T>(
         RecordSearchSource source, string what,
-        Func<IRecordSearch, CancellationToken, Task<ContractAnswer<T>>> ask, Func<T, RecordSearchGroupAnswer> found, CancellationToken ct)
+        Func<IRecordSearch, CancellationToken, Task<ContractAnswer<T>>> ask, Func<T, RecordSearchGroupAnswer> found,
+        CancellationToken ct)
     {
-        var scope = scopes.CreateAsyncScope();
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(limits.PerGroup);
-        Task<ContractAnswer<T>>? task = null;
-        try
+        var answer = await contributions.AskAsync(source.Module, $"группа поиска «{source.Group.Code}», {what}",
+            limits.PerGroup, (services, token) => ask(Provider(services, source.Module), token), ct);
+        return answer switch
         {
-            var provider = Provider(scope.ServiceProvider, source.Module);
-            task = ask(provider, deadline.Token);
-            // WaitAsync — на случай поставщика, который токен не слушает: предел держит ответ и тогда.
-            var answer = await task.WaitAsync(limits.PerGroup, ct);
-            return answer switch
-            {
-                ContractAnswer<T>.Shown shown => found(shown.Value),
-                ContractAnswer<T>.Hidden => null,
-                ContractAnswer<T>.SystemRefused refused => RecordSearchGroupAnswer.Failed(source, refused.Text),
-                _ => throw new InvalidOperationException($"Неизвестный ответ контракта: {answer.GetType().Name}"),
-            };
-        }
-        catch (Exception ex) when (!ct.IsCancellationRequested
-                                   && ex is TimeoutException or OperationCanceledException)
-        {
-            log.LogWarning("Группа поиска «{Group}» модуля «{Module}» не ответила ({What}) за {Limit} мс.",
-                source.Group.Code, source.Module, what, limits.PerGroup.TotalMilliseconds);
-            return RecordSearchGroupAnswer.Failed(source,
-                $"не ответила за {limits.PerGroup.TotalSeconds:0.#} с — запрос можно повторить");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Текст исключения — в журнал, не человеку: в нём бывают имена таблиц и строки запросов.
-            log.LogError(ex, "Группа поиска «{Group}» модуля «{Module}» отказала ({What}).",
-                source.Group.Code, source.Module, what);
-            return RecordSearchGroupAnswer.Failed(source, "поиск в группе отказал — ошибка сервера, она записана в журнал");
-        }
-        finally
-        {
-            // Поставщик, не услышавший токена, ещё работает в этой области: убрать её можно только за ним.
-            if (task is { IsCompleted: false }) _ = task.ContinueWith(_ => scope.Dispose(), TaskScheduler.Default);
-            else await scope.DisposeAsync();
-        }
+            { Refused: { } refused } => RecordSearchGroupAnswer.Failed(source, refused),
+            { Value: ContractAnswer<T>.Shown shown } => found(shown.Value),
+            { Value: ContractAnswer<T>.Hidden } => null,
+            { Value: ContractAnswer<T>.SystemRefused refused } => RecordSearchGroupAnswer.Failed(source, refused.Text),
+            _ => throw new InvalidOperationException($"Неизвестный ответ контракта: {answer.Value?.GetType().Name}"),
+        };
     }
 
     private static IRecordSearch Provider(IServiceProvider services, string module) =>
