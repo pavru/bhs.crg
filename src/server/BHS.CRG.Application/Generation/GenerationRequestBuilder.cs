@@ -32,11 +32,13 @@ public sealed class GenerationRequests(
 {
     public async Task<GenerationRequest> ForTemplateAsync(Template template, OutputFormat format, CancellationToken ct)
     {
-        context.Set("params", TemplateParams.Effective(template.Parameters,
+        // params — в СВОЕЙ копии контекста: общий контекст не меняется, и запрос, собранный раньше,
+        // не получает params шаблона, собранного после него.
+        var own = context.With("params", TemplateParams.Effective(template.Parameters,
             TemplateParams.OverridesForTemplate(instanceTemplateParams, template.Id)));
         // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету Template > DocumentType > System.
         var assets = await assetResolver.ResolveAsync(template.Id, documentTypeId, ct);
-        return new GenerationRequest(template.Content, format, context,
+        return new GenerationRequest(template.Content, format, own,
             TypeBlocksFiles: typeBlocks,
             UserLibContent: string.IsNullOrWhiteSpace(userLib.Entrypoint) ? null : userLib.Entrypoint,
             TemplateAssets: assets,

@@ -101,7 +101,7 @@ public sealed class TypstCompileDirectory(IBlobStorage blob)
 
         foreach (var img in assets.Images)
         {
-            var bytes = await TryDownloadAsync(img.BlobPath, ct);
+            var bytes = await TypstFileMaterializer.TryDownloadAsync(blob, img.BlobPath, ct);
             if (bytes is null) continue;
             Directory.CreateDirectory(assetsDir);
             await File.WriteAllBytesAsync(
@@ -114,38 +114,12 @@ public sealed class TypstCompileDirectory(IBlobStorage blob)
         var fontIndex = 0;
         foreach (var font in assets.Fonts)
         {
-            var bytes = await TryDownloadAsync(font.BlobPath, ct);
+            var bytes = await TypstFileMaterializer.TryDownloadAsync(blob, font.BlobPath, ct);
             if (bytes is null) continue;
             fontsDir ??= Directory.CreateDirectory(Path.Combine(dir, TypstGenerator.FontsSubdir)).FullName;
             await File.WriteAllBytesAsync(
                 Path.Combine(fontsDir, $"font_{fontIndex++}{Path.GetExtension(font.FileName)}"), bytes, ct);
         }
         return fontsDir;
-    }
-
-    // Отсутствующий или слишком большой ассет — не отказ: пропускаем его, как TypstFileMaterializer
-    // пропускает вложение.
-    private async Task<byte[]?> TryDownloadAsync(string blobPath, CancellationToken ct)
-    {
-        try
-        {
-            await using var stream = await blob.DownloadAsync(blobPath, ct);
-            using var buffer = new MemoryStream();
-            var pool = new byte[81920];
-            int read;
-            long total = 0;
-            while ((read = await stream.ReadAsync(pool, ct)) > 0)
-            {
-                total += read;
-                if (total > MaxFileBytes) return null;
-                buffer.Write(pool, 0, read);
-            }
-            return buffer.ToArray();
-        }
-        // Отмену не глотаем: иначе «отменённая» работа пошла бы к следующему ассету и доехала бы до
-        // PDF без шрифта. Чтение тела файла отмену слышит — значит, сюда она приходит на всём
-        // протяжении загрузки, а не только до заголовков ответа.
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch { return null; }
     }
 }

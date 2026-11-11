@@ -79,7 +79,9 @@ public sealed class CompileDirectoryWatch : IAsyncDisposable
             string text;
             try { text = File.ReadAllText(template); } catch (IOException) { continue; }
             if (text.Contains(_marker, StringComparison.Ordinal)) { Scan(dir); return dir; }
-            if (text.Length > 0) _checked.Add(dir);
+            // «Чужой» — только когда template.typ дописан: следом за ним пишется systemlib.typ. Иначе
+            // чтение посреди записи (метки ещё нет) вычеркнуло бы нужный каталог насовсем.
+            if (File.Exists(Path.Combine(dir, "systemlib.typ"))) _checked.Add(dir);
         }
         return null;
     }
