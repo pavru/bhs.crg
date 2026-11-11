@@ -53,11 +53,11 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~GenerationDebugBundle|FullyQualifiedName~GenerationContextBuilder|FullyQualifiedName~TypstCompileDirectory|FullyQualifiedName~Generation|FullyQualifiedName~QualitySetAudit"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный; если `GenerationEndpoints.cs` или `TypstGenerator.cs` похудели ниже уровня в `src/file-size-baseline.json` — уровень опущен тем же PR
-- [ ] 5.5 `openspec validate core-generation-input-one-path --strict --no-interactive` — без ошибок
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~GenerationDebugBundle|FullyQualifiedName~GenerationContextBuilder|FullyQualifiedName~TypstCompileDirectory|FullyQualifiedName~Generation|FullyQualifiedName~QualitySetAudit"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный; если `GenerationEndpoints.cs` или `TypstGenerator.cs` похудели ниже уровня в `src/file-size-baseline.json` — уровень опущен тем же PR
+- [x] 5.5 `openspec validate core-generation-input-one-path --strict --no-interactive` — без ошибок
 
 ## Workflow follow-up
 
