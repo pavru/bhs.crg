@@ -54,7 +54,10 @@ export function AccountBlock({ employee, canEdit }: { employee: Employee; canEdi
         </div>
       )}
       {view.dismissed && (
-        <Banner tone="info" className="rounded-md border-0 bg-surface-container-low">{view.dismissed}</Banner>
+        // Совет «отвяжите» — тому, кто может отвязать; остальным пометка только сообщает.
+        <Banner tone="info" className="rounded-md border-0 bg-surface-container-low">
+          {view.dismissed}{canUnlink && ' Отвяжите учётную запись, если он больше не работает.'}
+        </Banner>
       )}
 
       {linkOpen && (

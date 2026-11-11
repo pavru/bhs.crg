@@ -26,7 +26,7 @@ export interface AccountView {
 /** Блок «Учётная запись» карточки — по `account.state` (B17). */
 export function accountView(account: EmployeeAccount): AccountView {
   const dismissed = account.state === 'linked' && account.dismissedOn
-    ? `Уволен с ${ruDate(account.dismissedOn)}, но связан: войти и подать отчёт он по-прежнему может. Отвяжите учётную запись, если он больше не работает.`
+    ? `Уволен с ${ruDate(account.dismissedOn)}, но связан: войти и подать отчёт он по-прежнему может.`
     : null;
   switch (account.state) {
     case 'linked':

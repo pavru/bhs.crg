@@ -222,6 +222,26 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
     throw new Error('сообщение ушло БЕЗ снимка: загрузка вложений закрыта от этой роли');
 });
 
+// ── Сотрудники — только чтение (work-01): у «Бухгалтера» право читать сотрудников, но не править ──────
+// Вторым входом в своём окне: проход выше идёт под «Инженером ИД», у которого раздела нет вовсе.
+await check('employees-read-only-shows-state-without-actions', async () => {
+  const other = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+  try {
+    await login(other, process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local', PASSWORD);
+    await other.goto(`${BASE}/employees`);
+    await settled(other);
+    await other.getByTestId('employees-list').getByText('Прогонова Анна Сергеевна', { exact: true }).click();
+    await settled(other);
+    const state = await other.getByTestId('employee-account-state').innerText();
+    if (!/^(Связан: .+|Не связан)$/.test(state)) throw new Error(`состояние связи не показано: «${state}»`);
+    for (const name of ['Изменить', 'Связать…', 'Отвязать', 'Сопоставить с учётными записями', 'Добавить'])
+      if (await other.getByRole('button', { name, exact: true }).count())
+        throw new Error(`у пользователя без права правки видна кнопка «${name}»`);
+  } finally {
+    await other.close();
+  }
+});
+
 // ── Итог прохода: ни одного отказа ────────────────────────────────────────────
 await check('no-request-was-refused', async () => {
   if (denials.length)

@@ -5,7 +5,7 @@ import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { ListItem } from '@/shared/ui/ListItem';
-import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { Modal, ModalPrimary } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import {
   useAccountMatches, useLinkAccounts, type AccountMatch, type LinkBatchResult, type LinkRowResult,
@@ -54,8 +54,8 @@ export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal open fullScreen onOpenChange={o => { if (!o) onClose(); }} title="Сопоставление с учётными записями"
       busy={batch.isPending} nothingToLose
+      // Во весь экран выход — крестик в шапке ([UI-75]): подвала нет, и своя «Отмена» была бы лишней.
       footer={<>
-        <ModalExit>{result ? 'Готово' : 'Отмена'}</ModalExit>
         <ModalPrimary onClick={() => void linkChecked()} disabled={checked.length === 0} loading={batch.isPending}>
           {`Связать отмеченные · ${checked.length}`}
         </ModalPrimary>
@@ -72,8 +72,9 @@ export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <Banner tone="info" icon={Info} className="rounded-md border-0 bg-surface-container-low">
-              {`Сотрудников без учётной записи: ${rows.length}. Для ${suggestedCount} найдено совпадение ФИО — проверьте перед связыванием. ` +
-                'Отмечены только однозначные.'}
+              {`Сотрудников без учётной записи: ${rows.length}. ` + (suggestedCount > 0
+                ? `Для ${suggestedCount} найдено совпадение ФИО — проверьте перед связыванием. Отмечены только однозначные.`
+                : 'Совпадений ФИО нет — выберите учётную запись в строке.')}
             </Banner>
             <div role="list" aria-label="Сотрудники без учётной записи" className="-mx-4">
               {rows.map(r => {

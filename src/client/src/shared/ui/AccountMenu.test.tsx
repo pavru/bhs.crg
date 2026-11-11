@@ -22,7 +22,10 @@ vi.mock('@/shared/api/account', () => ({
   useAccount: () => ({ data: { avatar: null, roles: [{ title: 'Инженер ПТО' }, { title: 'Бухгалтер' }] } }),
 }));
 let employee: { id: string; name: string; archived: boolean } | null = null;
-vi.mock('@/shared/api/access', () => ({ useAccess: () => ({ data: { permissions: [], modules: [], employee } }) }));
+vi.mock('@/shared/api/access', async importActual => ({
+  ...(await importActual<typeof import('@/shared/api/access')>()),
+  useAccess: () => ({ data: { permissions: [], modules: [], employee } }),
+}));
 vi.mock('@/shared/api/version', () => ({ useAppVersion: () => ({ data: { version: '2.1.1', commit: 'abc1234' } }) }));
 let updateAvailable = true;
 vi.mock('@/shared/api/updates', () => ({ useUpdateStatus: () => ({ data: { updateAvailable, latest: '2.2.0' } }) }));
