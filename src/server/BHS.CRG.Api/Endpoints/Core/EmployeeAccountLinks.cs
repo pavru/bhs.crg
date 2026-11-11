@@ -38,7 +38,7 @@ public sealed class EmployeeAccountLinks(
         db.ChangeTracker.Clear();
 
         if (await EmployeeAsync(employeeId, ct) is not { } employee) return LinkResult.NotFound;
-        if (!Matches(employee.Version, seen)) return LinkResult.Stale;
+        if (!SeenMatches(employee.Version, seen)) return LinkResult.Stale;
         if (employee.IsArchived) return LinkResult.Archived;
 
         var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
@@ -62,7 +62,7 @@ public sealed class EmployeeAccountLinks(
         else current.Relink(userId, accountName);
         employee.TouchUpdatedAt();
 
-        if (await SaveAsync(employee, seen, ct) is { } refused) return refused;
+        if (await SaveAsync(employee, seen, userId, ct) is { } refused) return refused;
 
         await journal.RecordAsync(ActivityActions.EmployeeAccountLinked, employeeId.ToString(),
             employee.DisplayName, before: before, after: accountName, ct: ct);
@@ -80,12 +80,12 @@ public sealed class EmployeeAccountLinks(
 
         var current = await db.EmployeeAccounts.FirstOrDefaultAsync(a => a.EmployeeId == employeeId, ct);
         if (current is null) return LinkResult.Linked(employee);
-        if (!Matches(employee.Version, seen)) return LinkResult.Stale;
+        if (!SeenMatches(employee.Version, seen)) return LinkResult.Stale;
 
         var before = await LiveNameAsync(current, ct);
         db.EmployeeAccounts.Remove(current);
         employee.TouchUpdatedAt();
-        if (await SaveAsync(employee, seen, ct) is { } refused) return refused;
+        if (await SaveAsync(employee, seen, linking: null, ct) is { } refused) return refused;
 
         await journal.RecordAsync(ActivityActions.EmployeeAccountUnlinked, employeeId.ToString(),
             employee.DisplayName, before: before, after: null, ct: ct);
@@ -106,7 +106,13 @@ public sealed class EmployeeAccountLinks(
         return results;
     }
 
-    private async Task<LinkResult?> SaveAsync(DomainObject employee, string seen, CancellationToken ct)
+    /// <summary>
+    /// Сохранить строку под блокировкой карточки. Каждый отказ базы, возможный между ранними
+    /// проверками и сохранением, становится отказом СТРОКИ: брошенный отсюда, он оборвал бы пачку
+    /// на середине — начало сохранено, остальное не тронуто, а итога по строкам клиент не получил бы.
+    /// </summary>
+    /// <param name="linking">Учётная запись, которую связывают; <c>null</c> — отвязывание.</param>
+    private async Task<LinkResult?> SaveAsync(DomainObject employee, string seen, Guid? linking, CancellationToken ct)
     {
         try
         {
@@ -115,12 +121,25 @@ public sealed class EmployeeAccountLinks(
         }
         // Версию сдвинули между ранней сверкой и блокировкой строки.
         catch (ConflictException) { db.ChangeTracker.Clear(); return LinkResult.Stale; }
-        // Гонку двух связываний одной учётной записи поймал индекс — тот же отказ, что у проверки выше.
-        catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))
+        // Карточку удалили между чтением и блокировкой.
+        catch (NotFoundException) { db.ChangeTracker.Clear(); return LinkResult.NotFound; }
+        // Гонку двух связываний одной учётной записи поймал индекс — тот же отказ, что у проверки
+        // выше, с именем того, кто её занял: «занята» без «кем» оставляет человеку гадать.
+        catch (DbUpdateException ex) when (linking is { } userId && DbFailure.IsUniqueViolation(ex))
         {
             db.ChangeTracker.Clear();
-            return LinkResult.Conflict("taken", "Учётная запись тем временем связана с другим сотрудником. " +
-                "Обновите список и выберите другую учётную запись.");
+            var holder = await db.EmployeeAccounts.AsNoTracking().Where(a => a.UserId == userId)
+                .Select(a => (Guid?)a.EmployeeId).FirstOrDefaultAsync(ct);
+            return holder is { } other
+                ? await TakenAsync(other, ct)
+                : LinkResult.Conflict("taken", "Учётная запись тем временем связана с другим сотрудником. " +
+                    "Обновите список и выберите другую учётную запись.");
+        }
+        // Учётную запись удалили между проверкой и сохранением: внешний ключ отверг связь.
+        catch (DbUpdateException ex) when (linking is not null && DbFailure.IsForeignKeyViolation(ex))
+        {
+            db.ChangeTracker.Clear();
+            return LinkResult.AccountGone;
         }
     }
 
@@ -147,8 +166,9 @@ public sealed class EmployeeAccountLinks(
         return entry is not null && await EmployeeEndpoints.IsEmployeeAsync(entry, types) ? entry : null;
     }
 
-    private static bool Matches(string stored, string seen) =>
-        string.Equals(stored, seen.Trim(), StringComparison.Ordinal);
+    // Тем же правилом, что и сверка под блокировкой (RecordSeen.Ensure): ранняя и поздняя сверки
+    // одной версии не должны расходиться.
+    private static bool SeenMatches(string stored, string seen) => RecordSeen.Matches(stored, seen);
 
     /// <summary>Имя учётной записи для человека: отображаемое, а нет его — логин.</summary>
     internal static string AccountName(string? displayName, string? userName) =>

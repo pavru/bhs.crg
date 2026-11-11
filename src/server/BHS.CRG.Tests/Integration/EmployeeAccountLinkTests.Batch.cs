@@ -76,6 +76,65 @@ public partial class EmployeeAccountLinkTests
         Assert.Equal("none", (await ReadAsync(admin, employee)).GetProperty("account").GetProperty("state").GetString());
     }
 
+    /// <summary>
+    /// Версия строки пачки читается тем же правилом, что заголовок <c>If-Match</c> (ревью PR #1905):
+    /// в кавычках — та же версия, а не ложное «тем временем изменили»; «*» — запрос не по форме.
+    /// </summary>
+    [Fact]
+    public async Task Пачка_версия_в_кавычках_принимается_звёздочка_отвергается()
+    {
+        var typeId = await DirectoryAsync();
+        var employee = await EmployeeAsync(typeId, $"{_surname} Яков Яковлевич");
+        var account = await AccountAsync($"{_surname} Я. Я.");
+        var admin = await AdminAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employees/account-links",
+            new { links = new object[] { new { employeeId = employee, userId = account, version = "*" } } })).StatusCode);
+
+        var quoted = $"\"{Version(await ReadAsync(admin, employee))}\"";
+        var response = await admin.PostAsJsonAsync("/api/employees/account-links",
+            new { links = new object[] { new { employeeId = employee, userId = account, version = quoted } } });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("linked", (await JsonAsync(response)).GetProperty("results")[0].GetProperty("outcome").GetString());
+    }
+
+    /// <summary>
+    /// Ответ записи карточки — той же формы, что ответ чтения, со связью (ревью PR #1905): экран кладёт
+    /// ответ сохранения на место карточки, и без <c>account</c> связь на нём пропадала бы.
+    /// </summary>
+    [Fact]
+    public async Task Создание_и_правка_карточки_отвечают_состоянием_связи()
+    {
+        var typeId = await DirectoryAsync();
+        var admin = await AdminAsync();
+
+        var created = await admin.PostAsJsonAsync("/api/employees", new
+        {
+            displayName = $"{_surname} Новый Сотрудник",
+            data = $$"""{"ТабельныйНомер":"{{Guid.NewGuid():N}}"}""",
+        });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        Assert.Equal("none", (await JsonAsync(created)).GetProperty("account").GetProperty("state").GetString());
+
+        var employee = await EmployeeAsync(typeId, $"{_surname} Правленый");
+        await LinkOkAsync(admin, employee, await AccountAsync($"{_surname} П."));
+        var card = await ReadAsync(admin, employee);
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/employees/{employee}")
+        {
+            Content = JsonContent.Create(new
+            {
+                displayName = $"{_surname} Правленый Иван",
+                data = card.GetProperty("data").GetRawText(),
+            }),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", Version(card));
+        var updated = await admin.SendAsync(put);
+        Assert.True(updated.IsSuccessStatusCode, await updated.Content.ReadAsStringAsync());
+        var account = (await JsonAsync(updated)).GetProperty("account");
+        Assert.Equal("linked", account.GetProperty("state").GetString());
+        Assert.Equal($"{_surname} П.", account.GetProperty("name").GetString());
+    }
+
     // ── Кандидаты и предложение ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -171,6 +230,30 @@ public partial class EmployeeAccountLinkTests
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         Assert.True((await JsonAsync(created)).GetProperty("created").GetBoolean());
         Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/employees")).StatusCode);
+    }
+
+    /// <summary>
+    /// Тип того же кода в другом регистре дверь сотрудников не видит (код — буква в букву), поэтому
+    /// «Завести» не отвечает «уже заведён», а отказывает (ревью PR #1905): иначе успех оставлял бы
+    /// экран пустым, а проекция поверх чужого типа была бы перепроекцией (F2).
+    /// </summary>
+    [Fact]
+    public async Task Завести_при_типе_того_же_кода_в_другом_регистре_отказ()
+    {
+        await PersonAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+            await repo.AddAsync(DocumentType.Create("Чужой", CoreRecordTypes.EmployeeCode.ToLowerInvariant(),
+                DocumentTypeKind.Composite, null, JsonDocument.Parse("""{"fields":[]}"""),
+                TypeOwner.Core, TypeVisibility.Shared));
+            await repo.SaveChangesAsync();
+        }
+        var admin = await AdminAsync();
+
+        var refused = await admin.PostAsync("/api/employees/directory", null);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal("blocked", (await JsonAsync(refused)).GetProperty("reason").GetString());
     }
 
     /// <summary>

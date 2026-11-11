@@ -22,7 +22,11 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
 
     /// <summary>Состояние связи каждого из сотрудников — одним запросом на всех.</summary>
     public async Task<IReadOnlyDictionary<Guid, EmployeeAccountDto>> ForAsync(
-        IReadOnlyCollection<DomainObject> employees, CancellationToken ct)
+        IReadOnlyCollection<DomainObject> employees, CancellationToken ct) =>
+        await ForAsync(employees, await DismissalAsync(ct), ct);
+
+    private async Task<IReadOnlyDictionary<Guid, EmployeeAccountDto>> ForAsync(
+        IReadOnlyCollection<DomainObject> employees, Dismissal dismissal, CancellationToken ct)
     {
         var ids = employees.Select(e => e.Id).ToArray();
         var links = await (
@@ -30,10 +34,9 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
             where ids.Contains(a.EmployeeId)
             join u in db.Users.AsNoTracking() on a.UserId equals (Guid?)u.Id into us
             from u in us.DefaultIfEmpty()
-            select new { a.EmployeeId, a.UserId, a.AccountName, u.DisplayName, u.UserName })
+            select new { a.EmployeeId, a.UserId, a.AccountName, FoundId = (Guid?)u.Id, u.DisplayName, u.UserName })
             .ToDictionaryAsync(l => l.EmployeeId, ct);
 
-        var dismissal = await DismissalAsync(ct);
         var result = new Dictionary<Guid, EmployeeAccountDto>(employees.Count);
         foreach (var e in employees)
         {
@@ -45,13 +48,14 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
             }
             // Строка связи есть, а учётной записи нет — удаление в эту же секунду: внешний ключ
             // вот-вот обнулит связь. Сказать «удалена» честнее, чем показать связь с несуществующим.
-            if (link.UserName is null)
+            // Судит о том наличие строки учётной записи, а не логин: запись без логина — живая.
+            if (link.FoundId is null)
             {
                 result[e.Id] = new(EmployeeAccountDto.Deleted, link.AccountName, null, null);
                 continue;
             }
             result[e.Id] = new(EmployeeAccountDto.Linked,
-                EmployeeAccountLinks.AccountName(link.DisplayName, link.UserName), link.UserName,
+                EmployeeAccountLinks.AccountName(link.DisplayName, link.UserName), link.UserName ?? "",
                 dismissal.DismissedOn(e));
         }
         return result;
@@ -93,8 +97,9 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
         var employees = await db.DomainObjects.AsNoTracking()
             .Where(o => o.CompositeTypeId == typeId && o.ArchivedAt == null)
             .ToListAsync(ct);
-        var accounts = await ForAsync(employees, ct);
+        // Пояс компании и ключи «Уволен с» — один раз на весь ответ: и для состояния связи, и для отбора.
         var dismissal = await DismissalAsync(ct);
+        var accounts = await ForAsync(employees, dismissal, ct);
         var linkedTo = await LinkedToAsync(ct);
         var free = (await UsersAsync(ct)).Where(u => !linkedTo.ContainsKey(u.Id)).ToList();
 
@@ -122,8 +127,9 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
 
     /// <summary>
     /// Сотрудник вошедшего — для <c>/api/account/access</c> (ТЗ AUTH-14). Адрес зовут каждые полминуты,
-    /// поэтому связь читается одним запросом, а тип справочника спрашивается только когда связи нет:
-    /// «вас не связали» и «справочник не заведён» — разные ответы.
+    /// поэтому связь читается одним запросом, а о справочнике спрашивается только когда связи нет:
+    /// «вас не связали» и «справочник не заведён» — разные ответы. Спрашивается проверкой наличия по
+    /// коду, а не чтением типов: схема типа здесь не нужна, а читалась бы каждым опросом.
     /// </summary>
     public async Task<(object? Employee, string? Reason)> OfUserAsync(Guid userId, CancellationToken ct)
     {
@@ -135,7 +141,8 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
             .FirstOrDefaultAsync(ct);
         if (own is not null)
             return (new { id = own.Id, name = own.DisplayName ?? "", archived = own.ArchivedAt != null }, null);
-        return (null, await EmployeeEndpoints.EmployeeTypeIdAsync(types) is null ? DirectoryMissing : NotLinked);
+        var directory = await db.DocumentTypes.AsNoTracking().AnyAsync(t => t.Code == CoreRecordTypes.EmployeeCode, ct);
+        return (null, directory ? NotLinked : DirectoryMissing);
     }
 
     public const string NotLinked = "not-linked";

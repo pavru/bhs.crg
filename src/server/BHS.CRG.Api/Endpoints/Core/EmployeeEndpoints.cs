@@ -67,7 +67,8 @@ public static class EmployeeEndpoints
         // Связь с учётной записью, кандидаты, сопоставление и «Завести» (work-01) — всё под правкой.
         edit.MapEmployeeAccountEndpoints();
 
-        edit.MapPost("/", async (CreateEmployeeRequest req, IMediator m, IRepository<DocumentType> types) =>
+        edit.MapPost("/", async (CreateEmployeeRequest req, IMediator m, IRepository<DocumentType> types,
+            EmployeeAccountReads accounts, CancellationToken ct) =>
         {
             // Слой API отвечает КОДОМ, а не бросает доменный отказ (стережёт
             // DomainExceptionPolicyTests): бросок отсюда ушёл бы в общий конвейер и стал бы тем же
@@ -81,11 +82,14 @@ public static class EmployeeEndpoints
             if (RecordRequests.ParseData(req.Data) is not { } data)
                 return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
+            // Ответ записи — той же формы, что ответ чтения, с состоянием связи (ТЗ WORK-47): экран,
+            // кладущий ответ сохранения на место прочитанной карточки, иначе потерял бы связь.
             try
             {
-                return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
+                var created = await m.Send(new CreateCommonDataEntryCommand(
                     req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases,
-                    req.CreateAnyway ?? false))));
+                    req.CreateAnyway ?? false));
+                return Results.Ok(await EmployeeEntryDto.OfAsync(created, accounts, ct));
             }
             // Тот же ответ, что у общего адреса создания (issue #1185): сотрудник с таким табельным
             // номером лежит в архиве. Без полей и без createAnyway отказ был бы тупиком — текст
@@ -95,7 +99,7 @@ public static class EmployeeEndpoints
 
         edit.MapPut("/{id:guid}", async (
             Guid id, UpdateEmployeeRequest req, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
+            ClaimsPrincipal user, DataAccessResolver access, EmployeeAccountReads accounts, CancellationToken ct) =>
         {
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
@@ -112,12 +116,13 @@ public static class EmployeeEndpoints
             if (RecordRequests.ParseData(req.Data) is not { } data)
                 return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
-            return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
+            var updated = await m.Send(new UpdateCommonDataEntryCommand(
                 // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
                 // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
                 // стирал бы их заодно с правкой одного поля.
                 id, req.DisplayName, data, await access.ForAsync(user, ct), seen,
-                req.Aliases ?? [.. entry.Aliases]))));
+                req.Aliases ?? [.. entry.Aliases]));
+            return Results.Ok(await EmployeeEntryDto.OfAsync(updated, accounts, ct));
         });
 
         edit.MapDelete("/{id:guid}", async (

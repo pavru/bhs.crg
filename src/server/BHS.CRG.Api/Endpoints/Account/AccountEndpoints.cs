@@ -271,12 +271,8 @@ public static class AccountEndpoints
         Guid.TryParse(p.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? p.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
             ? id : null;
 
-    private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p)
-    {
-        var id = p.FindFirstValue(JwtRegisteredClaimNames.Sub)
-              ?? p.FindFirstValue(ClaimTypes.NameIdentifier);
-        return id is null ? null : await users.FindByIdAsync(id);
-    }
+    private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p) =>
+        CurrentUserId(p) is { } id ? await users.FindByIdAsync(id.ToString()) : null;
 
     /// <summary>
     /// Профиль вместе с НАЗВАНИЕМ роли (issue #951).

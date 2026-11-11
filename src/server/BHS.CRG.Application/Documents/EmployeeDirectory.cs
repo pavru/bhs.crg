@@ -49,7 +49,13 @@ public sealed class CreateEmployeeDirectoryHandler(IRepository<DocumentType> typ
     {
         var all = await types.GetAllAsync(ct);
         if (Find(all, CoreRecordTypes.EmployeeCode) is { } existing)
-            return new(existing.Id, Created: false, Refusal: null);
+            // «Уже заведён» — только тот тип, который видит дверь сотрудников: её код, буква в букву
+            // (EmployeeEndpoints.EmployeeTypeIdAsync). Тип того же кода в другом регистре дверь не
+            // находит, и ответ «заведён» оставил бы экран пустым с отчётом об успехе. Проецировать
+            // поверх него тоже нельзя — это перепроекция существующего типа (F2), поэтому — отказ.
+            return existing.Code == CoreRecordTypes.EmployeeCode
+                ? new(existing.Id, Created: false, Refusal: null)
+                : new(null, Created: false, EmployeeDirectoryOutcome.Blocked);
         if (Find(all, CoreRecordTypes.PersonCode) is null)
             return new(null, Created: false, EmployeeDirectoryOutcome.PersonMissing);
 
@@ -60,7 +66,8 @@ public sealed class CreateEmployeeDirectoryHandler(IRepository<DocumentType> typ
             : new(created.Id, Created: true, Refusal: null);
     }
 
-    // Код — без учёта регистра: так его ищет проекция и так его стережёт редактор типов.
+    // Поиск — без учёта регистра: так тип ищет проекция и так код стережёт редактор типов; найденный
+    // в другом регистре проекция приняла бы за свой и перепроецировала.
     private static DocumentType? Find(IReadOnlyList<DocumentType> all, string code) =>
         all.FirstOrDefault(t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase));
 }

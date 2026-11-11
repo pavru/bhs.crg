@@ -1,6 +1,7 @@
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Modules;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Core;
@@ -52,13 +53,16 @@ public static class EmployeeAccountEndpoints
                     "Разделите её — удачные строки первой части останутся связанными." });
             // Пачка не по форме отвергается ЦЕЛИКОМ: строка без версии — это не отказ строки, а запрос,
             // собранный не так, и связать «остальные» значило бы угадывать, что имелось в виду.
-            if (rows.Any(r => r.EmployeeId == Guid.Empty || r.UserId == Guid.Empty || string.IsNullOrWhiteSpace(r.Version)))
+            // Версия строки читается тем же правилом, что заголовок If-Match: в кавычках — та же версия,
+            // а «*» и не число — запрос не по форме, а не ложное «тем временем изменили».
+            var parsed = rows.Select(r => (Row: r, Ok: SeenVersion.TryParse(r.Version, out var v), Version: v)).ToList();
+            if (parsed.Any(p => p.Row.EmployeeId == Guid.Empty || p.Row.UserId == Guid.Empty || !p.Ok || p.Version is null))
                 return Results.BadRequest(new { error =
                     "Каждая строка пачки обязана назвать сотрудника, учётную запись и версию карточки " +
-                    "(поле version из ответа чтения). Не связано ничего." });
+                    "(поле version из ответа чтения — число). Не связано ничего." });
 
             var results = await links.LinkManyAsync(
-                [.. rows.Select(r => (r.EmployeeId, r.UserId, r.Version!))], ct);
+                [.. parsed.Select(p => (p.Row.EmployeeId, p.Row.UserId, p.Version!))], ct);
             return Results.Ok(new
             {
                 linked = results.Count(r => r.Result.Succeeded),
