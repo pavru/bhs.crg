@@ -706,7 +706,8 @@
     },
     "House": {
       "symbol": "home",
-      "export": "Home"
+      "export": "Home",
+      "fill": true
     },
     "Settings": {
       "symbol": "settings",

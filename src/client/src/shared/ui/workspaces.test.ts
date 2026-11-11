@@ -1,3 +1,4 @@
+import { isHomeItem } from './entryPage';
 import { describe, it, expect } from 'vitest';
 import type { AccessInfo } from '@/shared/api/access';
 import { workNav } from './navConfig';
@@ -59,7 +60,8 @@ describe('рабочие пространства', () => {
    * было бы нечем. Рабочее меню обязано называть одно из двух.
    */
   it('каждый рабочий пункт называет модуль или раздел ядра', () => {
-    expect(workNav.filter(i => !i.module && !i.section).map(i => i.label)).toEqual([]);
+    // Названное исключение — Главная (shell-08): она входит в любое пространство нарочно.
+    expect(workNav.filter(i => !i.module && !i.section && !isHomeItem(i)).map(i => i.label)).toEqual([]);
   });
 
   it('состав называет модули словами — в порядке экземпляра — и недоступный вслух', () => {

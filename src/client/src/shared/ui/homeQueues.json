@@ -1,0 +1,9 @@
+{
+  "//": "Перепись очередей Главной (shell-08, ТЗ UI-34): все очереди, объявленные модулями сборки (IAppModule.HomeQueues). Сверяют обе стороны: сервер — HomeQueueDeclarationTests (объявления = этот файл), клиент — homeQueues.test.ts (у каждой есть адрес экрана, и экран принимает её параметр). Новая очередь модуля — строка сюда и адрес в homeQueueRoutes.ts тем же PR.",
+  "queues": [
+    { "module": "costs", "id": "parsing" },
+    { "module": "costs", "id": "unrecognized" },
+    { "module": "costs", "id": "lost" },
+    { "module": "costs", "id": "archived" }
+  ]
+}

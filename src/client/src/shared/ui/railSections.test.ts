@@ -17,8 +17,8 @@ describe('рейл разделов', () => {
   it('пространством сужаются только рабочие разделы, «Система» — нет', () => {
     // «Система» — это `settingsNav`: его пространство не трогает (`useNavSections`). Пункт рабочего
     // списка в «Системе» или пункт администрирования в рабочем разделе разошёлся бы с этим молча.
-    expect(workNav.filter(i => railDef(i.rail).unscoped).map(i => i.label)).toEqual([]);
-    expect(settingsNav.filter(i => !railDef(i.rail).unscoped).map(i => i.label)).toEqual([]);
+    expect(workNav.filter(i => railDef(i.rail).admin).map(i => i.label)).toEqual([]);
+    expect(settingsNav.filter(i => !railDef(i.rail).admin).map(i => i.label)).toEqual([]);
   });
 
   it('группы раздела идут одним куском, пункты без группы — над группами', () => {
@@ -36,6 +36,7 @@ describe('рейл разделов', () => {
     const shape = Object.fromEntries(rail.map(s => [s.def.label,
       s.groups.map(g => [g.label ?? '', ...labels(g.items)])]));
     expect(shape).toEqual({
+      'Главная': [['', 'Главная']],
       'Стройки': [['', 'Стройки']],
       'Данные': [['', 'Общие данные', 'Наборы данных', 'Документы качества', 'Сверка']],
       'Затраты': [['', 'Счета', 'Накладные'],
@@ -67,10 +68,10 @@ describe('рейл разделов', () => {
       permissions: ['costs.invoice.read'], modules: [{ code: 'costs', title: 'Счета и накладные', available: true }],
     };
     expect(buildRail(visibleNav(workNav, costsOnly), []).map(s => s.def.id))
-      .toEqual(['costs']);
+      .toEqual(['home', 'costs']);
 
     const rail = buildRail(workNav, settingsNav);
-    expect(rail.map(s => s.def.label)).toEqual(['Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
+    expect(rail.map(s => s.def.label)).toEqual(['Главная', 'Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
     expect(railDef('plan').title).toBe('Планирование');
   });
 
@@ -89,5 +90,15 @@ describe('рейл разделов', () => {
     expect(panelAt('/document-sets', sites)).toBe(true);
     expect(panelAt('/document-sets/c1', sites)).toBe(false);
     expect(panelAt('/invoices/42', railDef('costs'))).toBe(true);
+  });
+
+  // Главная ([UI-33], shell-08): первым рабочим разделом, без подпанели нигде, открыта каждому.
+  it('«Главная» — первый рабочий раздел, без подпанели, видна без прав', () => {
+    expect(railSections[0].id).toBe('home');
+    expect(railDef('home').admin).toBeFalsy();
+    expect(panelAt('/home', railDef('home'))).toBe(false);
+    const nobody: AccessInfo = { permissions: [], modules: [] };
+    expect(buildRail(visibleNav(workNav, nobody), []).map(s => s.def.id)).toEqual(['home']);
+    expect(activeRail('/home', all)).toBe('home');
   });
 });

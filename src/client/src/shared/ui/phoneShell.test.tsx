@@ -27,6 +27,7 @@ const page = (to: string, label: string, rail: RailSection['def']['id'], group?:
   ({ to, label, icon: railDef(rail).icon, rail, group });
 
 const sections: RailSection[] = [
+  { def: railDef('home'), groups: [{ items: [page('/home', 'Главная', 'home')] }], home: '/home' },
   { def: railDef('constructions'), groups: [{ items: [page('/document-sets', 'Стройки', 'constructions')] }], home: '/document-sets' },
   { def: railDef('costs'), groups: [{ items: [page('/invoices', 'Счета', 'costs'), page('/waybills', 'Накладные', 'costs')] }], home: '/invoices' },
   { def: railDef('system'), groups: [{ items: [page('/users', 'Пользователи', 'system')] }], home: '/users' },
@@ -60,15 +61,16 @@ function shown(ui: React.ReactNode, at = '/invoices', menu: SectionMenuValue | n
 }
 
 // Какие разделы внизу (рабочие, без «Системы»), решает `phoneChrome` — см. его тест.
-const work = sections.filter(s => !s.def.unscoped);
+const work = sections.filter(s => !s.def.admin);
 
 describe('нижняя навигация', () => {
   it('разделы с подписями; свой отмечен', () => {
     shown(<BottomNav sections={work} active="costs" />);
     const nav = screen.getByRole('navigation', { name: 'Разделы' });
     const links = nav.querySelectorAll('a');
-    expect([...links].map(a => a.textContent)).toEqual(['Стройки', 'Затраты']);
-    expect([...links].map(a => a.getAttribute('aria-current'))).toEqual([null, 'true']);
+    // Главная — первой ([UI-33], shell-08), «Системы» внизу нет.
+    expect([...links].map(a => a.textContent)).toEqual(['Главная', 'Стройки', 'Затраты']);
+    expect([...links].map(a => a.getAttribute('aria-current'))).toEqual([null, null, 'true']);
   });
 
   it('раздел ведёт на свою первую страницу', () => {

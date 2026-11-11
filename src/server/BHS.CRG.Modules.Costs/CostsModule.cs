@@ -2,6 +2,8 @@ using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Exchange;
+using BHS.CRG.Modules.Home;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Settings;
 using BHS.CRG.Modules.Tables;
@@ -261,6 +263,9 @@ public sealed class CostsModule : IAppModule
 
     public IReadOnlyList<ModuleReference> References => CostsReferences.All;
 
+    /// <summary>Очереди счетов на Главной (shell-08, ТЗ UI-34) — те же, что чипами над списком счетов.</summary>
+    public IReadOnlyList<ModuleHomeQueue> HomeQueues => CostsHomeQueueCounts.Declarations;
+
     public IReadOnlyList<ModuleFile> Files => CostsFiles.All;
 
     /// <summary>«Счёт на оплату» (issue #1077): что читать в скане — <see cref="CostsRecognitionProfiles" />.</summary>
@@ -324,6 +329,10 @@ public sealed class CostsModule : IAppModule
         // Суждение о ссылках счетов, которые не на месте (issue #1186), — в области запроса: колонка
         // таблицы, счётчик и отбор одного запроса получают один ответ ядра, а не три опроса.
         services.AddScoped<InvoiceReferenceTrouble>();
+        // Числа очередей счетов — одной службой на чипы экрана и Главную (shell-08); Главная спрашивает
+        // их контрактом «Очереди Главной».
+        services.AddScoped<InvoiceQueueCounts>();
+        services.AddModuleContract<IHomeQueueCounts, CostsHomeQueueCounts>(ModuleCode);
 
         // Раздел модуля в диалоге закрытия периода (E1b, issue #1099): что войдёт в закрытый период
         // и что не завершено. Спрашивает его служба закрытия ядра.

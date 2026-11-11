@@ -585,6 +585,9 @@ export const registryAddress = filter =>
  * экране не видны. Отсюда три помощника вместо `page.locator('nav')`, который находил бы рейл без
  * страниц, а на экране со своим `<nav>` — ещё и чужую колонку.
  */
+/** Раздел рейла без подпанели (shell-08): Главная — одна страница, `/home`. */
+export const HOME_SECTION = 'Главная';
+
 export const railSection = (page, name) =>
   page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name, exact: true });
 
@@ -609,7 +612,8 @@ export async function menuText(page) {
 /**
  * Всё меню человека — обходом разделов рейла: «пункта нет у роли» иначе проверялось бы на одной
  * подпанели и проходило бы, не глядя на остальные. Уводит со страницы. Первая страница каждого
- * раздела подпанель имеет, поэтому её отсутствие — отказ, а не пропуск.
+ * раздела подпанель имеет, поэтому её отсутствие — отказ, а не пропуск. Исключение одно и названо:
+ * у Главной подпанели нет нигде (shell-08) — её страница одна, и это сам раздел.
  */
 export async function wholeMenu(page) {
   const rail = page.getByRole('navigation', { name: 'Разделы' });
@@ -617,6 +621,7 @@ export async function wholeMenu(page) {
   if (!names.length) throw new Error('в рейле нет ни одного раздела');
   const parts = [names.join('\n')];
   for (const name of names) {
+    if (name === HOME_SECTION) continue;
     await railSection(page, name).click();
     await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
     parts.push(await (await shownPanel(page, `раздел «${name}»`)).innerText());
@@ -759,4 +764,23 @@ export async function expandInvoiceParts(page) {
 export async function invoiceMenu(page, item) {
   await page.getByTestId('invoice-header').getByRole('button', { name: 'Ещё' }).click();
   await page.getByRole('menuitem', { name: item }).click();
+}
+
+/**
+ * Запрос к приложению ТЕМ ЖЕ токеном, что у открытой страницы: прогон готовит себе данные адресами
+ * приложения. Отказ — исключение со статусом и началом тела, а не `null`: прогон, получивший «ничего»,
+ * проверял бы пустоту.
+ */
+export function pageApi(page) {
+  return (method, path, body) => page.evaluate(async ([method, path, body]) => {
+    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    const res = await fetch(`/api${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 200)}`);
+    return text ? JSON.parse(text) : null;
+  }, [method, path, body ?? null]);
 }

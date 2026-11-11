@@ -15,40 +15,40 @@
 
 ## 1. PR 1: раздел и страница
 
-- [ ] 1.1 `navConfig.ts`: `RailId` += `'home'`, первым рабочим; признак `unscoped` переименован в `admin`
+- [x] 1.1 `navConfig.ts`: `RailId` += `'home'`, первым рабочим; признак `unscoped` переименован в `admin`
   во всех читателях; `panelOnlyAt` → `panel?: false | { onlyAt }`, у Главной `panel: false`; пункт `/home`
   без права с рангом `HOME_ENTRY_RANK`; `AppShell` не рисует подпанель, `BottomNav` ставит «Главную»
   первой; логотип рейла и шапки ведёт на `/home` [UI-33]. Проверка — `railSections.test.ts`,
   `phoneShell.test.tsx`: на телефоне «Главная» есть, «Системы» нет
-- [ ] 1.2 Пункт Главной — пункт ядра ранга `HOME_ENTRY_RANK` (`isHomeItem`); индекс-маршрут уже зовёт
+- [x] 1.2 Пункт Главной — пункт ядра ранга `HOME_ENTRY_RANK` (`isHomeItem`); индекс-маршрут уже зовёт
   `entryPage` (`EntryRedirect`, #1588; В-1 решён: вариант Б); Главная — не работа: кроме неё ничего не
   показано — `null` (AUTH-15), а `/home` первым блоком рисует тот же текст; живые прогоны, начинавшие с
   `/`, — на явный адрес [UI-33] [AUTH-16.1]. Проверка — `entryPage.test.ts`: с объявленной Главной, без
   прав — `null`, с одним правом ядра — `/home`; `routing-smoke`
-- [ ] 1.3 `features/home/HomePage.tsx`: заголовок через `PageHeader`, подзаголовок, блоки по порядку;
+- [x] 1.3 `features/home/HomePage.tsx`: заголовок через `PageHeader`, подзаголовок, блоки по порядку;
   пользователь без модулей видит «Недавние» и «Полезно знать» [UI-33]. Проверка — `HomePage.test.tsx`
 
 ## 2. PR 1: «Ждут вас» и очередь адресом
 
-- [ ] 2.1 Экран счетов принимает `?queue=` (`parsing`, `unrecognized`, `lost`, `archived`), чип пишет его
+- [x] 2.1 Экран счетов принимает `?queue=` (`parsing`, `unrecognized`, `lost`, `archived`), чип пишет его
   заменой записи истории, незнакомое значение — без отбора [COST-6.2]. Проверка — vitest страницы;
   обновление страницы сохраняет отбор
-- [ ] 2.2 По В-2 (Б): объявление очередей модулем `costs` (четыре очереди счетов, ключи — правило чипа) и
+- [x] 2.2 По В-2 (Б): объявление очередей модулем `costs` (четыре очереди счетов, ключи — правило чипа) и
   `GET /api/home/queues` — открытые и включённые, отказ модуля — `refused`; адрес — в
   `EndpointGateInventoryTests`; счётчики — тот же код, что у адресов очередей [UI-34] [AUTH-9]. Проверка —
   `HomeQueuesTests`: число совпадает с `/api/costs/invoices/queues`; роль только с накладными очередей
   счетов не получает; выключенный `costs` — 200 без них
-- [ ] 2.2a Клиент: таблица `(module, id) → href`, карточки из ответа [UI-34]. Проверка —
+- [x] 2.2a Клиент: таблица `(module, id) → href`, карточки из ответа [UI-34]. Проверка —
   `homeQueues.test.ts`: у каждой очереди есть адрес, и экран принимает его параметр
-- [ ] 2.3 Карточки: только непустые и открытые; «?» при `doubt`; отказ — «не посчитано»; все пусты —
+- [x] 2.3 Карточки: только непустые и открытые; «?» при `doubt`; отказ — «не посчитано»; все пусты —
   «Сейчас ничего не ждёт» [UI-34]. Проверка — `HomePage.test.tsx`; роль только с накладными карточек
   счетов не видит
 
 ## 3. PR 1: «Выполняется» и «Полезно знать»
 
-- [ ] 3.1 «Выполняется» — `useActiveJobs()` и `JobRow`, блок только при задачах [UI-36]. Проверка —
+- [x] 3.1 «Выполняется» — `useActiveJobs()` и `JobRow`, блок только при задачах [UI-36]. Проверка —
   vitest: без задач блока нет
-- [ ] 3.2 «Полезно знать» — три строки по правам; ключ `UserSettingKeys.HomeTips` (`home.tips`:
+- [x] 3.2 «Полезно знать» — три строки по правам; ключ `UserSettingKeys.HomeTips` (`home.tips`:
   `shown`/`hidden`), «Скрыть» через `useSyncedPreference`; вернуть — в профиле [UI-37] [CORE-25.3].
   Проверка — vitest: без `costs.invoice.edit` строки о сканах нет; серверный тест: незнакомое значение
   ключа — 400
@@ -73,16 +73,16 @@
 
 ## 5. Документы
 
-- [ ] 5.1 `docs/UI.md`, «Оболочка»: Главная — раздел без подпанели, очереди объявляет модуль, числа — те же
+- [x] 5.1 `docs/UI.md`, «Оболочка»: Главная — раздел без подпанели, очереди объявляет модуль, числа — те же
   запросы; `docs/USER_GUIDE.md` — Главная и что открывается после входа (оглавление — `cd docs/tools &&
   npm run toc`). Проверка — ревью PR; проверка «Frontend» (оглавление) зелёная
 
 ## 6. Верификация
 
 - [ ] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~HomeQueues|FullyQualifiedName~RecentRecords|FullyQualifiedName~UserSetting|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~InvoiceScanList"` — зелёный
-- [ ] 6.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 6.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 6.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них вход → Главная → «Разобрать»
   открывает очередь «Разобрать»
 - [ ] 6.6 PR с меткой `version:minor`; последний PR — «Closes #1436»

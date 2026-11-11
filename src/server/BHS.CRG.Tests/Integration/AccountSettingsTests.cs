@@ -241,6 +241,24 @@ public class AccountSettingsTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Подсказки Главной (shell-08, ТЗ UI-37) — «Скрыть» едет за человеком на другую машину, значение вне
+    /// двух известных — отказ: клиент молча показал бы что-то своё.
+    /// </summary>
+    [Fact]
+    public async Task Скрытые_подсказки_Главной_приезжают_на_другую_машину_а_чужое_значение_отвергается()
+    {
+        var email = await CreateUserAsync();
+        var first = await SignInAsync(email);
+        (await first.PutAsJsonAsync("/api/account/settings", new Dictionary<string, string> { ["home.tips"] = "hidden" }))
+            .EnsureSuccessStatusCode();
+
+        var refused = await first.PutAsJsonAsync("/api/account/settings", new Dictionary<string, string> { ["home.tips"] = "off" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal("hidden", (await SettingsAsync(await SignInAsync(email)))["home.tips"]);
+    }
+
+    /// <summary>
     /// Избранное — GUID через запятую, не больше двадцати (#1217). Двадцать первая стройка, повтор,
     /// пустой элемент, пробелы и вольная форма GUID — отказ: сохранённые, они дали бы клиенту на
     /// другом компьютере список, в котором одна стройка числится дважды или не находится вовсе.

@@ -66,6 +66,20 @@ export function useActiveJobs(): ActiveJob[] {
 }
 
 /**
+ * Живые задачи пользователя — для показа (блок «Выполняется» Главной, shell-08). Тот же кэш
+ * `['jobs','active']` и тот же поллинг, что у индикатора, без side-эффектов инвалидации: они живут в
+ * единственном `useActiveJobs` в оболочке, и второй его экземпляр сбрасывал бы данные дважды.
+ */
+export function useActiveJobList(): ActiveJob[] {
+  const { data } = useQuery<ActiveJob[]>({
+    queryKey: ['jobs', 'active'],
+    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
+    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
+  });
+  return data ?? [];
+}
+
+/**
  * Идёт ли по данному источнику активная задача распознавания — для блокировки повторного запуска
  * (кнопка «Распознать»). Читает тот же кэш `['jobs','active']`, что и индикатор (общий поллинг), без
  * side-эффектов инвалидции (они живут в единственном useActiveJobs в AppShell).

@@ -1,5 +1,6 @@
 import type { InvoiceListItem, InvoiceQueue, InvoiceReferencePlace } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
+import { queueCountText } from '@/shared/ui/queueCount';
 
 /**
  * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — чипами над
@@ -13,6 +14,20 @@ export const QUEUE_LABEL: Record<InvoiceQueue, string> = {
   lost: 'Удалённые записи',
   archived: 'В архиве',
 };
+
+/** Параметр адреса экрана счетов, которым названа очередь (shell-08, ТЗ COST-6.2): `/invoices?queue=parsing`. */
+export const QUEUE_PARAM = 'queue';
+
+/** Очереди, которые экран принимает адресом, — в порядке чипов. */
+export const INVOICE_QUEUES = Object.keys(QUEUE_LABEL) as InvoiceQueue[];
+
+/**
+ * Очередь из адреса. Незнакомое значение — без отбора, а не отказ: ссылка из старой закладки или с
+ * опечаткой открывает весь список, а не пустой экран.
+ */
+export function parseQueue(value: string | null): InvoiceQueue | null {
+  return INVOICE_QUEUES.find(q => q === value) ?? null;
+}
 
 /** Чип очереди «наведите порядок», как его рисовать. */
 export interface QueueChip {
@@ -28,7 +43,7 @@ export interface QueueChip {
  *
  * Ноль не рисуем: чип с нулём звал бы туда, где пусто. Два исключения: нажатый чип остаётся (иначе
  * отбор нечем снять, а его пропажа после последней замены читалась бы как сбой), и «проверено не
- * всё» — ноль с этой оговоркой не значит «нет».
+ * всё» — ноль с этой оговоркой не значит «нет». Правило — `queueCountText`, общее с Главной.
  *
  * @param queues числа; `undefined` — не пришли. Нажатый чип тогда остаётся без числа: «не пришло» —
  * не «ноль», и о несчитанном экран говорит отдельно.
@@ -40,9 +55,9 @@ export function queueChip(
     return active ? { count: '', title: 'Сколько таких счетов — не посчитано.', doubt: false } : null;
   const number = queues[queue];
   const doubt = queues.doubt !== null;
-  if (number === 0 && !doubt && !active) return null;
-
-  const count = number > 0 ? `${number}${doubt ? '?' : ''}` : doubt ? '?' : '';
+  // Правило числа — общее с карточкой Главной (`shared/ui/queueCount.ts`).
+  const count = queueCountText(number, doubt, active);
+  if (count === null) return null;
   const said = [
     queue === 'lost'
       ? `Счета, в которых стоит удалённая запись справочника: ${number}. Откройте счёт и замените значение.`

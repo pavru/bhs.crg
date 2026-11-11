@@ -16,6 +16,11 @@ vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
 }));
 vi.mock('@/shared/ui/ThemeToggle', () => ({ ThemeToggle: () => null }));
 vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ saveState: 'idle' }) }));
+let tipsShown = false;
+const setTipsShown = vi.fn();
+vi.mock('@/shared/hooks/useHomeTips', () => ({
+  useHomeTips: () => ({ shown: tipsShown, setShown: setTipsShown, save: 'idle' }),
+}));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); locale = 'ru-RU'; });
 
@@ -48,5 +53,17 @@ describe('AppearanceSection — выбор языка', () => {
     fireEvent.keyDown(current, { key: 'ArrowDown' });
     expect(setLocale).toHaveBeenCalledWith('en-US');
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'English (US)' }));
+  });
+});
+
+// shell-08, ТЗ UI-37: скрытые «Скрыть» подсказки Главной возвращаются здесь — иначе «насовсем».
+describe('AppearanceSection — подсказки Главной', () => {
+  it('переключатель возвращает скрытые подсказки', () => {
+    tipsShown = false;
+    render(<AppearanceSection />);
+    const toggle = screen.getByRole('switch', { name: 'Показывать подсказки на Главной' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    expect(setTipsShown).toHaveBeenCalledWith(true);
   });
 });

@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import {
   BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
-  FRESH_PANELS, takePanels, setPanels, underRoute, unrouteQuiet,
+  FRESH_PANELS, takePanels, setPanels, underRoute, unrouteQuiet, pageApi,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { invoiceScreenLayoutChecks } from './invoice-screen-layout-checks.mjs';
@@ -33,6 +33,7 @@ import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 import { invoiceFileDropChecks } from './invoice-file-drop-checks.mjs';
 import { invoiceUndoChecks } from './invoice-undo-checks.mjs';
+import { homeQueueChecks } from './home-queue-checks.mjs';
 import { commitInvoice, invoiceOpened, saveInvoice } from './invoice-save.mjs';
 import { statusAction, statusBanner, statusOpen, untilStatus } from './invoice-status.mjs';
 
@@ -60,19 +61,7 @@ if ((await page.getByRole('heading', { name: 'Счета на оплату' }).c
 }
 
 /** Запрос к приложению ТЕМ ЖЕ токеном, что у открытой страницы: прогон готовит себе данные. */
-async function api(method, path, body) {
-  return page.evaluate(async ([method, path, body]) => {
-    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-    const res = await fetch(`/api${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: body === null ? undefined : JSON.stringify(body),
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 200)}`);
-    return text ? JSON.parse(text) : null;
-  }, [method, path, body ?? null]);
-}
+const api = pageApi(page);
 
 /**
  * Реквизиты с уникальным номером: два прогона подряд не должны считать друг друга дубликатом.
@@ -192,6 +181,9 @@ try {
     await page.getByRole('button', { name: new RegExp(number) }).first()
       .waitFor({ timeout: 10_000 });
   });
+
+  // ── 1а. Главная → «Разобрать» (shell-08) — файлом home-queue-checks.mjs ──────
+  await homeQueueChecks(page, check, { BASE });
 
   // ── 2. Метки переживают повторное открытие ──────────────────────────────────
   //

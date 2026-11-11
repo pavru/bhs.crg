@@ -60,9 +60,13 @@ export function ownerItem(pathname: string, items: NavItem[]): NavItem | undefin
     .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`));
 }
 
-/** Есть ли у этого адреса подпанель: в карточке стройки её место занимает навигация стройки. */
+/**
+ * Есть ли у этого адреса подпанель: в карточке стройки её место занимает навигация стройки, у Главной
+ * подпанели нет вовсе (`panel: false`).
+ */
 export function panelAt(pathname: string, def: RailSectionDef): boolean {
-  return def.panelOnlyAt === undefined || pathname === def.panelOnlyAt;
+  if (def.panel === undefined) return true;
+  return def.panel !== false && pathname === def.panel.onlyAt;
 }
 
 export function railDef(id: RailId): RailSectionDef {

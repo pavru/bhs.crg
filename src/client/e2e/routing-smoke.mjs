@@ -22,7 +22,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled, callApi, registryAddress,
-  railSection, menuText, wholeMenu }
+  railSection, menuText, wholeMenu, HOME_SECTION }
   from './harness.mjs';
 import { TABLE_SEED } from './seed-invoices.mjs';
 
@@ -67,10 +67,16 @@ try {
       throw new Error(`редирект добавил запись в историю (было ${historyBefore}, стало ${after})`);
   });
 
-  // ── Вход ведёт на рабочую область ───────────────────────────────────────────
-  await check('login-lands-on-workspace', async () => {
+  // ── Вход ведёт на Главную (shell-08, ТЗ UI-33) ──────────────────────────────
+  await check('login-lands-on-home', async () => {
     await login(page);
-    await page.waitForURL(atPath('/document-sets'), { timeout: 10000 });
+    await page.waitForURL(atPath('/home'), { timeout: 10000 });
+    await page.getByRole('heading', { level: 1, name: 'Продолжить работу' }).waitFor({ timeout: 5000 });
+    // «Главная» — первый раздел рейла и выделена; подпанели у неё нет.
+    const first = page.getByRole('navigation', { name: 'Разделы' }).getByRole('link').first();
+    if ((await first.innerText()).trim() !== 'Главная') throw new Error(`первый раздел рейла — «${(await first.innerText()).trim()}»`);
+    if (await first.getAttribute('aria-current') !== 'true') throw new Error('«Главная» в рейле не выделена');
+    if (await page.getByTestId('section-panel').count()) throw new Error('у Главной есть подпанель');
   });
 
   // ── NavLink: переход и активный пункт ───────────────────────────────────────
@@ -588,6 +594,8 @@ async function walkAs(p, title) {
     const names = (await rail.getByRole('link').allInnerTexts()).map(t => t.trim()).filter(Boolean);
     const hrefs = new Set();
     for (const name of names) {
+      // У Главной подпанели нет (shell-08): её страница — сам раздел.
+      if (name === HOME_SECTION) { hrefs.add('/home'); continue; }
       await railSection(p, name).click();
       await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
       const panel = p.getByTestId('section-panel');
