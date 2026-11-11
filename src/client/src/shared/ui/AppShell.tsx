@@ -29,6 +29,11 @@ import { SuppressSectionPanelContext, useSectionPanel } from '@/shared/ui/sectio
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
+import { PinnedPagesProvider } from '@/shared/ui/PinnedPagesProvider';
+import { usePinnedPages } from '@/shared/ui/pinnedPagesContext';
+import { PINNED_GROUP_LABEL, pinnedGroup } from '@/shared/ui/pinnedSections';
+import { workNav, settingsNav } from '@/shared/ui/navConfig';
+import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { Icon } from './Icon';
 import { Close, Help, MarkEmailUnread, Search } from './icons';
 import { IconButton } from './Button';
@@ -53,7 +58,9 @@ export function AppShell() {
   return (
     <WorkspaceProvider>
       <SiteFilterProvider>
-        <Shell />
+        <PinnedPagesProvider>
+          <Shell />
+        </PinnedPagesProvider>
       </SiteFilterProvider>
     </WorkspaceProvider>
   );
@@ -80,10 +87,19 @@ function Shell() {
   const panelGroups = panelSection
     ? withFavoriteSites(panelSection.id, sections.find(s => s.def.id === panelSection.id)?.groups ?? [], favoriteSites)
     : [];
+  // Закреплённые страницы (work-04, макет Р0): из ВСЕХ видных пунктов — страница вне пространства в
+  // группе есть, с пометкой. Группа — у рабочих разделов; на телефоне — первой в меню страниц заголовка,
+  // пока нижнюю строку «Главная · Закреплённые · Меню» не перестроит work-03.
+  const { list: pinnedList } = usePinnedPages();
+  const { inside } = useWorkspace();
+  const pinned = pinnedGroup(pinnedList, [...allWork, ...settings], inside);
+  const phoneGroups = panelSection && !panelSection.admin && pinned.length
+    ? [{ label: PINNED_GROUP_LABEL, items: pinned.map(e => e.item) }, ...panelGroups]
+    : panelGroups;
   // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы,
   // «Администрирование» — пункт меню профиля.
   const wide = useMedia(WIDE);
-  const { sectionMenu, admin, bottomNav } = phoneChrome({ wide, panelSection, panelGroups, outside, sections });
+  const { sectionMenu, admin, bottomNav } = phoneChrome({ wide, panelSection, panelGroups: phoneGroups, outside, sections });
   // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
   const { data: access } = useAccess();
   const fabState = usePrimaryFabState();
@@ -131,13 +147,15 @@ function Shell() {
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
           onShowPanel={panel.show} />
         {panelShown && panelSection && (
-          <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')} groups={panelGroups} />
+          <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')} groups={panelGroups}
+            pinned={pinned} pinnable={isNavPage} />
         )}
       </aside>
       {panelSection && (
         <SectionPanelDrawer open={panel.drawer} onClose={panel.closeDrawer} title={panelSection.title}>
           {/* «Скрыть» в drawer закрывает его и только: выбор человека подавленная подпанель не меняет. */}
-          <SectionPanel def={panelSection} outside={outside} onHide={panel.closeDrawer} groups={panelGroups} />
+          <SectionPanel def={panelSection} outside={outside} onHide={panel.closeDrawer} groups={panelGroups}
+            pinned={pinned} pinnable={isNavPage} />
         </SectionPanelDrawer>
       )}
 
@@ -198,6 +216,10 @@ function Shell() {
     </div>
   );
 }
+
+/** Страница навигации — её можно закрепить; избранная стройка в подпанели — запись, а не страница. */
+const NAV_PAGES = new Set([...workNav, ...settingsNav].map(n => n.to));
+const isNavPage = (to: string) => NAV_PAGES.has(to);
 
 /**
  * Знак экземпляра на телефоне (ТЗ CORE-25.1, #1434): рейла с логотипом там нет, и без этой кнопки

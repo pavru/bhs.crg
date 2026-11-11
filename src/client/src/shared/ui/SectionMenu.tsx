@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { Menu, MenuGroup, MenuItem, MenuLabel, MenuSeparator } from './Menu';
 import { ownerItem, type PanelGroup } from './railSections';
 import type { SectionMenuValue } from './sectionMenuContext';
+import { PINNED_GROUP_LABEL } from './pinnedSections';
 
 /**
  * Меню страниц раздела — на телефоне вместо подпанели (issue #1434). Открывается заголовком страницы
@@ -29,7 +30,9 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
           <MenuGroup>
             {group.label && <MenuLabel>{group.label}</MenuLabel>}
             {group.items.map(({ to, label }) => (
-              <MenuItem key={to} to={to} checked={to === here} current={to === here}>{label}</MenuItem>
+              // Закреплённая копия страницы галочкой не отмечается: отмечена страница на своём месте (work-04).
+              <MenuItem key={to} to={to} checked={to === here && group.label !== PINNED_GROUP_LABEL}
+                current={to === here && group.label !== PINNED_GROUP_LABEL}>{label}</MenuItem>
             ))}
           </MenuGroup>
         </Fragment>

@@ -11,6 +11,7 @@ import { AppearanceSection } from './AppearanceSection';
 import { MyPermissionsSection } from './MyPermissionsSection';
 import { DefaultWorkspaceSection } from './DefaultWorkspaceSection';
 import { FavoriteSitesSection } from './FavoriteSitesSection';
+import { PinnedSectionsSection } from './PinnedSectionsSection';
 import { Icon } from '@/shared/ui/Icon';
 import { CheckCircle, Delete, ErrorIcon, Key, Mail, Palette, Upload, VerifiedUser } from '@/shared/ui/icons';
 import { PageHeader } from '@/shared/ui/PageHeader';
@@ -181,6 +182,10 @@ export function ProfilePage() {
 
       {/* Избранные стройки (#1218) — между личным оформлением и правами; секция сама решает, видна ли. */}
       <FavoriteSitesSection />
+
+      {/* Закреплённые страницы (ТЗ AUTH-16.7, work-04): каждое закрепление с причиной, если оно недоступно —
+          перед «Моими правами», которые эту причину объясняют. */}
+      <PinnedSectionsSection />
 
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}
