@@ -36,4 +36,13 @@ describe('useComposedSearchParams', () => {
     act(() => result.current.update(p => p.set('queue', 'lost'), { replace: true }));
     expect(result.current.search).toBe('?queue=lost');
   });
+  it('обработчик, взятый до ухода со счёта, открывает его снова («Вернуть» снэкбара)', () => {
+    const { result } = renderHook(useHarness, { wrapper });
+    act(() => result.current.update(p => p.set('invoice', 'X')));
+    const held = result.current.update;
+    act(() => result.current.update(p => p.delete('invoice'), { replace: true }));
+    expect(result.current.search).toBe('');
+    act(() => held(p => p.set('invoice', 'X'), { replace: true }));
+    expect(result.current.search).toBe('?invoice=X');
+  });
 });
