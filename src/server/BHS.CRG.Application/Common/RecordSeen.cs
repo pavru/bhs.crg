@@ -17,9 +17,12 @@ public static class RecordSeen
         "Запись тем временем изменили, и эта правка не сохранена — сохранённая поверх, она затёрла бы " +
         "чужую. Откройте запись заново и внесите правку ещё раз.";
 
+    /// <summary>Совпадает ли названная версия с лежащей.</summary>
+    public static bool Matches(string stored, string seen) =>
+        string.Equals(stored, seen.Trim(), StringComparison.Ordinal);
+
     public static void Ensure(string stored, string seen)
     {
-        if (!string.Equals(stored, seen.Trim(), StringComparison.Ordinal))
-            throw new ConflictException(Moved);
+        if (!Matches(stored, seen)) throw new ConflictException(Moved);
     }
 }

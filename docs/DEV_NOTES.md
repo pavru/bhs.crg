@@ -5902,8 +5902,10 @@ POST   /api/constructions/{id}/purge, /api/sections/{id}/purge, /api/document-se
                                     В журнал — core.scope.purged, одно на уровень: держатели,
                                     число ссылок и состав унесённого. Тело удаления одно на три
                                     уровня и оба пути — ScopeDeletionHandlers.
-GET    /api/employees                       → справочник сотрудников (CORE-7, #962)
-GET    /api/employees/{id}                  → карточка целиком (кормит редактор)
+GET    /api/employees                       → справочник сотрудников (CORE-7, #962); у каждого
+                                    account: { state: linked|none|deleted, name, login,
+                                    dismissedOn } — связь с учётной записью (WORK-47, work-01)
+GET    /api/employees/{id}                  → карточка целиком (кормит редактор) + account
 POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
 PUT    /api/employees/{id}                  { displayName, data, aliases } + If-Match: <version> —
                                     как у PUT /api/common-data/{id} (#1214)
@@ -5911,8 +5913,29 @@ DELETE /api/employees/{id}                  409 — то же тело, что �
                                     Право core.employees.* — отдельное от core.catalog.*, но
                                     разграничением НЕ является: те же карточки отдаёт
                                     /api/common-data, пока пути чтения не разведены (STG-11).
-                                    Поле связи с учётной записью заперто: значение кладёт код,
-                                    а действия «связать» в этапе 1 нет.
+                                    Поле «УчётнаяЗапись» заперто и связью НЕ заполняется:
+                                    связь — таблица ядра employee_accounts (work-01).
+PUT    /api/employees/{id}/account          { userId } + If-Match: <version карточки> → карточка +
+                                    account. Один к одному: занятая учётная запись — 409 taken с
+                                    linkedTo, связанный сотрудник — 409 employee-linked; архивный —
+                                    409 archived; stale — 409. Двигает version карточки. Журнал —
+                                    core.employee.account.linked. Право — core.employees.edit.
+DELETE /api/employees/{id}/account          + If-Match. Несвязанного — 200 без журнала (повтор
+                                    безобиден); иначе core.employee.account.unlinked.
+POST   /api/employees/account-links         { links: [{ employeeId, userId, version }] } ≤ 200 —
+                                    пачка режима «Сопоставить». version в строке тела (названное
+                                    исключение из If-Match). Строки независимы → { linked, total,
+                                    results: [{ employeeId, outcome, error, linkedTo, version }] };
+                                    пачка не по форме — 400 целиком.
+GET    /api/employees/account-candidates?q= → { items: [{ userId, name, login, linkedTo }], more }
+                                    — без ролей и почты; под core.employees.edit.
+GET    /api/employees/account-matches       → [{ employee: { id, name, version }, account,
+                                    suggested: { userId, name, login } | null, reason:
+                                    no-match|ambiguous }] — предложение по ФИО считает сервер.
+POST   /api/employees/directory             «Завести» справочник: тип «Сотрудник» из скелета ядра,
+                                    если его нет, а «Персона» есть → { typeId, created }. Нет
+                                    «Персоны» — 409 { code: directory-missing, reason:
+                                    person-missing }. Существующий тип не перепроецирует (F2).
 GET    /api/field-suggestions?type=&field=&q=&scope=&scopeId=&limit=8
                                     → { items: [{ value, here }] } — подсказки поля по ранее
                                     введённому (#1530, эпик #1527), уже в порядке показа; here —

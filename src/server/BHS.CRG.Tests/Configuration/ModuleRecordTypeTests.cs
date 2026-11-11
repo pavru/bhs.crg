@@ -68,6 +68,34 @@ public class ModuleRecordTypeTests
             "отменяет F2 целиком. Проекция вызывается только при старте.");
     }
 
+    /// <summary>
+    /// В слое приложения проекцию зовёт ровно одно место — «завести справочник сотрудников, если его
+    /// нет» (change work-01, выбор владельца по макету Р1: кнопка «Завести» вместо перезапуска).
+    ///
+    /// <para>Сторож выше смотрит слой Api, а адрес «Завести» зовёт не проекцию, а эту команду, — и без
+    /// второй переписи обход выглядел бы соблюдением: любая новая команда приложения, зовущая
+    /// проекцию, дала бы ей адрес молча. Исключение безопасно ровно потому, что команда проецирует
+    /// одно объявление из кода и только когда типа НЕТ: создание ничьей правки не снимает, а поверх
+    /// существующего типа она не проецирует вовсе (<c>EmployeeAccountLinkTests</c> это проверяет).</para>
+    /// </summary>
+    [Fact]
+    public void Проекцию_в_слое_приложения_зовёт_только_заведение_справочника()
+    {
+        var callers = Directory
+            .EnumerateFiles(Path.Combine(SolutionDir, "BHS.CRG.Application"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Replace('\\', '/').Contains("/obj/", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f).Contains("new ProjectModuleTypeCommand(", StringComparison.Ordinal))
+            .Select(f => Path.GetRelativePath(SolutionDir, f).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            callers is ["BHS.CRG.Application/Documents/EmployeeDirectory.cs"],
+            "Проекцию типа в слое приложения зовёт не только «завести справочник»: " + string.Join(", ", callers) +
+            ".\nКоманда приложения, зовущая проекцию, даёт ей адрес — и снимает по HTTP замки и происхождение " +
+            "полей (F2). Единственное исключение — заведение отсутствующего «Сотрудника».");
+    }
+
     private static string SolutionDir { get; } = FindSolutionDir();
 
     private static string FindSolutionDir()

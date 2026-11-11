@@ -56,9 +56,9 @@ public class OwnDoorWriteInventoryTests
             "удаление уровня целиком (стройки, раздела) — путь администратора; виды работ живут на уровне " +
             "«Система», а не стройки",
 
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand("] =
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var created = await m.Send(new CreateCommonDataEntryCommand("] =
             "тип выбирает сама дверь — «Сотрудник» ядра; назвать вид работы ей нечем",
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand("] =
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var updated = await m.Send(new UpdateCommonDataEntryCommand("] =
             "дверь видит только записи типа «Сотрудник»: вид работы для неё не существует (404)",
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }"] =
             "то же: запись не сотрудника для двери не существует",

@@ -1,6 +1,7 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Endpoints.Core;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Settings;
@@ -32,9 +33,14 @@ public static class AccountEndpoints
         /// отвечающие отказом. Это тот же случай, что и роль в токене, только этажом выше.
         g.MapGet("/access", async (ClaimsPrincipal principal, IUserPermissions permissions,
             ModuleRegistry modules, PermissionCatalog catalog, IAppSettingsStore settings,
-            CancellationToken ct) =>
+            EmployeeAccountReads employees, CancellationToken ct) =>
         {
             var granted = await permissions.ForAsync(principal, ct);
+            // Сотрудник вошедшего (ТЗ AUTH-14, WORK-47) — из таблицы связей, каждым запросом: отвязали
+            // во время работы — следующий ответ уже без сотрудника, перелогин не нужен.
+            var (employee, employeeReason) = CurrentUserId(principal) is { } userId
+                ? await employees.OfUserAsync(userId, ct)
+                : (null, EmployeeAccountReads.NotLinked);
             // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и чтение без
             // отслеживания здесь дешевле (ревью PR #1306). Обе настройки — одним запросом.
             var stored = await settings.GetManyAsync(
@@ -57,6 +63,10 @@ public static class AccountEndpoints
                 {
                     timeZone = CompanyZone.IanaId(CompanyZone.Of(stored.GetValueOrDefault(AppSettingKeys.CompanyTimeZone))),
                 },
+                // Не связан — null с причиной: «вас не связали» и «справочник не заведён» — разные
+                // ответы, и клиент не выводит причину из остальных полей.
+                employee,
+                employeeReason,
                 permissions = granted.Order(StringComparer.Ordinal).ToArray(),
                 // Модули экземпляра целиком: и доступные, и нет. Клиенту нужны оба списка —
                 // «нет такого модуля на экземпляре» и «модуль есть, но не для вас» это разные
@@ -257,12 +267,12 @@ public static class AccountEndpoints
     // ~700 КБ строки data-URI (≈0.5 МБ бинарных) — с запасом для уменьшённого клиентом аватара.
     private const int MaxAvatarChars = 700_000;
 
-    private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p)
-    {
-        var id = p.FindFirstValue(JwtRegisteredClaimNames.Sub)
-              ?? p.FindFirstValue(ClaimTypes.NameIdentifier);
-        return id is null ? null : await users.FindByIdAsync(id);
-    }
+    private static Guid? CurrentUserId(ClaimsPrincipal p) =>
+        Guid.TryParse(p.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? p.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
+            ? id : null;
+
+    private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p) =>
+        CurrentUserId(p) is { } id ? await users.FindByIdAsync(id.ToString()) : null;
 
     /// <summary>
     /// Профиль вместе с НАЗВАНИЕМ роли (issue #951).

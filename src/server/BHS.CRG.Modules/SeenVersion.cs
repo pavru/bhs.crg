@@ -28,9 +28,16 @@ public static class SeenVersion
     /// совпала бы ни с одной лежащей — и на каждую попытку приходил бы ответ «тем временем изменили»,
     /// от которого перечитывание не помогает никогда: отказ, переодетый в другую причину.</para>
     /// </summary>
-    public static bool TryRead(HttpRequest request, out string? seen)
+    public static bool TryRead(HttpRequest request, out string? seen) =>
+        TryParse(request.Headers[Header].ToString(), out seen);
+
+    /// <summary>
+    /// То же правило для версии, названной не заголовком, — строкой пачки (связи сотрудников,
+    /// work-01): версия из заголовка и из тела, разбираемые по-разному, разошлись бы на кавычках.
+    /// </summary>
+    public static bool TryParse(string? value, out string? seen)
     {
-        var raw = request.Headers[Header].ToString().Trim();
+        var raw = (value ?? "").Trim();
         if (raw.StartsWith("W/", StringComparison.Ordinal)) raw = raw[2..];
         raw = raw.Trim('"').Trim();
         seen = raw.Length == 0 ? null : raw;

@@ -12,10 +12,22 @@ public partial class ArchiveReadInventoryTests
     {
         ["BHS.CRG.Api/Endpoints/Core/ConstructionEndpoints.cs|var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);"] =
             Documents("счётчик документов комплекта").X(2),
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId)))"] =
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var employees = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);"] =
             Shown("страница сотрудников — показ: архивная карточка на месте"),
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id));"] =
-            Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(3),
+            Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(2),
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
+            Shown("карточка сотрудника по идентификатору для чтения: архивная — с признаком"),
+        // ── Связь «учётная запись → сотрудник» (work-01) ──
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountLinks.cs|var entry = await objects.GetByIdAsync(id, ct);"] =
+            Seen("сотрудник, которого связывают или отвязывают: архивного связать нельзя (отказ archived), отвязать — можно"),
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountLinks.cs|var name = await db.DomainObjects.AsNoTracking().Where(o => o.Id == otherEmployeeId)"] =
+            Seen("имя сотрудника, которым занята учётная запись: архивный её тоже держит"),
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountReads.cs|join o in db.DomainObjects.AsNoTracking() on a.EmployeeId equals o.Id"] =
+            Seen("сотрудник по действующей связи: архивный тоже связан, /access несёт признак archived").X(2),
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountReads.cs|var employees = await db.DomainObjects.AsNoTracking()"] =
+            Choice("строки режима «Сопоставить» — выбор, кого связывать: архивных нет",
+                nameof(EmployeeAccountLinkTests.Предложение_по_ФИО_одно_совпадение_два_и_только_занятое)),
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var found = await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct);"] =
             ByPurpose("дверь видов работ: назначение называет клиент параметром purpose; без него — отказ", nameof(WorkTypeEndpointsTests.Список_двери_по_назначению_и_поиску)),
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =

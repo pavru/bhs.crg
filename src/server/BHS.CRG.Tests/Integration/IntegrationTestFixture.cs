@@ -193,6 +193,8 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         "document_set_outputs",
         "generated_files",
         "document_facets",
+        // Связь «учётная запись → сотрудник» (work-01): строки адресуют объекты, которые усекаются рядом.
+        "employee_accounts",
         "domain_objects",
         "document_set_plans",
         "work_plan_items",
