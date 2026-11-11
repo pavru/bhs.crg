@@ -90,7 +90,18 @@ public class BackupScheduleService(
 
         var stateStore = sp.GetRequiredService<ServiceStateStore>();
         var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
-        if (!IsDue(schedule, state.LastRunAt, now, zone)) return;
+
+        // Истории нет — свежая установка или восстановление на свежий экземпляр (issue #1403). Это
+        // начало отсчёта, а не пропущенный срок: запоминаем его, и копия встанет в ближайший срок.
+        // Записать обязательно: иначе «сейчас» сдвигалось бы с каждым тиком, и срок не наставал бы
+        // никогда. При выключенном расписании сюда не доходим — включат, отсчёт начнётся тогда.
+        if (state.CountedFrom() is null)
+        {
+            state.CountingSince = now;
+            await stateStore.SaveAsync(BackupScheduleStateKeys.Schedule, state, ct);
+            return;
+        }
+        if (!IsDue(schedule, state.CountedFrom(), now, zone)) return;
 
         var jobs = sp.GetRequiredService<IJobService>();
         // Копия уже снимается — вручную или прошлой плановой, застрявшей дольше суток. Второй такой
@@ -135,11 +146,18 @@ public class BackupScheduleService(
     /// и «за неделю простоя копия одна, а не семь». «Сегодня» и срок — в поясе <paramref name="zone" />,
     /// сравнение — моментами: смещение у <paramref name="now" /> значения не имеет.
     ///
+    /// <para><paramref name="countedFrom" /> — последняя постановка, иначе начало отсчёта
+    /// (<see cref="BackupScheduleState.CountedFrom" />). Копию не ставили никогда — это начало
+    /// отсчёта, а не пропуск (issue #1403): при <c>null</c> отсчёт ведётся от <paramref name="now" />,
+    /// и первая копия — в ближайший срок. Прежнее «ждать до завтрашней ночи не будем» снято: без
+    /// истории система либо пуста, либо только что поднята из копии, и копия сразу после старта
+    /// стоила ей объёма и времени, а не защищала что-то.</para>
+    ///
     /// Следствие правила, принятое сознательно: перенос пояса на запад после сегодняшней копии даёт
     /// ещё одну — по новому поясу срок прошёл, а копии после него не было. Лишняя копия, а не
     /// потерянная; пропуска суток не бывает ни в какую сторону.
     /// </summary>
-    public static bool IsDue(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt,
+    public static bool IsDue(BackupScheduleSettings schedule, DateTimeOffset? countedFrom,
         DateTimeOffset now, TimeZoneInfo zone)
     {
         if (!schedule.Enabled) return false;
@@ -148,10 +166,7 @@ public class BackupScheduleService(
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
         var dueToday = DueOn(today, time, zone);
         if (now < dueToday) return false;
-
-        // Копию не ставили никогда — свежая установка. Ждать до завтрашней ночи не будем: система,
-        // проработавшая день без единой копии, — ровно то состояние, ради которого всё это заведено.
-        return lastRunAt is not { } last || last < dueToday;
+        return (countedFrom ?? now) < dueToday;
     }
 
     /// <summary>
@@ -163,9 +178,9 @@ public class BackupScheduleService(
     /// ближайшем тике. Признаком, а не моментом «сейчас»: сравнивать момент с часами браузера клиент
     /// не может — их расхождение с сервером превращало «сейчас» в «сегодня, 09:30» (ревью PR #1561).
     /// По той же причине «сегодня» компании считает сервер. <c>null</c> — расписание выключено или
-    /// время негодное: копии не будет.
+    /// время негодное: копии не будет. <paramref name="countedFrom" /> — то же, что у <see cref="IsDue" />.
     /// </summary>
-    public static BackupNextRun? NextRunAt(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt,
+    public static BackupNextRun? NextRunAt(BackupScheduleSettings schedule, DateTimeOffset? countedFrom,
         DateTimeOffset now, TimeZoneInfo zone)
     {
         if (!schedule.Enabled) return null;
@@ -174,8 +189,9 @@ public class BackupScheduleService(
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
         var dueToday = DueOn(today, time, zone);
         if (now < dueToday) return new BackupNextRun(dueToday, false, today);
-        // Срок сегодняшних суток прошёл: копии после него не было — она сейчас, была — завтра.
-        return lastRunAt is { } last && last >= dueToday
+        // Срок сегодняшних суток прошёл: отсчёт начат до него (копии после него не было) — она
+        // сейчас; после него — завтра.
+        return (countedFrom ?? now) >= dueToday
             ? new BackupNextRun(DueOn(today.AddDays(1), time, zone), false, today)
             : new BackupNextRun(dueToday, true, today);
     }

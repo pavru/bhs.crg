@@ -18,6 +18,22 @@ public class BackupScheduleState
     /// </summary>
     public DateTimeOffset? LastRunAt { get; set; }
 
+    /// <summary>
+    /// С какого момента расписание ведёт отсчёт, пока копию не ставили ни разу (issue #1403): первый
+    /// тик установки без истории записывает его и копию не ставит.
+    ///
+    /// <para>Отдельным полем, а не подделанным <see cref="LastRunAt" />: тот показывается в списке
+    /// копий как «последний запуск», и копии, которой не было, там не место.</para>
+    /// </summary>
+    public DateTimeOffset? CountingSince { get; set; }
+
+    /// <summary>
+    /// От чего считать срок: последняя постановка, иначе начало отсчёта. <c>null</c> — не было ни того
+    /// ни другого, и правило ведёт отсчёт от «сейчас». Метод, а не свойство: свойство попало бы в JSON
+    /// состояния третьей записью того же факта.
+    /// </summary>
+    public DateTimeOffset? CountedFrom() => LastRunAt ?? CountingSince;
+
     /// <summary>Чем кончилась последняя плановая попытка; <c>null</c> — удалась.</summary>
     public string? LastError { get; set; }
 

@@ -3,6 +3,7 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Jobs;
+using BHS.CRG.Infrastructure.Updates;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -51,12 +52,16 @@ public class BackupScheduleZoneTests(IntegrationTestFixture fixture) : IAsyncLif
         // +9:30 срок Владивостока за минуту до себя по местным часам ещё не наступил, и проверка
         // молча прошла бы у службы с ошибкой. Поэтому пояс подбирается этим же условием и
         // проверяется (ревью PR #1559).
+        //
+        // История запусков есть — прошлая копия сутками раньше срока. Без неё первый тик лишь начал
+        // бы отсчёт (issue #1403), и служба с поясом машины не поставила бы копию и с ошибкой.
         var schedule = new BackupScheduleSettings { Enabled = true, TimeOfDay = "03:00", KeepCount = 7 };
         var (zoneId, due) = new[] { "Asia/Vladivostok", "Europe/Moscow", "America/New_York" }
             .Select(id => (id, due: BackupScheduleService.DueOn(
                 new DateOnly(2026, 8, 20), new TimeSpan(3, 0, 0), TimeZoneInfo.FindSystemTimeZoneById(id))))
-            .First(c => BackupScheduleService.IsDue(schedule, null, c.due.AddMinutes(-1), TimeZoneInfo.Local));
-        Assert.True(BackupScheduleService.IsDue(schedule, null, due.AddMinutes(-1), TimeZoneInfo.Local));
+            .First(c => BackupScheduleService.IsDue(
+                schedule, c.due.AddDays(-1), c.due.AddMinutes(-1), TimeZoneInfo.Local));
+        Assert.True(BackupScheduleService.IsDue(schedule, due.AddDays(-1), due.AddMinutes(-1), TimeZoneInfo.Local));
 
         await using var host = HostWithoutRunner();
         using (var scope = host.Services.CreateScope())
@@ -65,6 +70,9 @@ public class BackupScheduleZoneTests(IntegrationTestFixture fixture) : IAsyncLif
                 .SetAsync(AppSettingKeys.CompanyTimeZone, zoneId);
             await scope.ServiceProvider.GetRequiredService<IIntegrationSettings>()
                 .SaveBackupScheduleAsync(schedule);
+            await scope.ServiceProvider.GetRequiredService<ServiceStateStore>().SaveAsync(
+                BackupScheduleStateKeys.Schedule,
+                new BackupScheduleState { LastRunAt = due.AddDays(-1) }, CancellationToken.None);
         }
 
         var clock = new Clock(due.AddMinutes(-1));
