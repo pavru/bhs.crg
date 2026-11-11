@@ -61,8 +61,11 @@ export function rank(label: string, query: string[]): number {
  * <p>Найденное в данных (`found`, shell-05) началом подписи не выигрывает: совпадение подписью раздела
  * выше совпадения в данных — «счета» ведёт в раздел, а не в счёт «Счета за май».</p>
  */
-export function ranked<T extends { label: string; group: string; found?: true }>(items: T[], query: string[]): T[] {
-  const scored = items.map((it, at) => ({ it, at, score: Math.max(rank(it.label, query), it.found ? 1 : 0) }));
+export function ranked<T extends { label: string; group: string; found?: true; trails?: true }>(items: T[], query: string[]): T[] {
+  // `trails` — действие с найденной записью: на полшага за записью, чтобы первой в выдаче стояла она.
+  const scored = items.map((it, at) => ({
+    it, at, score: Math.max(rank(it.label, query), it.found ? 1 : 0) + (it.trails ? 0.5 : 0),
+  }));
   const best = new Map<string, number>();
   for (const s of scored) best.set(s.it.group, Math.min(best.get(s.it.group) ?? Infinity, s.score));
   const first = new Map<string, number>();

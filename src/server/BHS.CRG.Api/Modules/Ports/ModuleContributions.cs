@@ -62,7 +62,8 @@ public sealed class ModuleContributions(IServiceScopeFactory scopes, ILogger<Mod
         CancellationToken ct)
     {
         var scope = scopes.CreateAsyncScope();
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        // Не `using`: источник живёт, пока не завершится и поставщик, и отмена его токена (ниже).
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(timeout);
         Task<R>? task = null;
         try
@@ -97,13 +98,21 @@ public sealed class ModuleContributions(IServiceScopeFactory scopes, ILogger<Mod
             // и его поздний отказ тоже в журнал, иначе он не виден нигде.
             if (task is { IsCompleted: false })
             {
-                // Отмена — явно: у WaitAsync и CancelAfter один предел, и сработай WaitAsync первым, `using`
-                // убрал бы источник вместе с таймером, не отменив токена. Поставщик, который токен слушает
-                // (запрос EF), тогда держал бы область и соединение пула до своего конца, а не до предела.
-                Cancel(deadline, module, label);
-                _ = task.ContinueWith(late => ReleaseAsync(late, scope, module, label), TaskScheduler.Default).Unwrap();
+                // Отмена — явно: у WaitAsync и CancelAfter один предел, и сработай WaitAsync первым, таймер
+                // ушёл бы вместе с источником, не отменив токена, — и поставщик, который токен слушает (запрос
+                // EF), держал бы область и соединение пула до своего конца, а не до предела (ревью #1913).
+                // И не на потоке ответа: обработчики отмены — поставщика, Npgsql шлёт по ним CancelRequest
+                // по сети, и отказ «нет ответа за 3 с» ушёл бы позже трёх секунд (ревью #1915).
+                var cancelled = Task.Run(() => Cancel(deadline, module, label));
+                _ = Task.WhenAll(task, cancelled)
+                    .ContinueWith(_ => ReleaseAsync(task, scope, deadline, module, label), TaskScheduler.Default)
+                    .Unwrap();
             }
-            else await scope.DisposeAsync();
+            else
+            {
+                deadline.Dispose();
+                await scope.DisposeAsync();
+            }
         }
     }
 
@@ -120,12 +129,14 @@ public sealed class ModuleContributions(IServiceScopeFactory scopes, ILogger<Mod
         }
     }
 
-    private async Task ReleaseAsync<R>(Task<R> late, AsyncServiceScope scope, string module, string label)
+    private async Task ReleaseAsync<R>(Task<R> late, AsyncServiceScope scope, CancellationTokenSource deadline,
+        string module, string label)
     {
         if (late.IsFaulted)
             log.LogWarning(late.Exception, "Модуль «{Module}» отказал после предела ({Label}).", module, label);
         try
         {
+            deadline.Dispose();
             await scope.DisposeAsync();
         }
         catch (Exception ex)

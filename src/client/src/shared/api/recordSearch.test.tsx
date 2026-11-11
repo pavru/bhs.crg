@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { searchQuery, searchTooLong, useRecordSearch, type RecordSearchGroup } from './recordSearch';
+import { searchQuery, useRecordSearch, type RecordSearchGroup } from './recordSearch';
 
 vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }));
 
@@ -28,26 +28,25 @@ describe('useRecordSearch', () => {
     expect(searchQuery('№ · «')).toBeNull();
     expect(searchQuery('№ 418')).toBe('№ 418');
     expect(searchQuery('щ'.repeat(201))).toBeNull();
-    expect(searchTooLong('щ'.repeat(201))).toBe(true);
-    expect(searchTooLong('щит')).toBe(false);
-    renderHook(() => useRecordSearch('с', null), { wrapper: wrapper() });
+    renderHook(() => useRecordSearch('с'), { wrapper: wrapper() });
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
-  it('спрашивает после паузы ввода, с областью', async () => {
+  // Группы отбирает палитра из ответа «везде»: чип не повод спрашивать снова.
+  it('спрашивает после паузы ввода, без области', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: { groups: [group('invoices', '№ 418')] } });
-    const { result } = renderHook(() => useRecordSearch('418', 'invoices'), { wrapper: wrapper() });
+    const { result } = renderHook(() => useRecordSearch('418'), { wrapper: wrapper() });
 
     expect(result.current.pending).toBe(true);
     await waitFor(() => expect(result.current.groups?.[0].title).toBe('№ 418'));
     const [url, config] = vi.mocked(apiClient.get).mock.calls[0];
     expect(url).toBe('/search');
-    expect(config?.params).toEqual({ q: '418', group: 'invoices' });
+    expect(config?.params).toEqual({ q: '418' });
     expect(config?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('по данным не искать — адрес не зовётся', async () => {
-    renderHook(() => useRecordSearch('418', null, false), { wrapper: wrapper() });
+    renderHook(() => useRecordSearch('418', false), { wrapper: wrapper() });
     await new Promise(r => setTimeout(r, 300));
     expect(apiClient.get).not.toHaveBeenCalled();
   });
@@ -55,7 +54,7 @@ describe('useRecordSearch', () => {
   it('ответ на прежний запрос не показывается, пока новый не отстоялся', async () => {
     vi.mocked(apiClient.get).mockImplementation((_url, config) =>
       Promise.resolve({ data: { groups: [group('invoices', `ответ на ${config?.params.q}`)] } }));
-    const { result, rerender } = renderHook(({ q }) => useRecordSearch(q, null),
+    const { result, rerender } = renderHook(({ q }) => useRecordSearch(q),
       { wrapper: wrapper(), initialProps: { q: '41' } });
     await waitFor(() => expect(result.current.groups?.[0].title).toBe('ответ на 41'));
 
@@ -68,10 +67,20 @@ describe('useRecordSearch', () => {
 
   it('отказ адреса — отказ, а не пусто, и без повтора', async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error('500'));
-    const { result } = renderHook(() => useRecordSearch('418', null), { wrapper: wrapper() });
+    const { result } = renderHook(() => useRecordSearch('418'), { wrapper: wrapper() });
 
     await waitFor(() => expect(result.current.failed).toBe(true));
     expect(result.current.groups).toBeUndefined();
     expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  // Предел — признак, а не тишина; и только когда поиск включён: на чипе «Разделы» записи не ищут вовсе.
+  it('длиннее предела — сказано, и только при включённом поиске', () => {
+    const long = 'щ'.repeat(201);
+    expect(renderHook(() => useRecordSearch(long), { wrapper: wrapper() }).result.current.tooLong).toBe(true);
+    expect(renderHook(() => useRecordSearch(long, false), { wrapper: wrapper() }).result.current.tooLong).toBe(false);
+    // Длинный запрос сервер не спрашивают вовсе — отказ сказан клиентом.
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(renderHook(() => useRecordSearch('щит'), { wrapper: wrapper() }).result.current.tooLong).toBe(false);
   });
 });

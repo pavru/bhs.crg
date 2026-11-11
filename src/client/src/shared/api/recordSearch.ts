@@ -54,20 +54,20 @@ export const SEARCH_DELAY_MS = 250;
 /** Знаки по краям слова — не часть того, что ищут: так режет слова и сервер (`RecordSearchText.Words`). */
 const EDGE_MARKS = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
 
+/** Запрос как его видит сервер: без краёв и с одиночными пробелами. Одно место — у порога и у предела. */
+const normalized = (query: string) => query.trim().replace(/\s+/g, ' ');
+
 /**
- * Что спрашивать у сервера: запрос с одиночными пробелами, если в нём есть слово от порога и он не длиннее
+ * Что спрашивать у сервера: нормализованный запрос, если в нём есть слово от порога и он не длиннее
  * предела, иначе `null`. Слово меряется без знаков по краям — «№ ·» не запрос.
  */
 export function searchQuery(query: string): string | null {
-  const q = query.trim().replace(/\s+/g, ' ');
+  const q = normalized(query);
   if (q.length > SEARCH_MAX_LENGTH) return null;
   return q.split(' ').some(w => w.replace(EDGE_MARKS, '').length >= SEARCH_MIN_LENGTH) ? q : null;
 }
 
-/** Запрос длиннее предела: записи не ищутся — это сказать словами, а не «Ничего не найдено». */
-export const searchTooLong = (query: string) => query.trim().replace(/\s+/g, ' ').length > SEARCH_MAX_LENGTH;
-
-export const recordSearchKey = (q: string, group: string | null) => ['record-search', q, group] as const;
+export const recordSearchKey = (q: string) => ['record-search', q] as const;
 
 export interface RecordSearchState {
   /** Ответ на ТЕКУЩИЙ запрос; `undefined` — его ещё нет (печатают, едет, спрашивать не о чем). */
@@ -76,28 +76,34 @@ export interface RecordSearchState {
   failed: boolean;
   /** Ответ едет. */
   pending: boolean;
+  /** Поиск включён, а запрос длиннее предела: записи не ищутся — сказать словами, а не «Ничего не найдено». */
+  tooLong: boolean;
 }
 
 /**
- * Записи по строке палитры; `group` — одна группа (чип области), `enabled: false` — по данным не искать
- * (выбран чип действий или разделов).
+ * Записи по строке палитры; `enabled: false` — по данным не искать (выбран чип действий или разделов, у
+ * человека нет ни одной группы данных).
  *
- * <p>Ключ — «запрос + область». Ответ на устаревший запрос отброшен: пока запрос не отстоялся, ответ на
- * прежний не показывается вовсе — иначе на «418» висели бы счета, найденные по «41» (сценарий «Найденное
- * раньше ответа»). Смена ключа отменяет прошлый запрос через `signal`.</p>
+ * <p>Ключ — запрос: группы отбирает палитра из ответа «везде» — сервер отдаёт на группу те же записи, и
+ * чип или Tab не повод спрашивать снова (ревью #1915). Ответ на устаревший запрос отброшен: пока запрос не
+ * отстоялся, ответ на прежний не показывается вовсе — иначе на «418» висели бы счета, найденные по «41»
+ * (сценарий «Найденное раньше ответа»). Смена ключа отменяет прошлый запрос через `signal`.</p>
+ *
+ * <p>Ответ не считается свежим и секунды: счёт, заведённый между двумя открытиями палитры, обязан
+ * найтись — прежний ответ показывается, пока едет новый.</p>
  */
-export function useRecordSearch(query: string, group: string | null, enabled = true): RecordSearchState {
+export function useRecordSearch(query: string, enabled = true): RecordSearchState {
   const wanted = enabled ? searchQuery(query) : null;
   const settled = useDebouncedValue(wanted, SEARCH_DELAY_MS);
   const asked = settled !== null && settled === wanted;
   const result = useQuery<RecordSearchGroup[]>({
-    queryKey: asked ? recordSearchKey(settled, group) : ['record-search', 'none'],
+    queryKey: asked ? recordSearchKey(settled) : ['record-search', 'none'],
     queryFn: ({ signal }) => apiClient
-      .get<{ groups: RecordSearchGroup[] }>('/search', { params: { q: settled, group: group ?? undefined }, signal })
+      .get<{ groups: RecordSearchGroup[] }>('/search', { params: { q: settled }, signal })
       .then(r => r.data.groups),
     enabled: asked,
     subscribed: asked,
-    staleTime: 30_000,
+    staleTime: 0,
     // Отказ сказан словами сразу: повтор держал бы палитру немой ещё на секунды.
     retry: false,
   });
@@ -105,5 +111,6 @@ export function useRecordSearch(query: string, group: string | null, enabled = t
     groups: asked ? result.data : undefined,
     failed: asked && result.isError,
     pending: wanted !== null && (!asked || result.isPending),
+    tooLong: enabled && normalized(query).length > SEARCH_MAX_LENGTH,
   };
 }

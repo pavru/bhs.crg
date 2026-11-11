@@ -22,7 +22,7 @@ import { availableActions, intentHref, recordActions } from './paletteActions';
 import { highlight, matches, queryWords, ranked } from './paletteSearch';
 import { foundGroups, hitText, openGroups, tabGroup, type FoundGroup } from './paletteRecords';
 import { hitRoute, recordHref } from './recordRoutes';
-import { SEARCH_MAX_LENGTH, searchTooLong, useRecordSearch } from '@/shared/api/recordSearch';
+import { SEARCH_MAX_LENGTH, useRecordSearch } from '@/shared/api/recordSearch';
 import type { AccessInfo } from '@/shared/api/access';
 
 type Kind = 'action' | 'section' | 'record';
@@ -39,6 +39,9 @@ interface Cmd {
   run: () => void;
   /** Найдено сервером (запись и действие с ней): клиентом не отбирается, а подписью раздела уступает. */
   found?: true;
+  /** Действие с найденной записью: уступает самой записи — Enter открывает запись ([UI-30]), а не заводит
+   *  черновик (ревью #1915). */
+  trails?: true;
   /** Группа данных записи — для чипа её области. */
   area?: string;
   supporting?: string;
@@ -143,12 +146,17 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   }));
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<Scope>('all');
-  const [active, setActive] = useState(0);
+  // Выделение — пунктом, а не местом: пришёл ответ поиска, записи встали между действиями и разделами, —
+  // и Enter обязан исполнить выделенное стрелкой, а не то, что встало на его место (ревью #1915). `null` —
+  // стрелкой не выбирали: выделен первый.
+  const [activeId, setActiveId] = useState<string | null>(null);
   const words = queryWords(query);
   const area = groups.some(g => g.def.code === scope) ? scope : null;
-  const search = useRecordSearch(query, area, scope === 'all' || area !== null);
+  // Без групп данных — ни своих, ни ещё не пришедших прав — по данным не искать: запрос впустую, а «Ищу
+  // записи…» и отказ поиска сказаны бы о том, чего человек не ищет (ревью #1915).
+  const search = useRecordSearch(query, groups.length > 0 && (scope === 'all' || area !== null));
   const found = foundGroups(search.groups, groups);
-  const { records, withRecord } = recordCmds(found, words, inside, access ?? NO_ACCESS, navigate, toScreen);
+  const { records, withRecord } = recordCmds(found, inside, access ?? NO_ACCESS, navigate, toScreen);
   const items: Cmd[] = [
     // Действия с найденной записью — в начале «Действий» (М-3).
     ...withRecord,
@@ -165,20 +173,21 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
     (scope === 'all' || i.kind === scope || i.area === scope) && (i.found || matches(i.label, i.words, words))), words);
   const refusals = [
     ...(search.failed ? ['Записи не найдены: поиск не ответил. Действия и разделы ищутся как прежде.'] : []),
-    ...(searchTooLong(query) ? [`Записи не ищутся: запрос длиннее ${SEARCH_MAX_LENGTH} знаков.`] : []),
+    ...(search.tooLong ? [`Записи не ищутся: запрос длиннее ${SEARCH_MAX_LENGTH} знаков.`] : []),
     ...found.filter(f => f.answer.refused).map(f => `${f.def.label} не найдены: ${f.answer.refused}`),
   ];
   const listId = useId();
   const optionId = (i: number) => `${listId}-${i}`;
   // Выдача может сократиться сама — пришли права, сменилось пространство, — и выделение за её концом
   // не показывалось бы, а Enter молчал (ревью PR #1478).
-  const current = Math.min(active, filtered.length - 1);
+  const current = Math.max(0, filtered.findIndex(it => it.id === activeId));
   const input = useRef<HTMLInputElement>(null);
   // Выделение стрелками не уходит за край списка: список длиннее окна.
   useEffect(() => {
     document.getElementById(`${listId}-${current}`)?.scrollIntoView?.({ block: 'nearest' });
   }, [current, query, scope, listId]);
-  const choose = (s: Scope) => { setScope(s); setActive(0); };
+  const choose = (s: Scope) => { setScope(s); setActiveId(null); };
+  const step = (by: number) => setActiveId(filtered[Math.min(Math.max(current + by, 0), filtered.length - 1)]?.id ?? null);
   // Пример запроса — из того, что человеку доступно: «новый счёт» тому, у кого нет такой кнопки, был бы
   // дверью в «Ничего не найдено».
   const example = actions[0]?.label.toLowerCase() ?? 'выйти';
@@ -188,8 +197,8 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   function exec(it: Cmd) { onOpenChange(false); it.run(); }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, filtered.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); step(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1); }
     else if (e.key === 'Enter') { e.preventDefault(); const it = filtered[current]; if (it) exec(it); }
     // Tab остаётся в поле (палитра — модальное окно, Esc её закрывает): сужает до группы раздела, повторный
     // — «Везде». На экране без своей группы область не меняется. Shift+Tab не перехватывается.
@@ -224,7 +233,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               aria-controls={listId} aria-activedescendant={filtered[current] ? optionId(current) : undefined}
-              onChange={e => { setQuery(e.target.value); setActive(0); }}
+              onChange={e => { setQuery(e.target.value); setActiveId(null); }}
               placeholder={groups.length ? 'Найти запись, раздел или действие…' : 'Найти раздел или действие…'}
               className="h-14 flex-1 bg-transparent text-body-large text-on-surface outline-none placeholder:text-on-surface-variant"
             />
@@ -241,12 +250,12 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
             ))}
           </div>
 
-          {refusals.length > 0 && (
-            // Отказ ≠ пусто: сказан словами и диктору, а действия и разделы ищутся как прежде.
-            <div role="status" aria-label="Отказ поиска" className="px-5 pt-2 text-body-small text-error">
-              {refusals.map(r => <p key={r}>{r}</p>)}
-            </div>
-          )}
+          {/* Отказ ≠ пусто: сказан словами и диктору, а действия и разделы ищутся как прежде. Живая область
+              стоит всегда — читалки объявляют изменение в подключённой области, а не вставку её с текстом. */}
+          <div role="status" aria-label="Отказ поиска"
+            className={refusals.length > 0 ? 'px-5 pt-2 text-body-small text-error' : undefined}>
+            {refusals.map(r => <p key={r}>{r}</p>)}
+          </div>
 
           <div id={listId} role="listbox" aria-label="Найденное"
             className={`${full ? 'flex-1 min-h-0' : 'max-h-[55vh]'} overflow-y-auto pb-3 pt-1`}>
@@ -262,7 +271,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
                   <div role="presentation" aria-hidden className="px-4 pb-1 pt-3 text-body-small font-medium text-on-surface-variant">{it.group}</div>
                 )}
                 <ListOption
-                  id={optionId(i)} active={i === current} icon={it.icon} onChoose={() => exec(it)} onHover={() => setActive(i)}
+                  id={optionId(i)} active={i === current} icon={it.icon} onChoose={() => exec(it)} onHover={() => setActiveId(it.id)}
                   supporting={it.supporting}
                   trailing={(it.trailing || (i === current && !full)) && <>
                     {it.trailing}
@@ -306,7 +315,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
  * Строки найденных записей и действия с ними ([UI-30], [UI-32]). Группа записи вне пространства помечена
  * в своём заголовке, и пометку слышит диктор у каждой строки (`AUTH-16.1`: пространство не граница).
  */
-function recordCmds(found: FoundGroup[], words: string[], inside: (item: { module?: string; section?: string }) => boolean,
+function recordCmds(found: FoundGroup[], inside: (item: { module?: string; section?: string }) => boolean,
   access: AccessInfo, navigate: (to: string) => void, toScreen: (to: string) => void) {
   const records: Cmd[] = [];
   const withRecord: Cmd[] = [];
@@ -316,7 +325,7 @@ function recordCmds(found: FoundGroup[], words: string[], inside: (item: { modul
     const actions = recordActions(access, def.recordType);
     for (const hit of answer.items) {
       // Экран записи — по её уровню (набор данных): закрытый или неизвестный — строки нет, а не отказ за ней.
-      const at = hitRoute(def.recordType, route, hit.level, access);
+      const at = hitRoute(route, hit.level, access);
       if (!at) continue;
       records.push({
         id: `${def.code}:${hit.id}`, label: hit.title, words: '', group, kind: 'record', area: def.code, found: true,
@@ -324,12 +333,12 @@ function recordCmds(found: FoundGroup[], words: string[], inside: (item: { modul
       });
       for (const a of actions) withRecord.push({
         id: `${a.id}:${hit.id}`, label: a.withRecord!.label(hit.title), words: '', group: ACTIONS, kind: 'action',
-        found: true, icon: a.icon, run: () => toScreen(intentHref(a, hit.id)),
+        found: true, trails: true, icon: a.icon, run: () => toScreen(intentHref(a, hit.id)),
       });
     }
     // «Ещё в разделе»: экраны запроса из адреса пока не принимают — строка ведёт в раздел.
     if (answer.more) records.push({
-      id: `${def.code}:more`, label: `Ещё в разделе «${def.label}»`, words: words.join(' '), group, kind: 'record',
+      id: `${def.code}:more`, label: `Ещё в разделе «${def.label}»`, words: '', group, kind: 'record',
       area: def.code, found: true, icon: ArrowForward, run: () => navigate(route.screen),
     });
   }

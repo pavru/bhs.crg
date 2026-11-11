@@ -65,8 +65,8 @@ describe('адрес записи по типу', () => {
   // Набор данных — на экране своего уровня (shell-05, решение «А»): адрес из уровня карточки поиска.
   it('набор данных открывается на панели своего уровня, правом её раздела', () => {
     const both = access(['core.datasets.read', 'core.constructions.read']);
-    const at = (level: Parameters<typeof hitRoute>[2], who = both) => {
-      const route = hitRoute('НаборДанных', DATASET_RECORD, level, who);
+    const at = (level: Parameters<typeof hitRoute>[1], who = both) => {
+      const route = hitRoute(DATASET_RECORD, level, who);
       return route && recordHref(route, 'd/1');
     };
     expect(at({ scope: 'System' })).toBe('/datasets?file=d%2F1');
@@ -80,7 +80,9 @@ describe('адрес записи по типу', () => {
     expect(at({ scope: 'Section', scopeId: 's-1', constructionId: 'c-1' }, access(['core.datasets.read']))).toBeNull();
     expect(at({ scope: 'System' }, access(['core.constructions.read']))).toBeNull();
     // У других типов экран — экран группы.
-    expect(hitRoute('Стройка', RECORD_ROUTES['Стройка'], null, both)).toBe(RECORD_ROUTES['Стройка']);
+    expect(hitRoute(RECORD_ROUTES['Стройка'], null, both)).toBe(RECORD_ROUTES['Стройка']);
+    // Строка таблицы уровня не знает — ссылки на набор из неё нет, а не ссылка на системную страницу.
+    expect(link('НаборДанных', ID, both)).toBeNull();
   });
 
   // Двести ссылок страницы с одним именем в списке ссылок читалки экрана неразличимы.

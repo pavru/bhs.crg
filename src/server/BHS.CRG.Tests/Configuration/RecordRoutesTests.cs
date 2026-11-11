@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Api.Search;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Search;
 using BHS.CRG.Modules.Tables;
 
 namespace BHS.CRG.Tests.Configuration;
@@ -21,16 +23,21 @@ public class RecordRoutesTests
     [Fact]
     public void Каждый_тип_записи_с_экраном_в_клиенте_стоит_за_таблицей_модуля()
     {
+        // Экран записи нужен строке таблицы и найденному палитрой (shell-05): тип — либо у таблицы модуля,
+        // либо у группы поиска записей.
         var declared = new ModuleTableCatalog([new CostsModule()]).All
-            .Select(e => e.Table.RecordType).Where(t => t is not null).ToHashSet(StringComparer.Ordinal);
+            .Select(e => e.Table.RecordType).Where(t => t is not null)
+            .Concat(CoreRecordSearch.Declared.Select(g => g.RecordType))
+            .Append(CostsRecordSearch.Declared.RecordType)
+            .ToHashSet(StringComparer.Ordinal);
         var routed = RoutedTypes();
 
         // Пустой список — не «расхождений нет», а «список не прочитан»: файл переписали, и сверять
         // стало нечего. Зелёный тест тогда был бы отчётом о работе, которой не было.
         Assert.NotEmpty(routed);
         Assert.All(routed, type => Assert.True(declared.Contains(type),
-            $"В {ClientFile} экран назван для типа записи «{type}», а таблицы модулей с таким типом нет: " +
-            $"объявлены {string.Join(", ", declared)}. Ссылка из строки таблицы на этот экран не появится."));
+            $"В {ClientFile} экран назван для типа записи «{type}», а ни таблицы модулей, ни группы поиска с таким типом нет: " +
+            $"объявлены {string.Join(", ", declared)}. Ссылка на этот экран не появится нигде."));
     }
 
     /// <summary>Ключи списка <c>RECORD_ROUTES</c> — коды типов в кавычках до двоеточия.</summary>

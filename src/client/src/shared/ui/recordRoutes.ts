@@ -27,6 +27,9 @@ export interface RecordRoute {
   /** Адрес, к которому прикладывается запись, если он не сам экран: панель наборов данных стройки
    *  (`/document-sets/<id>/datasets`) закрыта правом экрана строек, а адрес у неё свой. */
   path?: string;
+  /** Экран свой на каждом уровне (набор данных): маршрут уровня записи — с ЕГО экраном, правом которого
+   *  он закрыт, — либо null, если у уровня адреса нет. Без уровня (строка таблицы) ссылки нет вовсе. */
+  at?: (level: RecordLevel) => RecordRoute | null;
 }
 
 /** Счёт на оплату — на экране счетов; он же читает параметр, чтобы открыть названный счёт. */
@@ -40,7 +43,23 @@ export const CONSTRUCTION_RECORD = { screen: '/document-sets', label: 'Откр�
  * стройки, раздела и комплекта — на их панели «Наборы данных». Здесь — экран группы (чип, Tab, «Ещё в
  * разделе»); адрес найденного набора строит `hitRoute` по его уровню. Набор экран называет `?file=`.
  */
-export const DATASET_RECORD = { screen: '/datasets', param: 'file', label: 'Открыть набор данных' } as const satisfies RecordRoute;
+const DATASET_SYSTEM = { screen: '/datasets', param: 'file', label: 'Открыть набор данных' } as const satisfies RecordRoute;
+
+/** Набор уровня: системный — на «Наборах данных», под стройкой — панель уровня; без стройки адреса нет. */
+function dataSetAt(level: RecordLevel): RecordRoute | null {
+  const { scope, scopeId, constructionId } = level;
+  if (scope === 'System') return DATASET_SYSTEM;
+  if (!constructionId || !scopeId) return null;
+  const site = `/document-sets/${encodeURIComponent(constructionId)}`;
+  const path = scope === 'Construction' ? `${site}/datasets`
+    : scope === 'Section' ? `${site}/sections/${encodeURIComponent(scopeId)}/datasets`
+    : scope === 'Set' ? `${site}/sets/${encodeURIComponent(scopeId)}/datasets`
+    : null;
+  // Панель уровня закрыта правом экрана строек — им она и открыта.
+  return path ? { ...DATASET_SYSTEM, screen: '/document-sets', path } : null;
+}
+
+export const DATASET_RECORD = { ...DATASET_SYSTEM, at: dataSetAt } as const satisfies RecordRoute;
 
 /**
  * Запись общих данных системного уровня — на странице «Общие данные» (issue #1517): экран открывает
@@ -56,28 +75,15 @@ export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
   'НаборДанных': DATASET_RECORD,
 };
 
-/** Панель наборов данных уровня под стройкой; уровень без стройки или без своей записи адреса не имеет. */
-function dataSetPath(level: RecordLevel): string | null {
-  const { scope, scopeId, constructionId } = level;
-  if (!constructionId || !scopeId) return null;
-  const site = `${CONSTRUCTION_RECORD.screen}/${encodeURIComponent(constructionId)}`;
-  if (scope === 'Construction') return `${site}/datasets`;
-  if (scope === 'Section') return `${site}/sections/${encodeURIComponent(scopeId)}/datasets`;
-  if (scope === 'Set') return `${site}/sets/${encodeURIComponent(scopeId)}/datasets`;
-  return null;
-}
-
 /**
- * Экран найденной записи — либо null. У большинства типов он один (`group` — экран группы); у набора
- * данных — свой на каждом уровне, и закрыт он правом СВОЕГО раздела: набор стройки — правом строек,
+ * Экран найденной записи — либо null. У типа с одним экраном это экран группы; у типа с экраном на каждом
+ * уровне (`at`) — экран уровня записи, закрытый правом СВОЕГО раздела: набор стройки — правом строек,
  * системный — правом наборов данных. Нет уровня или экран закрыт — строки нет: она вела бы в отказ.
  */
-export function hitRoute(recordType: string, group: RecordRoute, level: RecordLevel | null | undefined,
-  access: AccessInfo): RecordRoute | null {
-  if (recordType !== 'НаборДанных') return group;
-  if (level?.scope === 'System') return openTo(DATASET_RECORD, access);
-  const path = level ? dataSetPath(level) : null;
-  return path ? openTo({ ...DATASET_RECORD, screen: CONSTRUCTION_RECORD.screen, path }, access) : null;
+export function hitRoute(group: RecordRoute, level: RecordLevel | null | undefined, access: AccessInfo): RecordRoute | null {
+  if (!group.at) return group;
+  const route = level ? group.at(level) : null;
+  return route ? openTo(route, access) : null;
 }
 
 export interface RecordLink {
@@ -110,7 +116,9 @@ export function openTo(route: RecordRoute, access: AccessInfo): RecordRoute | nu
  *   нужную было бы не выбрать.
  */
 export function recordLink(screen: RecordRoute | null, id: string | null, name?: string): RecordLink | null {
-  if (!screen || !id) return null;
+  // Экран уровня без уровня не выбрать: строка таблицы его не знает, и ссылка на экран группы привела бы
+  // набор стройки на системную страницу, где его нет (ревью #1915).
+  if (!screen || !id || screen.at) return null;
   return {
     to: recordHref(screen, id),
     label: name ? `${screen.label}: ${name}` : screen.label,

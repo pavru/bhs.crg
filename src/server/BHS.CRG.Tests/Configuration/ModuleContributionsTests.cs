@@ -97,20 +97,37 @@ public class ModuleContributionsTests
             Reader, TimeSpan.FromSeconds(5), (q, _, ct) => q.AskAsync(ct), gone.Token));
     }
 
-    // Предел вышел — токен поставщика отменён к ответу, а не когда-нибудь: иначе слушающий токен запрос EF
-    // держал бы область и соединение пула до своего конца (ревью #1913: WaitAsync может опередить CancelAfter).
+    // Предел вышел — токен поставщика отменён, а не дожит до естественного конца: иначе слушающий токен
+    // запрос EF держал бы область и соединение пула (ревью #1913: WaitAsync может опередить CancelAfter).
     [Fact]
-    public async Task По_пределу_токен_поставщика_отменён_к_ответу()
+    public async Task По_пределу_токен_поставщика_отменяется()
     {
-        var handed = CancellationToken.None;
-        var answer = await Contributions().AskAsync<Guid>("listening", "проба", Short, (_, token) =>
+        var heard = new TaskCompletionSource();
+        var answer = await Contributions().AskAsync<Guid>("listening", "проба", Short, async (_, token) =>
         {
-            handed = token;
-            return Task.Delay(Timeout.Infinite, token).ContinueWith(_ => Guid.Empty, TaskScheduler.Default);
+            await using var registration = token.Register(heard.SetResult);
+            await Task.Delay(Timeout.Infinite, token);
+            return Guid.Empty;
         }, CancellationToken.None);
 
         Assert.Contains("нет ответа", answer.Refused);
-        Assert.True(handed.IsCancellationRequested);
+        await heard.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    // Обработчики отмены — поставщика (Npgsql шлёт по ним CancelRequest по сети): отказ по пределу их не
+    // ждёт, иначе «нет ответа за 3 с» приходил бы позже трёх секунд (ревью #1915).
+    [Fact]
+    public async Task Отказ_по_пределу_не_ждёт_обработчиков_отмены()
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var answer = await Contributions().AskAsync<Guid>("slow-cancel", "проба", Short, (_, token) =>
+        {
+            token.Register(() => Thread.Sleep(TimeSpan.FromSeconds(3)));
+            return new TaskCompletionSource<Guid>().Task;
+        }, CancellationToken.None);
+
+        Assert.Contains("нет ответа", answer.Refused);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"ответ ждал {watch.Elapsed}");
     }
 
     // Своя отмена поставщика в пределе (HTTP-клиент плагина сдался через 100 мс) — его ошибка, а не наш
