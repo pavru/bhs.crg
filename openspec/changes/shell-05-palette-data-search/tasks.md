@@ -66,4 +66,4 @@
 - [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 5.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них Ctrl K → номер счёта → Enter
   открывает счёт, и под ролью без счетов группы «Счета» нет
-- [ ] 5.6 Оба PR — с меткой `version:minor`; PR 2 — «Closes #1433»
+- [x] 5.6 Оба PR — с меткой `version:minor`; PR 2 — «Closes #1433»
