@@ -47,17 +47,30 @@ export function assetReference(asset: TemplateAssetDto): string | null {
 }
 
 /**
- * Подсказка имени ассета из имени файла (change core-template-asset-names, D4) — расширение снято,
- * знаки вне правила имени картинки заменены на «_», «..» свёрнуто, пробелы по краям сняты.
- *
- * Правило — серверное (`TemplateAsset.IsValidImageName`): буквы, цифры, пробел, «-», «_», «.», без
- * «/», «\» и «..», без пробела по краям. Здесь только подсказка: отказ по-прежнему приходит с сервера.
- * Без неё имя, предложенное из «Печать (скан).png», отклонялось бы сразу после выбора файла.
+ * Знаки, которых нет в имени картинки, — ЗЕРКАЛО серверного `TemplateAsset.IsValidImageName`
+ * (change core-template-asset-names, D2): разделители пути, знаки, недопустимые в имени файла
+ * Windows, управляющие знаки. Обе стороны сверены общим набором `templateAssetNameCases.json`.
+ */
+const FORBIDDEN = /[/\\:*?"<>|\p{Cc}]/u;
+const FORBIDDEN_ALL = /[/\\:*?"<>|\p{Cc}]/gu;
+
+/**
+ * Годится ли имя картинки: имя файла, а не путь — без запрещённых знаков, без «..» и без пробела
+ * по краям. Ассет с негодным именем бывает только из прежних данных или копии: панель отмечает его,
+ * а не показывает ссылку, которую генерация отклонит.
+ */
+export function isValidImageAssetName(name: string): boolean {
+  return name.length > 0 && !name.startsWith(' ') && !name.endsWith(' ') && !name.includes('..') && !FORBIDDEN.test(name);
+}
+
+/**
+ * Подсказка имени ассета из имени файла (D4): расширение снято, запрещённые знаки заменены на «_»,
+ * «..» свёрнуто, пробелы по краям сняты. Здесь только подсказка: отказ по-прежнему приходит с сервера.
  */
 export function suggestAssetName(fileName: string): string {
   const stem = extensionOf(fileName) ? fileName.slice(0, -extensionOf(fileName).length) : fileName;
   return stem
-    .replace(/[^\p{L}\p{N} ._-]/gu, '_')
+    .replace(FORBIDDEN_ALL, '_')
     .replace(/\.{2,}/g, '.')
     .trim();
 }

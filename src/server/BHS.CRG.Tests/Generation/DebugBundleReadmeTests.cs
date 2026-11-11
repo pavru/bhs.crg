@@ -47,9 +47,9 @@ public class DebugBundleReadmeTests
     [Fact]
     public void InvalidAssetName_IsListed_EvenAlone()
     {
-        var readme = DebugBundleArchive.Readme(new CompileLayout(null, [], ["../img_0"]), BundleNotes.None)!;
+        var readme = DebugBundleArchive.Readme(new CompileLayout(null, [], ["схема|1"]), BundleNotes.None)!;
 
         Assert.Contains(DebugBundleArchive.RefusalHeading, readme);
-        Assert.Contains("[invalid-asset-name] ../img_0", readme);
+        Assert.Contains("[invalid-asset-name] схема|1", readme);
     }
 }

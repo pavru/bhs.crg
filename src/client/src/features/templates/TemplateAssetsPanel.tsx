@@ -7,7 +7,7 @@ import {
   useListTemplateAssets, useUploadTemplateAsset, useReplaceTemplateAsset, useDeleteTemplateAsset,
   type TemplateAssetDto, type TemplateAssetScope,
 } from '@/shared/api/templateAssets';
-import { assetReference, suggestAssetName } from '@/shared/api/templateAssetRef';
+import { assetReference, isValidImageAssetName, suggestAssetName } from '@/shared/api/templateAssetRef';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.svg,.ttf,.otf,.ttc';
@@ -36,6 +36,17 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
       <span className="text-body-small truncate flex-1 min-w-0">
         <span className="text-on-surface">{asset.name}</span>
         <span className="text-error"> — семейство не распознано, шрифт не подключится</span>
+      </span>
+    );
+  }
+
+  if (asset.kind === 'Image' && !isValidImageAssetName(asset.name)) {
+    // Имя не по правилу бывает только из прежних данных или копии (change core-template-asset-names, D3).
+    // Ссылку не даём: генерация с таким ассетом отказывает, и рабочая на вид строка обманула бы.
+    return (
+      <span className="text-body-small flex-1 min-w-0 break-all">
+        <span className="text-on-surface">{asset.name}</span>
+        <span className="text-error"> — недопустимое имя, генерация откажет: удалите и загрузите заново</span>
       </span>
     );
   }

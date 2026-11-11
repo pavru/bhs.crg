@@ -15,7 +15,7 @@ namespace BHS.CRG.Application.Generation;
 /// </summary>
 public sealed class InvalidTemplateAssetNamesException(IReadOnlyList<string> names) : InvalidRequestException(
     "Ассеты шаблона с недопустимым именем: " + string.Join(", ", names.Select(n => $"«{n}»")) +
-    $". Удалите их и загрузите заново под именем, где только {TemplateAsset.ImageNameRule}.")
+    $". Удалите их и загрузите заново под допустимым именем — {TemplateAsset.ImageNameRule}.")
 {
     /// <summary>Имена ассетов как они записаны.</summary>
     public IReadOnlyList<string> Names { get; } = names;

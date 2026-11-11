@@ -91,32 +91,36 @@ public sealed class TypstCompileDirectory(IBlobStorage blob)
         // Точка входа библиотеки — всегда; рядом дерево userlib/ (issue #473).
         await UserLibMaterializer.WriteAsync(dir, request.UserLibContent, request.UserLibFiles, ct);
 
-        var invalidNames = new List<string>();
-        var fontsDir = await WriteTemplateAssetsAsync(
-            request, dir, Path.Combine(dir, TypstGenerator.AssetsSubdir), invalidNames, ct);
-        return new CompileLayout(fontsDir, unreadable, invalidNames);
+        var fontsDir = await WriteTemplateAssetsAsync(request, dir, Path.Combine(dir, TypstGenerator.AssetsSubdir), ct);
+        return new CompileLayout(fontsDir, unreadable, InvalidAssetNames(request));
     }
+
+    /// <summary>
+    /// Ассеты-картинки запроса с именем не по правилу (<see cref="TemplateAsset.IsValidImageName" />) — их
+    /// каталог не пишет (D3). Одно место на обоих: генерация отказывает по нему ещё до записи каталога,
+    /// отладочный пакет называет их в README.
+    /// </summary>
+    public static IReadOnlyList<string> InvalidAssetNames(GenerationRequest request)
+        => request.TemplateAssets is { } assets
+            ? [.. assets.Images.Where(i => !TemplateAsset.IsValidImageName(i.Name)).Select(i => i.Name)]
+            : [];
 
     /// <summary>
     /// Ассеты шаблона (issue #62), уже свёрнутые резолвером по приоритету. Картинки — в assets/ по
     /// стабильному Name (шаблон зовёт <c>image("/assets/{Name}.{ext}")</c>); шрифты — в fonts/: Typst
     /// находит шрифт по семейству, зашитому в файл, а не по имени файла.
     /// <para>Картинка с именем не по правилу (из старых данных или копии — новое такое не создать) не
-    /// скачивается и не пишется, а называется в <paramref name="invalidNames" />: её Name адресовал бы
-    /// не тот файл, что зовёт шаблон (D3).</para>
+    /// скачивается и не пишется (<see cref="InvalidAssetNames" />): её Name адресовал бы не тот файл,
+    /// что зовёт шаблон (D3).</para>
     /// </summary>
     private async Task<string?> WriteTemplateAssetsAsync(GenerationRequest request, string dir,
-        string assetsDir, List<string> invalidNames, CancellationToken ct)
+        string assetsDir, CancellationToken ct)
     {
         if (request.TemplateAssets is not { } assets) return null;
 
         foreach (var img in assets.Images)
         {
-            if (!TemplateAsset.IsValidImageName(img.Name))
-            {
-                invalidNames.Add(img.Name);
-                continue;
-            }
+            if (!TemplateAsset.IsValidImageName(img.Name)) continue;
             var bytes = await TypstFileMaterializer.TryDownloadAsync(blob, img.BlobPath, ct);
             if (bytes is null) continue;
             Directory.CreateDirectory(assetsDir);

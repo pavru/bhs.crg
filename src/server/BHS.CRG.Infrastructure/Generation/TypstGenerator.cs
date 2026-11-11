@@ -27,6 +27,13 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
         if (request.Format != OutputFormat.Pdf)
             throw new NotSupportedException("TypstGenerator supports only PDF format");
 
+        // Ассет с именем не по правилу (старые данные, копия) — отказ с его именем, а не документ без
+        // картинки (change core-template-asset-names, D3). ДО записи каталога: имена известны из запроса,
+        // и отказ не ждёт, пока скачаются картинки и вложения полей (вложение — до 100 МБ).
+        var invalidNames = TypstCompileDirectory.InvalidAssetNames(request);
+        if (invalidNames.Count > 0)
+            throw new InvalidTemplateAssetNamesException(invalidNames);
+
         var tmpDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tmpDir);
 
@@ -39,10 +46,6 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             // шаблон, выводящий её под условием, собрался бы, и PDF без подписи вышел бы молча.
             if (layout.UnreadableImages.Count > 0)
                 throw new UnreadableImagesException(layout.UnreadableImages);
-            // Ассет с именем не по правилу (старые данные, копия) не записан — отказ с его именем, а не
-            // документ без картинки (D3).
-            if (layout.InvalidAssetNames.Count > 0)
-                throw new InvalidTemplateAssetNamesException(layout.InvalidAssetNames);
 
             // Рабочая папка — tmpDir: шаблон видит "typeblocks.typ" без пути, и сам он назван
             // относительно. Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы

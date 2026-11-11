@@ -185,7 +185,7 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
     {
         // Адрес проверяет то же до загрузки файла; здесь — сторож для любого другого отправителя (D2).
         if (cmd.Kind == TemplateAssetKind.Image && !TemplateAsset.IsValidImageName(cmd.Name))
-            throw new InvalidRequestException($"Имя ассета-картинки — {TemplateAsset.ImageNameRule}.");
+            throw new InvalidRequestException($"Имя ассета-картинки — имя файла, а не путь: {TemplateAsset.ImageNameRule}.");
         var asset = TemplateAsset.Create(
             cmd.Scope, cmd.ScopeId, cmd.Kind, cmd.Name, cmd.FileName, cmd.MimeType, cmd.BlobPath, cmd.FontFamilyName);
         await repo.AddAsync(asset, ct);

@@ -40,21 +40,28 @@ public class TemplateAsset : Entity
 
     private TemplateAsset() { }
 
-    /// <summary>Допустимые знаки имени картинки — для текста отказа; источник правила — <see cref="IsValidImageName" />.</summary>
-    public const string ImageNameRule = "буквы, цифры, пробел, «-», «_» и «.»; без «/», «\\» и «..», без пробела в начале и в конце";
+    /// <summary>Правило имени картинки словами — для текста отказа; источник правила — <see cref="IsValidImageName" />.</summary>
+    public const string ImageNameRule =
+        "без «/», «\\», «:», «*», «?», «\"», «<», «>», «|» и «..», без управляющих знаков, без пробела в начале и в конце";
+
+    /// <summary>Знаки, которых в имени картинки нет: разделители пути и то, чего не берёт имя файла в Windows.</summary>
+    private const string ForbiddenImageNameChars = "/\\:*?\"<>|";
 
     /// <summary>
-    /// Имя ассета-картинки — простое имя файла (change core-template-asset-names, D2): буквы, цифры,
-    /// пробел, <c>-</c>, <c>_</c>, <c>.</c>, без <c>..</c> и без пробела по краям. Пробел путь не делит и
-    /// нарочно поддержан (#476: «ГОСТ 21.101. Форма 3»). Name становится частью пути <c>assets/{Name}{ext}</c>
-    /// в каталоге компиляции, и только простое имя адресует ровно тот файл, что зовёт шаблон. Имя
-    /// шрифта в путь не входит — правило к нему не применяется.
+    /// Имя ассета-картинки — имя файла, а не путь (change core-template-asset-names, D2). Name становится
+    /// частью пути <c>assets/{Name}{ext}</c> в каталоге компиляции, и только такое имя адресует ровно тот
+    /// файл, что зовёт шаблон. Запрещено узко — то, что меняет путь или не пишется файлом: разделители,
+    /// <c>..</c>, знаки, недопустимые в имени файла Windows, управляющие знаки, пробел по краям. Прочее
+    /// (скобки, запятые, «№», пробел внутри — #476: «ГОСТ 21.101. Форма 3») допустимо: файлы полей лежат
+    /// в своём <c>fields/</c> (D1), и до них такое имя не дотягивается, а запрет уронил бы прежние ассеты.
+    /// Примеры — общий набор <c>templateAssetNameCases.json</c>: по нему сверены сервер и подсказка клиента.
+    /// Имя шрифта в путь не входит — правило к нему не применяется.
     /// </summary>
     public static bool IsValidImageName(string? name)
         => !string.IsNullOrEmpty(name)
            && name[0] != ' ' && name[^1] != ' '
            && !name.Contains("..", StringComparison.Ordinal)
-           && name.All(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.');
+           && !name.Any(c => char.IsControl(c) || ForbiddenImageNameChars.Contains(c));
 
     public static TemplateAsset Create(
         TemplateAssetScope scope, Guid? scopeId, TemplateAssetKind kind,

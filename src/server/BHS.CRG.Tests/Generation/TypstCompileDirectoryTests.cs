@@ -190,8 +190,9 @@ public sealed class TypstCompileDirectoryTests : IDisposable
     }
 
     /// <summary>
-    /// Ассет с именем не по правилу (старые данные, копия) не скачивается и не пишется — ни в каталог,
-    /// ни мимо него, — а называется в раскладке: по ней генерация откажет, а README назовёт (D3).
+    /// Ассет с именем не по правилу (старые данные, копия) не скачивается и не пишется, а называется в
+    /// раскладке: по ней README назовёт его (D3). Каталог — ровно тот же, что без этого ассета: сверка
+    /// всего дерева, а не одного ожидаемого пути, — иначе файл, записанный под другим именем, прошёл бы.
     /// </summary>
     [Fact]
     public async Task InvalidAssetName_IsNotWritten_ButNamed()
@@ -200,42 +201,48 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         var reads = 0;
         _spy.BeforeRead["b/bad.png"] = () => reads++;
         await PutAsync("b/bad.png", [99]);
-        const string name = "../img_0";
-        request = request with
+        const string name = "схема|1";
+        var withBad = request with
         {
-            TemplateAssets = new ResolvedTemplateAssets(
-                [new ResolvedImageAsset(name, "x.png", "image/png", "b/bad.png"),
-                 new ResolvedImageAsset("logo", "logo.png", "image/png", "b/logo.png")], []),
+            TemplateAssets = request.TemplateAssets! with
+            {
+                Images = [new ResolvedImageAsset(name, "x.png", "image/png", "b/bad.png"), .. request.TemplateAssets.Images],
+            },
         };
 
-        var layout = await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
+        await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
+        var expected = Files();
+        Directory.Delete(_dir, recursive: true);
+        Directory.CreateDirectory(_dir);
+        var layout = await new TypstCompileDirectory(_spy).WriteAsync(withBad, _dir, JsonLayout.Compact, default);
 
         Assert.Equal([name], layout.InvalidAssetNames);
         Assert.Equal(0, reads);
-        Assert.Contains("assets/logo.png", Files());
-        Assert.False(File.Exists(Path.Combine(_dir, "assets", name + ".png")));
+        Assert.Equal(expected, Files());
     }
 
     /// <summary>
-    /// Генерация с таким ассетом отказывает ДО компиляции и называет его (D3) — Typst здесь не нужен:
-    /// дойди дело до компилятора, тест упал бы на его поиске, а не на отказе.
+    /// Генерация с таким ассетом отказывает и называет его (D3) — ДО записи каталога: ни один файл
+    /// полей не скачан. Typst здесь не нужен: дойди дело до компилятора, тест упал бы на его поиске.
     /// </summary>
     [Fact]
-    public async Task Generation_WithInvalidAssetName_RefusesNamingIt()
+    public async Task Generation_WithInvalidAssetName_RefusesBeforeDownloading()
     {
         var request = await RequestAsync();
         request = request with
         {
             TemplateAssets = new ResolvedTemplateAssets(
-                [new ResolvedImageAsset("logo(2)", "x.png", "image/png", "b/logo.png")], []),
+                [new ResolvedImageAsset("схема:1", "x.png", "image/png", "b/logo.png")], []),
         };
+        _spy.Reads.Clear();
 
         var ex = await Assert.ThrowsAsync<InvalidTemplateAssetNamesException>(
             () => new TypstGenerator(_spy, NullLogger<TypstGenerator>.Instance).GenerateAsync(request));
 
-        Assert.Equal(["logo(2)"], ex.Names);
-        Assert.Contains("«logo(2)»", ex.Message);
+        Assert.Equal(["схема:1"], ex.Names);
+        Assert.Contains("«схема:1»", ex.Message);
         Assert.Contains("загрузите заново", ex.Message);
+        Assert.Empty(_spy.Reads);
     }
 
     /// <summary>Отладочный комплект с таким ассетом отдаётся: файла ассета в нём нет, README его называет (D3).</summary>
@@ -246,18 +253,17 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         request = request with
         {
             TemplateAssets = new ResolvedTemplateAssets(
-                [new ResolvedImageAsset("../img_0", "x.png", "image/png", "b/logo.png")], []),
+                [new ResolvedImageAsset("схема|1", "x.png", "image/png", "b/logo.png")], []),
         };
 
         var zip = await new TypstGenerator(_spy, NullLogger<TypstGenerator>.Instance)
             .DebugBundleAsync(request, BundleNotes.None);
 
         using var archive = new ZipArchive(new MemoryStream(zip));
-        Assert.DoesNotContain(archive.Entries, e => e.FullName.EndsWith("img_0.png", StringComparison.Ordinal)
-                                                    && !e.FullName.StartsWith("fields/", StringComparison.Ordinal));
+        Assert.DoesNotContain(archive.Entries, e => e.FullName.StartsWith("assets/", StringComparison.Ordinal));
         var readme = archive.GetEntry("README.txt");
         Assert.NotNull(readme);
         using var reader = new StreamReader(readme.Open());
-        Assert.Contains("[invalid-asset-name] ../img_0", await reader.ReadToEndAsync());
+        Assert.Contains("[invalid-asset-name] схема|1", await reader.ReadToEndAsync());
     }
 }

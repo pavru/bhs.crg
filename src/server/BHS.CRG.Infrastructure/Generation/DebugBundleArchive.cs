@@ -61,7 +61,7 @@ public static class DebugBundleArchive
         foreach (var field in layout.UnreadableImages)
             sb.Append($"  - [unreadable-image] {field}: картинка не прочитана из хранилища — файла нет или он недоступен документу.\r\n");
         foreach (var name in layout.InvalidAssetNames)
-            sb.Append($"  - [invalid-asset-name] {name}: имя ассета шаблона недопустимо, файл не записан — удалите ассет и загрузите заново под именем, где только {TemplateAsset.ImageNameRule}.\r\n");
+            sb.Append($"  - [invalid-asset-name] {name}: имя ассета шаблона недопустимо, файл не записан — удалите ассет и загрузите заново под допустимым именем — {TemplateAsset.ImageNameRule}.\r\n");
         return sb.ToString();
     }
 }
