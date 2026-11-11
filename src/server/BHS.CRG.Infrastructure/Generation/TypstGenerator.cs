@@ -12,13 +12,27 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
     public const string TypeBlocksFileName = TypeBlockSlug.EntrypointName;
     public const string DataFileName = "data.json";
     public const string UserLibFileName = "userlib.typ";
+    /// <summary>Ассеты шаблона — и только они: путь <c>image("/assets/{Name}{ext}")</c> пишет автор шаблона.</summary>
     public const string AssetsSubdir = "assets";
+    /// <summary>
+    /// Картинки и вложения полей (<c>img_N</c>, <c>att_N</c>). Свой каталог, а не <c>assets/</c>: имя
+    /// ассета выбирает человек, и в общем каталоге ассет <c>img_0</c> заменял картинку поля молча
+    /// (change core-template-asset-names, D1). Шаблон берёт путь поля из <c>.src</c>, сам его не пишет.
+    /// </summary>
+    public const string FieldsSubdir = "fields";
     public const string FontsSubdir = "fonts";
 
     public async Task<byte[]> GenerateAsync(GenerationRequest request, CancellationToken ct = default)
     {
         if (request.Format != OutputFormat.Pdf)
             throw new NotSupportedException("TypstGenerator supports only PDF format");
+
+        // Ассет с именем не по правилу (старые данные, копия) — отказ с его именем, а не документ без
+        // картинки (change core-template-asset-names, D3). ДО записи каталога: имена известны из запроса,
+        // и отказ не ждёт, пока скачаются картинки и вложения полей (вложение — до 100 МБ).
+        var invalidNames = TypstCompileDirectory.InvalidAssetNames(request);
+        if (invalidNames.Count > 0)
+            throw new InvalidTemplateAssetNamesException(invalidNames);
 
         var tmpDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tmpDir);

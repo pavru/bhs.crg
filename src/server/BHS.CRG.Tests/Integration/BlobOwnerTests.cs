@@ -101,7 +101,7 @@ public class BlobOwnerTests(IntegrationTestFixture fixture) : IAsyncLifetime
             // Узел файла модуля остался ссылкой — в документ ничего не легло; картинка ядра стала файлом.
             Assert.Equal(module, (string?)node["Скан"]!["blobPath"]);
             Assert.NotNull(node["Подпись"]!["src"]);
-            Assert.Single(Directory.GetFiles(Path.Combine(dir, "assets")));
+            Assert.Single(Directory.GetFiles(Path.Combine(dir, "fields")));
         }
         finally
         {

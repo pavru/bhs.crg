@@ -33,7 +33,7 @@ public class TypstImageMaterializerTests
             var json = await TypstImageMaterializer.MaterializeAsync(data, dir);
 
             // записаны четыре файла-изображения (Логотип, Печать, СканПечати, Материалы[0].Фото)
-            var files = Directory.GetFiles(Path.Combine(dir, "assets"));
+            var files = Directory.GetFiles(Path.Combine(dir, "fields"));
             Assert.Equal(4, files.Length);
             Assert.All(files, f => Assert.EndsWith(".png", f));
 
@@ -43,19 +43,19 @@ public class TypstImageMaterializerTests
 
             // размер взят из значения-объекта
             var logo = root.GetProperty("Логотип");
-            Assert.StartsWith("/assets/img_", logo.GetProperty("src").GetString());
+            Assert.StartsWith("/fields/img_", logo.GetProperty("src").GetString());
             Assert.Equal("4cm", logo.GetProperty("width").GetString());
             Assert.Equal("center", logo.GetProperty("align").GetString());
             Assert.Equal(JsonValueKind.Null, logo.GetProperty("height").ValueKind);
 
             // голая строка → объект без размера (все опции null)
             var seal = root.GetProperty("Печать");
-            Assert.StartsWith("/assets/img_", seal.GetProperty("src").GetString());
+            Assert.StartsWith("/fields/img_", seal.GetProperty("src").GetString());
             Assert.Equal(JsonValueKind.Null, seal.GetProperty("width").ValueKind);
             Assert.Equal(JsonValueKind.Null, seal.GetProperty("align").ValueKind);
 
-            Assert.StartsWith("/assets/img_", root.GetProperty("Орг").GetProperty("СканПечати").GetProperty("src").GetString());
-            Assert.StartsWith("/assets/img_", root.GetProperty("Материалы")[0].GetProperty("Фото").GetProperty("src").GetString());
+            Assert.StartsWith("/fields/img_", root.GetProperty("Орг").GetProperty("СканПечати").GetProperty("src").GetString());
+            Assert.StartsWith("/fields/img_", root.GetProperty("Материалы")[0].GetProperty("Фото").GetProperty("src").GetString());
             // не-картиночные строки не тронуты
             Assert.Equal("ООО", root.GetProperty("Орг").GetProperty("Имя").GetString());
             Assert.Equal("нет", root.GetProperty("Материалы")[1].GetProperty("Фото").GetString());
@@ -73,7 +73,7 @@ public class TypstImageMaterializerTests
         {
             var json = await TypstImageMaterializer.MaterializeAsync(
                 new Dictionary<string, object?> { ["A"] = El("x"), ["N"] = El(5) }, dir);
-            Assert.False(Directory.Exists(Path.Combine(dir, "assets")));
+            Assert.False(Directory.Exists(Path.Combine(dir, "fields")));
             Assert.Contains("\"A\"", json);
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
@@ -104,14 +104,14 @@ public class TypstImageMaterializerTests
 
             var json = await TypstImageMaterializer.MaterializeAsync(data, dir, blob);
 
-            var files = Directory.GetFiles(Path.Combine(dir, "assets"));
+            var files = Directory.GetFiles(Path.Combine(dir, "fields"));
             Assert.Single(files);
             Assert.EndsWith(".png", files[0]);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(files[0]));
 
             using var doc = JsonDocument.Parse(json);
             var node = doc.RootElement.GetProperty("Печать");
-            Assert.StartsWith("/assets/img_", node.GetProperty("src").GetString());   // путь от корня (#513)
+            Assert.StartsWith("/fields/img_", node.GetProperty("src").GetString());   // путь от корня (#513)
             Assert.Equal("4cm", node.GetProperty("width").GetString());               // опции сохранены
             Assert.Equal("center", node.GetProperty("align").GetString());
             Assert.False(node.TryGetProperty("$type", out _));                        // служебное наружу не течёт
@@ -151,10 +151,10 @@ public class TypstImageMaterializerTests
 
             var json = await TypstImageMaterializer.MaterializeAsync(data, dir, blob);
 
-            Assert.Equal(2, Directory.GetFiles(Path.Combine(dir, "assets")).Length);
-            Assert.Contains("/assets/img_0.jpg", json);              // из "jp g!" остались буквы и цифры
-            Assert.Contains("/assets/img_1.aaaaaaaa", json);         // хвост обрезан до восьми
-            Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(dir, "assets", "img_0.jpg")));
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(dir, "fields")).Length);
+            Assert.Contains("/fields/img_0.jpg", json);              // из "jp g!" остались буквы и цифры
+            Assert.Contains("/fields/img_1.aaaaaaaa", json);         // хвост обрезан до восьми
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(dir, "fields", "img_0.jpg")));
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }

@@ -62,7 +62,7 @@ public class DataSetResolver(
         var forPersist = standing is not null;
         // Порядок привязок закреплён ключом (issue #1402, DataSetBindingOrder). Без него привязки шли в
         // порядке строк в куче, и после pg_restore у того же документа менялся порядок `_dataSets` и
-        // нумерация вложений `assets/att_N`, а из двух привязок в одно поле побеждала то одна, то другая.
+        // нумерация вложений `fields/att_N`, а из двух привязок в одно поле побеждала то одна, то другая.
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
