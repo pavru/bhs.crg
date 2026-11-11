@@ -2,9 +2,12 @@
 
 ## 0. До кода
 
-- [ ] 0.1 Решения владельца и Архитектора на В-2 (объявление очереди) и В-3 (хранение «Недавних»)
-  вписаны в `design.md` (В-1 решён 22.10.2026 — вариант Б, вписан в `plan-02-navigation` и
-  `work-03-navigation`). Проверка — Open Questions содержит ответы, задачи ниже сверены с ними
+- [x] 0.1 Решения на В-2 (объявление очереди — Б, очереди счетов тоже), В-3 («Недавние» — таблица ядра)
+  и В-4 (адрес Главной — `/home`) вписаны в `design.md` 11.11.2026 (В-1 решён 22.10.2026 — вариант Б, вписан
+  в `plan-02-navigation` и `work-03-navigation`). Проверка — Open Questions содержит ответы, задачи ниже
+  сверены с ними
+- [ ] 0.1a Форма серверного объявления очереди (свойство `IAppModule` или контракт «Очереди Главной» со
+  многими поставщиками) уточнена Архитектором и вписана в `design.md`. Проверка — строка в «Ждут вас»
 - [ ] 0.2 Разбор с Архитектором (раздел рейла без подпанели в `shared/ui`) и Дизайнером (телефон, пустые
   состояния — их нет на артборде «B · Главная») — комментарием к #1436 (`docs/UI.md`, «Новый экран:
   порядок», шаг 1). Макет выбран решением эпика — новых вариантов не нужно. Проверка — ссылка на
@@ -12,11 +15,13 @@
 
 ## 1. PR 1: раздел и страница
 
-- [ ] 1.1 `navConfig.ts`: `RailId` += `'home'`, первым, `unscoped`, признак `panel: false`; пункт `/` без
-  права; `AppShell` не рисует подпанель, `BottomNav` ставит «Главную» первой [UI-33]. Проверка —
-  `railSections.test.ts`, `phoneShell.test.tsx`
-- [ ] 1.2 Индекс-маршрут `App.tsx` зовёт `entryPage` с Главной — пунктом ранга `HOME_ENTRY_RANK` (В-1 решён: вариант Б);
-  живые прогоны, начинавшие с `/`, — на явный адрес [UI-33]. Проверка — vitest маршрута; `routing-smoke`
+- [ ] 1.1 `navConfig.ts`: `RailId` += `'home'`, первым, `unscoped`, признак `panel: false`; пункт `/home`
+  без права с рангом `HOME_ENTRY_RANK`; `AppShell` не рисует подпанель, `BottomNav` ставит «Главную»
+  первой, `phoneChrome` убирает «Систему» своим признаком, а не `unscoped` [UI-33]. Проверка —
+  `railSections.test.ts`, `phoneShell.test.tsx`: на телефоне «Главная» есть, «Системы» нет
+- [ ] 1.2 Пункт Главной — пункт ядра ранга `HOME_ENTRY_RANK` (`isHomeItem`); индекс-маршрут уже зовёт
+  `entryPage` (`EntryRedirect`, #1588; В-1 решён: вариант Б); живые прогоны, начинавшие с `/`, — на явный
+  адрес [UI-33]. Проверка — `entryPage.test.ts` с объявленной Главной; `routing-smoke`
 - [ ] 1.3 `features/home/HomePage.tsx`: заголовок через `PageHeader`, подзаголовок, блоки по порядку;
   пользователь без модулей видит «Недавние» и «Полезно знать» [UI-33]. Проверка — `HomePage.test.tsx`
 
@@ -25,10 +30,13 @@
 - [ ] 2.1 Экран счетов принимает `?queue=` (`parsing`, `unrecognized`, `lost`, `archived`), чип пишет его
   заменой записи истории, незнакомое значение — без отбора [COST-6.2]. Проверка — vitest страницы;
   обновление страницы сохраняет отбор
-- [ ] 2.2 Реестр очередей по ответу В-2 (рекомендация — `shared/ui/homeQueues.ts` и
-  `features/costs/homeQueues.ts`): числа — `useParsingCount`, `useInvoiceQueues`; видимость — тем же
-  правилом, что чип на экране [UI-34]. Проверка — `homeQueues.test.ts`: у каждой очереди экран
-  принимает `href`
+- [ ] 2.2 По В-2 (Б): объявление очередей модулем `costs` (четыре очереди счетов, ключи — правило чипа) и
+  `GET /api/home/queues` — открытые и включённые, отказ модуля — `refused`; адрес — в
+  `EndpointGateInventoryTests`; счётчики — тот же код, что у адресов очередей [UI-34] [AUTH-9]. Проверка —
+  `HomeQueuesTests`: число совпадает с `/api/costs/invoices/queues`; роль только с накладными очередей
+  счетов не получает; выключенный `costs` — 200 без них
+- [ ] 2.2a Клиент: таблица `(module, id) → href`, карточки из ответа [UI-34]. Проверка —
+  `homeQueues.test.ts`: у каждой очереди есть адрес, и экран принимает его параметр
 - [ ] 2.3 Карточки: только непустые и открытые; «?» при `doubt`; отказ — «не посчитано»; все пусты —
   «Сейчас ничего не ждёт» [UI-34]. Проверка — `HomePage.test.tsx`; роль только с накладными карточек
   счетов не видит
@@ -52,7 +60,7 @@
   повтор поднимает; личные адреса в `EndpointGateInventoryTests`; без `If-Match` — названное исключение
   (`design.md`) [CORE-25.3] [AUTH-9]. Проверка — `RecentRecordsTests`: повтор, вытеснение, чужого не
   получить, без входа — 401
-- [ ] 4.3 Разрешение при чтении через владельца типа (то же объявление, что поиск `shell-05`): удалённые,
+- [ ] 4.3 Разрешение при чтении через владельца типа (тот же контракт «Поиск записей», что у `shell-05`): удалённые,
   закрытые правами и записи выключенного модуля не отдаются [CORE-25.3]. Проверка — `RecentRecordsTests`;
   версия счёта после отметки не меняется
 - [ ] 4.4 `useRecentTouch` на экранах из `RECORD_ROUTES` (дописать стройку, комплект, набор данных,
@@ -68,7 +76,7 @@
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecentRecords|FullyQualifiedName~UserSetting|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~InvoiceScanList"` — зелёный
+- [ ] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~HomeQueues|FullyQualifiedName~RecentRecords|FullyQualifiedName~UserSetting|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~InvoiceScanList"` — зелёный
 - [ ] 6.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [ ] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
 - [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
