@@ -231,7 +231,8 @@ public sealed class CostsModule : IAppModule
     /// накладные (ТЗ COST-16).
     /// </summary>
     public IReadOnlyList<string> UsesSections =>
-        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Periods];
+        // Сотрудники — рядом со справочниками: реквизиты сотрудника правит только их экран (C15, work-01).
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Periods];
 
     /// <summary>
     /// В справочники ядра модуль заводит одно — организацию из скана счёта (issue #1077): название и

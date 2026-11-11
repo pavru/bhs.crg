@@ -35,6 +35,14 @@ describe('навигация по правам', () => {
       .toEqual(['Типы документов', 'Составные типы', 'Типы полей', 'Сопоставление полей']);
   });
 
+  // «Сотрудники» (work-01): своё право чтения, право на общие данные пункт не открывает.
+  it('пункт «Сотрудники» скрыт без core.employees.read', () => {
+    expect(visibleNav(workNav, access(['core.catalog.read'])).map(i => i.label)).not.toContain('Сотрудники');
+    const shown = visibleNav(workNav, access(['core.employees.read'])).filter(i => !isHomeItem(i));
+    expect(shown.map(i => i.label)).toEqual(['Сотрудники']);
+    expect(shown[0]).toMatchObject({ to: '/employees', section: 'employees', rail: 'data' });
+  });
+
   it('пустой доступ не показывает ни одного пункта, кроме Главной', () => {
     // Главная открыта каждому вошедшему (shell-08, [UI-33]); работой она не считается (`hasWork`).
     expect(visibleNav(workNav, access([])).map(i => i.to)).toEqual(['/home']);

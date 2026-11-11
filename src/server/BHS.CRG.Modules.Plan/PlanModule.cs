@@ -127,8 +127,11 @@ public sealed class PlanModule : IAppModule
     ///
     /// <para>Учётного периода, наборов данных и сверки модулю не нужно. «Ход работ» дописывает
     /// <c>plan-25</c>, когда заведёт свою константу раздела.</para>
+    ///
+    /// <para>Сотрудники — там же, где справочники: реквизиты сотрудника правит только их экран (C15, work-01),
+    /// и пространство со справочниками без него осталось бы без двери к сотрудникам.</para>
     /// </summary>
-    public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog];
+    public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
 
     /// <summary>
     /// Свой контекст, действия журнала, запись редакции и разбор файла импорта (фоновой операцией, <c>plan-07</c>). Строку подключения модуль берёт из настроек

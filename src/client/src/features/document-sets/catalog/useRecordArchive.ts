@@ -1,9 +1,6 @@
-import { ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
+import { EMPLOYEE_CODE, ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
 import type { DocumentType } from '@/shared/api/types';
 import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
-
-/** Код типа «Сотрудник» в ядре (зеркало серверного `CoreRecordTypes.EmployeeCode`). */
-const EMPLOYEE_TYPE_CODE = 'Сотрудник';
 
 /** Версия нужна двери видов работ: в архив вид работы уходит только с ней (WORK-59). */
 type Target = { id: string; displayName: string; compositeTypeId: string; archived?: boolean; version?: string };
@@ -19,6 +16,8 @@ export function useRecordArchive(types: DocumentType[]) {
   const toast = useSnackbar();
 
   const typeOf = (entry: Target) => types.find(t => t.id === entry.compositeTypeId);
+  // Сотрудник — вся семья справочника, с подтипами: их пишет та же дверь (ревью PR #1908).
+  const isEmployee = (entry: Target) => ownDoorCode(entry.compositeTypeId, types) === EMPLOYEE_CODE;
 
   /**
    * Сменить состояние; отказ летит наружу — его показывает тот, кто звал (диалог удаления).
@@ -33,7 +32,7 @@ export function useRecordArchive(types: DocumentType[]) {
     }
     // Сотрудник: архив — не увольнение. Оговорка нужна ровно здесь: человек, убравший сотрудника из
     // выбора, иначе решит, что заодно закрыл ему период работы.
-    const tail = typeOf(entry)?.code === EMPLOYEE_TYPE_CODE
+    const tail = isEmployee(entry)
       ? 'Дата «Уволен с» не менялась.'
       : 'В списках выбора её больше не будет.';
     toast.success(`Запись «${entry.displayName}» — в архиве. ${tail}`, {
@@ -62,6 +61,6 @@ export function useRecordArchive(types: DocumentType[]) {
       const t = typeOf(entry);
       return !!entry.archived || !t || t.module.toLowerCase() === 'core';
     },
-    isEmployee: (entry: Target) => typeOf(entry)?.code === EMPLOYEE_TYPE_CODE,
+    isEmployee,
   };
 }

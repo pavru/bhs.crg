@@ -50,7 +50,7 @@ public sealed class CreateEmployeeDirectoryHandler(IRepository<DocumentType> typ
         var all = await types.GetAllAsync(ct);
         if (Find(all, CoreRecordTypes.EmployeeCode) is { } existing)
             // «Уже заведён» — только тот тип, который видит дверь сотрудников: её код, буква в букву
-            // (EmployeeEndpoints.EmployeeTypeIdAsync). Тип того же кода в другом регистре дверь не
+            // (EmployeeEndpoints.Family). Тип того же кода в другом регистре дверь не
             // находит, и ответ «заведён» оставил бы экран пустым с отчётом об успехе. Проецировать
             // поверх него тоже нельзя — это перепроекция существующего типа (F2), поэтому — отказ.
             return existing.Code == CoreRecordTypes.EmployeeCode
