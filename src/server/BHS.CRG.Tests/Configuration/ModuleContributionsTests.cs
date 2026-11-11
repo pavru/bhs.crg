@@ -97,6 +97,22 @@ public class ModuleContributionsTests
             Reader, TimeSpan.FromSeconds(5), (q, _, ct) => q.AskAsync(ct), gone.Token));
     }
 
+    // Предел вышел — токен поставщика отменён к ответу, а не когда-нибудь: иначе слушающий токен запрос EF
+    // держал бы область и соединение пула до своего конца (ревью #1913: WaitAsync может опередить CancelAfter).
+    [Fact]
+    public async Task По_пределу_токен_поставщика_отменён_к_ответу()
+    {
+        var handed = CancellationToken.None;
+        var answer = await Contributions().AskAsync<Guid>("listening", "проба", Short, (_, token) =>
+        {
+            handed = token;
+            return Task.Delay(Timeout.Infinite, token).ContinueWith(_ => Guid.Empty, TaskScheduler.Default);
+        }, CancellationToken.None);
+
+        Assert.Contains("нет ответа", answer.Refused);
+        Assert.True(handed.IsCancellationRequested);
+    }
+
     // Своя отмена поставщика в пределе (HTTP-клиент плагина сдался через 100 мс) — его ошибка, а не наш
     // таймаут: человеку «ошибка сервера», причина — в журнал.
     [Fact]

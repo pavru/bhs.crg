@@ -95,9 +95,28 @@ public sealed class ModuleContributions(IServiceScopeFactory scopes, ILogger<Mod
         {
             // Поставщик, не услышавший токена, ещё работает в этой области: убрать её можно только за ним —
             // и его поздний отказ тоже в журнал, иначе он не виден нигде.
-            if (task is { IsCompleted: false }) _ = task.ContinueWith(late => ReleaseAsync(late, scope, module, label),
-                TaskScheduler.Default).Unwrap();
+            if (task is { IsCompleted: false })
+            {
+                // Отмена — явно: у WaitAsync и CancelAfter один предел, и сработай WaitAsync первым, `using`
+                // убрал бы источник вместе с таймером, не отменив токена. Поставщик, который токен слушает
+                // (запрос EF), тогда держал бы область и соединение пула до своего конца, а не до предела.
+                Cancel(deadline, module, label);
+                _ = task.ContinueWith(late => ReleaseAsync(late, scope, module, label), TaskScheduler.Default).Unwrap();
+            }
             else await scope.DisposeAsync();
+        }
+    }
+
+    private void Cancel(CancellationTokenSource deadline, string module, string label)
+    {
+        try
+        {
+            deadline.Cancel();
+        }
+        catch (AggregateException ex)
+        {
+            // Бросил обработчик отмены, зарегистрированный поставщиком: ответ уже отказ, причина — в журнал.
+            log.LogError(ex, "Отмена запроса модуля «{Module}» отказала ({Label}).", module, label);
         }
     }
 
