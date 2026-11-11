@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>
-/// Имя ассета-картинки — простое имя файла (ТЗ CORE-21; change core-template-asset-names, D2): оно
+/// Имя ассета-картинки — простое имя файла, пробел допустим (ТЗ CORE-21; change core-template-asset-names, D2): оно
 /// становится путём <c>assets/{Name}{ext}</c> в каталоге компиляции. Отказ — 400 с названным правилом,
 /// и ДО загрузки файла: отклонённое имя не оставляет в хранилище сироты. Имя шрифта в путь не входит.
 /// </summary>
@@ -36,7 +36,7 @@ public class TemplateAssetNameTests(IntegrationTestFixture fixture) : IAsyncLife
 
     [Theory]
     [InlineData("fields/img_0")]
-    [InlineData("Логотип компании")]
+    [InlineData("logo(2)")]
     [InlineData("a..b")]
     public async Task Негодное_имя_картинки_отклоняется_до_загрузки(string name)
     {
@@ -58,11 +58,11 @@ public class TemplateAssetNameTests(IntegrationTestFixture fixture) : IAsyncLife
     {
         var admin = await AccessProbe.SignInAsync(fixture, SystemRoles.Admin, "asset");
 
-        var response = await UploadAsync(admin, "logo.png", Png, "логотип-2.v1");
+        var response = await UploadAsync(admin, "f3.png", Png, "ГОСТ 21.101. Форма 3");
 
         response.EnsureSuccessStatusCode();
         var asset = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("логотип-2.v1", asset.GetProperty("name").GetString());
+        Assert.Equal("ГОСТ 21.101. Форма 3", asset.GetProperty("name").GetString());
     }
 
     /// <summary>Имя шрифта — справка, не путь: файл ложится как fonts/font_N, правило к нему не применяется.</summary>

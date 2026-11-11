@@ -41,18 +41,20 @@ public class TemplateAsset : Entity
     private TemplateAsset() { }
 
     /// <summary>Допустимые знаки имени картинки — для текста отказа; источник правила — <see cref="IsValidImageName" />.</summary>
-    public const string ImageNameRule = "буквы, цифры, «-», «_» и «.»; без «/», «\\» и «..»";
+    public const string ImageNameRule = "буквы, цифры, пробел, «-», «_» и «.»; без «/», «\\» и «..», без пробела в начале и в конце";
 
     /// <summary>
     /// Имя ассета-картинки — простое имя файла (change core-template-asset-names, D2): буквы, цифры,
-    /// <c>-</c>, <c>_</c>, <c>.</c>, без <c>..</c>. Name становится частью пути <c>assets/{Name}{ext}</c>
+    /// пробел, <c>-</c>, <c>_</c>, <c>.</c>, без <c>..</c> и без пробела по краям. Пробел путь не делит и
+    /// нарочно поддержан (#476: «ГОСТ 21.101. Форма 3»). Name становится частью пути <c>assets/{Name}{ext}</c>
     /// в каталоге компиляции, и только простое имя адресует ровно тот файл, что зовёт шаблон. Имя
     /// шрифта в путь не входит — правило к нему не применяется.
     /// </summary>
     public static bool IsValidImageName(string? name)
         => !string.IsNullOrEmpty(name)
+           && name[0] != ' ' && name[^1] != ' '
            && !name.Contains("..", StringComparison.Ordinal)
-           && name.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.');
+           && name.All(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.');
 
     public static TemplateAsset Create(
         TemplateAssetScope scope, Guid? scopeId, TemplateAssetKind kind,

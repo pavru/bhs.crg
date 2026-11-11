@@ -45,3 +45,19 @@ export function imageAssetPath(asset: Pick<TemplateAssetDto, 'name' | 'fileName'
 export function assetReference(asset: TemplateAssetDto): string | null {
   return asset.kind === 'Image' ? imageAssetPath(asset) : asset.fontFamilyName;
 }
+
+/**
+ * Подсказка имени ассета из имени файла (change core-template-asset-names, D4) — расширение снято,
+ * знаки вне правила имени картинки заменены на «_», «..» свёрнуто, пробелы по краям сняты.
+ *
+ * Правило — серверное (`TemplateAsset.IsValidImageName`): буквы, цифры, пробел, «-», «_», «.», без
+ * «/», «\» и «..», без пробела по краям. Здесь только подсказка: отказ по-прежнему приходит с сервера.
+ * Без неё имя, предложенное из «Печать (скан).png», отклонялось бы сразу после выбора файла.
+ */
+export function suggestAssetName(fileName: string): string {
+  const stem = extensionOf(fileName) ? fileName.slice(0, -extensionOf(fileName).length) : fileName;
+  return stem
+    .replace(/[^\p{L}\p{N} ._-]/gu, '_')
+    .replace(/\.{2,}/g, '.')
+    .trim();
+}

@@ -227,14 +227,14 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         request = request with
         {
             TemplateAssets = new ResolvedTemplateAssets(
-                [new ResolvedImageAsset("Логотип компании", "x.png", "image/png", "b/logo.png")], []),
+                [new ResolvedImageAsset("logo(2)", "x.png", "image/png", "b/logo.png")], []),
         };
 
         var ex = await Assert.ThrowsAsync<InvalidTemplateAssetNamesException>(
             () => new TypstGenerator(_spy, NullLogger<TypstGenerator>.Instance).GenerateAsync(request));
 
-        Assert.Equal(["Логотип компании"], ex.Names);
-        Assert.Contains("«Логотип компании»", ex.Message);
+        Assert.Equal(["logo(2)"], ex.Names);
+        Assert.Contains("«logo(2)»", ex.Message);
         Assert.Contains("загрузите заново", ex.Message);
     }
 

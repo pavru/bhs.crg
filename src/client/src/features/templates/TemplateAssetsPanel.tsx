@@ -7,7 +7,7 @@ import {
   useListTemplateAssets, useUploadTemplateAsset, useReplaceTemplateAsset, useDeleteTemplateAsset,
   type TemplateAssetDto, type TemplateAssetScope,
 } from '@/shared/api/templateAssets';
-import { assetReference } from '@/shared/api/templateAssetRef';
+import { assetReference, suggestAssetName } from '@/shared/api/templateAssetRef';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.svg,.ttf,.otf,.ttc';
@@ -120,7 +120,7 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    const name = window.prompt('Имя ассета (используется в коде шаблона для картинок):', file.name.replace(/\.[^.]+$/, ''));
+    const name = window.prompt('Имя ассета (используется в коде шаблона для картинок):', suggestAssetName(file.name));
     if (!name) return;
     setError('');
     try { await uploadMutation.mutateAsync({ file, scope, scopeId, name }); }

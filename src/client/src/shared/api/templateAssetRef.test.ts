@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extensionOf, imageAssetPath, assetReference } from './templateAssetRef';
+import { extensionOf, imageAssetPath, assetReference, suggestAssetName } from './templateAssetRef';
 import type { TemplateAssetDto } from './templateAssets';
 
 const asset = (p: Partial<TemplateAssetDto>): TemplateAssetDto => ({
@@ -49,4 +49,15 @@ describe('assetReference', () => {
    *  которая молча не сработает. */
   it('шрифт без распознанного семейства — ссылки нет', () =>
     expect(assetReference(asset({ kind: 'Font', name: 'gost-type-a', fontFamilyName: null }))).toBeNull());
+});
+
+describe('suggestAssetName', () => {
+  it.each([
+    ['img.png', 'img'],
+    ['ГОСТ 21.101. Форма 3.svg', 'ГОСТ 21.101. Форма 3'],   // пробелы и точки допустимы (#476)
+    ['Печать (скан).png', 'Печать _скан_'],
+    ['a..b.svg', 'a.b'],
+    [' logo .png', 'logo'],
+    ['noext', 'noext'],
+  ])('%s → «%s»', (file, name) => expect(suggestAssetName(file)).toBe(name));
 });
