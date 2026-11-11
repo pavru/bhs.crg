@@ -114,43 +114,55 @@ public sealed class CoreRecordSearch(AppDbContext db) : IRecordSearch
             .Select(f => new { f.Id, f.Name, f.Scope, f.ScopeId })
             .ToListAsync(ct);
         var places = await PlacesAsync([.. rows.Select(r => (r.Scope, r.ScopeId))], ct);
-        return
-        [
-            .. rows.Select(r => new RecordSearchHit(r.Id, r.Name,
-                Place: r.ScopeId is { } id && places.TryGetValue((r.Scope, id), out var place) ? place : null)),
-        ];
+        return [.. rows.Select(r => Card(r.Id, r.Name, r.Scope, r.ScopeId, places))];
     }
 
     /// <summary>
-    /// Стройка уровня набора: своя у стройки, у раздела — его стройка, у комплекта — стройка его раздела.
-    /// Системный набор места не имеет.
+    /// Карточка набора: место словами и уровень — им клиент открывает экран уровня. Уровень, которого не
+    /// нашлось (стройку удалили), не называется вовсе: адрес на несуществующую стройку вёл бы в отказ.
     /// </summary>
-    private async Task<Dictionary<(CatalogScope, Guid), string>> PlacesAsync(
+    private static RecordSearchHit Card(Guid id, string name, CatalogScope scope, Guid? scopeId,
+        Dictionary<(CatalogScope, Guid), Place> places)
+    {
+        if (scope == CatalogScope.System) return new(id, name, Level: new(nameof(CatalogScope.System)));
+        if (scopeId is not { } at || !places.TryGetValue((scope, at), out var place)) return new(id, name);
+        return new(id, name, Place: place.Name, Level: new(scope.ToString(), at, place.ConstructionId));
+    }
+
+    private sealed record Place(Guid ConstructionId, string Name);
+
+    /// <summary>
+    /// Стройка уровня набора: своя у стройки, у раздела — его стройка, у комплекта — стройка его раздела.
+    /// Системный набор места не имеет. Уровень без наборов в выдаче базу не спрашивает.
+    /// </summary>
+    private async Task<Dictionary<(CatalogScope, Guid), Place>> PlacesAsync(
         IReadOnlyList<(CatalogScope Scope, Guid? Id)> scopes, CancellationToken ct)
     {
         List<Guid> Of(CatalogScope level) =>
             [.. scopes.Where(s => s.Scope == level && s.Id is not null).Select(s => s.Id!.Value).Distinct()];
 
-        var places = new Dictionary<(CatalogScope, Guid), string>();
+        var places = new Dictionary<(CatalogScope, Guid), Place>();
         var constructionIds = Of(CatalogScope.Construction);
         var sectionIds = Of(CatalogScope.Section);
         var setIds = Of(CatalogScope.Set);
-        if (constructionIds.Count + sectionIds.Count + setIds.Count == 0) return places;
 
-        foreach (var c in await db.Constructions.AsNoTracking().Where(c => constructionIds.Contains(c.Id))
-                     .Select(c => new { c.Id, c.Name }).ToListAsync(ct))
-            places[(CatalogScope.Construction, c.Id)] = c.Name;
+        if (constructionIds.Count > 0)
+            foreach (var c in await db.Constructions.AsNoTracking().Where(c => constructionIds.Contains(c.Id))
+                         .Select(c => new { c.Id, c.Name }).ToListAsync(ct))
+                places[(CatalogScope.Construction, c.Id)] = new(c.Id, c.Name);
 
-        foreach (var s in await db.Sections.AsNoTracking().Where(s => sectionIds.Contains(s.Id))
-                     .Join(db.Constructions, s => s.ConstructionId, c => c.Id, (s, c) => new { s.Id, c.Name })
-                     .ToListAsync(ct))
-            places[(CatalogScope.Section, s.Id)] = s.Name;
+        if (sectionIds.Count > 0)
+            foreach (var s in await db.Sections.AsNoTracking().Where(s => sectionIds.Contains(s.Id))
+                         .Join(db.Constructions, s => s.ConstructionId, c => c.Id, (s, c) => new { s.Id, ConstructionId = c.Id, c.Name })
+                         .ToListAsync(ct))
+                places[(CatalogScope.Section, s.Id)] = new(s.ConstructionId, s.Name);
 
-        foreach (var d in await db.DocumentSets.AsNoTracking().Where(d => setIds.Contains(d.Id))
-                     .Join(db.Sections, d => d.SectionId, s => s.Id, (d, s) => new { d.Id, s.ConstructionId })
-                     .Join(db.Constructions, x => x.ConstructionId, c => c.Id, (x, c) => new { x.Id, c.Name })
-                     .ToListAsync(ct))
-            places[(CatalogScope.Set, d.Id)] = d.Name;
+        if (setIds.Count > 0)
+            foreach (var d in await db.DocumentSets.AsNoTracking().Where(d => setIds.Contains(d.Id))
+                         .Join(db.Sections, d => d.SectionId, s => s.Id, (d, s) => new { d.Id, s.ConstructionId })
+                         .Join(db.Constructions, x => x.ConstructionId, c => c.Id, (x, c) => new { x.Id, ConstructionId = c.Id, c.Name })
+                         .ToListAsync(ct))
+                places[(CatalogScope.Set, d.Id)] = new(d.ConstructionId, d.Name);
 
         return places;
     }

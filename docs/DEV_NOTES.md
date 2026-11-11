@@ -5949,7 +5949,9 @@ POST   /api/employees/directory             «Завести» справочн�
                                     «Персоны» — 409 { code: directory-missing, reason:
                                     person-missing }. Существующий тип не перепроецирует (F2).
 GET    /api/search?q=&group=           → { groups: [{ code, title, module, recordType, items: [{ id,
-                                    title, detail, place, amount }], more, refused }] } — поиск
+                                    title, detail, place, amount, level }], more, refused }] }
+                                    (level — { scope, scopeId, constructionId } набора данных:
+                                    по нему клиент открывает экран уровня) — поиск
                                     записей палитры (shell-05): счета (costs), стройки и наборы
                                     данных (ядро); модули — контрактом «Поиск записей» со многими
                                     поставщиками. Группа без права и группа выключенного модуля в

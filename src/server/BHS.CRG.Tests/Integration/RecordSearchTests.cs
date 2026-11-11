@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Search;
 using System.Net;
 using System.Net.Http.Json;
@@ -126,6 +127,42 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var dataSet = (await GroupsAsync(admin, $"журнал {mark}", group: "datasets")).Single()
             .GetProperty("items").EnumerateArray().Single();
         Assert.StartsWith($"Корпус {mark}", dataSet.GetProperty("place").GetString());
+    }
+
+    /// <summary>
+    /// Набор данных открывается на экране своего уровня (решение «А»): карточка несёт уровень, запись уровня
+    /// и её стройку — адрес раздела и комплекта начинается со стройки.
+    /// </summary>
+    [Fact]
+    public async Task Набор_данных_несёт_уровень_для_адреса_своего_экрана()
+    {
+        var mark = Mark();
+        var (admin, _) = await SignInAsync("Admin");
+        var (site, sections) = await SiteAsync($"Корпус {mark}", "Раздел");
+        Guid set;
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var created = DocumentSet.Create(sections[0], $"Комплект {mark}");
+            db.DocumentSets.Add(created);
+            await db.SaveChangesAsync();
+            set = created.Id;
+        }
+        await DataSetAsync($"Системный {mark}", CatalogScope.System, null);
+        await DataSetAsync($"Раздельный {mark}", CatalogScope.Section, sections[0]);
+        await DataSetAsync($"Комплектный {mark}", CatalogScope.Set, set);
+
+        var levels = (await GroupsAsync(admin, mark, group: "datasets")).Single().GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("title").GetString()!, i => i.GetProperty("level"));
+
+        Assert.Equal("System", levels[$"Системный {mark}"].GetProperty("scope").GetString());
+        Assert.Equal(JsonValueKind.Null, levels[$"Системный {mark}"].GetProperty("constructionId").ValueKind);
+        Assert.Equal("Section", levels[$"Раздельный {mark}"].GetProperty("scope").GetString());
+        Assert.Equal(sections[0], levels[$"Раздельный {mark}"].GetProperty("scopeId").GetGuid());
+        Assert.Equal(site, levels[$"Раздельный {mark}"].GetProperty("constructionId").GetGuid());
+        Assert.Equal("Set", levels[$"Комплектный {mark}"].GetProperty("scope").GetString());
+        Assert.Equal(set, levels[$"Комплектный {mark}"].GetProperty("scopeId").GetGuid());
+        Assert.Equal(site, levels[$"Комплектный {mark}"].GetProperty("constructionId").GetGuid());
     }
 
     [Fact]

@@ -83,8 +83,19 @@ public sealed record RecordSearchHits(IReadOnlyList<RecordSearchHit> Items, bool
 /// <param name="Detail">Пояснение: назначение счёта, внешний код стройки.</param>
 /// <param name="Place">Где запись: стройка набора данных.</param>
 /// <param name="Amount">Сумма — у счёта; форматирует клиент.</param>
+/// <param name="Level">Уровень записи — у той, чей экран зависит от уровня (набор данных).</param>
 public sealed record RecordSearchHit(
-    Guid Id, string Title, string? Detail = null, string? Place = null, decimal? Amount = null);
+    Guid Id, string Title, string? Detail = null, string? Place = null, decimal? Amount = null,
+    RecordSearchLevel? Level = null);
+
+/// <summary>
+/// Где лежит запись, у которой экран свой на каждом уровне (shell-05, решение владельца 12.11.2026 — «А»):
+/// набор данных открывается на экране своего уровня, и адрес его клиент строит отсюда, а не новым запросом.
+/// </summary>
+/// <param name="Scope">Уровень: <c>System</c>, <c>Construction</c>, <c>Section</c>, <c>Set</c>.</param>
+/// <param name="ScopeId">Запись уровня — стройка, раздел или комплект; у системного уровня нет.</param>
+/// <param name="ConstructionId">Стройка уровня — с неё начинается адрес раздела и комплекта.</param>
+public sealed record RecordSearchLevel(string Scope, Guid? ScopeId = null, Guid? ConstructionId = null);
 
 /// <summary>Сопоставление строки со словами запроса — одно правило у поставщиков и ядра.</summary>
 public static class RecordSearchText
