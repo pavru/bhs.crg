@@ -166,6 +166,31 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.ToTable("catalog_entities", (string)null);
                 });
 
+            modelBuilder.Entity("BHS.CRG.Domain.Catalog.EmployeeAccount", b =>
+                {
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("EmployeeId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.ToTable("employee_accounts", (string)null);
+                });
+
             modelBuilder.Entity("BHS.CRG.Domain.Catalog.EnumType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2418,6 +2443,20 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Domain.Catalog.EmployeeAccount", b =>
+                {
+                    b.HasOne("BHS.CRG.Domain.Objects.DomainObject", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Infrastructure.Persistence.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("BHS.CRG.Domain.DataSets.DataSetBinding", b =>

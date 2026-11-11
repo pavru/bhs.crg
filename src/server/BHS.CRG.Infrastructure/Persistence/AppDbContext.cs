@@ -54,6 +54,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     /// <summary>Сохранённые представления таблиц (ТЗ CORE-33, issue #1095): личные и общие.</summary>
     public DbSet<BHS.CRG.Domain.Tables.SavedTableView> SavedTableViews => Set<BHS.CRG.Domain.Tables.SavedTableView>();
 
+    /// <summary>Связь «учётная запись → сотрудник» (ТЗ WORK-47, CORE-7): строго один к одному.</summary>
+    public DbSet<BHS.CRG.Domain.Catalog.EmployeeAccount> EmployeeAccounts => Set<BHS.CRG.Domain.Catalog.EmployeeAccount>();
+
     /// <summary>Настройки экземпляра системы (ТЗ CORE-25.3, issue #960): часовой пояс компании.</summary>
     public DbSet<BHS.CRG.Domain.Settings.AppSetting> AppSettings => Set<BHS.CRG.Domain.Settings.AppSetting>();
     public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();

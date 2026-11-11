@@ -95,6 +95,14 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/employees/",
         "PUT /api/employees/{id:guid}",
         "DELETE /api/employees/{id:guid}",
+        // Связь сотрудника с учётной записью (WORK-47, work-01) — тоже ядро: на ней стоят «свои»
+        // отчёты, назначения и бригада разных модулей, и связь не вправе уйти с выключением одного.
+        "PUT /api/employees/{id:guid}/account",
+        "DELETE /api/employees/{id:guid}/account",
+        "POST /api/employees/account-links",
+        "GET /api/employees/account-candidates",
+        "GET /api/employees/account-matches",
+        "POST /api/employees/directory",
     ];
 
     [Fact]

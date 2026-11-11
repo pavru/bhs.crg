@@ -2,51 +2,51 @@
 
 ## 1. PR 1: связь (сервер)
 
-- [ ] 1.1 Сущность `EmployeeAccount` в `BHS.CRG.Domain/Catalog/` и её конфигурация: ключ по сотруднику,
+- [x] 1.1 Сущность `EmployeeAccount` в `BHS.CRG.Domain/Catalog/` и её конфигурация: ключ по сотруднику,
   частичный уникальный индекс по `UserId`, `SetNull` на `AspNetUsers`, снимок `AccountName`
   [WORK-47] [CORE-15]. Миграция `dotnet ef migrations add EmployeeAccounts --project src/server/BHS.CRG.Infrastructure --startup-project src/server/BHS.CRG.Api --context AppDbContext`.
   Проверка — на пересозданной базе старт применяет миграцию, `dotnet build BHS.CRG.slnx` без ошибок
-- [ ] 1.2 `PUT` и `DELETE /api/employees/{id}/account` под `core.employees.edit`: `If-Match` по `version`
+- [x] 1.2 `PUT` и `DELETE /api/employees/{id}/account` под `core.employees.edit`: `If-Match` по `version`
   карточки (`RecordIfMatch`), связывание трогает `UpdatedAt` объекта той же транзакцией; отказ для
   архивного сотрудника; повторное отвязывание безобидно [WORK-47] [AUTH-8] [AUTH-9]. Проверка — новый
   `EmployeeAccountLinkTests`: без заголовка — 400, устаревшая версия — 409, без права — 403,
   `EndpointGateInventoryTests` видит оба адреса под правом
-- [ ] 1.3 Сторож уникальности: вторая связь той же учётной записи — 409 с именем занятого сотрудника;
+- [x] 1.3 Сторож уникальности: вторая связь той же учётной записи — 409 с именем занятого сотрудника;
   связь занятого сотрудника — 409 с именем текущей учётной записи [WORK-47] [CORE-15]. Проверка — тест в
   `EmployeeAccountLinkTests` краснеет, если снять уникальный индекс в конфигурации
-- [ ] 1.4 Коды `core.employee.account.linked` и `core.employee.account.unlinked` в `ActivityActions.cs`.
+- [x] 1.4 Коды `core.employee.account.linked` и `core.employee.account.unlinked` в `ActivityActions.cs`.
   Запись после удавшегося действия, прежнее значение — имя учётной записи [CORE-28] [WORK-47]. Проверка —
   тест: связал и отвязал — в `/api/activity` две записи с автором
-- [ ] 1.5 `GET /api/employees/account-candidates?q=` под `core.employees.edit`: имя, логин, `linkedTo`, без
+- [x] 1.5 `GET /api/employees/account-candidates?q=` под `core.employees.edit`: имя, логин, `linkedTo`, без
   ролей и почты [WORK-47]. Проверка — тест: занятая запись приходит с `linkedTo`, пользователь с
   `core.employees.read` получает 403
-- [ ] 1.6 Носитель `account: { state, name, login }` в выдаче `GET /api/employees` и `/{id}`. Удаление учётной
+- [x] 1.6 Носитель `account: { state, name, login }` в выдаче `GET /api/employees` и `/{id}`. Удаление учётной
   записи даёт `deleted` с именем [WORK-47] [CORE-7]. Проверка — тест: удалил пользователя через
   `DELETE /api/users/{id}` — сотрудник цел, `state: deleted`; отвязал — `none`
-- [ ] 1.7 `employee: { id, name, archived } | null` и `employeeReason` (`not-linked`, `directory-missing`) в
-  `GET /api/account/access` [AUTH-14] [WORK-47]. Проверка — `AccountAccessTests` дополнен тремя случаями:
-  связан, не связан, тип «Сотрудник» не заведён
-- [ ] 1.8 Исключение `EmployeeAccount` в `BackupManifestCoverageTests.cs` с причиной «связь адресует учётную
+- [x] 1.7 `employee: { id, name, archived } | null` и `employeeReason` (`not-linked`, `directory-missing`) в
+  `GET /api/account/access` [AUTH-14] [WORK-47]. Проверка — три случая в `EmployeeAccountLinkTests`
+  (`AccountAccessTests` базу не чистит): связан, не связан, тип «Сотрудник» не заведён
+- [x] 1.8 Исключение `EmployeeAccount` в `BackupManifestCoverageTests.cs` с причиной «связь адресует учётную
   запись, а учётные записи копия не переносит» [CORE-7] [CORE-26]. Проверка —
   `BackupManifestCoverageTests` зелёный и краснеет без строки исключения
-- [ ] 1.9 `POST /api/employees/account-links` — связывание пачкой до 200 строк, `version` карточки в
+- [x] 1.9 `POST /api/employees/account-links` — связывание пачкой до 200 строк, `version` карточки в
   строке, каждая строка своей транзакцией, ответ построчный: `linked`, `taken`, `employee-linked`,
   `stale`, `account-gone`, `archived`, `not-found` [WORK-47] [CORE-28]. Проверка — тест в
   `EmployeeAccountLinkTests`: из пачки с занятой и устаревшей строкой остальные связаны и записаны в
   журнал; пачка без строк или больше 200 — 400 целиком
-- [ ] 1.10 `GET /api/employees/account-matches` — сотрудники без действующей связи (не в архиве, не уволены
+- [x] 1.10 `GET /api/employees/account-matches` — сотрудники без действующей связи (не в архиве, не уволены
   на сегодня) с `suggested` — свободной учётной записью с тем же ФИО (полное или «Фамилия И. О.») — или
   `null` с причиной `no-match` / `ambiguous` [WORK-47]. Проверка — тест: одно совпадение предложено, два —
   `ambiguous`, совпадение с занятой — `no-match`
-- [ ] 1.11 `account.login` и `account.dismissedOn` в выдаче сотрудника: дата «Уволен с» по тэгу
+- [x] 1.11 `account.login` и `account.dismissedOn` в выдаче сотрудника: дата «Уволен с» по тэгу
   `employee.employedTo`, когда связь действует и дата наступила по поясу компании [WORK-47] [CORE-7].
   Проверка — тест: уволен вчера — дата, уволен завтра — `null`
-- [ ] 1.12 `POST /api/employees/directory` — заводит «Сотрудника» из скелета ядра, когда его нет, а
+- [x] 1.12 `POST /api/employees/directory` — заводит «Сотрудника» из скелета ядра, когда его нет, а
   «Персона» есть; существующий тип не перепроецирует; нет «Персоны» — 409 `person-missing` [WORK-47]
   [CORE-7]. Сторож «проекцию зовёт только проектор» (`ModuleRecordTypeTests`) называет исключение — узкую
   команду «завести, если нет». Проверка — тест: после «Персоны» адрес заводит тип; повтор при правленной
   схеме её не меняет
-- [ ] 1.13 `docs/ADMIN_GUIDE.md`: глава о связывании сотрудника с учётной записью — по одному и пачкой,
+- [x] 1.13 `docs/ADMIN_GUIDE.md`: глава о связывании сотрудника с учётной записью — по одному и пачкой,
   отвязывание, состояние «учётная запись удалена», «уволен, но связан», «Завести» справочник, потеря
   связей при восстановлении копии на новый экземпляр. Перестроить содержание: `cd docs/tools && npm run toc`.
   Проверка — проверка содержания в «Frontend» зелёная
