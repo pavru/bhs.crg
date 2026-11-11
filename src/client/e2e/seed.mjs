@@ -23,6 +23,7 @@
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
 import { seedInvoices } from './seed-invoices.mjs';
+import { ensureEmployees } from './seed-employees.mjs';
 import { seedEstimates } from './seed-estimates.mjs';
 import { ensurePreviewTemplate } from './seed-preview.mjs';
 
@@ -486,37 +487,6 @@ const NAME = {
   materialsDoc: '250701.ЭОМ-1.2.Реестр материалов',
 };
 
-/**
- * Сотрудники и их учётные записи (work-01, ТЗ WORK-47): справочник и двое с учётными записями того же
- * ФИО — предмет режима «Сопоставить» в `pages-smoke` и вида «только чтение» в `limited-smoke`.
- *
- * <p>«Персона» — родитель справочника, её код — код ядра (`CoreRecordTypes.PersonCode`); справочник
- * заводит адрес «Завести», без перезапуска сервера, — тем же путём, что кнопка на экране. Связей
- * посев не ставит: их ставит и снимает прогон, и повторный запуск начинает с чистого листа.</p>
- */
-const EMPLOYEES = [
-  { name: 'Смоков Иван Петрович', number: 'E2E-01', email: 'smokov@bhs.local' },
-  { name: 'Прогонова Анна Сергеевна', number: 'E2E-02', email: 'progonova@bhs.local' },
-];
-
-async function ensureEmployees() {
-  if (!(await findType('Персона'))) {
-    await api('POST', '/document-types', {
-      name: 'Персона', code: 'Персона', kind: 'Composite', parentId: null, schema: JSON.stringify({ fields: [] }), module: 'core',
-    });
-    console.log('  + тип «Персона»');
-  }
-  const { created } = await api('POST', '/employees/directory');
-  if (created) console.log('  + справочник сотрудников');
-  const existing = await api('GET', '/employees');
-  for (const e of EMPLOYEES) {
-    await ensureUser(e.email, e.name, 'User');
-    if (existing.some(x => x.displayName === e.name)) continue;
-    await api('POST', '/employees', { displayName: e.name, data: JSON.stringify({ ТабельныйНомер: e.number }) });
-    console.log(`  + сотрудник ${e.name}`);
-  }
-}
-
 async function main() {
   const version = await waitForApi();
   console.log(`Посев в ${API} (версия приложения ${version})`);
@@ -945,7 +915,8 @@ async function main() {
   await ensureDataSetSource(invoiceFileId, 'Товары счёта');
   await ensureDataSetSource(invoiceFileId, 'Шапка счёта');
 
-  await ensureEmployees();
+  // Сотрудники и учётные записи того же ФИО (work-01) — свой файл: посев и так у порога размера.
+  await ensureEmployees({ api, findType, ensureUser });
 
   console.log('\nПосев готов. Переменные прогонов:');
   console.log([`SMOKE_CONSTRUCTION_ID=${constructionId}`, `SMOKE_SET_ID=${setId}`, `SMOKE_INSTANCE_ID=${aosrInstanceId}`,

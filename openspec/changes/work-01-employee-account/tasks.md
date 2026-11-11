@@ -88,7 +88,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EmployeeAccount|FullyQualifiedName~EmployeeDirectory|FullyQualifiedName~AccountAccess|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CoreSections"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EmployeeAccount|FullyQualifiedName~EmployeeDirectory|FullyQualifiedName~AccountAccess|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CoreSections"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
