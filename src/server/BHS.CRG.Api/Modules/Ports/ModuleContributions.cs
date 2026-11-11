@@ -71,23 +71,47 @@ public sealed class ModuleContributions(IServiceScopeFactory scopes, ILogger<Mod
             // WaitAsync — на случай поставщика, который токен не слушает: предел держит ответ и тогда.
             return new(module, await task.WaitAsync(timeout, ct), null);
         }
-        catch (Exception ex) when (!ct.IsCancellationRequested
-                                   && ex is TimeoutException or OperationCanceledException)
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // Человек ушёл — что бы ни бросил поставщик в эту минуту, это отмена, а не его отказ.
+            ct.ThrowIfCancellationRequested();
+            throw;
+        }
+        // Предел — наш: истёк срок (поставщик услышал токен) или WaitAsync не дождался задачи. Свой
+        // таймаут или своя отмена поставщика в пределе — его ошибка, и причина её нужна в журнале.
+        catch (Exception ex) when (deadline.IsCancellationRequested
+                                   || ex is TimeoutException && task is { IsCompleted: false })
         {
             log.LogWarning("Модуль «{Module}» не ответил ({Label}) за {Limit} мс.",
                 module, label, timeout.TotalMilliseconds);
             return new(module, default, $"нет ответа за {timeout.TotalSeconds:0.#} с — запрос можно повторить");
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
             log.LogError(ex, "Модуль «{Module}» отказал ({Label}).", module, label);
             return new(module, default, "ошибка сервера — она записана в журнал");
         }
         finally
         {
-            // Поставщик, не услышавший токена, ещё работает в этой области: убрать её можно только за ним.
-            if (task is { IsCompleted: false }) _ = task.ContinueWith(_ => scope.Dispose(), TaskScheduler.Default);
+            // Поставщик, не услышавший токена, ещё работает в этой области: убрать её можно только за ним —
+            // и его поздний отказ тоже в журнал, иначе он не виден нигде.
+            if (task is { IsCompleted: false }) _ = task.ContinueWith(late => ReleaseAsync(late, scope, module, label),
+                TaskScheduler.Default).Unwrap();
             else await scope.DisposeAsync();
+        }
+    }
+
+    private async Task ReleaseAsync<R>(Task<R> late, AsyncServiceScope scope, string module, string label)
+    {
+        if (late.IsFaulted)
+            log.LogWarning(late.Exception, "Модуль «{Module}» отказал после предела ({Label}).", module, label);
+        try
+        {
+            await scope.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Область служб модуля «{Module}» не убралась ({Label}).", module, label);
         }
     }
 }
