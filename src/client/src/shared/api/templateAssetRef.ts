@@ -45,3 +45,32 @@ export function imageAssetPath(asset: Pick<TemplateAssetDto, 'name' | 'fileName'
 export function assetReference(asset: TemplateAssetDto): string | null {
   return asset.kind === 'Image' ? imageAssetPath(asset) : asset.fontFamilyName;
 }
+
+/**
+ * Знаки, которых нет в имени картинки, — ЗЕРКАЛО серверного `TemplateAsset.IsValidImageName`
+ * (change core-template-asset-names, D2): разделители пути, знаки, недопустимые в имени файла
+ * Windows, управляющие знаки. Обе стороны сверены общим набором `templateAssetNameCases.json`.
+ */
+const FORBIDDEN = /[/\\:*?"<>|\p{Cc}]/u;
+const FORBIDDEN_ALL = /[/\\:*?"<>|\p{Cc}]/gu;
+
+/**
+ * Годится ли имя картинки: имя файла, а не путь — без запрещённых знаков, без «..» и без пробела
+ * по краям. Ассет с негодным именем бывает только из прежних данных или копии: панель отмечает его,
+ * а не показывает ссылку, которую генерация отклонит.
+ */
+export function isValidImageAssetName(name: string): boolean {
+  return name.length > 0 && !name.startsWith(' ') && !name.endsWith(' ') && !name.includes('..') && !FORBIDDEN.test(name);
+}
+
+/**
+ * Подсказка имени ассета из имени файла (D4): расширение снято, запрещённые знаки заменены на «_»,
+ * «..» свёрнуто, пробелы по краям сняты. Здесь только подсказка: отказ по-прежнему приходит с сервера.
+ */
+export function suggestAssetName(fileName: string): string {
+  const stem = extensionOf(fileName) ? fileName.slice(0, -extensionOf(fileName).length) : fileName;
+  return stem
+    .replace(FORBIDDEN_ALL, '_')
+    .replace(/\.{2,}/g, '.')
+    .trim();
+}

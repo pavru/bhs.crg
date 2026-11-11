@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using BHS.CRG.Application.Generation;
@@ -5,6 +6,7 @@ using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Tests.Integration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Generation;
 
@@ -72,15 +74,15 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         var layout = await new TypstCompileDirectory(_spy).WriteAsync(await RequestAsync(), _dir, JsonLayout.Compact, default);
 
         Assert.Equal(
-            ["assets/att_0.pdf", "assets/img_0.png", "assets/logo.png", "data.json", "fonts/font_0.ttf",
+            ["assets/logo.png", "data.json", "fields/att_0.pdf", "fields/img_0.png", "fonts/font_0.ttf",
              "systemlib.typ", "template.typ", "typeblocks.typ", "userlib.typ", "userlib/a.typ"],
             Files());
         Assert.Equal(Path.Combine(_dir, "fonts"), layout.FontsDir);
         Assert.Empty(layout.UnreadableImages);
 
         var data = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(_dir, "data.json")))!;
-        Assert.Equal("/assets/img_0.png", (string?)data["Подпись"]!["src"]);
-        Assert.Equal("/assets/att_0.pdf", (string?)data["Приложение"]!["src"]);
+        Assert.Equal("/fields/img_0.png", (string?)data["Подпись"]!["src"]);
+        Assert.Equal("/fields/att_0.pdf", (string?)data["Приложение"]!["src"]);
     }
 
     /// <summary>Пакет пишет data.json с отступами — значения те же, что у генерации.</summary>
@@ -111,7 +113,7 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
 
         Assert.DoesNotContain("assets/logo.png", Files());
-        Assert.DoesNotContain("assets/att_0.pdf", Files());
+        Assert.DoesNotContain("fields/att_0.pdf", Files());
     }
 
     /// <summary>Шрифт объявлен, хранилище не отдало: каталога шрифтов нет — и ключа --font-path тоже.</summary>
@@ -153,5 +155,115 @@ public sealed class TypstCompileDirectoryTests : IDisposable
         var layout = await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
 
         Assert.Equal(["Подпись"], layout.UnreadableImages);
+    }
+
+    /// <summary>
+    /// Ассет шаблона не перезаписывает картинку поля и вложение (change core-template-asset-names, D1):
+    /// имя ассета выбирает человек, имена файлов полей — нумерация генератора, и совпасть по пути они не
+    /// должны ни при каком имени. Вложение здесь — картинка: у ассета расширение только картиночное.
+    /// </summary>
+    [Theory]
+    [InlineData("img_0", "Подпись")]
+    [InlineData("att_0", "Скан")]
+    public async Task TemplateAsset_DoesNotOverwriteFieldFile(string assetName, string field)
+    {
+        var request = await RequestAsync();
+        await PutAsync("b/scan.png", [5]);
+        await PutAsync("b/intruder", [99]);
+        var data = new GenerationContext();
+        data.Set("Подпись", request.Context.Data["Подпись"]);
+        data.Set("Скан", JsonSerializer.SerializeToElement(new Dictionary<string, string>
+            { ["$type"] = "file", ["blobPath"] = "b/scan.png", ["fileName"] = "s.png", ["mimeType"] = "image/png" }));
+        request = request with
+        {
+            Context = data,
+            TemplateAssets = new ResolvedTemplateAssets(
+                [new ResolvedImageAsset(assetName, "x.png", "image/png", "b/intruder")], []),
+        };
+
+        await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
+
+        var json = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(_dir, "data.json")))!;
+        var fieldFile = Path.Combine(_dir, ((string)json[field]!["src"]!).TrimStart('/'));
+        Assert.NotEqual([99], await File.ReadAllBytesAsync(fieldFile));
+        Assert.Equal([99], await File.ReadAllBytesAsync(Path.Combine(_dir, "assets", assetName + ".png")));
+    }
+
+    /// <summary>
+    /// Ассет с именем не по правилу (старые данные, копия) не скачивается и не пишется, а называется в
+    /// раскладке: по ней README назовёт его (D3). Каталог — ровно тот же, что без этого ассета: сверка
+    /// всего дерева, а не одного ожидаемого пути, — иначе файл, записанный под другим именем, прошёл бы.
+    /// </summary>
+    [Fact]
+    public async Task InvalidAssetName_IsNotWritten_ButNamed()
+    {
+        var request = await RequestAsync();
+        var reads = 0;
+        _spy.BeforeRead["b/bad.png"] = () => reads++;
+        await PutAsync("b/bad.png", [99]);
+        const string name = "схема|1";
+        var withBad = request with
+        {
+            TemplateAssets = request.TemplateAssets! with
+            {
+                Images = [new ResolvedImageAsset(name, "x.png", "image/png", "b/bad.png"), .. request.TemplateAssets.Images],
+            },
+        };
+
+        await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
+        var expected = Files();
+        Directory.Delete(_dir, recursive: true);
+        Directory.CreateDirectory(_dir);
+        var layout = await new TypstCompileDirectory(_spy).WriteAsync(withBad, _dir, JsonLayout.Compact, default);
+
+        Assert.Equal([name], layout.InvalidAssetNames);
+        Assert.Equal(0, reads);
+        Assert.Equal(expected, Files());
+    }
+
+    /// <summary>
+    /// Генерация с таким ассетом отказывает и называет его (D3) — ДО записи каталога: ни один файл
+    /// полей не скачан. Typst здесь не нужен: дойди дело до компилятора, тест упал бы на его поиске.
+    /// </summary>
+    [Fact]
+    public async Task Generation_WithInvalidAssetName_RefusesBeforeDownloading()
+    {
+        var request = await RequestAsync();
+        request = request with
+        {
+            TemplateAssets = new ResolvedTemplateAssets(
+                [new ResolvedImageAsset("схема:1", "x.png", "image/png", "b/logo.png")], []),
+        };
+        _spy.Reads.Clear();
+
+        var ex = await Assert.ThrowsAsync<InvalidTemplateAssetNamesException>(
+            () => new TypstGenerator(_spy, NullLogger<TypstGenerator>.Instance).GenerateAsync(request));
+
+        Assert.Equal(["схема:1"], ex.Names);
+        Assert.Contains("«схема:1»", ex.Message);
+        Assert.Contains("загрузите заново", ex.Message);
+        Assert.Empty(_spy.Reads);
+    }
+
+    /// <summary>Отладочный комплект с таким ассетом отдаётся: файла ассета в нём нет, README его называет (D3).</summary>
+    [Fact]
+    public async Task DebugBundle_WithInvalidAssetName_IsGiven_AndNamesIt()
+    {
+        var request = await RequestAsync();
+        request = request with
+        {
+            TemplateAssets = new ResolvedTemplateAssets(
+                [new ResolvedImageAsset("схема|1", "x.png", "image/png", "b/logo.png")], []),
+        };
+
+        var zip = await new TypstGenerator(_spy, NullLogger<TypstGenerator>.Instance)
+            .DebugBundleAsync(request, BundleNotes.None);
+
+        using var archive = new ZipArchive(new MemoryStream(zip));
+        Assert.DoesNotContain(archive.Entries, e => e.FullName.StartsWith("assets/", StringComparison.Ordinal));
+        var readme = archive.GetEntry("README.txt");
+        Assert.NotNull(readme);
+        using var reader = new StreamReader(readme.Open());
+        Assert.Contains("[invalid-asset-name] схема|1", await reader.ReadToEndAsync());
     }
 }

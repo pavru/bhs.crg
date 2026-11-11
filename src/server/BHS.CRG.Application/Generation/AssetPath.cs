@@ -17,7 +17,7 @@ namespace BHS.CRG.Application.Generation;
 /// </summary>
 public static class AssetPath
 {
-    /// <summary>Путь вида <c>/assets/img_0.png</c> — из имени подпапки и имени файла.</summary>
+    /// <summary>Путь вида <c>/fields/img_0.png</c> или <c>/assets/logo.png</c> — из имени подпапки и имени файла.</summary>
     public static string FromRoot(string assetsSubdir, string fileName) =>
         $"/{assetsSubdir.Trim('/')}/{fileName}";
 }
