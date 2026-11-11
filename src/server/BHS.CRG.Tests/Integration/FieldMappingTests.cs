@@ -40,8 +40,9 @@ public class FieldMappingTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var organizations = screen.GetProperty("groups").EnumerateArray()
             .Single(g => g.GetProperty("role").GetString() == "role.organization");
         Assert.Equal("mapped", organizations.GetProperty("state").GetString());
+        // Сокращённое название (issue #1473) — необязательным полем: экран его показывает, в счёт не идёт.
         Assert.Equal(
-            new[] { "org.inn", "org.name" },
+            new[] { "org.inn", "org.name", "org.shortName" },
             organizations.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("tag").GetString()));
 
         // Артикул и единицу номенклатуры администратор видит на экране — иначе их негде назначить.

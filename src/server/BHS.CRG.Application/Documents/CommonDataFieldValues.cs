@@ -30,7 +30,10 @@ public sealed record CommonDataFieldValue(CommonDataRef Record, string? Value, G
 /// нет» — в документе это пустое место, которое человек видит. Здесь тот же ответ читался бы как
 /// «не совпало», поэтому негодная основа названа (<see cref="CommonDataFieldValue.Unreadable" />).</para>
 /// </summary>
+/// <param name="PartKey">Часть составного поля <paramref name="FieldKey" /> (issue #1473) —
+/// сокращённое название внутри «Наименования»; <c>null</c> — значение самого поля.</param>
 public sealed record CommonDataFieldValuesQuery(
     IReadOnlyCollection<Guid> TypeIds,
     string FieldKey,
-    RecordsFor For) : IRequest<IReadOnlyList<CommonDataFieldValue>>;
+    RecordsFor For,
+    string? PartKey = null) : IRequest<IReadOnlyList<CommonDataFieldValue>>;

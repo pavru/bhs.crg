@@ -15,8 +15,10 @@ import {
   identityFieldKeys,
   compositeFieldHasTag,
   collectMaterialRows,
+  partTagCodes,
   type SchemaField,
 } from './schema';
+import { offeredInRoles, type TagDefinition } from './tags';
 import type { DocumentType } from './types';
 
 // ── Test factory ────────────────────────────────────────────────────────────────
@@ -596,5 +598,35 @@ describe('inheritanceDistance', () => {
     const y = dt({ fields: [] }, 'x', 'y');
     expect(inheritanceDistance('x', 'somewhere', [x, y])).toBeNull();
     expect(isSubtypeOf('x', 'somewhere', [x, y])).toBe(false);
+  });
+});
+
+// ── partTagCodes (issue #1473) ───────────────────────────────────────────────
+
+describe('partTagCodes: тэг части составного поля справочника', () => {
+  const registry: TagDefinition[] = [
+    { code: 'role.organization', label: 'Справочник организаций', description: '', scope: 'Type', appliesTo: ['Composite'], multiple: false, owner: 'core', directory: true },
+    { code: 'org.name', label: 'Название', description: '', scope: 'Field', appliesTo: ['string', 'text', 'complex'], multiple: false, owner: 'core', role: 'role.organization' },
+    { code: 'org.shortName', label: 'Сокращённое', description: '', scope: 'Field', appliesTo: ['string', 'text'], multiple: false, owner: 'core', role: 'role.organization', partOf: 'org.name' },
+    { code: 'org.inn', label: 'ИНН', description: '', scope: 'Field', appliesTo: ['string'], multiple: false, owner: 'core', role: 'role.organization' },
+  ];
+  const name = dt({ fields: [field('Полное'), field('Сокращённое')] }, null, 'name');
+  const other = dt({ fields: [field('Полное')] }, null, 'other');
+  const org = dt({
+    tags: ['role.organization'],
+    fields: [field('Наименование', { type: 'complex', typeId: 'name', tags: ['org.name'] }), field('Адрес', { type: 'complex', typeId: 'other' })],
+  }, null, 'org');
+  const all = [name, other, org];
+
+  it('составное, которым набрано поле названия организации, получает тэг части — и только его', () => {
+    expect(partTagCodes(name, all, registry)).toEqual(['org.shortName']);
+    const offered = offeredInRoles(registry.filter(t => t.scope === 'Field'), [], [], partTagCodes(name, all, registry));
+    expect(offered.map(t => t.code)).toEqual(['org.shortName']);
+  });
+
+  it('составное другого поля и тип без роли тэга части не получают', () => {
+    expect(partTagCodes(other, all, registry)).toEqual([]);
+    const loose = dt({ fields: [field('Наименование', { type: 'complex', typeId: 'name', tags: ['org.name'] })] }, null, 'loose');
+    expect(partTagCodes(name, [name, loose], registry)).toEqual([]);
   });
 });

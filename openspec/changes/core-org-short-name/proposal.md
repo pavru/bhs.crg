@@ -37,12 +37,19 @@ Issue #1473 (в организации, если есть, показываем 
 
 ## Impact
 
-- **Сервер:** `Domain/Schema/FunctionalTag.cs`, `Application/Schema/TagRegistry.cs`,
-  `Application/Schema/DirectoryRoleDefaults.cs`; порт `BHS.CRG.Modules/Ports/IModuleCatalog.cs` и его
-  реализации `Api/Modules/Ports/ModuleCatalogPort.cs`, `ModuleCatalogIntakePort.cs`,
-  `ModuleOwnCatalogPort.cs`; `Modules.Costs/CostsDirectories.cs` (тэг в нуждах модуля, необязательный).
-- **Клиент:** выбор поставщика и плательщика (`features/costs/InvoiceForm.tsx`) — полное название второй
-  строкой пункта (решение В1); редактор схем показывает новый тэг сам (`GET /api/tags`).
-- **Данные:** миграции нет — тэг ставит правило умолчаний при старте; на копии базы заказчика сверить
-  форму поля названия до слияния.
+- **Сервер:** `Domain/Schema/FunctionalTag.cs`, `Application/Schema/TagRegistry.cs` (признаки тэга
+  `PartOf` и `Names`), `TagCatalog.cs`, `RoleResolution.cs` (поле роли на части составного),
+  `DirectoryRoleDefaults.cs` и миграция `OrgShortNameTag`; чтение значения части с наследованием
+  (`CommonDataFieldValuesQuery.PartKey`); порт `BHS.CRG.Modules/Ports/IModuleCatalog.cs` (`FullName`) и его
+  реализации `Api/Modules/Ports/ModuleCatalogPort.cs`, `ModuleCatalogIntakePort.cs` через общий
+  `RecordDisplayNames.cs` (`ModuleOwnCatalogPort.cs` читает собственные типы модулей — роли организаций у
+  них нет, правило его не касается); `Modules.Costs/CostsDirectories.cs` (тэг в нуждах модуля,
+  необязательный); колонка-справочник таблиц `Modules/Tables/TableSql` — второе название для отбора.
+- **Клиент:** выбор поставщика и плательщика (`features/costs/InvoiceFormFields.tsx`, условия поставщика —
+  `SupplierTermsDialog.tsx`) — полное название второй строкой пункта (решение В1, `SelectItem.supporting`);
+  редактор схем показывает новый тэг сам (`GET /api/tags`), в частях составного названия — по `partOf`.
+- **Данные:** схема не меняется; тэг ставит один раз миграция ядра `OrgShortNameTag` (SQL), а
+  восстановление копии, снятой без него, — то же правило в коде (`DirectoryRoleDefaults.ApplyParts`,
+  признак копии `KnowsOrgShortName`). При старте правило не применяется — как у ролей (#1101): снятый
+  тэг — решение администратора. Форма поля названия сверена на копии базы заказчика 11.11.2026.
 - **Документы:** `docs/ADMIN_GUIDE.md` — тэг «Сокращённое название организации».

@@ -30,6 +30,8 @@ const UNIQUE_TAGS: readonly (readonly [string, SuggestReason])[] = [
   [FUNCTIONAL_TAG.employeePersonnelNumber, 'personnelNumber'],
   [FUNCTIONAL_TAG.nomenclatureArticle, 'article'],
   [FUNCTIONAL_TAG.orgName, 'orgName'],
+  // Сокращённое — то же название организации (issue #1473).
+  [FUNCTIONAL_TAG.orgShortName, 'orgName'],
   [FUNCTIONAL_TAG.employeeAccount, 'account'],
 ];
 

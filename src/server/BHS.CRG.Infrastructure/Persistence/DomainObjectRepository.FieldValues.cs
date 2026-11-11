@@ -22,12 +22,13 @@ public partial class DomainObjectRepository
         bool HasOwn, string? Kind, string? Value, string? BaseRef, bool IsDocument);
 
     public async Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
-        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default)
+        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default,
+        string? partKey = null)
     {
         if (typeIds.Count == 0) return [];
 
         var live = purpose.HidesArchive();
-        var records = await Probes(fieldKey)
+        var records = await Probes(fieldKey, partKey)
             (Db.Set<DomainObject>().AsNoTracking().Where(o =>
                 o.Facet == null && typeIds.Contains(o.CompositeTypeId) && (!live || o.ArchivedAt == null)))
             .ToListAsync(ct);
@@ -38,7 +39,7 @@ public partial class DomainObjectRepository
         var wanted = Missing(records, known);
         for (var depth = 0; depth < BaseDepth && wanted.Count > 0; depth++)
         {
-            var bases = await Probes(fieldKey)
+            var bases = await Probes(fieldKey, partKey)
                 (Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id)))
                 .ToListAsync(ct);
             foreach (var found in bases) known[found.Id] = found;
@@ -70,7 +71,19 @@ public partial class DomainObjectRepository
     /// <summary>
     /// Проекция записи в пробу. Поле читается в базе (<c>-&gt;&gt;</c>, <c>?</c>, <c>jsonb_typeof</c>),
     /// а не из загруженных данных: ради одного реквизита запись целиком не поднимается.
+    ///
+    /// <para>С частью (issue #1473) «своё» — по-прежнему само поле: своё составное перекрывает основу
+    /// целиком, и пустая часть в нём — пусто, а не повод идти к основе.</para>
     /// </summary>
+    private static Func<IQueryable<DomainObject>, IQueryable<FieldProbe>> Probes(string fieldKey, string? partKey) =>
+        partKey is null ? Probes(fieldKey) : objects => objects.Select(o => new FieldProbe(
+            o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, o.ScopeLevel, o.ScopeId,
+            EF.Functions.JsonExists(o.Data, fieldKey),
+            EF.Functions.JsonTypeof(o.Data.RootElement.GetProperty(fieldKey).GetProperty(partKey)),
+            o.Data.RootElement.GetProperty(fieldKey).GetProperty(partKey).GetString(),
+            o.Data.RootElement.GetProperty("_baseRef").GetString(),
+            o.Facet != null));
+
     private static Func<IQueryable<DomainObject>, IQueryable<FieldProbe>> Probes(string fieldKey) =>
         objects => objects.Select(o => new FieldProbe(
             o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, o.ScopeLevel, o.ScopeId,
@@ -155,7 +168,8 @@ public partial class DomainObjectRepository
                 return current.Kind switch
                 {
                     "string" or "number" => (Blank(current.Value), current.Id == record.Id ? null : current.Id, false),
-                    "null" => (null, null, false),
+                    // Своё поле есть, а части в нём нет (или само поле не составное): значения нет.
+                    "null" or null => (null, null, false),
                     _ => (null, null, true),
                 };
 

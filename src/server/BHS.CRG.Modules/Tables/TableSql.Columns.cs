@@ -242,7 +242,8 @@ public sealed partial class TableSql<T>
     /// базе, слово из закрытого перечня у человека; различает их только объявленный вид.
     /// </summary>
     private sealed class LookupColumn<TKey>(
-        Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels, ModuleTableColumnKind kind) : Column
+        Expression<Func<T, TKey?>> id, IReadOnlyDictionary<TKey, string> labels, ModuleTableColumnKind kind,
+        IReadOnlyDictionary<TKey, string>? alsoNamed = null) : Column
         where TKey : struct
     {
         public override ModuleTableColumnKind Kind => kind;
@@ -262,11 +263,25 @@ public sealed partial class TableSql<T>
         public override Expression<Func<T, bool>> Test(TableFilterCondition condition)
         {
             // Названия сверяет правило ядра — то же, каким исполнитель в памяти сверяет клетку.
-            var matching = labels.Where(l => condition.Matches(l.Value)).Select(l => (TKey?)l.Key).ToArray();
+            var matching = labels.Where(l => Fits(condition, l)).Select(l => (TKey?)l.Key).ToArray();
             var found = Compose(id, key => matching.Contains(key));
 
             // Пустая клетка — и «ссылки нет», и «ссылка ведёт в никуда»: на экране обе пусты.
             return condition.Matches(null) ? Or(found, Not(Known)) : found;
+        }
+
+        /// <summary>
+        /// Подходит ли запись: по видимому названию, а со вторым — по любому из двух (у отрицания — ни
+        /// по одному). Правило ядра у отрицания уже перевёрнуто, поэтому «ни по одному» — это «правило
+        /// согласно с обоими». Пусто/не пусто — по видимому: второе без первого не бывает.
+        /// </summary>
+        private bool Fits(TableFilterCondition condition, KeyValuePair<TKey, string> label)
+        {
+            if (alsoNamed is null || !alsoNamed.TryGetValue(label.Key, out var other) || TableFilters.IsPresence(condition.Op))
+                return condition.Matches(label.Value);
+            return TableFilters.IsNegative(condition.Op)
+                ? condition.Matches(label.Value) && condition.Matches(other)
+                : condition.Matches(label.Value) || condition.Matches(other);
         }
 
         public override IOrderedQueryable<T> Order(IQueryable<T> rows, bool descending, bool first)

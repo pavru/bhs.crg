@@ -168,7 +168,8 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
           {/* Список и счёт читаются порознь и могут разойтись на миг (организацию только что
               вернули): два пункта с одним значением Radix отметил бы выбранными оба. */}
           {kept && !organizations.some(o => o.id === kept.id) && <SelectItem value={kept.id}>{kept.name}</SelectItem>}
-          {organizations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+          {/* Сокращённое название — строкой пункта, полное — второй строкой (issue #1473, В1). */}
+          {organizations.map(o => <SelectItem key={o.id} value={o.id} supporting={o.fullName}>{o.name}</SelectItem>)}
         </Select>
       );
     }

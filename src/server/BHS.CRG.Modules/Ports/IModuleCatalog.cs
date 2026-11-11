@@ -13,14 +13,19 @@ namespace BHS.CRG.Modules.Ports;
 /// <c>CommonDataBindingCheck</c>). <c>catalog_entities</c> — остаток прежней модели: ни один экран
 /// в неё не пишет и ни один адрес клиента её не читает. То есть код вида я проверил у той таблицы,
 /// у которой не надо было, и «сверено с живой базой» в этом комментарии было НЕВЕРНО.</param>
-/// <param name="DisplayName">Название, которым запись показывают человеку.</param>
+/// <param name="DisplayName">Название, которым запись показывают человеку. У организации — сокращённое
+/// название, если оно заполнено (тэг <c>org.shortName</c>, issue #1473), иначе название записи.</param>
 /// <param name="DataJson">Данные записи — СТРОКОЙ с JSON, как их хранит ядро. Разбирает их модуль
 /// сам: состав полей у каждого вида свой и меняется настройкой, а не кодом, поэтому типа, который
 /// здесь можно было бы объявить, не существует.</param>
 /// <param name="Archived">Запись в архиве (ТЗ CORE-34.4, issue #1185): из выбора нового значения
 /// убрана, сохранённые ссылки на неё целы. Признак обязательный и едет всегда — кто показывает
 /// запись, обязан решить, что сказать об архиве.</param>
-public sealed record ModuleCatalogEntry(Guid Id, string EntityType, string DisplayName, string DataJson, bool Archived);
+/// <param name="FullName">Название записи, когда для показа взято другое — сокращённое название
+/// организации (issue #1473); <c>null</c> — <paramref name="DisplayName" /> и есть название записи.
+/// Нужно там, где похожие организации различают: в выборе поставщика.</param>
+public sealed record ModuleCatalogEntry(
+    Guid Id, string EntityType, string DisplayName, string DataJson, bool Archived, string? FullName = null);
 
 /// <summary>
 /// Зачем модуль читает справочник: чтобы человек ВЫБРАЛ новое значение или чтобы ПОКАЗАТЬ уже
@@ -60,8 +65,12 @@ public enum RecordsFor
 /// набранного нет в её названии (issue #1169); иначе <c>null</c>. Кто показывает список, обязан
 /// показать и его: запись, в названии которой набранного нет, без пояснения выглядит ошибкой поиска.</param>
 /// <param name="Archived">Запись в архиве — см. <see cref="ModuleCatalogEntry" />.</param>
+/// <param name="DisplayName">Название для показа — у организации сокращённое, если оно есть
+/// (см. <see cref="ModuleCatalogEntry" />).</param>
+/// <param name="FullName">Название записи, когда показ взял другое — см. <see cref="ModuleCatalogEntry" />.</param>
 public sealed record ModuleCatalogRef(
-    Guid Id, string EntityType, string? DisplayName, bool Archived, string? MatchedAlias = null);
+    Guid Id, string EntityType, string? DisplayName, bool Archived, string? MatchedAlias = null,
+    string? FullName = null);
 
 /// <summary>
 /// Ответ поиска на выбор: живые записи — и сколько под тот же запрос лежит в архиве.

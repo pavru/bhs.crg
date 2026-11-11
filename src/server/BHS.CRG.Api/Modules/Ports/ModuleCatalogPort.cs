@@ -46,7 +46,8 @@ public sealed class ModuleCatalogPort(
         // они означают на экране (`DomainExceptionPolicyTests`).
         // Справочник — это носитель роли И его подтипы: подтип организации остаётся организацией, и
         // поставщиком заказчика может быть любой из них. Считаем так же, как ядро в `isSubtypeOf`.
-        if (await FamilyAsync(role, ct) is not { } codes) return null;
+        if (await DirectoryAsync(role, ct) is not { } directory) return null;
+        var codes = directory.Codes;
         var entries = new List<DomainObject>();
         foreach (var id in codes.Keys)
             entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));
@@ -61,18 +62,21 @@ public sealed class ModuleCatalogPort(
         // «по названию» в контракте без сортировки здесь было бы ложным: оно сбывалось бы, пока
         // записи не правили (ревью PR #1106). Сравнение культурное, как у клиента: список читает
         // человек, и «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
+        // Название — для показа (issue #1473): у организации сокращённое, если оно есть. Сортировка —
+        // по нему же: список читают по тому, что видно.
+        var names = await directory.NamesAsync(ct);
         return [.. entries
-            .Select(e => Map(e, codes))
+            .Select(e => names.Apply(Map(e, codes)))
             .OrderBy(e => e.DisplayName, StringComparer.CurrentCulture)];
     }
 
     public async Task<ModuleCatalogChoice?> SearchAsync(
         string role, string? query, int limit, CancellationToken ct = default)
     {
-        if (await FamilyAsync(role, ct) is not { } codes) return null;
+        if (await DirectoryAsync(role, ct) is not { } directory) return null;
 
-        var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);
-        return new ModuleCatalogChoice(Refs(found.Items, codes), found.InArchive);
+        var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);
+        return new ModuleCatalogChoice(Refs(found.Items, directory.Codes, await directory.NamesAsync(ct)), found.InArchive);
     }
 
     public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
@@ -83,9 +87,10 @@ public sealed class ModuleCatalogPort(
         // зависеть от того, пуст ли список.
         needs.EnsureDeclared(role);
         if (ids.Count == 0) return [];
-        if (await FamilyAsync(role, ct) is not { } codes) return null;
+        if (await DirectoryAsync(role, ct) is not { } directory) return null;
 
-        return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. codes.Keys], ids), ct), codes);
+        return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),
+            directory.Codes, await directory.NamesAsync(ct));
     }
 
     public async Task<ModuleCatalogFieldValues?> FieldValuesAsync(
@@ -110,13 +115,15 @@ public sealed class ModuleCatalogPort(
                 $"поле «{tag.Label}» назначено полю «{fieldKey}», а оно составное — одним значением не читается");
 
         var codes = resolved.Family;
-        var values = await mediator.Send(new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records), ct);
+        var values = await mediator.Send(
+            new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records, field.Part), ct);
+        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
         return new ModuleCatalogFieldValues(true,
             [.. values
                 .Select(v => new ModuleCatalogFieldValue(
-                    new ModuleCatalogRef(
+                    names.Apply(new ModuleCatalogRef(
                         v.Record.Id, codes.TryGetValue(v.Record.CompositeTypeId, out var code) ? code : string.Empty,
-                        v.Record.DisplayName, v.Record.Archived),
+                        v.Record.DisplayName, v.Record.Archived)),
                     v.Value, v.InheritedFrom, v.Unreadable))
                 .OrderBy(v => v.Record.DisplayName, StringComparer.CurrentCulture)]);
     }
@@ -143,6 +150,7 @@ public sealed class ModuleCatalogPort(
         // ядра (его же сверяет шаг «Новая позиция», им же называется запись), и роль им не владеет. Снятый
         // с поля тэг ключа делает подбор беднее, но не ложным: запись сверяется названием.
         var lying = await similarity.LoadAsync(all, [.. all.Values.Where(t => codes.ContainsKey(t.Id))], null, ct);
+        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, [.. all.Values], ct);
         return [.. lines.Select(line =>
         {
             // Всех: действующих отсекает предел порта, архивные идут числом.
@@ -151,9 +159,9 @@ public sealed class ModuleCatalogPort(
             var live = hits.Where(h => !h.Record.Archived).ToList();
             return new ModuleLineCandidates(
                 [.. live.Take(limit).Select(h => new ModuleLineCandidate(
-                    new ModuleCatalogRef(
+                    names.Apply(new ModuleCatalogRef(
                         h.Record.Id, codes.TryGetValue(h.Record.TypeId, out var code) ? code : string.Empty,
-                        h.Record.Name, Archived: false, MatchedAlias: h.Matched.Alias),
+                        h.Record.Name, Archived: false, MatchedAlias: h.Matched.Alias)),
                     h.Why, h.Strong,
                     new ModuleLineMatched(
                         [.. h.Matched.Words.Select(w => new ModuleLineWord(w.Text, w.Start, w.Found))], h.Matched.Field)))],
@@ -184,9 +192,10 @@ public sealed class ModuleCatalogPort(
                 && lines.TryGetValue(key, out var line))
                 tagged[code] = line;
 
+        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
         return new ModuleCatalogCard(
-            new ModuleCatalogRef(card.Record.Id, codes.GetValueOrDefault(card.Record.CompositeTypeId, string.Empty),
-                card.Record.DisplayName, card.Record.Archived),
+            names.Apply(new ModuleCatalogRef(card.Record.Id, codes.GetValueOrDefault(card.Record.CompositeTypeId, string.Empty),
+                card.Record.DisplayName, card.Record.Archived)),
             card.TypeName, [.. card.Lines.Select(l => lines[l.Key])], card.Aliases, card.NotShown, card.EmptyCount,
             tagged, Scope(card.Scope));
     }
@@ -231,24 +240,34 @@ public sealed class ModuleCatalogPort(
     /// картинок на список (issue #1015).</para>
     /// </summary>
     private static IReadOnlyList<ModuleCatalogRef> Refs(
-        IReadOnlyList<CommonDataRef> refs, IReadOnlyDictionary<Guid, string> codes) =>
+        IReadOnlyList<CommonDataRef> refs, IReadOnlyDictionary<Guid, string> codes, RecordDisplayNames names) =>
         // Порядок задаёт ПОРТ, как и в списке: в базе сортировка своя (ею отсекается limit), а список
         // читает человек — «Ёлка» в нём стоит между «Дубом» и «Жасмином», а не после латиницы.
         [.. refs
-            .Select(r => new ModuleCatalogRef(
+            .Select(r => names.Apply(new ModuleCatalogRef(
                 r.Id, codes.TryGetValue(r.CompositeTypeId, out var code) ? code : string.Empty, r.DisplayName,
-                r.Archived, r.MatchedAlias))
+                r.Archived, r.MatchedAlias)))
             .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)];
 
     /// <summary>
     /// Носитель роли и его подтипы; <c>null</c> — роль не обеспечена. Необъявленная роль — отказ:
     /// это дефект вызывающего кода, а не состояние установки.
     /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, string>?> FamilyAsync(string role, CancellationToken ct)
+    private async Task<Directory?> DirectoryAsync(string role, CancellationToken ct)
     {
         needs.EnsureDeclared(role);
-        var resolved = RoleResolution.Role(role, await types.GetAllAsync(ct));
-        return resolved.Root is null ? null : resolved.Family;
+        var all = await types.GetAllAsync(ct);
+        var resolved = RoleResolution.Role(role, all);
+        return resolved.Root is null ? null : new Directory(mediator, tags, resolved, all);
+    }
+
+    /// <summary>Справочник роли: семейство типов и — по запросу — названия для показа.</summary>
+    private sealed record Directory(IMediator Mediator, TagCatalog Tags, ResolvedRole Role, IReadOnlyList<DocumentType> All)
+    {
+        public IReadOnlyDictionary<Guid, string> Codes => Role.Family;
+
+        public Task<RecordDisplayNames> NamesAsync(CancellationToken ct) =>
+            RecordDisplayNames.LoadAsync(Mediator, Tags, Role, All, ct);
     }
 
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
@@ -262,7 +281,14 @@ public sealed class ModuleCatalogPort(
         if (entry is null || entry.IsDocument) return null;
 
         var all = await types.GetAllAsync(ct);
-        return Map(entry, all.ToDictionary(t => t.Id, t => t.Code));
+        var mapped = Map(entry, all.ToDictionary(t => t.Id, t => t.Code));
+
+        // Запись справочника с тэгом названия (организация) — названием для показа, как в любом другом
+        // чтении порта (issue #1473).
+        foreach (var naming in tags.All.Where(t => t.Names && t.Role is not null))
+            if (RoleResolution.Role(naming.Role!, all) is { } directory && directory.Family.ContainsKey(entry.CompositeTypeId))
+                return (await RecordDisplayNames.LoadAsync(mediator, tags, directory, all, ct)).Apply(mapped);
+        return mapped;
     }
 
     /// <summary>

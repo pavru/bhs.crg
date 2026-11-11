@@ -1,4 +1,5 @@
 import type { DocumentType } from './types';
+import type { TagDefinition } from './tags';
 import { FUNCTIONAL_TAG, findTagEntry, hasTag, tagOrder } from './tags';
 import { ROW_UID, withRowUid } from '@/shared/utils/rowIdentity';
 
@@ -349,6 +350,21 @@ export function findTaggedFieldPath(docType: DocumentType, tag: string, allDocTy
     }
   }
   return null;
+}
+
+/**
+ * Тэги ЧАСТЕЙ, уместные в полях этого составного типа (issue #1473): тэг роли с `partOf` предлагается
+ * здесь, когда этим типом набрано поле с тэгом `partOf` у типа той же роли — так `org.shortName`
+ * предлагается части «Сокращённое» составного «Наименования» организации. Сервер находит такую часть
+ * тем же правилом (`RoleResolution.Field`).
+ */
+export function partTagCodes(
+  docType: DocumentType, allDocTypes: DocumentType[], registry: TagDefinition[] | undefined,
+): string[] {
+  return (registry ?? [])
+    .filter(t => t.partOf && t.role && allDocTypes.some(owner => typeHasTag(owner, t.role!, allDocTypes)
+      && resolveEffectiveFields(owner, allDocTypes).some(f => f.typeId === docType.id && hasTag(f.tags, t.partOf!))))
+    .map(t => t.code);
 }
 
 /** True if the type (or any ancestor) carries the given type-level functional tag (schema.tags). */

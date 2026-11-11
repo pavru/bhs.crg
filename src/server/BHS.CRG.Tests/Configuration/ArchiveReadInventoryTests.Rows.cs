@@ -40,11 +40,11 @@ public partial class ArchiveReadInventoryTests
             Documents("документ по идентификатору"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));"] =
             ByPurpose("назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. codes.Keys], ids), ct), codes);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
         ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
@@ -414,7 +414,7 @@ public partial class ArchiveReadInventoryTests
             Seen("названия поставщиков уже заведённых счетов"),
         ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct))"] =
             Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
-        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var names = (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
+        ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct) ?? [];"] =
             Seen("названия поставщиков уже заведённых счетов"),
     };
 }

@@ -74,6 +74,30 @@ describe('Select с подписью: exposed dropdown ([UI-69])', () => {
   });
 });
 
+describe('SelectItem: вторая строка пункта (issue #1473)', () => {
+  function Party() {
+    const [value, setValue] = useState('a');
+    return (
+      <Select label="Поставщик" value={value} onValueChange={setValue}>
+        <SelectItem value="a" supporting="Общество с ограниченной ответственностью «Ромашка»">ООО «Ромашка»</SelectItem>
+        <SelectItem value="b">ИП Петров</SelectItem>
+      </Select>
+    );
+  }
+
+  it('в списке под названием — вторая строка, а закрытое поле показывает только первую', () => {
+    render(<Party />);
+    const trigger = screen.getByRole('combobox', { name: 'Поставщик' });
+    expect(trigger.textContent).toContain('ООО «Ромашка»');
+    expect(trigger.textContent).not.toContain('Общество');
+
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    const option = screen.getByRole('option', { name: /ООО «Ромашка»/ });
+    expect(option.textContent).toContain('Общество с ограниченной ответственностью «Ромашка»');
+    expect(screen.getByRole('option', { name: 'ИП Петров' }).textContent).toBe('ИП Петров');
+  });
+});
+
 describe('Select без подписи: вид по месту ([UI-69])', () => {
   function Filter() {
     const [value, setValue] = useState('');

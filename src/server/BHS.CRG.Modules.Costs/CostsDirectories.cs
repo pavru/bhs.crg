@@ -30,6 +30,12 @@ public static class CostsDirectories
     /// <summary>Название организации — в него ложится название при заведении организации из файла.</summary>
     public const string OrganizationName = FunctionalTag.OrgName;
 
+    /// <summary>
+    /// Сокращённое название организации — им поставщик и плательщик называются в счетах и накладных
+    /// (issue #1473). Называет порт ядра; модуль объявляет тэг, чтобы его видел экран сопоставления.
+    /// </summary>
+    public const string OrganizationShortName = FunctionalTag.OrgShortName;
+
     /// <summary>Артикул позиции — для сравнения со строкой счёта в карточке позиции.</summary>
     public const string Article = FunctionalTag.NomenclatureArticle;
 
@@ -53,6 +59,10 @@ public static class CostsDirectories
                 new(OrganizationName, Required: true,
                     "Не работает заведение организации из файла счёта. Нового поставщика заводят в справочнике " +
                     "вручную."),
+                // Необязательное: без него организация называется полным названием записи, как прежде.
+                new(OrganizationShortName, Required: false,
+                    "Поставщик и плательщик в счетах, накладных и реестре называются полным названием, даже если " +
+                    "сокращённое заполнено."),
             ]),
         new(Nomenclature,
             "Позиция в строке счёта и накладной",

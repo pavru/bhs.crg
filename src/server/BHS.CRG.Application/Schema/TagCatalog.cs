@@ -74,6 +74,31 @@ public sealed class TagCatalog
                 "Тэг назван тэгом роли, которой нет: " + string.Join("; ", orphans) + ". " +
                 "Роль — тэг ТИПА с признаком справочника, а относить к ней можно только тэг поля.");
 
+        // Часть составного поля (issue #1473): тэг, допускающий часть, называет СОСТАВНОЕ поле своей
+        // же роли. Иначе редактор предлагал бы тэг в частях поля, которое порт не читает.
+        var parts = all
+            .Where(t => t.PartOf is not null
+                && !(t.Role is not null && all.Any(p => p.Code == t.PartOf && p.Scope == TagScope.Field
+                    && p.Role == t.Role && p.AppliesTo.Contains("complex"))))
+            .Select(t => $"«{t.Code}» → «{t.PartOf}»")
+            .ToList();
+        if (parts.Count > 0)
+            throw new InvalidOperationException(
+                "Тэг назван тэгом части поля, которое не годится: " + string.Join("; ", parts) + ". " +
+                "Часть бывает только у составного тэга поля той же роли.");
+
+        // Название для показа (issue #1473) — одно на роль: по двум порту пришлось бы выбирать молча.
+        var naming = all
+            .Where(t => t.Names)
+            .GroupBy(t => t.Role)
+            .Where(g => g.Key is null || g.Count() > 1 || g.Any(t => t.Scope != TagScope.Field))
+            .Select(g => $"«{g.Key ?? "без роли"}»: {string.Join(", ", g.Select(t => t.Code))}")
+            .ToList();
+        if (naming.Count > 0)
+            throw new InvalidOperationException(
+                "Тэг названия для показа объявлен не тэгом поля роли или не один на роль: " +
+                string.Join("; ", naming) + ".");
+
         // Роль читают как «единственный справочник»: без потолка носителей коду пришлось бы
         // выбирать между двумя типами молча.
         var loose = all

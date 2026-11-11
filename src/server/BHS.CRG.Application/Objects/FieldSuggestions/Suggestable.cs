@@ -49,6 +49,8 @@ public static class Suggestable
         // Решение В-4 эпика (22.10.2026): оба — тэги однозначности.
         (FunctionalTag.NomenclatureArticle, "article"),
         (FunctionalTag.OrgName, "orgName"),
+        // Сокращённое — то же название организации (issue #1473): чужое ведёт к дублю, как полное.
+        (FunctionalTag.OrgShortName, "orgName"),
         // Поле ядра с этим тэгом заперто и отсекается раньше, но тэг ставится любому строковому
         // полю — и там подсказка чужой учётной записи привязала бы к ней второго сотрудника.
         (FunctionalTag.EmployeeAccount, "account"),

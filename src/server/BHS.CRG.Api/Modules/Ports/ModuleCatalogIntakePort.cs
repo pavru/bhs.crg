@@ -4,6 +4,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
+using MediatR;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -15,7 +16,8 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// служба ядра (<see cref="ICatalogIntake" />).</para>
 /// </summary>
 public sealed class ModuleCatalogIntakePort(
-    ModuleRegistry modules, ICatalogIntake intake, IRepository<DocumentType> types, TagCatalog tags)
+    ModuleRegistry modules, ICatalogIntake intake, IRepository<DocumentType> types, TagCatalog tags,
+    IMediator mediator)
     : IModuleCatalogIntake
 {
     public async Task<ModuleIntakeResult?> CreateAsync(
@@ -47,14 +49,19 @@ public sealed class ModuleCatalogIntakePort(
         var outcome = await intake.CreateAsync(
             new CatalogIntakeRequest(type.Id, nameKey, uniqueKey, name, uniqueValue), ct);
 
-        // Код вида у найденных — код ИХ типа: совпасть мог и подтип.
+        // Код вида у найденных — код ИХ типа: совпасть мог и подтип. Название — для показа, как у
+        // читающего порта (issue #1473): найденная по ИНН организация называется сокращённым, если оно
+        // есть. Новая сокращённого не имеет — заведение его не выдумывает.
         var codes = all.ToDictionary(t => t.Id, t => t.Code);
+        var names = outcome.Existing.Count == 0
+            ? null
+            : await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
         return new ModuleIntakeResult(
             outcome.Created is { } created
                 ? new ModuleCatalogRef(created.Id, type.Code, created.DisplayName, created.IsArchived)
                 : null,
-            [.. outcome.Existing.Select(r => new ModuleCatalogRef(
-                r.Id, codes.GetValueOrDefault(r.CompositeTypeId, type.Code), r.DisplayName, r.Archived))],
+            [.. outcome.Existing.Select(r => names!.Apply(new ModuleCatalogRef(
+                r.Id, codes.GetValueOrDefault(r.CompositeTypeId, type.Code), r.DisplayName, r.Archived)))],
             outcome.Refusals);
     }
 

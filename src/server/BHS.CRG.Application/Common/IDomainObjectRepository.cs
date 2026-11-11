@@ -62,8 +62,11 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// Значения одного поля у записей общих данных названных типов, с разрешённым наследованием
     /// (issue #1077) — см. <see cref="CommonDataFieldValuesQuery" />. Данные записи целиком не грузятся.
     /// </summary>
+    /// <param name="partKey">Часть составного поля (issue #1473): значение — <c>Data[fieldKey][partKey]</c>.
+    /// Наследование решается по самому полю: своё составное перекрывает основу целиком, как при печати.</param>
     Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
-        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default);
+        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default,
+        string? partKey = null);
 
     /// <summary>
     /// Какие из названных записей общих данных лежат в архиве (issue #1185). Вид записи не спрашивает:

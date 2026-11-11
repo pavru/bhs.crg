@@ -479,10 +479,16 @@ export type InvoiceQueue = 'parsing' | 'unrecognized' | 'lost' | 'archived';
 
 export interface CostsOrganization {
   id: string;
+  /** Название для показа — сокращённое, если оно заполнено (issue #1473). */
   name: string;
   type: string;
   /** В архиве — бывает только в списке на показ. */
   archived: boolean;
+  /**
+   * Полное название — когда `name` сокращённое; иначе пусто. Выбор показывает его второй строкой
+   * пункта (решение владельца 22.10.2026): похожие сокращённые названия иначе путают.
+   */
+  fullName?: string | null;
 }
 
 /** Позиция номенклатуры в выборе строки. */

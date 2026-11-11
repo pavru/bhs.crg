@@ -235,11 +235,26 @@ const ITEM =
   'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded-xs text-body-medium text-on-surface select-none cursor-pointer ' +
   'outline-none state-layer data-[state=checked]:font-medium disabled-content data-[disabled]:pointer-events-none';
 
-export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?: boolean; children: ReactNode; className?: string }>(
-  function SelectItem({ value, disabled, children, className = '' }, ref) {
+/**
+ * Пункт выбора. `supporting` — вторая строка пункта (issue #1473: полное название организации под
+ * сокращённым): она стоит ВНЕ `ItemText`, поэтому закрытое поле показывает только первую строку —
+ * Radix переносит в триггер ровно текст пункта.
+ */
+export const SelectItem = forwardRef<HTMLDivElement, {
+  value: string; disabled?: boolean; children: ReactNode; supporting?: ReactNode; className?: string;
+}>(
+  function SelectItem({ value, disabled, children, supporting, className = '' }, ref) {
+    const twoLine = supporting !== undefined && supporting !== null && supporting !== '';
     return (
       <RS.Item ref={ref} value={value} disabled={disabled} className={`${ITEM} ${className}`}>
-        <RS.ItemText>{children}</RS.ItemText>
+        {twoLine
+          ? (
+            <span className="flex min-w-0 flex-col">
+              <RS.ItemText>{children}</RS.ItemText>
+              <span className="text-body-small text-on-surface-variant">{supporting}</span>
+            </span>
+          )
+          : <RS.ItemText>{children}</RS.ItemText>}
         <RS.ItemIndicator className="absolute right-2 inline-flex text-primary">
           <Icon icon={Check} size={18} />
         </RS.ItemIndicator>
