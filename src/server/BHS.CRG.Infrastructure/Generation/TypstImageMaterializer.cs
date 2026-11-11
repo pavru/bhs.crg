@@ -8,7 +8,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// <summary>
 /// Готовит данные для Typst: поля-изображения хранятся как data-URI (<c>data:image/png;base64,...</c>).
 /// Typst не умеет их загружать напрямую, поэтому каждое изображение декодируется в файл
-/// (<c>assets/img_N.ext</c>) внутри каталога компиляции, а в JSON значение заменяется на объект
+/// (<c>fields/img_N.ext</c>) внутри каталога компиляции, а в JSON значение заменяется на объект
 /// <c>{ src, width, height, align, fit }</c> (путь к файлу + размер/выравнивание).
 /// <para>
 /// Размер/выравнивание берутся из САМОГО значения (issue #246): если значение — объект
@@ -34,29 +34,32 @@ namespace BHS.CRG.Infrastructure.Generation;
 public static class TypstImageMaterializer
 {
     /// <summary>
-    /// Возвращает JSON для data.json, попутно записав изображения в <paramref name="targetDir"/>/<paramref name="assetsSubdir"/>.
+    /// Возвращает JSON для data.json, попутно записав изображения в <paramref name="targetDir"/>/<paramref name="fieldsSubdir"/>.
     /// </summary>
+    /// <param name="fieldsSubdir">Каталог файлов полей. По умолчанию <c>fields/</c>, и иначе его задавать незачем:
+    /// в <c>assets/</c> лежат ассеты шаблона, и картинка поля встала бы с ними под одно имя (change
+    /// core-template-asset-names, D1).</param>
     /// <param name="unreadable">Куда сложить адреса полей, чью картинку не удалось прочитать из хранилища.</param>
     public static Task<string> MaterializeAsync(IReadOnlyDictionary<string, object?> data, string targetDir,
-        IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
+        IBlobStorage? blob = null, string fieldsSubdir = TypstGenerator.FieldsSubdir, JsonSerializerOptions? outputOptions = null,
         ICollection<string>? unreadable = null, CancellationToken ct = default)
         => MaterializeNodeAsync(JsonSerializer.SerializeToNode(data) ?? new JsonObject(),
-            targetDir, blob, assetsSubdir, outputOptions, unreadable, ct);
+            targetDir, blob, fieldsSubdir, outputOptions, unreadable, ct);
 
     private static async Task<string> MaterializeNodeAsync(JsonNode root, string targetDir, IBlobStorage? blob,
-        string assetsSubdir, JsonSerializerOptions? outputOptions, ICollection<string>? unreadable, CancellationToken ct)
+        string fieldsSubdir, JsonSerializerOptions? outputOptions, ICollection<string>? unreadable, CancellationToken ct)
     {
-        var ctx = new Context(Path.Combine(targetDir, assetsSubdir), assetsSubdir, blob, unreadable);
+        var ctx = new Context(Path.Combine(targetDir, fieldsSubdir), fieldsSubdir, blob, unreadable);
         await WalkAsync(root, ctx, "", ct);
         return outputOptions is null ? root.ToJsonString() : root.ToJsonString(outputOptions);
     }
 
-    private sealed class Context(string assetsDir, string assetsSubdir, IBlobStorage? blob, ICollection<string>? unreadable)
+    private sealed class Context(string fieldsDir, string fieldsSubdir, IBlobStorage? blob, ICollection<string>? unreadable)
     {
         /// <summary>Адреса полей, чью картинку хранилище не отдало; null — не собираем.</summary>
         public ICollection<string>? Unreadable { get; } = unreadable;
-        public string AssetsDir { get; } = assetsDir;
-        public string AssetsSubdir { get; } = assetsSubdir;
+        public string FieldsDir { get; } = fieldsDir;
+        public string FieldsSubdir { get; } = fieldsSubdir;
         /// <summary>Хранилище для узлов-ссылок; null — их просто не будет чем прочитать (тесты без блобов).</summary>
         public IBlobStorage? Blob { get; } = blob;
         public int Count;
@@ -126,7 +129,7 @@ public static class TypstImageMaterializer
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms, ct);
 
-            Directory.CreateDirectory(ctx.AssetsDir);
+            Directory.CreateDirectory(ctx.FieldsDir);
             // Расширение — из ЗАЯВЛЕННОГО типа, а путь блоба только запасной вариант (issue #532):
             // путь может оканчиваться чем угодно, а Typst выбирает декодер по расширению файла.
             // «bin» из ExtFor означает «тип незнакомый» — тогда решает путь блоба, и лишь затем png.
@@ -148,8 +151,8 @@ public static class TypstImageMaterializer
             var ext = byMime != "bin" ? byMime : byPath;
             if (ext.Length == 0) ext = "png";
             var name = $"img_{ctx.Count++}.{ext}";
-            await File.WriteAllBytesAsync(Path.Combine(ctx.AssetsDir, name), ms.ToArray(), ct);
-            return AssetPath.FromRoot(ctx.AssetsSubdir, name);
+            await File.WriteAllBytesAsync(Path.Combine(ctx.FieldsDir, name), ms.ToArray(), ct);
+            return AssetPath.FromRoot(ctx.FieldsSubdir, name);
         }
         catch (OperationCanceledException)
         {
@@ -188,10 +191,10 @@ public static class TypstImageMaterializer
         try { bytes = Convert.FromBase64String(base64); }
         catch (FormatException) { return null; } // не валидный base64 — оставляем как есть
 
-        Directory.CreateDirectory(ctx.AssetsDir);
+        Directory.CreateDirectory(ctx.FieldsDir);
         var name = $"img_{ctx.Count++}.{ExtFor(mime)}";
-        File.WriteAllBytes(Path.Combine(ctx.AssetsDir, name), bytes);
-        return AssetPath.FromRoot(ctx.AssetsSubdir, name);
+        File.WriteAllBytes(Path.Combine(ctx.FieldsDir, name), bytes);
+        return AssetPath.FromRoot(ctx.FieldsSubdir, name);
     }
 
     private static string ExtFor(string mime) => mime.ToLowerInvariant() switch

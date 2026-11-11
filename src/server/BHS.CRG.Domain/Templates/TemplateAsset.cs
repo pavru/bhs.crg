@@ -40,6 +40,29 @@ public class TemplateAsset : Entity
 
     private TemplateAsset() { }
 
+    /// <summary>Правило имени картинки словами — для текста отказа; источник правила — <see cref="IsValidImageName" />.</summary>
+    public const string ImageNameRule =
+        "без «/», «\\», «:», «*», «?», «\"», «<», «>», «|» и «..», без управляющих знаков, без пробела в начале и в конце";
+
+    /// <summary>Знаки, которых в имени картинки нет: разделители пути и то, чего не берёт имя файла в Windows.</summary>
+    private const string ForbiddenImageNameChars = "/\\:*?\"<>|";
+
+    /// <summary>
+    /// Имя ассета-картинки — имя файла, а не путь (change core-template-asset-names, D2). Name становится
+    /// частью пути <c>assets/{Name}{ext}</c> в каталоге компиляции, и только такое имя адресует ровно тот
+    /// файл, что зовёт шаблон. Запрещено узко — то, что меняет путь или не пишется файлом: разделители,
+    /// <c>..</c>, знаки, недопустимые в имени файла Windows, управляющие знаки, пробел по краям. Прочее
+    /// (скобки, запятые, «№», пробел внутри — #476: «ГОСТ 21.101. Форма 3») допустимо: файлы полей лежат
+    /// в своём <c>fields/</c> (D1), и до них такое имя не дотягивается, а запрет уронил бы прежние ассеты.
+    /// Примеры — общий набор <c>templateAssetNameCases.json</c>: по нему сверены сервер и подсказка клиента.
+    /// Имя шрифта в путь не входит — правило к нему не применяется.
+    /// </summary>
+    public static bool IsValidImageName(string? name)
+        => !string.IsNullOrEmpty(name)
+           && name[0] != ' ' && name[^1] != ' '
+           && !name.Contains("..", StringComparison.Ordinal)
+           && !name.Any(c => char.IsControl(c) || ForbiddenImageNameChars.Contains(c));
+
     public static TemplateAsset Create(
         TemplateAssetScope scope, Guid? scopeId, TemplateAssetKind kind,
         string name, string fileName, string mimeType, string blobPath, string? fontFamilyName = null)

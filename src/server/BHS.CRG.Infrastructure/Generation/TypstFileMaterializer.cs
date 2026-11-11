@@ -8,7 +8,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// Материализует поля-вложения контекста (<c>{$type:"file", blobPath, fileName, mimeType, size}</c>)
 /// в файлы каталога компиляции: скачивает blob из хранилища и заменяет значение объектом
 /// <c>{src, fileName, mimeType, pageCount}</c>, где <c>src</c> — путь ОТ КОРНЯ пакета файлов
-/// (<c>/assets/att_0.pdf</c>, см. <see cref="Application.Generation.AssetPath"/>): Typst резолвит
+/// (<c>/fields/att_0.pdf</c>, см. <see cref="Application.Generation.AssetPath"/>): Typst резолвит
 /// путь относительно файла, в котором написан вызов, поэтому относительная форма работала бы только
 /// в файле из корня (issue #513).
 /// В шаблоне: <c>image(it.Поле.src)</c> — картинка или 1-я страница PDF; <c>image(src, page: n)</c> —
