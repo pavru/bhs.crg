@@ -4,6 +4,7 @@ import { Feedback, Logout, Person } from './icons';
 import { formatDateTime } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccount } from '@/shared/api/account';
+import { employeeLine, useAccess } from '@/shared/api/access';
 import { useAppVersion, type AppVersion } from '@/shared/api/version';
 import { useUpdateStatus } from '@/shared/api/updates';
 import { useTheme } from '@/shared/ui/themeContext';
@@ -42,6 +43,9 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   // Роли — подпись с сервера целиком, вместе с названиями (issue #951); их может быть несколько
   // (issue #984) — перечисляем все: показанная первая означала бы меньше прав, чем человек носит.
   const roles = account?.roles.map(r => r.title).join(', ');
+  // Сотрудник вошедшего (work-01, B22): монтажник видит, за кого подаёт отчёты. Нет связи — строки нет.
+  const { data: access } = useAccess(!!user);
+  const employee = employeeLine(access?.employee);
   const auto = THEME_OPTIONS.find(o => o.hint);
   const autoHint = auto && `${auto.label.toLowerCase()} — ${auto.hint}`;
   // Версия читается вместе с оболочкой, а не с открытием меню: новость о новой версии — ПАССИВНЫЙ
@@ -76,6 +80,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
           <div className="text-body-large text-on-surface truncate">{name}</div>
           {roles && <div className="text-body-small text-on-surface-variant truncate">{roles}</div>}
           {user?.displayName && <div className="text-body-small text-on-surface-variant truncate">{user.email}</div>}
+          {employee && <div data-testid="account-employee" className="text-body-small text-on-surface-variant truncate">{employee}</div>}
         </div>
       </div>
 

@@ -36,6 +36,14 @@ export interface AccessInfo {
    * смог назвать пояс этим именем; поля нет — ответ старого сервера. В обоих случаях — день браузера.
    */
   company?: { timeZone: string | null };
+  /**
+   * Сотрудник вошедшего (ТЗ AUTH-14, WORK-47; work-01) — из таблицы связей ядра, каждым ответом: отвязали
+   * во время работы — следующий опрос уже без сотрудника. `null` — связи нет, причина — в `employeeReason`.
+   * Необязательное: ответ старого сервера его не несёт.
+   */
+  employee?: { id: string; name: string; archived: boolean } | null;
+  /** Почему сотрудника нет: `not-linked` — не связали, `directory-missing` — справочник не заведён. */
+  employeeReason?: 'not-linked' | 'directory-missing' | null;
 }
 
 export const ACCESS_KEY = ['account', 'access'] as const;
@@ -81,4 +89,12 @@ export function useCan() {
     module: (code: string) => hasModule(access, code),
     permission: (code: string) => hasPermission(access, code),
   };
+}
+
+/**
+ * Строка «Сотрудник: <ФИО>» меню аватара — по полю `employee` ответа `/api/account/access`. Нет связи —
+ * строки нет (спека core, work-01): причину называет `employeeReason`, и выводить её здесь меню не берётся.
+ */
+export function employeeLine(employee: { name: string } | null | undefined): string | null {
+  return employee?.name ? `Сотрудник: ${employee.name}` : null;
 }
