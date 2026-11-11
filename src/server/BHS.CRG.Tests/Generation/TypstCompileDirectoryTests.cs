@@ -154,4 +154,28 @@ public sealed class TypstCompileDirectoryTests : IDisposable
 
         Assert.Equal(["Подпись"], layout.UnreadableImages);
     }
+
+    /// <summary>
+    /// Ассет шаблона не перезаписывает картинку поля и вложение: имя ассета выбирает человек, имена
+    /// файлов полей — нумерация генератора, и совпасть они не должны ни при каком имени.
+    /// </summary>
+    [Theory]
+    [InlineData("img_0", "x.png", "Подпись")]
+    [InlineData("att_0", "x.pdf", "Приложение")]
+    public async Task TemplateAsset_DoesNotOverwriteFieldFile(string assetName, string assetFile, string field)
+    {
+        var request = await RequestAsync();
+        await PutAsync("b/intruder", [99]);
+        request = request with
+        {
+            TemplateAssets = new ResolvedTemplateAssets(
+                [new ResolvedImageAsset(assetName, assetFile, "image/png", "b/intruder")], []),
+        };
+
+        await new TypstCompileDirectory(_spy).WriteAsync(request, _dir, JsonLayout.Compact, default);
+
+        var data = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(_dir, "data.json")))!;
+        var fieldFile = Path.Combine(_dir, ((string)data[field]!["src"]!).TrimStart('/'));
+        Assert.NotEqual([99], await File.ReadAllBytesAsync(fieldFile));
+    }
 }
