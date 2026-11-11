@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { EMPLOYEES_KEY } from './employees';
 import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, DocumentType, RecordsPurpose } from './types';
 
 const QK = 'common-data';
@@ -16,10 +17,12 @@ export const EMPLOYEE_CODE = 'Сотрудник';
  * `OwnDoorTypes`. Ключ — код КОРНЯ семьи: подтип вида работы — тоже вид работы, и общий адрес сервер
  * отвергает для всей семьи. Вторая такая группа (варианты работ, work-06) — строка здесь и там.
  */
-const OWN_DOORS: Readonly<Record<string, { base: string; permission: string }>> = {
+const OWN_DOORS: Readonly<Record<string, { base: string; permission: string; screen?: readonly unknown[] }>> = {
   [WORK_TYPE_CODE]: { base: '/work-types', permission: 'core.worktypes.edit' },
-  // Реквизиты сотрудника правит один экран — «Сотрудники» (решение владельца по C15, work-01).
-  [EMPLOYEE_CODE]: { base: '/employees', permission: 'core.employees.edit' },
+  // Реквизиты сотрудника правит один экран — «Сотрудники» (решение владельца по C15, work-01). Его список
+  // живёт своим ключом, и запись формой общих данных обязана сбросить и его: иначе заведённый на экране
+  // сотрудник не появлялся бы в списке до перезагрузки (ревью PR #1908).
+  [EMPLOYEE_CODE]: { base: '/employees', permission: 'core.employees.edit', screen: EMPLOYEES_KEY },
 };
 
 const COMMON = { base: '/common-data', permission: 'core.catalog.edit' };
@@ -47,6 +50,15 @@ export function ownDoorCode(
  */
 export function recordWriteBase(doorCode: string | null | undefined): string {
   return (doorCode && OWN_DOORS[doorCode] || COMMON).base;
+}
+
+/** Сбросить прочитанное о записях: общие данные и, у семьи со своим экраном, — его список. */
+function invalidateRecords(qc: ReturnType<typeof useQueryClient>, doorCode: string | null | undefined) {
+  const screen = doorCode ? OWN_DOORS[doorCode]?.screen : undefined;
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: [QK] }),
+    ...(screen ? [qc.invalidateQueries({ queryKey: [...screen] })] : []),
+  ]);
 }
 
 /** Право, которым пишется запись этой семьи: у справочника со своей дверью оно своё (WORK-59). */
@@ -145,10 +157,15 @@ export function useCommonDataForScope({
  * @param forEdit запись читают, чтобы открыть на ней форму правки (issue #1214): копия из кэша не
  *   годится, и чтение идёт заново при каждом открытии — см. `EditEntryForm`.
  */
-export function useCommonDataEntry(id: string | undefined, forEdit = false) {
+/**
+ * Запись целиком по идентификатору. `readBase` — адрес чтения: экран со своей дверью читает ею (экран
+ * «Сотрудники» — под правом на сотрудников, а не на общие данные; ревью PR #1908). Ключ кэша тот же при
+ * любом адресе: по нему правка записи сверяет версию.
+ */
+export function useCommonDataEntry(id: string | undefined, forEdit = false, readBase: string = COMMON.base) {
   return useQuery({
     queryKey: [QK, 'by-id', id],
-    queryFn: () => apiClient.get<CommonDataEntry>(`/common-data/${id}`).then(r => r.data),
+    queryFn: () => apiClient.get<CommonDataEntry>(`${readBase}/${id}`).then(r => r.data),
     enabled: !!id,
     staleTime: 60_000,
     refetchOnMount: forEdit ? 'always' : true,
@@ -200,7 +217,7 @@ export function useCreateCommonDataEntry() {
       // Тело у двери то же, с типом: запись подтипа дверь заводит подтипом, а не корнем семьи.
       return apiClient.post<CommonDataEntry>(recordWriteBase(doorCode), body).then(r => r.data);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: (_, { doorCode }) => invalidateRecords(qc, doorCode),
   });
 }
 
@@ -277,12 +294,12 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
       if ((error as { response?: { status?: number } })?.response?.status === 409)
         qc.invalidateQueries({ queryKey: [QK] });
     },
-    onSuccess: saved => {
+    onSuccess: (saved, { doorCode }) => {
       const { id } = saved;
       // Ответ правки — запись целиком и с новой версией: кладём её в кэш сразу, чтобы всё, что
       // показывает запись по идентификатору, не держало прежнюю до перечитывания.
       qc.setQueryData([QK, 'by-id', id], saved);
-      qc.invalidateQueries({ queryKey: [QK] });
+      void invalidateRecords(qc, doorCode);
       // Расхождения значений с типом считает сервер по СОХРАНЁННЫМ данным (issue #644) — без сброса
       // подсказка висела бы у поля, которое только что исправили.
       qc.invalidateQueries({ queryKey: ['common-data-audit', id] });
@@ -417,6 +434,6 @@ export function useDeleteCommonDataEntry() {
     mutationFn: ({ id, doorCode, version }: { id: string; doorCode?: string; version?: string }) =>
       apiClient.delete(`${recordWriteBase(doorCode)}/${id}`,
         recordWriteBase(doorCode) !== COMMON.base && version ? { headers: { 'If-Match': version } } : undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: (_, { doorCode }) => invalidateRecords(qc, doorCode),
   });
 }

@@ -10,7 +10,7 @@ import { apiError } from '@/shared/utils/apiError';
 import {
   useAccountMatches, useLinkAccounts, type AccountMatch, type LinkBatchResult, type LinkRowResult,
 } from '@/shared/api/employees';
-import { batchSummary, matchReasonText, rowOutcomeText } from './employeeAccount';
+import { batchSummary, matchReasonText, retryable, rowOutcomeText } from './employeeAccount';
 import { AccountPickerDialog } from './AccountPickerDialog';
 
 type Choice = { userId: string; name: string; login: string };
@@ -22,7 +22,7 @@ type Choice = { userId: string; name: string; login: string };
  * итог — по каждой строке: удачная не откатывается из-за соседней, у отказа — слова сервера.
  */
 export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
-  const { data: rows = [], isLoading, isError, refetch } = useAccountMatches(true);
+  const { data: rows = [], isLoading, isError } = useAccountMatches(true);
   const batch = useLinkAccounts();
   // Выбор человека поверх предложения сервера: строка → учётная запись.
   const [picked, setPicked] = useState<Record<string, Choice>>({});
@@ -37,6 +37,10 @@ export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
   const checked = rows.filter(isChecked);
   const outcomes = useMemo(() => new Map((result?.results ?? []).map(r => [r.employeeId, r])), [result]);
   const suggestedCount = rows.filter(r => r.suggested).length;
+  // Учётные записи, отмеченные к связыванию у других строк: одну запись два сотрудника не получат.
+  const reservedBesides = (employeeId: string) => Object.fromEntries(checked
+    .filter(r => r.employee.id !== employeeId)
+    .map(r => [choiceOf(r)!.userId, r.employee.name]));
 
   async function linkChecked() {
     setError(null);
@@ -45,9 +49,12 @@ export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
         employeeId: r.employee.id, userId: choiceOf(r)!.userId, version: r.employee.version,
       })));
       setResult(done);
-      setPicked({}); setToggled({});
-      // Связанные уходят из списка, а у несвязанных — свежие версии: «изменили» лечится повтором.
-      await refetch();
+      // Связанные уходят из списка сами (сброс после пачки перечитывает его, со свежими версиями). У
+      // несвязанной строки ручной выбор остаётся — «изменили» лечится повтором без нового поиска, — а
+      // флажок снят у отказа, который повтор не вылечит: «занята», «в архиве» отказали бы снова.
+      const failed = done.results.filter(r => r.outcome !== 'linked');
+      setPicked(p => Object.fromEntries(Object.entries(p).filter(([id]) => failed.some(r => r.employeeId === id))));
+      setToggled(Object.fromEntries(failed.map(r => [r.employeeId, retryable(r)])));
     } catch (e) { setError(apiError(e, 'Пачку отправить не удалось — не связано ничего.')); }
   }
 
@@ -102,6 +109,7 @@ export function MatchAccountsDialog({ onClose }: { onClose: () => void }) {
       </div>
       {picking && (
         <AccountPickerDialog employee={{ id: picking.employee.id, name: picking.employee.name }} confirmLabel="Выбрать"
+          reserved={reservedBesides(picking.employee.id)}
           onClose={() => setPicking(null)}
           onConfirm={c => {
             setPicked(p => ({ ...p, [picking.employee.id]: { userId: c.userId, name: c.name, login: c.login } }));

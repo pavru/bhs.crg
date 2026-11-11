@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Employee, EmployeeAccount, LinkRowResult } from '@/shared/api/employees';
 import {
   accountView, batchSummary, candidateBlocked, filterCounts, inFilter, matchReasonText, matchesQuery,
-  personnelNumber, requisiteRows, rowOutcomeText, rowStateText, ruDate, surnameOf,
+  personnelNumber, requisiteRows, rowOutcomeText, ruDate, surnameOf,
 } from './employeeAccount';
 import type { SchemaField } from '@/shared/api/schema';
 
@@ -35,12 +35,6 @@ describe('блок «Учётная запись» строится по account
     expect(accountView(linked).dismissed).toBeNull();
     // У несвязанного пометки нет: сервер её и не пришлёт, а экран не выдумывает.
     expect(accountView({ ...none, dismissedOn: '2026-11-03' }).dismissed).toBeNull();
-  });
-
-  it('скрытый текст строки — словами состояния, у «не связан» — ничего', () => {
-    expect(rowStateText(linked)).toBe('связан с Пробнов Пётр');
-    expect(rowStateText(deleted)).toBe('учётная запись удалена');
-    expect(rowStateText(none)).toBeNull();
   });
 });
 

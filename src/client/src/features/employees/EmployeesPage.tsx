@@ -51,7 +51,9 @@ export function EmployeesPage() {
   const familyTypes = useMemo(() => types.filter(t => ownDoorCode(t.id, types) === EMPLOYEE_CODE), [types]);
   const counts = useMemo(() => filterCounts(employees), [employees]);
   const shown = employees.filter(e => inFilter(e, filter) && matchesQuery(e, q));
-  const selected = shown.find(e => e.id === values.employee) ?? shown[0];
+  // Выбранный остаётся в карточке, даже если вышел из отбора: отправленный в архив из «Все» иначе молча
+  // сменился бы соседом, и плашку «в архиве» с «Вернуть» человек не увидел бы (ревью PR #1908).
+  const selected = employees.find(e => e.id === values.employee) ?? shown[0];
   const open = (id: string) => { remember({ employee: id }); ld.showDetail(); };
 
   const missing = data?.missing ?? null;

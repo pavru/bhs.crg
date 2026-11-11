@@ -5,6 +5,7 @@ import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { ListOption } from '@/shared/ui/ListOption';
 import { useKeyScroll } from '@/shared/ui/useKeyScroll';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useCan } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import { useAccountCandidates, type AccountCandidate } from '@/shared/api/employees';
@@ -18,9 +19,14 @@ import { candidateBlocked, surnameOf } from './employeeAccount';
  * <p>`onConfirm` отказом — слова сервера в окне (занятость с именем, «карточку тем временем изменили»),
  * окно остаётся: выбрать можно снова.</p>
  */
-export function AccountPickerDialog({ employee, confirmLabel, onConfirm, onClose }: {
+export function AccountPickerDialog({ employee, confirmLabel, onConfirm, onClose, reserved = {} }: {
   employee: { id: string; name: string };
   confirmLabel: string;
+  /**
+   * Учётные записи, уже выбранные ДРУГИМ строкам того же окна «Сопоставить»: userId → имя сотрудника.
+   * Сервер о них не знает, а пачка отдала бы вторую строку отказом «занята» (ревью PR #1908).
+   */
+  reserved?: Readonly<Record<string, string>>;
   onConfirm: (c: AccountCandidate) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -29,12 +35,16 @@ export function AccountPickerDialog({ employee, confirmLabel, onConfirm, onClose
   const [chosen, setChosen] = useState<AccountCandidate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { data, isFetching } = useAccountCandidates(q.trim(), true);
+  // Запрос — после паузы ввода, а не на каждую букву: каждый читает всех пользователей и все связи.
+  const search = useDebouncedValue(q.trim(), 250);
+  const { data, isFetching } = useAccountCandidates(search, true);
   const items = data?.items ?? [];
   const can = useCan();
   const byKeys = useKeyScroll(items.length ? `acc-opt-${active}` : undefined);
 
-  const selectable = (c: AccountCandidate) => !candidateBlocked(c, employee.id);
+  const blockedOf = (c: AccountCandidate) => candidateBlocked(c, employee.id)
+    ?? (reserved[c.userId] ? `выбрана для ${reserved[c.userId]}` : null);
+  const selectable = (c: AccountCandidate) => !blockedOf(c);
   function move(step: number) {
     for (let i = active + step; i >= 0 && i < items.length; i += step)
       if (selectable(items[i])) { byKeys(); setActive(i); return; }
@@ -73,7 +83,7 @@ export function AccountPickerDialog({ employee, confirmLabel, onConfirm, onClose
         ) : (
           <div id="acc-list" role="listbox" aria-label="Учётные записи" className="-mx-4 max-h-72 overflow-y-auto">
             {items.map((c, i) => {
-              const blocked = candidateBlocked(c, employee.id);
+              const blocked = blockedOf(c);
               return (
                 <ListOption key={c.userId} id={`acc-opt-${i}`} active={i === active} current={chosen?.userId === c.userId}
                   disabled={!!blocked} disabledNote="занята" headline={c.name}

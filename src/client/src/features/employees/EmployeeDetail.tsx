@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
 import { Archive, Edit, Unarchive } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -9,7 +8,7 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Divider } from '@/shared/ui/Divider';
 import { resolveEffectiveFields } from '@/shared/api/schema';
-import { EMPLOYEES_KEY, useEmployee } from '@/shared/api/employees';
+import { useEmployee } from '@/shared/api/employees';
 import type { DocumentType } from '@/shared/api/types';
 import { ArchivedBanner } from '../document-sets/catalog/ArchiveParts';
 import { EditEntryForm } from '../document-sets/catalog/CatalogResource';
@@ -32,17 +31,14 @@ export function EmployeeDetail({ id, canEdit, types, familyTypes }: {
   const { data: employee, isLoading, isError } = useEmployee(id);
   const [editing, setEditing] = useState(false);
   const archive = useRecordArchive(types);
-  const qc = useQueryClient();
 
   if (isLoading) return <p className="p-6 text-body-medium text-on-surface-variant">Загрузка карточки…</p>;
   if (isError || !employee) return <p className="p-6 text-body-medium text-on-surface-variant">Карточку получить не удалось.</p>;
 
   const type = types.find(t => t.id === employee.compositeTypeId);
   const rows = type ? requisiteRows(resolveEffectiveFields(type, types), employee.data) : [];
-  const toggleArchive = async () => {
-    await archive.act(employee, !employee.archived);
-    await qc.invalidateQueries({ queryKey: EMPLOYEES_KEY });
-  };
+  // Архив сбрасывает всё прочитанное сам (useSetCommonDataArchive) — и список сотрудников тоже.
+  const toggleArchive = () => archive.act(employee, !employee.archived);
 
   return (
     <div className="flex flex-col min-h-0 flex-1" data-testid="employee-detail">
@@ -81,9 +77,11 @@ export function EmployeeDetail({ id, canEdit, types, familyTypes }: {
 
       <Modal open={editing} onOpenChange={setEditing} title="Изменить сотрудника" wide flushBody>
         {editing && (
-          <EditEntryForm id={employee.id} compositeTypes={familyTypes} documentTypes={[]} allDocTypes={types}
+          // Читает дверью сотрудников: правка под их правом не обязана требовать права на общие данные.
+          <EditEntryForm id={employee.id} readBase="/employees" compositeTypes={familyTypes} documentTypes={[]} allDocTypes={types}
             scope="System" scopeId={null} employee archiveBusy={archive.pending}
-            onClose={() => { setEditing(false); void qc.invalidateQueries({ queryKey: EMPLOYEES_KEY }); }} />
+            // Список и карточку сбрасывает сама запись дверью сотрудников (OWN_DOORS.screen).
+            onClose={() => setEditing(false)} />
         )}
       </Modal>
     </div>

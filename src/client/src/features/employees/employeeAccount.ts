@@ -42,17 +42,6 @@ export function accountView(account: EmployeeAccount): AccountView {
   }
 }
 
-/**
- * Скрытый текст строки списка: состояние словами для чтеца — знак в строке тихий и один его не
- * передаёт (B16). У «не связан» слов нет: это обычное положение, и каждая вторая строка не обязана
- * о нём говорить.
- */
-export function rowStateText(account: EmployeeAccount): string | null {
-  if (account.state === 'linked') return `связан с ${account.name ?? ''}`;
-  if (account.state === 'deleted') return 'учётная запись удалена';
-  return null;
-}
-
 /** Отборы над списком. «Все» — без архива: архивных по умолчанию нет, у них свой отбор (B19). */
 export type EmployeeFilter = 'all' | 'unlinked' | 'deleted' | 'archived';
 

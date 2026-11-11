@@ -393,8 +393,10 @@ function TypeNavItem({ icon, label, count, active = false, doc, muted, profile, 
  * свои значения из `entry.data` и отправляет их обратно при сохранении: открой мы её на списочной
  * копии — сохранение стёрло бы печати и факсимиле.
  */
-export function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...rest }: {
+export function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, readBase, ...rest }: {
   id: string;
+  /** Адрес чтения записи — у экрана своей двери свой (см. {@link useCommonDataEntry}). */
+  readBase?: string;
   employee: boolean;
   archiveBusy: boolean;
   onUnarchive?: (e: CommonDataEntry) => void;
@@ -409,7 +411,7 @@ export function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive,
   // живёт минуту и отдаётся сразу, а форма засевает из неё и значения, и версию. Собранная по
   // устаревшей копии, она показывала бы прежнее содержимое и на первое же сохранение получала
   // отказ «запись изменили» — хотя одновременной правки не было.
-  const { data: entry, isLoading, isFetchedAfterMount } = useCommonDataEntry(id, true);
+  const { data: entry, isLoading, isFetchedAfterMount } = useCommonDataEntry(id, true, readBase);
   if (isLoading || !entry || !isFetchedAfterMount) {
     return <div className="p-8 text-center text-body-medium text-on-surface-variant">Загрузка записи…</div>;
   }
