@@ -71,6 +71,8 @@ internal static class EndpointMap
     app.MapWorkTypeEndpoints();
     // Подсказки поля по ранее введённому (issue #1530): права — в службе, по виду типов семьи поля.
     app.MapFieldSuggestionEndpoints();
+    // Поиск записей для палитры (shell-05, CORE-34): права — у каждой группы, ключом её списка.
+    app.MapRecordSearchEndpoints();
     // Таблицы модулей (ТЗ CORE-33, G1b, issue #1089): ключ проверяет служба по объявлению таблицы.
     app.MapTableEndpoints();
     app.MapGenerationEndpoints();

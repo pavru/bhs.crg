@@ -65,6 +65,9 @@ public static class ModulePorts
         // (StartupTasks) — негодная поставка (нет реализации у включённого поставщика, два поставщика,
         // чужая регистрация) не стартует.
         ModuleContractCatalog.AddTo(services);
+        // Поиск записей (shell-05, CORE-34): первый рабочий контракт со многими поставщиками и группы ядра;
+        // каталог групп проверяется при старте (StartupTasks).
+        BHS.CRG.Api.Search.RecordSearchCatalog.AddTo(services);
         // Потребности модулей в справочниках ядра (issue #1101). Одиночка по той же причине, что
         // каталог действий: состав модулей не меняется, а объявления проверяются при старте.
         services.AddSingleton<ModuleNeeds>();

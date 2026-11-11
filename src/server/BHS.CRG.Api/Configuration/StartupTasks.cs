@@ -166,6 +166,10 @@ internal static class StartupTasks
                 "Поставщика «{Provider}» контракта «{Contract}» ({Interface}) нет в этой сборке: потребитель получит «не подключено».",
                 c.Declaration.Provider, c.Title, c.Interface.Name);
 
+        // Группы поиска записей — тем же приёмом (shell-05, AUTH-8.2): группа без ключа доступа отвечала бы
+        // любому вошедшему, и найти это на первом запросе значит уже отдать записи.
+        _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Search.RecordSearchCatalog>();
+
         // Потребности модулей в справочниках ядра — тем же приёмом (issue #1101): роль, которой нет в
         // реестре, или тэг чужой роли обязаны остановить запуск, а не прийти отказом в форму счёта.
         var needs = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleNeeds>();
