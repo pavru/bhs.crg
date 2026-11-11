@@ -33,12 +33,8 @@ public record GetGenerationDebugBundleQuery(Guid InstanceId, DataAccess Access) 
 public class GetGenerationDebugBundleHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
-    IRepository<DocumentType> docTypeRepo,
-    IUserLibProvider userLib,
-    IEntityResolver entityResolver,
-    IDataSetResolver dataSetResolver,
-    IQualityLinkResolver qualityLinkResolver,
-    ITemplateAssetResolver templateAssetResolver
+    IGenerationContextBuilder contextBuilder,
+    IGenerationRequestBuilder requestBuilder
 ) : IRequestHandler<GetGenerationDebugBundleQuery, GenerationDebugBundle?>
 {
     // Indented + нескрытая кириллица — для удобства чтения при отладке.
@@ -64,31 +60,17 @@ public class GetGenerationDebugBundleHandler(
             ?? candidates.FirstOrDefault(t => t.IsActive)
             ?? throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
 
-        var allDocTypes = await docTypeRepo.GetAllAsync(ct);
-        var view = DocumentView.From(instance);
-        var context = await entityResolver.ResolveAsync(view, ct: ct);
-        await dataSetResolver.InjectAsync(context, view, q.Access, null, ct);
-        await entityResolver.ApplyDefaultsAsync(context, view, ct);
-        await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
-        await qualityLinkResolver.InjectAsync(context, view, ct);
-        // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
-        await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
-        // Расчётные поля (issue #368) — чтобы data.json отладочного бандла содержал их значения.
-        await entityResolver.ResolveComputedFieldsAsync(context, view, new List<ResolutionDiagnostic>(), ct);
-        context.Set("params", TemplateParams.Effective(template.Parameters,
-            TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
+        // Контекст и запрос — тем же кодом, что у генерации (D1, D2). Пакет не останавливается ни на
+        // одной корзине: отлаживают как раз документы, которые генерация не выпустит.
+        var schemas = await contextBuilder.LoadSchemasAsync(ct);
+        var built = await contextBuilder.BuildAsync(DocumentView.From(instance), q.Access, schemas, ct);
+        var requests = await requestBuilder.PrepareAsync(
+            built.Context, instance.CompositeTypeId, instance.TemplateParams, schemas, ct);
+        var request = await requests.ForTemplateAsync(template, OutputFormat.Pdf, ct);
 
-        // Тот же штамп _type, что и при генерации (issue #342) — debug-bundle обязан отдавать
-        // идентичную data.json, иначе отладка во внешнем Typst расходится с реальной генерацией.
-        TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
-
-        var dataJson = JsonSerializer.Serialize(context.Data, JsonOpts);
-        var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);
-
-        var libSnapshot = await userLib.GetAsync(ct);
-
-        var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct);
-        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks,
-            libSnapshot.Entrypoint, templateAssets, libSnapshot.Files);
+        return new GenerationDebugBundle(request.TemplateContent,
+            JsonSerializer.Serialize(request.Context.Data, JsonOpts), request.TypeBlocksFiles ?? [],
+            request.UserLibContent ?? "", request.TemplateAssets ?? ResolvedTemplateAssets.Empty,
+            request.UserLibFiles ?? []);
     }
 }

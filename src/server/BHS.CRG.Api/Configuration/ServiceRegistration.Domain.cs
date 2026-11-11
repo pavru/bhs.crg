@@ -224,6 +224,12 @@ internal static class DomainRegistration
     builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
     builder.Services.AddScoped<IObjectResolver, ObjectResolver>();
     builder.Services.AddScoped<IQualityLinkResolver, QualityLinkResolver>();
+    // Сборка контекста генерации — одна на генерацию, предпросмотр, проверку и отладочный пакет
+    // (change core-generation-input-one-path, D1).
+    builder.Services.AddScoped<BHS.CRG.Application.Generation.IGenerationContextBuilder,
+        BHS.CRG.Application.Generation.GenerationContextBuilder>();
+    builder.Services.AddScoped<BHS.CRG.Application.Generation.IGenerationRequestBuilder,
+        BHS.CRG.Application.Generation.GenerationRequestBuilder>();
     // Проверка резолва экземпляра как СЕРВИС, а не только запрос MediatR: пакетным вызывающим нужно
     // читать справочники схемы один раз на прогон, а не на документ (issue #628).
     builder.Services.AddScoped<BHS.CRG.Application.Generation.IInstanceResolutionValidator,

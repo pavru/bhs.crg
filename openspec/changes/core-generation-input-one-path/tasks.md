@@ -20,14 +20,14 @@
 
 ## 2. Сборка контекста — одна функция
 
-- [ ] 2.1 `Application/Generation/GenerationContextBuilder.cs`: семь шагов, корзины `Resolution` и
+- [x] 2.1 `Application/Generation/GenerationContextBuilder.cs`: семь шагов, корзины `Resolution` и
   `Checks`, вход со снимком схем (D1) [CORE-21]. Проверка — юнит-тест порядка шагов на подставных
   резолверах и распределения диагностики по корзинам
-- [ ] 2.2 На него переходят `GenerateDocumentHandler`, `PreviewDocument`, `InstanceResolutionValidator`
+- [x] 2.2 На него переходят `GenerateDocumentHandler`, `PreviewDocument`, `InstanceResolutionValidator`
   (пакетная сверка `QualitySetAudit` по-прежнему передаёт свой снимок схем) и `GetGenerationDebugBundle`
   [CORE-21]. Комментарии «зеркалит / менять синхронно» убрать. Проверка — `grep ResolveComputedFieldsAsync`
   в `Application` вне строителя пуст; тесты 1.3 зелёные
-- [ ] 2.3 `Application/Generation/GenerationRequestBuilder.cs`: штамп `_type`, `params`, блоки типов,
+- [x] 2.3 `Application/Generation/GenerationRequestBuilder.cs`: штамп `_type`, `params`, блоки типов,
   библиотека, ассеты на шаблон (D2) [CORE-21]; генерация, предпросмотр и пакет строят запрос только им.
   Проверка — `grep "new GenerationRequest("` в `Application/Generation` — только строитель
 

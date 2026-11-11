@@ -18,13 +18,8 @@ public class GenerateDocumentHandler(
     IDomainObjectRepository instanceRepo,
     IRepository<GeneratedFile> fileRepo,
     IRepository<Template> templateRepo,
-    IRepository<DocumentType> docTypeRepo,
-    IRepository<Domain.Catalog.PrimitiveType> primitiveRepo,
-    IUserLibProvider userLib,
-    IEntityResolver entityResolver,
-    IDataSetResolver dataSetResolver,
-    IQualityLinkResolver qualityLinkResolver,
-    ITemplateAssetResolver templateAssetResolver,
+    IGenerationContextBuilder contextBuilder,
+    IGenerationRequestBuilder requestBuilder,
     IDocumentGeneratorFactory generatorFactory,
     IBlobStorage blobStorage,
     IMetadataExtractor metadataExtractor,
@@ -69,96 +64,41 @@ public class GenerateDocumentHandler(
                 templates = [single];
             }
 
-            var allDocTypes = await docTypeRepo.GetAllAsync(ct);
-            var diagnostics = new List<ResolutionDiagnostic>();
-            var view = DocumentView.From(instance);
-            var context = await entityResolver.ResolveAsync(view, ct: ct);
-            await dataSetResolver.InjectAsync(context, view, cmd.Access, diagnostics, ct);
-            // Значения по умолчанию из схемы типа (issue #53) — для полей, оставшихся без значения
-            // после реквизитов инстанса и биндингов (самый низкий приоритет).
-            await entityResolver.ApplyDefaultsAsync(context, view, ct);
-            // Enum-поля: код → отображаемое имя (issue #59) — иначе в PDF попадёт сырой код.
-            await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
-            // Подмешиваем документы качества по идентичности материала (артикул/наименование).
-            await qualityLinkResolver.InjectAsync(context, view, ct);
-            // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —
-            // разрешаем их вторым проходом (для уже разрешённых данных идемпотентно).
-            await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
-            // Расчётные поля (issue #368): вычисляем ПОСЛЕ финализации входов (enum-labels/refs),
-            // ДО проверок полноты. Цикл → Error (прервёт генерацию ниже), ошибка формулы → Warning.
-            await entityResolver.ResolveComputedFieldsAsync(context, view, diagnostics, ct);
-            // Проверка разрешения ссылок перед генерацией: оставшиеся $ref — ошибки,
-            // при их наличии прерываем генерацию с диагностикой.
-            ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
-            // Полнота обязательных (issue #296, фаза 0b): проверяем ПОСЛЕ полного резолва (реквизиты +
-            // привязки + база + дефолты) — обязательность = инвариант генерации, а не сохранения.
-            var typesById = allDocTypes.ToDictionary(t => t.Id);
-            var effectiveFields = DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, typesById);
-            ResolutionScanner.ScanMissingRequired(context, effectiveFields, diagnostics);
-
-            // ТА ЖЕ проверка значений, что и при «проверить документ» (#464): иначе проверка и выпуск
-            // отвечают на один вопрос по-разному, и человек выпускает то, о чём его предупреждали.
-            var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
-            ValueTypeScanner.Scan(context, effectiveFields, typesById, primitives, diagnostics);
-
-            // Материалы без документа качества (issue #585) — предупреждением: выпуск не блокируем
-            // (на живом комплекте таких было 75 из 151), но и молчать нельзя — сегодня документ
-            // выходит без сертификатов, не оставляя следа.
-            QualityLinkScanner.Scan(context, instance.CompositeTypeId, allDocTypes, diagnostics);
-
+            // Контекст и все проверки — тем же кодом, что у предпросмотра, проверки документа и
+            // отладочного пакета (D1). Генерация отказывает на ошибке в ЛЮБОЙ корзине: незаполненное
+            // обязательное поле выпуск останавливает, хотя контекст и собрался.
+            var schemas = await contextBuilder.LoadSchemasAsync(ct);
+            var built = await contextBuilder.BuildAsync(DocumentView.From(instance), cmd.Access, schemas, ct);
+            var diagnostics = built.All;
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);
 
-            // Метаполе типа объекта (issue #342): data._type + составные по схеме. ТЕРМИНАЛЬНО — после
-            // ScanMissingRequired/union, чтобы штамп непустых объектов не сбил проверки пустоты.
-            TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
-
-            IReadOnlyList<TypstBlockFile>? typeBlocksFiles = null;
-            string? userLibContent = null;
-            IReadOnlyList<UserLibFile>? userLibFiles = null;
-            if (cmd.Format == OutputFormat.Pdf)
-            {
-                typeBlocksFiles = TypstPreambleBuilder.Build(allDocTypes);
-
-                var snapshot = await userLib.GetAsync(ct);
-                if (!string.IsNullOrWhiteSpace(snapshot.Entrypoint))
-                    userLibContent = snapshot.Entrypoint;
-                if (snapshot.Files.Count > 0)
-                    userLibFiles = snapshot.Files;
-            }
+            // Штамп _type, блоки типов и библиотека — один раз на документ; на шаблон — params и ассеты (D2).
+            var requests = await requestBuilder.PrepareAsync(
+                built.Context, instance.CompositeTypeId, instance.TemplateParams, schemas, ct);
 
             var ext = cmd.Format == OutputFormat.Pdf ? "pdf" : "docx";
             var contentType = cmd.Format == OutputFormat.Pdf
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.CompositeTypeId);
+            schemas.DocumentTypes.TryGetValue(instance.CompositeTypeId, out var docType);
 
             // По PDF на каждый выбранный шаблон. Контекст (реквизиты/наборы/каталог) общий — строится
-            // один раз выше; на шаблон меняются только params, содержимое и настройки страницы.
+            // один раз выше; на шаблон меняются только params, содержимое и ассеты.
             var generated = new List<GeneratedFile>();
             // Штамп метаданных откладывается до сохранения: он ляжет на данные, прочитанные под
             // блокировкой строки, а не на снимок, снятый до начала выпуска (issue #1232).
             Func<JsonDocument, JsonDocument>? stamp = null;
             foreach (var template in templates)
             {
-                context.Set("params", TemplateParams.Effective(template.Parameters,
-                    TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
-
-                // Ассеты шаблона (issue #62) — только для PDF (как typeBlocks/userLib выше).
-                var templateAssets = cmd.Format == OutputFormat.Pdf
-                    ? await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct)
-                    : null;
-
                 var generator = generatorFactory.Create(cmd.Format);
-                var request = new GenerationRequest(template.Content, cmd.Format, context,
-                    TypeBlocksFiles: typeBlocksFiles, UserLibContent: userLibContent,
-                    TemplateAssets: templateAssets, UserLibFiles: userLibFiles);
+                var request = await requests.ForTemplateAsync(template, cmd.Format, ct);
                 var bytes = await generator.GenerateAsync(request, ct);
 
                 // Обратная запись метаданных — только с ПЕРВОГО файла (репрезентативно: число листов и т.п.).
                 if (generated.Count == 0 && docType is not null)
                 {
-                    var taggedFields = SchemaTags.TaggedFields(docType, allDocTypes);
+                    var taggedFields = SchemaTags.TaggedFields(docType, schemas.AllTypes);
                     if (taggedFields.Count > 0)
                     {
                         var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);

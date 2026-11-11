@@ -36,12 +36,8 @@ public sealed record PreviewDocumentQuery(Guid InstanceId, JsonDocument Requisit
 public class PreviewDocumentHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
-    IRepository<DocumentType> docTypeRepo,
-    IUserLibProvider userLib,
-    IEntityResolver entityResolver,
-    IDataSetResolver dataSetResolver,
-    IQualityLinkResolver qualityLinkResolver,
-    ITemplateAssetResolver templateAssetResolver,
+    IGenerationContextBuilder contextBuilder,
+    IGenerationRequestBuilder requestBuilder,
     IDocumentGeneratorFactory generatorFactory
 ) : IRequestHandler<PreviewDocumentQuery, PreviewDocumentResult>
 {
@@ -77,36 +73,18 @@ public class PreviewDocumentHandler(
 
         try
         {
-            // ── Пайплайн контекста — ЗЕРКАЛИТ GenerateDocumentHandler (менять синхронно; там нет тестов). ──
-            var allDocTypes = await docTypeRepo.GetAllAsync(ct);
-            var diagnostics = new List<ResolutionDiagnostic>();
-            var context = await entityResolver.ResolveAsync(view, ct: ct);
-            await dataSetResolver.InjectAsync(context, view, q.Access, diagnostics, ct);
-            await entityResolver.ApplyDefaultsAsync(context, view, ct);
-            await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
-            await qualityLinkResolver.InjectAsync(context, view, ct);
-            await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
-            await entityResolver.ResolveComputedFieldsAsync(context, view, diagnostics, ct); // issue #368
-            ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
-            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
-                return PreviewDocumentResult.Fail("Не все ссылки разрешены — предпросмотр недоступен.", diagnostics);
+            // Контекст — тем же кодом, что у генерации (D1). Предпросмотр останавливается только на
+            // корзине Resolution: полнота и типы значений его не гасят — человек смотрит документ, который
+            // ещё заполняет.
+            var schemas = await contextBuilder.LoadSchemasAsync(ct);
+            var built = await contextBuilder.BuildAsync(view, q.Access, schemas, ct);
+            if (built.Resolution.Any(d => d.Severity == DiagnosticSeverity.Error))
+                return PreviewDocumentResult.Fail("Не все ссылки разрешены — предпросмотр недоступен.", built.Resolution);
 
-            // Метаполе типа объекта (issue #342) — тот же терминальный штамп, что при генерации/бандле.
-            TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
-
-            var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);
-            var libSnapshot = await userLib.GetAsync(ct);
-
-            context.Set("params", TemplateParams.Effective(template.Parameters,
-                TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
-            var assets = await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct);
-
+            var requests = await requestBuilder.PrepareAsync(
+                built.Context, instance.CompositeTypeId, instance.TemplateParams, schemas, ct);
+            var request = await requests.ForTemplateAsync(template, OutputFormat.Pdf, ct);
             var generator = generatorFactory.Create(OutputFormat.Pdf);
-            var request = new GenerationRequest(template.Content, OutputFormat.Pdf, context,
-                TypeBlocksFiles: typeBlocks,
-                UserLibContent: string.IsNullOrWhiteSpace(libSnapshot.Entrypoint) ? null : libSnapshot.Entrypoint,
-                TemplateAssets: assets,
-                UserLibFiles: libSnapshot.Files.Count > 0 ? libSnapshot.Files : null);
             var bytes = await generator.GenerateAsync(request, ct);
             return PreviewDocumentResult.Ok(bytes);
         }
