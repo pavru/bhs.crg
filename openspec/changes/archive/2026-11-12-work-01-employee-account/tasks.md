@@ -53,37 +53,42 @@
 
 ## 2. PR 2: экран сотрудников (клиент), после выбора макета Р1
 
-- [ ] 2.0 До кода: решение владельца, как закрыть вторую дверь правки реквизитов сотрудника — «Общие
-  данные» под `core.catalog.edit` (C15), — и запись его в `design.md`
+- [x] 2.0 До кода: решение владельца, как закрыть вторую дверь правки реквизитов сотрудника — «Общие
+  данные» под `core.catalog.edit` (C15), — и запись его в `design.md` (11.11.2026: «Только
+  «Сотрудники»», раздел «Решение по C15»)
+- [x] 2.0a Дверь сотрудников — единственная дверь записи: строка в `OwnDoorTypes.All` и `OWN_DOORS`,
+  семья типа, `/archive` и `/unarchive` с версией, версия на удалении [CORE-7] [WORK-47]. Проверка —
+  тест общего адреса (409 с адресом двери на заведении, правке, удалении, архиве),
+  `OwnDoorWriteInventoryTests`, vitest `commonData.door.test.ts`
 - [x] 2.1 Вписать ссылку на выбранный владельцем макет Р1 в `design.md` этого change [WORK-27]. Проверка —
   ссылка в разделе «Макеты» (сделано PR #1903: вариант В)
-- [ ] 2.2 `GET /api/employees` при незаведённом типе отвечает 409 `directory-missing` с причиной
+- [x] 2.2 `GET /api/employees` при незаведённом типе отвечает 409 `directory-missing` с причиной
   (`person-missing` — нет «Персоны», `not-created` — «Персона» есть, тип не заведён), а не пустым списком.
   Перед правкой — `grep` потребителей адреса в `src/client/src` и `src/server/BHS.CRG.Api/Mcp`
   [CORE-7]. Проверка — тест в `EmployeeDirectoryTests` на базе без «Персоны»
-- [ ] 2.3 Раздел ядра `employees` в `BHS.CRG.Modules/CoreSections.cs` и пункт «Сотрудники» в
+- [x] 2.3 Раздел ядра `employees` в `BHS.CRG.Modules/CoreSections.cs` и пункт «Сотрудники» в
   `shared/ui/navConfig.ts` (`permission: 'core.employees.read'`, `rail: 'data'`, `section: 'employees'`)
   [WORK-27] [AUTH-16]. Проверка — `CoreSectionsTests` зелёный; vitest `navAccess.test.ts`: пункт скрыт без права
-- [ ] 2.4 `features/employees/EmployeesPage.tsx` — list-detail на `ListDetailShell`, реквизиты правятся на
+- [x] 2.4 `features/employees/EmployeesPage.tsx` — list-detail на `ListDetailShell`, реквизиты правятся на
   экране. Блок «Учётная запись» строится по `account.state`, пометка «уволен, но связан» — по
   `account.dismissedOn`. «Связать» и «Отвязать» — только при `core.employees.edit`; диалог кандидатов,
   занятые не выбираются. Отказ `directory-missing` даёт пустое состояние с причиной и «Завести» у
   администратора [WORK-27] [WORK-47]. Проверка — vitest на разбор `account.state` и
   `npm run ui:ratchet` без роста
-- [ ] 2.4a Режим «Сопоставить»: таблица из `account-matches`, флажки, «Связать отмеченные» одной пачкой,
+- [x] 2.4a Режим «Сопоставить»: таблица из `account-matches`, флажки, «Связать отмеченные» одной пачкой,
   итог «Связано N из M» и причина у каждой несвязанной строки [WORK-27] [WORK-47]. Проверка — vitest на
   разбор построчного ответа
-- [ ] 2.4b Строка «Сотрудник: <ФИО>» в меню аватара из `employee` ответа `/api/account/access` [WORK-27].
+- [x] 2.4b Строка «Сотрудник: <ФИО>» в меню аватара из `employee` ответа `/api/account/access` [WORK-27].
   Проверка — vitest: строки нет при `employee: null`
-- [ ] 2.5 Живой прогон: администратор связывает, сопоставляет пачкой и отвязывает, «Менеджер проекта» видит
+- [x] 2.5 Живой прогон: администратор связывает, сопоставляет пачкой и отвязывает, «Менеджер проекта» видит
   состояние без кнопок — проверки в `e2e/pages-smoke.mjs` и `e2e/limited-smoke.mjs` [WORK-27]. Проверка —
   `MSYS_NO_PATHCONV=1 npm run test:e2e:pages` и `npm run test:e2e:limited` зелёные
-- [ ] 2.6 `docs/USER_GUIDE.md`: раздел «Сотрудники» в главе «Данные». Перестроить содержание:
+- [x] 2.6 `docs/USER_GUIDE.md`: раздел «Сотрудники» в главе «Данные». Перестроить содержание:
   `cd docs/tools && npm run toc` [WORK-27]. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EmployeeAccount|FullyQualifiedName~EmployeeDirectory|FullyQualifiedName~AccountAccess|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CoreSections"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EmployeeAccount|FullyQualifiedName~EmployeeDirectory|FullyQualifiedName~AccountAccess|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CoreSections"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

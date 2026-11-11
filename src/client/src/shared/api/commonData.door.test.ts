@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORK_TYPE_CODE, archiveRequest, ownDoorCode, recordWriteBase, recordWritePermission } from './commonData';
+import { EMPLOYEE_CODE, WORK_TYPE_CODE, archiveRequest, ownDoorCode, recordWriteBase, recordWritePermission } from './commonData';
 
 describe('адрес записи по типу — дверь видов работ (WORK-59)', () => {
   it('вид работы пишется своей дверью, остальное — общим адресом', () => {
@@ -45,5 +45,24 @@ describe('адрес записи по типу — дверь видов раб
   it('прочие записи архивируются общим адресом без версии', () => {
     expect(archiveRequest({ id: 'o1', archived: true, doorCode: 'Организация', version: '3' }))
       .toEqual({ url: '/common-data/o1/archive' });
+  });
+});
+
+describe('дверь сотрудников — единственная (решение владельца по C15, work-01)', () => {
+  it('сотрудник и его подтип пишутся адресом /employees под правом сотрудников', () => {
+    const types = [
+      { id: 'p', code: 'Персона', parentId: null },
+      { id: 'e', code: EMPLOYEE_CODE, parentId: 'p' },
+      { id: 'e2', code: 'СотрудникМонтажник', parentId: 'e' },
+    ];
+    expect(recordWriteBase(ownDoorCode('e2', types))).toBe('/employees');
+    expect(recordWritePermission(ownDoorCode('e', types))).toBe('core.employees.edit');
+    // Предок сотрудника — общий справочник: закрыта семья «Сотрудника», а не его родитель.
+    expect(ownDoorCode('p', types)).toBeUndefined();
+  });
+
+  it('в архив сотрудник уходит дверью и с версией', () => {
+    expect(archiveRequest({ id: 's1', archived: true, doorCode: EMPLOYEE_CODE, version: '5' }))
+      .toEqual({ url: '/employees/s1/archive', headers: { 'If-Match': '5' } });
   });
 });

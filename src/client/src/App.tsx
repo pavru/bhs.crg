@@ -23,6 +23,7 @@ import { DocumentTypesPage } from '@/features/settings/DocumentTypesPage';
 import { TemplatesPage } from '@/features/templates/TemplatesPage';
 import { DocumentSetsPage } from '@/features/document-sets/DocumentSetsPage';
 import { SystemCommonDataPage } from '@/features/common-data/SystemCommonDataPage';
+import { EmployeesPage } from '@/features/employees/EmployeesPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
@@ -129,6 +130,7 @@ function AppRoutes() {
           <Route path="profile" element={<ProfilePage />} />
           <Route element={<RequireAccess />}>
             <Route path="common-data" element={<SystemCommonDataPage />} />
+            <Route path="employees" element={<EmployeesPage />} />
             <Route path="datasets" element={<DataSetsPage />} />
             <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
             <Route path="quality-docs" element={<QualityDocsPage />} />

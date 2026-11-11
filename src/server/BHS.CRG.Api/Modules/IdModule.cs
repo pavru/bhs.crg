@@ -168,7 +168,9 @@ public sealed class IdModule : IAppModule
     /// между собой.
     /// </summary>
     public IReadOnlyList<string> UsesSections =>
-        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Datasets, CoreSections.Reconciliations];
+        // Сотрудники — рядом со справочниками: реквизиты сотрудника правит только их экран (C15, work-01).
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Datasets,
+         CoreSections.Reconciliations];
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {

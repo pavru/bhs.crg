@@ -1,4 +1,4 @@
-import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Group, HistoryIcon, Label, Layers, LinkIcon, LocalShipping, MenuBook, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
+import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Group, HistoryIcon, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -98,6 +98,9 @@ const PLAN_DIRECTORIES = 'Справочники';
 export const workNav: NavItem[] = [
   { to: '/document-sets',   label: 'Стройки',            icon: Apartment,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
   { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog', rail: 'data' },
+  // Справочник сотрудников и связь с учётными записями (ТЗ WORK-27, WORK-47; work-01) — после «Общих данных»,
+  // без группы (B15). Закрыт своим правом чтения: право на общие данные его не открывает, и наоборот.
+  { to: '/employees',       label: 'Сотрудники',          icon: Person,      permission: 'core.employees.read', section: 'employees', rail: 'data' },
   { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets', rail: 'data' },
   { to: '/quality-docs',    label: 'Документы качества',  icon: VerifiedUser, module: 'id', rail: 'data' },
   // Право И модуль: доступ к модулю и право заводить счета — разные вещи (у бухгалтера есть первое

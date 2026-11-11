@@ -30,24 +30,37 @@ namespace BHS.CRG.Api.Endpoints.Core;
 ///
 /// <para>Уровень — <see cref="CatalogScope.System" />: сотрудник принадлежит компании, а не
 /// стройке. Уровень здесь про адресацию данных, а не про доступ (инвариант проекта).</para>
+///
+/// <para><b>Единственная дверь записи</b> (решение владельца по C15, 11.11.2026, change
+/// <c>work-01-employee-account</c>): общий адрес справочников записи сотрудников не пишет
+/// (<see cref="OwnDoorTypes" />), поэтому здесь есть всё, что было у него, — семья типа (подтипы
+/// «Сотрудника»), архив и возврат, вынос в общие данные. Версия — на каждом пишущем адресе, кроме
+/// заведения: удаление и архив сверяют её, как у видов работ (ТЗ AUTH-9).</para>
 /// </summary>
 public static class EmployeeEndpoints
 {
+    /// <summary>Адрес двери — его же называет отказ общего адреса.</summary>
+    public const string Door = "/api/employees";
+
     public static void MapEmployeeEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/employees")
+        var g = app.MapGroup(Door)
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.EmployeesRead));
-        var edit = app.MapGroup("/api/employees")
+        var edit = app.MapGroup(Door)
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.EmployeesEdit));
 
         g.MapGet("/", async (IMediator m, IRepository<DocumentType> types, EmployeeAccountReads accounts,
             CancellationToken ct) =>
         {
-            var typeId = await EmployeeTypeIdAsync(types);
-            if (typeId is null) return Results.Ok(Array.Empty<CommonDataEntryDto>());
+            var all = await types.GetAllAsync(ct);
+            // Справочника нет — отказ с причиной, а не пустой список: «сотрудников нет» и «справочник
+            // не заведён» — разные состояния, и у второго есть выход («Завести»), у первого — нет.
+            if (Family(all) is not { } family) return DirectoryMissingResult(all);
 
             // Страница сотрудников — показ: архивная карточка на месте, с признаком (issue #1185).
-            var employees = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);
+            var employees = new List<DomainObject>();
+            foreach (var typeId in family.Keys)
+                employees.AddRange(await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));
             // Состояние связи — у каждого, одним запросом на всех (ТЗ WORK-47, D15): экран его не выводит.
             var linked = await accounts.ForAsync(employees, ct);
             return Results.Ok(employees
@@ -74,8 +87,12 @@ public static class EmployeeEndpoints
             // DomainExceptionPolicyTests): бросок отсюда ушёл бы в общий конвейер и стал бы тем же
             // ответом, но правило одно на весь слой — иначе «где отвечают, а где бросают» пришлось
             // бы выяснять по каждому файлу.
-            if (await EmployeeTypeIdAsync(types) is not { } typeId)
-                return Results.Conflict(new { error = DirectoryMissing });
+            var all = await types.GetAllAsync(ct);
+            if (Family(all) is not { } family) return DirectoryMissingResult(all);
+            // Тип — сам справочник либо его подтип; иной тип дверь не заводит, иначе право на
+            // сотрудников открывало бы заведение записей любого справочника.
+            var typeId = req.CompositeTypeId ?? family.Values.First(t => t.Code == CoreRecordTypes.EmployeeCode).Id;
+            if (!family.ContainsKey(typeId)) return Results.BadRequest(new { error = NotAnEmployee });
 
             // Новая карточка без данных осмысленна: реквизиты заполнят следом. Негодный JSON — нет:
             // это 400 с указанием поля, а не 500 «внутренняя ошибка» (см. RecordRequests.ParseData).
@@ -88,7 +105,7 @@ public static class EmployeeEndpoints
             {
                 var created = await m.Send(new CreateCommonDataEntryCommand(
                     req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases,
-                    req.CreateAnyway ?? false));
+                    req.CreateAnyway ?? false, req.RefsStandIn), ct);
                 return Results.Ok(await EmployeeEntryDto.OfAsync(created, accounts, ct));
             }
             // Тот же ответ, что у общего адреса создания (issue #1185): сотрудник с таким табельным
@@ -101,7 +118,7 @@ public static class EmployeeEndpoints
             Guid id, UpdateEmployeeRequest req, HttpRequest http, IMediator m, IRepository<DocumentType> types,
             ClaimsPrincipal user, DataAccessResolver access, EmployeeAccountReads accounts, CancellationToken ct) =>
         {
-            var entry = await m.Send(new GetCommonDataEntryQuery(id));
+            var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
             // Версия записи — как у общего адреса общих данных (issue #1214): сотрудник — та же
             // запись. После «не найдено»: чужой карточке незачем объяснять, как её править.
@@ -121,24 +138,66 @@ public static class EmployeeEndpoints
                 // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
                 // стирал бы их заодно с правкой одного поля.
                 id, req.DisplayName, data, await access.ForAsync(user, ct), seen,
-                req.Aliases ?? [.. entry.Aliases]));
+                req.Aliases ?? [.. entry.Aliases]), ct);
             return Results.Ok(await EmployeeEntryDto.OfAsync(updated, accounts, ct));
         });
 
         edit.MapDelete("/{id:guid}", async (
-            Guid id, IMediator m, IRepository<DocumentType> types, ClaimsPrincipal user,
+            Guid id, HttpRequest http, IMediator m, IRepository<DocumentType> types, ClaimsPrincipal user,
             IUserPermissions permissions, CancellationToken ct) =>
         {
-            var entry = await m.Send(new GetCommonDataEntryQuery(id));
+            var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
+            if (Seen(http, entry) is { } refused) return refused;
 
-            try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
+            try { await m.Send(new DeleteCommonDataEntryCommand(id), ct); return Results.NoContent(); }
+            catch (NotFoundException) { return Results.NotFound(); }
             // Тело отказа — то же, что у общего адреса: выходы «в архив» и «удалить, потеряв ссылки»
-            // у сотрудника те же (issue #1187). ⚠️ Потребителя у этих полей пока нет: клиент удаляет
-            // сотрудника общим адресом, со страницы справочника. Одно тело — чтобы экран сотрудников,
-            // когда он появится, не получил отказ одними словами.
+            // у сотрудника те же (issue #1187).
             catch (ConflictException ex) { return await RecordRefusal.ConflictAsync(ex, id, m, user, permissions, ct); }
         });
+
+        // Архив — своим адресом: общий отправку сотрудника в архив отвергает (C15).
+        edit.MapPost("/{id:guid}/archive", (Guid id, HttpRequest http, IMediator m, IRepository<DocumentType> types,
+            IServiceScopeFactory scopes, CancellationToken ct) => SetArchiveAsync(id, true, http, m, types, scopes, ct));
+        edit.MapPost("/{id:guid}/unarchive", (Guid id, HttpRequest http, IMediator m, IRepository<DocumentType> types,
+            IServiceScopeFactory scopes, CancellationToken ct) => SetArchiveAsync(id, false, http, m, types, scopes, ct));
+    }
+
+    /// <summary>
+    /// Ответ архива несёт НОВУЮ версию: архив её сдвигает, и экран, предлагающий «Вернуть» тостом,
+    /// без неё назвал бы прежнюю — и получил бы отказ на собственное действие. Версия читается в
+    /// СВЕЖЕЙ области: архив пишет признак мимо отслеживания, и запись, прочитанная для сверки, в
+    /// контексте запроса осталась бы прежней (то же у видов работ).
+    /// </summary>
+    private static async Task<IResult> SetArchiveAsync(
+        Guid id, bool archived, HttpRequest http, IMediator m, IRepository<DocumentType> types,
+        IServiceScopeFactory scopes, CancellationToken ct)
+    {
+        var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);
+        if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
+        if (Seen(http, entry) is { } refused) return refused;
+
+        try
+        {
+            var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);
+            using var fresh = scopes.CreateScope();
+            var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);
+            return Results.Ok(new { done.Id, done.DisplayName, done.Archived, done.Changed, version = after?.Version });
+        }
+        catch (NotFoundException) { return Results.NotFound(); }
+        catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+    }
+
+    /// <summary>
+    /// Версия, названная заголовком: нет — 400, устарела — 409. У удаления и архива параметра версии
+    /// нет, поэтому сверка — до команды; правка содержимого в окно между ними не попадает: архив и
+    /// удаление содержимого не пишут, а успевшая раньше правка сверку не проходит.
+    /// </summary>
+    private static IResult? Seen(HttpRequest http, DomainObject entry)
+    {
+        if (Documents.RecordIfMatch.Refuse(http, out var seen) is { } refused) return refused;
+        return RecordSeen.Matches(entry.Version, seen) ? null : Results.Conflict(new { error = RecordSeen.Moved });
     }
 
     private const string DataRequired =
@@ -146,23 +205,53 @@ public static class EmployeeEndpoints
         "значение стёрло бы её — включая табельный номер и период работы. Пришлите реквизиты, " +
         "которые должны остаться.";
 
-    private const string DirectoryMissing =
-        "Справочник сотрудников ещё не заведён: нет типа-родителя «Персона», от которого он " +
-        "производен. Заведите справочник лиц — сотрудники появятся при следующем запуске.";
+    private const string NotAnEmployee =
+        "Этот тип — не справочник сотрудников: дверь сотрудников заводит только «Сотрудника» и его подтипы.";
+
+    /// <summary>Нет типа «Персона», от которого справочник производен.</summary>
+    public const string PersonMissing = "person-missing";
+
+    /// <summary>«Персона» есть, а справочник не заведён — выход «Завести».</summary>
+    public const string NotCreated = "not-created";
 
     /// <summary>
-    /// Тип справочника — по КОДУ (<see cref="CoreRecordTypes.EmployeeCode" />). Код постоянен, а имя
-    /// администратор переименовывает — тем же правилом живёт список типов ядра.
+    /// Отказ «справочник не заведён» с причиной (задача 2.2): без «Персоны» «Завести» не поможет, с ней
+    /// — поможет, и экран обязан различать эти два случая. «Персона» ищется так же, как её ищет
+    /// «Завести» (без учёта регистра), — иначе экран предлагал бы кнопку, которая откажет.
+    /// </summary>
+    internal static IResult DirectoryMissingResult(IReadOnlyList<DocumentType> all)
+    {
+        var person = all.Any(t => string.Equals(t.Code, CoreRecordTypes.PersonCode, StringComparison.OrdinalIgnoreCase));
+        return Results.Conflict(new
+        {
+            code = EmployeeAccountReads.DirectoryMissing,
+            reason = person ? NotCreated : PersonMissing,
+            error = person ? NotCreatedText : PersonMissingText,
+        });
+    }
+
+    private const string NotCreatedText =
+        "Справочник сотрудников ещё не заведён. Заведите его кнопкой «Завести» на экране «Сотрудники» — " +
+        "перезапуск не нужен.";
+
+    private const string PersonMissingText =
+        "Справочник сотрудников ещё не заведён: нет типа «Персона», от которого он производен. Заведите " +
+        "«Персону» в «Типах документов», затем — справочник кнопкой «Завести».";
+
+    /// <summary>
+    /// Справочник с подтипами — по КОДУ корня (<see cref="CoreRecordTypes.EmployeeCode" />), буква в
+    /// букву. Код постоянен, а имя администратор переименовывает — тем же правилом живёт список типов
+    /// ядра. Подтип входит потому, что общий адрес закрыт для всей семьи (<see cref="OwnDoorTypes" />):
+    /// без него запись подтипа не писал бы никто.
     ///
     /// <para><c>null</c> — справочника в системе нет: на новой установке «Персоны» ещё не завели, и
-    /// выводить из неё нечего. Список тогда пуст, а запись отвечает отказом, который называет
-    /// причину: пустой список на попытку записи выглядел бы поломкой.</para>
+    /// выводить из неё нечего.</para>
     /// </summary>
-    internal static async Task<Guid?> EmployeeTypeIdAsync(IRepository<DocumentType> types)
-    {
-        var found = await types.FindAsync(t => t.Code == CoreRecordTypes.EmployeeCode);
-        return found.Count > 0 ? found[0].Id : null;
-    }
+    internal static IReadOnlyDictionary<Guid, DocumentType>? Family(IReadOnlyList<DocumentType> all) =>
+        CoreDirectories.Family(all, CoreRecordTypes.EmployeeCode);
+
+    internal static async Task<IReadOnlyDictionary<Guid, DocumentType>?> FamilyAsync(
+        IRepository<DocumentType> types, CancellationToken ct = default) => Family(await types.GetAllAsync(ct));
 
     /// <summary>
     /// Эта ли карточка из справочника сотрудников.
@@ -174,13 +263,15 @@ public static class EmployeeEndpoints
     /// дверью не подтверждается.</para>
     /// </summary>
     internal static async Task<bool> IsEmployeeAsync(DomainObject entry, IRepository<DocumentType> types)
-        => await EmployeeTypeIdAsync(types) is { } id && entry.CompositeTypeId == id;
+        => !entry.IsDocument && await FamilyAsync(types) is { } family && family.ContainsKey(entry.CompositeTypeId);
 
     /// <summary>
-    /// Тип в запросе НЕ принимается: он один и известен двери. Приди он снаружи — дверь сотрудников
-    /// заводила бы записи любого типа, и право снова означало бы не то, что написано.
+    /// Тип в запросе — только из семьи «Сотрудника» (по умолчанию — корень): иначе право на
+    /// сотрудников заводило бы записи любого типа. Уровень не принимается: сотрудник — компании.
     /// </summary>
-    private record CreateEmployeeRequest(string DisplayName, string? Data, string[]? Aliases, bool? CreateAnyway = null);
+    private record CreateEmployeeRequest(
+        string DisplayName, string? Data, string[]? Aliases, bool? CreateAnyway = null,
+        Guid? CompositeTypeId = null, Guid? RefsStandIn = null);
 
     private record UpdateEmployeeRequest(string DisplayName, string? Data, string[]? Aliases);
 }

@@ -92,10 +92,12 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
     /// </summary>
     public async Task<IReadOnlyList<AccountMatchDto>?> MatchesAsync(CancellationToken ct)
     {
-        if (await EmployeeEndpoints.EmployeeTypeIdAsync(types) is not { } typeId) return null;
+        // Вся семья «Сотрудника»: подтипы пишет та же дверь, и сопоставлять их так же нужно.
+        if (await EmployeeEndpoints.FamilyAsync(types, ct) is not { } family) return null;
+        var typeIds = family.Keys.ToArray();
 
         var employees = await db.DomainObjects.AsNoTracking()
-            .Where(o => o.CompositeTypeId == typeId && o.ArchivedAt == null)
+            .Where(o => typeIds.Contains(o.CompositeTypeId) && o.ArchivedAt == null)
             .ToListAsync(ct);
         // Пояс компании и ключи «Уволен с» — один раз на весь ответ: и для состояния связи, и для отбора.
         var dismissal = await DismissalAsync(ct);
