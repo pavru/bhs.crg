@@ -25,13 +25,13 @@ internal static class GrantedSignIn
 
     /// <summary>Клиент с токеном пользователя, у которого ровно эти права — и никаких других.</summary>
     internal static async Task<HttpClient> WithPermissionsAsync(
-        IntegrationTestFixture fixture, params string[] permissions)
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> fixture, params string[] permissions)
     {
         var roleName = $"Granted_{Guid.NewGuid():N}";
         var email = $"granted_{Guid.NewGuid():N}@test.local";
 
         // Клиент — до области служб: первый вызов и поднимает хост.
-        var client = fixture.CreateClient();
+        var client = SeenInvoiceVersion.ClientOf(fixture);
         using (var scope = fixture.Services.CreateScope())
         {
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
