@@ -51,7 +51,7 @@ public sealed class CatalogIntakeService(
             var family = all.Keys
                 .Where(id => DocumentTypeSchemaReader.IsSameOrDescendant(id, request.TypeId, all))
                 .ToList();
-            var same = (await objects.FieldValuesAsync(family, request.UniqueField, RecordsFor.Display, ct))
+            var same = (await objects.FieldValuesAsync(family, request.UniqueField, RecordsFor.Display, ct: ct))
                 .Where(v => !v.Unreadable && v.Value?.Trim() == request.UniqueValue)
                 .Select(v => v.Record)
                 .ToList();

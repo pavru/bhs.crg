@@ -131,11 +131,17 @@ public static class DirectoryRoleDefaults
 
     /// <summary>
     /// Тэги частей — тем же осторожным правилом, что поля: только туда, где свободно. Тэг уже стоит на
-    /// любом поле справочника или любой части составного — не трогается (это решение человека); часть
-    /// не того вида тэга не получает; составное поле названия ищется у носителя роли и выше по
-    /// родителям, ближайшее первым. Сокращённое из полного не выводится — только тэг.
+    /// любом поле справочника — у носителя, его предков или ПОДТИПОВ (ревью PR #1898) — или любой части
+    /// составного — не трогается (это решение человека); часть не того вида тэга не получает; составное
+    /// поле названия ищется у носителя роли и выше по родителям, ближайшее первым. Сокращённое из
+    /// полного не выводится — только тэг.
     /// </summary>
-    public static IReadOnlyList<(DocumentType Type, JsonDocument Schema)> ApplyParts(IReadOnlyList<DocumentType> all)
+    /// <param name="writable">Чьи схемы правилу можно менять; <c>null</c> — любые (миграция). Восстановление
+    /// копии называет типы, пришедшие из копии: тип живой системы, которого в копии не было, правило не
+    /// трогает — снятый там тэг остаётся решением администратора (ревью PR #1898). «Тэг уже стоит»
+    /// смотрится по всем типам.</param>
+    public static IReadOnlyList<(DocumentType Type, JsonDocument Schema)> ApplyParts(
+        IReadOnlyList<DocumentType> all, IReadOnlySet<Guid>? writable = null)
     {
         var byId = all.ToDictionary(t => t.Id);
         var changed = new Dictionary<Guid, JsonObject>();
@@ -164,8 +170,13 @@ public static class DirectoryRoleDefaults
                 || !Guid.TryParse(Text(whole["typeId"]), out var partTypeId)
                 || byId.GetValueOrDefault(partTypeId) is not { Kind: DocumentTypeKind.Composite } partType) continue;
 
-            // Тэг уже где-то стоит — у справочника или у частей (с их предками): решение человека.
-            if (chain.Concat(Chain(partType, byId)).Any(t => FieldsOf(t)?.OfType<JsonObject>()
+            if (writable is not null && !writable.Contains(partType.Id)) continue;
+
+            // Тэг уже где-то стоит — у справочника (с предками и подтипами) или у частей (с их
+            // предками): решение человека. Подтип с тэгом на своём поле иначе получил бы «расходится в
+            // подтипе», и сокращённые пропали бы у всего справочника.
+            var family = RoleResolution.Family(bearer, all).Keys.Select(id => byId[id]);
+            if (chain.Concat(family).Concat(Chain(partType, byId)).Any(t => FieldsOf(t)?.OfType<JsonObject>()
                     .Any(f => f["tags"] is JsonArray tags && tags.Any(t => IsTag(t, rule.Tag))) == true))
                 continue;
 

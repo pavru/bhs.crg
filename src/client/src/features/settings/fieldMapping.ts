@@ -37,10 +37,12 @@ export interface SchemaWrite {
 /**
  * Поля, которые список строки даёт ВЫБРАТЬ. Это уже, чем показанное (`listedFields`): негодное поле
  * с тэгом в списке названо, но недоступно, а у строки «расходится в подтипе» списка нет вовсе —
- * она чинится в редакторе типа.
+ * она чинится в редакторе типа. Так же у строки, где тэг стоит на части составного (`part`): запись
+ * поля справочника тэг части не сняла бы, и «Не назначено» после перечитывания возвращалось бы
+ * назначенным (ревью PR #1898).
  */
 export function offeredFields(row: CoverageRow): CoverageField[] {
-  return row.fault === 'DiffersInSubtype' ? [] : row.fields.filter(f => f.fits);
+  return row.fault === 'DiffersInSubtype' || row.part ? [] : row.fields.filter(f => f.fits);
 }
 
 /**

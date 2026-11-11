@@ -75,6 +75,35 @@ public class OrganizationShortNamePortTests(IntegrationTestFixture host)
         Assert.Equal(Short, Assert.Single(choice.Items, r => r.Id == named).DisplayName);
     }
 
+    /// <summary>
+    /// Поиск — и по видимому сокращённому названию (ревью PR #1898): поиск ядра знает только название
+    /// записи и альтернативные имена. Найденное по полному, а показанное сокращённым, называет полное в
+    /// <see cref="ModuleCatalogRef.MatchedAlias" />; архивное, найденное по сокращённому, — числом.
+    /// </summary>
+    [Fact]
+    public async Task Поиск_находит_по_сокращённому_и_называет_полное_найденным_по_нему()
+    {
+        var (directory, type) = await CustomerLikeAsync();
+        var named = await EntryAsync(type, Full, $$"""{"Наименование":{"Полное":"{{Full}}","Сокращённое":"{{Short}}" } }""");
+        var gone = await EntryAsync(type, "Закрытое акционерное общество «Лютик»",
+            """{"Наименование":{"Полное":"Закрытое акционерное общество «Лютик»","Сокращённое":"ЗАО «Лютик»"} }""");
+        await SendAsync(new SetRecordArchiveCommand(gone, true));
+
+        using var scope = host.Services.CreateScope();
+        var port = directory.Port(scope.ServiceProvider);
+
+        var byShort = (await port.SearchAsync(directory.Role, "ООО «Ром", 10))!;
+        var hit = Assert.Single(byShort.Items);
+        Assert.Equal((named, Short, null), (hit.Id, hit.DisplayName, hit.MatchedAlias));
+
+        var byFull = Assert.Single((await port.SearchAsync(directory.Role, "Общество с огр", 10))!.Items);
+        Assert.Equal((named, Short, Full), (byFull.Id, byFull.DisplayName, byFull.MatchedAlias));
+
+        var archived = (await port.SearchAsync(directory.Role, "ЗАО «Лют", 10))!;
+        Assert.Empty(archived.Items);
+        Assert.Equal(1, archived.InArchive);
+    }
+
     /// <summary>Тэга нет — названия записей, ничего не угадывается по ключу «Сокращённое».</summary>
     [Fact]
     public async Task Без_тэга_организация_называется_названием_записи()

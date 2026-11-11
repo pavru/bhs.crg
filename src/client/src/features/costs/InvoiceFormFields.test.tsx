@@ -6,7 +6,7 @@ import { useState } from 'react';
 import type { CostsOrganization, InvoiceView } from '@/shared/api/invoices';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { BlockFields } from './InvoiceFormFields';
-import { BLOCKS, K } from './invoiceFields';
+import { BLOCKS, K, catalogRef } from './invoiceFields';
 
 vi.mock('@/shared/api/client', () => ({
   apiClient: { post: vi.fn(), get: vi.fn(async () => ({ data: null })), put: vi.fn(), delete: vi.fn() }, traceIdOf: () => undefined,
@@ -19,7 +19,7 @@ vi.mock('@/shared/api/client', () => ({
 
 afterEach(cleanup);
 
-const view = {
+const baseView = {
   id: 'i1', version: 'v1', documentTypeId: 't', unconfirmed: [], lines: [],
   requisites: { Состояние: 'Черновик', [K.number]: '104' }, references: {},
   readiness: { required: [], gaps: [] }, payment: { lockedBy: null, paid: false },
@@ -29,8 +29,9 @@ const organizations: CostsOrganization[] = [
   { id: 'o2', name: 'ООО «Наша компания»' } as CostsOrganization,
 ];
 
-function Form({ onLeave, pick, locked = false, block = BLOCKS[0] }: {
+function Form({ onLeave, pick, locked = false, block = BLOCKS[0], view = baseView }: {
   onLeave: () => void; pick: (key: string, next: unknown) => void; locked?: boolean; block?: (typeof BLOCKS)[number];
+  view?: InvoiceView;
 }) {
   const [edits, setEdits] = useState<Record<string, unknown>>({});
   const value = (key: string) => (key in edits ? edits[key] : view.requisites[key]);
@@ -41,7 +42,7 @@ function Form({ onLeave, pick, locked = false, block = BLOCKS[0] }: {
   );
 }
 
-function mount(props: { locked?: boolean; block?: (typeof BLOCKS)[number] } = {}) {
+function mount(props: { locked?: boolean; block?: (typeof BLOCKS)[number]; view?: InvoiceView } = {}) {
   const onLeave = vi.fn();
   const pick = vi.fn();
   render(<QueryClientProvider client={new QueryClient()}><SnackbarProvider><Form onLeave={onLeave} pick={pick} {...props} /></SnackbarProvider></QueryClientProvider>);
@@ -103,5 +104,25 @@ describe('реквизиты черновика пишутся по уходу �
     fireEvent.keyDown(supplier, { key: 'ArrowDown' });
     fireEvent.click(screen.getByRole('option', { name: 'ООО «Кабель-Торг»' }));
     expect(pick).toHaveBeenCalledWith(K.supplier, expect.objectContaining({ entryId: 'o1' }));
+  });
+});
+
+// Архивный поставщик стоит в выборе своим пунктом — и, как остальные, с полным названием второй
+// строкой (issue #1473, В1; ревью PR #1898): похожие «Ромашки» иначе не различить.
+describe('архивный поставщик в выборе', () => {
+  it('пункт архивной стороны несёт полное название второй строкой', () => {
+    const archived = {
+      ...baseView,
+      requisites: { ...baseView.requisites, [K.supplier]: catalogRef('a1') },
+      references: {
+        supplier: 'archived', payer: null, documentType: 'present',
+        supplierName: 'ООО «Ромашка»', supplierFullName: 'Общество с ограниченной ответственностью «Ромашка»',
+      },
+    } as unknown as InvoiceView;
+    mount({ view: archived });
+
+    fireEvent.keyDown(screen.getAllByRole('combobox')[0], { key: 'ArrowDown' });
+    const option = screen.getByRole('option', { name: /Ромашка/ });
+    expect(option.textContent).toContain('Общество с ограниченной ответственностью «Ромашка»');
   });
 });

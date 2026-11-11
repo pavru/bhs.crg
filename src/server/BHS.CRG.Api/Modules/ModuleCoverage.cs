@@ -31,10 +31,17 @@ public static class CoverageState
 /// <param name="Reason">Почему не обеспечена — тем же текстом, каким отказывает порт; <c>null</c> у
 /// сопоставленной.</param>
 /// <param name="Kinds">Виды полей, которые тэг допускает, — чтобы сказать «в типе нет поля вида …».</param>
+/// <param name="Key">Поле справочника, несущее тэг целиком; <c>null</c> — не сопоставлено или тэг на части.</param>
+/// <param name="Part">Тэг стоит на ЧАСТИ составного поля (issue #1473): экран такую строку не правит —
+/// тэг лежит в схеме составного типа, и запись поля справочника его не сняла бы (ревью PR #1898). Экран
+/// называет, где тэг и в редакторе какого типа он меняется.</param>
 public sealed record CoverageRow(
     string Tag, string Label, string Description, bool Required, string WithoutIt,
     string State, string Fault, string? Reason, string? Key, IReadOnlyList<string> Kinds,
-    IReadOnlyList<CoverageField> Fields);
+    IReadOnlyList<CoverageField> Fields, CoveragePart? Part = null);
+
+/// <summary>Часть составного поля с тэгом: поле справочника, ключ части и тип, где тэг стоит.</summary>
+public sealed record CoveragePart(string Whole, string Key, CoverageType In);
 
 /// <summary>Потребность в справочнике: роль, её носитель и поля.</summary>
 /// <param name="Type">Носитель роли; <c>null</c>, пока роль не обеспечена.</param>
@@ -132,12 +139,14 @@ public static class ModuleCoverage
             };
 
             return new CoverageRow(f.Tag, tag.Label, tag.Description, f.Required, f.WithoutIt,
-                state, found.Fault.ToString(), found.Describe(tag), found.Key, tag.AppliesTo,
+                state, found.Fault.ToString(), found.Describe(tag), found.DirectKey, tag.AppliesTo,
                 [.. fields.Select(field => new CoverageField(
                     field.Key, field.Title is { Length: > 0 } title ? title : field.Key, field.Type,
                     declaredIn[field.Key],
                     Fits: !field.Computed && (tag.AppliesTo.Length == 0 || tag.AppliesTo.Contains(field.Type, StringComparer.Ordinal)),
-                    Tagged: found.Keys.Contains(field.Key, StringComparer.Ordinal)))]);
+                    // Тэг на части — не на самом составном: само поле тэга не несёт.
+                    Tagged: found.Keys.Contains(field.Key, StringComparer.Ordinal) && found.Part?.Whole != field.Key))],
+                found.Part is { } part ? new CoveragePart(part.Whole, part.Key, View(part.Type)) : null);
         }).ToList();
 
         return new(need.Role, roleTag.Label, need.Purpose, need.WithoutIt,

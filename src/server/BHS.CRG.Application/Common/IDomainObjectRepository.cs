@@ -64,9 +64,11 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// </summary>
     /// <param name="partKey">Часть составного поля (issue #1473): значение — <c>Data[fieldKey][partKey]</c>.
     /// Наследование решается по самому полю: своё составное перекрывает основу целиком, как при печати.</param>
+    /// <param name="ids">Только эти записи; <c>null</c> — все записи типов. Кому нужна одна-две записи
+    /// (название стоящей ссылки), не читает весь справочник (ревью PR #1898).</param>
     Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
-        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default,
-        string? partKey = null);
+        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose,
+        string? partKey = null, IReadOnlyCollection<Guid>? ids = null, CancellationToken ct = default);
 
     /// <summary>
     /// Какие из названных записей общих данных лежат в архиве (issue #1185). Вид записи не спрашивает:

@@ -64,17 +64,35 @@ public sealed record ResolvedRole(
     };
 }
 
+/// <summary>
+/// Часть составного поля справочника, несущая тэг (issue #1473): поле <paramref name="Whole" /> носителя,
+/// его часть <paramref name="Key" /> и составной тип <paramref name="Type" />, в чьей схеме тэг стоит, —
+/// там его и меняют.
+/// </summary>
+public sealed record RolePart(string Whole, string Key, DocumentType Type);
+
 /// <summary>Поле справочника, найденное по тэгу.</summary>
 /// <param name="Key">Ключ поля; <c>null</c>, пока <see cref="Fault" /> не <see cref="RoleFieldFault.None" />.</param>
 /// <param name="Keys">Все ключи, несущие тэг у носителя роли, — для слов о нарушении.</param>
 /// <param name="Subtype">Подтип, у которого тэг стоит иначе, — для <see cref="RoleFieldFault.DiffersInSubtype" />.</param>
 /// <param name="Part">Тэг стоит на ЧАСТИ составного поля <see cref="Key" /> (issue #1473): значение
-/// лежит в <c>Data[Key][Part]</c>, а <see cref="Field" /> описывает часть. <c>null</c> — на самом поле.
-/// ⚠️ Кто читает значение по <see cref="Key" />, обязан учесть часть: иначе прочитал бы составное.</param>
+/// лежит в <c>Data[Key][Part.Key]</c>, а <see cref="Field" /> описывает часть. <c>null</c> — на самом поле.
+/// Названа и при нарушении, если тэг стоит на части (в том числе «и на поле, и на части»): такое
+/// нарушение снимается в редакторе составного типа, а не выбором поля справочника.
+/// ⚠️ Кто читает значение по <see cref="Key" />, обязан учесть часть: иначе прочитал бы составное.
+/// Не умеет — берёт <see cref="DirectKey" />.</param>
 public sealed record ResolvedRoleField(
     string? Key, RoleFieldFault Fault, IReadOnlyList<string> Keys, SchemaFieldInfo? Field = null,
-    DocumentType? Subtype = null, string? Part = null)
+    DocumentType? Subtype = null, RolePart? Part = null)
 {
+    /// <summary>
+    /// Ключ поля, когда значение лежит в нём ЦЕЛИКОМ; <c>null</c> — поле не найдено либо тэг стоит на
+    /// части (ревью PR #1898). Для тех, кто читает поле справочника как есть — строку карточки, поле
+    /// для записи при заведении, выбранное поле экрана сопоставления: им ключ составного означал бы
+    /// чужое значение.
+    /// </summary>
+    public string? DirectKey => Part is null ? Key : null;
+
     /// <summary>
     /// Что не так — словами для человека; <c>null</c>, если поле найдено. ОДИН текст на всех, кто
     /// отказывает: чтение называло три причины из четырёх и не называло подтип, а заведение называло
@@ -201,8 +219,15 @@ public static class RoleResolution
         if (role.Root is not { } root) return new(null, RoleFieldFault.Absent, []);
 
         var keys = KeysWithTag(root, all, tag.Code);
+        var inParts = tag.PartOf is { } whole ? PartsWithTag(root, tag, whole, all) : null;
+
+        // Тэг и на поле справочника, и на части его составного (ревью PR #1898): прямой молча победил
+        // бы, а реестр обещает не выбирать молча (TagDefinition.PartOf). Нарушение — как два поля.
+        if (keys.Count > 0 && inParts is { Parts.Count: > 0 } both)
+            return new(null, RoleFieldFault.Several,
+                [.. keys, .. both.Parts.Select(p => $"{both.Whole}.{p}")], Part: new(both.Whole, both.Parts[0], both.PartType));
         if (keys.Count == 0)
-            return tag.PartOf is { } whole ? PartField(role, root, tag, whole, all) : new(null, RoleFieldFault.Absent, keys);
+            return inParts is not null ? PartField(role, tag, inParts, all) : new(null, RoleFieldFault.Absent, keys);
         if (keys.Count > 1) return new(null, RoleFieldFault.Several, keys);
 
         var byId = all.ToDictionary(t => t.Id);
@@ -223,39 +248,54 @@ public static class RoleResolution
         return new(keys[0], RoleFieldFault.None, keys, field);
     }
 
+    /// <summary>Составное поле роли и части его типа, несущие тэг.</summary>
+    private sealed record TaggedParts(string Whole, DocumentType PartType, List<string> Parts);
+
     /// <summary>
-    /// Тэг на ЧАСТИ составного поля роли (issue #1473): у справочника тэга нет, а поле с
-    /// <paramref name="whole" /> — составное, и в его типе тэг стоит на одной части. Поле названия
-    /// берётся тем же расчётом, что и само (ровно одно у носителя); часть — ровно одна, того вида,
-    /// что допускает тэг.
+    /// Части с тэгом в составном поле <paramref name="whole" /> носителя (issue #1473); <c>null</c> —
+    /// такого поля нет (не ровно одно у носителя, не составное, тип не найден).
     /// </summary>
-    private static ResolvedRoleField PartField(
-        ResolvedRole role, DocumentType root, TagDefinition tag, string whole, IReadOnlyList<DocumentType> all)
+    private static TaggedParts? PartsWithTag(
+        DocumentType root, TagDefinition tag, string whole, IReadOnlyList<DocumentType> all)
     {
         var wholeKeys = KeysWithTag(root, all, whole);
-        if (wholeKeys.Count != 1) return new(null, RoleFieldFault.Absent, []);
+        if (wholeKeys.Count != 1) return null;
 
         var byId = all.ToDictionary(t => t.Id);
         var field = DocumentTypeSchemaReader.EffectiveFields(root.Id, byId).FirstOrDefault(f => f.Key == wholeKeys[0]);
-        if (field is not { Type: "complex", TypeId: { } partTypeId } || byId.GetValueOrDefault(partTypeId) is not { } partType)
-            return new(null, RoleFieldFault.Absent, []);
+        return field is { Type: "complex", TypeId: { } partTypeId } && byId.GetValueOrDefault(partTypeId) is { } partType
+            ? new(wholeKeys[0], partType, KeysWithTag(partType, all, tag.Code))
+            : null;
+    }
 
-        var parts = KeysWithTag(partType, all, tag.Code);
+    /// <summary>
+    /// Тэг на ЧАСТИ составного поля роли (issue #1473): у справочника тэга нет, а поле с тэгом
+    /// <see cref="TagDefinition.PartOf" /> — составное, и в его типе тэг стоит на одной части. Поле
+    /// названия берётся тем же расчётом, что и само (ровно одно у носителя); часть — ровно одна, того
+    /// вида, что допускает тэг.
+    /// </summary>
+    private static ResolvedRoleField PartField(
+        ResolvedRole role, TagDefinition tag, TaggedParts found, IReadOnlyList<DocumentType> all)
+    {
+        var (whole, partType, parts) = found;
+        string[] wholeKeys = [whole];
+        var byId = all.ToDictionary(t => t.Id);
+
         if (parts.Count == 0) return new(null, RoleFieldFault.Absent, []);
         if (parts.Count > 1)
-            return new(null, RoleFieldFault.Several, [.. parts.Select(p => $"{wholeKeys[0]}.{p}")]);
+            return new(null, RoleFieldFault.Several, [.. parts.Select(p => $"{whole}.{p}")], Part: new(whole, parts[0], partType));
 
         var part = DocumentTypeSchemaReader.EffectiveFields(partType.Id, byId).FirstOrDefault(f => f.Key == parts[0]);
         if (part is null) return new(null, RoleFieldFault.Absent, []);
         if (part.Computed || (tag.AppliesTo.Length > 0 && !tag.AppliesTo.Contains(part.Type, StringComparer.Ordinal)))
-            return new(null, RoleFieldFault.WrongKind, wholeKeys, part);
+            return new(null, RoleFieldFault.WrongKind, wholeKeys, part, Part: new(whole, parts[0], partType));
 
         // Подтип, пометивший своё поле напрямую, читался бы не там — нарушение, как у обычного поля.
-        foreach (var id in role.Family.Keys.Where(id => id != root.Id))
+        foreach (var id in role.Family.Keys.Where(id => id != role.Root!.Id))
             if (KeysWithTag(byId[id], all, tag.Code).Count > 0)
-                return new(null, RoleFieldFault.DiffersInSubtype, wholeKeys, part, byId[id]);
+                return new(null, RoleFieldFault.DiffersInSubtype, wholeKeys, part, byId[id], new(whole, parts[0], partType));
 
-        return new(wholeKeys[0], RoleFieldFault.None, wholeKeys, part, Part: parts[0]);
+        return new(whole, RoleFieldFault.None, wholeKeys, part, Part: new(whole, parts[0], partType));
     }
 
     /// <summary>Ключи с тэгом — тем же счётом, каким кратность проверяется при сохранении схемы.</summary>

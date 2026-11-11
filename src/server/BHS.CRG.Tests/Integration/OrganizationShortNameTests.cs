@@ -55,6 +55,13 @@ public class OrganizationShortNameTests(IntegrationTestFixture host)
             [{{NameType}},
              {"Code":"Организация","Schema":"{\"tags\":[\"role.organization\"],\"fields\":[{\"key\":\"Наименование\",\"type\":\"complex\",\"typeId\":\"@НаименованиеОрганизации\",\"tags\":[\"org.name\"]},{\"key\":\"Краткое\",\"type\":\"string\",\"tags\":[\"org.shortName\"]}]}"}]
             """ },
+        // Тэг на поле ПОДТИПА справочника (ревью PR #1898): перенос, не видевший подтипов, ставил тэг
+        // части, и справочник целиком уходил в «расходится в подтипе» — без сокращённых у всех.
+        { "отмечено полем подтипа", $$"""
+            [{{NameType}},
+             {"Code":"Организация","Schema":"{\"tags\":[\"role.organization\"],\"fields\":[{\"key\":\"Наименование\",\"type\":\"complex\",\"typeId\":\"@НаименованиеОрганизации\",\"tags\":[\"org.name\"]}]}"},
+             {"Code":"ОрганизацияСРО","Parent":"Организация","Schema":"{\"fields\":[{\"key\":\"Краткое\",\"type\":\"string\",\"tags\":[\"org.shortName\"]}]}"}]
+            """ },
         { "отмечена другая часть", """
             [{"Code":"НаименованиеОрганизации","Schema":"{\"fields\":[{\"key\":\"Полное\",\"type\":\"string\"},{\"key\":\"Сокращённое\",\"type\":\"string\"},{\"key\":\"Краткое\",\"type\":\"string\",\"tags\":[\"org.shortName\"]}]}"},
              {"Code":"Организация","Schema":"{\"tags\":[\"role.organization\"],\"fields\":[{\"key\":\"Наименование\",\"type\":\"complex\",\"typeId\":\"@НаименованиеОрганизации\",\"tags\":[\"org.name\"]}]}"}]
@@ -116,8 +123,23 @@ public class OrganizationShortNameTests(IntegrationTestFixture host)
         Assert.Empty(DirectoryRoleDefaults.ApplyParts(types));
     }
 
+    /// <summary>
+    /// Восстановление копии меняет только схемы ИЗ копии (ревью PR #1898): тип живой системы, которого
+    /// в копии нет, сохраняет снятый там тэг.
+    /// </summary>
+    [Fact]
+    public void Правило_восстановления_не_трогает_типы_вне_копии()
+    {
+        var (types, _) = Types(JsonSerializer.Deserialize<Seed[]>(Customer)!);
+        var part = types.Single(t => t.Code == "НаименованиеОрганизации");
+
+        Assert.Empty(DirectoryRoleDefaults.ApplyParts(types, types.Where(t => t.Id != part.Id).Select(t => t.Id).ToHashSet()));
+        Assert.Equal(part.Id, Assert.Single(DirectoryRoleDefaults.ApplyParts(types, new HashSet<Guid> { part.Id })).Type.Id);
+    }
+
     [Theory]
     [InlineData("отмечено полем организации")]
+    [InlineData("отмечено полем подтипа")]
     [InlineData("отмечена другая часть")]
     [InlineData("часть не строка")]
     [InlineData("название строкой")]
@@ -156,12 +178,40 @@ public class OrganizationShortNameTests(IntegrationTestFixture host)
 
         Assert.Equal(RoleFieldFault.None, field.Fault);
         Assert.Equal("Наименование", field.Key);
-        Assert.Equal("Сокращённое", field.Part);
+        Assert.Equal("Сокращённое", field.Part?.Key);
 
         // Без тэга — «не назначено», ничего не угадывается по ключу «Сокращённое».
         var (bare, _) = Types(JsonSerializer.Deserialize<Seed[]>(Customer)!);
         Assert.Equal(RoleFieldFault.Absent,
             RoleResolution.Field(RoleResolution.Role(FunctionalTag.RoleOrganization, bare), tags.Find(FunctionalTag.OrgShortName)!, bare).Fault);
+    }
+
+    /// <summary>
+    /// Тэг и на поле организации, и на части составного (ревью PR #1898) — «назначено дважды»: прямой
+    /// не побеждает молча. Часть названа — нарушение чинится в редакторе её типа.
+    /// </summary>
+    [Fact]
+    public void Тэг_на_поле_и_на_части_сразу_назначен_дважды()
+    {
+        var (types, _) = Types(JsonSerializer.Deserialize<Seed[]>(Customer)!);
+        foreach (var (type, schema) in DirectoryRoleDefaults.ApplyParts(types)) type.UpdateSchema(schema);
+        var organization = types.Single(t => t.Code == "Организация");
+        var schemaNode = JsonNode.Parse(organization.Schema.RootElement.GetRawText())!.AsObject();
+        schemaNode["fields"]!.AsArray().Add(new JsonObject
+        {
+            ["key"] = "Краткое", ["type"] = "string", ["tags"] = new JsonArray(FunctionalTag.OrgShortName),
+        });
+        organization.UpdateSchema(JsonDocument.Parse(schemaNode.ToJsonString()));
+        var tags = TagCatalog.Build(TagRegistry.Core, []);
+
+        var field = RoleResolution.Field(
+            RoleResolution.Role(FunctionalTag.RoleOrganization, types), tags.Find(FunctionalTag.OrgShortName)!, types);
+
+        Assert.Equal(RoleFieldFault.Several, field.Fault);
+        Assert.Null(field.Key);
+        Assert.Equal(["Краткое", "Наименование.Сокращённое"], field.Keys);
+        Assert.Equal(("Наименование", "Сокращённое", "НаименованиеОрганизации"),
+            (field.Part!.Whole, field.Part.Key, field.Part.Type.Code));
     }
 
     /// <summary>Сохранение схемы: тэг на части принимается, на двух полях одного типа — отказ (одиночный).</summary>

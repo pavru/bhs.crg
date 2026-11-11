@@ -396,6 +396,9 @@ export interface InvoiceReferences {
    */
   supplierName?: string | null;
   payerName?: string | null;
+  /** Полное название архивной стороны, когда `supplierName` — сокращённое (issue #1473). */
+  supplierFullName?: string | null;
+  payerFullName?: string | null;
 }
 
 export interface InvoiceListItem {

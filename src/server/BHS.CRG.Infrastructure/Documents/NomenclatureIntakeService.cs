@@ -137,7 +137,7 @@ public sealed class NomenclatureIntakeService(
         var list = all.Values.ToList();
         var role = RoleResolution.Role(FunctionalTag.RoleNomenclature, list);
         var found = ((string[])[FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit])
-            .Select(code => (Code: code, Key: tags.Find(code) is { } tag ? RoleResolution.Field(role, tag, list).Key : null))
+            .Select(code => (Code: code, Key: tags.Find(code) is { } tag ? RoleResolution.Field(role, tag, list).DirectKey : null))
             .Where(x => x.Key is not null)
             .ToList();
         return found.GroupBy(x => x.Key!, StringComparer.Ordinal)

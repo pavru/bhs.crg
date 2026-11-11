@@ -376,8 +376,8 @@ public sealed partial class InvoiceDesk(
             : await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);
         // Только архивной стороне: у действующей названия в ответе нет и не было, даже когда оно
         // пришло попутно — поставщиком двойника.
-        string? Name(Guid? id) => id is { } key && archived.Contains(key)
-            ? organizations?.FirstOrDefault(o => o.Id == key)?.DisplayName
+        ModuleCatalogRef? Side(Guid? id) => id is { } key && archived.Contains(key)
+            ? organizations?.FirstOrDefault(o => o.Id == key)
             : null;
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
@@ -386,7 +386,8 @@ public sealed partial class InvoiceDesk(
             await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
-                Name(invoice.SupplierId), Name(invoice.PayerId)),
+                Side(invoice.SupplierId)?.DisplayName, Side(invoice.PayerId)?.DisplayName,
+                Side(invoice.SupplierId)?.FullName, Side(invoice.PayerId)?.FullName),
             lost,
             records.Where(r => r.Value == ReferenceState.Archived).Select(r => r.Key).ToHashSet(),
             readiness,

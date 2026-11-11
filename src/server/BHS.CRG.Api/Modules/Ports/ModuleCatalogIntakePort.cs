@@ -55,7 +55,7 @@ public sealed class ModuleCatalogIntakePort(
         var codes = all.ToDictionary(t => t.Id, t => t.Code);
         var names = outcome.Existing.Count == 0
             ? null
-            : await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
+            : await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct, [.. outcome.Existing.Select(r => r.Id)]);
         return new ModuleIntakeResult(
             outcome.Created is { } created
                 ? new ModuleCatalogRef(created.Id, type.Code, created.DisplayName, created.IsArchived)
@@ -70,9 +70,12 @@ public sealed class ModuleCatalogIntakePort(
         var tag = tags.Find(tagCode) ?? throw new InvalidOperationException(
             $"Тэга «{tagCode}», названного в IntakeTypes, в реестре нет.");
         var field = RoleResolution.Field(role, tag, all);
-        if (field.Key is not null) return field.Key;
+        if (field.DirectKey is not null) return field.DirectKey;
 
-        refusals.Add(field.Describe(tag)!);
+        // Тэг на части составного (issue #1473): заведение пишет значение в поле целиком и в часть не
+        // попало бы — ключ составного означал бы «записать название не туда» (ревью PR #1898).
+        refusals.Add(field.Describe(tag)
+            ?? $"поле «{tag.Label}» назначено части составного поля «{field.Key}» — заводить запись по нему нельзя");
         return null;
     }
 }

@@ -39,9 +39,11 @@ public partial class BackupService
 
         // Тэг сокращённого названия (issue #1473) — после ролей: правило ищет поле названия у носителя
         // роли, которую могли назначить строкой выше. Схемы — уже сохранённые, с ролями.
+        // Менять — только схемы, пришедшие из копии: тип живой системы, которого в копии нет, своё
+        // решение о тэге сохраняет (копию разворачивают и поверх живой системы; ревью PR #1898).
         if (manifest.KnowsOrgShortName != true)
         {
-            var parts = DirectoryRoleDefaults.ApplyParts(all);
+            var parts = DirectoryRoleDefaults.ApplyParts(all, manifest.DocumentTypes.Select(t => t.Id).ToHashSet());
             foreach (var (type, schema) in parts) type.UpdateSchema(schema);
             await db.SaveChangesAsync(ct);
 

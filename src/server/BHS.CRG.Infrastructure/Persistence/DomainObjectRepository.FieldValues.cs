@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Objects;
@@ -5,6 +6,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace BHS.CRG.Infrastructure.Persistence;
 
@@ -22,16 +24,17 @@ public partial class DomainObjectRepository
         bool HasOwn, string? Kind, string? Value, string? BaseRef, bool IsDocument);
 
     public async Task<IReadOnlyList<CommonDataFieldValue>> FieldValuesAsync(
-        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose, CancellationToken ct = default,
-        string? partKey = null)
+        IReadOnlyCollection<Guid> typeIds, string fieldKey, RecordsFor purpose,
+        string? partKey = null, IReadOnlyCollection<Guid>? ids = null, CancellationToken ct = default)
     {
-        if (typeIds.Count == 0) return [];
+        if (typeIds.Count == 0 || ids is { Count: 0 }) return [];
 
         var live = purpose.HidesArchive();
-        var records = await Probes(fieldKey, partKey)
-            (Db.Set<DomainObject>().AsNoTracking().Where(o =>
-                o.Facet == null && typeIds.Contains(o.CompositeTypeId) && (!live || o.ArchivedAt == null)))
-            .ToListAsync(ct);
+        var probe = Probe(fieldKey, partKey);
+        var own = Db.Set<DomainObject>().AsNoTracking().Where(o =>
+            o.Facet == null && typeIds.Contains(o.CompositeTypeId) && (!live || o.ArchivedAt == null));
+        if (ids is not null) own = own.Where(o => ids.Contains(o.Id));
+        var records = await own.Select(probe).ToListAsync(ct);
 
         // Основы — любого вида и состояния: роль наследует от записи, которая сама может быть другого
         // типа или лежать в архиве, и значение у неё от этого не пропадает.
@@ -39,8 +42,8 @@ public partial class DomainObjectRepository
         var wanted = Missing(records, known);
         for (var depth = 0; depth < BaseDepth && wanted.Count > 0; depth++)
         {
-            var bases = await Probes(fieldKey, partKey)
-                (Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id)))
+            var bases = await Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id))
+                .Select(probe)
                 .ToListAsync(ct);
             foreach (var found in bases) known[found.Id] = found;
             wanted = Missing(bases, known);
@@ -73,25 +76,27 @@ public partial class DomainObjectRepository
     /// а не из загруженных данных: ради одного реквизита запись целиком не поднимается.
     ///
     /// <para>С частью (issue #1473) «своё» — по-прежнему само поле: своё составное перекрывает основу
-    /// целиком, и пустая часть в нём — пусто, а не повод идти к основе.</para>
+    /// целиком, и пустая часть в нём — пусто, а не повод идти к основе. Проекция одна на оба случая:
+    /// меняется лишь путь к значению (ревью PR #1898) — две копии пришлось бы править синхронно.</para>
     /// </summary>
-    private static Func<IQueryable<DomainObject>, IQueryable<FieldProbe>> Probes(string fieldKey, string? partKey) =>
-        partKey is null ? Probes(fieldKey) : objects => objects.Select(o => new FieldProbe(
+    private static Expression<Func<DomainObject, FieldProbe>> Probe(string fieldKey, string? partKey)
+    {
+        Expression<Func<DomainObject, JsonElement>> at = partKey is null
+            ? o => o.Data.RootElement.GetProperty(fieldKey)
+            : o => o.Data.RootElement.GetProperty(fieldKey).GetProperty(partKey);
+        Expression<Func<DomainObject, JsonElement, FieldProbe>> shape = (o, value) => new FieldProbe(
             o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, o.ScopeLevel, o.ScopeId,
             EF.Functions.JsonExists(o.Data, fieldKey),
-            EF.Functions.JsonTypeof(o.Data.RootElement.GetProperty(fieldKey).GetProperty(partKey)),
-            o.Data.RootElement.GetProperty(fieldKey).GetProperty(partKey).GetString(),
+            EF.Functions.JsonTypeof(value),
+            value.GetString(),
             o.Data.RootElement.GetProperty("_baseRef").GetString(),
-            o.Facet != null));
+            o.Facet != null);
 
-    private static Func<IQueryable<DomainObject>, IQueryable<FieldProbe>> Probes(string fieldKey) =>
-        objects => objects.Select(o => new FieldProbe(
-            o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, o.ScopeLevel, o.ScopeId,
-            EF.Functions.JsonExists(o.Data, fieldKey),
-            EF.Functions.JsonTypeof(o.Data.RootElement.GetProperty(fieldKey)),
-            o.Data.RootElement.GetProperty(fieldKey).GetString(),
-            o.Data.RootElement.GetProperty("_baseRef").GetString(),
-            o.Facet != null));
+        var self = shape.Parameters[0];
+        var path = ReplacingExpressionVisitor.Replace(at.Parameters[0], self, at.Body);
+        return Expression.Lambda<Func<DomainObject, FieldProbe>>(
+            ReplacingExpressionVisitor.Replace(shape.Parameters[1], path, shape.Body), self);
+    }
 
     /// <summary>Основы, за которыми ещё не ходили: нужны только тем, у кого своего поля нет.</summary>
     private static List<Guid> Missing(IEnumerable<FieldProbe> probes, Dictionary<Guid, FieldProbe> known) =>

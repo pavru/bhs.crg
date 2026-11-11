@@ -32,8 +32,10 @@ public sealed record CommonDataFieldValue(CommonDataRef Record, string? Value, G
 /// </summary>
 /// <param name="PartKey">Часть составного поля <paramref name="FieldKey" /> (issue #1473) —
 /// сокращённое название внутри «Наименования»; <c>null</c> — значение самого поля.</param>
+/// <param name="Ids">Только эти записи; <c>null</c> — все записи типов.</param>
 public sealed record CommonDataFieldValuesQuery(
     IReadOnlyCollection<Guid> TypeIds,
     string FieldKey,
     RecordsFor For,
-    string? PartKey = null) : IRequest<IReadOnlyList<CommonDataFieldValue>>;
+    string? PartKey = null,
+    IReadOnlyCollection<Guid>? Ids = null) : IRequest<IReadOnlyList<CommonDataFieldValue>>;

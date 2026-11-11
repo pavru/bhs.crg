@@ -76,7 +76,37 @@ public sealed class ModuleCatalogPort(
         if (await DirectoryAsync(role, ct) is not { } directory) return null;
 
         var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);
-        return new ModuleCatalogChoice(Refs(found.Items, directory.Codes, await directory.NamesAsync(ct)), found.InArchive);
+        // Перевод строки — пробел, как у поиска ядра: иначе сверка с названием разошлась бы с ним.
+        var needle = query?.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (string.IsNullOrEmpty(needle))
+            return new ModuleCatalogChoice(
+                Refs(found.Items, directory.Codes, await directory.NamesAsync(ct, [.. found.Items.Select(i => i.Id)])),
+                found.InArchive);
+
+        // Поиск ядра знает название записи и альтернативные имена, а человек видит СОКРАЩЁННОЕ (issue
+        // #1473; ревью PR #1898): «ООО Ром» обязано найти запись, видимую в списке как «ООО «Ромашка»».
+        // Найденные только по видимому названию добираются ссылками; архивные в выбор не идут — идут
+        // числом, как у ядра. Цена — значения одного поля у записей справочника, не записи целиком.
+        var names = await directory.NamesAsync(ct);
+        var foundIds = found.Items.Select(i => i.Id).ToHashSet();
+        var extra = names.Matching(needle).Where(id => !foundIds.Contains(id)).ToList();
+        var items = found.Items.ToList();
+        var inArchive = found.InArchive;
+        if (extra.Count > 0)
+        {
+            var byShown = await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], extra), ct);
+            items.AddRange(byShown.Where(r => !r.Archived));
+            inArchive += byShown.Count(r => r.Archived);
+        }
+
+        // Найдена по полному названию, а показана сокращённым, в котором набранного нет: полное — то
+        // самое «найдено по …» (контракт MatchedAlias), иначе запись выглядела бы ошибкой поиска.
+        var refs = Refs(items, directory.Codes, names).Select(r =>
+            r is { FullName: { } full, MatchedAlias: null }
+            && r.DisplayName?.Contains(needle, StringComparison.CurrentCultureIgnoreCase) != true
+                ? r with { MatchedAlias = full }
+                : r);
+        return new ModuleCatalogChoice(limit > 0 ? [.. refs.Take(limit)] : [.. refs], inArchive);
     }
 
     public async Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
@@ -90,7 +120,7 @@ public sealed class ModuleCatalogPort(
         if (await DirectoryAsync(role, ct) is not { } directory) return null;
 
         return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),
-            directory.Codes, await directory.NamesAsync(ct));
+            directory.Codes, await directory.NamesAsync(ct, ids));
     }
 
     public async Task<ModuleCatalogFieldValues?> FieldValuesAsync(
@@ -116,7 +146,7 @@ public sealed class ModuleCatalogPort(
 
         var codes = resolved.Family;
         var values = await mediator.Send(
-            new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records, field.Part), ct);
+            new CommonDataFieldValuesQuery([.. codes.Keys], fieldKey, records, field.Part?.Key), ct);
         var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
         return new ModuleCatalogFieldValues(true,
             [.. values
@@ -150,12 +180,15 @@ public sealed class ModuleCatalogPort(
         // ядра (его же сверяет шаг «Новая позиция», им же называется запись), и роль им не владеет. Снятый
         // с поля тэг ключа делает подбор беднее, но не ложным: запись сверяется названием.
         var lying = await similarity.LoadAsync(all, [.. all.Values.Where(t => codes.ContainsKey(t.Id))], null, ct);
-        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, [.. all.Values], ct);
-        return [.. lines.Select(line =>
+        // Всех: действующих отсекает предел порта, архивные идут числом.
+        var perLine = lines.Select(line => NomenclatureSimilarity.ForLine(
+            new(line.Name, line.Code), lying.Records, lying.Titles, limit: int.MaxValue).Hits).ToList();
+        // Названия — только отданным кандидатам, а не всему справочнику.
+        var shown = perLine.SelectMany(hits => hits.Where(h => !h.Record.Archived).Take(limit)).Select(h => h.Record.Id)
+            .ToHashSet();
+        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, [.. all.Values], ct, shown);
+        return [.. perLine.Select(hits =>
         {
-            // Всех: действующих отсекает предел порта, архивные идут числом.
-            var hits = NomenclatureSimilarity.ForLine(
-                new(line.Name, line.Code), lying.Records, lying.Titles, limit: int.MaxValue).Hits;
             var live = hits.Where(h => !h.Record.Archived).ToList();
             return new ModuleLineCandidates(
                 [.. live.Take(limit).Select(h => new ModuleLineCandidate(
@@ -186,13 +219,16 @@ public sealed class ModuleCatalogPort(
         var lines = card.Lines.ToDictionary(l => l.Key, Line, StringComparer.Ordinal);
         // Поле тэга — тем же расчётом, что у значений поля и окна «Новая позиция»: карточка, узнавшая
         // артикул иначе, сравнивала бы строку не с тем полем, по которому подбирали.
+        // Тэг на части составного (issue #1473) строки карточки не имеет: строка — у составного поля
+        // целиком, и отдать её под тэгом части значило бы назвать полное значение сокращённым (ревью
+        // PR #1898). Такой тэг в карточке не назван.
         var tagged = new Dictionary<string, ModuleCardLine>(StringComparer.Ordinal);
         foreach (var code in fieldTags)
-            if (tags.Find(code) is { } tag && RoleResolution.Field(resolved, tag, all).Key is { } key
+            if (tags.Find(code) is { } tag && RoleResolution.Field(resolved, tag, all).DirectKey is { } key
                 && lines.TryGetValue(key, out var line))
                 tagged[code] = line;
 
-        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct);
+        var names = await RecordDisplayNames.LoadAsync(mediator, tags, resolved, all, ct, [card.Record.Id]);
         return new ModuleCatalogCard(
             names.Apply(new ModuleCatalogRef(card.Record.Id, codes.GetValueOrDefault(card.Record.CompositeTypeId, string.Empty),
                 card.Record.DisplayName, card.Record.Archived)),
@@ -266,8 +302,9 @@ public sealed class ModuleCatalogPort(
     {
         public IReadOnlyDictionary<Guid, string> Codes => Role.Family;
 
-        public Task<RecordDisplayNames> NamesAsync(CancellationToken ct) =>
-            RecordDisplayNames.LoadAsync(Mediator, Tags, Role, All, ct);
+        /// <param name="ids">Только эти записи; <c>null</c> — весь справочник.</param>
+        public Task<RecordDisplayNames> NamesAsync(CancellationToken ct, IReadOnlyCollection<Guid>? ids = null) =>
+            RecordDisplayNames.LoadAsync(Mediator, Tags, Role, All, ct, ids);
     }
 
     public async Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default)
@@ -285,10 +322,9 @@ public sealed class ModuleCatalogPort(
 
         // Запись справочника с тэгом названия (организация) — названием для показа, как в любом другом
         // чтении порта (issue #1473).
-        foreach (var naming in tags.All.Where(t => t.Names && t.Role is not null))
-            if (RoleResolution.Role(naming.Role!, all) is { } directory && directory.Family.ContainsKey(entry.CompositeTypeId))
-                return (await RecordDisplayNames.LoadAsync(mediator, tags, directory, all, ct)).Apply(mapped);
-        return mapped;
+        return RecordDisplayNames.DirectoryOf(tags, entry.CompositeTypeId, all) is { } directory
+            ? (await RecordDisplayNames.LoadAsync(mediator, tags, directory, all, ct, [id])).Apply(mapped)
+            : mapped;
     }
 
     /// <summary>

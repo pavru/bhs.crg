@@ -15,8 +15,8 @@ namespace BHS.CRG.Infrastructure.Migrations
     /// <para><b>Правило осторожное — ставит только туда, где свободно.</b> Носитель роли
     /// <c>role.organization</c> ровно один и составной; поле с <c>org.name</c> — ближайшее у носителя
     /// или выше по родителям, составного вида; его составной тип — часть с ключом «Сокращённое»
-    /// строкового вида получает тэг. Тэг уже стоит на любом поле справочника или любой части — ничего
-    /// не делается: это решение человека.</para>
+    /// строкового вида получает тэг. Тэг уже стоит на любом поле справочника (носителя, предков,
+    /// подтипов) или любой части — ничего не делается: это решение человека.</para>
     ///
     /// <para>⚠️ <b>То же правило — в коде</b>: <c>DirectoryRoleDefaults.ApplyParts</c>, им пользуется
     /// восстановление копии, снятой до этого переноса. Расходиться им нельзя: сверяет
@@ -34,6 +34,7 @@ namespace BHS.CRG.Infrastructure.Migrations
                 DECLARE
                     bearer    uuid;
                     chain     uuid[];
+                    family    uuid[];
                     parts     uuid[];
                     cur       uuid;
                     whole     jsonb;
@@ -55,6 +56,14 @@ namespace BHS.CRG.Infrastructure.Migrations
                         chain := chain || cur;
                         SELECT "ParentId" INTO cur FROM document_types WHERE "Id" = cur;
                     END LOOP;
+
+                    -- Подтипы носителя: тэг на поле подтипа — тоже «уже стоит». UNION, а не UNION ALL:
+                    -- повтор отбрасывается, и цикл в цепочке родителей обход не зациклит.
+                    WITH RECURSIVE d("Id") AS (
+                        SELECT "Id" FROM document_types WHERE "ParentId" = bearer
+                        UNION
+                        SELECT t."Id" FROM document_types t JOIN d ON t."ParentId" = d."Id")
+                    SELECT coalesce(array_agg("Id"), ARRAY[]::uuid[]) INTO family FROM d;
 
                     -- ── 2. Поле названия: ближайшее с org.name, составное ────────────────────
                     whole := NULL;
@@ -82,14 +91,14 @@ namespace BHS.CRG.Infrastructure.Migrations
                         SELECT "ParentId" INTO cur FROM document_types WHERE "Id" = cur;
                     END LOOP;
 
-                    -- ── 3. Тэг уже стоит — у справочника или у частей: решение человека ──────
+                    -- ── 3. Тэг уже стоит — у справочника (с подтипами) или у частей: решение человека
                     IF EXISTS (
                         SELECT 1
                           FROM document_types t,
                                jsonb_array_elements(
                                    CASE WHEN jsonb_typeof(t."Schema"->'fields') = 'array'
                                         THEN t."Schema"->'fields' ELSE '[]'::jsonb END) AS g
-                         WHERE t."Id" = ANY (chain || parts)
+                         WHERE t."Id" = ANY (chain || family || parts)
                            AND jsonb_typeof(g) = 'object'
                            AND jsonb_typeof(g->'tags') = 'array' AND g->'tags' ? 'org.shortName')
                     THEN RETURN; END IF;
