@@ -41,7 +41,8 @@ public static class BackupEndpoints
         {
             var schedule = (await settings.GetEffectiveAsync(ct)).Backup;
             var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
-            // Ближайшая копия (issue #1468) — тем же правилом и в том же поясе, что у службы.
+            // Ближайшая копия (issue #1468) — тем же правилом и в том же поясе, что у службы, и от
+            // того же отсчёта: без истории запусков — от его начала (issue #1403).
             var zone = await appSettings.GetCompanyTimeZoneAsync(ct);
             return Results.Ok(new
             {
@@ -59,7 +60,7 @@ public static class BackupEndpoints
                     state.LastFileName,
                     state.LastError,
                     state.LastErrorAt,
-                    nextRun = BackupScheduleService.NextRunAt(schedule, state.LastRunAt, clock.GetUtcNow(), zone),
+                    nextRun = BackupScheduleService.NextRunAt(schedule, state.CountedFrom(), clock.GetUtcNow(), zone),
                     running = await jobs.HasActiveOfKindAsync(JobKind.CreateBackup, ct),
                 },
             });

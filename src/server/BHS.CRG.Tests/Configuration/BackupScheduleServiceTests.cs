@@ -38,12 +38,46 @@ public class BackupScheduleServiceTests
         => Assert.False(DueInMoscow(Schedule(), lastRunAt: null, At(20, 2, 59)));
 
     /// <summary>
-    /// Свежая установка: копий не было никогда. Ждать до завтрашней ночи нельзя — система,
-    /// проработавшая день без единой копии, ровно то состояние, ради которого расписание и заведено.
+    /// Свежая установка или восстановление на свежий экземпляр после срока: истории нет — это начало
+    /// отсчёта, а не пропущенный срок (issue #1403). Копия сегодня не ставится, ближайшая — завтра в
+    /// срок, и строка «Ближайшая копия» говорит то же. Прежнее правило снимало полную копию сразу после
+    /// подъёма системы из копии.
     /// </summary>
     [Fact]
-    public void NeverRun_DueOnceTheHourPassed()
-        => Assert.True(DueInMoscow(Schedule(), lastRunAt: null, At(20, 3, 1)));
+    public void NeverRun_AfterTheHour_NotDue_NextTomorrow()
+    {
+        Assert.False(DueInMoscow(Schedule(), lastRunAt: null, At(20, 3, 1)));
+        Assert.Equal(new BackupNextRun(At(21, 3, 0), false, new DateOnly(2026, 8, 20)),
+            BackupScheduleService.NextRunAt(Schedule(), null, At(20, 10, 0), Moscow));
+    }
+
+    /// <summary>
+    /// Отсчёт начат после сегодняшнего срока (первый тик в 10:00): до конца суток копии нет, завтра в
+    /// срок — есть. Без этого начало отсчёта, записанное службой, означало бы «никогда».
+    /// </summary>
+    [Fact]
+    public void CountingStartedAfterTheHour_DueTomorrowAtTheHour()
+    {
+        var countingSince = At(20, 10, 0);
+        Assert.False(DueInMoscow(Schedule(), countingSince, At(20, 23, 59)));
+        Assert.False(DueInMoscow(Schedule(), countingSince, At(21, 2, 59)));
+        Assert.True(DueInMoscow(Schedule(), countingSince, At(21, 3, 0)));
+    }
+
+    /// <summary>
+    /// Установка без истории стартует до срока (01:00 при расписании на 03:00): копия — сегодня в срок,
+    /// а не завтра. Начало отсчёта не отодвигает ближайший срок, только не даёт догонять прошедший.
+    /// </summary>
+    [Fact]
+    public void NeverRun_BeforeTheHour_DueTodayAtTheHour()
+    {
+        Assert.Equal(new BackupNextRun(At(20, 3, 0), false, new DateOnly(2026, 8, 20)),
+            BackupScheduleService.NextRunAt(Schedule(), null, At(20, 1, 0), Moscow));
+
+        var countingSince = At(20, 1, 0);
+        Assert.False(DueInMoscow(Schedule(), countingSince, At(20, 2, 59)));
+        Assert.True(DueInMoscow(Schedule(), countingSince, At(20, 3, 0)));
+    }
 
     [Fact]
     public void AlreadyRunToday_NotDueAgain()
@@ -97,12 +131,14 @@ public class BackupScheduleServiceTests
     /// <summary>
     /// Сторож задачи (issue #1468): время — по поясу КОМПАНИИ. Владивосток (UTC+10), 03:00 — это
     /// 17:00 UTC накануне. Пояс сервера правилу не виден вовсе, поэтому тест от него не зависит.
+    /// Прошлая копия — сутками раньше: без истории срок не настаёт вовсе (issue #1403).
     /// </summary>
     [Fact]
     public void CompanyZoneDiffersFromServer_DueAtCompanyTime()
     {
-        Assert.False(BackupScheduleService.IsDue(Schedule(), null, Utc(8, 19, 16, 59), Vladivostok));
-        Assert.True(BackupScheduleService.IsDue(Schedule(), null, Utc(8, 19, 17, 0), Vladivostok));
+        var yesterday = Utc(8, 18, 17, 0);
+        Assert.False(BackupScheduleService.IsDue(Schedule(), yesterday, Utc(8, 19, 16, 59), Vladivostok));
+        Assert.True(BackupScheduleService.IsDue(Schedule(), yesterday, Utc(8, 19, 17, 0), Vladivostok));
     }
 
     /// <summary>
