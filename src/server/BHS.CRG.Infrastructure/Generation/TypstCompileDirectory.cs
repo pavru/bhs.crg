@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Templates;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -19,7 +20,10 @@ public enum JsonLayout
 /// <summary>Что записанный каталог говорит компиляции.</summary>
 /// <param name="FontsDir">Каталог шрифтов для <c>--font-path</c>; есть, только если записан хоть один шрифт.</param>
 /// <param name="UnreadableImages">Адреса полей, чью картинку хранилище не отдало (ТЗ CORE-37.2).</param>
-public sealed record CompileLayout(string? FontsDir, IReadOnlyList<string> UnreadableImages);
+/// <param name="InvalidAssetNames">Ассеты-картинки шаблона, чьё имя не простое имя файла
+/// (<see cref="TemplateAsset.IsValidImageName" />); они не записаны (change core-template-asset-names, D3).</param>
+public sealed record CompileLayout(
+    string? FontsDir, IReadOnlyList<string> UnreadableImages, IReadOnlyList<string> InvalidAssetNames);
 
 /// <summary>
 /// Каталог компиляции Typst — ОДНА запись на генерацию и отладочный пакет (ТЗ CORE-21, CORE-22; change
@@ -32,7 +36,8 @@ public sealed record CompileLayout(string? FontsDir, IReadOnlyList<string> Unrea
 /// &lt;dir&gt;/data.json, template.typ, systemlib.typ   — данные (картинки и вложения материализованы), шаблон дословно
 /// &lt;dir&gt;/typeblocks.typ, typeblocks/…            — блоки типов (TypeBlocksMaterializer)
 /// &lt;dir&gt;/userlib.typ, userlib/…                  — библиотека (UserLibMaterializer)
-/// &lt;dir&gt;/assets/img_N, att_N, &lt;ассет&gt;.ext          — картинки полей, вложения, ассеты шаблона
+/// &lt;dir&gt;/fields/img_N.ext, att_N.ext              — картинки полей, вложения
+/// &lt;dir&gt;/assets/&lt;ассет&gt;.ext                      — ассеты-картинки шаблона, и только они
 /// &lt;dir&gt;/fonts/font_N.ext                          — шрифты шаблона (для --font-path)
 /// </code>
 /// </summary>
@@ -50,23 +55,24 @@ public sealed class TypstCompileDirectory(IBlobStorage blob)
     public async Task<CompileLayout> WriteAsync(
         GenerationRequest request, string dir, JsonLayout layout, CancellationToken ct)
     {
-        // Поля-изображения (data-URI и ссылки на блоб) — в файлы assets/, в данных — путь и размер
+        // Поля-изображения (data-URI и ссылки на блоб) — в файлы fields/, в данных — путь и размер
         // (issue #246, #522). Непрочитанная картинка остаётся ссылкой, её поле — в UnreadableImages.
+        // Каталог полей отделён от assets/: ассет шаблона по имени до них не дотягивается (D1).
         var unreadable = new List<string>();
         var dataJson = await TypstImageMaterializer.MaterializeAsync(
-            request.Context.Data, dir, blob, TypstGenerator.AssetsSubdir, unreadable: unreadable, ct: ct);
+            request.Context.Data, dir, blob, TypstGenerator.FieldsSubdir, unreadable: unreadable, ct: ct);
 
-        // Поля-вложения ({$type:"file"}) — в assets/att_N, в данных — путь и pageCount, чтобы шаблон
+        // Поля-вложения ({$type:"file"}) — в fields/att_N, в данных — путь и pageCount, чтобы шаблон
         // вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.
         var node = JsonNode.Parse(dataJson) ?? new JsonObject();
-        var assetsDir = Path.Combine(dir, TypstGenerator.AssetsSubdir);
+        var fieldsDir = Path.Combine(dir, TypstGenerator.FieldsSubdir);
         var attCount = 0;
         await new TypstFileMaterializer(blob).MaterializeAsync(node, (bytes, ext) =>
         {
-            Directory.CreateDirectory(assetsDir);
+            Directory.CreateDirectory(fieldsDir);
             var name = $"att_{attCount++}.{ext}";
-            File.WriteAllBytes(Path.Combine(assetsDir, name), bytes);
-            return AssetPath.FromRoot(TypstGenerator.AssetsSubdir, name);
+            File.WriteAllBytes(Path.Combine(fieldsDir, name), bytes);
+            return AssetPath.FromRoot(TypstGenerator.FieldsSubdir, name);
         }, ct);
         await File.WriteAllTextAsync(Path.Combine(dir, TypstGenerator.DataFileName),
             layout == JsonLayout.Indented ? node.ToJsonString(IndentedJson) : node.ToJsonString(), ct);
@@ -85,22 +91,32 @@ public sealed class TypstCompileDirectory(IBlobStorage blob)
         // Точка входа библиотеки — всегда; рядом дерево userlib/ (issue #473).
         await UserLibMaterializer.WriteAsync(dir, request.UserLibContent, request.UserLibFiles, ct);
 
-        var fontsDir = await WriteTemplateAssetsAsync(request, dir, assetsDir, ct);
-        return new CompileLayout(fontsDir, unreadable);
+        var invalidNames = new List<string>();
+        var fontsDir = await WriteTemplateAssetsAsync(
+            request, dir, Path.Combine(dir, TypstGenerator.AssetsSubdir), invalidNames, ct);
+        return new CompileLayout(fontsDir, unreadable, invalidNames);
     }
 
     /// <summary>
     /// Ассеты шаблона (issue #62), уже свёрнутые резолвером по приоритету. Картинки — в assets/ по
     /// стабильному Name (шаблон зовёт <c>image("/assets/{Name}.{ext}")</c>); шрифты — в fonts/: Typst
     /// находит шрифт по семейству, зашитому в файл, а не по имени файла.
+    /// <para>Картинка с именем не по правилу (из старых данных или копии — новое такое не создать) не
+    /// скачивается и не пишется, а называется в <paramref name="invalidNames" />: её Name адресовал бы
+    /// не тот файл, что зовёт шаблон (D3).</para>
     /// </summary>
-    private async Task<string?> WriteTemplateAssetsAsync(
-        GenerationRequest request, string dir, string assetsDir, CancellationToken ct)
+    private async Task<string?> WriteTemplateAssetsAsync(GenerationRequest request, string dir,
+        string assetsDir, List<string> invalidNames, CancellationToken ct)
     {
         if (request.TemplateAssets is not { } assets) return null;
 
         foreach (var img in assets.Images)
         {
+            if (!TemplateAsset.IsValidImageName(img.Name))
+            {
+                invalidNames.Add(img.Name);
+                continue;
+            }
             var bytes = await TypstFileMaterializer.TryDownloadAsync(blob, img.BlobPath, ct);
             if (bytes is null) continue;
             Directory.CreateDirectory(assetsDir);

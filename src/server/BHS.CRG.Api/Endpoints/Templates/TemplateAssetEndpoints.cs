@@ -45,6 +45,10 @@ public static class TemplateAssetEndpoints
             if (UploadLimits.Exceeded(file, UploadLimits.TemplateAsset) is { } tooLarge) return tooLarge;
             if (string.IsNullOrWhiteSpace(name))
                 return Results.BadRequest(new { error = "Укажите имя ассета" });
+            // Имя картинки — часть пути в каталоге компиляции: только простое имя файла (change
+            // core-template-asset-names, D2). До загрузки в хранилище — отказ не оставляет файла-сироты.
+            if (info.Kind == TemplateAssetKind.Image && !TemplateAsset.IsValidImageName(name.Trim()))
+                return Results.BadRequest(new { error = $"Имя ассета-картинки — {TemplateAsset.ImageNameRule}." });
 
             byte[] bytes;
             using (var ms = new MemoryStream())

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Templates;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -44,20 +45,23 @@ public static class DebugBundleArchive
     public static string? Readme(CompileLayout layout, BundleNotes notes)
     {
         var refusals = notes.Refusals.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
-        if (layout.FontsDir is null && refusals.Count == 0 && layout.UnreadableImages.Count == 0) return null;
+        var refused = refusals.Count > 0 || layout.UnreadableImages.Count > 0 || layout.InvalidAssetNames.Count > 0;
+        if (layout.FontsDir is null && !refused) return null;
 
         var sb = new StringBuilder();
         sb.Append("Каталог компиляции генерации этого документа. Компилируйте из распакованного каталога:\r\n\r\n");
         sb.Append(layout.FontsDir is null
             ? "  typst compile template.typ output.pdf\r\n"
             : "  typst compile template.typ output.pdf --font-path fonts\r\n");
-        if (refusals.Count == 0 && layout.UnreadableImages.Count == 0) return sb.ToString();
+        if (!refused) return sb.ToString();
 
         sb.Append("\r\n").Append(RefusalHeading).Append("\r\n");
         foreach (var d in refusals)
             sb.Append($"  - [{(d.Code.Length > 0 ? d.Code : "error")}] {d.Path}: {d.Message}\r\n");
         foreach (var field in layout.UnreadableImages)
             sb.Append($"  - [unreadable-image] {field}: картинка не прочитана из хранилища — файла нет или он недоступен документу.\r\n");
+        foreach (var name in layout.InvalidAssetNames)
+            sb.Append($"  - [invalid-asset-name] {name}: имя ассета шаблона недопустимо, файл не записан — удалите ассет и загрузите заново под именем, где только {TemplateAsset.ImageNameRule}.\r\n");
         return sb.ToString();
     }
 }

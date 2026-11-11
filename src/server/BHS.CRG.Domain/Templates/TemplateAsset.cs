@@ -40,6 +40,20 @@ public class TemplateAsset : Entity
 
     private TemplateAsset() { }
 
+    /// <summary>Допустимые знаки имени картинки — для текста отказа; источник правила — <see cref="IsValidImageName" />.</summary>
+    public const string ImageNameRule = "буквы, цифры, «-», «_» и «.»; без «/», «\\» и «..»";
+
+    /// <summary>
+    /// Имя ассета-картинки — простое имя файла (change core-template-asset-names, D2): буквы, цифры,
+    /// <c>-</c>, <c>_</c>, <c>.</c>, без <c>..</c>. Name становится частью пути <c>assets/{Name}{ext}</c>
+    /// в каталоге компиляции, и только простое имя адресует ровно тот файл, что зовёт шаблон. Имя
+    /// шрифта в путь не входит — правило к нему не применяется.
+    /// </summary>
+    public static bool IsValidImageName(string? name)
+        => !string.IsNullOrEmpty(name)
+           && !name.Contains("..", StringComparison.Ordinal)
+           && name.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.');
+
     public static TemplateAsset Create(
         TemplateAssetScope scope, Guid? scopeId, TemplateAssetKind kind,
         string name, string fileName, string mimeType, string blobPath, string? fontFamilyName = null)

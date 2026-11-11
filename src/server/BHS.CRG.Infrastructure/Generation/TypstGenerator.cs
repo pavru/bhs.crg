@@ -12,7 +12,14 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
     public const string TypeBlocksFileName = TypeBlockSlug.EntrypointName;
     public const string DataFileName = "data.json";
     public const string UserLibFileName = "userlib.typ";
+    /// <summary>Ассеты шаблона — и только они: путь <c>image("/assets/{Name}{ext}")</c> пишет автор шаблона.</summary>
     public const string AssetsSubdir = "assets";
+    /// <summary>
+    /// Картинки и вложения полей (<c>img_N</c>, <c>att_N</c>). Свой каталог, а не <c>assets/</c>: имя
+    /// ассета выбирает человек, и в общем каталоге ассет <c>img_0</c> заменял картинку поля молча
+    /// (change core-template-asset-names, D1). Шаблон берёт путь поля из <c>.src</c>, сам его не пишет.
+    /// </summary>
+    public const string FieldsSubdir = "fields";
     public const string FontsSubdir = "fonts";
 
     public async Task<byte[]> GenerateAsync(GenerationRequest request, CancellationToken ct = default)
@@ -32,6 +39,10 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             // шаблон, выводящий её под условием, собрался бы, и PDF без подписи вышел бы молча.
             if (layout.UnreadableImages.Count > 0)
                 throw new UnreadableImagesException(layout.UnreadableImages);
+            // Ассет с именем не по правилу (старые данные, копия) не записан — отказ с его именем, а не
+            // документ без картинки (D3).
+            if (layout.InvalidAssetNames.Count > 0)
+                throw new InvalidTemplateAssetNamesException(layout.InvalidAssetNames);
 
             // Рабочая папка — tmpDir: шаблон видит "typeblocks.typ" без пути, и сам он назван
             // относительно. Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы
