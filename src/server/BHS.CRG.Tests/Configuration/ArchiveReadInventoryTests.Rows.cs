@@ -12,12 +12,12 @@ public partial class ArchiveReadInventoryTests
     {
         ["BHS.CRG.Api/Endpoints/Core/ConstructionEndpoints.cs|var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);"] =
             Documents("счётчик документов комплекта").X(2),
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var employees = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);"] =
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|employees.AddRange(await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));"] =
             Shown("страница сотрудников — показ: архивная карточка на месте"),
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id));"] =
-            Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(2),
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
-            Shown("карточка сотрудника по идентификатору для чтения: архивная — с признаком"),
+            Shown("карточка сотрудника по идентификатору: чтение, правка, удаление, архив — архивная тоже").X(4),
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);"] =
+            Seen("новая версия карточки после архива — той самой, что только что отправили"),
         // ── Связь «учётная запись → сотрудник» (work-01) ──
         ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountLinks.cs|var entry = await objects.GetByIdAsync(id, ct);"] =
             Seen("сотрудник, которого связывают или отвязывают: архивного связать нельзя (отказ archived), отвязать — можно"),

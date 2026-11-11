@@ -30,7 +30,7 @@ namespace BHS.CRG.Tests.Integration;
 /// запросом, потому что внешнего ключа нет) или очисткой поля связи.</para>
 /// </summary>
 [Collection("Integration")]
-public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLifetime
+public partial class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
     private const string Password = "Passw0rd!";
 
@@ -202,6 +202,7 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
     [Fact]
     public async Task Правка_справочника_требует_своего_права()
     {
+        await EmployeeTypeAsync();
         var client = fixture.CreateClient();
         await AuthorizeAsync(client, CorePermissions.EmployeesRead);
 
@@ -211,18 +212,21 @@ public class EmployeeDirectoryTests(IntegrationTestFixture fixture) : IAsyncLife
     }
 
     /// <summary>
-    /// На установке, где справочника ещё нет, список пуст, а попытка записи отвечает ПРИЧИНОЙ.
-    /// Пустой список на запись выглядел бы поломкой: «сохранил, а его нет».
+    /// На установке, где справочника ещё нет, и список, и запись отвечают ПРИЧИНОЙ (задача 2.2
+    /// work-01): пустой список выглядел бы «сотрудников нет», и экран не предложил бы «Завести».
+    /// Без «Персоны» причина — <c>person-missing</c>: «Завести» тогда не поможет.
     /// </summary>
     [Fact]
-    public async Task Без_заведённого_справочника_список_пуст_а_запись_объясняется()
+    public async Task Без_заведённого_справочника_список_и_запись_называют_причину()
     {
         var client = fixture.CreateClient();
         await AuthorizeAsync(client, CorePermissions.EmployeesRead, CorePermissions.EmployeesEdit);
 
         var list = await client.GetAsync("/api/employees");
-        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        Assert.Equal("[]", (await list.Content.ReadAsStringAsync()).Trim());
+        Assert.Equal(HttpStatusCode.Conflict, list.StatusCode);
+        var body = JsonDocument.Parse(await list.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal("directory-missing", body.GetProperty("code").GetString());
+        Assert.Equal("person-missing", body.GetProperty("reason").GetString());
 
         var created = await client.PostAsJsonAsync("/api/employees", new { displayName = "Петров" });
         // 409, а не 400: запрос сам по себе правильный — не пускает состояние системы.

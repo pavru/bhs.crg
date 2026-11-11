@@ -5,7 +5,8 @@
 // странице сверки, подставляли первого кандидата в диалоге источника. Всё это стало вычислением,
 // и ломается оно тихо: не то открыто, не то подставлено, выбор от прошлого типа.
 //
-// Ничего не сохраняет.
+// Ничего не сохраняет — кроме проверки сотрудников (work-01): она связывает двух посеянных сотрудников и
+// отвязывает одного, а начинает с того, что снимает их связи, — повторный запуск идёт с чистого листа.
 //
 // Требует поднятых фронта (:5173) и бэка (:5000) и демо-данных — см. e2e/README.md.
 //
@@ -334,6 +335,56 @@ await check('source-editor-name-can-be-cleared-and-typed', async () => {
   await closeDialog(page);
   await settled(page);
 });
+
+// ── Сотрудники: «Сопоставить» пачкой и «Отвязать» (work-01, ТЗ WORK-27, WORK-47) ──────────────────
+// Посеянные сотрудники и учётные записи того же ФИО — `seed.mjs`, `ensureEmployees`.
+const SEEDED_EMPLOYEES = ['Смоков Иван Петрович', 'Прогонова Анна Сергеевна'];
+
+await check('employees-match-links-seeded-in-one-batch', async () => {
+  // Чистый лист: связи посеянных снимаются запросом, а не экраном — проверка о пачке, а не об уборке.
+  await page.goto(`${BASE}/employees`);
+  await settled(page);
+  await page.evaluate(async names => {
+    const auth = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
+    const list = await (await fetch('/api/employees', { headers: auth })).json();
+    for (const e of list.filter(x => names.includes(x.displayName) && x.account.state !== 'none'))
+      await fetch(`/api/employees/${e.id}/account`, { method: 'DELETE', headers: { ...auth, 'If-Match': e.version } });
+  }, SEEDED_EMPLOYEES);
+  await page.reload();
+  await settled(page);
+
+  await page.getByRole('button', { name: 'Сопоставить с учётными записями' }).click();
+  await settled(page);
+  const dlg = page.locator('[data-testid=match-dialog]');
+  await dlg.waitFor({ timeout: 10_000 });
+  // Отмечены только посеянные: на живой базе в окне и другие люди, и связывать их прогон не вправе.
+  for (const box of await dlg.getByRole('checkbox').all()) {
+    const label = (await box.getAttribute('aria-label')) ?? '';
+    const ours = SEEDED_EMPLOYEES.some(n => label.endsWith(n));
+    if (ours && !(await box.isChecked())) throw new Error(`${label}: предложение сервера не отмечено — совпадение ФИО не найдено`);
+    if (!ours && (await box.isChecked())) await box.click();
+  }
+  await page.getByRole('button', { name: /^Связать отмеченные · 2$/ }).click();
+  await settled(page);
+  const summary = await page.locator('[data-testid=match-summary]').innerText();
+  if (!/Связано 2 из 2/.test(summary)) throw new Error(`итог пачки не тот: «${summary}»`);
+  // Во весь экран выход — крестик в шапке.
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть' }).click();
+  await settled(page);
+});
+
+await check('employees-card-unlinks-with-confirmation', async () => {
+  await page.getByTestId('employees-list').getByText(SEEDED_EMPLOYEES[0], { exact: true }).click();
+  await settled(page);
+  const state = page.getByTestId('employee-account-state');
+  if (!/^Связан: /.test(await state.innerText())) throw new Error(`после пачки карточка не связана: «${await state.innerText()}»`);
+  await page.getByTestId('employee-account').getByRole('button', { name: 'Отвязать' }).click();
+  const confirm = page.locator('[role=alertdialog], [role=dialog]').last();
+  await confirm.getByRole('button', { name: 'Отвязать' }).click();
+  await settled(page);
+  if ((await state.innerText()) !== 'Не связан') throw new Error(`после «Отвязать» блок пишет «${await state.innerText()}»`);
+});
+
 
 } finally {
   await browser.close();

@@ -26,6 +26,13 @@ public class OwnDoorWriteInventoryTests
         @"SetRecordArchiveCommand|PurgeHeldRecordCommand|PurgeHeldRecordsCommand|PurgeHeldScopeCommand)\(",
         RegexOptions.Compiled);
 
+    /// <summary>Файлы дверей из реестра <c>OwnDoorTypes.All</c>: только их места записи — «дверь».</summary>
+    private static readonly string[] DoorFiles =
+    [
+        "BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs",
+        "BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs",
+    ];
+
     /// <summary>Сколько строк выше команды ищется отказ.</summary>
     private const int Lookback = 15;
 
@@ -56,12 +63,11 @@ public class OwnDoorWriteInventoryTests
             "удаление уровня целиком (стройки, раздела) — путь администратора; виды работ живут на уровне " +
             "«Система», а не стройки",
 
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var created = await m.Send(new CreateCommonDataEntryCommand("] =
-            "тип выбирает сама дверь — «Сотрудник» ядра; назвать вид работы ей нечем",
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var updated = await m.Send(new UpdateCommonDataEntryCommand("] =
-            "дверь видит только записи типа «Сотрудник»: вид работы для неё не существует (404)",
-        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }"] =
-            "то же: запись не сотрудника для двери не существует",
+        // Дверь сотрудников (решение владельца по C15, work-01): своя семья, вид работы для неё не существует.
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var created = await m.Send(new CreateCommonDataEntryCommand("] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var updated = await m.Send(new UpdateCommonDataEntryCommand("] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id), ct); return Results.NoContent(); }"] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);"] = Door,
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entry = await mediator.Send(new CreateCommonDataEntryCommand("] =
             "только собственные справочники модуля (OwnTypeAsync): владелец вида работы — ядро",
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|await mediator.Send(new DeleteCommonDataEntryCommand(id), ct);"] =
@@ -101,8 +107,8 @@ public class OwnDoorWriteInventoryTests
             if (!found.TryGetValue(key, out var refusesNearby)) continue; // о пропаже говорит соседний тест
             if (verdict == Refuses && !refusesNearby)
                 wrong.Add($"{key}\n    назван отвергающим, но OwnDoorTypes.RefuseCommonPathAsync выше нет");
-            if (verdict == Door && !key.StartsWith("BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|", StringComparison.Ordinal))
-                wrong.Add($"{key}\n    назван дверью, а дверь видов работ — WorkTypeEndpoints");
+            if (verdict == Door && !DoorFiles.Any(f => key.StartsWith(f + "|", StringComparison.Ordinal)))
+                wrong.Add($"{key}\n    назван дверью, а двери справочников — {string.Join(", ", DoorFiles)}");
         }
         Assert.True(wrong.Count == 0, "Перепись разошлась с кодом:\n" + string.Join("\n", wrong));
     }

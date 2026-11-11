@@ -5902,14 +5902,26 @@ POST   /api/constructions/{id}/purge, /api/sections/{id}/purge, /api/document-se
                                     В журнал — core.scope.purged, одно на уровень: держатели,
                                     число ссылок и состав унесённого. Тело удаления одно на три
                                     уровня и оба пути — ScopeDeletionHandlers.
-GET    /api/employees                       → справочник сотрудников (CORE-7, #962); у каждого
+GET    /api/employees                       → справочник сотрудников (CORE-7, #962), вся семья
+                                    типа «Сотрудник» (подтипы тоже); у каждого
                                     account: { state: linked|none|deleted, name, login,
-                                    dismissedOn } — связь с учётной записью (WORK-47, work-01)
+                                    dismissedOn } — связь с учётной записью (WORK-47, work-01).
+                                    Справочника нет — 409 { code: directory-missing, reason:
+                                    person-missing|not-created }, а не пустой список.
 GET    /api/employees/{id}                  → карточка целиком (кормит редактор) + account
-POST   /api/employees                       { displayName, data, aliases } — тип подставляет дверь
+POST   /api/employees                       { displayName, data, aliases, compositeTypeId?,
+                                    createAnyway?, refsStandIn? } — тип из семьи «Сотрудника»
+                                    (по умолчанию корень, иной — 400); уровень всегда «Система»
 PUT    /api/employees/{id}                  { displayName, data, aliases } + If-Match: <version> —
                                     как у PUT /api/common-data/{id} (#1214)
-DELETE /api/employees/{id}                  409 — то же тело, что у DELETE /api/common-data/{id}
+DELETE /api/employees/{id}                  + If-Match. 409 — то же тело, что у DELETE /api/common-data/{id}
+POST   /api/employees/{id}/archive          + If-Match → { id, displayName, archived, changed,
+POST   /api/employees/{id}/unarchive          version } — новая версия карточки.
+                                    ДВЕРЬ ЕДИНСТВЕННАЯ (решение владельца по C15, work-01):
+                                    /api/common-data записи семьи «Сотрудник» не заводит, не
+                                    правит, не удаляет и не архивирует — 409 { door:
+                                    "/api/employees" } (OwnDoorTypes; клиент — OWN_DOORS).
+                                    Возврат из архива общим адресом свободен.
                                     Право core.employees.* — отдельное от core.catalog.*, но
                                     разграничением НЕ является: те же карточки отдаёт
                                     /api/common-data, пока пути чтения не разведены (STG-11).

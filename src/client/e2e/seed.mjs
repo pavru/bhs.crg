@@ -23,6 +23,7 @@
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
 import { seedInvoices } from './seed-invoices.mjs';
+import { ensureEmployees } from './seed-employees.mjs';
 import { seedEstimates } from './seed-estimates.mjs';
 import { ensurePreviewTemplate } from './seed-preview.mjs';
 
@@ -913,6 +914,9 @@ async function main() {
     NAME.datasetFile, Buffer.from(INVOICE_CSV, 'utf8'), 'invoice-seed.csv', 'text/csv');
   await ensureDataSetSource(invoiceFileId, 'Товары счёта');
   await ensureDataSetSource(invoiceFileId, 'Шапка счёта');
+
+  // Сотрудники и учётные записи того же ФИО (work-01) — свой файл: посев и так у порога размера.
+  await ensureEmployees({ api, findType, ensureUser });
 
   console.log('\nПосев готов. Переменные прогонов:');
   console.log([`SMOKE_CONSTRUCTION_ID=${constructionId}`, `SMOKE_SET_ID=${setId}`, `SMOKE_INSTANCE_ID=${aosrInstanceId}`,

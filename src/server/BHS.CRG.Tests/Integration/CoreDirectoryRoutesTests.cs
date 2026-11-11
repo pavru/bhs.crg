@@ -95,6 +95,9 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/employees/",
         "PUT /api/employees/{id:guid}",
         "DELETE /api/employees/{id:guid}",
+        // Архив сотрудника — своим адресом: общий его отвергает (решение владельца по C15, work-01).
+        "POST /api/employees/{id:guid}/archive",
+        "POST /api/employees/{id:guid}/unarchive",
         // Связь сотрудника с учётной записью (WORK-47, work-01) — тоже ядро: на ней стоят «свои»
         // отчёты, назначения и бригада разных модулей, и связь не вправе уйти с выключением одного.
         "PUT /api/employees/{id:guid}/account",
