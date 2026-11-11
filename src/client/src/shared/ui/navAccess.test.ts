@@ -34,6 +34,14 @@ describe('навигация по правам', () => {
       .toEqual(['Типы документов', 'Составные типы', 'Типы полей', 'Сопоставление полей']);
   });
 
+  // «Сотрудники» (work-01): своё право чтения, право на общие данные пункт не открывает.
+  it('пункт «Сотрудники» скрыт без core.employees.read', () => {
+    expect(visibleNav(workNav, access(['core.catalog.read'])).map(i => i.label)).not.toContain('Сотрудники');
+    const shown = visibleNav(workNav, access(['core.employees.read']));
+    expect(shown.map(i => i.label)).toEqual(['Сотрудники']);
+    expect(shown[0]).toMatchObject({ to: '/employees', section: 'employees', rail: 'data' });
+  });
+
   it('пустой доступ не показывает ни одного пункта', () => {
     expect(visibleNav(workNav, access([]))).toHaveLength(0);
     expect(visibleNav(settingsNav, access([]))).toHaveLength(0);

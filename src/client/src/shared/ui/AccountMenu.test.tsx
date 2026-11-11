@@ -21,6 +21,8 @@ vi.mock('@/shared/hooks/useAuth', () => ({
 vi.mock('@/shared/api/account', () => ({
   useAccount: () => ({ data: { avatar: null, roles: [{ title: 'Инженер ПТО' }, { title: 'Бухгалтер' }] } }),
 }));
+let employee: { id: string; name: string; archived: boolean } | null = null;
+vi.mock('@/shared/api/access', () => ({ useAccess: () => ({ data: { permissions: [], modules: [], employee } }) }));
 vi.mock('@/shared/api/version', () => ({ useAppVersion: () => ({ data: { version: '2.1.1', commit: 'abc1234' } }) }));
 let updateAvailable = true;
 vi.mock('@/shared/api/updates', () => ({ useUpdateStatus: () => ({ data: { updateAvailable, latest: '2.2.0' } }) }));
@@ -31,7 +33,7 @@ beforeAll(() => {
   // Слой меню меряет якорь — в jsdom этого нет.
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); updateAvailable = true; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); updateAvailable = true; employee = null; });
 
 function Page({ dirty, asked }: { dirty: boolean; asked: (proceed: () => void) => void }) {
   useLeaveGuard(dirty, asked);
@@ -101,6 +103,20 @@ describe('меню профиля', () => {
       ['Профиль и пароль', 'Сообщить о проблеме', 'Выйти']);
     // Версия и новость о новой — пассивно, внизу (issue #813).
     expect(menu.textContent).toContain('Версия 2.1.1 · abc1234 · доступна 2.2.0');
+  });
+
+  // Сотрудник вошедшего (work-01, B22): монтажник видит, за кого подаёт отчёты.
+  it('связанный видит строку «Сотрудник: …» под именем', () => {
+    employee = { id: 'e1', name: 'Тарасов И. М.', archived: false };
+    shown();
+    open();
+    expect(screen.getByTestId('account-employee').textContent).toBe('Сотрудник: Тарасов И. М.');
+  });
+
+  it('без связи строки нет', () => {
+    shown();
+    open();
+    expect(screen.queryByTestId('account-employee')).toBeNull();
   });
 
   it('тема подписана словами, выбранная отмечена, выбор меню не закрывает', () => {

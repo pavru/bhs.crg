@@ -2,7 +2,7 @@ namespace BHS.CRG.Modules;
 
 /// <summary>
 /// Разделы ЯДРА, которыми пользуются модули (ТЗ AUTH-16.1, OVW-18.1; issue #1001): стройки,
-/// справочники, наборы данных, учётный период, сверка. Модуль называет их в
+/// справочники, сотрудники, наборы данных, учётный период, сверка. Модуль называет их в
 /// <see cref="IAppModule.UsesSections" />, и рабочее пространство из его модулей показывает вместе с
 /// разделами модулей и эти.
 ///
@@ -20,11 +20,16 @@ public static class CoreSections
 {
     public const string Constructions = "constructions";
     public const string Catalog = "catalog";
+    /// <summary>
+    /// Справочник сотрудников и связь с учётными записями (ТЗ WORK-27, work-01): нужен учёту работ
+    /// (бригада, «свои» отчёты), поэтому — раздел ядра, который модуль объявит, а не страница модуля.
+    /// </summary>
+    public const string Employees = "employees";
     public const string Datasets = "datasets";
     public const string Periods = "periods";
     public const string Reconciliations = "reconciliations";
 
-    public static readonly IReadOnlyList<string> All = [Constructions, Catalog, Datasets, Periods, Reconciliations];
+    public static readonly IReadOnlyList<string> All = [Constructions, Catalog, Employees, Datasets, Periods, Reconciliations];
 
     /// <summary>
     /// Объявление модуля годно: только известные коды и без повторов. Негодное — отказ при старте:

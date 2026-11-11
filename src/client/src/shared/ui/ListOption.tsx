@@ -20,6 +20,9 @@ export type ListOptionProps = ListRowContent & {
   /** Архивный вариант: в списке, с пометкой «в архиве», не выбирается и наведением активным не становится.
    *  Стрелки поля его обходят — это дело того, кто ведёт список. */
   disabled?: boolean;
+  /** Почему вариант не выбирается — пометка у края вместо «в архиве»: занятая учётная запись говорит,
+   *  с кем связана (сотрудники, work-01). */
+  disabledNote?: string;
   /** Надпись над подписью (`label-small` роли `primary`) — «Лучшее совпадение». Только в форме `list`. */
   overline?: ReactNode;
   onChoose: () => void;
@@ -46,13 +49,13 @@ const keepFocus = (e: MouseEvent) => e.preventDefault();
  * текущее значение и архив — пометками в строке, своей заливки у них нет. `aria-selected` — у текущего значения,
  * а не у активного: активного называет поле.</p>
  */
-export function ListOption({ id, form = 'list', active, current = false, disabled = false, overline, onChoose, onHover,
+export function ListOption({ id, form = 'list', active, current = false, disabled = false, disabledNote = 'в архиве', overline, onChoose, onHover,
   action, description, depth = 0, trailing, 'data-testid': testId, ...content }: ListOptionProps) {
   const twoLine = form === 'list' && (present(content.supporting) || present(overline));
   const box = listRowBox({ form, twoLine, lead: false, tail: !!action, depth });
   const tail = (
     <>
-      {disabled && <span>в архиве</span>}
+      {disabled && <span>{disabledNote}</span>}
       {trailing}
       {current && <Icon icon={Check} size={24} />}
     </>

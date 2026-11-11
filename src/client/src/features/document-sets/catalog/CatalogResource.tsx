@@ -393,7 +393,7 @@ function TypeNavItem({ icon, label, count, active = false, doc, muted, profile, 
  * свои значения из `entry.data` и отправляет их обратно при сохранении: открой мы её на списочной
  * копии — сохранение стёрло бы печати и факсимиле.
  */
-function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...rest }: {
+export function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...rest }: {
   id: string;
   employee: boolean;
   archiveBusy: boolean;
