@@ -37,7 +37,7 @@ public partial class BackupService
             // восстановление обновит само.
             if (namesake is null || copyIds.Contains(namesake.Id)) continue;
 
-            if (await HolderOfAsync(namesake.Id, ct) is { } holder)
+            if (await HolderOfAsync(holders, namesake.Id, ct) is { } holder)
                 throw new ConflictException(Occupied(item, holder));
 
             await db.DocumentTypes.Where(t => t.Id == namesake.Id).ExecuteDeleteAsync(ct);
@@ -62,9 +62,9 @@ public partial class BackupService
     /// записи ядра: данные модулей — в том числе выключенного — он находит по схеме модулей и называет
     /// словами. Не ответил — удалять нельзя: «проверить не удалось» не значит «никто не держит».</para>
     /// </summary>
-    private async Task<string?> HolderOfAsync(Guid id, CancellationToken ct)
+    private async Task<string?> HolderOfAsync(IRecordHolders modules, Guid id, CancellationToken ct)
     {
-        var held = await holders.FindAsync([id], ct);
+        var held = await modules.FindAsync([id], ct);
         if (held.Any) return held.IsUnverified ? "проверить не удалось: " + held.Lines[0] : held.Lines[0];
         return (await CoreHolderOfAsync([id], TypeIdColumn, history: [], ct))?.Address;
     }

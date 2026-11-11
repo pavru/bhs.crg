@@ -42,6 +42,8 @@ public class ActivityLogInventoryTests
             "объявление набора и отказ на правку/удаление записи: там же, где единственная точка сохранения",
         ["BHS.CRG.Infrastructure/Persistence/Configurations/ActivityRecordConfiguration.cs"] =
             "отображение сущности на таблицу: имя таблицы здесь объявлено, запросов нет",
+        ["BHS.CRG.Infrastructure/Backup/BackupService.Restore.ProfileNamesakes.cs"] =
+            "имя таблицы — в перечне, который поиск держателей профиля ПРОПУСКАЕТ: журнал не читается и не пишется (issue #1570)",
     };
 
     /// <summary>
