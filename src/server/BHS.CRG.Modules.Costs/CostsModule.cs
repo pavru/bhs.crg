@@ -1,7 +1,10 @@
+using BHS.CRG.Modules.Search;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Costs.Tables;
+using BHS.CRG.Modules.Costs.Search;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Settings;
 using BHS.CRG.Modules.Tables;
@@ -329,6 +332,10 @@ public sealed class CostsModule : IAppModule
         // Раздел модуля в диалоге закрытия периода (E1b, issue #1099): что войдёт в закрытый период
         // и что не завершено. Спрашивает его служба закрытия ядра.
         services.AddScoped<IModuleClosingReport, CostsClosingReport>();
+
+        // Группа «Счета» поиска записей (shell-05, CORE-34): вклад в контракт со многими поставщиками.
+        // Выключенный модуль его не регистрирует — и группы счетов в поиске нет, остальные отвечают.
+        services.AddModuleContract<IRecordSearch, CostsRecordSearch>(ModuleCode);
 
         // Смена допуска расхождения пишет книгу запертым счетам (E2, issue #1100, spec v3.3 п. 1.9). Зовёт
         // ядро — из адреса настроек, двумя фиксациями, и при старте: выровнять то, что сорвалось между ними.

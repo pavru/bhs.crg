@@ -8,24 +8,24 @@
 
 ## 1. PR 1: сервер — поиск записей
 
-- [ ] 1.1 Адрес ядра `GET /api/search` и контракт «Поиск записей» со многими поставщиками
+- [x] 1.1 Адрес ядра `GET /api/search` и контракт «Поиск записей» со многими поставщиками
   (`[ModuleContract("Поиск записей", Many = true)]`, вызов `GetAll<T>()` с `ModuleReader`, предел времени
   на поставщика): вход, права — у каждой группы, запись в `EndpointGateInventoryTests` [AUTH-8] [AUTH-9]
   [AUTH-16.1] [CORE-34]. Проверка — перепись зелёная; запрос без
   входа — 401
-- [ ] 1.2 Поставщик группы «Счета» — реализация контракта в `BHS.CRG.Modules.Costs` (`RegisterServices`):
+- [x] 1.2 Поставщик группы «Счета» — реализация контракта в `BHS.CRG.Modules.Costs` (`RegisterServices`):
   номер, поставщик, назначение; ключ доступа
   `costs.invoice.read`; не больше пяти и `more` [CORE-34] [AUTH-16.1]. Проверка — `RecordSearchTests`:
   право только на счета; без права — ни записи, ни числа
-- [ ] 1.3 Поставщики «Стройки» (`core.constructions.read`, название и `ExternalCode`) и «Наборы данных»
+- [x] 1.3 Поставщики «Стройки» (`core.constructions.read`, название и `ExternalCode`) и «Наборы данных»
   (`core.datasets.read`, название) в ядре [CORE-34]. Проверка — `RecordSearchTests`, те же сценарии прав
-- [ ] 1.4 Правило архива — в объявлении поставщика: поставщик над записями с архивом читает
+- [x] 1.4 Правило архива — в объявлении поставщика: поставщик над записями с архивом читает
   `RecordsFor.Choice`, место чтения вписано в `ArchiveReadInventoryTests`. У трёх групп архива нет
   (`design.md`, Context) — правило связывает следующих поставщиков [CORE-34.4]. Проверка — пробный
   поставщик над общими данными в тесте не отдаёт архивную запись
-- [ ] 1.5 Выключенный модуль и отказ поставщика: группы нет / группа с `refused` и причиной, остальные
+- [x] 1.5 Выключенный модуль и отказ поставщика: группы нет / группа с `refused` и причиной, остальные
   отвечают [AUTH-16.1]. Проверка — `RecordSearchTests` с хостом без `costs` и с отказывающим поставщиком
-- [ ] 1.6 Перепись поставщиков поиска: каждый называет ключ доступа, иначе отказ старта [AUTH-8.2].
+- [x] 1.6 Перепись поставщиков поиска: каждый называет ключ доступа, иначе отказ старта [AUTH-8.2].
   Проверка — тест с поставщиком без ключа падает с его именем
 
 ## 2. PR 2: клиент — группы и чипы
@@ -60,7 +60,7 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecordSearch|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ArchiveReadInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecordSearch|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ArchiveReadInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
 - [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
 - [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

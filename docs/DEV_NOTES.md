@@ -5948,6 +5948,18 @@ POST   /api/employees/directory             «Завести» справочн�
                                     если его нет, а «Персона» есть → { typeId, created }. Нет
                                     «Персоны» — 409 { code: directory-missing, reason:
                                     person-missing }. Существующий тип не перепроецирует (F2).
+GET    /api/search?q=&group=           → { groups: [{ code, title, module, recordType, items: [{ id,
+                                    title, detail, place, amount, level }], more, refused }] }
+                                    (level — { scope, scopeId, constructionId } набора данных:
+                                    по нему клиент открывает экран уровня) — поиск
+                                    записей палитры (shell-05): счета (costs), стройки и наборы
+                                    данных (ядро); модули — контрактом «Поиск записей» со многими
+                                    поставщиками. Группа без права и группа выключенного модуля в
+                                    ответе отсутствуют; отказ или таймаут (3 с) группы — refused у
+                                    неё, остальные отвечают. Не больше 5 на группу, more — «есть
+                                    ещё». q без слова от 2 знаков (знаки по краям слов
+                                    сняты: «№ 418» ищет «418»), q длиннее 200 и неизвестная
+                                    group — 400.
 GET    /api/field-suggestions?type=&field=&q=&scope=&scopeId=&limit=8
                                     → { items: [{ value, here }] } — подсказки поля по ранее
                                     введённому (#1530, эпик #1527), уже в порядке показа; here —

@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Search;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,7 +8,9 @@ using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -122,6 +125,49 @@ public class ArchiveReadPurposeTests(InvoiceLineHost host) : InvoiceLineTestBase
         var shown = display.EnumerateArray().ToDictionary(e => e.GetProperty("id").GetGuid(), e => e.GetProperty("archived").GetBoolean());
         Assert.True(shown[archived]);
         Assert.False(shown[live]);
+    }
+
+    /// <summary>
+    /// Правило архива у поиска записей (shell-05, задача 1.4; ТЗ CORE-34.4): поставщик группы над записями с
+    /// архивом объявляет <see cref="RecordSearchArchive.Choice" /> и читает выбором — архивная запись в поиске
+    /// не предлагается, как нет её в списке на выбор.
+    /// </summary>
+    [Fact]
+    public async Task Поставщик_поиска_над_справочником_не_предлагает_архивную_запись()
+    {
+        var (type, live, _) = await PairAsync();
+        var directory = await AsDirectoryAsync(type);
+        using var scope = host.Services.CreateScope();
+        var probe = new DirectorySearchProbe(directory.Port(scope.ServiceProvider), directory.Role);
+
+        var answer = await probe.SearchAsync(DirectorySearchProbe.Code, new RecordSearchQuery(RecordSearchText.Words("запись"), 5),
+            ModuleReader.Of(Guid.NewGuid(), "проверка", ["core.catalog.read"]), default);
+
+        Assert.Equal(RecordSearchArchive.Choice, probe.Groups.Single().Archive);
+        var shown = Assert.IsType<ContractAnswer<RecordSearchHits>.Shown>(answer);
+        Assert.Equal([live], shown.Value.Items.Select(h => h.Id));
+    }
+
+    /// <summary>Пробный поставщик группы над справочником: читает назначением «выбор».</summary>
+    private sealed class DirectorySearchProbe(IModuleCatalog catalog, string role) : IRecordSearch
+    {
+        public const string Code = "probe-directory";
+
+        public IReadOnlyList<RecordSearchGroup> Groups { get; } =
+            [new(Code, "Справочник", "ПробаСправочник", "core.catalog.read", RecordSearchArchive.Choice)];
+
+        public async Task<ContractAnswer<RecordSearchHits>> SearchAsync(
+            string group, RecordSearchQuery query, ModuleReader reader, CancellationToken ct)
+        {
+            var entries = await catalog.ListAsync(role, PortRecordsFor.Choice, ct) ?? [];
+            var hits = entries.Where(e => query.Words.All(w => RecordSearchText.AnyContains(w, e.DisplayName)))
+                .Select(e => new RecordSearchHit(e.Id, e.DisplayName)).ToList();
+            return ContractAnswer.Shown(new RecordSearchHits([.. hits.Take(query.Take)], hits.Count > query.Take));
+        }
+
+        public Task<ContractAnswer<IReadOnlyList<RecordSearchHit>>> CardsAsync(
+            string group, IReadOnlyCollection<Guid> ids, ModuleReader reader, CancellationToken ct) =>
+            throw new NotSupportedException();
     }
 
     [Fact]
