@@ -25,8 +25,8 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// </para>
 /// <para>
 /// Картинка, файл которой не прочитан, остаётся ссылкой, а её поле называется (ТЗ CORE-37.2): адрес
-/// поля уходит в <c>unreadable</c>, и генерация отказывает с ним, не компилируя. Отладочный комплект
-/// адреса не собирает — он воспроизводит вход как есть.
+/// поля уходит в <c>unreadable</c>: генерация отказывает с ним, не компилируя, а отладочный пакет
+/// называет его в README — каталог у обоих пишет одна <see cref="TypstCompileDirectory"/>.
 /// Файл модуля, вписанный в реквизиты, сюда же: хранилище отдаёт генерации только файлы ядра, и
 /// такой файл для неё неотличим от отсутствующего.
 /// </para>
@@ -42,13 +42,6 @@ public static class TypstImageMaterializer
         ICollection<string>? unreadable = null, CancellationToken ct = default)
         => MaterializeNodeAsync(JsonSerializer.SerializeToNode(data) ?? new JsonObject(),
             targetDir, blob, assetsSubdir, outputOptions, unreadable, ct);
-
-    /// <summary>То же, но на входе готовый JSON-текст (для отладочного комплекта).</summary>
-    public static Task<string> MaterializeJsonAsync(string json, string targetDir,
-        IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
-        CancellationToken ct = default)
-        => MaterializeNodeAsync(JsonNode.Parse(json) ?? new JsonObject(),
-            targetDir, blob, assetsSubdir, outputOptions, null, ct);
 
     private static async Task<string> MaterializeNodeAsync(JsonNode root, string targetDir, IBlobStorage? blob,
         string assetsSubdir, JsonSerializerOptions? outputOptions, ICollection<string>? unreadable, CancellationToken ct)

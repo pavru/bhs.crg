@@ -125,140 +125,17 @@ public static class GenerationEndpoints
             return Results.File(stream, "application/pdf", name);
         });
 
-        // Отладочный пакет: template.typ + data.json + typeblocks.typ + userlib.typ —
-        // ровно те файлы, что генератор кладёт в tmpDir. Распаковал → typst compile template.typ.
+        // Отладочный пакет: каталог компиляции генерации, записанный тем же кодом, что у неё
+        // (TypstCompileDirectory), и README — ключи компиляции и причины, по которым генерация откажет.
+        // Распаковал → typst compile template.typ. Собирает пакет обработчик; здесь — только отдача.
         g.MapGet("/debug-bundle/{instanceId:guid}", async (Guid instanceId, IMediator m,
-            BHS.CRG.Application.Common.IBlobStorage blob,
             ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
         {
             var bundle = await m.Send(
                 new GetGenerationDebugBundleQuery(instanceId, await access.ForAsync(user, ct)), ct);
-            if (bundle is null) return Results.NotFound();
-
-            var userLib = string.IsNullOrEmpty(bundle.UserLib)
-                ? "// user typst library is empty"
-                : bundle.UserLib;
-
-            // Материализуем поля-изображения в assets/ во временный каталог, как при реальной генерации.
-            var tmpDir = Path.Combine(Path.GetTempPath(), "dbgbundle-" + Guid.NewGuid());
-            Directory.CreateDirectory(tmpDir);
-            string dataJson;
-            try
-            {
-                var prettyOpts = new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                };
-                dataJson = await BHS.CRG.Infrastructure.Generation.TypstImageMaterializer
-                    .MaterializeJsonAsync(bundle.DataJson, tmpDir, blob, "assets", prettyOpts, ct);
-
-                // Вложения ({$type:"file"}) скачиваем в те же assets/ (att_N) — bundle воспроизводит ВХОД
-                // для внешнего `typst compile`. blob-доступ на сервере есть; так внешний Typst найдёт файлы.
-                var assetsDirDbg = Path.Combine(tmpDir, "assets");
-                var attCountDbg = 0;
-                var dataNode = System.Text.Json.Nodes.JsonNode.Parse(dataJson) ?? new System.Text.Json.Nodes.JsonObject();
-                await new BHS.CRG.Infrastructure.Generation.TypstFileMaterializer(blob).MaterializeAsync(dataNode, (bytes, ext) =>
-                {
-                    Directory.CreateDirectory(assetsDirDbg);
-                    var name = $"att_{attCountDbg++}.{ext}";
-                    File.WriteAllBytes(Path.Combine(assetsDirDbg, name), bytes);
-                    return AssetPath.FromRoot("assets", name);
-                }, ct);
-                dataJson = dataNode.ToJsonString(prettyOpts);
-
-                // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету резолвером; тот же
-                // паттерн материализации, что и в TypstGenerator, только пишем сразу в assets/
-                // отладочного пакета (картинки) и в отдельную fonts/ (шрифты для --font-path).
-                foreach (var img in bundle.TemplateAssets.Images)
-                {
-                    try
-                    {
-                        await using var imgStream = await blob.DownloadAsync(img.BlobPath, ct);
-                        using var imgMs = new MemoryStream();
-                        await imgStream.CopyToAsync(imgMs, ct);
-                        Directory.CreateDirectory(assetsDirDbg);
-                        var ext = Path.GetExtension(img.FileName);
-                        await File.WriteAllBytesAsync(Path.Combine(assetsDirDbg, $"{img.Name}{ext}"), imgMs.ToArray(), ct);
-                    }
-                    catch { /* пропускаем недоступный ассет — best effort, как и остальная материализация */ }
-                }
-                string? fontsDirDbg = null;
-                if (bundle.TemplateAssets.Fonts.Count > 0)
-                {
-                    fontsDirDbg = Path.Combine(tmpDir, "fonts");
-                    Directory.CreateDirectory(fontsDirDbg);
-                    var fontIdx = 0;
-                    foreach (var font in bundle.TemplateAssets.Fonts)
-                    {
-                        try
-                        {
-                            await using var fontStream = await blob.DownloadAsync(font.BlobPath, ct);
-                            using var fontMs = new MemoryStream();
-                            await fontStream.CopyToAsync(fontMs, ct);
-                            var ext = Path.GetExtension(font.FileName);
-                            await File.WriteAllBytesAsync(Path.Combine(fontsDirDbg, $"font_{fontIdx++}{ext}"), fontMs.ToArray(), ct);
-                        }
-                        catch { /* пропускаем недоступный шрифт — best effort */ }
-                    }
-                }
-
-                using var ms = new MemoryStream();
-                using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
-                {
-                    // template.typ — дословно (issue #353), как компилирует генерация. Стандартные импорты
-                    // уже в самом шаблоне; systemlib.typ кладём рядом, чтобы `#import "systemlib.typ"` резолвился.
-                    await WriteEntry(zip, "template.typ", bundle.TemplateContent);
-                    await WriteEntry(zip, SystemTypstLib.FileName, SystemTypstLib.Content);
-                    await WriteEntry(zip, "data.json", dataJson);
-                    // Блоки типов (issue #772) — агрегатор и модули typeblocks/<слаг>.typ.
-                    // Кладём той же раскладкой, что и генерация: бандл воспроизводит ВХОД, а не
-                    // своё представление о нём — иначе отладка расходится с тем, что происходит на сервере.
-                    if (bundle.TypeBlocks.Count == 0)
-                        await WriteEntry(zip, TypeBlockSlug.EntrypointName,
-                            "// no composite-type render functions defined");
-                    foreach (var tb in bundle.TypeBlocks)
-                        await WriteEntry(zip, tb.Path, tb.Content);
-                    await WriteEntry(zip, "userlib.typ", userLib);
-
-                    // Дерево библиотеки (issue #473) — той же раскладкой, что при генерации: точка
-                    // входа реэкспортирует эти файлы, и без них внешняя компиляция упадёт на первом
-                    // же вложенном импорте.
-                    foreach (var libFile in bundle.UserLibFiles)
-                        await WriteEntry(zip,
-                            $"{BHS.CRG.Application.Templates.UserLibPath.FolderName}/{libFile.Path}",
-                            libFile.Content);
-                    if (fontsDirDbg is not null)
-                        await WriteEntry(zip, "README.txt",
-                            "У шаблона есть шрифтовые ассеты — компилируйте с --font-path:\r\n\r\n" +
-                            "  typst compile template.typ output.pdf --font-path fonts\r\n");
-
-                    var assetsDir = Path.Combine(tmpDir, "assets");
-                    if (Directory.Exists(assetsDir))
-                        foreach (var file in Directory.GetFiles(assetsDir))
-                        {
-                            var entry = zip.CreateEntry($"assets/{Path.GetFileName(file)}",
-                                System.IO.Compression.CompressionLevel.Optimal);
-                            await using var es = entry.Open();
-                            await using var fs = File.OpenRead(file);
-                            await fs.CopyToAsync(es, ct);
-                        }
-                    if (fontsDirDbg is not null)
-                        foreach (var file in Directory.GetFiles(fontsDirDbg))
-                        {
-                            var entry = zip.CreateEntry($"fonts/{Path.GetFileName(file)}",
-                                System.IO.Compression.CompressionLevel.Optimal);
-                            await using var es = entry.Open();
-                            await using var fs = File.OpenRead(file);
-                            await fs.CopyToAsync(es, ct);
-                        }
-                }
-                return Results.File(ms.ToArray(), "application/zip", $"typst-debug-{instanceId}.zip");
-            }
-            finally
-            {
-                try { Directory.Delete(tmpDir, recursive: true); } catch { /* best effort */ }
-            }
+            return bundle is null
+                ? Results.NotFound()
+                : Results.File(bundle.Zip, "application/zip", $"typst-debug-{instanceId}.zip");
         });
 
         // Список плагинов
@@ -319,14 +196,6 @@ public static class GenerationEndpoints
         message = d.Message,
         code = d.Code,
     };
-
-    static async Task WriteEntry(System.IO.Compression.ZipArchive zip, string name, string content)
-    {
-        var entry = zip.CreateEntry(name, System.IO.Compression.CompressionLevel.Optimal);
-        await using var s = entry.Open();
-        await using var w = new StreamWriter(s, new System.Text.UTF8Encoding(false));
-        await w.WriteAsync(content);
-    }
 
     record GenerateRequest(string Format);
     record PluginSearchRequest(string EntityType, string Query);

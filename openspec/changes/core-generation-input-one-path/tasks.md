@@ -33,20 +33,20 @@
 
 ## 3. Каталог компиляции — одна запись
 
-- [ ] 3.1 `Infrastructure/Generation/TypstCompileDirectory.cs`: запись каталога с пределом 100 МБ для
+- [x] 3.1 `Infrastructure/Generation/TypstCompileDirectory.cs`: запись каталога с пределом 100 МБ для
   ассетов и вложений, проброшенной отменой, `FontsDir` только при записанном шрифте, нечитаемые картинки
   в `CompileLayout` (D3) [CORE-21] [CORE-22]. Проверка — юнит-тесты на подставном хранилище: предел, отмена,
   шрифт не скачался, раскладка путей
-- [ ] 3.2 `TypstGenerator.GenerateAsync` — `WriteAsync` + компиляция; новый `IDocumentGenerator
+- [x] 3.2 `TypstGenerator.GenerateAsync` — `WriteAsync` + компиляция; новый `IDocumentGenerator
   .DebugBundleAsync` — `WriteAsync(Indented)` + README (D5) + zip каталога (D3) [CORE-21] [CORE-22].
   Проверка — тесты 1.1 зелёные
-- [ ] 3.3 `GetGenerationDebugBundleHandler` возвращает байты пакета, эндпоинт в `GenerationEndpoints.cs`
+- [x] 3.3 `GetGenerationDebugBundleHandler` возвращает байты пакета, эндпоинт в `GenerationEndpoints.cs`
   только отдаёт файл (D4); 404 на неизвестный экземпляр сохраняется. Проверка — `grep
   TypstFileMaterializer src/server/BHS.CRG.Api` пуст; тесты 1.2 зелёные
 
 ## 4. Документация
 
-- [ ] 4.1 Комментарий-обещание у эндпоинта и у `GenerationDebugBundle` («ровно те файлы, что генератор
+- [x] 4.1 Комментарий-обещание у эндпоинта и у `GenerationDebugBundle` («ровно те файлы, что генератор
   кладёт…») переписать ссылкой на `TypstCompileDirectory`; в `docs/ADMIN_GUIDE.md` — раздел про
   отладочный пакет: README называет причины отказа генерации, `--font-path` только по README [CORE-21].
   Проверка — `cd docs/tools && npm run toc` не меняет оглавление, или изменение закоммичено

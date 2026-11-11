@@ -6089,7 +6089,7 @@ POST   /api/generate/{instanceId}   { format: "Pdf" }   (DOCX не поддер�
                                       шаблон не скомпилировался → 400 с местом ошибки (issue #1047);
                                       вывод компилятора наружу не уходит — он несёт пути папки прогона
 GET    /api/generate/download/{instanceId}/{format}
-GET    /api/generate/debug-bundle/{instanceId}  → ZIP (template.typ + data.json + typeblocks.typ + userlib.typ) для отладки шаблона во внешнем Typst
+GET    /api/generate/debug-bundle/{instanceId}  → ZIP каталога компиляции генерации (TypstCompileDirectory) + README: ключи компиляции и причины отказа генерации
 GET    /api/generate/plugins
 POST   /api/generate/plugins/{pluginId}/search  { entityType, query }
 POST   /api/generate/plugins/{pluginId}/fetch   { entityType, externalId }
