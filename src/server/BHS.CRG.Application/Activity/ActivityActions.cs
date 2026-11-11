@@ -148,12 +148,24 @@ public static class ActivityActions
     /// </summary>
     public static readonly ActivityAction TableExported = new("core.table.exported", "Выгружена таблица");
 
+    /// <summary>
+    /// Сотрудник связан с учётной записью (ТЗ WORK-47, change work-01). Пишется, потому что на связи
+    /// стоят «свои» отчёты: кто дал учётной записи сдавать отчёты за этого человека — вопрос, который
+    /// задают. Прежнее значение — имя удалённой учётной записи, если связь заменила такую.
+    /// </summary>
+    public static readonly ActivityAction EmployeeAccountLinked =
+        new("core.employee.account.linked", "Сотрудник связан с учётной записью");
+
+    /// <summary>Связь сотрудника с учётной записью снята; прежнее значение — имя учётной записи.</summary>
+    public static readonly ActivityAction EmployeeAccountUnlinked =
+        new("core.employee.account.unlinked", "Сотрудник отвязан от учётной записи");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
          RecordArchived, RecordUnarchived, RecordPurged, ScopePurged, ModuleSettingChanged, NomenclatureCreated,
          AccountingCurrencyChanged, TableViewShared, TableViewChanged, TableViewUnshared, TableViewDeleted,
-         TableExported];
+         TableExported, EmployeeAccountLinked, EmployeeAccountUnlinked];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

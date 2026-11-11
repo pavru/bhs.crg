@@ -74,6 +74,15 @@ public class ClosedTypeCommonPathTests(IntegrationTestFixture fixture) : IAsyncL
             "адрес видит только записи типа «Сотрудник»: запись другого типа для него не существует"),
         ["DELETE /api/employees/{id:guid}"] = new(HttpStatusCode.NotFound, null,
             "то же: запись другого типа для адреса не существует"),
+        ["PUT /api/employees/{id:guid}/account"] = new(null, null,
+            "пишет таблицу связей ядра, а не данные записи; запись другого типа для адреса не существует (404). " +
+            "В общем проходе не зовётся: без заголовка If-Match отвечает 400"),
+        ["DELETE /api/employees/{id:guid}/account"] = new(null, null,
+            "то же: снимает строку связи, данных записи не трогает. Без If-Match отвечает 400"),
+        ["POST /api/employees/account-links"] = new(null, null,
+            "пачка того же связывания: строка чужого типа отвечает not-found. Без тела отвечает 400"),
+        ["POST /api/employees/directory"] = new(null, null,
+            "заводит тип «Сотрудник» ядра из скелета кода; записей не пишет вовсе"),
     };
 
     [Fact]

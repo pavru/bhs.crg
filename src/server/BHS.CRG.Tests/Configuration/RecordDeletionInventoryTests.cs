@@ -42,6 +42,8 @@ public class RecordDeletionInventoryTests
     /// <summary>Удаляют, но не записи ядра, — с причиной.</summary>
     private static readonly Dictionary<string, string> DeletesSomethingElse = new()
     {
+        ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountLinks.cs"] =
+            "удаляет строку связи «учётная запись → сотрудник» (отвязывание, work-01); карточку сотрудника только читает",
         ["BHS.CRG.Modules.Plan/Distribution/DistributionWriter.cs"] =
             "удаляет правила и части распределения редакции — записи модуля; разделы стройки только читает (plan-10)",
         ["BHS.CRG.Modules.Plan/Endpoints/EstimateEndpoints.cs"] =

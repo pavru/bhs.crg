@@ -12,4 +12,11 @@ public static class DbFailure
     /// </summary>
     public static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+
+    /// <summary>
+    /// Нарушение внешнего ключа — «того, на что ссылаются, уже нет»: строку, на которую указывает
+    /// запись, удалили между проверкой и сохранением.
+    /// </summary>
+    public static bool IsForeignKeyViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation };
 }

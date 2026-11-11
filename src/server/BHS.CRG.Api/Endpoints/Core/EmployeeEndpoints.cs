@@ -40,27 +40,35 @@ public static class EmployeeEndpoints
         var edit = app.MapGroup("/api/employees")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.EmployeesEdit));
 
-        g.MapGet("/", async (IMediator m, IRepository<DocumentType> types) =>
+        g.MapGet("/", async (IMediator m, IRepository<DocumentType> types, EmployeeAccountReads accounts,
+            CancellationToken ct) =>
         {
             var typeId = await EmployeeTypeIdAsync(types);
             if (typeId is null) return Results.Ok(Array.Empty<CommonDataEntryDto>());
 
             // Страница сотрудников — показ: архивная карточка на месте, с признаком (issue #1185).
-            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId)))
-                .Select(CommonDataEntryDto.From)
-                .Select(RecordRequests.Elide));
+            var employees = await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);
+            // Состояние связи — у каждого, одним запросом на всех (ТЗ WORK-47, D15): экран его не выводит.
+            var linked = await accounts.ForAsync(employees, ct);
+            return Results.Ok(employees
+                .Select(e => new EmployeeEntryDto(RecordRequests.Elide(CommonDataEntryDto.From(e)), linked[e.Id])));
         });
 
         // По идентификатору — карточка ЦЕЛИКОМ, без отсечения тяжёлых листьев: этот путь кормит
         // редактор, и обрезанная карточка вернулась бы в базу обрезанной (issue #520).
-        g.MapGet("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types) =>
+        g.MapGet("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types,
+            EmployeeAccountReads accounts, CancellationToken ct) =>
         {
-            var entry = await m.Send(new GetCommonDataEntryQuery(id));
+            var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
-            return Results.Ok(CommonDataEntryDto.From(entry));
+            return Results.Ok(await EmployeeEntryDto.OfAsync(entry, accounts, ct));
         });
 
-        edit.MapPost("/", async (CreateEmployeeRequest req, IMediator m, IRepository<DocumentType> types) =>
+        // Связь с учётной записью, кандидаты, сопоставление и «Завести» (work-01) — всё под правкой.
+        edit.MapEmployeeAccountEndpoints();
+
+        edit.MapPost("/", async (CreateEmployeeRequest req, IMediator m, IRepository<DocumentType> types,
+            EmployeeAccountReads accounts, CancellationToken ct) =>
         {
             // Слой API отвечает КОДОМ, а не бросает доменный отказ (стережёт
             // DomainExceptionPolicyTests): бросок отсюда ушёл бы в общий конвейер и стал бы тем же
@@ -74,11 +82,14 @@ public static class EmployeeEndpoints
             if (RecordRequests.ParseData(req.Data) is not { } data)
                 return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
+            // Ответ записи — той же формы, что ответ чтения, с состоянием связи (ТЗ WORK-47): экран,
+            // кладущий ответ сохранения на место прочитанной карточки, иначе потерял бы связь.
             try
             {
-                return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
+                var created = await m.Send(new CreateCommonDataEntryCommand(
                     req.DisplayName, typeId, data, CatalogScope.System, ScopeId: null, req.Aliases,
-                    req.CreateAnyway ?? false))));
+                    req.CreateAnyway ?? false));
+                return Results.Ok(await EmployeeEntryDto.OfAsync(created, accounts, ct));
             }
             // Тот же ответ, что у общего адреса создания (issue #1185): сотрудник с таким табельным
             // номером лежит в архиве. Без полей и без createAnyway отказ был бы тупиком — текст
@@ -88,7 +99,7 @@ public static class EmployeeEndpoints
 
         edit.MapPut("/{id:guid}", async (
             Guid id, UpdateEmployeeRequest req, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
+            ClaimsPrincipal user, DataAccessResolver access, EmployeeAccountReads accounts, CancellationToken ct) =>
         {
             var entry = await m.Send(new GetCommonDataEntryQuery(id));
             if (entry is null || !await IsEmployeeAsync(entry, types)) return Results.NotFound();
@@ -105,12 +116,13 @@ public static class EmployeeEndpoints
             if (RecordRequests.ParseData(req.Data) is not { } data)
                 return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
-            return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
+            var updated = await m.Send(new UpdateCommonDataEntryCommand(
                 // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
                 // (DomainObject.Update нормализует его в пустой список), и промолчавший клиент
                 // стирал бы их заодно с правкой одного поля.
                 id, req.DisplayName, data, await access.ForAsync(user, ct), seen,
-                req.Aliases ?? [.. entry.Aliases]))));
+                req.Aliases ?? [.. entry.Aliases]));
+            return Results.Ok(await EmployeeEntryDto.OfAsync(updated, accounts, ct));
         });
 
         edit.MapDelete("/{id:guid}", async (
@@ -146,7 +158,7 @@ public static class EmployeeEndpoints
     /// выводить из неё нечего. Список тогда пуст, а запись отвечает отказом, который называет
     /// причину: пустой список на попытку записи выглядел бы поломкой.</para>
     /// </summary>
-    private static async Task<Guid?> EmployeeTypeIdAsync(IRepository<DocumentType> types)
+    internal static async Task<Guid?> EmployeeTypeIdAsync(IRepository<DocumentType> types)
     {
         var found = await types.FindAsync(t => t.Code == CoreRecordTypes.EmployeeCode);
         return found.Count > 0 ? found[0].Id : null;
@@ -161,7 +173,7 @@ public static class EmployeeEndpoints
     /// узнали бы об этом не сегодня. Отвечаем 404, а не 403: существование чужой карточки за этой
     /// дверью не подтверждается.</para>
     /// </summary>
-    private static async Task<bool> IsEmployeeAsync(DomainObject entry, IRepository<DocumentType> types)
+    internal static async Task<bool> IsEmployeeAsync(DomainObject entry, IRepository<DocumentType> types)
         => await EmployeeTypeIdAsync(types) is { } id && entry.CompositeTypeId == id;
 
     /// <summary>

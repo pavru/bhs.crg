@@ -283,5 +283,8 @@ internal static class DomainRegistration
     builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.AccountEmailService>();
     builder.Services.AddScoped<RefreshTokenService>();
+    // Связь «учётная запись → сотрудник» (ТЗ WORK-47, change work-01): запись и носители — одна база ядра.
+    builder.Services.AddScoped<BHS.CRG.Api.Endpoints.Core.EmployeeAccountLinks>();
+    builder.Services.AddScoped<BHS.CRG.Api.Endpoints.Core.EmployeeAccountReads>();
     }
 }
