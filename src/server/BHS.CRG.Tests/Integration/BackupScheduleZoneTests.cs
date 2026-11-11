@@ -2,11 +2,10 @@ using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Backup;
-using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Updates;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
@@ -25,24 +24,12 @@ public class BackupScheduleZoneTests(IntegrationTestFixture fixture) : IAsyncLif
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private sealed class Clock(DateTimeOffset now) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = now;
-        public override DateTimeOffset GetUtcNow() => Now;
-    }
-
     /// <summary>
     /// Хост БЕЗ исполнителя фоновых задач: поставленная копия иначе снялась бы по-настоящему —
     /// с чтением тестовой базы посреди чужих тестов. Проверяется постановка, а не выполнение.
     /// </summary>
     private WebApplicationFactory<Program> HostWithoutRunner()
-        => fixture.WithWebHostBuilder(b => b.ConfigureServices(services =>
-        {
-            services.RemoveAll<JobBackgroundService>();
-            foreach (var d in services
-                         .Where(d => d.ImplementationType == typeof(JobBackgroundService)).ToList())
-                services.Remove(d);
-        }));
+        => fixture.WithWebHostBuilder(b => b.ConfigureServices(services => services.RemoveJobRunner()));
 
     [Fact]
     public async Task Tick_UsesCompanyZone_NotServerZone()
@@ -75,7 +62,7 @@ public class BackupScheduleZoneTests(IntegrationTestFixture fixture) : IAsyncLif
                 new BackupScheduleState { LastRunAt = due.AddDays(-1) }, CancellationToken.None);
         }
 
-        var clock = new Clock(due.AddMinutes(-1));
+        var clock = new TestClock(due.AddMinutes(-1));
         var service = new BackupScheduleService(
             host.Services.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<BackupScheduleService>.Instance, clock);

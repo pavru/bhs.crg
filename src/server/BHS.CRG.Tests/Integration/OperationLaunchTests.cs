@@ -11,8 +11,8 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.DataSets;
-using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Tests.Support;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -72,10 +72,7 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
         {
             services.RemoveAll<IRecognitionPreflight>();
             services.AddSingleton<IRecognitionPreflight>(preflight);
-            services.RemoveAll<JobBackgroundService>();
-            foreach (var d in services
-                         .Where(d => d.ImplementationType == typeof(JobBackgroundService)).ToList())
-                services.Remove(d);
+            services.RemoveJobRunner();
         }));
 
     private static readonly RecognitionBlock NoEngines = new(

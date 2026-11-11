@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
@@ -6,13 +5,10 @@ using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Backup;
-using BHS.CRG.Infrastructure.Jobs;
-using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Updates;
-using Microsoft.AspNetCore.Identity;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
@@ -28,34 +24,22 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class BackupScheduleFirstRunTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
-    private const string Password = "Passw0rd!";
     private static readonly TimeSpan Msk = TimeSpan.FromHours(3);
     private static readonly TimeZoneInfo Moscow = TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
 
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private sealed class Clock(DateTimeOffset now) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = now;
-        public override DateTimeOffset GetUtcNow() => Now;
-    }
-
     private static DateTimeOffset At(int day, int hour, int minute = 0)
         => new(2026, 8, day, hour, minute, 0, Msk);
 
-    /// <summary>
-    /// Хост БЕЗ исполнителя фоновых задач — как в <see cref="BackupScheduleZoneTests" />: поставленная
-    /// копия иначе снялась бы по-настоящему. Проверяется постановка, а не выполнение.
-    /// </summary>
+    /// <summary>Хост БЕЗ исполнителя фоновых задач: проверяется постановка копии, а не снятие.</summary>
     private WebApplicationFactory<Program> HostWithoutRunner()
-        => fixture.WithWebHostBuilder(b => b.ConfigureServices(services =>
-        {
-            services.RemoveAll<JobBackgroundService>();
-            foreach (var d in services
-                         .Where(d => d.ImplementationType == typeof(JobBackgroundService)).ToList())
-                services.Remove(d);
-        }));
+        => fixture.WithWebHostBuilder(b => b.ConfigureServices(services => services.RemoveJobRunner()));
+
+    private static BackupScheduleService Service(WebApplicationFactory<Program> host, TimeProvider clock)
+        => new(host.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<BackupScheduleService>.Instance, clock);
 
     private static async Task ConfigureAsync(IServiceProvider services, bool enabled, string time,
         BackupScheduleState? state = null)
@@ -87,7 +71,7 @@ public class BackupScheduleFirstRunTests(IntegrationTestFixture fixture) : IAsyn
     /// <summary>
     /// Свежая установка стартует в 10:00 при расписании на 03:00: первый тик копию не ставит, а
     /// записывает начало отсчёта; «последний запуск» остаётся пустым — копии не было. Завтра в 03:00 —
-    /// копия.
+    /// копия, и начало отсчёта своё отслужило — дальше считается от постановки.
     /// </summary>
     [Fact]
     public async Task EmptyHistory_FirstTickStartsCounting_CopyAtNextDue()
@@ -95,10 +79,8 @@ public class BackupScheduleFirstRunTests(IntegrationTestFixture fixture) : IAsyn
         await using var host = HostWithoutRunner();
         await ConfigureAsync(host.Services, enabled: true, time: "03:00");
 
-        var clock = new Clock(At(20, 10, 0));
-        var service = new BackupScheduleService(
-            host.Services.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<BackupScheduleService>.Instance, clock);
+        var clock = new TestClock(At(20, 10, 0));
+        var service = Service(host, clock);
 
         await service.TickAsync(CancellationToken.None);
         Assert.False(await ActiveBackupAsync(host.Services));
@@ -115,26 +97,61 @@ public class BackupScheduleFirstRunTests(IntegrationTestFixture fixture) : IAsyn
         clock.Now = At(21, 3, 0);
         await service.TickAsync(CancellationToken.None);
         Assert.True(await ActiveBackupAsync(host.Services));
-        Assert.Equal(At(21, 3, 0), (await StateAsync(host.Services)).LastRunAt);
+        var ran = await StateAsync(host.Services);
+        Assert.Equal(At(21, 3, 0), ran.LastRunAt);
+        Assert.Null(ran.CountingSince);
     }
 
     /// <summary>
-    /// Расписание выключено — начало отсчёта не пишется: включат позже, и отсчёт начнётся тогда, а не
-    /// с давнего момента, от которого срок оказался бы пропущенным (D3).
+    /// Расписание не действует — выключено или время негодное (положено мимо проверки PUT) — начало
+    /// отсчёта не пишется: включат или поправят позже, и отсчёт начнётся тогда, а не с давнего
+    /// момента, от которого срок оказался бы пропущенным (D3).
     /// </summary>
-    [Fact]
-    public async Task Disabled_DoesNotStartCounting()
+    [Theory]
+    [InlineData(false, "03:00")]
+    [InlineData(true, "ночью")]
+    public async Task NotInEffect_DoesNotStartCounting(bool enabled, string time)
     {
         await using var host = HostWithoutRunner();
-        await ConfigureAsync(host.Services, enabled: false, time: "03:00");
+        await ConfigureAsync(host.Services, enabled, time);
 
-        var service = new BackupScheduleService(
-            host.Services.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<BackupScheduleService>.Instance, new Clock(At(20, 10, 0)));
-        await service.TickAsync(CancellationToken.None);
+        await Service(host, new TestClock(At(20, 10, 0))).TickAsync(CancellationToken.None);
 
         Assert.Null((await StateAsync(host.Services)).CountingSince);
         Assert.False(await ActiveBackupAsync(host.Services));
+    }
+
+    /// <summary>
+    /// Отсчёт начат, расписание выключили, через неделю (после восстановления копии) включили
+    /// снова — копия НЕ снимается сразу: отсчёт сбросился, пока расписание не действовало, и начался
+    /// заново при включении (ревью PR #1894). Иначе давнее начало отсчёта догнало бы срок полной
+    /// копией — ровно случай issue #1403.
+    /// </summary>
+    [Fact]
+    public async Task SwitchedOffAndBackOn_CountingRestarts_NoCatchUp()
+    {
+        await using var host = HostWithoutRunner();
+        await ConfigureAsync(host.Services, enabled: true, time: "03:00");
+        var clock = new TestClock(At(10, 10, 2));
+        var service = Service(host, clock);
+
+        await service.TickAsync(CancellationToken.None);
+        Assert.Equal(At(10, 10, 2), (await StateAsync(host.Services)).CountingSince);
+
+        await ConfigureAsync(host.Services, enabled: false, time: "03:00");
+        clock.Now = At(10, 18, 0);
+        await service.TickAsync(CancellationToken.None);
+        Assert.Null((await StateAsync(host.Services)).CountingSince);
+
+        await ConfigureAsync(host.Services, enabled: true, time: "03:00");
+        clock.Now = At(17, 14, 0);
+        await service.TickAsync(CancellationToken.None);
+        Assert.False(await ActiveBackupAsync(host.Services));
+        Assert.Equal(At(17, 14, 0), (await StateAsync(host.Services)).CountingSince);
+
+        clock.Now = At(18, 3, 0);
+        await service.TickAsync(CancellationToken.None);
+        Assert.True(await ActiveBackupAsync(host.Services));
     }
 
     /// <summary>
@@ -174,31 +191,9 @@ public class BackupScheduleFirstRunTests(IntegrationTestFixture fixture) : IAsyn
 
     private async Task<JsonElement> ScheduleAsync()
     {
-        var admin = await SignInAdminAsync();
+        var admin = await AccessProbe.SignInAsync(fixture, SystemRoles.Admin, "backup");
         var response = await admin.GetAsync("/api/backup/files");
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("schedule");
-    }
-
-    private async Task<HttpClient> SignInAdminAsync()
-    {
-        var email = $"admin_{Guid.NewGuid():N}@test.local";
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser
-            {
-                UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true,
-            };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, SystemRoles.Admin)).Succeeded);
-        }
-
-        var client = fixture.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
     }
 }

@@ -38,8 +38,8 @@ public class BackupScheduleService(
 {
     /// <summary>
     /// Как часто смотреть на часы. Минута — потому что срок задан с точностью до минуты, а стоит
-    /// проверка чтения настроек из кэша и одного сравнения дат: в базу служба идёт только когда
-    /// срок настал.
+    /// проверка чтения настроек из кэша, одной строки состояния по ключу и сравнения дат; пишет
+    /// служба только когда срок настал или начинается либо сбрасывается отсчёт.
     /// </summary>
     private static readonly TimeSpan Tick = TimeSpan.FromMinutes(1);
 
@@ -81,27 +81,43 @@ public class BackupScheduleService(
         var sp = scope.ServiceProvider;
 
         var schedule = (await sp.GetRequiredService<IIntegrationSettings>().GetEffectiveAsync(ct)).Backup;
-        if (!schedule.Enabled) return;
+        var stateStore = sp.GetRequiredService<ServiceStateStore>();
+        var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
+
+        // Отсчёт без истории идёт, только пока расписание ДЕЙСТВУЕТ: включено и время годное. Иначе
+        // начало отсчёта, записанное до выключения или до порчи времени, всплыло бы через неделю
+        // давним моментом — и включённое расписание догнало бы срок полной копией сразу, ровно как
+        // до issue #1403. Сброс здесь, а не в PUT /schedule: расписание меняют не только им
+        // (восстановление настроек, правка в базе), а служба видит любое.
+        if (!schedule.Enabled || ParseTimeOfDay(schedule.TimeOfDay) is null)
+        {
+            if (state.LastRunAt is null && state.CountingSince is not null)
+            {
+                state.CountingSince = null;
+                await stateStore.SaveAsync(BackupScheduleStateKeys.Schedule, state, ct);
+            }
+            return;
+        }
+
+        // Истории нет — свежая установка или восстановление на свежий экземпляр (issue #1403). Это
+        // начало отсчёта, а не пропущенный срок: запоминаем его, и копия встанет в ближайший срок.
+        // Записать обязательно: иначе «сейчас» сдвигалось бы с каждым тиком, и срок не наставал бы
+        // никогда. Строка в журнале — потому что сюда же приводит и испорченная запись состояния
+        // (чтение отдаёт пустое): перезапись её не должна быть немой.
+        if (state.CountedFrom() is not { } countedFrom)
+        {
+            state.CountingSince = now;
+            await stateStore.SaveAsync(BackupScheduleStateKeys.Schedule, state, ct);
+            logger.LogInformation(
+                "Плановое копирование: истории запусков нет — отсчёт с {Since:o}, копия в ближайший срок", now);
+            return;
+        }
 
         // Пояс — на каждом тике и не из снимка интеграций: тот кэшируется, а смена пояса
         // (PUT /api/settings/company) его не сбрасывает. Служба — синглтон, и пояс, снятый однажды,
         // пережил бы смену до перезапуска.
         var zone = await sp.GetRequiredService<IAppSettingsStore>().GetCompanyTimeZoneAsync(ct);
-
-        var stateStore = sp.GetRequiredService<ServiceStateStore>();
-        var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
-
-        // Истории нет — свежая установка или восстановление на свежий экземпляр (issue #1403). Это
-        // начало отсчёта, а не пропущенный срок: запоминаем его, и копия встанет в ближайший срок.
-        // Записать обязательно: иначе «сейчас» сдвигалось бы с каждым тиком, и срок не наставал бы
-        // никогда. При выключенном расписании сюда не доходим — включат, отсчёт начнётся тогда.
-        if (state.CountedFrom() is null)
-        {
-            state.CountingSince = now;
-            await stateStore.SaveAsync(BackupScheduleStateKeys.Schedule, state, ct);
-            return;
-        }
-        if (!IsDue(schedule, state.CountedFrom(), now, zone)) return;
+        if (!IsDue(schedule, countedFrom, now, zone)) return;
 
         var jobs = sp.GetRequiredService<IJobService>();
         // Копия уже снимается — вручную или прошлой плановой, застрявшей дольше суток. Второй такой
@@ -114,7 +130,10 @@ public class BackupScheduleService(
 
         // Срок отмечаем ДО постановки задачи. Иначе отказ на постановке (база моргнула) означал бы
         // повтор через минуту — и так до утра, с уведомлением на каждую попытку.
+        // Начало отсчёта своё отслужило: дальше считается от постановки. Оставленное, оно ожило бы
+        // давним моментом у первого же, кто однажды сбросит LastRunAt.
         state.LastRunAt = now;
+        state.CountingSince = null;
         await stateStore.SaveAsync(BackupScheduleStateKeys.Schedule, state, ct);
 
         // Владельца у плановой задачи нет: её поставил не человек. Отказ такой задачи уходит
@@ -149,7 +168,9 @@ public class BackupScheduleService(
     /// <para><paramref name="countedFrom" /> — последняя постановка, иначе начало отсчёта
     /// (<see cref="BackupScheduleState.CountedFrom" />). Копию не ставили никогда — это начало
     /// отсчёта, а не пропуск (issue #1403): при <c>null</c> отсчёт ведётся от <paramref name="now" />,
-    /// и первая копия — в ближайший срок. Прежнее «ждать до завтрашней ночи не будем» снято: без
+    /// и первая копия — в ближайший срок. Служба <c>null</c> сюда не передаёт — она сначала
+    /// записывает начало отсчёта; ветка оставлена ради согласия с <see cref="NextRunAt" />, которому
+    /// <c>null</c> приходит по-настоящему (строка до первого тика), и обе отвечают одно. Прежнее «ждать до завтрашней ночи не будем» снято: без
     /// истории система либо пуста, либо только что поднята из копии, и копия сразу после старта
     /// стоила ей объёма и времени, а не защищала что-то.</para>
     ///
