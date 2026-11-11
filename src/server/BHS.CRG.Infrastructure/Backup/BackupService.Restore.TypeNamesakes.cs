@@ -37,7 +37,7 @@ public partial class BackupService
             // восстановление обновит само.
             if (namesake is null || copyIds.Contains(namesake.Id)) continue;
 
-            if (await HolderOfAsync(holders, namesake.Id, ct) is { } holder)
+            if (await HolderOfAsync(namesake.Id, TypeIdColumn, skipActivityLog: false, ct) is { } holder)
                 throw new ConflictException(Occupied(item, holder));
 
             await db.DocumentTypes.Where(t => t.Id == namesake.Id).ExecuteDeleteAsync(ct);
@@ -52,18 +52,22 @@ public partial class BackupService
         "смешало бы два разных типа под одним кодом. Восстановите копию на пустую систему или смените " +
         "код здешнего типа в редакторе типов.";
 
+    /// <summary>Собственная колонка типа: в ней идентификатор — сам тип, а не ссылка на него.</summary>
+    private static readonly (string Table, string Column) TypeIdColumn = ("document_types", "Id");
+
     /// <summary>
-    /// Кто держит здешний тип, — словами, или <c>null</c>.
+    /// Кто держит здешнюю запись ядра (тип, профиль распознавания), — словами, или <c>null</c>.
     ///
     /// <para>Сначала порт держателей в модулях (<see cref="IRecordHolders" />), как у всякого удаления
     /// записи ядра: данные модулей — в том числе выключенного — он находит по схеме модулей и называет
     /// словами. Не ответил — удалять нельзя: «проверить не удалось» не значит «никто не держит».</para>
     /// </summary>
-    private async Task<string?> HolderOfAsync(IRecordHolders modules, Guid typeId, CancellationToken ct)
+    private async Task<string?> HolderOfAsync(
+        Guid id, (string Table, string Column) own, bool skipActivityLog, CancellationToken ct)
     {
-        var held = await modules.FindAsync([typeId], ct);
+        var held = await holders.FindAsync([id], ct);
         if (held.Any) return held.IsUnverified ? "проверить не удалось: " + held.Lines[0] : held.Lines[0];
-        return await CoreHolderOfAsync(typeId, ct);
+        return await CoreHolderOfAsync(id, own, skipActivityLog, ct);
     }
 
     /// <summary>
@@ -75,31 +79,39 @@ public partial class BackupService
     /// Тот же приём, что у сбора живых путей хранилища (<c>LiveBlobPathScan</c>): колонки-идентификаторы
     /// сравниваются точно, текст и JSON — по вхождению строки.</para>
     ///
+    /// <para><paramref name="own" /> — собственная колонка записи (<c>public</c>): строка самой записи
+    /// держателем не считается. <paramref name="skipActivityLog" /> исключает журнал действий — так
+    /// делает проход для профилей (issue #1570), у типов журнал по-прежнему держатель.</para>
+    ///
     /// <para>Цена — проход по таблицам целиком. Платится только при тёзке, то есть на чужой для копии
     /// системе: на пустой проверяется тип, заведённый при старте, и таблицы почти пусты.</para>
     /// </summary>
-    private async Task<string?> CoreHolderOfAsync(Guid typeId, CancellationToken ct)
+    private async Task<string?> CoreHolderOfAsync(
+        Guid id, (string Table, string Column) own, bool skipActivityLog, CancellationToken ct)
     {
+        var (ownTable, ownColumn) = own;
+        var logTable = skipActivityLog ? ActivityLogTable : "";
         var columns = await db.Database.SqlQuery<HolderColumn>($"""
             SELECT table_schema AS "Schema", table_name AS "Table", column_name AS "Column",
                    data_type = 'uuid' AS "IsUuid"
             FROM information_schema.columns c
             WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
               AND data_type IN ('uuid', 'jsonb', 'json', 'text', 'character varying', 'ARRAY')
-              AND NOT (table_schema = 'public' AND table_name = 'document_types' AND column_name = 'Id')
+              AND NOT (table_schema = 'public' AND table_name = {ownTable} AND column_name = {ownColumn})
+              AND NOT (table_schema = 'public' AND table_name = {logTable})
               AND EXISTS (SELECT 1 FROM information_schema.tables t
                           WHERE t.table_schema = c.table_schema AND t.table_name = c.table_name
                             AND t.table_type = 'BASE TABLE')
             ORDER BY 1, 2, 3
             """).ToListAsync(ct);
 
-        var text = typeId.ToString();
+        var text = id.ToString();
         foreach (var c in columns)
         {
             var target = $"{Quoted(c.Schema)}.{Quoted(c.Table)}";
             var found = c.IsUuid
                 ? await db.Database.SqlQueryRaw<bool>(
-                    $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {Quoted(c.Column)} = {{0}}) AS \"Value\"", typeId)
+                    $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {Quoted(c.Column)} = {{0}}) AS \"Value\"", id)
                     .SingleAsync(ct)
                 : await db.Database.SqlQueryRaw<bool>(
                     $"SELECT EXISTS (SELECT 1 FROM {target} WHERE {Quoted(c.Column)}::text LIKE {{0}}) AS \"Value\"",
@@ -109,6 +121,8 @@ public partial class BackupService
         }
         return null;
     }
+
+    private const string ActivityLogTable = "activity_log";
 
     private static string Quoted(string name) => '"' + name.Replace("\"", "\"\"") + '"';
 
