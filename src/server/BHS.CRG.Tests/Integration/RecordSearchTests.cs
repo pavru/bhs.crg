@@ -83,6 +83,9 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.Equal($"№ {mark}-7 · ООО «Кабель-Торг»", hit.GetProperty("title").GetString());
         Assert.Equal($"Кабель для щитовой {mark}", hit.GetProperty("detail").GetString());
         Assert.Equal(184_320m, hit.GetProperty("amount").GetDecimal());
+        // Набранное с самой карточки находит её: «№» и «·» — знаки карточки, а не слова поиска.
+        Assert.Single((await GroupsAsync(admin, hit.GetProperty("title").GetString()!, group: "invoices")).Single()
+            .GetProperty("items").EnumerateArray());
         // «ё» и «е» не различаются, регистр — тоже.
         Assert.Single((await GroupsAsync(admin, $"ЩИТОВОЙ {mark}", group: "invoices")).Single()
             .GetProperty("items").EnumerateArray());
@@ -133,6 +136,11 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var (admin, _) = await SignInAsync("Admin");
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/search?q=с")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/search?q=%20%20")).StatusCode);
+        // Длина строки не спасает: «а б» не уже, чем «а», а «№ ·» — одни знаки.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync($"/api/search?q={Uri.EscapeDataString("а б")}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync($"/api/search?q={Uri.EscapeDataString("№ ·")}")).StatusCode);
+        // Вставленный абзац — отказ, а не тысяча условий на каждой группе.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync($"/api/search?q={new string('щ', 201)}")).StatusCode);
         var unknown = await admin.GetAsync("/api/search?q=счёт&group=nothing");
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("nothing", (await unknown.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
@@ -167,6 +175,8 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.DoesNotContain("probe_secret", groups[FailingSearch.Broken].GetProperty("refused").GetString());
         Assert.Empty(groups[FailingSearch.Broken].GetProperty("items").EnumerateArray());
         Assert.Contains("нет ответа", groups[FailingSearch.Slow].GetProperty("refused").GetString());
+        // Ответ, которого контракт не знает, — отказ своей группы; остальные пришли (проверено выше).
+        Assert.Contains("ошибка сервера", groups[FailingSearch.Mute].GetProperty("refused").GetString());
     }
 
     /// <summary>
@@ -245,17 +255,21 @@ public sealed class FailingSearch : IRecordSearch
 {
     public const string Broken = "probe-broken";
     public const string Slow = "probe-slow";
+    /// <summary>Отвечает <c>null</c> вместо ответа контракта — разбор обязан стать отказом группы, а не 500.</summary>
+    public const string Mute = "probe-mute";
 
     public IReadOnlyList<RecordSearchGroup> Groups { get; } =
     [
         new(Broken, "Сломанная", "ПробаСломанная", CorePermissions.ConstructionsRead, RecordSearchArchive.None),
         new(Slow, "Медленная", "ПробаМедленная", CorePermissions.ConstructionsRead, RecordSearchArchive.None),
+        new(Mute, "Немая", "ПробаНемая", CorePermissions.ConstructionsRead, RecordSearchArchive.None),
     ];
 
     public async Task<ContractAnswer<RecordSearchHits>> SearchAsync(
         string group, RecordSearchQuery query, ModuleReader reader, CancellationToken ct)
     {
         if (group == Broken) throw new InvalidOperationException("таблица probe_secret недоступна");
+        if (group == Mute) return null!;
         // Токен не слушает нарочно: предел обязан держать ответ и тогда.
         await Task.Delay(TimeSpan.FromSeconds(3), CancellationToken.None);
         return ContractAnswer.Shown(new RecordSearchHits([], false));

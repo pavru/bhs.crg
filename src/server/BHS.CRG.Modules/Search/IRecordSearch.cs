@@ -89,11 +89,21 @@ public sealed record RecordSearchHit(
 /// <summary>Сопоставление строки со словами запроса — одно правило у поставщиков и ядра.</summary>
 public static class RecordSearchText
 {
-    /// <summary>Слова запроса: без регистра, «ё» как «е», пустые выброшены.</summary>
+    /// <summary>
+    /// Слова запроса: без регистра, «ё» как «е», знаки по краям слова сняты, пустые выброшены. Знак по краю
+    /// — не часть того, что ищут: «№ 418» и ««КабельТорг»» набраны с карточки, а в полях записи хранится
+    /// «418» и «КабельТорг». Знак внутри слова остаётся: «РОЛ-418» — номер целиком.
+    /// </summary>
     public static IReadOnlyList<string> Words(string? query) =>
         string.IsNullOrWhiteSpace(query)
             ? []
-            : [.. Normalize(query).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.Ordinal)];
+            : [.. Normalize(query).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => w.Trim(EdgeMarks(w)))
+                .Where(w => w.Length > 0)
+                .Distinct(StringComparer.Ordinal)];
+
+    /// <summary>Знаки по краям слова — всё, что не буква и не цифра.</summary>
+    private static char[] EdgeMarks(string word) => [.. word.Where(c => !char.IsLetterOrDigit(c)).Distinct()];
 
     /// <summary>Строка к сравнению: нижний регистр, «ё» как «е».</summary>
     public static string Normalize(string text) => text.ToLowerInvariant().Replace('ё', 'е');

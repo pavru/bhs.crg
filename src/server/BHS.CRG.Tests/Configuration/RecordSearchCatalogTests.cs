@@ -79,6 +79,10 @@ public class RecordSearchCatalogTests
     [InlineData("  Щитовая   ЁЛКА ", new[] { "щитовая", "елка" })]
     [InlineData("418 418", new[] { "418" })]
     [InlineData("", new string[0])]
+    // Знаки по краям сняты — так набирают с карточки; знак внутри слова — часть номера.
+    [InlineData("№ 418 · «КабельТорг»,", new[] { "418", "кабельторг" })]
+    [InlineData("№418 РОЛ-7", new[] { "418", "рол-7" })]
+    [InlineData("— · №", new string[0])]
     public void Слова_запроса_без_регистра_и_ё(string query, string[] words) =>
         Assert.Equal(words, RecordSearchText.Words(query));
 

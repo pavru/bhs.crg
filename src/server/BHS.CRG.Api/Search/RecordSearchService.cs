@@ -78,16 +78,19 @@ public sealed class RecordSearchService(
         Func<IRecordSearch, CancellationToken, Task<ContractAnswer<T>>> ask, Func<T, RecordSearchGroupAnswer> found,
         CancellationToken ct)
     {
-        var answer = await contributions.AskAsync(source.Module, $"группа поиска «{source.Group.Code}», {what}",
-            limits.PerGroup, (services, token) => ask(Provider(services, source.Module), token), ct);
-        return answer switch
-        {
-            { Refused: { } refused } => RecordSearchGroupAnswer.Failed(source, refused),
-            { Value: ContractAnswer<T>.Shown shown } => found(shown.Value),
-            { Value: ContractAnswer<T>.Hidden } => null,
-            { Value: ContractAnswer<T>.SystemRefused refused } => RecordSearchGroupAnswer.Failed(source, refused.Text),
-            _ => throw new InvalidOperationException($"Неизвестный ответ контракта: {answer.Value?.GetType().Name}"),
-        };
+        // Разбор ответа — внутри опроса: неожиданный ответ поставщика (null, новый вариант) — отказ его
+        // группы, а не 500 на весь поиск.
+        var answer = await contributions.AskAsync<RecordSearchGroupAnswer?>(source.Module, $"группа поиска «{source.Group.Code}», {what}",
+            limits.PerGroup, async (services, token) =>
+                await ask(Provider(services, source.Module), token) switch
+                {
+                    ContractAnswer<T>.Shown shown => found(shown.Value),
+                    ContractAnswer<T>.Hidden => null,
+                    ContractAnswer<T>.SystemRefused refused => RecordSearchGroupAnswer.Failed(source, refused.Text),
+                    var other => throw new InvalidOperationException(
+                        $"Неизвестный ответ контракта: {other?.GetType().Name ?? "null"}"),
+                }, ct);
+        return answer.Refused is { } failed ? RecordSearchGroupAnswer.Failed(source, failed) : answer.Value;
     }
 
     private static IRecordSearch Provider(IServiceProvider services, string module) =>

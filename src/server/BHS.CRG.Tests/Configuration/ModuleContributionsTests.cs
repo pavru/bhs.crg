@@ -96,4 +96,27 @@ public class ModuleContributionsTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Contributions().AskEachAsync<IProbeQueue, Guid>(
             Reader, TimeSpan.FromSeconds(5), (q, _, ct) => q.AskAsync(ct), gone.Token));
     }
+
+    // Своя отмена поставщика в пределе (HTTP-клиент плагина сдался через 100 мс) — его ошибка, а не наш
+    // таймаут: человеку «ошибка сервера», причина — в журнал.
+    [Fact]
+    public async Task Своя_отмена_поставщика_в_пределе_ошибка_а_не_таймаут()
+    {
+        var answer = await Contributions().AskAsync<Guid>("plugin", "проба", TimeSpan.FromSeconds(5),
+            (_, _) => throw new TaskCanceledException("HttpClient.Timeout"), CancellationToken.None);
+
+        Assert.Contains("ошибка сервера", answer.Refused);
+    }
+
+    // Человек ушёл, а поставщик в ту же минуту упал своей ошибкой: это отмена, а не отказ модуля.
+    [Fact]
+    public async Task Ошибка_поставщика_при_отменённом_запросе_отмена()
+    {
+        using var gone = new CancellationTokenSource();
+        await gone.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Contributions().AskAsync<Guid>(
+            "broken", "проба", TimeSpan.FromSeconds(5),
+            (_, _) => throw new InvalidOperationException("npgsql"), gone.Token));
+    }
 }

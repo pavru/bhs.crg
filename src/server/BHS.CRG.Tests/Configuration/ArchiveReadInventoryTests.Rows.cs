@@ -380,6 +380,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Costs/Search/CostsRecordSearch.cs|(await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))"] =
             Seen("поиск счетов палитры (shell-05): найден СЧЁТ, а не поставщик, и счёт архивного поставщика "
                  + "находится по его имени, как в реестре; признака у поставщика в карточке поиска нет — его там не показывают"),
+        ["BHS.CRG.Modules.Costs/Search/CostsRecordSearch.cs|: (await catalog.RefsAsync(CostsDirectories.Organization, supplierIds, ct))"] =
+            Seen("карточки уже стоящих записей (Недавние, shell-08): названия поставщиков найденных счетов; "
+                 + "архивный назван так же, признака в карточке нет — его там не показывают"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct);"] =
             Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);"] =

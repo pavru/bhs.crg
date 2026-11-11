@@ -51,8 +51,9 @@ public sealed class CostsRecordSearch(CostsDbContext db, IModuleCatalog catalog)
                 || (i.SupplierId != null && named.Contains(i.SupplierId.Value)));
         }
 
-        // Свежие первыми: ищут обычно счёт, который только что пришёл.
-        var found = await invoices.OrderByDescending(i => i.CreatedAt).ThenBy(i => i.Id)
+        // Свежие первыми: ищут обычно счёт, который только что пришёл. Ничья — как в ленте счетов (COST-6.3):
+        // пакет файлов заводит счета одной миллисекундой, и «есть ещё» обязано отсечь те же, что лента.
+        var found = await invoices.OrderByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id)
             .Take(query.Take + 1)
             .Select(i => new Row(i.Id, i.Number, i.SupplierId, i.Purpose, i.Total))
             .ToListAsync(ct);
@@ -69,7 +70,14 @@ public sealed class CostsRecordSearch(CostsDbContext db, IModuleCatalog catalog)
         var found = await db.Invoices.AsNoTracking().Where(i => ids.Contains(i.Id))
             .Select(i => new Row(i.Id, i.Number, i.SupplierId, i.Purpose, i.Total))
             .ToListAsync(ct);
-        var suppliers = found.Any(r => r.SupplierId is not null) ? await SuppliersAsync(ct) : new Dictionary<Guid, string>();
+        // Имена — только своих поставщиков, одним обращением: карточек единицы, справочник целиком не нужен.
+        // Архивный поставщик в ответе есть (показ) — счёт читается по его имени, как в ленте.
+        List<Guid> supplierIds = [.. found.Where(r => r.SupplierId is not null).Select(r => r.SupplierId!.Value).Distinct()];
+        var suppliers = supplierIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : (await catalog.RefsAsync(CostsDirectories.Organization, supplierIds, ct))
+                  ?.Where(r => r.DisplayName is not null).ToDictionary(r => r.Id, r => r.DisplayName!)
+              ?? new Dictionary<Guid, string>();
         return ContractAnswer.Shown<IReadOnlyList<RecordSearchHit>>([.. found.Select(r => Card(r, suppliers))]);
     }
 
