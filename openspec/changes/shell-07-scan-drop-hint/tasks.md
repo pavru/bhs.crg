@@ -7,27 +7,27 @@
 
 ## 1. Слова пустых состояний
 
-- [ ] 1.1 `invoiceDropWords.ts`: `selectHint(canEdit, kinds)` и `emptyDropTail(canEdit, wide)` [COST-8]
+- [x] 1.1 `invoiceDropWords.ts`: `selectHint(canEdit, kinds)` и `emptyDropTail(canEdit, wide)` [COST-8]
   [COST-31]. Проверка — vitest `invoiceDropWords.test.ts`:
   - с форматами — в скобках, без них — без скобок;
   - без права описания нет;
   - фраза пустого списка — только при праве и на рабочем столе.
-- [ ] 1.2 `InvoicesPage`: описание «Выберите счёт» — из `selectHint`; к `emptyText` ветки `default`
+- [x] 1.2 `InvoicesPage`: описание «Выберите счёт» — из `selectHint`; к `emptyText` ветки `default`
   (нет отбора очереди, отбора загрузки и поиска) — `emptyDropTail` [COST-8]. Проверка — живой прогон 2.1.
-- [ ] 1.3 Снять строку внизу колонки: `InvoiceDropHint.tsx`, его тест и место на странице.
+- [x] 1.3 Снять строку внизу колонки: `InvoiceDropHint.tsx`, его тест и место на странице.
 
 ## 2. Живая проверка и документы
 
 - [ ] 2.1 `e2e/invoice-file-drop-checks.mjs` [COST-8]: на рабочем столе без открытого счёта правая часть
   говорит «перетащите сюда файлы счетов», бросок на неё заводит и открывает черновик. Проверка — зелёная,
   а со старым описанием — красная.
-- [ ] 2.2 `docs/USER_GUIDE.md`: абзац о броске называет слова пустых состояний вместо строки внизу колонки.
+- [x] 2.2 `docs/USER_GUIDE.md`: абзац о броске называет слова пустых состояний вместо строки внизу колонки.
   Проверка — ревью PR.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 3.4 Весь список живых прогонов CI зелёный (зонтик, D6)
 - [ ] 3.5 PR #1925 с меткой `version:minor` и строкой «Closes #1435»

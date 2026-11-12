@@ -310,39 +310,15 @@ export async function invoiceFileDropChecks(page, check, h) {
     } finally { await page.setViewportSize(WIDE); }
   });
 
-  // Подсказка о броске (shell-07-scan-drop-hint, [COST-8] [COST-31]): строка у нижнего края колонки, ВНЕ прокрутки —
-  // список кончается над ней и при прокрутке до конца; бросок на неё — бросок на окно; на телефоне её нет. Счетов к
-  // этому месту накоплено с запасом: каждый бросок выше завёл черновик.
-  await check('подсказка о броске: внизу колонки вне прокрутки, бросок на неё принят, на 390 нет', async () => {
+  // О броске до броска (shell-07-scan-drop-hint, [COST-8] [COST-31]): пока счёт не открыт, правая часть говорит, что
+  // файлы можно перетащить сюда, и называет форматы реестра. Слова правдивы: бросок на неё заводит черновик.
+  await check('без открытого счёта правая часть зовёт перетащить файлы, и бросок туда заводит черновик', async () => {
     await page.goto(`${h.base}/invoices`, { waitUntil: 'networkidle' });
-    const nav = page.getByTestId('ld-nav');
-    const hint = nav.getByTestId('invoice-drop-hint');
-    await h.named('строки-подсказки нет внизу колонки', () => hint.waitFor({ timeout: 10_000 }));
-    if (!/в любое место окна/.test(await hint.innerText())) throw new Error('строка не говорит, что цель — всё окно');
-    const scroller = nav.locator('.overflow-y-auto').first();
-    const geometry = async () => {
-      const [line, list, column] = await Promise.all([boxOf(page, hint), boxOf(page, scroller), boxOf(page, nav)]);
-      if (!line || !list || !column) throw new Error('колонка, список или строка не на экране');
-      if (list.y + list.height > line.y + 1) throw new Error(`список заходит под строку: низ ${list.y + list.height}, строка ${line.y}`);
-      if (Math.abs(line.y + line.height - (column.y + column.height)) > 2) throw new Error('строка не у нижнего края колонки');
-      return line.y;
-    };
-    const before = await geometry();
-    // Строку внутри прокрутки ловит уже геометрия выше (она была бы внутри списка); прокрутка — вторым свидетелем,
-    // когда счетов больше, чем помещается.
-    if (await scroller.evaluate(el => el.scrollHeight > el.clientHeight)) {
-      await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
-      if (Math.abs(await geometry() - before) > 1) throw new Error('строка уехала вместе с прокруткой');
-    }
-    const was = openedId(page);
-    await dropOn(page, hint, [{ name: `Подсказка-${h.stamp}.pdf`, buffer: bytesOf(`подсказка ${h.stamp}`) }], h);
-    await h.named('бросок на строку не завёл черновик', () => page.waitForFunction(
-      was => new URL(location.href).searchParams.get('invoice') !== was, was, { timeout: 15_000 }));
-    await page.setViewportSize({ width: 390, height: 844 });
-    try {
-      await page.goto(`${h.base}/invoices`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(500);
-      if (await page.getByTestId('invoice-drop-hint').count()) throw new Error('на 390 строка-подсказка есть');
-    } finally { await page.setViewportSize(WIDE); }
+    const empty = page.getByTestId('ld-detail').getByText(/^Или перетащите сюда файлы счетов/);
+    await h.named('правая часть не говорит о броске', () => empty.waitFor({ timeout: 10_000 }));
+    if (!/\(PDF[^)]*\)/.test(await empty.innerText())) throw new Error('описание не называет форматы реестра');
+    await dropOn(page, empty, [{ name: `Пусто-${h.stamp}.pdf`, buffer: bytesOf(`пусто ${h.stamp}`) }], h);
+    await h.named('бросок на правую часть не открыл черновик', () => page.waitForFunction(
+      () => new URL(location.href).searchParams.get('invoice') !== null, null, { timeout: 15_000 }));
   });
 }
