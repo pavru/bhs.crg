@@ -55,14 +55,27 @@ public class TemplateNewVersionTests
     }
 
     [Fact]
-    public void VersionsWithoutTheSource_Refused()
-        => Assert.Throws<ArgumentException>(() => V(1, true).CreateNewVersion("x", [V(2, true)]));
+    public void SourceMissingFromVersions_StillCountsAndIsDeactivated()
+    {
+        var source = V(3, true);
+        var next = source.CreateNewVersion("x", [V(1, false)]);
+        Assert.Equal(4, next.Version);
+        Assert.False(source.IsActive);
+    }
 
     [Fact]
-    public void VersionOfAnotherTemplate_Refused()
+    public void VersionOfAnotherTemplate_IsIgnored()
     {
         var source = V(1, true);
-        Assert.Throws<ArgumentException>(() => source.CreateNewVersion("x", [source, V(1, true, name: "Другой")]));
+        var other = V(9, true, isDefault: true, name: "Другой");
+
+        var next = source.CreateNewVersion("x", [source, other]);
+
+        // Соседний шаблон не гасится, его номер и «по умолчанию» новой версии не достаются.
+        Assert.Equal(2, next.Version);
+        Assert.False(next.IsDefault);
+        Assert.True(other.IsActive);
+        Assert.True(other.IsDefault);
     }
 }
 

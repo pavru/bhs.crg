@@ -61,11 +61,10 @@ public class Template : Entity
     /// </summary>
     public Template CreateNewVersion(string content, IReadOnlyCollection<Template> versions, string? comment = null)
     {
-        if (!versions.Any(v => v.Id == Id))
-            throw new ArgumentException("Версии шаблона обязаны включать ту, от которой создаётся новая.", nameof(versions));
-        if (versions.Any(v => v.DocumentTypeId != DocumentTypeId || v.Name != Name))
-            throw new ArgumentException("Версии шаблона — только с тем же типом документа и названием.", nameof(versions));
-
+        // Шаблон отбирается здесь же, а не проверяется отказом: чужая строка в списке не должна
+        // погасить соседний шаблон, а эта версия входит в свой шаблон, даже если её не передали.
+        versions = versions.Where(v => v.Id != Id && v.DocumentTypeId == DocumentTypeId && v.Name == Name)
+            .Append(this).ToList();
         var wasDefault = versions.Any(v => v.IsDefault);
         var next = versions.Max(v => v.Version) + 1;
         foreach (var v in versions)
