@@ -60,13 +60,14 @@ export function PinnedGroup({ entries }: { entries: PinnedEntry[] }) {
 /**
  * Строка подпанели с меню «⋮» у правого края (решение владельца по Р0: булавка — в «⋮» строки, а не в
  * заголовке страницы). Меню видно при наведении и фокусе строки: двадцать постоянных кнопок рядом с
- * двадцатью подписями отняли бы у них место и спорили бы с ними за взгляд.
+ * двадцатью подписями отняли бы у них место и спорили бы с ними за взгляд. На касании наведения нет —
+ * там кнопка видна всегда (`pointer-coarse`), иначе закрепить было бы нечем, кроме касания пустоты.
  */
 export function PageRow({ actions, label, children }: { actions: RowAction[]; label: string; children: ReactNode }) {
   return (
     <div className="group/page relative">
       {children}
-      <span className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/page:opacity-100 group-focus-within/page:opacity-100 has-[[aria-expanded=true]]:opacity-100">
+      <span className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/page:opacity-100 group-focus-within/page:opacity-100 has-[[aria-expanded=true]]:opacity-100 pointer-coarse:opacity-100">
         <RowActionsMenu ariaLabel={`Действия: ${label}`} actions={actions} />
       </span>
     </div>

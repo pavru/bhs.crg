@@ -11,7 +11,7 @@ import { PinnedSectionsSection } from './PinnedSectionsSection';
  * видно строкой с причиной, и убирает его только «Открепить».
  */
 
-let access: AccessInfo = { permissions: [], modules: [] };
+let access: AccessInfo | undefined = { permissions: [], modules: [] };
 vi.mock('@/shared/api/access', async importOriginal => ({
   ...await importOriginal<typeof import('@/shared/api/access')>(),
   useAccess: () => ({ data: access }),
@@ -50,6 +50,15 @@ describe('PinnedSectionsSection', () => {
     expect(within(rows()[4]).getByText('/reports/brigades')).toBeTruthy();
     expect(within(rows()[4]).getByText('Страницы больше нет в навигации')).toBeTruthy();
     expect(screen.getByText('5 из 20')).toBeTruthy();
+  });
+
+  it('доступ ещё не пришёл — «Проверяем доступ…», а не «модуль выключен»', () => {
+    access = undefined;
+    show(['/invoices', '/reports/brigades']);
+    expect(rows().map(r => r.dataset.kind)).toEqual(['checking', 'gone']);
+    expect(within(rows()[0]).getByText('Проверяем доступ…')).toBeTruthy();
+    expect(screen.queryByText('Модуль страницы выключен на этом экземпляре')).toBeNull();
+    expect(within(rows()[0]).queryByRole('link')).toBeNull();
   });
 
   it('доступная страница — ссылка на неё; недоступная — без цели', () => {

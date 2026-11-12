@@ -1,30 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/shared/api/client';
 import { useAccess, hasPermission } from '@/shared/api/access';
 import { fetchConstructionDirectory, useConstructionDirectory } from '@/shared/api/constructions';
-import { USER_SETTINGS_KEY, fetchUserSettings, useUserSettings, type UserSettings } from '@/shared/api/userSettings';
+import { USER_SETTINGS_KEY, useUserSettings, type UserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { useSettingsWriteQueue, type SettingsPatch } from '@/shared/hooks/useSettingsWriteQueue';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { SiteFilterContext, type SiteFilterValue } from './siteFilterContext';
 import {
   FAVORITES_KEY, FILTER_KEY, LIMIT_TEXT, MAX_FAVORITES, filterOn, filterState, isVisible, parseFavorites,
   serializeFavorites,
 } from './rule';
-
-type Patch = Record<string, string | null>;
-
-/** Присланное поверх прежнего; null снимает ключ — как на сервере. */
-function applyPatch(settings: UserSettings | undefined, patch: Patch): UserSettings {
-  const next = { ...settings };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) delete next[key]; else next[key] = value;
-  }
-  return next;
-}
-
-/** Хвост очереди записей того, кто уже вышел: его запись не должна лечь на следующего вошедшего. */
-class SessionChanged extends Error {}
 
 /**
  * Фильтр «Избранные стройки» (issue #1217, #1218). Стоит в оболочке, рядом с рабочими пространствами.
@@ -54,53 +40,15 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
   const sites = useMemo(() => directory.data ?? [], [directory.data]);
   const live = useMemo(() => new Set(sites.map(s => s.id)), [sites]);
 
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const pending = useRef(0);
-  // Поколение входа: сменился человек — отложенные записи прежнего отбрасываются (ревью PR #1331).
-  // Кэш при выходе чистит `AuthProvider`, но очередь живёт здесь, и её хвост выполнился бы уже с
-  // токеном следующего вошедшего, наложив чужое избранное на его настройки.
-  const session = useRef(0);
-  const who = user?.email ?? null;
-  useEffect(() => {
-    session.current++;
-    queue.current = Promise.resolve();
-    pending.current = 0;
-  }, [who]);
-
   /**
-   * Одна запись настроек: сразу — в кэш (`optimistic` от закэшированного), затем по очереди —
-   * свежее чтение и запись (`fromFresh` от прочитанного). Кэш берёт ответ сервера только у ПОСЛЕДНЕЙ
-   * записи очереди: ответ первой не знает о второй и откатил бы её на глазах.
+   * Одна запись настроек — общей очередью сеанса (`useSettingsWriteQueue`): сразу в кэш, затем по
+   * очереди свежее чтение и запись. Там же — поколение входа и правило «кэш берёт ответ последней записи».
    */
+  const enqueue = useSettingsWriteQueue();
   const write = useCallback((
-    optimistic: (s: UserSettings) => Patch,
-    fromFresh: (s: UserSettings) => Promise<Patch> | Patch,
-  ) => {
-    const mine = session.current;
-    const alive = () => { if (session.current !== mine) throw new SessionChanged(); };
-    const cached = queryClient.getQueryData<UserSettings>(USER_SETTINGS_KEY) ?? {};
-    queryClient.setQueryData<UserSettings>(USER_SETTINGS_KEY, applyPatch(cached, optimistic(cached)));
-    pending.current++;
-    const run = queue.current.then(async () => {
-      alive();
-      const patch = await fromFresh(await fetchUserSettings());
-      alive();
-      return apiClient.put<UserSettings>('/account/settings', patch).then(r => r.data);
-    });
-    queue.current = run.catch(() => {});
-    return run.then(
-      data => {
-        if (session.current === mine && --pending.current === 0) queryClient.setQueryData(USER_SETTINGS_KEY, data);
-      },
-      error => {
-        if (error instanceof SessionChanged) return;
-        // Отказ — кэш возвращается к правде сервера, а не остаётся на оптимистичной догадке.
-        if (session.current === mine && --pending.current === 0) {
-          void queryClient.invalidateQueries({ queryKey: USER_SETTINGS_KEY });
-        }
-        throw error;
-      });
-  }, [queryClient]);
+    optimistic: (s: UserSettings) => SettingsPatch,
+    fromFresh: (s: UserSettings) => Promise<SettingsPatch> | SettingsPatch,
+  ) => enqueue(optimistic, fromFresh).done, [enqueue]);
 
   /**
    * Операция над избранным. Оптимистично — по своему кэшу; на сервер — по свежим настройкам и

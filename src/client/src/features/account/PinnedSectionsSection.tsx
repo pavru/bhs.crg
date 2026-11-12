@@ -6,7 +6,7 @@ import { DragIndicator, Info, Keep, LockIcon } from '@/shared/ui/icons';
 import { ListItem, LIST_CONTAINER } from '@/shared/ui/ListItem';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { NO_ACCESS, useAccess } from '@/shared/api/access';
+import { useAccess } from '@/shared/api/access';
 import { settingsNav, workNav } from '@/shared/ui/navConfig';
 import { usePinnedPages } from '@/shared/ui/pinnedPagesContext';
 import { MAX_PINNED, pinnedRows, rowNote, rowTitle, type PinnedRow } from '@/shared/ui/pinnedSections';
@@ -27,7 +27,7 @@ const NAV = [...workNav, ...settingsNav];
 export function PinnedSectionsSection() {
   const { list, unpin, move } = usePinnedPages();
   const { data: access } = useAccess();
-  const rows = pinnedRows(list, NAV, access ?? NO_ACCESS);
+  const rows = pinnedRows(list, NAV, access);
   const [dragged, setDragged] = useState<number | null>(null);
 
   return (
@@ -88,6 +88,8 @@ function Row({ row, handle, actions }: { row: PinnedRow; handle: ReactNode; acti
     action: actions,
   };
   if (row.kind === 'ok') return <ListItem to={row.to} icon={Keep} {...common} />;
+  // Доступ ещё не пришёл — ни замка, ни «нет доступа»: причину до ответа не знаем.
+  if (row.kind === 'checking') return <ListItem passive icon={Keep} {...common} />;
   const lock = row.kind === 'permission' || row.kind === 'module-not-granted';
   return <ListItem passive icon={lock ? LockIcon : Info} {...common} />;
 }

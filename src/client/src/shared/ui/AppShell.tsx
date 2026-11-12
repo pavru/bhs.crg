@@ -31,7 +31,7 @@ import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
 import { PinnedPagesProvider } from '@/shared/ui/PinnedPagesProvider';
 import { usePinnedPages } from '@/shared/ui/pinnedPagesContext';
-import { PINNED_GROUP_LABEL, pinnedGroup } from '@/shared/ui/pinnedSections';
+import { PINNED_GROUP_LABEL, entryNote, pinnedGroup } from '@/shared/ui/pinnedSections';
 import { workNav, settingsNav } from '@/shared/ui/navConfig';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { Icon } from './Icon';
@@ -94,7 +94,10 @@ function Shell() {
   const { inside } = useWorkspace();
   const pinned = pinnedGroup(pinnedList, [...allWork, ...settings], inside);
   const phoneGroups = panelSection && !panelSection.admin && pinned.length
-    ? [{ label: PINNED_GROUP_LABEL, items: pinned.map(e => e.item) }, ...panelGroups]
+    ? [{
+      label: PINNED_GROUP_LABEL, copies: true, items: pinned.map(e => e.item),
+      notes: Object.fromEntries(pinned.map(e => [e.item.to, entryNote(e)])),
+    }, ...panelGroups]
     : panelGroups;
   // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы,
   // «Администрирование» — пункт меню профиля.

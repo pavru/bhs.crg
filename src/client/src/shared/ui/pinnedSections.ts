@@ -105,7 +105,8 @@ export function entryNote(entry: PinnedEntry): string {
  *   отказ не исправит никто на экземпляре;
  * - `module-not-granted` — модуль есть, но не для вас: выдаёт администратор;
  * - `permission` — нет права (выдаваемого на этом экземпляре);
- * - `unknown` — `missingFor` причины не назвал: придумать правдоподобную хуже, чем признаться.
+ * - `unknown` — `missingFor` причины не назвал: придумать правдоподобную хуже, чем признаться;
+ * - `checking` — доступ ещё не пришёл: «ещё не знаем» — не отказ, и причину до ответа не называем.
  */
 export type PinnedRow =
   | { kind: 'ok'; to: string; item: NavItem; section: string }
@@ -113,13 +114,18 @@ export type PinnedRow =
   | { kind: 'module-not-granted'; to: string; item: NavItem; module: string }
   | { kind: 'module-off'; to: string; item: NavItem }
   | { kind: 'gone'; to: string }
-  | { kind: 'unknown'; to: string; item: NavItem };
+  | { kind: 'unknown'; to: string; item: NavItem }
+  | { kind: 'checking'; to: string; item: NavItem };
 
-/** Каждое закрепление — строкой: из списка молча не пропадает ничего. `nav` — вся навигация, без отбора. */
-export function pinnedRows(pinned: string[], nav: NavItem[], access: AccessInfo): PinnedRow[] {
+/**
+ * Каждое закрепление — строкой: из списка молча не пропадает ничего. `nav` — вся навигация, без отбора;
+ * `access` — ответ доступа, `undefined` пока он не пришёл.
+ */
+export function pinnedRows(pinned: string[], nav: NavItem[], access: AccessInfo | undefined): PinnedRow[] {
   return pinned.map<PinnedRow>(to => {
     const item = nav.find(n => n.to === to);
     if (!item) return { kind: 'gone', to };
+    if (!access) return { kind: 'checking', to, item };
     if (allowed(item, access)) return { kind: 'ok', to, item, section: railDef(item.rail).title };
     const missing = missingFor(item, access);
     if (missing?.kind === 'module') {
@@ -143,6 +149,7 @@ export function rowNote(row: PinnedRow): string {
     case 'module-off': return 'Модуль страницы выключен на этом экземпляре';
     case 'gone': return 'Страницы больше нет в навигации';
     case 'unknown': return 'Нет доступа, причина неизвестна';
+    case 'checking': return 'Проверяем доступ…';
   }
 }
 

@@ -4,6 +4,13 @@ import { railSections, type NavItem, type RailId, type RailSectionDef } from './
 export interface PanelGroup {
   label?: string;
   items: NavItem[];
+  /**
+   * Пункты — копии страниц, стоящих на своём месте в других группах («Закреплённые», work-04): текущей
+   * такая копия не отмечается — отмечена страница на своём месте.
+   */
+  copies?: boolean;
+  /** Вторая строка пункта по адресу — у закреплённых: раздел страницы и «вне пространства». */
+  notes?: Readonly<Record<string, string>>;
 }
 
 /** Раздел рейла для этого человека и этого пространства (issue #1429). */

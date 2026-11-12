@@ -1,86 +1,57 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/shared/api/client';
-import { USER_SETTINGS_KEY, fetchUserSettings, useUserSettings, type UserSettings } from '@/shared/api/userSettings';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useUserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { useSettingsWriteQueue } from '@/shared/hooks/useSettingsWriteQueue';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { useSnackbar } from './Snackbar';
 import { PinnedPagesContext, type PinnedPages } from './pinnedPagesContext';
 import { PINNED_GROUP_KEY, PINNED_KEY, move, parsePinned, pin, serializePinned, unpin } from './pinnedSections';
 
 /**
- * Закреплённые страницы для оболочки, палитры и профиля (ТЗ AUTH-16.4, work-04) — одна очередь записей
- * на сеанс, как у «Избранных строек» (`SiteFilterProvider`).
+ * Закреплённые страницы для оболочки, палитры и профиля (ТЗ AUTH-16.4, work-04) — общей очередью записей
+ * сеанса, как «Избранные стройки» (`useSettingsWriteQueue`).
  *
  * Список хранит СЕРВЕР (`pinnedSections`, CORE-25.3): с другой машины он приезжает тот же. Браузер
  * держит зеркало — только для первого кадра, пока настройки не пришли: подпанель не прыгает от
- * появившейся группы. ⚠️ Зеркало НЕ применяется, когда сервер ответил без ключа: оно осталось от
- * прежнего хозяина машины (`resolvePreference`). И наверх оно не отправляется никогда — запись бывает
- * только по действию человека.
+ * появившейся группы. ⚠️ Зеркало подписано хозяином и чужому не показывается: на общей машине иначе
+ * вошедший видел бы закрепления прежнего, пока сервер не ответил. Не применяется оно и когда сервер
+ * ответил без ключа (`resolvePreference`). Наверх оно не отправляется никогда — запись бывает только по
+ * действию человека.
  *
  * Запись — «прочитать свежее и применить правку», а не «отправить свою копию»: закрепление,
- * сделанное тем временем на другой машине, иначе стёрлось бы.
+ * сделанное тем временем на другой машине, иначе стёрлось бы. Правка ДО прихода настроек кэш не
+ * трогает (пустой кэш с одним ключом читался бы ответом сервера) и видна поверх зеркала, пока он не придёт.
  */
 const MIRROR = 'crg-pinned';
 const GROUP_MIRROR = 'crg-pinned-group';
 
-/** Хвост очереди записей того, кто уже вышел: его запись не должна лечь на следующего вошедшего. */
-class SessionChanged extends Error {}
-
 export function PinnedPagesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const toast = useSnackbar();
   const { data: server } = useUserSettings(!!user);
-  const [mirror] = useState(readMirror);
-  const raw = server ? server[PINNED_KEY] ?? null : mirror;
-  const list = useMemo(() => parsePinned(raw), [raw]);
-  useEffect(() => { if (server) writeMirror(server[PINNED_KEY] ?? null); }, [server]);
+  const who = user?.email ?? null;
+  const mirror = useMemo(() => readMirror(who), [who]);
+  // Правка, сделанная до ответа сервера, — поверх зеркала; пришёл ответ — правда его.
+  const [early, setEarly] = useState<{ who: string | null; list: string[] } | null>(null);
+  const shown = early?.who === who ? early.list : null;
+  const raw = server ? server[PINNED_KEY] ?? null : null;
+  const list = useMemo(() => server ? parsePinned(raw) : shown ?? parsePinned(mirror), [server, raw, shown, mirror]);
+  useEffect(() => { if (server) writeMirror(who, server[PINNED_KEY] ?? null); }, [server, who]);
 
   const [group, setGroup] = useSyncedPreference(PINNED_GROUP_KEY, GROUP_MIRROR, 'expanded');
 
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const pending = useRef(0);
-  const session = useRef(0);
-  const who = user?.email ?? null;
-  useEffect(() => {
-    session.current++;
-    queue.current = Promise.resolve();
-    pending.current = 0;
-  }, [who]);
-
+  const enqueue = useSettingsWriteQueue();
   const change = useCallback((edit: (list: string[]) => string[], failure: string) => {
-    const cached = queryClient.getQueryData<UserSettings>(USER_SETTINGS_KEY) ?? {};
-    const before = parsePinned(cached[PINNED_KEY]);
+    // Правка — от того, что видит человек: до ответа сервера это зеркало или ранняя правка, а не пустой кэш.
+    const before = list;
     const after = edit(before);
     if (after === before) return;
-    queryClient.setQueryData<UserSettings>(USER_SETTINGS_KEY, withPinned(cached, after));
-
-    const mine = session.current;
-    const alive = () => { if (session.current !== mine) throw new SessionChanged(); };
-    pending.current++;
-    const run = queue.current.then(async () => {
-      alive();
-      const fresh = await fetchUserSettings();
-      alive();
-      const next = serializePinned(edit(parsePinned(fresh[PINNED_KEY])));
-      return apiClient.put<UserSettings>('/account/settings', { [PINNED_KEY]: next }).then(r => r.data);
-    });
-    queue.current = run.catch(() => {});
-    run.then(
-      data => {
-        // Кэш берёт ответ только у ПОСЛЕДНЕЙ записи очереди: ответ первой не знает о второй и откатил бы её.
-        if (session.current === mine && --pending.current === 0) queryClient.setQueryData(USER_SETTINGS_KEY, data);
-      },
-      error => {
-        if (error instanceof SessionChanged) return;
-        // Отказ — кэш возвращается к правде сервера, а не остаётся на оптимистичной догадке.
-        if (session.current === mine && --pending.current === 0) {
-          void queryClient.invalidateQueries({ queryKey: USER_SETTINGS_KEY });
-        }
-        toast.apiError(error, failure);
-      });
-  }, [queryClient, toast]);
+    const { cached, done } = enqueue(
+      s => ({ [PINNED_KEY]: serializePinned(edit(parsePinned(s[PINNED_KEY]))) }),
+      fresh => ({ [PINNED_KEY]: serializePinned(edit(parsePinned(fresh[PINNED_KEY]))) }));
+    if (!cached) setEarly({ who, list: after });
+    done.catch(error => toast.apiError(error, failure));
+  }, [enqueue, toast, who, list]);
 
   const value = useMemo<PinnedPages>(() => ({
     list,
@@ -102,20 +73,25 @@ export function PinnedPagesProvider({ children }: { children: ReactNode }) {
   return <PinnedPagesContext.Provider value={value}>{children}</PinnedPagesContext.Provider>;
 }
 
-function withPinned(settings: UserSettings, list: string[]): UserSettings {
-  const next = { ...settings };
-  const value = serializePinned(list);
-  if (value === null) delete next[PINNED_KEY]; else next[PINNED_KEY] = value;
-  return next;
-}
-
-/** Приватный режим и запрет хранилища — не отказ приложения: зеркало просто не запомнится. */
-function readMirror(): string | null {
-  try { return localStorage.getItem(MIRROR); } catch { return null; }
-}
-
-function writeMirror(value: string | null): void {
+/**
+ * Зеркало — со своим хозяином: `{ who, value }`. Чужое и негодное — «зеркала нет». Приватный режим и
+ * запрет хранилища — не отказ приложения: зеркало просто не запомнится.
+ */
+function readMirror(who: string | null): string | null {
+  if (!who) return null;
   try {
-    if (value === null) localStorage.removeItem(MIRROR); else localStorage.setItem(MIRROR, value);
+    const saved: unknown = JSON.parse(localStorage.getItem(MIRROR) ?? 'null');
+    if (saved && typeof saved === 'object' && (saved as { who?: unknown }).who === who) {
+      const value = (saved as { value?: unknown }).value;
+      return typeof value === 'string' ? value : null;
+    }
+    return null;
+  } catch { return null; }
+}
+
+function writeMirror(who: string | null, value: string | null): void {
+  try {
+    if (value === null || !who) localStorage.removeItem(MIRROR);
+    else localStorage.setItem(MIRROR, JSON.stringify({ who, value }));
   } catch { /* память необязательна */ }
 }
