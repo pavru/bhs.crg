@@ -45,6 +45,7 @@ import {
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar } from './InvoiceScanBatchBar';
+import { InvoiceDropHint } from './InvoiceDropHint';
 import { useQueueFilter } from './useQueueFilter';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
@@ -461,10 +462,17 @@ export function InvoicesPage() {
       onShowAll={() => setFilter(null)} onRetry={() => retryRejected(intake.port)} onOpen={switchTo}
       onAccept={print => acceptHeld(print, intake.port)} />
   );
+  // Подсказка о броске (shell-07) — где он сейчас принимается: право и не во время загрузки (рабочий стол решает она).
+  const hintShown = canEdit && !loading;
+  const pickFile = () => scanInput.current?.click();
+  const listEmpty = !invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0
+    && !(onlyUpload && catchingUp) && !(filter === null && (query.trim() ? sites.foundHidden : sites.hidden) > 0);
+  // Пусто без отбора и поиска — фраза уходит в пустое состояние, строки внизу нет; под отбором пустота про отбор.
+  const emptyPlain = listEmpty && !onlyUpload && !queue && !query.trim();
   const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить в окно.`;
   // При открытом счёте вход — в сводке, всегда (D7 у 14): в шапке списка его нет, кнопка не прыгает по ширине.
   const fromFile = canEdit
-    ? <FromFileButton loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
+    ? <FromFileButton loading={loading} title={fromFileTitle} onClick={pickFile} />
     : null;
 
   return (
@@ -502,7 +510,7 @@ export function InvoicesPage() {
               {/* На телефоне это действие — плавающая кнопка (#1434): кнопка сама там прячется. */}
               <PrimaryActionButton action={PALETTE_ACTIONS.invoiceScan} loading={loading}
                 title={fromFileTitle}
-                onClick={() => scanInput.current?.click()} />
+                onClick={pickFile} />
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
               <input ref={scanInput} type="file" multiple className="hidden" accept={acceptOf(readable) || undefined}
@@ -556,10 +564,10 @@ export function InvoicesPage() {
               <RailSitesEmpty searching={!!query.trim()} hidden={sites.hidden} foundHidden={sites.foundHidden}
                 onShowAll={sites.showAll} />
             )}
-            {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && !(onlyUpload && catchingUp)
-              && !(filter === null && (query.trim() ? sites.foundHidden : sites.hidden) > 0) && (
+            {listEmpty && (
               <div className="px-3 py-2 text-body-small text-on-surface-variant space-y-1">
                 <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues)}</p>
+                {emptyPlain && hintShown && <InvoiceDropHint kinds={readable} onPick={pickFile} inline />}
                 {(onlyUpload || (queue && !query.trim())) && (
                   <button type="button" className="underline hover:text-on-surface" onClick={() => setFilter(null)}>
                     Показать все счета
@@ -587,6 +595,7 @@ export function InvoicesPage() {
                 </p>
               ))}
           </div>
+          {hintShown && !emptyPlain && <InvoiceDropHint kinds={readable} onPick={pickFile} />}
         </div>
       }
       detail={

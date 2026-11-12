@@ -8,16 +8,17 @@
 
 ## 1. Строка внизу колонки
 
-- [ ] 1.1 `InvoiceDropHint.tsx`: `dropHintText(formats)`, строка (черта, значок `Upload` 18, текст,
-  `Button variant="text"` «Выбрать файл») и вид `inline` [COST-8] [COST-31]. Проверка — vitest:
+- [x] 1.1 `InvoiceDropHint.tsx`: текст по `kinds`, строка (черта, значок `Upload` 18, текст,
+  `Button variant="text"` «Выбрать файл»), вид `inline`, только на рабочем столе (`useMedia(WIDE)`)
+  [COST-8] [COST-31]. Проверка — vitest:
   - с форматами — в скобках, без них — без скобок;
   - «Выбрать файл» зовёт `onPick`;
-  - у `inline` нет черты.
-- [ ] 1.2 `InvoicesPage`: строка последним ребёнком колонки, после прокручиваемого блока. Только при
-  `costs.invoice.edit`, на рабочем столе (`useMedia(WIDE)`) и при `!intake.loading`. Форматы —
-  `wordsOf(readable)` или `null`, действие — `scanInput.current?.click()` [COST-8]. Проверка — живой
-  прогон 2.1.
-- [ ] 1.3 Пустой список без отбора и поиска (ветка `default` у `emptyText`): фраза с «Выбрать файл» в
+  - у `inline` нет черты;
+  - на телефоне строки нет.
+- [x] 1.2 `InvoicesPage`: строка последним ребёнком колонки, после прокручиваемого блока. Только при
+  `costs.invoice.edit` и при `!intake.loading`. Виды — `readable`, действие — `scanInput.current?.click()`
+  [COST-8]. Проверка — живой прогон 2.1.
+- [x] 1.3 Пустой список без отбора и поиска (ветка `default` у `emptyText`): фраза с «Выбрать файл» в
   пустом состоянии (`inline`), строки внизу нет; под отбором и поиском строка остаётся [COST-8].
   Проверка — живой прогон 2.1 либо vitest страницы.
 
@@ -30,13 +31,13 @@
   - на 390 px строки нет.
 
   Проверка — зелёная, а со строкой внутри прокрутки — красная.
-- [ ] 2.2 `docs/USER_GUIDE.md`: абзац о переносе счетов файлами называет строку и «Выбрать файл»
+- [x] 2.2 `docs/USER_GUIDE.md`: абзац о переносе счетов файлами называет строку и «Выбрать файл»
   (оглавление — `cd docs/tools && npm run toc`, если менялись главы). Проверка — ревью PR.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 3.4 Весь список живых прогонов CI зелёный (зонтик, D6)
 - [ ] 3.5 PR с меткой `version:minor` и строкой «Closes #1435»
