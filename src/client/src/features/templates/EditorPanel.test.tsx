@@ -48,7 +48,7 @@ const template = (isActive: boolean): Template => ({
 const docType = { id: 'd1', name: 'АОСР', schema: '{"fields":[]}' } as unknown as DocumentType;
 
 const renderPanel = (isActive: boolean) =>
-  render(<EditorPanel template={template(isActive)} docType={docType} allDocTypes={[docType]} onSaved={vi.fn()} />);
+  render(<EditorPanel template={template(isActive)} docType={docType} allDocTypes={[docType]} onSaved={vi.fn()} nextVersion={3} />);
 
 const MENU = 'Ещё варианты сохранения';
 // Пункт меню выполняется, когда Radix вернул фокус на стрелку, а это он делает тиком после закрытия меню.
@@ -107,7 +107,7 @@ describe('EditorPanel: «Реквизит»', () => {
     ] },
   } as unknown as DocumentType;
   const renderWithFields = () => render(
-    <EditorPanel template={template(true)} docType={withFields} allDocTypes={[withFields, objectType]} onSaved={vi.fn()} />);
+    <EditorPanel template={template(true)} docType={withFields} allDocTypes={[withFields, objectType]} onSaved={vi.fn()} nextVersion={3} />);
 
   async function openPicker() {
     const trigger = screen.getByRole('button', { name: /Реквизит/ });

@@ -20,3 +20,12 @@ export function groupTemplates(templates: Template[]): TemplateGroup[] {
     versions: [...versions].sort((a, b) => b.version - a.version),
   }));
 }
+
+/**
+ * Номер следующей версии шаблона — наибольший среди его версий плюс один (issue #1920), как его
+ * считает сервер. Версии шаблона — с тем же названием в списке одного типа документа.
+ */
+export function nextVersionOf(templates: Template[], template: Template): number {
+  return Math.max(template.version,
+    ...templates.filter(t => t.name === template.name).map(t => t.version)) + 1;
+}

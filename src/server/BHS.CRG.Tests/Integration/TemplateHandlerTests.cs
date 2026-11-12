@@ -91,6 +91,83 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Null(templates.First(t => t.Id == original.Id).Comment);
     }
 
+    // ── Новая версия от исторической (issue #1920) ───────────────────────────
+
+    /// <summary>Шаблон с версиями v1…v<paramref name="count"/>: каждая — от предыдущей.</summary>
+    private async Task<List<Template>> CreateVersionsAsync(Guid dtId, string name, int count)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var list = new List<Template> { await Mediator(scope).Send(new CreateTemplateCommand(dtId, name, "v1")) };
+        for (var i = 2; i <= count; i++)
+        {
+            using var s = fixture.Services.CreateScope();
+            list.Add((await Mediator(s).Send(new UpdateTemplateCommand(list[^1].Id, $"v{i}"))).Template);
+        }
+        return list;
+    }
+
+    [Fact]
+    public async Task NewVersion_FromHistoricalVersion_TakesNextNumber_AndIsTheOnlyActive()
+    {
+        var dtId = await CreateDocTypeAsync("DT_HIST");
+        var v = await CreateVersionsAsync(dtId, "Шаблон", 4);
+
+        using var scope = fixture.Services.CreateScope();
+        var forked = (await Mediator(scope).Send(new UpdateTemplateCommand(v[1].Id, "от v2"))).Template;
+
+        // Номер — наибольший у шаблона плюс один, а не «v2 + 1»: вторая v3 была ошибкой.
+        Assert.Equal(5, forked.Version);
+        Assert.Equal("от v2", forked.Content);
+
+        using var scope2 = fixture.Services.CreateScope();
+        var all = await Mediator(scope2).Send(new ListTemplatesQuery(dtId));
+        Assert.Equal([1, 2, 3, 4, 5], all.Select(t => t.Version).Order());
+        Assert.Equal(forked.Id, Assert.Single(all, t => t.IsActive).Id); // v4 погашена
+    }
+
+    [Fact]
+    public async Task NewVersion_FromHistoricalVersion_MovesDefaultFromActiveVersion()
+    {
+        var dtId = await CreateDocTypeAsync("DT_HIST_DEF");
+        var v = await CreateVersionsAsync(dtId, "Шаблон", 1);
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new SetTemplateDefaultCommand(v[0].Id));
+        using (var s = fixture.Services.CreateScope())
+            v.Add((await Mediator(s).Send(new UpdateTemplateCommand(v[0].Id, "v2"))).Template);
+        Assert.True(v[1].IsDefault); // «по умолчанию» ушло на действующую v2
+
+        using var scope = fixture.Services.CreateScope();
+        var result = await Mediator(scope).Send(new UpdateTemplateCommand(v[0].Id, "от v1"));
+
+        // Шаблон типа по умолчанию остаётся этим шаблоном — в его новой версии.
+        Assert.Equal(3, result.Template.Version);
+        Assert.True(result.Template.IsDefault);
+        using var scope2 = fixture.Services.CreateScope();
+        var all = await Mediator(scope2).Send(new ListTemplatesQuery(dtId));
+        Assert.Equal(result.Template.Id, Assert.Single(all, t => t.IsDefault).Id);
+        Assert.Equal(result.Template.Id, Assert.Single(all, t => t.IsActive).Id);
+    }
+
+    [Fact]
+    public async Task NewVersion_DoesNotTouchOtherTemplatesOfTheSameType()
+    {
+        var dtId = await CreateDocTypeAsync("DT_HIST_OTHER");
+        var a = await CreateVersionsAsync(dtId, "Основной", 2);
+        var b = await CreateVersionsAsync(dtId, "Сокращённый", 1);
+
+        using var scope = fixture.Services.CreateScope();
+        var forked = (await Mediator(scope).Send(new UpdateTemplateCommand(a[0].Id, "от v1"))).Template;
+
+        // Шаблон — версии с тем же названием; соседний шаблон типа остаётся действующим и v1.
+        Assert.Equal(3, forked.Version);
+        using var scope2 = fixture.Services.CreateScope();
+        var all = await Mediator(scope2).Send(new ListTemplatesQuery(dtId));
+        var other = Assert.Single(all, t => t.Id == b[0].Id);
+        Assert.True(other.IsActive);
+        Assert.Equal(1, other.Version);
+        Assert.Equal(2, all.Count(t => t.IsActive));
+    }
+
     // ── SaveContent (in-place, issue #360) ────────────────────────────────────
 
     [Fact]

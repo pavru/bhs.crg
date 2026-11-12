@@ -229,12 +229,18 @@ public class MigrateToPrefixedAddressingHandler(
             }
 
         var replacedBy = new Dictionary<Guid, Guid>();
+        var created = new List<Template>();
         foreach (var (id, content) in newTemplateContent)
         {
             var tpl = templates.First(t => t.Id == id);
-            var version = tpl.CreateNewVersion(content, "Переход на адресацию Код.Имя (issue #773)");
-            templateRepo.Update(tpl);
+            // Версии шаблона — вместе с уже созданными этим проходом (issue #1920): у шаблона с двумя
+            // действующими версиями вторая иначе получила бы тот же номер, что и первая новая.
+            var versions = templates.Concat(created)
+                .Where(t => t.DocumentTypeId == tpl.DocumentTypeId && t.Name == tpl.Name).ToList();
+            var version = tpl.CreateNewVersion(content, versions, "Переход на адресацию Код.Имя (issue #773)");
+            foreach (var v in versions.Where(v => !created.Contains(v))) templateRepo.Update(v);
             await templateRepo.AddAsync(version, ct);
+            created.Add(version);
             replacedBy[id] = version.Id;
         }
 

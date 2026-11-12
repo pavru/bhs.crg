@@ -107,9 +107,15 @@ interface EditorPanelProps {
   docType: DocumentType;
   allDocTypes: DocumentType[];
   onSaved: (updated: Template) => void;
+  /**
+   * Номер, который получит «новая версия», — наибольший у шаблона плюс один (issue #1920), а не
+   * номер открытой плюс один: от исторической v2 при v4 сервер создаёт v5. Считает страница:
+   * все версии шаблона видит она, а не редактор одной.
+   */
+  nextVersion: number;
 }
 
-export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorPanelProps) {
+export function EditorPanel({ template, docType, allDocTypes, onSaved, nextVersion }: EditorPanelProps) {
   useUserLibCompletion();
   useAssetCompletion();
   const [content, setContent] = useState(template.content);
@@ -317,7 +323,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               items={[{
                 key: 'new-version',
                 label: 'Сохранить как новую версию…',
-                description: `Создаст v${template.version + 1}, сохранит историю текущей`,
+                description: `Создаст v${nextVersion}, сохранит историю текущей`,
                 icon: CallSplit,
                 onSelect: () => setNewVersionOpen(true),
               }]}>
@@ -371,7 +377,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
 
       {newVersionOpen && (
         <NewVersionDialog
-          nextVersion={template.version + 1}
+          nextVersion={nextVersion}
           saving={saving}
           onCancel={() => setNewVersionOpen(false)}
           onConfirm={handleSaveAsNewVersion}

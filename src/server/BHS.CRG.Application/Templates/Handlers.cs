@@ -34,10 +34,16 @@ public class TemplateHandlers(
 
     public async Task<TemplateMutationResult> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
     {
-        var existing = await repo.GetByIdAsync(cmd.Id, ct)
+        var source = (await repo.FindAsync(t => t.Id == cmd.Id, ct)).SingleOrDefault()
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
-        var newVersion = existing.CreateNewVersion(cmd.Content, cmd.Comment);
-        repo.Update(existing);
+        // Все версии шаблона, а не одна названная (issue #1920): номер и единственная действующая
+        // считаются по ним. Чтение без отслеживания — и исходную берём из того же списка, иначе
+        // в контексте оказались бы два экземпляра одной строки.
+        var versions = await repo.FindAsync(
+            t => t.DocumentTypeId == source.DocumentTypeId && t.Name == source.Name, ct);
+        var existing = versions.Single(t => t.Id == cmd.Id);
+        var newVersion = existing.CreateNewVersion(cmd.Content, versions, cmd.Comment);
+        foreach (var v in versions) repo.Update(v);
         await repo.AddAsync(newVersion, ct);
         await repo.SaveChangesAsync(ct);
         await DuplicateTemplateAssetsAsync(existing.Id, newVersion.Id, ct);
