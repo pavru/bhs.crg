@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';
@@ -18,6 +19,7 @@ import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
+import type { NewVersionPlan } from './groupTemplates';
 import type * as monacoEditor from 'monaco-editor';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
@@ -72,13 +74,14 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
 
 // ─── New-version dialog ───────────────────────────────────────────────────────
 
-function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
-  nextVersion: number;
+function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
+  plan: NewVersionPlan;
   saving: boolean;
   onCancel: () => void;
   onConfirm: (comment: string) => void;
 }) {
   const [comment, setComment] = useState('');
+  const retired = plan.retires.map(t => `v${t.version}`).join(', ');
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title="Сохранить как новую версию"
       footer={
@@ -86,13 +89,24 @@ function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
           <ModalExit />
           <ModalPrimary loading={saving} icon={<Icon icon={CallSplit} size={18} />}
             onClick={() => onConfirm(comment)}>
-            {saving ? 'Создание…' : `Создать v${nextVersion}`}
+            {saving ? 'Создание…' : `Создать v${plan.next}`}
           </ModalPrimary>
         </>}>
       <div className="space-y-4 px-1">
-        <p className="text-body-medium text-on-surface-variant">
-          Будет создана <strong>версия v{nextVersion}</strong>. Текущая версия сохранится в истории.
-        </p>
+        {plan.retires.length === 0 ? (
+          <p className="text-body-medium text-on-surface-variant">
+            Будет создана <strong>версия v{plan.next}</strong>. Текущая версия сохранится в истории.
+          </p>
+        ) : (
+          // От исторической версии гаснет не она, а действующая (issue #1920): об этом и говорим.
+          <p className="text-body-medium text-on-surface-variant">
+            Будет создана <strong>версия v{plan.next}</strong> из этой. Действующая {retired} уйдёт в историю
+            {plan.takesDefault && <> и передаст v{plan.next} признак «по умолчанию»</>}.
+            {plan.noPinDocsMove && <> Документы без выбранного шаблона перейдут на v{plan.next} и вернутся в черновик.</>}
+            {plan.pinnedToRetired > 0 && <> За {retired} закреплено {ruCount(plan.pinnedToRetired, 'документ', 'документа', 'документов')} —
+              им нужно будет выбрать шаблон заново.</>}
+          </p>
+        )}
         <TextField label="Примечание к версии (необязательно)" value={comment}
           onChange={e => setComment(e.target.value)} autoFocus />
       </div>
@@ -107,11 +121,18 @@ interface EditorPanelProps {
   docType: DocumentType;
   allDocTypes: DocumentType[];
   onSaved: (updated: Template) => void;
+  /**
+   * Что сделает «новая версия» (issue #1920): номер — наибольший у шаблона плюс один, а не номер
+   * открытой плюс один, и какие действующие версии погаснут. Считает страница: все версии шаблона
+   * видит она, а не редактор одной.
+   */
+  versionPlan: NewVersionPlan;
 }
 
-export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorPanelProps) {
+export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPlan }: EditorPanelProps) {
   useUserLibCompletion();
   useAssetCompletion();
+  const qc = useQueryClient();
   const [content, setContent] = useState(template.content);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -177,6 +198,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
       setSaving(false);
       savingRef.current = false;
     }
+  }
+
+  // Номер и гаснущие версии окно берёт из списка страницы, а его мог обогнать другой
+  // администратор: при открытии окна список перечитывается, и окно показывает свежий план.
+  function openNewVersion() {
+    void qc.invalidateQueries({ queryKey: ['templates', template.documentTypeId] });
+    void qc.invalidateQueries({ queryKey: ['template-usage', template.documentTypeId] });
+    setNewVersionOpen(true);
   }
 
   // Явное «Сохранить как новую версию» — форк новой версии, опц. с примечанием.
@@ -317,16 +346,16 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               items={[{
                 key: 'new-version',
                 label: 'Сохранить как новую версию…',
-                description: `Создаст v${template.version + 1}, сохранит историю текущей`,
+                description: `Создаст v${versionPlan.next}, сохранит историю текущей`,
                 icon: CallSplit,
-                onSelect: () => setNewVersionOpen(true),
+                onSelect: openNewVersion,
               }]}>
               {saving ? 'Сохранение…' : 'Сохранить'}
             </SplitButton>
           ) : (
             // Историческую версию на месте не сохранить: основное действие и есть форк, а меню с тем же
             // окном было бы вторым входом в него — поэтому одна кнопка, без стрелки ([UI-83]).
-            <Button variant="filled" onClick={() => setNewVersionOpen(true)} disabled={saving}
+            <Button variant="filled" onClick={openNewVersion} disabled={saving}
               icon={<Icon icon={CallSplit} size={18} />} title="Историческая версия — сохранить как новую">
               Сохранить как новую
             </Button>
@@ -371,7 +400,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
 
       {newVersionOpen && (
         <NewVersionDialog
-          nextVersion={template.version + 1}
+          plan={versionPlan}
           saving={saving}
           onCancel={() => setNewVersionOpen(false)}
           onConfirm={handleSaveAsNewVersion}

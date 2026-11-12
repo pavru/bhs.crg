@@ -18,7 +18,7 @@ import { UserLibPanel } from './UserLibPanel';
 import { SystemLibPanel } from './SystemLibPanel';
 import { TypeBlocksPanel } from './TypeBlocksPanel';
 import { TemplateSidebar, DocTypeSelector, VersionCleanupModal } from './TemplateSidebar';
-import { groupTemplates, type TemplateGroup } from './groupTemplates';
+import { groupTemplates, newVersionPlan, type TemplateGroup } from './groupTemplates';
 import { PageHeader } from '@/shared/ui/PageHeader';
 // ─── New template form ────────────────────────────────────────────────────────
 
@@ -315,6 +315,7 @@ export function TemplatesPage() {
                   docType={selectedDocType}
                   allDocTypes={docTypes}
                   onSaved={(updated) => selectTemplate(updated)}
+                  versionPlan={newVersionPlan(templates, selectedTemplate, usage)}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-on-surface-variant text-body-medium">

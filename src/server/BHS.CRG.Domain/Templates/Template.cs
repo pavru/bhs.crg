@@ -46,18 +46,40 @@ public class Template : Entity
             Parameters = parameters, Comment = comment, CreatedAt = createdAt, UpdatedAt = updatedAt,
         };
 
-    public Template CreateNewVersion(string content, string? comment = null)
+    /// <summary>
+    /// Новая версия шаблона от этой — действующей или исторической (issue #1920).
+    /// <paramref name="versions"/> — все версии этого шаблона: тот же тип документа и то же
+    /// название, в том числе эта. Шаблон — именно они, а не одна строка: страница шаблонов
+    /// показывает их одной группой.
+    /// <para>
+    /// Номер новой версии — наибольший у шаблона плюс один, а не «номер этой плюс один»: от v2 при
+    /// v4 получалась вторая v3. Действующей остаётся только новая — гасятся все версии, а не одна
+    /// эта: иначе от исторической версии действующих становилось две. «По умолчанию» переходит к
+    /// новой версии, если оно было у любой версии шаблона: оно принадлежит шаблону типа, а не строке.
+    /// </para>
+    /// Содержимое и параметры — этой версии: её и правили.
+    /// </summary>
+    public Template CreateNewVersion(string content, IReadOnlyCollection<Template> versions, string? comment = null)
     {
-        var wasDefault = IsDefault;
-        IsActive = false;
-        IsDefault = false;
-        TouchUpdatedAt();
+        // Шаблон отбирается здесь же, а не проверяется отказом: чужая строка в списке не должна
+        // погасить соседний шаблон, а эта версия входит в свой шаблон, даже если её не передали.
+        versions = versions.Where(v => v.Id != Id && v.DocumentTypeId == DocumentTypeId && v.Name == Name)
+            .Append(this).ToList();
+        var wasDefault = versions.Any(v => v.IsDefault);
+        var next = versions.Max(v => v.Version) + 1;
+        foreach (var v in versions)
+        {
+            if (!v.IsActive && !v.IsDefault) continue;
+            v.IsActive = false;
+            v.IsDefault = false;
+            v.TouchUpdatedAt();
+        }
         return new Template
         {
             DocumentTypeId = DocumentTypeId,
             Name = Name,
             Content = content,
-            Version = Version + 1,
+            Version = next,
             IsActive = true,
             IsDefault = wasDefault,
             Parameters = Parameters,
