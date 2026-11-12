@@ -151,6 +151,28 @@ await check('account-menu-shows-the-version-label', async () => {
     throw new Error(`в меню профиля нет строки версии: «${text.trim()}»`);
 });
 
+// ── Палитра ищет в правах роли (shell-05, [UI-30]) ────────────────────────────
+//
+// У «Инженера ИД» нет права на счета: группы «Счета» нет ни в ответе сервера, ни чипом в палитре, а
+// стройки находятся. Отказом это не бывает — сервер отвечает 200 без группы, и счётчик отказов ниже молчит.
+await check('palette-search-has-no-invoices-without-the-right', async () => {
+  screen = 'палитра: поиск записей';
+  await page.goto(`${BASE}/document-sets`);
+  await settled(page);
+  await page.keyboard.press('Control+k');
+  const input = page.locator('input[aria-label="Поиск и действия"]');
+  await input.waitFor({ state: 'visible', timeout: 3000 });
+  const answer = page.waitForResponse(r => new URL(r.url()).pathname === '/api/search', { timeout: 10_000 });
+  await input.fill('Демо');
+  const body = await (await answer).json();
+  const codes = (body.groups ?? []).map(g => g.code);
+  const chips = await page.getByRole('group', { name: 'Где искать' }).innerText();
+  await page.keyboard.press('Escape');
+  if (codes.includes('invoices')) throw new Error(`группа счетов пришла роли без права: ${codes.join(', ')}`);
+  if (!codes.includes('constructions')) throw new Error(`стройки не искались: ${codes.join(', ') || 'групп нет'}`);
+  if (/Счета/.test(chips)) throw new Error(`чип «Счета» виден роли без права: «${chips.replace(/\s+/g, ' ')}»`);
+});
+
 // ── Основной экран роли: редактор документа ───────────────────────────────────
 //
 // Самый плотный по запросам экран: типы, схема, реквизиты, наборы данных, документы качества,

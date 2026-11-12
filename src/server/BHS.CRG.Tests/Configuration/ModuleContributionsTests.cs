@@ -97,6 +97,49 @@ public class ModuleContributionsTests
             Reader, TimeSpan.FromSeconds(5), (q, _, ct) => q.AskAsync(ct), gone.Token));
     }
 
+    // Предел вышел — токен поставщика отменён, а не дожит до естественного конца: иначе слушающий токен
+    // запрос EF держал бы область и соединение пула (ревью #1913: WaitAsync может опередить CancelAfter).
+    [Fact]
+    public async Task По_пределу_токен_поставщика_отменяется()
+    {
+        var heard = new TaskCompletionSource();
+        var answer = await Contributions().AskAsync<Guid>("listening", "проба", Short, async (_, token) =>
+        {
+            // Отмену отмечает сам поставщик, а не token.Register: обработчики зовутся в обратном порядке, и
+            // первым шёл бы Task.Delay — его продолжение, исполнившись на том же потоке, снимало бы
+            // регистрацию `heard` раньше её вызова (тест мигал на CI).
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            catch (OperationCanceledException)
+            {
+                heard.TrySetResult();
+                throw;
+            }
+            return Guid.Empty;
+        }, CancellationToken.None);
+
+        Assert.Contains("нет ответа", answer.Refused);
+        await heard.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    // Обработчики отмены — поставщика (Npgsql шлёт по ним CancelRequest по сети): отказ по пределу их не
+    // ждёт, иначе «нет ответа за 3 с» приходил бы позже трёх секунд (ревью #1915).
+    [Fact]
+    public async Task Отказ_по_пределу_не_ждёт_обработчиков_отмены()
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var answer = await Contributions().AskAsync<Guid>("slow-cancel", "проба", Short, (_, token) =>
+        {
+            token.Register(() => Thread.Sleep(TimeSpan.FromSeconds(3)));
+            return new TaskCompletionSource<Guid>().Task;
+        }, CancellationToken.None);
+
+        Assert.Contains("нет ответа", answer.Refused);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"ответ ждал {watch.Elapsed}");
+    }
+
     // Своя отмена поставщика в пределе (HTTP-клиент плагина сдался через 100 мс) — его ошибка, а не наш
     // таймаут: человеку «ошибка сервера», причина — в журнал.
     [Fact]

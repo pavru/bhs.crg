@@ -19,7 +19,7 @@ const info = vi.fn();
 vi.mock('./Snackbar', () => ({ useSnackbar: () => ({ info }) }));
 
 /** Экран, принимающий «Новый счёт» из палитры (issue #1433). */
-function Screen({ run, busy }: { run: () => void; busy?: boolean }) {
+function Screen({ run, busy }: { run: (record: string | null) => void; busy?: boolean }) {
   usePaletteIntent(PALETTE_ACTIONS.invoiceNew, run, { busy });
   const { pathname, search } = useLocation();
   return <output aria-label="адрес">{pathname + search}</output>;
@@ -45,6 +45,27 @@ describe('экран принимает действие палитры', () => 
     const { run } = shown('/invoices?do=invoice-new&q=x');
     expect(run).toHaveBeenCalledTimes(1);
     expect(address()).toBe('/invoices?q=x');
+  });
+
+  // [UI-32]: «Новая накладная на стройку „…“» — запись приходит адресом и снимается вместе с действием.
+  it('действие с записью отдаёт экрану запись из адреса и снимает её', () => {
+    access = { permissions: ['costs.waybill.edit'], modules: [] };
+    const run = vi.fn();
+    function Waybills() {
+      usePaletteIntent(PALETTE_ACTIONS.waybillNew, run);
+      const { pathname, search } = useLocation();
+      return <output aria-label="адрес">{pathname + search}</output>;
+    }
+    render(<StrictMode><MemoryRouter initialEntries={['/waybills?do=waybill-new&record=c-1&q=x']}><Waybills /></MemoryRouter></StrictMode>);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith('c-1');
+    expect(address()).toBe('/waybills?q=x');
+  });
+
+  it('действие без записи — экрану null, запись чужого действия не берётся', () => {
+    access = { permissions: ['costs.invoice.edit'], modules: [] };
+    const { run } = shown('/invoices?do=invoice-new&record=c-1');
+    expect(run).toHaveBeenCalledWith(null);
   });
 
   it('чужое действие не трогает', () => {

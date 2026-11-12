@@ -107,17 +107,18 @@ export function WaybillsPage() {
   // показан приглушённым, а пустые состояния и свидетельство молчат, пока не пришёл настоящий.
   const settled = !waybills.isPending && !waybills.isError && !stale;
 
-  async function createDraft() {
+  async function createDraft(constructionId: string | null) {
     try {
       // Пустой черновик: накладную заводят, чтобы вписать её с бумаги, и требовать реквизиты до
-      // первой строки — это требовать заполнить форму, которой ещё нет.
-      const created = await create.mutateAsync({});
+      // первой строки — это требовать заполнить форму, которой ещё нет. Стройка — когда её назвала
+      // палитра («Новая накладная на стройку „…“», [UI-32]).
+      const created = await create.mutateAsync(constructionId ? { construction: constructionId } : {});
       open(created.id);
     } catch (e) { toast.apiError(e, 'Накладная не заведена'); }
   }
   // Сначала вопрос о правках, потом новая накладная: иначе черновик завёлся бы и при «Отмене».
-  const addDraft = () => {
-    guarded(() => void createDraft());
+  const addDraft = (constructionId: string | null = null) => {
+    guarded(() => void createDraft(constructionId));
   };
   // Та же кнопка из командной палитры (issue #1433).
   usePaletteIntent(PALETTE_ACTIONS.waybillNew, addDraft, { busy: create.isPending });
@@ -133,7 +134,7 @@ export function WaybillsPage() {
           </Button>
           {/* На телефоне — плавающей кнопкой (#1434). */}
           {canEdit && <PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} icon={<Icon icon={Add} size={18} />}
-            loading={create.isPending} onClick={addDraft} />}
+            loading={create.isPending} onClick={() => addDraft()} />}
           {materialsOpen && (
             <IssuedMaterialsDialog sites={sites.data ?? []} sitesFailed={sites.isError}
               onClose={() => setMaterialsOpen(false)} />

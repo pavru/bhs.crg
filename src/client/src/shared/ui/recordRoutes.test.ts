@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATALOG_RECORD, RECORD_ROUTES, openTo, recordLink, recordScreen } from './recordRoutes';
+import { CATALOG_RECORD, DATASET_RECORD, RECORD_ROUTES, hitRoute, openTo, recordHref, recordLink, recordScreen } from './recordRoutes';
 import { workNav, settingsNav } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 
@@ -52,6 +52,37 @@ describe('адрес записи по типу', () => {
     const { to } = link('СчётНаОплату', 'a&b=c#d', reader)!;
     expect(new URL(to, 'http://x').searchParams.get('invoice')).toBe('a&b=c#d');
     expect(new URL(to, 'http://x').hash).toBe('');
+  });
+
+  // Стройку открывает её страница, а не выбор в списке (shell-05): ключ — шаг пути, и он кодируется.
+  it('стройка открывается своей страницей, ключ — закодированным шагом пути', () => {
+    const builder = access(['core.constructions.read']);
+    expect(link('Стройка', ID, builder)).toEqual({ to: `/document-sets/${ID}`, label: 'Открыть стройку' });
+    expect(link('Стройка', 'a/b?c#d', builder)!.to).toBe('/document-sets/a%2Fb%3Fc%23d');
+    expect(link('Стройка', ID, access([]))).toBeNull();
+  });
+
+  // Набор данных — на экране своего уровня (shell-05, решение «А»): адрес из уровня карточки поиска.
+  it('набор данных открывается на панели своего уровня, правом её раздела', () => {
+    const both = access(['core.datasets.read', 'core.constructions.read']);
+    const at = (level: Parameters<typeof hitRoute>[1], who = both) => {
+      const route = hitRoute(DATASET_RECORD, level, who);
+      return route && recordHref(route, 'd/1');
+    };
+    expect(at({ scope: 'System' })).toBe('/datasets?file=d%2F1');
+    expect(at({ scope: 'Construction', scopeId: 'c-1', constructionId: 'c-1' })).toBe('/document-sets/c-1/datasets?file=d%2F1');
+    expect(at({ scope: 'Section', scopeId: 's-1', constructionId: 'c-1' })).toBe('/document-sets/c-1/sections/s-1/datasets?file=d%2F1');
+    expect(at({ scope: 'Set', scopeId: 'k/1', constructionId: 'c-1' })).toBe('/document-sets/c-1/sets/k%2F1/datasets?file=d%2F1');
+    // Уровня нет или он неполон (стройку удалили) — адреса нет, а не адрес в никуда.
+    expect(at(null)).toBeNull();
+    expect(at({ scope: 'Section', scopeId: 's-1' })).toBeNull();
+    // Экран уровня закрыт своим правом: набор стройки — правом строек, системный — правом наборов.
+    expect(at({ scope: 'Section', scopeId: 's-1', constructionId: 'c-1' }, access(['core.datasets.read']))).toBeNull();
+    expect(at({ scope: 'System' }, access(['core.constructions.read']))).toBeNull();
+    // У других типов экран — экран группы.
+    expect(hitRoute(RECORD_ROUTES['Стройка'], null, both)).toBe(RECORD_ROUTES['Стройка']);
+    // Строка таблицы уровня не знает — ссылки на набор из неё нет, а не ссылка на системную страницу.
+    expect(link('НаборДанных', ID, both)).toBeNull();
   });
 
   // Двести ссылок страницы с одним именем в списке ссылок читалки экрана неразличимы.

@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { hasPermission, useAccess } from '@/shared/api/access';
-import { INTENT_PARAM, type PaletteAction } from './paletteActions';
+import { INTENT_PARAM, RECORD_PARAM, type PaletteAction } from './paletteActions';
 import { useSnackbar } from './Snackbar';
 
 /**
@@ -25,8 +25,12 @@ import { useSnackbar } from './Snackbar';
  * чём сказано вслух (ревью PR #1478). Палитра — второй вход в ту же кнопку и не может принимать то,
  * чего не примет кнопка: вторая загрузка поверх первой, второй черновик от двойного Enter. Отложить
  * нельзя: выбор файла позже, без жеста пользователя, браузер не откроет.</p>
+ *
+ * <p>`run` получает запись, с которой исполнить действие (`?record=`, [UI-32]), — у действия с записью
+ * (`withRecord`); без неё — `null`. Параметр снимается вместе с `do`.</p>
  */
-export function usePaletteIntent(action: PaletteAction, run: () => void, { busy = false }: { busy?: boolean } = {}): void {
+export function usePaletteIntent(action: PaletteAction, run: (record: string | null) => void,
+  { busy = false }: { busy?: boolean } = {}): void {
   const [params, setParams] = useSearchParams();
   const { key } = useLocation();
   const { data: access } = useAccess();
@@ -36,10 +40,12 @@ export function usePaletteIntent(action: PaletteAction, run: () => void, { busy 
   const done = useRef<string | null>(null);
   // Принято, но не исполнено: ждёт отрисовки без параметра.
   const pending = useRef(false);
+  // Запись из адреса — запоминается при приёме: к исполнению параметра в адресе уже нет.
+  const record = useRef<string | null>(null);
   const toast = useSnackbar();
   const execute = useEffectEvent(() => {
     if (busy) toast.info(`«${action.label}» не выполнено: экран ещё занят предыдущим. Повторите, когда оно закончится.`);
-    else run();
+    else run(record.current);
   });
 
   useEffect(() => {
@@ -47,9 +53,11 @@ export function usePaletteIntent(action: PaletteAction, run: () => void, { busy 
       if (access === undefined || done.current === key) return;
       done.current = key;
       pending.current = hasPermission(access, action.permission);
+      record.current = action.withRecord ? params.get(RECORD_PARAM) || null : null;
       setParams(prev => {
         const next = new URLSearchParams(prev);
         next.delete(INTENT_PARAM);
+        next.delete(RECORD_PARAM);
         return next;
       }, { replace: true });
       return;
@@ -57,5 +65,5 @@ export function usePaletteIntent(action: PaletteAction, run: () => void, { busy 
     if (!pending.current) return;
     pending.current = false;
     execute();
-  }, [asked, access, key, action.permission, setParams]);
+  }, [asked, access, key, action.permission, action.withRecord, params, setParams]);
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { AccessInfo } from '@/shared/api/access';
 import { clientSources } from '@/shared/testing/clientSources';
-import { PALETTE_ACTIONS, availableActions, intentHref, primaryActionAt, type PaletteAction } from './paletteActions';
+import { PALETTE_ACTIONS, availableActions, intentHref, primaryActionAt, recordActions, type PaletteAction } from './paletteActions';
 
 /** Файл компонента по его импорту в `from` (`@/…` или `./…`). */
 function importOf(name: string, from: string): string | null {
@@ -21,6 +21,18 @@ function screenFiles(to: string): string[] {
   const index = clientSources[file].match(/<Route index element=\{<(\w+)/)?.[1];
   const inner = index ? importOf(index, file) : null;
   return inner ? [file, inner] : [file];
+}
+
+/**
+ * Экран принимает запись действия ([UI-32]): исполнитель, отданный `usePaletteIntent`, берёт параметр —
+ * стрелкой с параметром прямо в вызове или функцией, объявленной с параметром. Исполнитель без параметра
+ * запись молча потерял бы: накладная завелась бы, но без стройки.
+ */
+function takesRecord(source: string, name: string): boolean {
+  const call = source.match(new RegExp(String.raw`usePaletteIntent\(PALETTE_ACTIONS\.${name},\s*(\(\s*\w+[^)]*\)\s*=>|\w+\s*=>|\w+)`))?.[1];
+  if (!call) return false;
+  if (call.includes('=>')) return true;
+  return new RegExp(String.raw`(?:const|let)\s+${call}\s*=\s*(?:async\s*)?\(\s*\w+|function\s+${call}\s*\(\s*\w+`).test(source);
 }
 
 function access(permissions: string[], modules: string[] = []): AccessInfo {
@@ -52,6 +64,33 @@ describe('действия палитры', () => {
 
   it('действие ведёт на свой экран с параметром', () => {
     expect(intentHref(PALETTE_ACTIONS.waybillNew)).toBe('/waybills?do=waybill-new');
+    expect(intentHref(PALETTE_ACTIONS.waybillNew, 'c-1')).toBe('/waybills?do=waybill-new&record=c-1');
+  });
+
+  it('действие с записью — только с правом его кнопки', () => {
+    const waybills = ['costs.waybill.read', 'costs.waybill.edit'];
+    expect(recordActions(access(waybills, ['costs']), 'Стройка').map(a => a.withRecord!.label('Щитовая')))
+      .toEqual(['Новая накладная на стройку «Щитовая»']);
+    expect(recordActions(access(['costs.waybill.read'], ['costs']), 'Стройка')).toEqual([]);
+    expect(recordActions(access(waybills, ['costs']), 'СчётНаОплату')).toEqual([]);
+  });
+
+  it('приём записи узнаётся по исполнителю — сторож ниже не слеп', () => {
+    const screen = (run: string, decl = '') => `${decl}\nusePaletteIntent(PALETTE_ACTIONS.waybillNew, ${run}, { busy });`;
+    expect(takesRecord(screen('addDraft', 'const addDraft = (constructionId: string | null = null) => {'), 'waybillNew')).toBe(true);
+    expect(takesRecord(screen('add', 'function add(record: string | null) {'), 'waybillNew')).toBe(true);
+    expect(takesRecord(screen('record => add(record)'), 'waybillNew')).toBe(true);
+    expect(takesRecord(screen('addDraft', 'const addDraft = () => {'), 'waybillNew')).toBe(false);
+    expect(takesRecord(screen('() => add()'), 'waybillNew')).toBe(false);
+    expect(takesRecord(screen('addDraft'), 'invoiceNew')).toBe(false);
+  });
+
+  it('действие с записью принимает запись на своём экране', () => {
+    const deaf = Object.entries(PALETTE_ACTIONS)
+      .filter(([, action]) => 'withRecord' in action)
+      .filter(([name, action]) => !screenFiles(action.to).some(file => takesRecord(clientSources[file] ?? '', name)))
+      .map(([name, action]) => `${name} → ${action.to}`);
+    expect(deaf).toEqual([]);
   });
 
   /**
