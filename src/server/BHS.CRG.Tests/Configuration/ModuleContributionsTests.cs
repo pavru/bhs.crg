@@ -105,8 +105,18 @@ public class ModuleContributionsTests
         var heard = new TaskCompletionSource();
         var answer = await Contributions().AskAsync<Guid>("listening", "проба", Short, async (_, token) =>
         {
-            await using var registration = token.Register(heard.SetResult);
-            await Task.Delay(Timeout.Infinite, token);
+            // Отмену отмечает сам поставщик, а не token.Register: обработчики зовутся в обратном порядке, и
+            // первым шёл бы Task.Delay — его продолжение, исполнившись на том же потоке, снимало бы
+            // регистрацию `heard` раньше её вызова (тест мигал на CI).
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            catch (OperationCanceledException)
+            {
+                heard.TrySetResult();
+                throw;
+            }
             return Guid.Empty;
         }, CancellationToken.None);
 
