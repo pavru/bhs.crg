@@ -1,6 +1,6 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Icon } from './Icon';
-import { Apartment, ArrowBack, ArrowForward, DarkMode, KeyboardReturn, Layers, LightMode, Logout, Monitor, ReceiptLong, Search,
+import { ArrowBack, ArrowForward, DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search,
   type IconDef } from './icons';
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { useLocation } from 'react-router';
@@ -52,7 +52,6 @@ interface Cmd {
 type Scope = 'all' | 'action' | 'section' | (string & {});
 
 const ACTIONS = 'Действия';
-const GROUP_ICON: Record<string, IconDef> = { invoices: ReceiptLong, constructions: Apartment, datasets: Layers };
 
 /**
  * Командная палитра (issue #107, Ctrl+K) — один вход в «сделать» и «перейти» (issue #1433).
@@ -329,7 +328,7 @@ function recordCmds(found: FoundGroup[], inside: (item: { module?: string; secti
       if (!at) continue;
       records.push({
         id: `${def.code}:${hit.id}`, label: hit.title, words: '', group, kind: 'record', area: def.code, found: true,
-        icon: GROUP_ICON[def.code] ?? Search, run: () => navigate(recordHref(at, hit.id)), ...hitText(hit),
+        icon: def.icon, run: () => navigate(recordHref(at, hit.id)), ...hitText(hit),
       });
       for (const a of actions) withRecord.push({
         id: `${a.id}:${hit.id}`, label: a.withRecord!.label(hit.title), words: '', group: ACTIONS, kind: 'action',

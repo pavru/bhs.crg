@@ -39,6 +39,7 @@ internal static class EndpointMap
     app.MapFileKindEndpoints();
     app.MapAuthEndpoints();
     app.MapAccountEndpoints();
+    app.MapRecentRecordEndpoints();
     app.MapUserEndpoints();
     app.MapRoleEndpoints();
     app.MapActivityEndpoints();

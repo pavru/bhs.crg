@@ -1,6 +1,7 @@
 import type { AccessInfo } from '@/shared/api/access';
 import type { RecordSearchGroup, RecordSearchHit } from '@/shared/api/recordSearch';
 import { formatMoney } from '@/shared/format/format';
+import { Apartment, Layers, ReceiptLong, type IconDef } from './icons';
 import { recordScreen, type RecordRoute } from './recordRoutes';
 
 /**
@@ -20,13 +21,15 @@ export interface RecordGroupDef {
   recordType: string;
   /** Подвал: «Tab искать только в счетах». */
   within: string;
+  /** Знак записи группы — в палитре и в «Недавних» Главной: что это за запись, а не где она лежит. */
+  icon: IconDef;
 }
 
 /** Порядок — как у групп в палитре: «Действия» → эти → разделы. */
 export const RECORD_GROUPS: readonly RecordGroupDef[] = [
-  { code: 'invoices', label: 'Счета', recordType: 'СчётНаОплату', within: 'счетах' },
-  { code: 'constructions', label: 'Стройки', recordType: 'Стройка', within: 'стройках' },
-  { code: 'datasets', label: 'Наборы данных', recordType: 'НаборДанных', within: 'наборах данных' },
+  { code: 'invoices', label: 'Счета', recordType: 'СчётНаОплату', within: 'счетах', icon: ReceiptLong },
+  { code: 'constructions', label: 'Стройки', recordType: 'Стройка', within: 'стройках', icon: Apartment },
+  { code: 'datasets', label: 'Наборы данных', recordType: 'НаборДанных', within: 'наборах данных', icon: Layers },
 ];
 
 export interface OpenGroup {

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { HomeQueue } from '@/shared/api/homeQueues';
+import type { RecentRecord, RecentRecords } from '@/shared/api/recentRecords';
 import type { NavItem } from '@/shared/ui/navConfig';
 import { workNav } from '@/shared/ui/navConfig';
 import { HomePage } from './HomePage';
@@ -23,13 +24,17 @@ let jobs: { id: string; title: string }[] = [];
 vi.mock('@/shared/api/jobs', () => ({ useActiveJobList: () => jobs }));
 vi.mock('@/features/jobs/JobRow', () => ({ JobRow: ({ job }: { job: { title: string } }) => <div>{job.title}</div> }));
 
+let recent: { data?: RecentRecords; isPending: boolean; isError: boolean } = { data: { items: [], refused: [] }, isPending: false, isError: false };
+vi.mock('@/shared/api/recentRecords', () => ({ useRecentRecords: () => ({ ...recent, refetch }) }));
+
 let permissions: string[] = [];
+let modules: { code: string; title: string; available: boolean }[] = [];
 let accessPending = false;
 vi.mock('@/shared/api/access', async importOriginal => ({
   ...await importOriginal<typeof import('@/shared/api/access')>(),
   useAccess: () => (accessPending
     ? { data: undefined, isPending: true }
-    : { data: { permissions, modules: [] }, isPending: false }),
+    : { data: { permissions, modules }, isPending: false }),
 }));
 vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 vi.mock('@/shared/api/userSettings', () => ({ useUserSettings: () => ({ isPending: false }) }));
@@ -50,7 +55,9 @@ afterEach(() => {
   accessPending = false;
   queues = { data: [], isPending: false, isError: false };
   jobs = [];
+  recent = { data: { items: [], refused: [] }, isPending: false, isError: false };
   permissions = [];
+  modules = [];
   tipsShown = true;
 });
 
@@ -59,16 +66,29 @@ const queue = (id: string, label: string, count: number | null, extra: Partial<H
   count, doubt: null, refused: count === null ? 'проверка ссылок не ответила' : null, ...extra,
 });
 
+const ID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+const invoice = (extra: Partial<RecentRecord> = {}): RecentRecord => ({
+  recordType: 'СчётНаОплату', group: 'invoices', groupTitle: 'Счета', module: 'costs', id: ID,
+  title: '№ 418 · ООО «КабельТорг»', detail: null, place: 'ЖК «Северный»', amount: null, level: null,
+  openedAt: new Date(Date.now() - 12 * 60_000).toISOString(), ...extra,
+});
+const costsReader = () => {
+  permissions = ['costs.invoice.read'];
+  modules = [{ code: 'costs', title: 'Счета и накладные', available: true }];
+};
+
 const shown = () => render(<MemoryRouter><HomePage /></MemoryRouter>);
 
 describe('Главная', () => {
-  it('заголовок и подзаголовок; без очередей и задач — только «Полезно знать», не отказ', () => {
+  it('заголовок и подзаголовок; без очередей и задач — «Недавние» и «Полезно знать», не отказ', () => {
     shown();
     expect(screen.getByRole('heading', { level: 1, name: 'Продолжить работу' })).toBeTruthy();
     expect(screen.getByText('Что ждёт вас и что вы открывали недавно')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Ждут вас' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Выполняется' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Полезно знать' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Недавние' })).toBeTruthy();
+    expect(screen.getByText('Вы пока ничего не открывали')).toBeTruthy();
   });
 
   it('доступ в пути — ни блоков, ни «нет доступа»: меню из одной Главной ещё не ответ', () => {
@@ -175,5 +195,68 @@ describe('«Выполняется» и «Полезно знать»', () => {
     tipsShown = false;
     shown();
     expect(screen.queryByRole('heading', { name: 'Полезно знать' })).toBeNull();
+  });
+
+  describe('Недавние', () => {
+    it('строка — ссылка на запись: название, раздел и стройка, когда', () => {
+      costsReader();
+      recent = { data: { items: [invoice()], refused: [] }, isPending: false, isError: false };
+      shown();
+      const row = screen.getByTestId('home-recent-row');
+      expect(row.getAttribute('href')).toBe(`/invoices?invoice=${ID}`);
+      expect(row.textContent).toContain('№ 418 · ООО «КабельТорг»');
+      expect(row.textContent).toContain('Счета · ЖК «Северный»');
+      expect(row.textContent).toContain('12 мин назад');
+      expect(screen.queryByText('Вы пока ничего не открывали')).toBeNull();
+    });
+
+    it('экран записи закрыт — строки нет, и это сказано, а не «ничего не открывали»', () => {
+      recent = { data: { items: [invoice()], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.queryByTestId('home-recent-row')).toBeNull();
+      expect(screen.getByTestId('home-recent-hidden').textContent).toBe('1 запись не показана: экран для неё вам недоступен.');
+      expect(screen.queryByText('Вы пока ничего не открывали')).toBeNull();
+    });
+
+    it('стройка — своей страницей, набор данных — на экране своего уровня, правом его раздела', () => {
+      // Право строек без права «Наборов данных»: набор стройки открывается, системный — нет.
+      permissions = ['core.constructions.read'];
+      const SITE = '11111111-1111-1111-1111-111111111111';
+      recent = { data: { items: [
+        invoice({ recordType: 'Стройка', group: 'constructions', groupTitle: 'Стройки', module: 'core', id: SITE, title: 'ЖК «Северный»', place: null }),
+        invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', id: 'ds-1', title: 'Кабельный журнал',
+          level: { scope: 'Construction', scopeId: SITE, constructionId: SITE } }),
+        invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', id: 'ds-2', title: 'Системный набор',
+          level: { scope: 'System' } }),
+      ], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.getAllByTestId('home-recent-row').map(r => r.getAttribute('href'))).toEqual([
+        `/document-sets/${SITE}`,
+        `/document-sets/${SITE}/datasets?file=ds-1`,
+      ]);
+      expect(screen.getByTestId('home-recent-hidden').textContent).toBe('Ещё 1 запись не показана: экран для неё вам недоступен.');
+    });
+
+    it('набор данных без уровня — строки нет: экран уровня не выбрать', () => {
+      permissions = ['core.datasets.read', 'core.constructions.read'];
+      recent = { data: { items: [invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', level: null })], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.queryByTestId('home-recent-row')).toBeNull();
+    });
+
+    it('группа не ответила — сказано словами, а не пусто', () => {
+      recent = { data: { items: [], refused: [{ group: 'invoices', title: 'Счета', reason: 'модуль не ответил' }] }, isPending: false, isError: false };
+      shown();
+      expect(screen.getByText('Счета: не показаны — модуль не ответил.')).toBeTruthy();
+      expect(screen.queryByText('Вы пока ничего не открывали')).toBeNull();
+    });
+
+    it('отказ ответа — строка с «Повторить», прежних строк нет', () => {
+      costsReader();
+      recent = { data: { items: [invoice()], refused: [] }, isPending: false, isError: true };
+      shown();
+      expect(screen.getByText('Недавние не обновились.')).toBeTruthy();
+      expect(screen.queryByTestId('home-recent-row')).toBeNull();
+    });
   });
 });

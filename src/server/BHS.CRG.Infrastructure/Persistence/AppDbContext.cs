@@ -51,6 +51,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     /// <summary>Предпочтения пользователя на сервере (ТЗ CORE-25.3): тема, язык и что придёт дальше.</summary>
     public DbSet<BHS.CRG.Domain.Settings.UserSetting> UserSettings => Set<BHS.CRG.Domain.Settings.UserSetting>();
 
+    /// <summary>Недавно открытые записи пользователя (ТЗ CORE-25.3, «Недавние» Главной, shell-08).</summary>
+    public DbSet<BHS.CRG.Domain.Settings.UserRecentRecord> UserRecentRecords => Set<BHS.CRG.Domain.Settings.UserRecentRecord>();
+
     /// <summary>Сохранённые представления таблиц (ТЗ CORE-33, issue #1095): личные и общие.</summary>
     public DbSet<BHS.CRG.Domain.Tables.SavedTableView> SavedTableViews => Set<BHS.CRG.Domain.Tables.SavedTableView>();
 
