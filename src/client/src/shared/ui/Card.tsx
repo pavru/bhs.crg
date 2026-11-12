@@ -24,9 +24,16 @@ import { useGuardedNavClick } from './NavigationGuard';
  * (`draggable`, `onDragStart`…`onDrop`) карточка отдаёт своему корню. `flush` — тело без отступов: строки,
  * которые экран рисует сам до краёв (шапка поля в конструкторе типа с ручкой и сводкой), в `title` не ложатся.
  * Кликабельной всё это не положено: цель накрывает карточку целиком, тянуть и бросать нечего.</p>
+ *
+ * <p>Знак шапки говорит о состоянии так же, как у `Chip` (shell-08): `iconTone` красит его ролью (`error`,
+ * `warning`), `iconLabel` называет его читалке — ошибку от сомнения отличает знак и его имя, а не цвет. У
+ * кликабельной карточки тело — описание цели (`aria-describedby`): иначе читалка назвала бы только заголовок,
+ * а число очереди и её модуль остались бы немыми.</p>
  */
 
 export type CardVariant = 'outlined' | 'filled' | 'elevated';
+
+const TONE = { error: 'text-error', warning: 'text-warning' } as const;
 
 const VARIANT: Record<CardVariant, { bg: string; edge: string; shadow: string; hover: string; dragged: string }> = {
   outlined: { bg: 'bg-surface', edge: 'border-outline-variant', shadow: '', hover: 'hover:shadow-elevation-1', dragged: 'shadow-elevation-3' },
@@ -51,25 +58,35 @@ interface CardStates extends DragEvents {
 
 type NoStates = { [K in keyof CardStates]?: never };
 
-interface CardLook {
+/** Знак шапки: без знака нет ни тона, ни имени — цвет без знака снова стал бы тоном карточки. */
+type CardIcon =
+  | { icon?: undefined; iconTone?: never; iconLabel?: never }
+  | {
+    /** Знак 24 у ведущего края шапки. */
+    icon: IconDef;
+    /** Тон знака — состояние, о котором карточка. Контейнер карточка не красит. */
+    iconTone?: 'error' | 'warning';
+    /** Имя знака для читалки; без него знак — украшение. */
+    iconLabel?: string;
+  };
+
+type CardLook = CardIcon & {
   variant?: CardVariant;
   /** Заголовок шапки; без него и без `icon` шапки нет. */
   title?: ReactNode;
-  /** Знак 24 у ведущего края шапки. */
-  icon?: IconDef;
   className?: string;
   'data-testid'?: string;
   children?: ReactNode;
-}
+};
 
-interface StaticCard extends CardLook, CardStates {
+type StaticCard = CardLook & CardStates & {
   /** У замыкающего края шапки — меню «⋮» карточки (`Menu`). */
   menu?: ReactNode;
   /** Ряд действий под телом, у замыкающего края: text и tonal, filled — одна. */
   actions?: ReactNode;
   to?: never;
   onClick?: never;
-}
+};
 
 type ClickableLook = CardLook & NoStates & {
   /** Имя цели для читалки. */
@@ -87,10 +104,11 @@ export type CardProps = StaticCard | LinkCard | ButtonCard;
 
 export function Card(props: CardProps) {
   // Что осталось после разбора — события перетаскивания (`DragEvents`): корень получает их одним списком.
-  const { variant = 'outlined', title, icon, className = '', 'data-testid': testId, children,
+  const { variant = 'outlined', title, icon, iconTone, iconLabel, className = '', 'data-testid': testId, children,
     dragged, dropTarget, invalid, flush, menu, actions, to, onClick, ...drag } = props;
   const v = VARIANT[variant];
   const titleId = useId();
+  const bodyId = useId();
   const clickable = to !== undefined || onClick !== undefined;
   // Пустое тело (`null`, `false`, условие не сработало) отступа не рисует.
   const hasBody = Children.toArray(children).length > 0;
@@ -107,20 +125,25 @@ export function Card(props: CardProps) {
     <div className={look} data-testid={testId} data-dragging={dragged || undefined} {...drag}>
       {head && (
         <div className="flex items-center gap-3 min-h-14 py-2 pr-2 pl-4">
-          {icon && <Icon icon={icon} size={24} className="shrink-0 text-on-surface-variant" aria-hidden />}
+          {icon && <Icon icon={icon} size={24} className={`shrink-0 ${iconTone ? TONE[iconTone] : 'text-on-surface-variant'}`}
+            {...(iconLabel ? { 'aria-label': iconLabel } : { 'aria-hidden': true })} />}
           <h3 id={titleId} className="flex-1 min-w-0 text-title-medium text-on-surface">{title}</h3>
           {!clickable && menu}
         </div>
       )}
-      {hasBody && <div className={body}>{children}</div>}
+      {hasBody && <div id={bodyId} className={body}>{children}</div>}
       {!clickable && actions && <div className="flex justify-end gap-2 px-4 pb-4">{actions}</div>}
-      {to !== undefined && <CardLink to={to} className={target} labelledBy={titleId} />}
-      {onClick && <button type="button" onClick={onClick} className={target} aria-labelledby={titleId} />}
+      {to !== undefined && <CardLink to={to} className={target} labelledBy={titleId} describedBy={hasBody ? bodyId : undefined} />}
+      {onClick && <button type="button" onClick={onClick} className={target} aria-labelledby={titleId}
+        aria-describedby={hasBody ? bodyId : undefined} />}
     </div>
   );
 }
 
-function CardLink({ to, className, labelledBy }: { to: string; className: string; labelledBy: string }) {
+function CardLink({ to, className, labelledBy, describedBy }: {
+  to: string; className: string; labelledBy: string; describedBy?: string;
+}) {
   const guardedClick = useGuardedNavClick();
-  return <Link to={to} className={className} aria-labelledby={labelledBy} onClick={guardedClick(to)} />;
+  return <Link to={to} className={className} aria-labelledby={labelledBy} aria-describedby={describedBy}
+    onClick={guardedClick(to)} />;
 }

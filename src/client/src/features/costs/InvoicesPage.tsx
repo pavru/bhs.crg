@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { useSuppressSectionPanel } from '@/shared/ui/sectionPanelSuppress';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
+import { useComposedSearchParams } from '@/shared/hooks/useComposedSearchParams';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarClock, Description, LinkIcon, Sell } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -43,6 +44,7 @@ import {
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar } from './InvoiceScanBatchBar';
+import { useQueueFilter } from './useQueueFilter';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
 import { FromFileButton, InvoiceListHeader, InvoiceStepper } from './InvoicePageChrome';
@@ -71,7 +73,8 @@ import {
  * форме, а не приглашением выбрать счёт.</p>
  */
 export function InvoicesPage() {
-  const [params, setParams] = useSearchParams();
+  // Записи адреса подряд складываются (`useComposedSearchParams`): снять отбор и открыть счёт — один обработчик.
+  const [params, setParams] = useComposedSearchParams();
   const selected = params.get(INVOICE_RECORD.param) || null;
   // Узкое место (#1355): счёт, названный адресом, показывается карточкой — и при открытии, и при смене адреса.
   const ld = useListDetailView(selected);
@@ -81,11 +84,7 @@ export function InvoicesPage() {
   const setSelected = (id: string) => {
     ld.showDetail();
     setLed(null);
-    setParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set(INVOICE_RECORD.param, id);
-      return next;
-    }, { replace: true });
+    setParams(next => next.set(INVOICE_RECORD.param, id), { replace: true });
   };
   const guard = useNavigationGuard();
   /**
@@ -114,7 +113,8 @@ export function InvoicesPage() {
   // Отбор списка — ОДНО состояние (ревью PR #1304): чип очереди либо «только счета этой загрузки»
   // (issue #1294). Двух сразу не бывает по устройству, а не по дисциплине вызовов: чип считает
   // сервер, загрузку — вкладка, и их пересечение дало бы пустой список без объяснения.
-  const [filter, setFilter] = useState<InvoiceQueue | 'upload' | null>(null);
+  // Очередь живёт и в адресе (shell-08, ТЗ COST-6.2) — см. `useQueueFilter`.
+  const [filter, setFilter] = useQueueFilter(params, setParams);
   const queue = filter === 'upload' ? null : filter;
   const setQueue: (next: InvoiceQueue | null) => void = setFilter;
   const [measure, workWidth] = useWorkWidth();
@@ -380,11 +380,8 @@ export function InvoicesPage() {
    * <p>Кэш чистится при ЛЮБОМ уходе с такого счёта (ревью PR #1298), а не только по кнопке: щелчок по
    * другой строке или «назад» иначе оставили бы удалённый счёт строкой списка.</p>
    */
-  const closeGone = useCloseGone(selected, gone, id => setParams(prev => {
-    if (prev.get(INVOICE_RECORD.param) !== id) return prev;
-    const next = new URLSearchParams(prev);
-    next.delete(INVOICE_RECORD.param);
-    return next;
+  const closeGone = useCloseGone(selected, gone, id => setParams(next => {
+    if (next.get(INVOICE_RECORD.param) === id) next.delete(INVOICE_RECORD.param);
   }, { replace: true }), id => { forgetCreated(id); forgetInvoice(qc, id); });
   // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
   const kinds = useFileKinds();
@@ -445,11 +442,7 @@ export function InvoicesPage() {
   const position = selected ? positionOf(rows.map(r => r.item.id), selected) : null;
   const filterName = filter === 'upload' ? 'Эта загрузка' : queue ? QUEUE_LABEL[queue] : 'Все';
   const closeInvoice = () => {
-    const go = () => setParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete(INVOICE_RECORD.param);
-      return next;
-    }, { replace: true });
+    const go = () => setParams(next => next.delete(INVOICE_RECORD.param), { replace: true });
     if (!guard?.attempt(go)) go();
   };
   const canEdit = hasPermission(access, 'costs.invoice.edit');

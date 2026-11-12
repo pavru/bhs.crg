@@ -97,7 +97,9 @@
       "export": "HistoryIcon",
       "fill": true
     },
-    "home": {},
+    "home": {
+      "fill": true
+    },
     "image": {
       "export": "ImageIcon"
     },
@@ -114,6 +116,7 @@
     "left_panel_open": {},
     "library_books": {},
     "light_mode": {},
+    "lightbulb": {},
     "link": {
       "export": "LinkIcon"
     },

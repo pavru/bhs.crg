@@ -32,8 +32,8 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
 }) {
   const productName = useProductName();
   const guardedClick = useGuardedNavClick();
-  const work = sections.filter(s => !s.def.unscoped);
-  const system = sections.filter(s => s.def.unscoped);
+  const work = sections.filter(s => !s.def.admin);
+  const system = sections.filter(s => s.def.admin);
 
   // Свой раздел при скрытой подпанели — «покажи страницы раздела», а не переход на его первую
   // страницу: человек, открывший «Накладные», уходил бы на «Счета», хотя просил меню.
@@ -64,7 +64,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
       {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. Название видно под
           логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
-        <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
+        <Link to="/home" onClick={guardedClick('/home')} aria-label={`${productName} — на главную`}
           className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-lg focus-ring">
           <BrandLogo className="w-8 h-8 text-primary" iconSize={24} />
           <span className="w-full px-1 text-label-small text-primary text-center truncate">{productName}</span>
@@ -130,7 +130,7 @@ export function SectionPanel({ def, groups, outside, onHide }: {
           aria-expanded aria-controls={PANEL_ID} icon={LeftPanelClose} />
       </div>
       <PageList groups={groups} />
-      {!def.unscoped && <OutsideNav items={outside} />}
+      {!def.admin && <OutsideNav items={outside} />}
     </nav>
   );
 }

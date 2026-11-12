@@ -17,6 +17,7 @@ import { BugReportProvider } from '@/shared/ui/BugReportProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, RequireAccess } from '@/shared/ui/ProtectedRoute';
 import { EntryRedirect } from '@/shared/ui/EntryRedirect';
+import { HomePage } from '@/features/home/HomePage';
 import { AppShell } from '@/shared/ui/AppShell';
 import { LoginPage } from '@/features/catalog/LoginPage';
 import { DocumentTypesPage } from '@/features/settings/DocumentTypesPage';
@@ -125,6 +126,7 @@ function AppRoutes() {
         <Route element={<AppShell />}>
           {/* Страница входа — по доступу и пространству (plan-02, ТЗ AUTH-16.1), а не «Стройки» всем. */}
           <Route index element={<EntryRedirect />} />
+          <Route path="home" element={<HomePage />} />
           <Route path="document-sets/*" element={<DocumentSetsPage />} />
           {/* Свой профиль — без права: он и есть «своё» (см. корзину личных адресов). */}
           <Route path="profile" element={<ProfilePage />} />

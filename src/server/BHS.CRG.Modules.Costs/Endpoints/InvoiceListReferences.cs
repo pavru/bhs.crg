@@ -103,21 +103,10 @@ public sealed class InvoiceListMarks
     /// <summary>
     /// Числа чипов над списком (<c>GET /api/costs/invoices/queues</c>) — одним опросом на все три.
     /// Отдельным адресом, а не в ответе списка: список отдаётся массивом, и на нём стоят прогоны и посев.
+    /// Считает <see cref="InvoiceQueueCounts" /> — та же служба, что даёт числа карточкам Главной.
     /// </summary>
-    public static async Task<Ok<InvoiceQueuesView>> QueuesAsync(
-        CostsDbContext db, InvoiceReferenceTrouble trouble, InvoiceListRecognition recognition, CancellationToken ct)
-    {
-        var troubles = await trouble.ReadAsync(withArchive: true, ct);
-        var archived = troubles.Archived.ToArray();
-        var keys = db.Database.SqlQuery<Guid>($"SELECT unnest({archived}) AS \"Value\"");
-        return TypedResults.Ok(new InvoiceQueuesView(
-            troubles.With(LostMark.Fixable).Length,
-            archived.Length == 0 ? 0 : await InvoiceReferenceTrouble.InWork(db.Invoices.AsNoTracking())
-                .CountAsync(i => keys.Contains(i.Id), ct),
-            troubles.With(LostMark.Locked).Length + troubles.With(LostMark.Corrected).Length,
-            troubles.Doubt,
-            InvoiceListRecognition.Unrecognized(await recognition.ReadAsync(ct)).Length));
-    }
+    public static async Task<Ok<InvoiceQueuesView>> QueuesAsync(InvoiceQueueCounts counts, CancellationToken ct) =>
+        TypedResults.Ok(await counts.TroublesAsync(ct));
 
     /// <summary>Счета под отбором «удалённые записи»: только те, что можно исправить.</summary>
     public Guid[] Fixable => troubles.With(LostMark.Fixable);

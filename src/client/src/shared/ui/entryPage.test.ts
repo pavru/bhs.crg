@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { Assignment, Build, Home } from './icons';
+import { Assignment, Build } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
-import { HOME_ENTRY_RANK, entryPage, entryRankProblems } from './entryPage';
+import { HOME_ENTRY_RANK, entryPage, entryRankProblems, isHomeItem } from './entryPage';
 import { settingsNav, workNav, type NavItem } from './navConfig';
 import { visibleNav } from './navAccess';
 import { resolveWorkspace, splitNav, type Workspace } from './workspaces';
@@ -27,10 +27,10 @@ const enter = (items: NavItem[], ws: Workspace, a: AccessInfo) =>
 // Пункты модулей — тестовые: настоящие вписывают plan-09 («Сметы») и work-03 («Мои отчёты»).
 const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: Assignment, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
 const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Build, module: 'work', permission: 'work.facts.write', rail: 'plan', entry: 10 };
-// Пункт Главной вписывает shell-08: пункт ядра без права с рангом Главной.
-const home: NavItem = { to: '/home', label: 'Главная', icon: Home, rail: 'constructions', entry: HOME_ENTRY_RANK };
+// Пункт Главной — из меню (shell-08): пункт ядра без права с рангом Главной.
+const home = workNav.find(isHomeItem)!;
 
-const nav = [...workNav, estimates, myReports, ...settingsNav];
+const nav = [...workNav.filter(i => !isHomeItem(i)), estimates, myReports, ...settingsNav];
 const withHome = [home, ...nav];
 
 /** Страница входа (plan-02, ТЗ AUTH-16.1, AUTH-15). */
@@ -50,6 +50,20 @@ describe('страница входа', () => {
   it('видимых пунктов нет — никуда: страница «нет доступа», а не раздел с отказом', () => {
     const nobody = access([]);
     expect(enter(nav, all(nobody), nobody)).toBeNull();
+  });
+
+  it('кроме Главной, ничего не видно — тоже никуда: Главная не работа (AUTH-15)', () => {
+    const nobody = access([]);
+    expect(enter(withHome, all(nobody), nobody)).toBeNull();
+    // Одно право ядра — уже работа, и вход ведёт на Главную.
+    const reader = access(['core.catalog.read']);
+    expect(enter(withHome, all(reader), reader)).toBe('/home');
+  });
+
+  it('Главная — первый пункт меню, в разделе «Главная», ранга Главной', () => {
+    expect(workNav[0]).toMatchObject({ to: '/home', rail: 'home', entry: HOME_ENTRY_RANK });
+    expect(workNav[0].permission).toBeUndefined();
+    expect(workNav[0].module).toBeUndefined();
   });
 
   it('пункт входа вне пространства — страница входа этого пространства, без смены пространства', () => {
@@ -135,7 +149,7 @@ describe('ранги входа в меню', () => {
   });
 
   it('пункт ядра с рангом ниже Главной — ошибка с его названием', () => {
-    const early: NavItem = { ...workNav[0], entry: 1 };
+    const early: NavItem = { ...workNav.find(i => i.to === '/document-sets')!, entry: 1 };
     expect(entryRankProblems([early, myReports])).toEqual([
       `«Стройки»: пункт ядра с рангом входа 1 ниже Главной (${HOME_ENTRY_RANK})`,
     ]);

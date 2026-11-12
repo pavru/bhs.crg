@@ -6,6 +6,8 @@ import { ThemeToggle } from '@/shared/ui/ThemeToggle';
 import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { Card } from '@/shared/ui/Card';
 import { useTheme } from '@/shared/ui/themeContext';
+import { Switch } from '@/shared/ui/Switch';
+import { useHomeTips } from '@/shared/hooks/useHomeTips';
 
 const PREVIEW_DATE = new Date(2025, 11, 31, 14, 5, 0); // 31 дек 2025 14:05
 const PREVIEW_NUMBER = 1234567.89;
@@ -34,8 +36,10 @@ export function AppearanceSection() {
    * Состояние берётся у обеих настроек: молчать об отказе темы, докладывая об успехе языка, значило
    * бы то же самое, только про другую строку.
    */
-  const failed = localeSave === 'error' || themeSave === 'error';
-  const saved = !failed && (localeSave === 'saved' || themeSave === 'saved');
+  // Подсказки Главной (shell-08, ТЗ UI-37): вернуть скрытое «Скрыть» в блоке — здесь, иначе «насовсем».
+  const tips = useHomeTips();
+  const failed = localeSave === 'error' || themeSave === 'error' || tips.save === 'error';
+  const saved = !failed && (localeSave === 'saved' || themeSave === 'saved' || tips.save === 'saved');
 
   return (
     <div className="space-y-4">
@@ -93,6 +97,11 @@ export function AppearanceSection() {
           </div>
         </div>
       </Card>
+
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-body-medium text-on-surface" aria-hidden>Показывать подсказки на Главной</span>
+        <Switch checked={tips.shown} onChange={tips.setShown} label="Показывать подсказки на Главной" />
+      </div>
 
       {saved && <p className="text-body-medium text-success">Сохранено</p>}
       {failed && (

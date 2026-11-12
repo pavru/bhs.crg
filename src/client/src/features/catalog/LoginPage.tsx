@@ -157,7 +157,9 @@ function SignInForm() {
     setLoading(true);
     try {
       await login(email, password, remember);
-      navigate('/document-sets', { replace: true });
+      // На `/`, а не на раздел: страницу входа считает `EntryRedirect` по правам и пространству
+      // ([AUTH-16.1]) — обычно это Главная, а у кого кроме неё ничего нет — «нет доступа» (AUTH-15).
+      navigate('/', { replace: true });
     } catch (e) {
       // Единственный ответ, кроме отказа, — 423: сервер отдаёт его ТОЛЬКО тому, кто ввёл верный
       // пароль к заблокированной учётной записи, поэтому показать причину здесь безопасно.
@@ -244,7 +246,7 @@ function FirstAdminForm() {
       // Заставлять вводить те же данные второй раз — на ровном месте повод усомниться,
       // создалась ли учётная запись вообще.
       await login(email, password, true);
-      navigate('/document-sets', { replace: true });
+      navigate('/', { replace: true });
     } catch {
       setError(autoLoginFailedText());
     } finally {

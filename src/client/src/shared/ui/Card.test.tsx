@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { Card } from './Card';
 import { Divider } from './Divider';
+import { Search } from './icons';
 
 /** Карточка и разделитель MD3 ([UI-77], sharedui-md3-13 PR 2б). */
 
@@ -115,6 +116,23 @@ describe('Card', () => {
       <Card title="Смета" onClick={() => {}} invalid />
     </MemoryRouter>);
     expect(screen.getAllByRole('heading')).toHaveLength(3);
+  });
+
+  // shell-08: карточка очереди Главной — знак с тоном и именем, а цель описана телом.
+  it('знак — тон ролью и имя для читалки; цель кликабельной описана телом', () => {
+    render(<MemoryRouter>
+      <Card title="Удалённые записи" icon={Search} iconTone="error" iconLabel="ошибка" to="/invoices?queue=lost">
+        <span>3</span><span>Счета</span>
+      </Card>
+      <Card title="Без знака" to="/x">тело</Card>
+    </MemoryRouter>);
+    const mark = screen.getByLabelText('ошибка');
+    expect(mark.getAttribute('class')).toContain('text-error');
+    const link = screen.getByRole('link', { name: 'Удалённые записи' });
+    expect(link.getAttribute('aria-describedby')).toBeTruthy();
+    expect(document.getElementById(link.getAttribute('aria-describedby')!)!.textContent).toBe('3Счета');
+    // Без тона знак — on-surface-variant и скрыт от читалки (у второй карточки знака нет вовсе).
+    expect(screen.getByRole('link', { name: 'Без знака' }).getAttribute('aria-describedby')).toBeTruthy();
   });
 
   it('пустое тело — null, false, несработавшее условие — отступа не рисует', () => {

@@ -19,10 +19,10 @@ export function phoneChrome({ wide, panelSection, panelGroups, outside, sections
 }): { sectionMenu: SectionMenuValue | null; admin: RailSection | undefined; bottomNav: RailSection[] } {
   if (wide) return { sectionMenu: null, admin: undefined, bottomNav: [] };
   return {
-    bottomNav: sections.filter(s => !s.def.unscoped),
+    bottomNav: sections.filter(s => !s.def.admin),
     sectionMenu: panelSection
-      ? { def: panelSection, groups: panelGroups, outside: panelSection.unscoped ? [] : outside }
+      ? { def: panelSection, groups: panelGroups, outside: panelSection.admin ? [] : outside }
       : null,
-    admin: sections.find(s => s.def.unscoped),
+    admin: sections.find(s => s.def.admin),
   };
 }
