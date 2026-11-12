@@ -1,30 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
+import type { RecordSearchHit } from './recordSearch';
 
-/** Где лежит запись, экран которой свой на каждом уровне (набор данных) — как у поиска палитры. */
-export interface RecentLevel {
-  scope: string;
-  scopeId: string | null;
-  constructionId: string | null;
-}
-
-/** Недавняя запись (shell-08, ТЗ UI-35) — как её отдаёт `GET /api/account/recent`. */
-export interface RecentRecord {
+/**
+ * Недавняя запись (shell-08, ТЗ UI-35) — как её отдаёт `GET /api/account/recent`: карточка владельца типа,
+ * та же, что у найденной записи палитры (`RecordSearchHit`), плюс её группа и когда открыта.
+ */
+export type RecentRecord = RecordSearchHit & {
   /** Код типа записи — ключ `RECORD_ROUTES`. */
   recordType: string;
   /** Группа поиска и её название — раздел записи: «Счета», «Стройки». */
   group: string;
   groupTitle: string;
   module: string;
-  id: string;
-  title: string;
-  detail: string | null;
-  /** Стройка записи, если владелец её называет. */
-  place: string | null;
-  amount: number | null;
-  level: RecentLevel | null;
   openedAt: string;
-}
+};
 
 /** Группа, которая не ответила: её записей в списке нет, и это сказано. */
 export interface RecentRefusal {

@@ -1,4 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BHS.CRG.Api.Search;
 using BHS.CRG.Infrastructure.Persistence;
@@ -114,10 +113,7 @@ public static class RecentRecordEndpoints
             [.. answers.Where(a => a.Refused is not null).Select(a => new RecentRefusal(a.Code, a.Title, a.Refused!))]);
     }
 
-    /// <summary>Вошедший — из токена, и он есть в базе: удалённая учётная запись отвечает 401, а не 500 ключа.</summary>
+    /// <summary>Вошедший — тем же разбором, что у остальных адресов <c>/api/account</c>.</summary>
     private static async Task<Guid?> CurrentAsync(UserManager<ApplicationUser> users, ClaimsPrincipal p) =>
-        Guid.TryParse(p.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? p.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
-        && await users.FindByIdAsync(id.ToString()) is not null
-            ? id
-            : null;
+        (await AccountEndpoints.FindCurrent(users, p))?.Id;
 }

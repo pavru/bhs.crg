@@ -271,7 +271,9 @@ public static class AccountEndpoints
         Guid.TryParse(p.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? p.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
             ? id : null;
 
-    private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p) =>
+    /// <summary>Вошедший — из токена, и он есть в базе. Одно место для всех личных адресов <c>/api/account</c>
+    /// (в том числе «Недавних»): удалённая учётная запись отвечает 401 везде одинаково.</summary>
+    internal static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p) =>
         CurrentUserId(p) is { } id ? await users.FindByIdAsync(id.ToString()) : null;
 
     /// <summary>

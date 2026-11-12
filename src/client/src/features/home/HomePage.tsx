@@ -22,6 +22,7 @@ import { NOT_COUNTED, queueCountText } from '@/shared/ui/queueCount';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { JobRow } from '@/features/jobs/JobRow';
 import { recentTarget } from './recentLink';
+import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 
 /**
  * Главная «Продолжить работу» (shell-08, ТЗ UI-33…UI-37; макет «B · Главная», сверка — «годен с правками»):
@@ -145,6 +146,9 @@ function Recent() {
     return target ? [{ item, target }] : [];
   });
   const refused = isError ? [] : data?.refused ?? [];
+  // Записи, которые сервер отдал, а экрана для них здесь нет (тип без экрана, раздел закрыт): пустота
+  // отрисовки — не «ничего не открывали», и это сказано.
+  const hidden = isError ? 0 : (data?.items.length ?? 0) - rows.length;
   return (
     <section aria-labelledby="home-recent">
       <BlockTitle id="home-recent">Недавние</BlockTitle>
@@ -162,7 +166,7 @@ function Recent() {
           <span>{`${r.title}: не показаны — ${r.reason}.`}</span>
         </p>
       ))}
-      {!isPending && !isError && rows.length === 0 && refused.length === 0 && (
+      {!isPending && !isError && rows.length === 0 && refused.length === 0 && hidden === 0 && (
         <p className="text-body-medium text-on-surface-variant">Вы пока ничего не открывали</p>
       )}
       {rows.length > 0 && (
@@ -173,6 +177,11 @@ function Recent() {
               trailing={formatAgo(item.openedAt)} data-testid="home-recent-row" />
           ))}
         </Card>
+      )}
+      {hidden > 0 && (
+        <p className="text-body-medium text-on-surface-variant mt-2" data-testid="home-recent-hidden">
+          {`${rows.length > 0 ? 'Ещё ' : ''}${ruCount(hidden, 'запись', 'записи', 'записей')} не ${ruPlural(hidden, 'показана: экран для неё', 'показаны: экран для них', 'показаны: экран для них')} вам недоступен.`}
+        </p>
       )}
     </section>
   );

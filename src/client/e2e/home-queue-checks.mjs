@@ -11,6 +11,9 @@ export async function homeQueueChecks(page, check, { BASE, browser }) {
   await check('Недавние: открытый счёт первым на другом устройстве', async () => {
     const opened = new URL(page.url()).searchParams.get('invoice');
     if (!opened) throw new Error(`черновик не открыт на экране: ${page.url()}`);
+    // Отметка «открыто» уходит без ожидания ответа: пока её POST в полёте, другое устройство прочло бы прежний
+    // список — проверка мигала бы под нагрузкой. Затихшая страница — отметка записана.
+    await settled(page);
     // Другое устройство — своё окно браузера со своим хранилищем; вход тот же (токен переносится), иначе
     // лишний вход занял бы место в счёте входов прогона (`suites.test.mjs`).
     const token = await page.evaluate(() => localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token'));

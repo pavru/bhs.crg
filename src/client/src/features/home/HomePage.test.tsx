@@ -210,8 +210,36 @@ describe('«Выполняется» и «Полезно знать»', () => {
       expect(screen.queryByText('Вы пока ничего не открывали')).toBeNull();
     });
 
-    it('экран записи закрыт — строки нет: ссылка вела бы в отказ', () => {
+    it('экран записи закрыт — строки нет, и это сказано, а не «ничего не открывали»', () => {
       recent = { data: { items: [invoice()], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.queryByTestId('home-recent-row')).toBeNull();
+      expect(screen.getByTestId('home-recent-hidden').textContent).toBe('1 запись не показана: экран для неё вам недоступен.');
+      expect(screen.queryByText('Вы пока ничего не открывали')).toBeNull();
+    });
+
+    it('стройка — своей страницей, набор данных — на экране своего уровня, правом его раздела', () => {
+      // Право строек без права «Наборов данных»: набор стройки открывается, системный — нет.
+      permissions = ['core.constructions.read'];
+      const SITE = '11111111-1111-1111-1111-111111111111';
+      recent = { data: { items: [
+        invoice({ recordType: 'Стройка', group: 'constructions', groupTitle: 'Стройки', module: 'core', id: SITE, title: 'ЖК «Северный»', place: null }),
+        invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', id: 'ds-1', title: 'Кабельный журнал',
+          level: { scope: 'Construction', scopeId: SITE, constructionId: SITE } }),
+        invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', id: 'ds-2', title: 'Системный набор',
+          level: { scope: 'System' } }),
+      ], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.getAllByTestId('home-recent-row').map(r => r.getAttribute('href'))).toEqual([
+        `/document-sets/${SITE}`,
+        `/document-sets/${SITE}/datasets?file=ds-1`,
+      ]);
+      expect(screen.getByTestId('home-recent-hidden').textContent).toBe('Ещё 1 запись не показана: экран для неё вам недоступен.');
+    });
+
+    it('набор данных без уровня — строки нет: экран уровня не выбрать', () => {
+      permissions = ['core.datasets.read', 'core.constructions.read'];
+      recent = { data: { items: [invoice({ recordType: 'НаборДанных', group: 'datasets', groupTitle: 'Наборы данных', module: 'core', level: null })], refused: [] }, isPending: false, isError: false };
       shown();
       expect(screen.queryByTestId('home-recent-row')).toBeNull();
     });
