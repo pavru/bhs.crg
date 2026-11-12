@@ -30,40 +30,40 @@
 
 ## 2. PR 2: клиент — группы и чипы
 
-- [ ] 2.1 `shared/api/recordSearch.ts`: запрос от двух знаков, задержка ввода, ключ «запрос + область»,
+- [x] 2.1 `shared/api/recordSearch.ts`: запрос от двух знаков, задержка ввода, ключ — запрос (группы отбирает палитра),
   ответ на устаревший запрос отброшен [UI-30]. Проверка — vitest
-- [ ] 2.2 Группы «Счета», «Стройки», «Наборы данных» в `CommandPalette.tsx` между действиями и
+- [x] 2.2 Группы «Счета», «Стройки», «Наборы данных» в `CommandPalette.tsx` между действиями и
   разделами: подсветка `highlight`, место записи, «вне пространства» (`inside()`), отказ словами
   [UI-30]. Проверка — `CommandPalette.test.tsx`: группа без права не показана; отказ — не «Ничего не
   найдено»
-- [ ] 2.3 Переход к записи: `RECORD_ROUTES` для стройки и набора данных; экрану наборов данных — параметр
+- [x] 2.3 Переход к записи: `RECORD_ROUTES` для стройки и набора данных; экрану наборов данных — параметр
   записи в адресе [UI-30]. Проверка — `recordRoutes.test.ts`; ссылка открывает набор
-- [ ] 2.4 Чипы области по правам и Tab — группа раздела, где человек; повторный Tab — «Везде»; строка
+- [x] 2.4 Чипы области по правам и Tab — группа раздела, где человек; повторный Tab — «Везде»; строка
   подвала «Tab искать только в …» только там, где группа есть [UI-31]. Проверка — vitest: Tab на
   `/invoices` выбирает «Счета», на «Сверке» ничего не меняет
 
 ## 3. PR 2: действие с найденным
 
-- [ ] 3.1 `PaletteAction.withRecord` и адрес `?do=…&record=<id>`; `usePaletteIntent` отдаёт `record`
+- [x] 3.1 `PaletteAction.withRecord` и адрес `?do=…&record=<id>`; `usePaletteIntent` отдаёт `record`
   экрану [UI-32]. Проверка — `usePaletteIntent.test.tsx`
-- [ ] 3.2 Перепись `paletteActions.test.ts`: действие с записью принимает экран, который понимает `record`
+- [x] 3.2 Перепись `paletteActions.test.ts`: действие с записью принимает экран, который понимает `record`
   [UI-32]. Проверка — тест красный на действии без приёма
-- [ ] 3.3 По ответу В-2 (рекомендация — «Новая накладная на стройку „…“»): экран накладных заводит
+- [x] 3.3 По ответу В-2 (рекомендация — «Новая накладная на стройку „…“»): экран накладных заводит
   черновик своей кнопкой со стройкой из адреса; право кнопки `costs.waybill.edit` [UI-32]. Проверка —
   vitest; без права действия в палитре нет
 
 ## 4. Документы
 
-- [ ] 4.1 `docs/UI.md`, абзац «Палитра»: группы данных, отказ ≠ пусто, Tab, действие с записью;
+- [x] 4.1 `docs/UI.md`, абзац «Палитра»: группы данных, отказ ≠ пусто, Tab, действие с записью;
   `docs/USER_GUIDE.md` — поиск из палитры (оглавление — `cd docs/tools && npm run toc`). Проверка — ревью
   PR; проверка «Frontend» (сверка оглавления, #1374) зелёная
 
 ## 5. Верификация
 
 - [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecordSearch|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ArchiveReadInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 5.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них Ctrl K → номер счёта → Enter
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них Ctrl K → номер счёта → Enter
   открывает счёт, и под ролью без счетов группы «Счета» нет
-- [ ] 5.6 Оба PR — с меткой `version:minor`; PR 2 — «Closes #1433»
+- [x] 5.6 Оба PR — с меткой `version:minor`; PR 2 — «Closes #1433»

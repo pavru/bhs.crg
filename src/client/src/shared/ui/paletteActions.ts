@@ -34,9 +34,17 @@ export interface PaletteAction {
    * прячется. У экрана основное действие одно — сверяет `paletteActions.test.ts`.
    */
   primary?: true;
+  /**
+   * Действие с найденной записью ([UI-32], shell-05): у найденной записи этого типа палитра предлагает
+   * его пунктом в начале «Действий» (М-3) и ведёт адресом с `record=<id>`. Экран обязан принять запись —
+   * сверяет перепись `paletteActions.test.ts`.
+   */
+  withRecord?: { type: string; label: (name: string) => string };
 }
 
 export const INTENT_PARAM = 'do';
+/** Параметр записи, с которой исполнить действие (`withRecord`). */
+export const RECORD_PARAM = 'record';
 
 export const PALETTE_ACTIONS = {
   invoiceNew: {
@@ -51,6 +59,8 @@ export const PALETTE_ACTIONS = {
   waybillNew: {
     id: 'waybill-new', label: 'Новая накладная', words: 'создать завести расходную накладные',
     icon: LocalShipping, to: '/waybills', permission: 'costs.waybill.edit', primary: true,
+    // Накладная пишется на стройку (`Waybill.ConstructionId`) — у найденной стройки (В-2).
+    withRecord: { type: 'Стройка', label: name => `Новая накладная на стройку «${name}»` },
   },
   constructionNew: {
     id: 'construction-new', label: 'Новая стройка', words: 'создать завести объект стройки',
@@ -58,9 +68,11 @@ export const PALETTE_ACTIONS = {
   },
 } as const satisfies Record<string, PaletteAction>;
 
-/** Адрес, по которому экран исполнит действие. */
-export function intentHref(action: PaletteAction): string {
-  return `${action.to}?${INTENT_PARAM}=${action.id}`;
+/** Адрес, по которому экран исполнит действие; `record` — с найденной записью (`withRecord`). */
+export function intentHref(action: PaletteAction, record?: string): string {
+  const params = new URLSearchParams({ [INTENT_PARAM]: action.id });
+  if (record !== undefined) params.set(RECORD_PARAM, record);
+  return `${action.to}?${params}`;
 }
 
 /**
@@ -81,4 +93,9 @@ export function availableActions(access: AccessInfo): PaletteAction[] {
  */
 export function primaryActionAt(pathname: string, access: AccessInfo): PaletteAction | undefined {
   return availableActions(access).find(a => a.primary && a.to === pathname);
+}
+
+/** Доступные действия с записью этого типа ([UI-32]): без права кнопки действия у найденной записи нет. */
+export function recordActions(access: AccessInfo, recordType: string): PaletteAction[] {
+  return availableActions(access).filter(a => a.withRecord?.type === recordType);
 }
