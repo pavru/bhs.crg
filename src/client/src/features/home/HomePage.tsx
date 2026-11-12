@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { useActiveJobList } from '@/shared/api/jobs';
+import { useRecentRecords } from '@/shared/api/recentRecords';
+import { formatAgo } from '@/shared/format/format';
 import { useUserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useHomeQueues, type HomeQueue } from '@/shared/api/homeQueues';
@@ -19,11 +21,13 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { NOT_COUNTED, queueCountText } from '@/shared/ui/queueCount';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { JobRow } from '@/features/jobs/JobRow';
+import { recentTarget } from './recentLink';
 
 /**
  * Главная «Продолжить работу» (shell-08, ТЗ UI-33…UI-37; макет «B · Главная», сверка — «годен с правками»):
- * что ждёт человека, что идёт, что полезно знать. Блоки «Недавние» придут вторым PR, тогда раскладка
- * станет двухколонной; сейчас — одна колонка шириной страницы смет.
+ * что ждёт человека, что он открывал, что идёт, что полезно знать. «Ждут вас» — во всю ширину, под ними две
+ * колонки, как на макете: «Недавние» шире, справа «Выполняется» и «Полезно знать». Уже `lg` — одна колонка в
+ * том же порядке.
  *
  * <p>Главная ничего не считает сама: очереди и их числа отдаёт сервер в правах спрашивающего
  * (`/api/home/queues`), задачи — тот же кэш, что у кнопки активности. Без прав на модули их блоков нет, и
@@ -45,8 +49,13 @@ export function HomePage() {
       <div className="mx-auto max-w-5xl px-6 py-5 space-y-6">
         <PageHeader title="Продолжить работу" subtitle="Что ждёт вас и что вы открывали недавно" />
         <Waiting />
-        <Running />
-        <Tips />
+        <div className="grid gap-6 lg:grid-cols-3 items-start">
+          <div className="lg:col-span-2"><Recent /></div>
+          <div className="space-y-6">
+            <Running />
+            <Tips />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -121,6 +130,52 @@ function cardNumber(q: HomeQueue): { text: string; counted: boolean } | null {
   if (q.count === null) return { text: NOT_COUNTED, counted: false };
   const text = queueCountText(q.count, q.doubt !== null);
   return text === null ? null : { text, counted: true };
+}
+
+/**
+ * «Недавние» ([UI-35]) — что этот человек открывал, новые сверху; список с сервера, тот же на другом
+ * устройстве. Удалённых и закрытых правами в ответе нет; группа, которая не ответила, названа словами, а не
+ * пропала молча. Пусто — словами.
+ */
+function Recent() {
+  const { data, isPending, isError, refetch } = useRecentRecords();
+  const { data: access = NO_ACCESS } = useAccess();
+  const rows = isError ? [] : (data?.items ?? []).flatMap(item => {
+    const target = recentTarget(item, access);
+    return target ? [{ item, target }] : [];
+  });
+  const refused = isError ? [] : data?.refused ?? [];
+  return (
+    <section aria-labelledby="home-recent">
+      <BlockTitle id="home-recent">Недавние</BlockTitle>
+      {isPending && <LinearProgress label="Недавние загружаются" />}
+      {isError && (
+        <p className="flex items-center gap-2 text-body-medium text-on-surface-variant">
+          <Icon icon={Warning} size={20} className="text-error shrink-0" aria-label="ошибка" />
+          <span>{data ? 'Недавние не обновились.' : 'Недавние не загрузились.'}</span>
+          <Button variant="text" onClick={() => void refetch()}>Повторить</Button>
+        </p>
+      )}
+      {refused.map(r => (
+        <p key={r.group} className="flex items-center gap-2 text-body-medium text-on-surface-variant mb-2">
+          <Icon icon={Warning} size={20} className="text-warning shrink-0" aria-label="предупреждение" />
+          <span>{`${r.title}: не показаны — ${r.reason}.`}</span>
+        </p>
+      ))}
+      {!isPending && !isError && rows.length === 0 && refused.length === 0 && (
+        <p className="text-body-medium text-on-surface-variant">Вы пока ничего не открывали</p>
+      )}
+      {rows.length > 0 && (
+        <Card flush>
+          {rows.map(({ item, target }) => (
+            <ListItem key={`${item.recordType}/${item.id}`} to={target.to} icon={target.icon} headline={item.title}
+              supporting={[item.groupTitle, item.place].filter(Boolean).join(' · ')}
+              trailing={formatAgo(item.openedAt)} data-testid="home-recent-row" />
+          ))}
+        </Card>
+      )}
+    </section>
+  );
 }
 
 /** «Выполняется» ([UI-36]) — живые задачи из того же кэша, что у кнопки активности; без задач блока нет. */

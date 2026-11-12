@@ -182,8 +182,8 @@ try {
       .waitFor({ timeout: 10_000 });
   });
 
-  // ── 1а. Главная → «Разобрать» (shell-08) — файлом home-queue-checks.mjs ──────
-  await homeQueueChecks(page, check, { BASE });
+  // ── 1а. Главная: «Недавние» и «Разобрать» (shell-08) — файлом home-queue-checks.mjs
+  await homeQueueChecks(page, check, { BASE, browser });
 
   // ── 2. Метки переживают повторное открытие ──────────────────────────────────
   //

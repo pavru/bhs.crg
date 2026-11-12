@@ -3,7 +3,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
 import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
-import { formatDayTime } from '@/shared/format/format';
+import { formatAgo } from '@/shared/format/format';
 import { Button, IconButton, LinkButton } from '@/shared/ui/Button';
 import { ListGroupHeader } from '@/shared/ui/ListGroupHeader';
 import {
@@ -53,14 +53,6 @@ const SEVERITY: Record<NotificationSeverity, { icon: IconDef; color: string; bg:
   Error:   { icon: ErrorIcon,   color: 'text-on-error-container', bg: 'bg-error-container' },
 };
 
-function relTime(iso: string): string {
-  const d = new Date(iso);
-  const s = (Date.now() - d.getTime()) / 1000;
-  if (s < 60) return 'только что';
-  if (s < 3600) return `${Math.floor(s / 60)} мин назад`;
-  if (s < 86400) return `${Math.floor(s / 3600)} ч назад`;
-  return formatDayTime(d);
-}
 
 function NotificationRow({ n }: { n: NotificationDto }) {
   // Кнопка активности видна над любой страницей — уходит через охрану несохранённых правок (issue #1238).
@@ -104,7 +96,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           {n.source && (
             <span className="inline-flex items-center h-6 px-3 rounded-md border border-outline-variant font-medium">{n.source}</span>
           )}
-          <span>{relTime(n.createdAt)}</span>
+          <span>{formatAgo(n.createdAt)}</span>
         </div>
       </div>
       <div className="shrink-0 self-start flex flex-col items-center">

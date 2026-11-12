@@ -337,6 +337,18 @@ export function formatDayTime(value: DateLike): string {
   return render(value, 'daytime', DAY_TIME);
 }
 
+/**
+ * Когда — для ленты недавнего: «только что», «12 мин назад», «3 ч назад», дальше суток — день и время
+ * (`formatDayTime`). Уведомления и «Недавние» Главной говорят одним языком.
+ */
+export function formatAgo(value: string, now = Date.now()): string {
+  const s = (now - new Date(value).getTime()) / 1000;
+  if (s < 60) return 'только что';
+  if (s < 3600) return `${Math.floor(s / 60)} мин назад`;
+  if (s < 86400) return `${Math.floor(s / 3600)} ч назад`;
+  return formatDayTime(value);
+}
+
 /** Время до минут: «14:32». */
 export function formatTime(value: DateLike): string {
   return render(value, 'time', TIME);
