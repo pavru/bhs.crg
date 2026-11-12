@@ -41,19 +41,30 @@ public class TemplateHandlers(
         // в контексте оказались бы два экземпляра одной строки.
         var versions = await repo.FindAsync(
             t => t.DocumentTypeId == source.DocumentTypeId && t.Name == source.Name, ct);
-        var existing = versions.Single(t => t.Id == cmd.Id);
+        // Версию могли удалить между двумя чтениями — это тоже «не найдена», а не 500.
+        var existing = versions.SingleOrDefault(t => t.Id == cmd.Id)
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
+        // Меняются только версии с признаками — их и пишем: Update у неотслеживаемой строки
+        // переписывает её целиком, вместе с Content каждой исторической версии.
+        var touched = versions.Where(v => v.IsActive || v.IsDefault).ToList();
         var newVersion = existing.CreateNewVersion(cmd.Content, versions, cmd.Comment);
-        foreach (var v in versions) repo.Update(v);
+        foreach (var v in touched) repo.Update(v);
         await repo.AddAsync(newVersion, ct);
         await repo.SaveChangesAsync(ct);
         await DuplicateTemplateAssetsAsync(existing.Id, newVersion.Id, ct);
-        // Если новая версия — дефолтная, эффективный default-active сместился на неё → no-pin
-        // документы этого типа устарели (issue #362). Запиннутые на старую версию не трогаем.
-        var reset = newVersion.IsDefault
+        // Документы без выбранного шаблона устарели (issue #362), если их шаблон сменился:
+        // новая версия стала шаблоном по умолчанию — или его у типа нет, и они берут любой
+        // действующий, а действующие только что сменились (issue #1920: от исторической версии
+        // гасится действующая и не по умолчанию). Запиннутые на старую версию не трогаем: её
+        // содержимое не менялось.
+        var reset = newVersion.IsDefault || !await HasDefaultActiveAsync(newVersion.DocumentTypeId, ct)
             ? await invalidator.OnDefaultChangedAsync(newVersion.DocumentTypeId, ct)
             : 0;
         return new TemplateMutationResult(newVersion, reset);
     }
+
+    private async Task<bool> HasDefaultActiveAsync(Guid documentTypeId, CancellationToken ct)
+        => (await repo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsDefault && t.IsActive, ct)).Count > 0;
 
     // Простое сохранение (issue #360, Ctrl+S): правит содержимое активной версии на месте, без
     // новой версии и без дублирования ассетов (та же версия). Бросает, если версия не активна.

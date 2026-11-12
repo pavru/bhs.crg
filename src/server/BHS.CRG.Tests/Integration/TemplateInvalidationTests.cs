@@ -268,4 +268,42 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Equal(DocumentStatus.Draft, await StatusAsync(noPin));
         Assert.Equal(DocumentStatus.Generated, await StatusAsync(pinnedOld));
     }
+
+    [Fact]
+    public async Task NewVersion_FromHistorical_InTypeWithoutDefault_ResetsNoPinDocs()
+    {
+        // У типа нет шаблона по умолчанию: документы без выбора берут любой действующий. Новая
+        // версия от исторической гасит действующую (issue #1920) — их шаблон сменился, сброс нужен,
+        // хотя новая версия и не «по умолчанию».
+        var dtId = await CreateDocTypeAsync("DT_INV7");
+        var v1 = await CreateTemplateAsync(dtId, "Шаблон");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new UpdateTemplateCommand(v1.Id, "content v2"));
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        using var scope = fixture.Services.CreateScope();
+        var result = await Mediator(scope).Send(new UpdateTemplateCommand(v1.Id, "от v1"));
+
+        Assert.False(result.Template.IsDefault);
+        Assert.Equal(DocumentStatus.Draft, await StatusAsync(noPin));
+    }
+
+    [Fact]
+    public async Task NewVersion_DoesNotResetNoPinDocs_WhenTypeDefaultIsAnotherTemplate()
+    {
+        var dtId = await CreateDocTypeAsync("DT_INV8");
+        var main = await CreateTemplateAsync(dtId, "Основной");
+        var other = await CreateTemplateAsync(dtId, "Сокращённый");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new SetTemplateDefaultCommand(main.Id));
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        using var scope = fixture.Services.CreateScope();
+        await Mediator(scope).Send(new UpdateTemplateCommand(other.Id, "v2"));
+
+        // Документы без выбора печатаются шаблоном по умолчанию — его новая версия соседа не задела.
+        Assert.Equal(DocumentStatus.Generated, await StatusAsync(noPin));
+    }
 }

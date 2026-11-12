@@ -65,3 +65,51 @@ public class TemplateNewVersionTests
         Assert.Throws<ArgumentException>(() => source.CreateNewVersion("x", [source, V(1, true, name: "Другой")]));
     }
 }
+
+/// <summary>
+/// Переход на адресацию Код.Имя переписывает действующие версии новыми (issue #773). У шаблона с
+/// двумя действующими версиями (наследство issue #1920) документы обеих обязаны попасть на версию,
+/// которая осталась действующей, — иначе генерация откажет «ни один шаблон не активен».
+/// </summary>
+public class PrefixedAddressingForkTests
+{
+    private static readonly Guid TypeId = Guid.NewGuid();
+    private static readonly DateTimeOffset At = DateTimeOffset.UtcNow.AddDays(-1);
+
+    private static Template V(int version, bool active, bool isDefault = false, string name = "Шаблон")
+        => Template.Restore(Guid.NewGuid(), TypeId, name, $"v{version}", version, active, isDefault, At, At);
+
+    [Fact]
+    public void TwoActiveVersions_BothRepinnedToTheSurvivingNewVersion()
+    {
+        var v4 = V(4, true, isDefault: true);
+        var dup3 = V(3, true);
+        var all = new[] { V(1, false), V(2, false), V(3, false), v4, dup3 };
+        // Порядок словаря — главная первой: функция обязана сама обработать её последней.
+        var content = new Dictionary<Guid, string> { [v4.Id] = "v4 новое", [dup3.Id] = "dup3 новое" };
+
+        var (created, replacedBy) = BHS.CRG.Application.Generation.MigrateToPrefixedAddressingHandler
+            .ForkVersions(all, content, "переход");
+
+        var survivor = Assert.Single(created, v => v.IsActive);
+        Assert.Equal("v4 новое", survivor.Content); // действующей осталась новая версия главной
+        Assert.True(survivor.IsDefault);
+        Assert.Equal(6, survivor.Version);           // v5 — от дубля, v6 — от главной, без повторов
+        Assert.Equal(survivor.Id, replacedBy[v4.Id]);
+        Assert.Equal(survivor.Id, replacedBy[dup3.Id]);
+        Assert.All(all, v => Assert.False(v.IsActive));
+    }
+
+    [Fact]
+    public void SeparateTemplates_EachKeepsItsOwnNewVersion()
+    {
+        var a = V(2, true, name: "Основной");
+        var b = V(1, true, name: "Сокращённый");
+        var (created, replacedBy) = BHS.CRG.Application.Generation.MigrateToPrefixedAddressingHandler
+            .ForkVersions([a, b], new Dictionary<Guid, string> { [a.Id] = "a", [b.Id] = "b" }, "переход");
+
+        Assert.Equal(2, created.Count(v => v.IsActive));
+        Assert.Equal("a", created.Single(v => v.Id == replacedBy[a.Id]).Content);
+        Assert.Equal("b", created.Single(v => v.Id == replacedBy[b.Id]).Content);
+    }
+}

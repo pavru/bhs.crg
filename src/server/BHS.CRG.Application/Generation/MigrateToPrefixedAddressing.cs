@@ -228,21 +228,11 @@ public class MigrateToPrefixedAddressingHandler(
                 docTypeRepo.Update(t);
             }
 
-        var replacedBy = new Dictionary<Guid, Guid>();
-        var created = new List<Template>();
-        foreach (var (id, content) in newTemplateContent)
-        {
-            var tpl = templates.First(t => t.Id == id);
-            // Версии шаблона — вместе с уже созданными этим проходом (issue #1920): у шаблона с двумя
-            // действующими версиями вторая иначе получила бы тот же номер, что и первая новая.
-            var versions = templates.Concat(created)
-                .Where(t => t.DocumentTypeId == tpl.DocumentTypeId && t.Name == tpl.Name).ToList();
-            var version = tpl.CreateNewVersion(content, versions, "Переход на адресацию Код.Имя (issue #773)");
-            foreach (var v in versions.Where(v => !created.Contains(v))) templateRepo.Update(v);
-            await templateRepo.AddAsync(version, ct);
-            created.Add(version);
-            replacedBy[id] = version.Id;
-        }
+        // Шаблоны прочитаны с отслеживанием (GetAllAsync): признаки, погашенные доменом, контекст
+        // запишет сам, без Update — тот переписал бы каждую версию целиком, вместе с Content.
+        var (created, replacedBy) = ForkVersions(
+            templates, newTemplateContent, "Переход на адресацию Код.Имя (issue #773)");
+        foreach (var version in created) await templateRepo.AddAsync(version, ct);
 
         // Пересаживаем документы на новые версии — вместе с их переопределениями параметров, иначе
         // настройки страницы и подстановки, привязанные к прежнему id, потерялись бы молча.
@@ -352,6 +342,42 @@ public class MigrateToPrefixedAddressingHandler(
 
     /// <summary>Имена, которые короткое имя блока занять не может: диспетч-часть плюс верхнеуровневые
     /// имена библиотеки — она импортируется внутрь тела блока и перекрыла бы одноимённого соседа.</summary>
+    /// <summary>
+    /// Новые версии с переписанным содержимым и карта «прежняя версия → новая» для пересадки
+    /// документов. Чистая функция: в базу не пишет, признаки прежних версий гасит в памяти.
+    /// <para>
+    /// У шаблона с двумя действующими версиями (наследство issue #1920) действующей остаётся одна:
+    /// каждая новая версия гасит все прежние, в том числе созданные этим же проходом. Главную —
+    /// по умолчанию, затем с большим номером — обрабатываем последней, чтобы действующей осталась
+    /// её новая версия, и документы, запиннутые на остальные, ведём туда же. Иначе их пересадили бы
+    /// на погашенную версию, и генерация отказала бы тем самым «ни один шаблон не активен».
+    /// </para>
+    /// </summary>
+    public static (List<Template> Created, Dictionary<Guid, Guid> ReplacedBy) ForkVersions(
+        IReadOnlyList<Template> templates, IReadOnlyDictionary<Guid, string> newContent, string comment)
+    {
+        var created = new List<Template>();
+        var replacedBy = new Dictionary<Guid, Guid>();
+        var order = newContent.Keys.Select(id => templates.First(t => t.Id == id))
+            .OrderBy(t => t.IsDefault).ThenBy(t => t.Version).ThenBy(t => t.UpdatedAt).ThenBy(t => t.Id)
+            .ToList();
+        foreach (var tpl in order)
+        {
+            var versions = templates.Concat(created)
+                .Where(t => t.DocumentTypeId == tpl.DocumentTypeId && t.Name == tpl.Name).ToList();
+            var version = tpl.CreateNewVersion(newContent[tpl.Id], versions, comment);
+            created.Add(version);
+            replacedBy[tpl.Id] = version.Id;
+        }
+        var survivor = created.Where(v => v.IsActive).ToDictionary(v => (v.DocumentTypeId, v.Name), v => v.Id);
+        foreach (var (oldId, newId) in replacedBy.ToList())
+        {
+            var v = created.First(c => c.Id == newId);
+            if (!v.IsActive) replacedBy[oldId] = survivor[(v.DocumentTypeId, v.Name)];
+        }
+        return (created, replacedBy);
+    }
+
     private async Task<IReadOnlyCollection<string>> ReservedNamesAsync(CancellationToken ct)
     {
         var reserved = new HashSet<string>(StringComparer.Ordinal)

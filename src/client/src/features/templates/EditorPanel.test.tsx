@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useEffect, useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { DocumentType, Template } from '@/shared/api/types';
+import type { NewVersionPlan } from './groupTemplates';
 
 /**
  * «Сохранить» в редакторе шаблона — split-кнопка ([UI-83]); «Реквизит» — меню Radix ([UI-51]). Монако и
@@ -14,6 +15,11 @@ vi.mock('@/shared/api/templates', () => ({
   useSaveTemplateContent: () => ({ mutateAsync: saveContent, isPending: false }),
   useCreateTemplateVersion: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetTemplateDefault: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+const invalidateQueries = vi.fn();
+vi.mock('@tanstack/react-query', async (orig) => ({
+  ...(await orig<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries }),
 }));
 const executeEdits = vi.fn();
 vi.mock('@/shared/ui/CodeEditor', () => ({
@@ -39,7 +45,7 @@ vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 
 const { EditorPanel } = await import('./EditorPanel');
 
-afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); });
+afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); });
 
 const template = (isActive: boolean): Template => ({
   id: 't1', documentTypeId: 'd1', name: 'АОСР', content: '= АОСР', parameters: null, comment: null,
@@ -47,8 +53,9 @@ const template = (isActive: boolean): Template => ({
 });
 const docType = { id: 'd1', name: 'АОСР', schema: '{"fields":[]}' } as unknown as DocumentType;
 
-const renderPanel = (isActive: boolean) =>
-  render(<EditorPanel template={template(isActive)} docType={docType} allDocTypes={[docType]} onSaved={vi.fn()} nextVersion={3} />);
+const NO_RETIRE: NewVersionPlan = { next: 3, retires: [], takesDefault: false, pinnedToRetired: 0, noPinDocsMove: true };
+const renderPanel = (isActive: boolean, plan: NewVersionPlan = NO_RETIRE) =>
+  render(<EditorPanel template={template(isActive)} docType={docType} allDocTypes={[docType]} onSaved={vi.fn()} versionPlan={plan} />);
 
 const MENU = 'Ещё варианты сохранения';
 // Пункт меню выполняется, когда Radix вернул фокус на стрелку, а это он делает тиком после закрытия меню.
@@ -107,7 +114,7 @@ describe('EditorPanel: «Реквизит»', () => {
     ] },
   } as unknown as DocumentType;
   const renderWithFields = () => render(
-    <EditorPanel template={template(true)} docType={withFields} allDocTypes={[withFields, objectType]} onSaved={vi.fn()} nextVersion={3} />);
+    <EditorPanel template={template(true)} docType={withFields} allDocTypes={[withFields, objectType]} onSaved={vi.fn()} versionPlan={NO_RETIRE} />);
 
   async function openPicker() {
     const trigger = screen.getByRole('button', { name: /Реквизит/ });
@@ -151,5 +158,29 @@ describe('EditorPanel: «Реквизит»', () => {
       expect(document.activeElement).toBe(trigger);
       expect(screen.queryByRole('tooltip')).toBeNull();
     } finally { spy.mockRestore(); }
+  });
+});
+
+describe('окно новой версии от исторической (issue #1920)', () => {
+  it('называет действующую версию, которая уйдёт в историю, и закреплённые за ней документы', async () => {
+    const v4 = { ...template(true), id: 't4', version: 4 };
+    renderPanel(false, { next: 5, retires: [v4], takesDefault: true, pinnedToRetired: 2, noPinDocsMove: true });
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+
+    expect(screen.getByRole('button', { name: 'Создать v5' })).toBeTruthy();
+    const text = screen.getByText(/уйдёт в историю/).textContent ?? '';
+    expect(text).toContain('Действующая v4');
+    expect(text).toContain('«по умолчанию»');
+    expect(text).toContain('2 документа');
+    expect(text).toContain('без выбранного шаблона перейдут на v5');
+    // План берётся из списка страницы — при открытии окна он перечитывается.
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['templates', 'd1'] });
+  });
+
+  it('у действующей версии — прежний текст', async () => {
+    renderPanel(false);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    expect(screen.getByText(/Текущая версия сохранится в истории/)).toBeTruthy();
   });
 });
