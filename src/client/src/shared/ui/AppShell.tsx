@@ -208,7 +208,7 @@ function PhoneBrand() {
   const productName = useProductName();
   const guardedClick = useGuardedNavClick();
   return (
-    <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
+    <Link to="/home" onClick={guardedClick('/home')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
       className="md:hidden shrink-0 flex items-center justify-center w-12 h-12 rounded-full state-layer focus-ring">
       <BrandLogo className="w-7 h-7 text-primary" iconSize={22} />
     </Link>

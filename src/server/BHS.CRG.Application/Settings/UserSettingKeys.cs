@@ -112,8 +112,16 @@ public static class UserSettingKeys
     /// </summary>
     public static readonly UserSettingKey InvoiceFile = new("invoiceFile", 8, OneOf: ["open", "closed"]);
 
+    /// <summary>
+    /// Блок «Полезно знать» на Главной показан или скрыт (shell-08, ТЗ UI-37): «Скрыть» в блоке пишет
+    /// <c>hidden</c>, переключатель в профиле возвращает <c>shown</c> — без него «насовсем» было бы без
+    /// выхода. Ключа нет — показан. Список закрыт, как у подпанели.
+    /// </summary>
+    public static readonly UserSettingKey HomeTips = new("home.tips", 8, OneOf: ["shown", "hidden"]);
+
     public static readonly IReadOnlyList<UserSettingKey> All =
-        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail, InvoiceFile];
+        [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail, InvoiceFile,
+         HomeTips];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>

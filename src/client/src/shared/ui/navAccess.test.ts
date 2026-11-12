@@ -1,3 +1,4 @@
+import { isHomeItem } from './entryPage';
 import { describe, it, expect } from 'vitest';
 import { visibleNav, allowed, missingFor, permissionsOf } from './navAccess';
 import { Assignment } from './icons';
@@ -37,13 +38,14 @@ describe('навигация по правам', () => {
   // «Сотрудники» (work-01): своё право чтения, право на общие данные пункт не открывает.
   it('пункт «Сотрудники» скрыт без core.employees.read', () => {
     expect(visibleNav(workNav, access(['core.catalog.read'])).map(i => i.label)).not.toContain('Сотрудники');
-    const shown = visibleNav(workNav, access(['core.employees.read']));
+    const shown = visibleNav(workNav, access(['core.employees.read'])).filter(i => !isHomeItem(i));
     expect(shown.map(i => i.label)).toEqual(['Сотрудники']);
     expect(shown[0]).toMatchObject({ to: '/employees', section: 'employees', rail: 'data' });
   });
 
-  it('пустой доступ не показывает ни одного пункта', () => {
-    expect(visibleNav(workNav, access([]))).toHaveLength(0);
+  it('пустой доступ не показывает ни одного пункта, кроме Главной', () => {
+    // Главная открыта каждому вошедшему (shell-08, [UI-33]); работой она не считается (`hasWork`).
+    expect(visibleNav(workNav, access([])).map(i => i.to)).toEqual(['/home']);
     expect(visibleNav(settingsNav, access([]))).toHaveLength(0);
   });
 
@@ -137,7 +139,8 @@ describe('каждый пункт назвал, чем открывается', 
   });
 
   it('в рабочих разделах — у всех есть право или модуль', () => {
-    const nameless = workNav.filter(i => !permissionsOf(i).length && !i.module);
+    // Названное исключение — Главная (shell-08): открыта каждому вошедшему, её адрес под одним входом.
+    const nameless = workNav.filter(i => !permissionsOf(i).length && !i.module && !isHomeItem(i));
     expect(nameless.map(i => i.label)).toEqual([]);
   });
 });

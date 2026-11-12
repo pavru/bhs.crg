@@ -88,6 +88,8 @@ public static class AppModuleExtensions
             // Реализации контрактов названы кодом этого модуля (plan-22, CORE-34) — по той же причине:
             // чьими руками сделана регистрация, видно только здесь.
             Exchange.ModuleContractServices.EnsureOwn(module, services, before);
+            // Очереди Главной и их счётчик — парой (shell-08): тем же приёмом, по регистрациям модуля.
+            Home.HomeQueueCatalog.EnsureProvider(module, services);
         }
 
         // Таблицы — из ВСЕЙ сборки, а не из включённых (G1b, issue #1089): таблица выключенного модуля
@@ -98,6 +100,10 @@ public static class AppModuleExtensions
         // Настройки — тоже из всей сборки и тоже при старте (M1, issue #1070): ключ выключенного
         // модуля обязан узнаваться при восстановлении копии.
         services.AddSingleton(new Settings.ModuleSettingCatalog(available));
+
+        // Очереди Главной — тоже из всей сборки и при старте (shell-08): перечень сверяется с клиентом
+        // целиком, а предлагает очереди включённых модулей адрес Главной.
+        services.AddSingleton(new Home.HomeQueueCatalog(available, corePermissions));
 
         var registry = new ModuleRegistry(enabled, disabled);
         services.AddSingleton(registry);

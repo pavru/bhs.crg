@@ -1,5 +1,5 @@
 import type { AccessInfo } from '@/shared/api/access';
-import { railSections, type NavItem } from './navConfig';
+import { HOME_ENTRY_RANK, railSections, type NavItem } from './navConfig';
 import { availableModules } from './workspaces';
 
 /**
@@ -11,15 +11,11 @@ import { availableModules } from './workspaces';
  * через меню. Названий ролей правило не читает (AUTH-14).</p>
  *
  * <p>Порядок: показанный пункт с наименьшим рангом (`NavItem.entry`), иначе первый показанный, иначе
- * никуда — тогда страница «нет доступа» (AUTH-15), а не раздел, отвечающий отказом.</p>
+ * никуда — тогда страница «нет доступа» (AUTH-15), а не раздел, отвечающий отказом. Главная работой не
+ * считается (`hasWork`): кроме неё ничего не показано — тоже никуда.</p>
  */
 
-/**
- * Ранг Главной («Продолжить работу», `shell-08-home`, решение владельца 22.10.2026, вариант Б).
- * Одна шкала для всех модулей: пункт модуля открывается вместо Главной, только если его ранг меньше.
- * Пока пункта Главной нет, константа в расчёт не входит.
- */
-export const HOME_ENTRY_RANK = 100;
+export { HOME_ENTRY_RANK };
 
 /** Адрес страницы входа: пункт меню с этим адресом не откроется — `/` отвечает перенаправлением. */
 const ENTRY_ADDRESS = '/';
@@ -43,6 +39,16 @@ function soleModuleOf(item: NavItem, access: AccessInfo): boolean {
 const railIndex = (item: NavItem) => railSections.findIndex(r => r.id === item.rail);
 
 /**
+ * Есть ли человеку работа: показан хоть один пункт, кроме Главной (shell-08, ТЗ AUTH-15). Главная
+ * открыта каждому, и без этого правила вход никогда не отвечал бы «никуда» — страница «доступ не
+ * выдан» пропала бы у того, кому не открыто ничего. Тем же правилом Главная решает, говорить ли ей
+ * первым блоком текст этой страницы: одно правило на двоих.
+ */
+export function hasWork(shown: NavItem[]): boolean {
+  return shown.some(item => !isHomeItem(item));
+}
+
+/**
  * Адрес входа: `null` — показанных пунктов нет, показывать страницу AUTH-15.
  *
  * @param shown пункты, которые меню показывает этому человеку в этом пространстве, по порядку меню
@@ -51,6 +57,7 @@ const railIndex = (item: NavItem) => railSections.findIndex(r => r.id === item.r
  *   правило «одного модуля» от её видимости не зависит.
  */
 export function entryPage(shown: NavItem[], access: AccessInfo, declared: NavItem[] = shown): string | null {
+  if (!hasWork(shown)) return null;
   const homeDeclared = declared.some(isHomeItem);
   const ranked = shown.filter(item => item.entry !== undefined
     && (!homeDeclared || item.entry >= HOME_ENTRY_RANK || soleModuleOf(item, access)));

@@ -1,4 +1,4 @@
-import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Group, HistoryIcon, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
+import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Group, HistoryIcon, Home, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -47,7 +47,7 @@ export interface NavItem {
  * короток на любом экране, а двадцать пунктов перестают быть одним списком, который надо прочесть
  * целиком, чтобы найти нужное.
  */
-export type RailId = 'constructions' | 'data' | 'costs' | 'plan' | 'system';
+export type RailId = 'home' | 'constructions' | 'data' | 'costs' | 'plan' | 'system';
 
 export interface RailSectionDef {
   id: RailId;
@@ -60,22 +60,29 @@ export interface RailSectionDef {
   /** Строка под заголовком: что в разделе, чтобы не открывать его наугад. */
   hint: string;
   /**
-   * Подпанель только на странице списка раздела, а не в карточке под ним. Карточка стройки ведёт
-   * свою навигацию (`ListDetailShell`), и две панели навигации рядом оставили бы содержимому
-   * 650 px из 1440 (эпик #1428).
+   * Где у раздела подпанель. Поля нет — на каждой его странице. `{ onlyAt }` — только на странице
+   * списка раздела, а не в карточке под ним: карточка стройки ведёт свою навигацию (`ListDetailShell`),
+   * и две панели навигации рядом оставили бы содержимому 650 px из 1440 (эпик #1428). `false` —
+   * подпанели нет нигде: у Главной одна страница, и подпанель повторяла бы рейл (shell-08).
    */
-  panelOnlyAt?: string;
+  panel?: false | { onlyAt: string };
   /**
-   * Раздел не сужается пространством. «Система» — администрирование, а не контекст работы: прятать
-   * «Пользователей» за пространством «Счета» значило бы заставлять администратора переключаться
-   * ради своего же меню (ТЗ AUTH-16.1).
+   * Раздел администрирования: в рейле — под чертой, без строки «вне пространства», на телефоне — не в
+   * нижней строке, а пунктом «Администрирование» меню профиля. Пространством его пункты не сужаются:
+   * прятать «Пользователей» за пространством «Счета» значило бы заставлять администратора
+   * переключаться ради своего же меню (ТЗ AUTH-16.1). Раньше признак звался `unscoped`, и Главная
+   * (пространством тоже не сужается) с ним стала бы «Администрированием» (shell-08): не сужает пункт
+   * без модуля и раздела (`inWorkspace`), а не признак раздела.
    */
-  unscoped?: boolean;
+  admin?: boolean;
 }
 
 export const railSections: RailSectionDef[] = [
+  // Главная («Продолжить работу», shell-08, [UI-33]) — первой: одна страница, подпанели нет.
+  { id: 'home', label: 'Главная', icon: Home, title: 'Главная',
+    hint: 'Что ждёт вас и что вы открывали недавно', panel: false },
   { id: 'constructions', label: 'Стройки', icon: Apartment, title: 'Стройки',
-    hint: 'Объекты, разделы и комплекты документов', panelOnlyAt: '/document-sets' },
+    hint: 'Объекты, разделы и комплекты документов', panel: { onlyAt: '/document-sets' } },
   { id: 'data',   label: 'Данные', icon: Database,   title: 'Данные',
     hint: 'Справочники, наборы данных и сверка' },
   // Подпись «Затраты» (было «Учёт»), заголовок прежний — решение макета П0 (plan-02, 22.10.2026).
@@ -89,13 +96,24 @@ export const railSections: RailSectionDef[] = [
   // Подпись «Система», заголовок «Администрирование»: полное слово в 80 px рейла не помещается
   // (решение владельца, 17.10.2026).
   { id: 'system', label: 'Система', icon: Build,    title: 'Администрирование',
-    hint: 'Типы, шаблоны, пользователи и параметры', unscoped: true },
+    hint: 'Типы, шаблоны, пользователи и параметры', admin: true },
 ];
+
+/**
+ * Ранг Главной («Продолжить работу», `shell-08-home`, решение владельца 22.10.2026, вариант Б).
+ * Одна шкала для всех модулей: пункт модуля открывается вместо Главной, только если его ранг меньше
+ * (`entryPage.ts`). Лежит здесь, а не в `entryPage.ts`: тот читает этот файл, и константа там
+ * была бы циклом импорта, на котором пункт Главной ниже встречал бы её ещё не объявленной.
+ */
+export const HOME_ENTRY_RANK = 100;
 
 const COSTS_REPORTS = 'Отчёты и закрытие месяца';
 const PLAN_DIRECTORIES = 'Справочники';
 
 export const workNav: NavItem[] = [
+  // Главная ([UI-33], shell-08): без права и модуля — открыта каждому вошедшему и входит в любое
+  // пространство (`inWorkspace`). Адрес — `/home`: `/` — расчёт страницы входа (В-4).
+  { to: '/home',            label: 'Главная',             icon: Home,       rail: 'home', entry: HOME_ENTRY_RANK },
   { to: '/document-sets',   label: 'Стройки',            icon: Apartment,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
   { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog', rail: 'data' },
   // Справочник сотрудников и связь с учётными записями (ТЗ WORK-27, WORK-47; work-01) — после «Общих данных»,
