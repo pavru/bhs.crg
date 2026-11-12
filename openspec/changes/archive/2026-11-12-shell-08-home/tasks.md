@@ -81,10 +81,10 @@
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~HomeQueues|FullyQualifiedName~RecentRecords|FullyQualifiedName~UserSetting|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~InvoiceScanList"` — зелёный
+- [x] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~HomeQueues|FullyQualifiedName~RecentRecords|FullyQualifiedName~UserSetting|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~InvoiceScanList"` — зелёный
 - [x] 6.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
 - [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 6.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них вход → Главная → «Разобрать»
+- [x] 6.5 Весь список живых прогонов CI зелёный (зонтик, D6); среди них вход → Главная → «Разобрать»
   открывает очередь «Разобрать»
-- [ ] 6.6 PR с меткой `version:minor`; последний PR — «Closes #1436»
+- [x] 6.6 PR с меткой `version:minor`; последний PR — «Closes #1436»
