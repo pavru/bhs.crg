@@ -17,6 +17,7 @@ import { BASE, launchBrowser, login, createChecks, settled, callApi } from './ha
 import { workspaceChecks } from './workspaces-checks.mjs';
 import { favoritesChecks } from './favorites-checks.mjs';
 import { railChecks } from './rail-checks.mjs';
+import { pinnedChecks } from './pinned-checks.mjs';
 import { printProfilesChecks } from './print-profiles-checks.mjs';
 
 const browser = await launchBrowser();
@@ -354,6 +355,9 @@ await favoritesChecks(page, check);
 
 // Рейл разделов и подпанель (issue #1429, #1355) — под этим же входом; настройку подпанели проверки сбрасывают сами.
 await railChecks(page, check);
+
+// Закреплённые страницы (work-04, ТЗ AUTH-16.4) — под этим же входом; список проверки сбрасывают сами.
+await pinnedChecks(page, browser, check);
 
 // Профили печати (issue #1455) — под этим же входом; свои профили проверки убирают за собой.
 await printProfilesChecks(page, check, skip);

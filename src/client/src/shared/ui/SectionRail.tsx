@@ -8,6 +8,8 @@ import { useProductName } from '@/shared/api/branding';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { PageList } from '@/shared/ui/PageList';
+import { PinnedGroup } from '@/shared/ui/PinnedGroup';
+import type { PinnedEntry } from '@/shared/ui/pinnedSections';
 import type { NavItem, RailId, RailSectionDef } from '@/shared/ui/navConfig';
 import type { PanelGroup, RailSection } from '@/shared/ui/railSections';
 import { IconButton } from './Button';
@@ -107,10 +109,13 @@ const PANEL_ID = 'section-panel';
  * «Скрыть панель раздела». Строка «Ещё N разделов вне пространства» — у рабочих разделов: «Систему»
  * пространство не сужает, и звать из неё к скрытым рабочим разделам было бы не к месту.
  */
-export function SectionPanel({ def, groups, outside, onHide }: {
+export function SectionPanel({ def, groups, outside, pinned, pinnable, onHide }: {
   def: RailSectionDef;
   groups: PanelGroup[];
   outside: NavItem[];
+  /** Группа «Закреплённые» (work-04) — первой у рабочих разделов; у «Администрирования» её нет (Р0, А). */
+  pinned: PinnedEntry[];
+  pinnable: (to: string) => boolean;
   onHide: () => void;
 }) {
   return (
@@ -129,7 +134,8 @@ export function SectionPanel({ def, groups, outside, onHide }: {
         <IconButton label="Скрыть панель раздела" onClick={onHide} className="-mr-2"
           aria-expanded aria-controls={PANEL_ID} icon={LeftPanelClose} />
       </div>
-      <PageList groups={groups} />
+      {!def.admin && <PinnedGroup entries={pinned} />}
+      <PageList groups={groups} pinnable={pinnable} />
       {!def.admin && <OutsideNav items={outside} />}
     </nav>
   );

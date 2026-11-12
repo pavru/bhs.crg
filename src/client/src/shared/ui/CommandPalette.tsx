@@ -24,6 +24,8 @@ import { foundGroups, hitText, openGroups, tabGroup, type FoundGroup } from './p
 import { hitRoute, recordHref } from './recordRoutes';
 import { SEARCH_MAX_LENGTH, useRecordSearch } from '@/shared/api/recordSearch';
 import type { AccessInfo } from '@/shared/api/access';
+import { usePinnedPages } from './pinnedPagesContext';
+import { PINNED_GROUP_LABEL, entryNote, pinnedGroup } from './pinnedSections';
 
 type Kind = 'action' | 'section' | 'record';
 
@@ -126,6 +128,7 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   // Палитра ищет разделы ВСЕХ доступных модулей, а не только пространства (ТЗ AUTH-16.1, issue
   // #1001): иначе скрытый раздел недостижим ни меню, ни палитрой. Найденное вне пространства помечено.
   const { inside } = useWorkspace();
+  const { list: pinnedList } = usePinnedPages();
   const { pathname } = useLocation();
   const groups = openGroups(access ?? NO_ACCESS);
   // Tab сужает поиск до группы раздела, где человек ([UI-31]); на экране без своей группы — ничего.
@@ -168,8 +171,17 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
     ...nav,
   ];
 
-  const filtered = ranked(items.filter(i =>
-    (scope === 'all' || i.kind === scope || i.area === scope) && (i.found || matches(i.label, i.words, words))), words);
+  // Закреплённые (work-04, макет Р0) — первой группой при ПУСТОМ запросе: это короткий путь к своему, а
+  // не второй результат поиска — с запросом страница находится на своём месте. Только переход, и только
+  // во «Везде» и «Разделах»: закреплять из палитры нельзя, пока она не умеет действий оболочки. Отбор по
+  // правам — тот же, что у разделов выше: недоступной страницы здесь нет.
+  const pinned: Cmd[] = words.length || (scope !== 'all' && scope !== 'section') ? []
+    : pinnedGroup(pinnedList, [...work, ...settings], inside).map(e => ({
+      id: `pinned:${e.item.to}`, label: e.item.label, words: '', group: PINNED_GROUP_LABEL, kind: 'section',
+      icon: e.item.icon, supporting: entryNote(e), run: () => navigate(e.item.to),
+    }));
+  const filtered = [...pinned, ...ranked(items.filter(i =>
+    (scope === 'all' || i.kind === scope || i.area === scope) && (i.found || matches(i.label, i.words, words))), words)];
   const refusals = [
     ...(search.failed ? ['Записи не найдены: поиск не ответил. Действия и разделы ищутся как прежде.'] : []),
     ...(search.tooLong ? [`Записи не ищутся: запрос длиннее ${SEARCH_MAX_LENGTH} знаков.`] : []),

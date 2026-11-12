@@ -34,9 +34,9 @@ public sealed record UserSettingKey(
 /// бы успешно и молча, а потом настройка «не приезжала» — отказ, переодетый в удавшуюся запись.
 ///
 /// ⚠️ Здесь объявлено ровно то, у чего УЖЕ есть потребитель. Рабочие пространства (`AUTH-16.1`)
-/// приехали с переключателем (issue #1001); закреплённые разделы (`AUTH-16.4`) хранятся этим же
-/// механизмом и приедут своей работой — ключ заводится вместе с тем, кто его читает. Ключ без потребителя проверить нечем: он выглядит
-/// работающим ровно до первого чтения.
+/// приехали с переключателем (issue #1001), закреплённые страницы (`AUTH-16.4`) — с группой
+/// «Закреплённые» в подпанели (work-04): ключ заводится вместе с тем, кто его читает. Ключ без
+/// потребителя проверить нечем: он выглядит работающим ровно до первого чтения.
 ///
 /// Сохранённые представления таблиц (`CORE-33`) сюда НЕ легли, хотя ТЗ это обещало (issue #1095):
 /// общее представление не принадлежит тому, кто его читает, — у них своя таблица, <c>table_views</c>.
@@ -119,9 +119,23 @@ public static class UserSettingKeys
     /// </summary>
     public static readonly UserSettingKey HomeTips = new("home.tips", 8, OneOf: ["shown", "hidden"]);
 
+    /// <summary>
+    /// Закреплённые страницы (ТЗ AUTH-16.4, work-04): JSON-список адресов навигации, не больше двадцати,
+    /// в порядке, выбранном человеком. Форму проверяет <see cref="PinnedSectionValues"/>. Имя ключа —
+    /// со времён «закреплённых разделов» ТЗ; в подписях это «страницы» (решение владельца по макету Р0).
+    /// </summary>
+    public static readonly UserSettingKey PinnedSections = new("pinnedSections",
+        PinnedSectionValues.MaxLength, Valid: PinnedSectionValues.IsList);
+
+    /// <summary>
+    /// Группа «Закреплённые» в подпанели свёрнута или развёрнута (макет Р0, вариант А). Ключа нет —
+    /// развёрнута: закрепивший ждёт увидеть закреплённое. Список закрыт, как у подпанели.
+    /// </summary>
+    public static readonly UserSettingKey PinnedGroup = new("pinnedGroup", 16, OneOf: ["expanded", "collapsed"]);
+
     public static readonly IReadOnlyList<UserSettingKey> All =
         [Theme, Locale, Workspaces, Workspace, DefaultWorkspace, FavoriteConstructions, FavoritesFilter, Rail, InvoiceFile,
-         HomeTips];
+         HomeTips, PinnedSections, PinnedGroup];
 
     /// <summary>Объявленный ключ или null — и тогда адрес отвечает отказом, а не записью.</summary>
     public static UserSettingKey? Find(string code) =>
