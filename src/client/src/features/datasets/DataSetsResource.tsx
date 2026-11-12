@@ -23,6 +23,7 @@ import { ListItem } from '@/shared/ui/ListItem';
 import { CountText } from '@/shared/ui/CountText';
 import type { IconDef } from '@/shared/ui/icons/types';
 import { Card } from '@/shared/ui/Card';
+import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
 const ALL = 'all';
@@ -264,6 +265,8 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const isAll = selected === ALL;
   const selectedFile = !isAll ? allFiles.find(f => f.id === selected) : undefined;
   const selectedInherited = !!selectedFile && !files.some(f => f.id === selectedFile.id);
+  // «Недавние» Главной: набор отмечается, когда открыт сам, а не «Все наборы».
+  useRecentTouch('НаборДанных', selectedFile?.id);
   const hasSystemFile = files.some(f => f.format === 'System');
   const offerSystemFile = !hasSystemFile && systemCandidates.length > 0;
 

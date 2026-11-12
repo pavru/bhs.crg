@@ -1809,6 +1809,28 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.ToTable("service_state", (string)null);
                 });
 
+            modelBuilder.Entity("BHS.CRG.Domain.Settings.UserRecentRecord", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RecordType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "RecordType", "RecordId");
+
+                    b.HasIndex("UserId", "OpenedAt");
+
+                    b.ToTable("user_recent_records", (string)null);
+                });
+
             modelBuilder.Entity("BHS.CRG.Domain.Settings.UserSetting", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -2616,6 +2638,15 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasOne("BHS.CRG.Domain.Reconciliation.ReconciliationDefinition", null)
                         .WithMany()
                         .HasForeignKey("DefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Domain.Settings.UserRecentRecord", b =>
+                {
+                    b.HasOne("BHS.CRG.Infrastructure.Persistence.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

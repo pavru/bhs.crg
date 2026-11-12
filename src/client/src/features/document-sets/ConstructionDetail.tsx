@@ -19,6 +19,7 @@ import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCr
 import { useCan } from '@/shared/api/access';
 import { useIdIndicators } from './useIdIndicators';
 import { useScopePanels } from './scopePanels';
+import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
 import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
@@ -31,6 +32,8 @@ export function ConstructionDetail() {
   const { constructionId } = useParams<{ constructionId: string }>();
   const navigate = useNavigate();
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
+  // «Недавние» Главной: стройка отмечается, когда прочитана.
+  useRecentTouch('Стройка', construction?.id);
   // Панели «Работы» и «Эта стройка» — из реестра (plan-02): отбор по правам и пространству, панель по
   // умолчанию и перенаправление голого адреса на неё.
   const base = `/document-sets/${constructionId}`;

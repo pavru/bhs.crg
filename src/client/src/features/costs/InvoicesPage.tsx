@@ -4,6 +4,7 @@ import { useSuppressSectionPanel } from '@/shared/ui/sectionPanelSuppress';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useComposedSearchParams } from '@/shared/hooks/useComposedSearchParams';
+import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarClock, Description, LinkIcon, Sell } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -140,6 +141,8 @@ export function InvoicesPage() {
   const toast = useSnackbar();
 
   const view = useInvoice(selected ?? undefined);
+  // «Недавние» Главной: счёт отмечается, когда прочитан, — не найденный в них не попадает.
+  useRecentTouch('СчётНаОплату', view.data?.id);
   // Счёт удалили, пока он был открыт (issue #1282): чтение отвечает «нет такого», а прежний вид ещё в
   // руках. Форма остаётся с набранным, а не сменяется отказом чтения.
   //
