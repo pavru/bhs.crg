@@ -188,7 +188,7 @@ export interface DocumentInstance {
   templateIds: string | null;
   requisites: Record<string, unknown>;
   pluginData: Record<string, unknown>;
-  /** JSON-текст объекта {имя:значение} переопределений параметров шаблона (jsonb-строка) или null. */
+  /** JSON-текст объекта {idШаблона:{имя:значение}} переопределений параметров шаблона (jsonb-строка) или null. */
   templateParams: string | null;
   status: 'Draft' | 'Generating' | 'Generated' | 'Failed';
   generatedFiles: GeneratedFile[];

@@ -151,7 +151,7 @@ public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IR
 /// <summary>Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid или null — тогда один дефолт).</summary>
 public record SetDocumentTemplatesCommand(Guid InstanceId, string? TemplateIds) : IRequest<DomainObject>;
 
-/// <summary>Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).</summary>
+/// <summary>Переопределения значений параметров шаблона на документе (JSON-объект {idШаблона:{имя:значение}} или null; ключ — шаблон типа документа, иначе 400, issue #1960).</summary>
 public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DomainObject>;
 
 // --- CommonDataEntry ---

@@ -5,6 +5,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Application.Templates;
 using MediatR;
 
 namespace BHS.CRG.Application.Documents;
@@ -16,6 +17,7 @@ public class DocumentSetHandlers(
     IRepository<DocumentType> docTypeRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<QualityDocument> qualityDocRepo,
+    ITypeTemplates typeTemplates,
     IReferenceIndex refIndex,
     IRecordHolders holders,
     IBlobStorage blobStorage,
@@ -370,6 +372,7 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
+        DocumentTemplateRefs.CheckId(cmd.TemplateId, await TypeTemplatesAsync(obj, ct));
         var blobs = obj.ResetToDraft();
         obj.SetTemplate(cmd.TemplateId);
         objRepo.Update(obj);
@@ -381,8 +384,9 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
+        var ids = DocumentTemplateRefs.CheckedIds(cmd.TemplateIds, obj.TemplateIds, await TypeTemplatesAsync(obj, ct));
         var blobs = obj.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
-        obj.SetTemplateIds(cmd.TemplateIds);
+        obj.SetTemplateIds(ids);
         objRepo.Update(obj);
         await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
@@ -392,11 +396,16 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
+        var overrides = DocumentTemplateRefs.CheckedParams(cmd.Params, obj.TemplateParams, await TypeTemplatesAsync(obj, ct));
         var blobs = obj.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
-        obj.SetTemplateParams(cmd.Params);
+        obj.SetTemplateParams(overrides);
         objRepo.Update(obj);
         await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         return obj;
     }
+
+    /// <summary>Шаблоны типа документа — всё, на что его ссылки на шаблоны вправе указывать (issue #1960).</summary>
+    private Task<IReadOnlyDictionary<Guid, bool>> TypeTemplatesAsync(DomainObject obj, CancellationToken ct)
+        => typeTemplates.ActiveByIdAsync(obj.CompositeTypeId, ct);
 }

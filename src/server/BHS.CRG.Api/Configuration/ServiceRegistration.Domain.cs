@@ -59,6 +59,8 @@ internal static class DomainRegistration
         BHS.CRG.Infrastructure.Persistence.TemplateVersionWriter>();
     builder.Services.AddScoped<BHS.CRG.Application.Templates.ITemplateNames,
         BHS.CRG.Infrastructure.Persistence.TemplateNames>();
+    builder.Services.AddScoped<BHS.CRG.Application.Templates.ITypeTemplates,
+        BHS.CRG.Infrastructure.Persistence.TypeTemplates>();
     // «Недавние» Главной (CORE-25.3): отметка открытия — адресу, перенос отметок — удалению версии шаблона
     // (shell-09, Р-5). Один экземпляр на запрос: перенос ложится в ту же единицу работы, что удаление.
     builder.Services.AddScoped<BHS.CRG.Api.Endpoints.Account.RecentRecords>();

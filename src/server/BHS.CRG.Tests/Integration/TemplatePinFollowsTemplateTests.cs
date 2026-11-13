@@ -51,14 +51,17 @@ public class TemplatePinFollowsTemplateTests(IntegrationTestFixture fixture) : I
     }
 
     /// <summary>Документ с выбранным набором шаблонов и переопределениями, отмеченный выпущенным.</summary>
+    /// <remarks>Выбор и параметры кладутся доменом, а не адресом записи: выбрать историческую версию
+    /// адрес больше не даёт (issue #1960, новая ссылка — только на действующую), а состояние «выбрана
+    /// историческая» здесь и проверяется — такое осталось в базах от прежних версий.</remarks>
     private async Task<Guid> PinnedDocAsync(Guid setId, Guid type, Guid[] templateIds, string? parameters = null)
     {
         var id = (await SendAsync(new AddDocumentToSetCommand(setId, type))).Id;
-        await SendAsync(new SetDocumentTemplatesCommand(id, JsonSerializer.Serialize(templateIds)));
-        if (parameters is not null) await SendAsync(new SetDocumentTemplateParamsCommand(id, parameters));
         using var scope = fixture.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
         var obj = await repo.GetByIdAsync(id);
+        obj!.SetTemplateIds(JsonSerializer.Serialize(templateIds));
+        if (parameters is not null) obj.SetTemplateParams(parameters);
         await scope.ServiceProvider.GetRequiredService<IRepository<GeneratedFile>>()
             .AddAsync(obj!.AddGeneratedFile(OutputFormat.Pdf, $"blob/{id}.pdf"));
         await repo.SaveChangesAsync();

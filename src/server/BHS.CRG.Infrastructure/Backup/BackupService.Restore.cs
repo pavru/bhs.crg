@@ -656,9 +656,9 @@ public partial class BackupService
         var (ok, skipped) = Split(await CommonTableOnlyAsync(items, i => i.CompositeTypeId, "Документы комплектов", warnings, ct), i => sets.Contains(i.SetId) && types.Contains(i.CompositeTypeId));
         Warn(warnings, skipped.Count, "документов", "их комплекта или типа нет ни в копии, ни в системе");
 
-        // Выбор погашенной версии — к действующей того же шаблона (решение 0.4, BackupService.Restore.Templates).
-        var repin = await TemplateRepinMapAsync(ct);
-        int created = 0, updated = 0, repinned = 0;
+        // Выбор погашенной версии — к действующей, ссылки на несуществующие — прочь (BackupService.Restore.TemplateRefs).
+        var refs = await TemplateRefsAsync(ct);
+        int created = 0, updated = 0;
         foreach (var item in ok)
         {
             if (!TryParseEnum<DocumentStatus>(item.Status, "статус документа", warnings, out var status))
@@ -671,7 +671,7 @@ public partial class BackupService
                 status, item.SortOrder,
                 item.TemplateId, item.TemplateIds, item.TemplateParams,
                 JsonDocument.Parse(item.PluginData.GetRawText()));
-            if (obj.RepinTemplates(repin, selectionOnly: true)) repinned++;
+            refs.Settle(obj);
 
             var exists = existing.Contains(item.Id);
             db.Entry(obj).State = exists ? EntityState.Modified : EntityState.Added;
@@ -681,9 +681,9 @@ public partial class BackupService
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
         stats.Count("Документы комплектов", created, updated);
-        WarnRepinned(warnings, repinned);
+        refs.Warn(warnings);
 
-        await RestoreGeneratedFilesAsync(ok, repin, stats, warnings, ct);
+        await RestoreGeneratedFilesAsync(ok, refs.Repin, stats, warnings, ct);
     }
 
     /// <summary>

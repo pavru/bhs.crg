@@ -177,13 +177,14 @@ public static class DocumentSetEndpoints
             async (Guid id, SetTemplateRequest req, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId)))));
 
-        // Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid в теле или null).
+        // Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid в теле или null). Только шаблоны
+        // типа документа, новый — действующая версия; иначе 400 (issue #1960).
         gEdit.MapPut("/{setId:guid}/documents/{id:guid}/templates",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplatesCommand(
                     id, body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : body.GetRawText())))));
 
-        // Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).
+        // Переопределения значений параметров шаблона на документе (JSON-объект {idШаблона:{имя:значение}} или null; ключ — шаблон типа документа, иначе 400, issue #1960).
         gEdit.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateParamsCommand(
