@@ -22,17 +22,17 @@ https://claude.ai/artifact/WZ825m7bDtaipxWScqZyMc, вариант В (выбра
 
 ## 3. Очереди счетов
 
-- [ ] 3.1 `invoiceQueues.ts`: `queueOptions(queues, parsing, failed, active)` — пункты по прежнему
+- [x] 3.1 `invoiceQueues.ts`: `queueOptions(queues, parsing, failed, active)` — пункты по прежнему
   правилу показа, со знаком, тоном, числом и подсказкой; `queueLead(queues)` — знак закрытого чипа и его
   имя по `queueChip('lost', …)` (D2, D3) [COST-6.2]. Проверка — `invoiceQueues.test.ts`: пустая очередь
   скрыта, выбранная пустая — без числа, при `failed` — «Не распознано» без числа, `doubt` — знак `Help`,
   потерянное — `Warning`, без потерянного — знака нет
-- [ ] 3.2 `InvoiceQueueChips`: один `Select variant="chip"` «Очередь счетов» с `emptyItem="Все счета"`,
+- [x] 3.2 `InvoiceQueueChips`: один `Select variant="chip"` «Очередь счетов» с `emptyItem="Все счета"`,
   затем «Отборы не посчитаны» (при отказе), затем `sites`. Число выбранной очереди и знак — свойствами
   чипа (D1–D3, D6) [COST-6.2]. Проверка — новый `InvoiceQueueChips.test.tsx`: в покое «Все счета»;
   выбор пункта зовёт `onChange('parsing')`; «Все счета» зовёт `onChange(null)`; при потерянном у чипа
   знак с именем
-- [ ] 3.3 Проверка глазами на 1366×768 и 1536×736 (окно из issue): в покое и под каждой очередью ряд
+- [x] 3.3 Проверка глазами на 1366×768 и 1536×736 (окно из issue): в покое и под каждой очередью ряд
   один, с избранными — чип строек второй строкой целиком. Проверка — снимки «до/после» в описании PR
 
 ## 4. Живые прогоны
@@ -55,9 +55,9 @@ https://claude.ai/artifact/WZ825m7bDtaipxWScqZyMc, вариант В (выбра
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 6.2 `cd src/client && npm test` — зелёный (в том числе `theme-classes.test.mjs`)
-- [ ] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
+- [x] 6.1 `cd src/client && npx tsc -b` — без ошибок
+- [x] 6.2 `cd src/client && npm test` — зелёный (в том числе `theme-classes.test.mjs`)
+- [x] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
   "FullyQualifiedName~FileSizeRatchet"` — зелёный (`Select.tsx`, `InvoiceQueueChips.tsx` и
   `invoiceQueues.ts` — ниже 500 строк кода)
