@@ -93,7 +93,7 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
         )}
       </div>
 
-      <LinesGrid lines={lines} hidden={rows.data.hidden} names={{ workTypes: workTypes.data, units }} filtering={filtering}
+      <LinesGrid lines={lines} hidden={rows.data.hidden} names={{ workTypes: workTypes.data?.names, units }} filtering={filtering}
         onToggle={toggle} onMatch={editable ? setMatching : null} />
 
       {matching && (

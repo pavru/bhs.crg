@@ -49,8 +49,10 @@ public static class WorkTypeEndpoints
         {
             if (CommonDataEndpoints.Purpose(purpose) is not { } records) return CommonDataEndpoints.PurposeRequired();
             var all = await types.GetAllAsync(ct);
+            // Справочник проверяется ПОСЛЕ права и назначения: неправильный запрос — 400 и без справочника,
+            // а состояние справочника не открывается тому, кому он не виден (ворота группы — 403 раньше).
             if (CoreDirectories.Family(all, CoreRecordTypes.WorkTypeCode) is not { } family)
-                return Results.Ok(Array.Empty<CommonDataEntryDto>());
+                return DirectoryMissingResult(all);
 
             // Ключи — по типу, а не по записи, и только под поиск: схема разбирается раз на тип.
             var units = CoreDirectories.Family(all, CoreRecordTypes.UnitCode)?.Keys.ToHashSet() ?? [];
@@ -71,8 +73,9 @@ public static class WorkTypeEndpoints
 
         edit.MapPost("/", async (CreateWorkTypeRequest req, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
         {
-            if (CoreDirectories.Family(await types.GetAllAsync(ct), CoreRecordTypes.WorkTypeCode) is not { } family)
-                return Results.Conflict(new { error = DirectoryMissing });
+            var all = await types.GetAllAsync(ct);
+            if (CoreDirectories.Family(all, CoreRecordTypes.WorkTypeCode) is not { } family)
+                return DirectoryMissingResult(all);
             // Тип — сам классификатор либо его подтип; иной тип дверь не заводит, иначе право на
             // классификатор открывало бы заведение записей любого справочника.
             var typeId = req.CompositeTypeId ?? family.Values.First(t => t.Code == CoreRecordTypes.WorkTypeCode).Id;
@@ -203,9 +206,41 @@ public static class WorkTypeEndpoints
     private const string Moved =
         "Вид работы тем временем изменили, и действие не выполнено. Откройте его заново и повторите.";
 
-    private const string DirectoryMissing =
+    /// <summary>Нет справочника единиц, на который ссылается вид работы: классификатору не на что ссылаться.</summary>
+    public const string UnitMissing = "unit-missing";
+
+    /// <summary>Справочник единиц есть, а классификатор ещё не заведён — он появится при следующем запуске.</summary>
+    public const string NotCreated = "not-created";
+
+    /// <summary>
+    /// Отказ «классификатор не заведён» с причиной ([WORK-59] [CORE-20.4]): пустой классификатор — 200 и
+    /// пустой список, а незаведённый — этот отказ, иначе «видов работ нет» и «завести их некуда» выглядели
+    /// бы одинаково. Тело — как у двери сотрудников (<see cref="EmployeeEndpoints.DirectoryMissingResult" />),
+    /// код — ТА ЖЕ константа: две константы одного кода однажды разошлись бы, и клиент перестал бы узнавать
+    /// один из отказов. Причины и выходы свои: у сотрудников кнопка «Завести», здесь — перезапуск.
+    ///
+    /// <para>Единицы ищутся тем же правилом, что и сам классификатор (<see cref="CoreDirectories.Family" />,
+    /// по коду): наполнение при запуске ищет цель ссылки так же, и причина не обещает того, чего запуск не
+    /// сделает.</para>
+    /// </summary>
+    internal static IResult DirectoryMissingResult(IReadOnlyList<DocumentType> all)
+    {
+        var units = CoreDirectories.Family(all, CoreRecordTypes.UnitCode) is not null;
+        return Results.Conflict(new
+        {
+            code = EmployeeAccountReads.DirectoryMissing,
+            reason = units ? NotCreated : UnitMissing,
+            error = units ? NotCreatedText : UnitMissingText,
+        });
+    }
+
+    private const string UnitMissingText =
         "Классификатор видов работ ещё не заведён: нет справочника единиц измерения, на который ссылается " +
         "вид работы. Заведите справочник единиц — классификатор появится при следующем запуске.";
+
+    private const string NotCreatedText =
+        "Классификатор видов работ ещё не заведён. Справочник единиц уже есть — классификатор появится при " +
+        "следующем запуске приложения.";
 
     private const string DataRequired =
         "В запросе нет поля «data» с реквизитами. Правка заменяет вид работы целиком, поэтому пустое " +

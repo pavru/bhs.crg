@@ -218,7 +218,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 тронули только `docs/tz` и `openspec`, — см. ниже): backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
 храповики линта и интерфейса, `md3:migrate --check` на всей истории — забытый перевод шкалы формы в ветке до перехода), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
-и **живые прогоны в браузере** — четырьмя независимыми
+и **живые прогоны в браузере** (тремя долями, у каждой свой стенд) — четырьмя независимыми
 работами. **Node — одна версия на всё: `.nvmrc` в корне** (CI ставит по нему, образ `web` и `engines`
 называют её же, сверяет `nodeVersion.test.ts`; подробности — DEV_NOTES).
 
@@ -345,8 +345,9 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   темы пишет `npm run md3:theme`), шкала радиусов и теней. Новый экран сверяется с ним (issue #1348).
   ⚠️ **Новый экран, компонент или заметная переделка взаимодействия — сначала три макета в Claude
   (артефакты типа «Design») и выбор владельца, потом код** (issue #1545). Дизайн-система —
-  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/UPzvpNJpoqNWsGWMAXCYQh); пока `/design-sync` не
-  пишет в Claude, она заморожена на 2.74.0, и для компонентов новее макет опирается на код и `.d.ts`.
+  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/UPzvpNJpoqNWsGWMAXCYQh); до кода её догоняет владелец,
+  агент синхронизацию не запускает. С какого коммита она снята — в её последнем изменении; что в
+  `shared/ui` новее — по коду и `.d.ts`. Нарисованные раньше экраны макетов сами не догоняются.
   Порядок, исключения и что делать без доступа к артефактам Claude —
   [docs/UI.md](docs/UI.md#новый-экран-порядок).
 - `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
