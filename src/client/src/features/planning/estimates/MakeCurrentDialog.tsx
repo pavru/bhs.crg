@@ -115,7 +115,7 @@ function Changes({ preview }: { preview: CurrentRevisionPreview }) {
 
   const lines: ChangeLine[] = preview.changes.map(c => ({
     key: `${c.workTypeId}:${c.unitId ?? ''}`,
-    workType: workTypes.data?.get(c.workTypeId) ?? '…',
+    workType: workTypes.data?.names.get(c.workTypeId) ?? '…',
     unit: c.unitId ? units.get(c.unitId) ?? '' : '',
     was: c.was,
     becomes: c.becomes,

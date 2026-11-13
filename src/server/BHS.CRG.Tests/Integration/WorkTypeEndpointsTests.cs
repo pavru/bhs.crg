@@ -247,6 +247,72 @@ public class WorkTypeEndpointsTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal([live.Id], await IdsAsync(reader, "/api/work-types?purpose=display&q=КАБЕЛ"));
     }
 
+    /// <summary>
+    /// Классификатор не заведён — это отказ с причиной, а не пустой список ([WORK-59] [CORE-20.4]): иначе
+    /// «видов работ нет» и «завести их некуда» выглядели бы одинаково. Заведение отказывает ТЕМ ЖЕ телом,
+    /// что и чтение, — клиент узнаёт отказ одним разбором.
+    /// </summary>
+    [Fact]
+    public async Task Без_справочника_единиц_дверь_отказывает_причиной_unit_missing()
+    {
+        var client = await GrantedSignIn.WithPermissionsAsync(fixture, CorePermissions.CatalogRead, CorePermissions.WorkTypesEdit);
+
+        var read = await client.GetAsync("/api/work-types?purpose=choice");
+        await AssertDirectoryMissingAsync(read, WorkTypeEndpoints.UnitMissing);
+
+        var created = await client.PostAsJsonAsync("/api/work-types", new { displayName = "01 Монтаж", data = "{}" });
+        await AssertDirectoryMissingAsync(created, WorkTypeEndpoints.UnitMissing);
+        Assert.DoesNotContain(await seed.SendAsync(new ListCommonDataEntriesQuery(RecordsFor.Display)),
+            e => e.DisplayName == "01 Монтаж");
+    }
+
+    [Fact]
+    public async Task Справочник_единиц_есть_классификатора_нет_причина_not_created()
+    {
+        await seed.TypeAsync(CoreRecordTypes.UnitCode, "Единица измерения");
+        var client = await GrantedSignIn.WithPermissionsAsync(fixture, CorePermissions.CatalogRead, CorePermissions.WorkTypesEdit);
+
+        await AssertDirectoryMissingAsync(await client.GetAsync("/api/work-types?purpose=display"), WorkTypeEndpoints.NotCreated);
+        await AssertDirectoryMissingAsync(
+            await client.PostAsJsonAsync("/api/work-types", new { displayName = "01 Монтаж", data = "{}" }),
+            WorkTypeEndpoints.NotCreated);
+    }
+
+    /// <summary>Пустой классификатор — по-прежнему 200 и пусто: в него можно завести вид работы.</summary>
+    [Fact]
+    public async Task Пустой_классификатор_отвечает_пустым_списком()
+    {
+        await seed.ClassifierAsync();
+        var reader = await GrantedSignIn.WithPermissionsAsync(fixture, CorePermissions.CatalogRead);
+
+        var read = await reader.GetAsync("/api/work-types?purpose=choice");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Equal(0, (await read.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength());
+    }
+
+    /// <summary>
+    /// Порядок отказов — право, назначение, справочник: состояние справочника не открывается тому, кому
+    /// он не виден, а неправильный запрос остаётся неправильным и без справочника.
+    /// </summary>
+    [Fact]
+    public async Task Без_классификатора_право_и_назначение_отказывают_раньше()
+    {
+        var stranger = await GrantedSignIn.WithPermissionsAsync(fixture, CorePermissions.WorkTypesEdit);
+        Assert.Equal(HttpStatusCode.Forbidden, (await stranger.GetAsync("/api/work-types?purpose=choice")).StatusCode);
+
+        var reader = await GrantedSignIn.WithPermissionsAsync(fixture, CorePermissions.CatalogRead);
+        Assert.Equal(HttpStatusCode.BadRequest, (await reader.GetAsync("/api/work-types")).StatusCode);
+    }
+
+    private static async Task AssertDirectoryMissingAsync(HttpResponseMessage response, string reason)
+    {
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("directory-missing", body.GetProperty("code").GetString());
+        Assert.Equal(reason, body.GetProperty("reason").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+    }
+
     private static async Task<Guid[]> IdsAsync(HttpClient client, string url) =>
         [.. (await client.GetFromJsonAsync<JsonElement>(url)).EnumerateArray().Select(e => e.GetProperty("id").GetGuid())];
 
