@@ -8,6 +8,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
+import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
@@ -48,8 +49,8 @@ export function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose,
       onCreated(t);
       onClose();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка создания';
-      if ((err as { response?: { status?: number } })?.response?.status === 409) setNameError(message);
+      const message = apiError(err, 'Ошибка создания');
+      if (isConflict(err)) setNameError(message);
       else setError(message);
     }
   }

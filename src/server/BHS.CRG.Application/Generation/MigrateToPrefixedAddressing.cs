@@ -260,7 +260,8 @@ public class MigrateToPrefixedAddressingHandler(
         // Одна единица работы на всё — типы, погашенные версии, документы, библиотека; новые версии
         // вставляются последними той же транзакцией: частичный индекс «одна действующая» иначе
         // отверг бы вставку, пришедшую раньше погашения (D4).
-        await versionWriter.SaveRetiredThenInsertAsync(created, ct);
+        await versionWriter.SaveRetiredThenInsertAsync(
+            created, "Шаблоны тем временем изменили — запустите переход заново.", ct);
 
         return new(true, renames, blockChanges, templateChanges, ambiguous, skipped,
             repin.Count, libChanges, blocked);

@@ -86,6 +86,32 @@ public class TemplateRepinTests
         Assert.True(Params(o).ContainsKey(V4.ToString()));
     }
 
+    [Fact]
+    public void Выпущенный_файл_выбранной_версии_переходит_вместе_с_выбором()
+    {
+        // Иначе следующая генерация добавила бы второй PDF того же шаблона, а сборка комплекта
+        // поставила бы прежний в конец (ревью PR #1958).
+        var o = Doc(ids: $"""["{V4}","{Other}"]""");
+        o.AddGeneratedFile(OutputFormat.Pdf, "a.pdf", V4);
+        o.AddGeneratedFile(OutputFormat.Pdf, "b.pdf", Other);
+
+        o.RepinTemplates(V4ToV5, selectionOnly: true);
+
+        Assert.Equal([V5, Other], o.GeneratedFiles.Select(f => f.TemplateId!.Value).ToList());
+    }
+
+    [Fact]
+    public void Файл_новой_версии_уже_есть_прежний_не_трогается()
+    {
+        var o = Doc(ids: $"""["{V4}","{V5}"]""");
+        o.AddGeneratedFile(OutputFormat.Pdf, "a.pdf", V4);
+        o.AddGeneratedFile(OutputFormat.Pdf, "b.pdf", V5);
+
+        o.RepinTemplates(V4ToV5);
+
+        Assert.Equal([V4, V5], o.GeneratedFiles.Select(f => f.TemplateId!.Value).ToList());
+    }
+
     // ── TemplateVersionRepair ────────────────────────────────────────────────
 
     private static readonly DateTimeOffset T0 = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);

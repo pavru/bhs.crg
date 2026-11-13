@@ -84,6 +84,35 @@ public partial class BackupService
         return TemplateVersionRepair.ActiveByRetired(rows.Select(r => (r.Id, r.DocumentTypeId, r.Name, r.IsActive)));
     }
 
+    /// <summary>
+    /// Каким шаблоном помечен восстановленный файл документа копии. Файл выбранной погашенной версии
+    /// переходит к действующей вместе с выбором — то же правило, что у <c>DomainObject.RepinTemplates</c>
+    /// (selectionOnly) и SQL миграции: иначе следующая генерация добавила бы второй PDF того же
+    /// шаблона. Если у действующей свой файл того же формата уже есть, прежний остаётся как был; из
+    /// нескольких кандидатов переходит самый поздний.
+    /// </summary>
+    private static Guid? RetargetedTemplate(
+        BackupDocument doc, BackupGeneratedFile file, IReadOnlyDictionary<Guid, Guid> repin)
+    {
+        if (file.TemplateId is not { } id || !repin.TryGetValue(id, out var to)) return file.TemplateId;
+        var selected = SelectedTemplates(doc.TemplateIds);
+        if (!selected.Contains(id)) return id;
+        if (doc.GeneratedFiles.Any(o => o.Format == file.Format && o.TemplateId == to)) return id;
+        var winner = doc.GeneratedFiles
+            .Where(o => o.Format == file.Format && o.TemplateId is { } t && selected.Contains(t)
+                        && repin.TryGetValue(t, out var other) && other == to)
+            .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id.ToString(), StringComparer.Ordinal)
+            .First();
+        return winner.Id == file.Id ? to : id;
+    }
+
+    private static HashSet<Guid> SelectedTemplates(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(json)?.ToHashSet() ?? []; }
+        catch (System.Text.Json.JsonException) { return []; }
+    }
+
     private static void WarnRepinned(List<string> warnings, int count)
     {
         if (count > 0)

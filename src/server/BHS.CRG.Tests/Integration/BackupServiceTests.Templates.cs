@@ -41,7 +41,7 @@ public partial class BackupServiceTests
         var type = Guid.NewGuid();
         Guid early = Guid.NewGuid(), late = Guid.NewGuid(), c3 = Guid.NewGuid(), d3 = Guid.NewGuid(), e4 = Guid.NewGuid();
         var setId = await SetAsync();
-        var docId = Guid.NewGuid();
+        Guid docId = Guid.NewGuid(), fileId = Guid.NewGuid();
 
         var manifest = ManifestWith([DocType(type)]) with
         {
@@ -59,7 +59,9 @@ public partial class BackupServiceTests
             [
                 new BackupDocument(docId, setId, type, "Акт", JsonDocument.Parse("{}").RootElement.Clone(), [],
                     "Draft", 0, null, $"[\"{early}\"]", $$$"""{"{{{early}}}":{"a":1}}""",
-                    JsonDocument.Parse("{}").RootElement.Clone(), [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    [new BackupGeneratedFile(fileId, "Pdf", $"{docId}-early.pdf", early, Day0, Day0)],
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
             ],
         };
 
@@ -85,6 +87,8 @@ public partial class BackupServiceTests
         var doc = await db.DocumentFacets.AsNoTracking().SingleAsync(f => f.ObjectId == docId);
         Assert.Equal([late], JsonSerializer.Deserialize<List<Guid>>(doc.TemplateIds!));
         Assert.Contains(late.ToString(), doc.TemplateParams);
+        // Файл выбранной погашенной версии — вместе с выбором: иначе следующая генерация добавила бы второй.
+        Assert.Equal(late, (await db.GeneratedFiles.AsNoTracking().SingleAsync(f => f.Id == fileId)).TemplateId);
     }
 
     [Fact]

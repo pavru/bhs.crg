@@ -93,6 +93,27 @@ public class TemplatePinFollowsTemplateTests(IntegrationTestFixture fixture) : I
     }
 
     [Fact]
+    public async Task Документ_в_генерации_новую_версию_останавливает_и_ничего_не_меняет()
+    {
+        // Выпуск дописал бы PDF прежней версии уже после пересадки — и документ числился бы
+        // выпущенным новой. Ждать его нечем, поэтому отказ: повторить можно, когда выпуск закончится.
+        var type = await TypeAsync("PIN_G");
+        var v = await VersionsAsync(type, "Основной", 1);
+        var docId = await PinnedDocAsync(await SetAsync(), type, [v[0]]);
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
+            (await repo.GetByIdAsync(docId))!.MarkGenerating();
+            await repo.SaveChangesAsync();
+        }
+
+        await Assert.ThrowsAsync<ConflictException>(() => SendAsync(new UpdateTemplateCommand(v[0], "= v2")));
+
+        Assert.Single(await SendAsync(new ListTemplatesQuery(type)));
+        Assert.Equal([v[0]], Ids(await DocAsync(docId)));
+    }
+
+    [Fact]
     public async Task Набор_из_двух_шаблонов_сохраняет_порядок()
     {
         var type = await TypeAsync("PIN_B");

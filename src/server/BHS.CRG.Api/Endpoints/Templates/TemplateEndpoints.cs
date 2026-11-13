@@ -2,10 +2,7 @@
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
-using BHS.CRG.Infrastructure.Persistence;
-using BHS.CRG.Infrastructure.Persistence.Configurations;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Api.Endpoints.Templates;
 
@@ -53,19 +50,9 @@ public static class TemplateEndpoints
             return t is null ? Results.NotFound() : Results.Ok(t);
         });
 
-        // Занятое название отвергает обработчик (409, #1924). Гонку двух созданий под одним новым
-        // названием он не видит — её ловит индекс, и отказ тот же по смыслу (D5).
-        admin.MapPost("/", async (CreateTemplateRequest req, IMediator m) =>
-        {
-            try
-            {
-                return Results.Ok(await m.Send(new CreateTemplateCommand(req.DocumentTypeId, req.Name, req.Content)));
-            }
-            catch (DbUpdateException ex) when (IsVersionIntegrityViolation(ex))
-            {
-                return Results.Conflict(new { error = NameTakenMessage });
-            }
-        });
+        admin.MapPost("/", async (CreateTemplateRequest req, IMediator m)
+            => Results.Ok(await m.Send(new CreateTemplateCommand(
+                req.DocumentTypeId, req.Name, req.Content))));
 
         // Простое сохранение (issue #360, Ctrl+S) — правит содержимое активной версии на месте.
         // Отказ (409), если версия историческая (не активна): её можно только форкнуть.
@@ -76,32 +63,13 @@ public static class TemplateEndpoints
         });
 
         // Явное «Сохранить как новую версию» (issue #360) — форк новой версии + опц. примечание.
-        // Две новые версии одного шаблона разом (#1922) считают один номер; вторую отвергает индекс.
-        // Проигравший получает 409, а не 500 и не вторую действующую: окно новой версии остаётся
-        // открытым с введённым текстом, запрос можно повторить (D3, D5).
-        admin.MapPost("/{id:guid}/versions", async (Guid id, NewVersionRequest req, IMediator m) =>
-        {
-            try
-            {
-                return Results.Ok(await m.Send(new UpdateTemplateCommand(id, req.Content, req.Comment)));
-            }
-            catch (DbUpdateException ex) when (IsVersionIntegrityViolation(ex))
-            {
-                return Results.Conflict(new { error = "Шаблон тем временем изменили — откройте его заново." });
-            }
-        });
+        // Гонку двух новых версий (#1922) и двух созданий под одним названием (#1924) переводит в 409
+        // запись версий (ITemplateVersionWriter, D5) — для всех путей сразу, а не на каждом адресе.
+        admin.MapPost("/{id:guid}/versions", async (Guid id, NewVersionRequest req, IMediator m)
+            => Results.Ok(await m.Send(new UpdateTemplateCommand(id, req.Content, req.Comment))));
 
-        admin.MapPost("/{id:guid}/duplicate", async (Guid id, DuplicateTemplateRequest? req, IMediator m) =>
-        {
-            try
-            {
-                return Results.Ok(await m.Send(new DuplicateTemplateCommand(id, req?.Name)));
-            }
-            catch (DbUpdateException ex) when (IsVersionIntegrityViolation(ex))
-            {
-                return Results.Conflict(new { error = NameTakenMessage });
-            }
-        });
+        admin.MapPost("/{id:guid}/duplicate", async (Guid id, DuplicateTemplateRequest? req, IMediator m)
+            => Results.Ok(await m.Send(new DuplicateTemplateCommand(id, req?.Name))));
 
         // Использование версий шаблона (issue #364) — сколько документов запиннуто на каждую версию.
         g.MapGet("/usage", async (Guid documentTypeId, IMediator m)
@@ -126,16 +94,6 @@ public static class TemplateEndpoints
         admin.MapPut("/{id:guid}/parameters", async (Guid id, UpdateParametersRequest req, IMediator m)
             => Results.Ok(await m.Send(new UpdateTemplateParametersCommand(id, req.Parameters))));
     }
-
-    private const string NameTakenMessage = "Шаблон с таким названием уже есть.";
-
-    /// <summary>
-    /// Отказ одного из двух индексов целостности версий (D3). Ловятся ИМЕННО они: чужое
-    /// столкновение, объявленное «название занято», увело бы разбирательство в сторону, а без ветки
-    /// ответом был бы 500 — ApiErrorMapping прячет всё, что не наш отказ.
-    /// </summary>
-    private static bool IsVersionIntegrityViolation(DbUpdateException ex) =>
-        DbFailure.IsUniqueViolationOf(ex, TemplateConfiguration.OneActiveIndex, TemplateConfiguration.VersionIndex);
 
     record CreateTemplateRequest(Guid DocumentTypeId, string Name, string Content);
     record UpdateTemplateRequest(string Content);

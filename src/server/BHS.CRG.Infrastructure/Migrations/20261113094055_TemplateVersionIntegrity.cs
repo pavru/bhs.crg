@@ -21,9 +21,10 @@ namespace BHS.CRG.Infrastructure.Migrations
         /// «по умолчанию» любой версии шаблона переходит к ней;</item>
         /// <item>повторные номера: кроме самой ранней по CreatedAt, получают max+1, max+2… в порядке
         /// появления;</item>
-        /// <item>выбор погашенной версии в TemplateIds и её переопределения в TemplateParams — к
-        /// действующей того же шаблона, повтор в наборе убирается. Одиночный TemplateId, статус и PDF
-        /// не трогаются: удалить блобы SQL не может, а пересадка молча сменила бы PDF.</item>
+        /// <item>выбор погашенной версии в TemplateIds, её переопределения в TemplateParams и её
+        /// выпущенные файлы — к действующей того же шаблона, повтор в наборе убирается. Одиночный
+        /// TemplateId, статус и PDF не трогаются: удалить блобы SQL не может, а пересадка молча сменила
+        /// бы PDF.</item>
         /// </list>
         /// Порядок uuid — по тексту (COLLATE "C"), как сравнивает домен. Числа — сообщением NOTICE:
         /// старт приложения переносит его в журнал.
@@ -71,6 +72,30 @@ namespace BHS.CRG.Infrastructure.Migrations
               UPDATE templates t SET "Version" = late.version, "UpdatedAt" = now()
               FROM late WHERE t."Id" = late."Id";
               GET DIAGNOSTICS renumbered = ROW_COUNT;
+
+              -- 3а. Выпущенные файлы выбранных погашенных версий — к действующей, до правки выбора (по
+              -- нему отбираются): помеченный погашенной файл сборка ставила бы в конец, а следующая
+              -- генерация не заменила бы его, а добавила второй PDF. Файл новой версии уже есть — не
+              -- трогается; из нескольких кандидатов переходит самый поздний.
+              WITH map AS (
+                SELECT r."Id"::text AS old_id, a."Id"::text AS new_id
+                FROM templates r
+                JOIN templates a ON a."DocumentTypeId" = r."DocumentTypeId" AND a."Name" = r."Name" AND a."IsActive"
+                WHERE NOT r."IsActive"
+              ), cand AS (
+                SELECT DISTINCT ON (g."ObjectId", g."Format", m.new_id) g."Id", m.new_id
+                FROM generated_files g
+                JOIN document_facets f ON f."ObjectId" = g."ObjectId"
+                JOIN map m ON m.old_id = g."TemplateId"::text
+                WHERE jsonb_typeof(f."TemplateIds") = 'array'
+                  AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(f."TemplateIds") s(v) WHERE lower(s.v) = m.old_id)
+                  AND NOT EXISTS (SELECT 1 FROM generated_files o
+                                  WHERE o."ObjectId" = g."ObjectId" AND o."Format" = g."Format"
+                                    AND o."TemplateId"::text = m.new_id)
+                ORDER BY g."ObjectId", g."Format", m.new_id, g."CreatedAt" DESC, g."Id"::text COLLATE "C" DESC
+              )
+              UPDATE generated_files g SET "TemplateId" = cand.new_id::uuid, "UpdatedAt" = now()
+              FROM cand WHERE g."Id" = cand."Id";
 
               -- 3. Выбор погашенных версий — к действующей.
               WITH map AS (

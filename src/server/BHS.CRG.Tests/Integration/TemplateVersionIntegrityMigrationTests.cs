@@ -43,7 +43,8 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
 
     private sealed record Row(Guid Id, string Name, int Version, bool Active, bool Default, DateTimeOffset Created);
 
-    private sealed record Doc(Guid Id, Guid? TemplateId, string? TemplateIds, string? TemplateParams);
+    /// <param name="Files">Шаблоны, которыми помечены выпущенные файлы документа.</param>
+    private sealed record Doc(Guid Id, Guid? TemplateId, string? TemplateIds, string? TemplateParams, Guid[] Files);
 
     private static Row[] Rows(Guid type) =>
     [
@@ -71,13 +72,15 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
     private static Doc[] Docs() =>
     [
         // Выбор погашаемой «Краткий» v3 и чистого «Акт» — порядок и переопределения сохраняются.
-        new(G(101), null, $"[\"{G(23)}\",\"{G(32)}\"]", $"{{\"{G(23)}\":{{\"a\":1}},\"{G(32)}\":{{\"b\":2}}}}"),
+        new(G(101), null, $"[\"{G(23)}\",\"{G(32)}\"]", $"{{\"{G(23)}\":{{\"a\":1}},\"{G(32)}\":{{\"b\":2}}}}",
+            [G(23), G(32)]),
         // Выбраны обе действующие «Краткого»: повтор убирается, переопределения оставшейся сильнее.
-        new(G(102), null, $"[\"{G(23)}\",\"{G(24)}\"]", $"{{\"{G(23)}\":{{\"a\":1}},\"{G(24)}\":{{\"a\":2}}}}"),
+        new(G(102), null, $"[\"{G(23)}\",\"{G(24)}\"]", $"{{\"{G(23)}\":{{\"a\":1}},\"{G(24)}\":{{\"a\":2}}}}",
+            [G(23), G(24)]),
         // Одиночный пин на погашенной — не трогается (D8, п. 3), с ним и его переопределения.
-        new(G(103), G(23), null, $"{{\"{G(23)}\":{{\"x\":1}}}}"),
+        new(G(103), G(23), null, $"{{\"{G(23)}\":{{\"x\":1}}}}", [G(23)]),
         // Выбор давно погашенной версии чистого шаблона — тоже к действующей.
-        new(G(104), null, $"[\"{G(31)}\"]", null),
+        new(G(104), null, $"[\"{G(31)}\"]", null, []),
     ];
 
     [Fact]
@@ -94,7 +97,11 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
         db.DocumentTypes.Add(type);
         await db.SaveChangesAsync();
         db.Templates.AddRange(Templates(type.Id));
-        db.DomainObjects.AddRange(Objects(type.Id));
+        db.DomainObjects.AddRange(Objects(type.Id, withFiles: false));
+        await db.SaveChangesAsync();
+        foreach (var d in Docs())
+            foreach (var t in d.Files)
+                db.GeneratedFiles.Add(GeneratedFile.Restore(Guid.NewGuid(), d.Id, OutputFormat.Pdf, $"{d.Id}-{t}.pdf", t, T0, T0));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
@@ -118,7 +125,7 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
         Assert.Equal((false, false, 1), State(stored[G(51)]));
         Assert.Equal((true, false, 2), State(stored[G(52)]));
 
-        var docs = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+        var docs = await db.DomainObjects.AsNoTracking().Include(o => o.Facet).ThenInclude(f => f!.GeneratedFiles)
             .Where(o => o.Facet != null).ToDictionaryAsync(o => o.Id);
         Assert.Equal([G(24), G(32)], Ids(docs[G(101)].TemplateIds));
         Assert.Equal([G(24)], Ids(docs[G(102)].TemplateIds));
@@ -126,19 +133,25 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
         Assert.Equal(G(23), docs[G(103)].TemplateId);
         Assert.Equal([G(23).ToString()], Params(docs[G(103)].TemplateParams).Keys);
         Assert.Equal([G(32)], Ids(docs[G(104)].TemplateIds));
+        // Выпущенный файл выбранной погашенной версии — к действующей; файл действующей уже есть — прежний
+        // остаётся; одиночный пин не тронут вместе с его файлом.
+        Assert.Equal([G(24), G(32)], FileTemplates(docs[G(101)]));
+        Assert.Equal([G(23), G(24)], FileTemplates(docs[G(102)]));
+        Assert.Equal([G(23)], FileTemplates(docs[G(103)]));
 
         // Та же починка доменной функцией — итог тот же.
         var memory = Templates(type.Id);
         TemplateVersionRepair.Apply(memory);
         foreach (var t in memory) Assert.Equal(State(t), State(stored[t.Id]));
         var map = TemplateVersionRepair.ActiveByRetired(memory.Select(t => (t.Id, t.DocumentTypeId, t.Name, t.IsActive)));
-        foreach (var o in Objects(type.Id))
+        foreach (var o in Objects(type.Id, withFiles: true))
         {
             o.RepinTemplates(map, selectionOnly: true);
             var d = docs[o.Id];
             Assert.Equal(o.TemplateId, d.TemplateId);
             Assert.Equal(Ids(o.TemplateIds), Ids(d.TemplateIds));
             Assert.Equal(Params(o.TemplateParams), Params(d.TemplateParams));
+            Assert.Equal(FileTemplates(o), FileTemplates(d));
         }
     }
 
@@ -147,11 +160,20 @@ public class TemplateVersionIntegrityMigrationTests : IAsyncLifetime
             r.Active, r.Default, r.Created, r.Created))
         .ToList();
 
-    private static List<DomainObject> Objects(Guid type) => Docs()
-        .Select(d => DomainObject.RestoreDocument(d.Id, type, $"Документ {d.Id}", JsonDocument.Parse("{}"),
-            Guid.NewGuid(), T0, T0, null, DocumentStatus.Generated, 0, d.TemplateId, d.TemplateIds,
-            d.TemplateParams, JsonDocument.Parse("{}")))
+    private static List<DomainObject> Objects(Guid type, bool withFiles) => Docs()
+        .Select(d =>
+        {
+            var o = DomainObject.RestoreDocument(d.Id, type, $"Документ {d.Id}", JsonDocument.Parse("{}"),
+                Guid.NewGuid(), T0, T0, null, DocumentStatus.Generated, 0, d.TemplateId, d.TemplateIds,
+                d.TemplateParams, JsonDocument.Parse("{}"));
+            if (withFiles)
+                foreach (var t in d.Files) o.AddGeneratedFile(OutputFormat.Pdf, $"{d.Id}-{t}.pdf", t);
+            return o;
+        })
         .ToList();
+
+    private static List<Guid> FileTemplates(DomainObject o)
+        => o.GeneratedFiles.Select(f => f.TemplateId!.Value).Order().ToList();
 
     private static (bool Active, bool Default, int Version) State(Template t) => (t.IsActive, t.IsDefault, t.Version);
 

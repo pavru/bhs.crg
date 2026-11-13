@@ -4,6 +4,9 @@ namespace BHS.CRG.Domain.Templates;
 
 public class Template : Entity
 {
+    /// <summary>Предел длины названия — он же у колонки базы.</summary>
+    public const int NameMaxLength = 256;
+
     public Guid DocumentTypeId { get; private set; }
     public string Name { get; private set; } = default!;
     public int Version { get; private set; } = 1;

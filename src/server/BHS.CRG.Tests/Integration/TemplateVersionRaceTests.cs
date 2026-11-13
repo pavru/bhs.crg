@@ -55,27 +55,11 @@ public class TemplateVersionRaceTests(IntegrationTestFixture fixture) : IAsyncLi
 
     private sealed class GatedWriter(ITemplateVersionWriter inner, Rendezvous gate) : ITemplateVersionWriter
     {
-        public async Task SaveRetiredThenInsertAsync(IReadOnlyCollection<Template> created, CancellationToken ct = default)
+        public async Task SaveRetiredThenInsertAsync(
+            IReadOnlyCollection<Template> created, string conflictMessage, CancellationToken ct = default)
         {
             await gate.ArriveAsync();
-            await inner.SaveRetiredThenInsertAsync(created, ct);
-        }
-    }
-
-    private sealed class GatedRepository(Repository<Template> inner, Rendezvous gate) : IRepository<Template>
-    {
-        public Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default) => inner.GetByIdAsync(id, ct);
-        public Task<IReadOnlyList<Template>> GetAllAsync(CancellationToken ct = default) => inner.GetAllAsync(ct);
-        public Task<IReadOnlyList<Template>> FindAsync(System.Linq.Expressions.Expression<Func<Template, bool>> p, CancellationToken ct = default)
-            => inner.FindAsync(p, ct);
-        public Task AddAsync(Template entity, CancellationToken ct = default) => inner.AddAsync(entity, ct);
-        public void Update(Template entity) => inner.Update(entity);
-        public void Remove(Template entity) => inner.Remove(entity);
-
-        public async Task SaveChangesAsync(CancellationToken ct = default)
-        {
-            await gate.ArriveAsync();
-            await inner.SaveChangesAsync(ct);
+            await inner.SaveRetiredThenInsertAsync(created, conflictMessage, ct);
         }
     }
 
@@ -84,8 +68,6 @@ public class TemplateVersionRaceTests(IntegrationTestFixture fixture) : IAsyncLi
         {
             s.AddScoped<ITemplateVersionWriter>(sp =>
                 new GatedWriter(new TemplateVersionWriter(sp.GetRequiredService<AppDbContext>()), gate));
-            s.AddScoped<IRepository<Template>>(sp =>
-                new GatedRepository(new Repository<Template>(sp.GetRequiredService<AppDbContext>()), gate));
         }));
 
     private async Task<T> SendAsync<T>(IRequest<T> request)
@@ -147,6 +129,26 @@ public class TemplateVersionRaceTests(IntegrationTestFixture fixture) : IAsyncLi
             await ErrorAsync(responses.Single(r => r.StatusCode == HttpStatusCode.Conflict)));
         var only = Assert.Single(await TemplatesAsync(type));
         Assert.Equal(1, only.Version);
+    }
+
+    [Fact]
+    public async Task Две_копии_без_названия_разом_обе_созданы_под_разными_названиями()
+    {
+        // Проигравший не получает «название занято»: названия он не выбирал — сервер подбирает следующее.
+        var type = await TypeAsync("RACE_D");
+        var source = (await SendAsync(new CreateTemplateCommand(type, "Основной", "x"))).Id;
+        var gate = new Rendezvous();
+        await using var host = GatedHost(gate);
+        var client = await GrantedSignIn.WithPermissionsAsync(host, "id.config.edit", "id.document.read");
+        gate.Arm();
+
+        var responses = await Task.WhenAll(
+            client.PostAsJsonAsync($"/api/templates/{source}/duplicate", new { }),
+            client.PostAsJsonAsync($"/api/templates/{source}/duplicate", new { }));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal(["Основной", "Основной (копия 2)", "Основной (копия)"],
+            (await TemplatesAsync(type)).Select(t => t.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]

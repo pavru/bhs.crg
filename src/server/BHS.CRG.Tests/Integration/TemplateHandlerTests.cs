@@ -122,6 +122,38 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Equal(2, (await Mediator(scope).Send(new ListTemplatesQuery(dtId))).Count);
     }
 
+    [Fact]
+    public async Task Create_EmptyOrTooLongName_RefusedAsRequest_NotServerError()
+    {
+        var dtId = await CreateDocTypeAsync("DT_N5");
+        using var scope = fixture.Services.CreateScope();
+        await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            Mediator(scope).Send(new CreateTemplateCommand(dtId, "   ", "x")));
+        await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            Mediator(scope).Send(new CreateTemplateCommand(dtId, new string('ш', Template.NameMaxLength + 1), "x")));
+    }
+
+    [Fact]
+    public async Task Duplicate_OfLongName_FitsColumn()
+    {
+        // «… (копия)» к названию на пределе колонки не помещался бы: база ответила бы 500 (22001).
+        var dtId = await CreateDocTypeAsync("DT_N6");
+        Template source;
+        using (var s = fixture.Services.CreateScope())
+            source = await Mediator(s).Send(new CreateTemplateCommand(dtId, new string('ш', Template.NameMaxLength), "x"));
+
+        Template first, second;
+        using (var s = fixture.Services.CreateScope())
+            first = await Mediator(s).Send(new DuplicateTemplateCommand(source.Id, null));
+        using (var s = fixture.Services.CreateScope())
+            second = await Mediator(s).Send(new DuplicateTemplateCommand(source.Id, null));
+
+        Assert.True(first.Name.Length <= Template.NameMaxLength);
+        Assert.EndsWith(" (копия)", first.Name);
+        Assert.True(second.Name.Length <= Template.NameMaxLength);
+        Assert.EndsWith(" (копия 2)", second.Name);
+    }
+
     // ── Update (versioning) ───────────────────────────────────────────────────
 
     [Fact]

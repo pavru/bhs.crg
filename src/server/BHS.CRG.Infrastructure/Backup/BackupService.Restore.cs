@@ -683,7 +683,7 @@ public partial class BackupService
         stats.Count("Документы комплектов", created, updated);
         WarnRepinned(warnings, repinned);
 
-        await RestoreGeneratedFilesAsync(ok, stats, warnings, ct);
+        await RestoreGeneratedFilesAsync(ok, repin, stats, warnings, ct);
     }
 
     /// <summary>
@@ -691,7 +691,7 @@ public partial class BackupService
     /// фасету, и до её появления вставка отвергается внешним ключом.
     /// </summary>
     private async Task RestoreGeneratedFilesAsync(
-        IReadOnlyList<BackupDocument> documents, RestoreStats stats, List<string> warnings,
+        IReadOnlyList<BackupDocument> documents, IReadOnlyDictionary<Guid, Guid> repin, RestoreStats stats, List<string> warnings,
         CancellationToken ct)
     {
         var files = documents.SelectMany(d => d.GeneratedFiles.Select(f => (Document: d, File: f)))
@@ -702,7 +702,7 @@ public partial class BackupService
         var existing = await db.GeneratedFiles.Select(x => x.Id).ToHashSetAsync(ct);
         var (c, u) = await UpsertAsync(files.Select(x => (x.File.Id, GeneratedFile.Restore(
             x.File.Id, x.Document.Id, Enum.Parse<OutputFormat>(x.File.Format), x.File.BlobPath,
-            x.File.TemplateId, x.File.CreatedAt, x.File.UpdatedAt))), existing, ct);
+            RetargetedTemplate(x.Document, x.File, repin), x.File.CreatedAt, x.File.UpdatedAt))), existing, ct);
         stats.Count("Выпущенные файлы", c, u);
     }
 

@@ -240,6 +240,8 @@ public class DomainObject : Entity
     /// к прежнему id, потерялись бы молча. Если у новой версии свои переопределения уже есть, остаются
     /// они.</item>
     /// </list>
+    /// Выпущенные файлы пересаживаемых версий переходят вместе с закреплением (см.
+    /// <see cref="RetargetFiles" />).
     /// <paramref name="selectionOnly"/> — разовая починка (D8, п. 3): только набор и переопределения
     /// выбранных в нём версий. Одиночный пин тогда не трогается — он и так генерируется, а пересадка
     /// молча сменила бы его PDF. Возвращает, изменилось ли что-нибудь.
@@ -268,11 +270,32 @@ public class DomainObject : Entity
             changed = true;
         }
 
-        var moved = RepinParamKeys(id => (selectionOnly ? selected.Contains(id) : replacedBy.ContainsKey(id))
-            ? replacedBy[id] : null);
+        Func<Guid, bool> moves = selectionOnly ? selected.Contains : replacedBy.ContainsKey;
+        var moved = RepinParamKeys(id => moves(id) ? replacedBy[id] : null);
         if (moved is not null) { Doc.TemplateParams = moved; changed = true; }
+        if (RetargetFiles(replacedBy, moves)) changed = true;
         if (changed) TouchUpdatedAt();
         return changed;
+    }
+
+    /// <summary>
+    /// Файлы пересаживаемых версий — к новой: файл, помеченный погашенной версией, сборка комплекта
+    /// ставила бы в конец, а следующая генерация не заменила бы, а добавила бы второй PDF того же
+    /// шаблона. Если у новой версии свой файл того же формата уже есть, прежний не трогается; из
+    /// нескольких кандидатов к одной версии переходит самый поздний (при равенстве — больший по тексту
+    /// идентификатор). Правило то же, что у SQL миграции TemplateVersionIntegrity.
+    /// </summary>
+    private bool RetargetFiles(IReadOnlyDictionary<Guid, Guid> replacedBy, Func<Guid, bool> moves)
+    {
+        var picked = Doc.Files
+            .Where(f => f.TemplateId is { } id && moves(id))
+            .GroupBy(f => (f.Format, To: replacedBy[f.TemplateId!.Value]))
+            .Where(g => !Doc.Files.Any(o => o.Format == g.Key.Format && o.TemplateId == g.Key.To))
+            .Select(g => (File: g.OrderByDescending(f => f.CreatedAt)
+                .ThenByDescending(f => f.Id.ToString(), StringComparer.Ordinal).First(), g.Key.To))
+            .ToList();
+        foreach (var (file, to) in picked) file.RetargetTemplate(to);
+        return picked.Count > 0;
     }
 
     /// <summary>

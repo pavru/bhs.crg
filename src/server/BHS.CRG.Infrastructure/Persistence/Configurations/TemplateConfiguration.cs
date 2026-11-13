@@ -16,7 +16,7 @@ public class TemplateConfiguration : IEntityTypeConfiguration<Template>
     {
         b.ToTable("templates");
         b.HasKey(e => e.Id);
-        b.Property(e => e.Name).HasMaxLength(256).IsRequired();
+        b.Property(e => e.Name).HasMaxLength(Template.NameMaxLength).IsRequired();
         b.Property(e => e.Content).IsRequired();
         b.Property(e => e.Parameters).HasColumnType("jsonb");
         b.Property(e => e.Comment).HasMaxLength(1000);
