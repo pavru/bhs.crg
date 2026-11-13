@@ -9,20 +9,32 @@
 
 ## Context
 
-Сверено по коду master `f8a8b222`.
+Сверено по коду master `df5189b8` (после `plan-03`, `core-work-types-not-set-up`, `work-01`,
+`work-10`, `work-11`).
 
-- `ВидРаботы` объявлен ядром (`Application/Documents/CoreRecordTypes.cs:117-147`): код, наименование,
+- `ВидРаботы` объявлен ядром (`Application/Documents/CoreRecordTypes.cs`): код, наименование,
   единица, три признака с тэгами `work.*`; уровень `Extendable`, `SkipWhenBlocked: true` — на чистой
   установке без справочника единиц тип не заводится. Поля «Варианты» нет: массив целью в объявлении
-  не бывает (`CoreRecordTypes.cs:52-53`, `ModuleFieldSpec.Target` — только `complex`).
-- `core.worktypes.edit` объявлено (`Api/Auth/CorePermissions.cs:138`) и выдано «Сметчику»
-  (`Api/Auth/SystemRoles.cs:75-78`), но ни один адрес его не проверяет. Записи пишет
-  `/api/common-data` под `core.catalog.edit` (`Api/Endpoints/Documents/CommonDataEndpoints.cs:17`), а
-  его у «Сметчика» нет: сегодня сметчик не правит классификатор вовсе.
-- Образец двери ядра над общими данными — `Api/Endpoints/Core/EmployeeEndpoints.cs`: тонкая, зовёт
-  те же `CommonData`-команды, своя — ради права.
-- Порт модулю `IModuleCatalog` (`BHS.CRG.Modules/Ports/IModuleCatalog.cs:139`) знает роли справочника и
-  отдаёт `DataJson` строкой — признаки вида работы модулю пришлось бы выковыривать из JSON по ключам.
+  не бывает (`ModuleFieldSpec.Target` — только `complex`).
+- `core.worktypes.edit` (`CorePermissions.WorkTypesEdit`) проверяет дверь `/api/work-types`
+  (`Api/Endpoints/Core/WorkTypeEndpoints.cs`, `plan-03`); право у «Сметчика» и «Инженера ИД».
+- Своих дверей у справочников ядра уже две — виды работ и сотрудники (`work-01`). Отказ общего адреса
+  для их семей — реестр `Api/Endpoints/Core/OwnDoorTypes.cs` (`RefuseCommonPathAsync`), зеркало на
+  клиенте — `OWN_DOORS` в `shared/api/commonData.ts`; клиентские хуки записи и ворота действий каталога
+  (`catalog/RecordWriteGate.tsx`) выбирают адрес и право по нему. Возврат из архива и `/purge` общим
+  адресом не отвергаются. Сверка версии и архив с новой версией в ответе у двух дверей — две копии
+  (`Seen`, `SetArchiveAsync`): общего помощника записи `plan-03` не вынес.
+- «Справочник не заведён» дверь видов работ отвечает 409 `{ code: "directory-missing", reason, error }`
+  на чтении списка и заведении (`core-work-types-not-set-up`, `WorkTypeEndpoints.DirectoryMissingResult`).
+- ⚠️ `Locked` в объявлении — замок ЗНАЧЕНИЯ (`RecordWriteGuard`): запертое поле не заполняется
+  записью общих данных даже впервые («значение кладёт код модуля»). От удаления и переименования поле
+  ядра защищает происхождение (`SchemaEditPolicy`, «поле модуля … удалено или переименовано»), а не замок:
+  так защищены `Код` и `ЕдиницаИзмерения` вида работы с `Locked: false`.
+- ⚠️ Ключ идентичности строится только из скаляров (`ObjectMatchRequest.MatchText`): ссылка в него не
+  входит. «Есть в архиве» при заведении (`EnsureNoArchivedTwinAsync`) по ключу из одного наименования
+  нашёл бы архивный «в лотке» ЧУЖОГО вида работы.
+- Порт модулю `IModuleWorkTypes` (`BHS.CRG.Modules/Ports/IModuleWorkTypes.cs`, реализация
+  `Api/Modules/Ports/ModuleWorkTypesPort.cs`) — `GetAsync(ids)`, `SearchAsync`; `null` — не заведён.
 
 ## Goals / Non-Goals
 
@@ -39,28 +51,43 @@
 
 - **Состав PR — один.**
   - `CoreRecordTypes.WorkVariant` (`ВариантРаботы`): `ВидРаботы` — `complex` с целью `ВидРаботы`,
-    `Required`, `Locked`; `Наименование` — `identity:1`, `Required`. `Parent: null`, `Extendable`,
-    `SkipWhenBlocked: true`. В `All` — после `WorkType`: порядок значим, цель обязана существовать.
+    `Required`, **`Locked: false`**; `Наименование` — `identity:1`, `Required`. `Parent: null`,
+    `Extendable`, `SkipWhenBlocked: true`. В `All` — после `WorkType`: порядок значим, цель обязана
+    существовать.
+    - Почему не `Locked` (сверка с master): замок значения не дал бы заполнить ссылку даже при
+      заведении — дверь зовёт ту же команду общих данных, и охрана записи отказала бы. Удаление и
+      переименование поля запрещает происхождение «поле ядра», а постоянство ссылки держит дверь (правка
+      с другим видом — 409) вместе с запретом общего адреса.
   - `Api/Endpoints/Core/WorkVariantEndpoints.cs` — группа `/api/work-variants`: `GET` (с `workTypeId`
-    и обязательным `purpose`, `RecordsFor`) под `core.catalog.read`; `POST`, `PUT /{id}`,
-    `DELETE /{id}`, `POST /{id}/archive|unarchive` под `core.worktypes.edit`. Право — константой в
-    `CorePermissions` (сейчас литерал).
+    и обязательным `purpose`, `RecordsFor`) и `GET /{id}` под `core.catalog.read`; `POST`, `PUT /{id}`,
+    `DELETE /{id}`, `POST /{id}/archive|unarchive` под `core.worktypes.edit`
+    (`CorePermissions.WorkTypesEdit`).
+  - «Справочник не заведён» — то же тело, что у двери видов работ: 409 `directory-missing` с причиной на
+    чтении списка и заведении. Нет вида работы — причина вида работы (`unit-missing` / `not-created`);
+    вид есть, а варианта нет — `not-created`.
   - Правило записи варианта — в двери, до команды: ссылка, а не вложенный объект; вид существует и не в
-    архиве (`CORE-34.4`, отказ с именем поля); `workTypeId` правкой не меняется; наименование уникально
-    среди неархивных вариантов вида.
-  - `CommonDataEndpoints.cs`: create, update, delete, archive записи типа `ВариантРаботы` — 409 с
-    адресом двери. Принудительное удаление (`/purge`, `core.catalog.purge`, `CORE-34.2`) остаётся общим:
-    это путь администратора для записей, занятых выключенным модулем, а не правка.
+    архиве (`CORE-34.4`, отказ с именем поля); `workTypeId` правкой не меняется; наименование
+    обязательно и уникально среди неархивных вариантов вида.
+  - «Есть в архиве» — в двери, в пределах ВИДА: архивный вариант того же вида с тем же наименованием —
+    тот же ответ `archived-twin`, что у общего адреса (кнопка «Вернуть», повтор с `createAnyway`).
+    Команде дверь передаёт `createAnyway: true`: общая проверка ключа ссылку не видит и склеила бы
+    одноимённые варианты разных видов.
+  - `CommonDataEndpoints.cs` не меняется: create, update, delete, archive записи типа `ВариантРаботы` —
+    409 с адресом двери строкой в `OwnDoorTypes.All` (и в клиентском `OWN_DOORS`). Возврат из архива и
+    принудительное удаление (`/purge`, `core.catalog.purge`, `CORE-34.2`) остаются общими — как у видов
+    работ и сотрудников.
   - Порт `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` (`plan-03`): `ModuleWorkType` получает
     `Variants: IReadOnlyList<ModuleWorkVariant(Id, WorkTypeId, Name, Archived)>`, а `GetVariantsAsync(ids)`
     отвечает, какому виду принадлежит вариант. Имеющиеся поля и «`null` — справочник не заведён» —
-    как у `plan-03`.
-  - Клиент: `shared/api/commonData.ts` — запись типа `ВариантРаботы` идёт адресами двери; действия
-    записи показываются по `core.worktypes.edit` (`document-sets/catalog/CatalogResource.tsx`). Экран не
-    меняется ни составом, ни раскладкой — макеты не нужны (`docs/UI.md`, «Макеты не нужны»).
+    как у `plan-03`. Нет типа `ВариантРаботы` при заведённых видах — у видов пустые списки, а
+    `GetVariantsAsync` — `null`.
+  - Клиент: строка `ВариантРаботы` в `OWN_DOORS` (`shared/api/commonData.ts`). Адрес записи и ворота
+    действий каталога (`RecordWriteGate`) уже выбираются по ней — `CatalogResource.tsx` не меняется.
+    Экран не меняется ни составом, ни раскладкой — макеты не нужны (`docs/UI.md`, «Макеты не нужны»).
 - **Дверь видов работ** (решение владельца 22.10.2026, `WORK-59`) — `plan-03` (D18 зонтика). Дверь
-  вариантов повторяет её адреса, права и `If-Match`; общее правило двери — один помощник для обеих
-  групп, а не две копии: помощник заводит `plan-03`, здесь он получает вторую группу.
+  вариантов повторяет её адреса, права и `If-Match`. Сверка версии и архив с новой версией в ответе —
+  один помощник (`Api/Endpoints/Core/OwnDoorWrites.cs`) для дверей видов работ и вариантов, а не третья
+  копия: выносится из `WorkTypeEndpoints`. Дверь сотрудников на него не переводится — вне этого change.
 - **Направление ссылки — вариант → вид**, а не массив вариантов у вида (`TYPE-9`). Так у варианта свой
   идентификатор и свой держатель, запрет удалять занятое работает поштучно, схема вида не меняется у
   заказчиков. Отличие от примера `TYPE-9` названо в `ADMIN_GUIDE.md`.
@@ -68,9 +95,11 @@
   архивирует без версии (`CommonDataEndpoints.cs:185`), но новый адрес старого послабления не наследует.
   Заведение версии не называет — версии ещё нет. Ворот модуля нет: адреса ядра (`AUTH-8` не применимо).
 - **Сторож.** `WorkVariantEndpointsTests` — 403 без права, 400/409 по `If-Match`, перенос на другой вид,
-  архивный вид, дубль, отказ `/api/common-data`; `ModuleWorkTypesPortTests` (`plan-03`) дополняется —
-  вид без вариантов, архивный вариант, вариант чужого вида; `EndpointGateInventoryTests` видит группу.
-  `ArchiveReadInventoryTests` — новое место чтения с вердиктом `Choice` / `Display`.
+  архивный вид, дубль, одноимённые варианты разных видов, «есть в архиве» своего вида, отказ
+  `/api/common-data`; `ModuleWorkTypesPortTests` (`plan-03`) дополняется — вид без вариантов, архивный
+  вариант, вариант чужого вида; `EndpointGateInventoryTests` видит группу; `OwnDoorWriteInventoryTests`
+  — новая дверь в переписи мест записи. `ArchiveReadInventoryTests` — новое место чтения с вердиктом
+  `Choice` / `Display`. `CoreRecordTypeProjectionTests` — тип заводится и не заводится без вида работы.
 - **Чем ломается.** Вариант строкой в JSON вида работ: дубль и переименование проходят, держателя нет.
   Дверь без запрета `/api/common-data` — правило «вид не меняется» обходится общей правкой.
 - **Зависимости.** `plan-03-work-types-door` (дверь видов работ, порт, константа права). Потребитель
