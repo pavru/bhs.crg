@@ -150,8 +150,8 @@ cd src/server && dotnet build BHS.CRG.slnx
 # компилирует — без него они красные, с названной причиной.
 cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
 
-# Те же тесты ДВУМЯ ПОТОКАМИ, как в CI (issue #1164): два процесса на своих базах,
-# <BHS_TEST_DB>_s1 и _s2. Весь набор гоняют так; один класс или фильтр — обычным `dotnet test`.
+# Те же тесты ЧЕТЫРЬМЯ ПОТОКАМИ, как в CI (issue #1164; в CI — двумя долями по два, на своих раннерах):
+# процессы на своих базах, <BHS_TEST_DB>_s1 … _s4. Весь набор гоняют так; один класс или фильтр — обычным `dotnet test`.
 bash scripts/backend-tests.sh
 
 # Frontend тесты (vitest; *.test.ts рядом с кодом)
@@ -216,7 +216,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master (кроме тех, что
 тронули только `docs/tz` и `openspec`, — см. ниже): backend
-(сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
+(сборка + тесты, PostgreSQL сервисным контейнером; двумя долями, итог — сводной работой с именем обязательной проверки), frontend (`tsc -b`, `npm run build`, vitest,
 храповики линта и интерфейса, `md3:migrate --check` на всей истории — забытый перевод шкалы формы в ветке до перехода), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
 и **живые прогоны в браузере** (тремя долями, у каждой свой стенд) — четырьмя независимыми
 работами. **Node — одна версия на всё: `.nvmrc` в корне** (CI ставит по нему, образ `web` и `engines`
