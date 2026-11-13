@@ -23,7 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 import {
-  BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
+  BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until, pickQueue, queueChip,
   FRESH_PANELS, takePanels, setPanels, underRoute, unrouteQuiet, pageApi,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
@@ -358,9 +358,9 @@ try {
       () => row.getByText(BAD_FILE.row).waitFor({ timeout: 15_000 }));
 
     // Отбор «Не распознано» — тот же счёт стоит под ним.
-    await page.getByRole('button', { name: /^Не распознано/ }).click();
+    await pickQueue(page, 'Не распознано');
     await named('под отбором «Не распознано» счёта нет', () => row.waitFor({ timeout: 10_000 }));
-    await page.getByRole('button', { name: /^Не распознано/ }).click();
+    await pickQueue(page, 'Все счета');
     // Файл остаётся закрытым: проверки загрузки ниже смотрят список. Выбор возвращает проверка 8а.
   });
 
@@ -412,11 +412,21 @@ try {
     await line.getByText('В списке только они: 2.').waitFor({ timeout: 10_000 });
     if (await page.getByPlaceholder('Номер, поставщик, назначение…').inputValue() !== '')
       throw new Error('отбор загрузки не снял поиск — под ним её счетов не видно');
-    // Чип очереди отбор снимает: пересечение дало бы пустой список без объяснения.
-    await page.getByRole('button', { name: /^Разобрать/ }).click();
-    await named('чип очереди не снял отбор загрузки',
+    // Под отбором загрузки чип очередей называет её, а не «Все счета» (ревью PR #1934): в покое он
+    // утверждал бы, что показано всё.
+    const chipText = (await queueChip(page).innerText()).trim();
+    if (!chipText.startsWith('Эта загрузка')) throw new Error(`под отбором загрузки чип очередей: «${chipText}»`);
+    // Очередь отбор загрузки снимает: пересечение дало бы пустой список без объяснения.
+    await pickQueue(page, 'Разобрать');
+    await named('очередь не сняла отбор загрузки',
       () => line.getByRole('button', { name: 'Показать только их' }).waitFor({ timeout: 10_000 }));
-    await page.getByRole('button', { name: /^Разобрать/ }).click();
+    await pickQueue(page, 'Все счета');
+    // «Все счета» снимает и сам отбор загрузки — тот же пункт, что прежде был невыбираем под ним.
+    await line.getByRole('button', { name: 'Показать только их' }).click();
+    await line.getByText('В списке только они: 2.').waitFor({ timeout: 10_000 });
+    await pickQueue(page, 'Все счета');
+    await named('«Все счета» не сняли отбор загрузки',
+      () => line.getByRole('button', { name: 'Показать только их' }).waitFor({ timeout: 10_000 }));
     // И обратно — «Показать все счета» возвращает общий список.
     await line.getByRole('button', { name: 'Показать только их' }).click();
     await line.getByRole('button', { name: 'Показать все счета' }).click();

@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
-import { Apartment, Check, Close, Star } from '@/shared/ui/icons';
+import { Apartment, Check, Close, Star, Warning } from '@/shared/ui/icons';
 import { useId, useState } from 'react';
 import { useRadioGroup } from '@/shared/ui/useRadioGroup';
 import { IconButton } from '@/shared/ui/Button';
@@ -17,7 +17,9 @@ import { LayerBoundary } from '@/shared/ui/LayerBoundary';
  * («на этом экране не действуют»). Здесь отбор стоит только там, где он действует, — и ровно над тем
  * списком, который урезает.
  *
- * <p>Чип называет состояние словами: «Избранные стройки · скрыто 12» или «Все стройки». Он же — всё
+ * <p>Включённый чип называет значение: «Избранные стройки · скрыто 12»; выключенный — категорию, «Стройки»
+ * (costs-invoice-filter-row, [UI-95]): «Все стройки» был шире на слово и вместе с очередями над лентой
+ * счетов (колонка 320) не помещался в ряд. Положение выключенного называет имя для диктора. Он же — всё
  * свидетельство урезанного списка: строку «скрыто» прежде ставили отдельно (§62.1), теперь она в
  * подписи отбора, и закрыть её по-прежнему нельзя — забытое «включено» прячет данные.</p>
  *
@@ -47,9 +49,13 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
   const hiddenText = !filter.active || !hidden ? undefined : partial ? 'часть скрыта' : `скрыто ${hidden}`;
 
   const chip = filter.status === 'error' ? (
-    // Не пришло — сказать, а не изображать загрузку: списки при этом полные, отбор не действует.
-    <Chip icon={Apartment} iconTone="warning" menu data-testid="sites-filter-error">
-      Все стройки — избранные не загрузились
+    // Не пришло — сказать, а не изображать загрузку: списки при этом полные, отбор не действует. Подпись —
+    // та же категория, что у выключенного ([UI-95]): длинная «Все стройки — избранные не загрузились» снова
+    // переносила ряд над лентой счетов (ревью PR #1934). Об отказе говорит знак — свой, а не цвет знака
+    // стройки ([UI-68]), — имя для диктора и подсказка.
+    <Chip icon={Warning} iconTone="warning" menu data-testid="sites-filter-error"
+      aria-label="Стройки — все: избранные не загрузились">
+      Стройки
     </Chip>
   ) : (
     // Включённый отбор — input chip: крестик снимает его, стрелки нет ([UI-68]); выключенный — filter
@@ -62,8 +68,8 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
       // Имя начинается с видимой подписи (WCAG 2.5.3): голосом нажимают то, что видят.
       aria-label={filter.active
         ? `Избранные стройки${hiddenText ? ` · ${hiddenText}` : ''} — ${count} из ${total}`
-        : undefined}>
-      {filter.active ? 'Избранные стройки' : 'Все стройки'}
+        : 'Стройки — все'}>
+      {filter.active ? 'Избранные стройки' : 'Стройки'}
     </Chip>
   );
 
