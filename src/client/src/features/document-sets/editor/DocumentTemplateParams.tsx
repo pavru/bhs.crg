@@ -74,6 +74,11 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
           })}
         </div>
       )}
+      {setParams.isError && (
+        <p className="text-body-small text-error">
+          {setParams.error instanceof Error ? setParams.error.message : 'Не удалось сохранить параметры'}
+        </p>
+      )}
     </div>
   );
 }

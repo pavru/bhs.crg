@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
@@ -306,15 +307,15 @@ public class DomainObject : Entity
     private string? RepinParamKeys(Func<Guid, Guid?> target)
     {
         if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return null;
-        System.Text.Json.Nodes.JsonObject? obj;
-        try { obj = System.Text.Json.Nodes.JsonNode.Parse(Doc.TemplateParams) as System.Text.Json.Nodes.JsonObject; }
+        JsonObject? obj;
+        try { obj = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
         catch (JsonException) { return null; }
         if (obj is null) return null;
 
         var entries = obj.Select(kv => (kv.Key, kv.Value,
             To: Guid.TryParse(kv.Key, out var id) ? target(id) : null)).ToList();
         if (entries.All(e => e.To is null)) return null;
-        var result = new System.Text.Json.Nodes.JsonObject();
+        var result = new JsonObject();
         foreach (var e in entries
                      .OrderBy(e => e.To is null)
                      .ThenBy(e => e.Key, StringComparer.Ordinal))
@@ -322,6 +323,68 @@ public class DomainObject : Entity
         return result.ToJsonString();
     }
 
+    /// <summary>Убирает переопределения параметров удаляемого шаблона (issue #1960): ключ шаблона, которого
+    /// нет, генерация не читает, а клиент пересылал бы его с каждой записью. Пустой объект → null.
+    /// Вывод не меняется — в черновик не сбрасывает. Возвращает, было ли что убирать.</summary>
+    public bool DropTemplateParams(Guid templateId)
+    {
+        if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return false;
+        if (TemplateRefJson.TryParseObject(Doc.TemplateParams) is not { } root) return false;
+        var keys = root.Where(p => TemplateRefJson.TemplateKey(p.Key) == templateId).Select(p => p.Key).ToList();
+        if (keys.Count == 0) return false;
+        foreach (var key in keys) root.Remove(key);
+        Doc.TemplateParams = root.Count == 0 ? null : root.ToJsonString();
+        TouchUpdatedAt();
+        return true;
+    }
+
+    /// <summary>Убирает ссылки на шаблоны вне <paramref name="known"/> — шаблонов ТИПА документа
+    /// (issue #1960): одиночный пин, элементы выбора и ключи переопределений. Ссылка — id в виде «D»
+    /// (<see cref="TemplateRefJson.TemplateKey(string?)"/>); число, null, иной вид — не ссылка.
+    /// Оставшееся пишется каноническим видом, выбор — без повторов; не массив и не объект — null,
+    /// пустое — null. Чего уборка не коснулась, не трогается. Для мест, где отказать некому, —
+    /// восстановления копии; то же правило у SQL миграции DocumentTemplateRefsCleanup.
+    /// Возвращает число убранных ссылок.</summary>
+    public int ForgetUnknownTemplates(IReadOnlySet<Guid> known)
+    {
+        var removed = 0;
+        if (Doc.TemplateId is { } single && !known.Contains(single)) { Doc.TemplateId = null; removed++; }
+        if (!string.IsNullOrWhiteSpace(Doc.TemplateIds))
+        {
+            var ids = TemplateRefJson.TryParseArray(Doc.TemplateIds)?.Select(TemplateRefJson.TemplateKey).ToList();
+            var lost = ids is null ? 1 : ids.Count(id => id is not { } v || !known.Contains(v));
+            if (lost > 0)
+            {
+                var kept = ids?.OfType<Guid>().Where(known.Contains).Distinct().ToList() ?? [];
+                Doc.TemplateIds = kept.Count == 0 ? null : JsonSerializer.Serialize(kept);
+                removed += lost;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(Doc.TemplateParams))
+        {
+            if (TemplateRefJson.TryParseObject(Doc.TemplateParams) is not { } root) { Doc.TemplateParams = null; removed++; }
+            else
+            {
+                var lost = 0;
+                var renamed = false;
+                var kept = new JsonObject();
+                foreach (var (key, value) in root)
+                {
+                    if (TemplateRefJson.TemplateKey(key) is { } id && known.Contains(id))
+                    {
+                        renamed |= key != id.ToString();
+                        kept[id.ToString()] = value?.DeepClone();
+                    }
+                    else lost++;
+                }
+                if (lost > 0 || renamed) Doc.TemplateParams = kept.Count == 0 ? null : kept.ToJsonString();
+                if (renamed && lost == 0) TouchUpdatedAt(); // ключ переписан в канонический вид, убирать нечего
+                removed += lost;
+            }
+        }
+        if (removed > 0) TouchUpdatedAt();
+        return removed;
+    }
     public void SetTemplateParams(string? json) { Doc.TemplateParams = json; TouchUpdatedAt(); }
     public void UpdatePluginData(JsonDocument pluginData) { Doc.PluginData = pluginData; TouchUpdatedAt(); }
 

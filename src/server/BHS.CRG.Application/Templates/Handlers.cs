@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Recent;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -234,12 +235,16 @@ public class TemplateHandlers(
 
         // Снимаем пин (→ резолв в дефолт) + сбрасываем PDF (контекст резолва сменится). Блобы — после коммита.
         var blobs = new List<string>();
+        var touched = new HashSet<DomainObject>(pinned);
         foreach (var o in pinned)
         {
             o.UnpinTemplate(t.Id);
             blobs.AddRange(o.ResetToDraft());
-            objRepo.Update(o);
         }
+        // Переопределения параметров версии живут и без пина (issue #1960) — снимаем у всех документов типа.
+        foreach (var o in docs)
+            if (o.DropTemplateParams(t.Id)) touched.Add(o);
+        foreach (var o in touched) objRepo.Update(o);
         // Отметки «Недавних» удаляемой версии — к текущей из оставшихся, а последней — снимаются (shell-09,
         // Р-5): иначе очистка версий молча убирала бы живой шаблон с Главной.
         await recent.TemplateVersionLeavingAsync(t.Id, ct);

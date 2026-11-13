@@ -169,24 +169,31 @@ export function useSetDocumentTemplate() {
 }
 
 /** Набор выбранных шаблонов для мульти-генерации — templateIds = массив id (пусто → один дефолт). */
+/**
+ * Выбор шаблонов документа. Пустой выбор уходит пустым МАССИВОМ, а не null: axios при `null` тело не
+ * шлёт вовсе, и адрес отвечал 415 — снятие последней галки молча не сохранялось, а оптимистичная галка
+ * это прятала (поймано живым прогоном PR #1963). Сервер пишет пустой выбор как null сам.
+ */
 export function useSetDocumentTemplates() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ setId, instanceId, templateIds }: { setId: string; instanceId: string; templateIds: string[] }) =>
       apiClient
-        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/templates`, templateIds.length ? templateIds : null)
+        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/templates`, templateIds)
         .then((r) => r.data),
     onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
   });
 }
 
-/** Переопределения значений параметров шаблона на документе — params = объект {имя:значение} или null. */
+/** Переопределения значений параметров шаблона на документе — params = объект {idШаблона:{имя:значение}}
+ *  (ключ — шаблон типа документа, иначе 400). «Нет переопределений» уходит пустым объектом, а не null —
+ *  по той же причине, что у выбора: без тела адрес отвечает 415. */
 export function useSetDocumentTemplateParams() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ setId, instanceId, params }: { setId: string; instanceId: string; params: Record<string, unknown> | null }) =>
       apiClient
-        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/template-params`, params)
+        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/template-params`, params ?? {})
         .then((r) => r.data),
     onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
   });

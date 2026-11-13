@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { BugReport, CheckCircle, Description, Download, ErrorIcon, Mail, Stethoscope, VerifiedUser, Visibility, Warning } from '@/shared/ui/icons';
@@ -11,6 +11,7 @@ import type { DocumentInstance, Template } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from '../fields';
 import { InstanceAuditModal } from './InstanceAuditModal';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
+import { effectiveTemplateOf, paramTemplateIds, unknownTemplateRefs } from './templateRefs';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -83,7 +84,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   const shownDiagnostics = diagnostics ?? sharedDiagnostics ?? null;
   const mutation = useGenerateDocument();
   const setTemplatesMutation = useSetDocumentTemplates();
-  const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
+  const { data: templates = [], isLoading: templatesLoading, refetch: refetchTemplates } = useListTemplates(instance.documentTypeId);
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
   /**
@@ -100,11 +101,17 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   const selectedTemplateIds = localSelection && localSelection.from === instance.templateIds
     ? localSelection.ids
     : parseIdArray(instance.templateIds);
-  // Эффективный шаблон для параметров/дефолт-скачивания: первый выбранный → по умолчанию → первый активный.
-  const effectiveTemplate = activeTemplates.find((t: Template) => t.id === selectedTemplateIds[0])
-    ?? activeTemplates.find((t: Template) => t.id === instance.templateId)
-    ?? activeTemplates.find((t: Template) => t.isDefault)
-    ?? activeTemplates[0];
+  // Ссылка на шаблон, которого нет в списке, — прежде всего устаревший список (issue #1960): новая
+  // версия пересаживает выбор на свой id, а запрос шаблонов от этого не обновляется. Перечитываем
+  // его, а id пересылаем как есть — есть ли такой шаблон, решает сервер. Ключ эффекта — сами id: на
+  // каждый новый набор незнакомых один запрос, а не по запросу на рендер.
+  const unknownRefs = templatesLoading
+    ? ''
+    : unknownTemplateRefs(selectedTemplateIds, paramTemplateIds(instance.templateParams), templates).join(',');
+  useEffect(() => { if (unknownRefs) void refetchTemplates(); }, [unknownRefs, refetchTemplates]);
+  // Эффективный шаблон для параметров/дефолт-скачивания: первый действующий из выбранных → пин →
+  // по умолчанию → первый активный (как у предпросмотра).
+  const effectiveTemplate = effectiveTemplateOf(selectedTemplateIds, activeTemplates, instance.templateId);
   // Фокус — какой шаблон сейчас «раскрыт» в блоке параметров (ортогонально членству в генерации).
   // По умолчанию — эффективный; держим фокус при переключении галок, если он ещё валиден.
   // Выбранный человеком фокус держится, пока такой шаблон вообще есть среди активных; иначе
@@ -152,7 +159,15 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       ? [...new Set([...selectedTemplateIds, id])]
       : selectedTemplateIds.filter(x => x !== id);
     setLocalSelection({ from: instance.templateIds, ids: next });
-    setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
+    setError('');
+    setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next }, {
+      // Отказ — отказом: снять оптимистичную галку и сказать почему, иначе показан выбор, которого нет.
+      onError: (err: unknown) => {
+        setLocalSelection(null);
+        void refetchTemplates(); // частая причина — устаревший список шаблонов
+        setError(err instanceof Error ? err.message : 'Не удалось сохранить выбор шаблонов');
+      },
+    });
   }
 
   const pdfFiles = instance.generatedFiles.filter(f => f.format === 'Pdf');
