@@ -52,7 +52,7 @@ public class OwnDoorWriteInventoryTests
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand("] = Door,
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand("] = Door,
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id), ct); return Results.NoContent(); }"] = Door,
-        ["BHS.CRG.Api/Endpoints/Core/OwnDoorWrites.cs|var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);"] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/OwnDoorWrites.cs|: (null, await m.Send(new SetRecordArchiveCommand(id, archived), ct));"] = Door,
 
         // Дверь вариантов вида работ (work-06): своя семья, и правило записи варианта — её.
         ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var created = await m.Send(new CreateCommonDataEntryCommand("] = Door,

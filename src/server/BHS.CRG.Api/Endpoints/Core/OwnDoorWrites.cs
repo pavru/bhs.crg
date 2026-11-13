@@ -1,6 +1,8 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Core;
@@ -40,17 +42,56 @@ internal static class OwnDoorWrites
     /// отслеживания, а запись, прочитанная звавшим для сверки, осталась в контексте запроса — повторное
     /// чтение там отдало бы её же, с прежней версией (поймано тестом видов работ).</para>
     /// </summary>
+    /// <param name="guard">Отказ, который дверь проверяет перед записью: при <paramref name="exclusive" /> —
+    /// под замком, в одной транзакции с архивом. Версия ответа читается ПОСЛЕ фиксации — иначе свежая
+    /// область увидела бы прежнюю.</param>
     internal static async Task<IResult> SetArchiveAsync(
-        Guid id, bool archived, IMediator m, IServiceScopeFactory scopes, CancellationToken ct)
+        Guid id, bool archived, IMediator m, IServiceScopeFactory scopes, CancellationToken ct,
+        Func<Task<IResult?>>? guard = null, DoorLock? exclusive = null)
     {
         try
         {
-            var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);
+            var (refused, done) = exclusive is null ? await WriteAsync() : await exclusive.RunAsync(async () =>
+            {
+                var outcome = await WriteAsync();
+                return (outcome, Keep: outcome.Refused is null);
+            }, ct);
+            if (refused is not null) return refused;
             using var fresh = scopes.CreateScope();
             var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);
-            return Results.Ok(new { done.Id, done.DisplayName, done.Archived, done.Changed, version = after?.Version });
+            return Results.Ok(new { done!.Id, done.DisplayName, done.Archived, done.Changed, version = after?.Version });
         }
         catch (NotFoundException) { return Results.NotFound(); }
         catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+
+        async Task<(IResult? Refused, RecordArchiveResult? Done)> WriteAsync() =>
+            guard is not null && await guard() is { } refusal
+                ? (refusal, null)
+                : (null, await m.Send(new SetRecordArchiveCommand(id, archived), ct));
+    }
+}
+
+/// <summary>
+/// Замок двери на правило, которого нет в базе (ревью PR #1966): «тёзки ещё нет» и запись идут под
+/// совещательным замком в одной транзакции. Иначе два одновременных запроса оба видят «нет» и оба
+/// пишут. Команды ядра своих транзакций не открывают — они пишут в эту.
+///
+/// <para>Тело решает, оставить ли записанное: отказ, найденный уже после записи (дверь сначала даёт
+/// пройти охране записи, а «есть в архиве» говорит потом), откатывает транзакцию.</para>
+/// </summary>
+internal sealed class DoorLock(AppDbContext db, long key)
+{
+    public async Task<T> RunAsync<T>(Func<Task<(T Value, bool Keep)>> body, CancellationToken ct)
+    {
+        // Чужую транзакцию не открываем второй раз и не закрываем: замок тогда держит она.
+        await using var own = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+        var (value, keep) = await body();
+        if (own is not null)
+        {
+            if (keep) await own.CommitAsync(CancellationToken.None);
+            else await own.RollbackAsync(CancellationToken.None);
+        }
+        return value;
     }
 }

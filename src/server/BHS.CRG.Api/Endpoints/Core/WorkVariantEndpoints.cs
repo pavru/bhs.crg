@@ -5,8 +5,10 @@ using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using MediatR;
 
@@ -70,7 +72,7 @@ public static class WorkVariantEndpoints
         g.MapGet("/{id:guid}", async (Guid id, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
             await VariantAsync(id, m, types, ct) is { } entry ? Results.Ok(WorkVariantEntryDto.Of(entry)) : Results.NotFound());
 
-        edit.MapPost("/", async (CreateWorkVariantRequest req, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
+        edit.MapPost("/", async (CreateWorkVariantRequest req, IMediator m, IRepository<DocumentType> types, AppDbContext db, CancellationToken ct) =>
         {
             var all = await types.GetAllAsync(ct);
             if (Family(all) is not { } family) return DirectoryMissingResult(all);
@@ -83,28 +85,32 @@ public static class WorkVariantEndpoints
             if (await WorkTypeRefusalAsync(data.RootElement, all, m, ct) is { } badWorkType) return badWorkType;
             var workTypeId = CoreDirectories.Reference(data.RootElement, WorkTypeKey)!.Value;
             if (NameOf(data.RootElement) is not { } name) return NameRequired();
-            if (await TwinAsync(family, workTypeId, name, except: null, m, ct) is { } twin)
+            // Тёзка и запись — под замком (ревью PR #1966): иначе два одновременных «Создать» оба видят «нет».
+            return await NameLock(db).RunAsync<IResult>(async () =>
             {
-                if (!twin.IsArchived) return Duplicate(twin);
-                // Тот же ответ, что у общего адреса (issue #1185): экран предлагает вернуть вариант кнопкой
-                // или завести новый, подтвердив.
-                if (req.CreateAnyway != true)
-                    return RecordRequests.ArchivedTwin(new ArchivedTwinException(
-                        twin.Id, twin.DisplayName ?? "", twin.ScopeLevel.ToString()));
-            }
+                var twin = await TwinAsync(family, workTypeId, name, except: null, m, ct);
+                if (twin is { IsArchived: false }) return (Duplicate(twin), false);
 
-            var created = await m.Send(new CreateCommonDataEntryCommand(
-                string.IsNullOrWhiteSpace(req.DisplayName) ? name : req.DisplayName, typeId, data,
-                Scope(req.Scope), req.ScopeId, req.Aliases,
-                // Свою проверку «есть в архиве» дверь уже сделала — в пределах вида; общая, по ключу без
-                // ссылки, нашла бы одноимённый вариант чужого вида.
-                CreateAnyway: true, req.RefsStandIn), ct);
-            return Results.Ok(WorkVariantEntryDto.Of(created));
+                var created = await m.Send(new CreateCommonDataEntryCommand(
+                    string.IsNullOrWhiteSpace(req.DisplayName) ? name : req.DisplayName, typeId, data,
+                    Scope(req.Scope), req.ScopeId, req.Aliases,
+                    // Свою проверку «есть в архиве» дверь делает сама — в пределах вида; общая, по ключу без
+                    // ссылки, нашла бы одноимённый вариант чужого вида.
+                    CreateAnyway: true, req.RefsStandIn), ct);
+                // «Есть в архиве» — ПОСЛЕ охраны записи, как у общего адреса (ревью PR #1229): предлагать
+                // «вернуть или завести всё равно» можно лишь про запись, которую иначе создали бы. Охрана
+                // стоит в команде, поэтому запись делается и, если тёзка в архиве, откатывается. Ответ —
+                // тот же, что у общего адреса (issue #1185).
+                if (twin is not null && req.CreateAnyway != true)
+                    return (RecordRequests.ArchivedTwin(new ArchivedTwinException(
+                        twin.Id, twin.DisplayName ?? "", twin.ScopeLevel.ToString())), false);
+                return (Results.Ok(WorkVariantEntryDto.Of(created)), true);
+            }, ct);
         });
 
         edit.MapPut("/{id:guid}", async (
             Guid id, UpdateWorkVariantRequest req, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
+            ClaimsPrincipal user, DataAccessResolver access, AppDbContext db, CancellationToken ct) =>
         {
             if (await VariantAsync(id, m, types, ct) is not { } entry) return Results.NotFound();
             if (OwnDoorWrites.Seen(http, entry, Moved, out var seen) is { } refused) return refused;
@@ -115,19 +121,30 @@ public static class WorkVariantEndpoints
 
             if (Malformed(data.RootElement) is { } malformed) return malformed;
             // Вид у варианта постоянен. Архивность вида здесь не спрашивается: вариант архивного вида
-            // остаётся правимым — переименовать его можно, перенести нельзя.
-            if (CoreDirectories.Reference(data.RootElement, WorkTypeKey) != WorkTypeOf(entry))
+            // остаётся правимым — переименовать его можно, перенести нельзя. Вариант БЕЗ вида (положенный
+            // мимо двери) вид получает — по тем же правилам, что при заведении: иначе починить его было бы
+            // нечем, кроме удаления (ревью PR #1966).
+            var all = await types.GetAllAsync(ct);
+            if (WorkTypeOf(entry) is null)
+            {
+                if (await WorkTypeRefusalAsync(data.RootElement, all, m, ct) is { } badWorkType) return badWorkType;
+            }
+            else if (CoreDirectories.Reference(data.RootElement, WorkTypeKey) != WorkTypeOf(entry))
                 return Results.Conflict(new { error = MovedToOther, field = WorkTypeKey });
             if (NameOf(data.RootElement) is not { } name) return NameRequired();
-            var family = Family(await types.GetAllAsync(ct))!;
-            if (!entry.IsArchived && await TwinAsync(family, WorkTypeOf(entry)!.Value, name, except: id, m, ct) is { IsArchived: false } twin)
-                return Duplicate(twin);
+            var workTypeId = CoreDirectories.Reference(data.RootElement, WorkTypeKey)!.Value;
+            var family = Family(all)!;
+            var accessNow = await access.ForAsync(user, ct);
 
-            var updated = await m.Send(new UpdateCommonDataEntryCommand(
-                // Псевдонимы, о которых запрос молчит, остаются: null команда читает как «очистить».
-                id, req.DisplayName, data, await access.ForAsync(user, ct), seen,
-                req.Aliases ?? [.. entry.Aliases]), ct);
-            return Results.Ok(WorkVariantEntryDto.Of(updated));
+            return await NameLock(db).RunAsync<IResult>(async () =>
+            {
+                if (!entry.IsArchived && await TwinAsync(family, workTypeId, name, except: id, m, ct) is { IsArchived: false } twin)
+                    return (Duplicate(twin), false);
+                var updated = await m.Send(new UpdateCommonDataEntryCommand(
+                    // Псевдонимы, о которых запрос молчит, остаются: null команда читает как «очистить».
+                    id, req.DisplayName, data, accessNow, seen, req.Aliases ?? [.. entry.Aliases]), ct);
+                return (Results.Ok(WorkVariantEntryDto.Of(updated)), true);
+            }, ct);
         });
 
         edit.MapDelete("/{id:guid}", async (
@@ -145,26 +162,41 @@ public static class WorkVariantEndpoints
         });
 
         edit.MapPost("/{id:guid}/archive", (Guid id, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-            IServiceScopeFactory scopes, CancellationToken ct) => SetArchiveAsync(id, true, http, m, types, scopes, ct));
+            IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct) => SetArchiveAsync(id, true, http, m, types, scopes, db, ct));
         edit.MapPost("/{id:guid}/unarchive", (Guid id, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-            IServiceScopeFactory scopes, CancellationToken ct) => SetArchiveAsync(id, false, http, m, types, scopes, ct));
+            IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct) => SetArchiveAsync(id, false, http, m, types, scopes, db, ct));
     }
 
     /// <summary>
-    /// Возврат из архива сверяет наименование: вернувшийся «в лотке» рядом с живым «в лотке» того же вида
-    /// стал бы дублем, которого заведение не допускает.
+    /// Возврат из архива сверяет вид и наименование: вариант не возвращается к виду, который сам в
+    /// архиве (к такому вариант и не заводится), и не встаёт дублем рядом с живым «в лотке» того же вида.
+    /// Тёзка ищется под замком наименования — в одной транзакции с возвратом (ревью PR #1966).
     /// </summary>
     private static async Task<IResult> SetArchiveAsync(
         Guid id, bool archived, HttpRequest http, IMediator m, IRepository<DocumentType> types,
-        IServiceScopeFactory scopes, CancellationToken ct)
+        IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
     {
         if (await VariantAsync(id, m, types, ct) is not { } entry) return Results.NotFound();
         if (OwnDoorWrites.Seen(http, entry, Moved, out _) is { } refused) return refused;
-        if (!archived && WorkTypeOf(entry) is { } workTypeId && NameOf(entry.Data.RootElement) is { } name
-            && await TwinAsync(Family(await types.GetAllAsync(ct))!, workTypeId, name, except: id, m, ct) is { IsArchived: false } twin)
-            return Duplicate(twin);
-        return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct);
+        if (archived || WorkTypeOf(entry) is not { } workTypeId) return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct);
+
+        if (await m.Send(new GetCommonDataEntryQuery(workTypeId), ct) is { IsArchived: true } workType)
+            return Results.Conflict(new
+            {
+                error = $"Вид работы «{workType.DisplayName}» в архиве: вариант к нему не возвращается. " +
+                        "Сначала верните из архива вид работы.",
+                field = WorkTypeKey,
+            });
+        var family = Family(await types.GetAllAsync(ct))!;
+        return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct,
+            guard: async () => NameOf(entry.Data.RootElement) is { } name
+                               && await TwinAsync(family, workTypeId, name, except: id, m, ct) is { IsArchived: false } twin
+                ? Duplicate(twin)
+                : null,
+            exclusive: NameLock(db));
     }
+
+    private static DoorLock NameLock(AppDbContext db) => new(db, AdvisoryLockKeys.WorkVariantName);
 
     /// <summary>
     /// Запись — если это вариант работы; иначе <c>null</c> и 404 у звавшего. Обязательна на КАЖДОМ адресе

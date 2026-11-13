@@ -43,6 +43,8 @@ public partial class ArchiveReadInventoryTests
             Shown("вариант по идентификатору: редактор и действия над ним, архивный — тоже"),
         ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var workType = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Seen("вид работы заводимого варианта: архивный находится и даёт отказ с полем, а не «не найден» (CORE-34.4)"),
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|if (await m.Send(new GetCommonDataEntryQuery(workTypeId), ct) is { IsArchived: true } workType)"] =
+            Seen("вид работы варианта, который возвращают из архива: архивный вид даёт отказ с полем (CORE-34.4)"),
         ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|same.AddRange((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
             Shown("тёзки варианта в виде: живой — дубль, архивный — «есть в архиве», поэтому показом"),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))"] =
