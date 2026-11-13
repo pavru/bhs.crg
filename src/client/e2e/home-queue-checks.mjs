@@ -5,7 +5,7 @@
 // черновик: он и стоит в очереди «Разобрать», так что карточка на любом стенде есть. Он же открыт на экране —
 // и «Недавние» (ТЗ UI-35) обязаны показать его первым и на другом устройстве.
 
-import { settled, watchRequests } from './harness.mjs';
+import { pickQueue, queueChip, queueChipCount, queueOptionCount, settled, watchRequests } from './harness.mjs';
 
 export async function homeQueueChecks(page, check, { BASE, browser }) {
   await check('Недавние: открытый счёт первым на другом устройстве', async () => {
@@ -41,15 +41,24 @@ export async function homeQueueChecks(page, check, { BASE, browser }) {
     const number = (await page.getByTestId('home-queue-costs-parsing').locator('.text-headline-small').innerText()).trim();
     await card.click();
     await page.waitForURL(u => u.pathname === '/invoices' && u.searchParams.get('queue') === 'parsing', { timeout: 10_000 });
-    const chip = page.getByRole('button', { name: /^Разобрать/ });
+    // Очереди — один чип с меню (costs-invoice-filter-row): выбранная называется на нём со своим числом.
+    const chip = queueChip(page);
     await chip.waitFor({ timeout: 10_000 });
-    if (await chip.getAttribute('aria-pressed') !== 'true') throw new Error('чип «Разобрать» не нажат после перехода с Главной');
-    const label = (await chip.getAttribute('aria-label')) ?? '';
-    if (!label.includes(`счетов: ${number}`)) throw new Error(`на Главной «${number}», у чипа — «${label}»`);
+    const chosen = async () => (await chip.getAttribute('data-selected')) !== null
+      && (await chip.innerText()).trim().startsWith('Разобрать');
+    if (!(await chosen())) throw new Error(`чип очередей не выбран «Разобрать» после перехода с Главной: «${await chip.innerText()}»`);
+    const onChip = await queueChipCount(page);
+    if (onChip !== number) throw new Error(`на Главной «${number}», у чипа — «${onChip}»`);
+    // То же число — у пункта меню: одно правило числа на чип, пункт и карточку.
+    const inMenu = await queueOptionCount(page, 'Разобрать');
+    if (inMenu !== number) throw new Error(`на Главной «${number}», у пункта меню — «${inMenu}»`);
     // Обновление страницы отбор не снимает: он в адресе.
     await page.reload({ waitUntil: 'networkidle' });
-    if (await page.getByRole('button', { name: /^Разобрать/ }).getAttribute('aria-pressed') !== 'true')
-      throw new Error('после обновления страницы отбор «Разобрать» снят');
-    await page.getByRole('button', { name: /^Разобрать/ }).click();
+    await chip.waitFor({ timeout: 10_000 });
+    if (!(await chosen())) throw new Error('после обновления страницы отбор «Разобрать» снят');
+    await pickQueue(page, 'Все счета');
+    // Адрес пишет роутер следом за закрытием списка — ждём его, а не читаем один раз (ревью PR #1934).
+    await page.waitForURL(u => u.searchParams.get('queue') === null, { timeout: 10_000 })
+      .catch(() => { throw new Error('«Все счета» не убрали очередь из адреса'); });
   });
 }

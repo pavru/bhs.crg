@@ -1,11 +1,13 @@
 import * as RS from '@radix-ui/react-select';
-import { Chip } from './Chip';
+import { Chip, type ChipLead } from './Chip';
+import { LEAD_TONE } from './leadTone';
 import { Icon } from './Icon';
-import { Check, KeyboardArrowDown } from './icons';
+import { Check, KeyboardArrowDown, type IconDef } from './icons';
 import { forwardRef, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
 import { fieldBox, fieldDescribedBy, FieldMarkContext, useFieldDensity, useFieldScan, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
+import { markLayerFocus } from './layerFocus';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -80,6 +82,14 @@ interface SelectBase {
 type Scan = { fromScan?: boolean };
 type NoScan = { fromScan?: never };
 
+/**
+ * Только у чипа отбора ([UI-69], costs-invoice-filter-row): ведущий знак, число после подписи и подсказка —
+ * те же, что у `Chip`, и уходят в него как есть. Знак о проблеме («есть удалённые записи») виден на закрытом
+ * чипе, число выбранного значения называет экран: на чип из пункта переносится только подпись.
+ */
+type ChipExtras = ChipLead & { count?: ReactNode; title?: string };
+type NoChipExtras = { icon?: never; iconTone?: never; iconLabel?: never; count?: never; title?: never };
+
 /** Только у поля с подписью: сообщение и пояснение под рамкой, обёртка. */
 type Below = { error?: string; hint?: string; containerClassName?: string };
 type NoBelow = { error?: never; hint?: never; containerClassName?: never };
@@ -96,10 +106,10 @@ type NoBelow = { error?: never; hint?: never; containerClassName?: never };
  * - `variant="inline"` — внутри фразы, названное отступление: без рамки и фона, высоту и цвет даёт место.
  */
 export type SelectProps = SelectBase & (
-  | (Below & Scan & { label: string; variant?: never; density?: FieldDensity })
-  | (NoBelow & NoScan & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
-  | (NoBelow & NoScan & { label?: never; variant: 'inline'; density?: never; invalid?: never })
-  | (NoBelow & Scan & { label?: never; variant?: never; density: 'dense' | 'cell'; 'aria-label': string })
+  | (Below & Scan & NoChipExtras & { label: string; variant?: never; density?: FieldDensity })
+  | (NoBelow & NoScan & ChipExtras & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
+  | (NoBelow & NoScan & NoChipExtras & { label?: never; variant: 'inline'; density?: never; invalid?: never })
+  | (NoBelow & Scan & NoChipExtras & { label?: never; variant?: never; density: 'dense' | 'cell'; 'aria-label': string })
 );
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
@@ -149,9 +159,12 @@ const EMPTY = '\u0000∅';
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '', variant, emptyItem,
-  label, invalid, error, hint, containerClassName = '', density: own, stayOpenOn, onOpenChange, fromScan, children, ...aria
+  label, invalid, error, hint, containerClassName = '', density: own, stayOpenOn, onOpenChange, fromScan,
+  icon, iconTone, iconLabel, count, title, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
+  // Ведущий знак чипа отбора: тон и имя — только при знаке, как у `Chip`.
+  const lead: ChipLead = icon ? { icon, iconTone, iconLabel } : {};
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
   const staying = useRef(false);
   const [focused, setFocused] = useState(false);
@@ -189,9 +202,12 @@ export function Select({
       }}>
       {variant === 'chip' ? (
         // Чип отбора ([UI-69]): триггер Radix — сам чип, и роль `combobox`, клавиатура и typeahead остаются.
-        // Выбран, когда значение не пусто: «все» возвращает чип в покой.
-        <RS.Trigger asChild aria-label={aria['aria-label']}>
-          <Chip selected={!!value} menu className={className}><RS.Value placeholder={placeholder} /></Chip>
+        // Выбран, когда значение не пусто: «все» возвращает чип в покой. Знак, число и подсказку даёт экран.
+        // Имя знака — в имени чипа: у триггера своё `aria-label`, и содержимое (знак с его именем) диктор
+        // уже не читает — знак о проблеме видел бы только зрячий (ревью PR #1934).
+        <RS.Trigger asChild aria-label={iconLabel && aria['aria-label'] ? `${aria['aria-label']} — ${iconLabel}` : aria['aria-label']}>
+          <Chip selected={!!value} menu className={className} {...lead}
+            count={count} title={title}><RS.Value placeholder={placeholder} /></Chip>
         </RS.Trigger>
       ) : <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${bare ? '' : className}`
         : `${INLINE} ${className}`}
@@ -207,7 +223,9 @@ export function Select({
         {!framed && <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>}
       </RS.Trigger>}
       <RS.Portal>
-        <RS.Content position="popper" sideOffset={4}
+        {/* Фокус, который Radix вернёт триггеру после выбора или Esc, — фокус слоя (`layerFocus.ts`), как у
+            `Menu`: закрыли список с клавиатуры — без отметки сама открывалась подсказка чипа (ревью PR #1934). */}
+        <RS.Content position="popper" sideOffset={4} onCloseAutoFocus={markLayerFocus}
           className={`z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-xs ${LAYER_SURFACE}`}>
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
@@ -239,14 +257,24 @@ const ITEM =
  * Пункт выбора. `supporting` — вторая строка пункта (issue #1473: полное название организации под
  * сокращённым): она стоит ВНЕ `ItemText`, поэтому закрытое поле показывает только первую строку —
  * Radix переносит в триггер ровно текст пункта.
+ *
+ * `icon` и `count` ([UI-69], costs-invoice-filter-row) — ведущий знак 18 и число справа (очередь счетов и
+ * сколько в ней). Оба тоже вне `ItemText`: на закрытый чип уходит только подпись, а число выбранного экран
+ * передаёт чипу сам. Число стоит перед местом отметки (`pr-8`), а не на нём. Тона без знака нет: знак без
+ * тона — `primary`, как у невыбранного чипа.
  */
 export const SelectItem = forwardRef<HTMLDivElement, {
   value: string; disabled?: boolean; children: ReactNode; supporting?: ReactNode; className?: string;
-}>(
-  function SelectItem({ value, disabled, children, supporting, className = '' }, ref) {
+  count?: ReactNode;
+} & ({ icon?: undefined; iconTone?: never } | { icon: IconDef; iconTone?: keyof typeof LEAD_TONE })>(
+  function SelectItem({ value, disabled, children, supporting, className = '', icon, iconTone, count }, ref) {
     const twoLine = supporting !== undefined && supporting !== null && supporting !== '';
+    const counted = count !== undefined && count !== null && count !== '';
+    const countId = useId();
     return (
-      <RS.Item ref={ref} value={value} disabled={disabled} className={`${ITEM} ${className}`}>
+      <RS.Item ref={ref} value={value} disabled={disabled} className={`${ITEM} ${className}`}
+        aria-describedby={counted ? countId : undefined}>
+        {icon && <Icon icon={icon} size={18} aria-hidden className={`shrink-0 ${iconTone ? LEAD_TONE[iconTone] : 'text-primary'}`} />}
         {twoLine
           ? (
             <span className="flex min-w-0 flex-col">
@@ -255,6 +283,9 @@ export const SelectItem = forwardRef<HTMLDivElement, {
             </span>
           )
           : <RS.ItemText>{children}</RS.ItemText>}
+        {/* Имя пункта Radix берёт из `ItemText` (`aria-labelledby`), и число в него не входит — диктору оно
+            приходит описанием. Пробел перед ним не виден (во flex-строке схлопывается), но не склеивает текст. */}
+        {counted && <>{' '}<span id={countId} className="ml-auto text-label-medium text-on-surface-variant tabular-nums">{count}</span></>}
         <RS.ItemIndicator className="absolute right-2 inline-flex text-primary">
           <Icon icon={Check} size={18} />
         </RS.ItemIndicator>
