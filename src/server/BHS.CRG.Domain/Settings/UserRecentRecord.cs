@@ -25,4 +25,17 @@ public class UserRecentRecord
 
     /// <summary>Когда открыта в последний раз: по нему порядок и вытеснение.</summary>
     public DateTimeOffset OpenedAt { get; private set; }
+
+    /// <summary>
+    /// Отметка той же записи под другим идентификатором — перенос (shell-09: удалённая версия шаблона
+    /// передаёт отметку текущей). Ключ строки менять нельзя, поэтому перенос — новая строка вместо старой.
+    /// </summary>
+    public UserRecentRecord MovedTo(Guid recordId) =>
+        new() { UserId = UserId, RecordType = RecordType, RecordId = recordId, OpenedAt = OpenedAt };
+
+    /// <summary>Слить с другой отметкой той же записи: остаётся позднее открытие.</summary>
+    public void Merge(UserRecentRecord other)
+    {
+        if (other.OpenedAt > OpenedAt) OpenedAt = other.OpenedAt;
+    }
 }

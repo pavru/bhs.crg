@@ -228,6 +228,18 @@ describe('командная палитра — записи', () => {
     expect(chip('Стройки')).toBeTruthy();
   });
 
+  // Группы «только карточки» (shell-09, Р-2 — Б): комплекты и шаблоны помнят «Недавние», а палитра их не ищет.
+  it('чипов и групп «Комплекты» и «Шаблоны» нет даже с правами на них', () => {
+    // Даже пришедшая с сервера группа не показывается: она не из палитры.
+    found(sites, group('sets', 'КомплектДокументов', [{ id: 's-1', title: 'Комплект щитовая' }]));
+    shown({ permissions: ['core.constructions.read', 'id.document.read', 'id.config.edit'], modules: [] });
+    type('щитовая');
+    expect(labels()).not.toContain('Комплект щитовая');
+    expect(screen.queryByRole('button', { name: 'Комплекты', hidden: true })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Шаблоны', hidden: true })).toBeNull();
+    expect(chip('Стройки')).toBeTruthy();
+  });
+
   it('отказ поиска сказан словами, а действия и разделы ищутся', () => {
     records = { groups: undefined, failed: true, pending: false, tooLong: false };
     shown(reader);

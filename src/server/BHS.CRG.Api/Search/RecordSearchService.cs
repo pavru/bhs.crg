@@ -47,6 +47,8 @@ public sealed class RecordSearchService(
         var reader = await readers.ForRequestAsync(ct);
         var query = new RecordSearchQuery(words, limits.Take);
         var asked = catalog.Sources
+            // Группа «только карточки» поиском не спрашивается (shell-09, Р-2): её записи видны «Недавним».
+            .Where(s => s.Group.Searchable)
             .Where(s => only is null || string.Equals(s.Group.Code, only, StringComparison.Ordinal))
             .Where(s => reader.Allows(s.Group.Requires))
             .Select(s => AskAsync(s, "поиск",

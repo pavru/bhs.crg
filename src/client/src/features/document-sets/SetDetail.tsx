@@ -17,6 +17,7 @@ import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShel
 import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
+import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
 import { CopyDocumentDialog } from './CopyDocumentDialog';
 import { MoveDocumentDialog } from './MoveDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
@@ -57,6 +58,8 @@ export function SetDetail() {
   const panels = ['catalog', 'datasets', 'subscribers', 'plan', ...(canReconcile ? ['issues'] : [])];
   const activePanel: SetPanel = (panels.includes(panel ?? '') ? panel : 'documents') as SetPanel;
   const { data: set, isLoading } = useGetDocumentSet(setId);
+  // «Недавние» Главной (shell-09): показанный комплект — открытый.
+  useRecentTouch('КомплектДокументов', set?.id);
   const { data: construction } = useGetConstruction(constructionId!);
   const { data: allConstructions = [] } = useListConstructions();
   const { data: problems } = useRelatedProblems('Set', setId);

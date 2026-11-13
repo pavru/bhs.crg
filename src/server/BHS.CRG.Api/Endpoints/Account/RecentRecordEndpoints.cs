@@ -15,10 +15,11 @@ public sealed record RecentTouchRequest(string? RecordType, Guid Id);
 /// </summary>
 /// <param name="Group">Код группы поиска — по нему клиент знает раздел записи.</param>
 /// <param name="GroupTitle">Раздел для человека: «Счета», «Стройки».</param>
+/// <param name="Opens">Под какой записью открывается экран и что открыть — у комплекта и шаблона (shell-09).</param>
 public sealed record RecentRecordView(
     string RecordType, string Group, string GroupTitle, string Module,
     Guid Id, string Title, string? Detail, string? Place, decimal? Amount, RecordSearchLevel? Level,
-    DateTimeOffset OpenedAt);
+    RecordSearchOpens? Opens, DateTimeOffset OpenedAt);
 
 /// <summary>Группа, которая не ответила, — её записи не показаны, и это сказано, а не умолчано.</summary>
 public sealed record RecentRefusal(string Group, string Title, string Reason);
@@ -46,7 +47,7 @@ public static class RecentRecordEndpoints
     {
         var g = app.MapGroup("/api/account/recent").RequireAuthorization().WithTags("Главная");
 
-        g.MapPost("", async (RecentTouchRequest req, RecordSearchCatalog catalog, AppDbContext db,
+        g.MapPost("", async (RecentTouchRequest req, RecordSearchCatalog catalog, RecentRecords recent,
             UserManager<ApplicationUser> users, ClaimsPrincipal principal, CancellationToken ct) =>
         {
             if (await CurrentAsync(users, principal) is not { } userId) return Results.Unauthorized();
@@ -56,7 +57,7 @@ public static class RecentRecordEndpoints
                 return Results.BadRequest(new { error = $"Неизвестный тип записи: {req.RecordType}" });
             if (req.Id == Guid.Empty) return Results.BadRequest(new { error = "Не назван идентификатор записи" });
 
-            await TouchAsync(db, userId, req.RecordType, req.Id, ct);
+            await recent.TouchAsync(userId, req.RecordType, req.Id, ct);
             return Results.NoContent();
         });
 
@@ -69,24 +70,13 @@ public static class RecentRecordEndpoints
     }
 
     /// <summary>
-    /// Вставить или поднять — и вытеснить лишнее, одной командой. Две вкладки, открывшие одну запись разом,
-    /// не упираются в ключ: «вставить» без «поднять» отвечало бы второй отказом.
+    /// Свои отметки, новые первыми, — только те, что владелец типа показывает спрашивающему.
+    ///
+    /// <para><b>Свёртка</b> (shell-09, Р-5): строки, ведущие на одно и то же, — одна строка с поздним
+    /// открытием. Ключ — <c>(тип, Opens.Id ?? Id)</c>: версии одного шаблона ведут на его текущую версию, а
+    /// без <c>Opens.Id</c> (комплект, счёт, стройка, набор) ключ — сама запись, и разные записи не
+    /// сворачиваются.</para>
     /// </summary>
-    private static Task TouchAsync(AppDbContext db, Guid userId, string recordType, Guid id, CancellationToken ct) =>
-        db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO user_recent_records ("UserId", "RecordType", "RecordId", "OpenedAt")
-            VALUES ({userId}, {recordType}, {id}, {DateTimeOffset.UtcNow})
-            ON CONFLICT ("UserId", "RecordType", "RecordId") DO UPDATE SET "OpenedAt" = EXCLUDED."OpenedAt";
-            DELETE FROM user_recent_records r
-            WHERE r."UserId" = {userId}
-              AND (r."RecordType", r."RecordId") NOT IN (
-                SELECT k."RecordType", k."RecordId" FROM user_recent_records k
-                WHERE k."UserId" = {userId}
-                ORDER BY k."OpenedAt" DESC, k."RecordId"
-                LIMIT {Limit});
-            """, ct);
-
-    /// <summary>Свои отметки, новые первыми, — только те, что владелец типа показывает спрашивающему.</summary>
     internal static async Task<RecentRecordsView> ReadAsync(
         AppDbContext db, RecordSearchService search, Guid userId, CancellationToken ct)
     {
@@ -105,11 +95,12 @@ public static class RecentRecordEndpoints
         RecentRecordView? View(Domain.Settings.UserRecentRecord m) =>
             cards.TryGetValue((m.RecordType, m.RecordId), out var c)
                 ? new(m.RecordType, c.Answer.Code, c.Answer.Title, c.Answer.Module,
-                    c.Hit.Id, c.Hit.Title, c.Hit.Detail, c.Hit.Place, c.Hit.Amount, c.Hit.Level, m.OpenedAt)
+                    c.Hit.Id, c.Hit.Title, c.Hit.Detail, c.Hit.Place, c.Hit.Amount, c.Hit.Level, c.Hit.Opens, m.OpenedAt)
                 : null;
 
+        // Отметки уже новые первыми — первая строка ключа и есть позднее открытие.
         return new(
-            [.. marks.Select(View).OfType<RecentRecordView>()],
+            [.. marks.Select(View).OfType<RecentRecordView>().DistinctBy(v => (v.RecordType, v.Opens?.Id ?? v.Id))],
             [.. answers.Where(a => a.Refused is not null).Select(a => new RecentRefusal(a.Code, a.Title, a.Refused!))]);
     }
 

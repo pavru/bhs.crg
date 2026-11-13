@@ -28,42 +28,45 @@
 
 ## 1. Контракт «Поиск записей»
 
-- [ ] 1.1 `RecordSearchGroup` += необязательный `Searchable = true`; `RecordSearchService.SearchAsync`
+- [x] 1.1 `RecordSearchGroup` += необязательный `Searchable = true`; `RecordSearchService.SearchAsync`
   не спрашивает группы с `false`, сужение `group=` до такой — 400 «неизвестная группа поиска»; `CardsAsync`
   признака не смотрит [AUTH-16.1] [CORE-34]. Проверка — `RecordSearchTests`: группа «только карточки» не
   приходит в поиске, `group=` — 400, её карточки отдаются; прежние группы ищутся как были
-- [ ] 1.2 `RecordSearchHit` += необязательный `Opens: RecordSearchOpens?` (`Under`, `Id`); ответ
+- [x] 1.2 `RecordSearchHit` += необязательный `Opens: RecordSearchOpens?` (`Under`, `Id`); ответ
   `GET /api/account/recent` несёт его в `RecentRecordView`; доккомментарий `Requires` дополнен вторым
   поясом «право экрана — ответом „скрыто“» (Р-3) [CORE-25.3] [CORE-34]. Проверка — серверный тест: у счёта,
   стройки и набора данных `opens` нет (прежний ответ не изменился)
 
 ## 2. Сервер: поставщик модуля `id` и «Недавние»
 
-- [ ] 2.1 `IdRecordSearch` в `BHS.CRG.Api` (рядом с `IdModule`): группы `sets` («Комплекты»,
+- [x] 2.1 `IdRecordSearch` в `BHS.CRG.Api` (рядом с `IdModule`): группы `sets` («Комплекты»,
   `КомплектДокументов`) и `templates` («Шаблоны», `ШаблонДокумента`), ключ обеих — по 0.2
   (`id.document.read`), обе `Searchable: false` (по 0.1), `Archive` — `None`; право экрана каждой группы —
   константой рядом с ней, без него — `ContractAnswer.Hidden`; регистрация
   `AddModuleContract<IRecordSearch, IdRecordSearch>("id")` в `IdModule.RegisterServices` [ID-13] [CORE-34]
   [AUTH-8]. Проверка — старт: `RecordSearchCatalog` принимает обе группы; переписи `ModuleContractProbes` и
-  `ContractPermissionGateTests` дописаны и зелёные; `RecentRecordsTests`: без `core.constructions.read` нет
+  `ContractPermissionGateTests` дописаны и зелёные (переписи поставщиков «Поиска записей» в них не оказалось;
+  поставщика `id` знают `RecordRoutesTests` — типы записей с экраном, — а пробы поиска теперь подменяют
+  вклад `id`, а не добавляют второй: `Support/ModuleContractSwap`); `RecentRecordsTests`: без `core.constructions.read` нет
   группы комплектов, без `id.config.edit` — группы шаблонов, ни записями, ни в `refused`
-- [ ] 2.2 `CardsAsync("sets")`: комплекты по идентификаторам одним запросом с разделом и стройкой —
+- [x] 2.2 `CardsAsync("sets")`: комплекты по идентификаторам одним запросом с разделом и стройкой —
   `Title` = название, `Detail` = раздел, `Place` = стройка, `Opens.Under` = стройка [ID-13] [CORE-25.3].
   Проверка — `RecentRecordsTests`: отметка комплекта — 204, карточка с местом; удалённый комплект
   пропадает; без `id.document.read` комплектов нет, остальное отдаётся
-- [ ] 2.3 `CardsAsync("templates")`: по любой отмеченной версии — шаблон `(DocumentTypeId, Name)` и его
+- [x] 2.3 `CardsAsync("templates")`: по любой отмеченной версии — шаблон `(DocumentTypeId, Name)` и его
   текущая версия по правилу Р-5 (default+active → active → любая; больший `Version`, поздний `UpdatedAt`,
-  `Id`), одним запросом на всех спрошенных; `Title` = название, `Detail` = тип документа и «v<N>»,
+  `Id`), одним запросом на всех спрошенных; `Title` = название, `Place` = тип документа (его строка
+  «Недавних» показывает справа, как стройку у комплекта), `Detail` = «v<N>»,
   `Opens` = (тип документа, текущая версия); тип не `Document` или абстрактный — карточки нет [ID-13]
   [CORE-25.3]. Проверка — `RecentRecordsTests`: отметка v3, затем новая версия v4 — карточка ведёт на v4;
   две действующие версии — каждое чтение ведёт на одну и ту же; абстрактный тип — карточки нет
-- [ ] 2.4 `RecentRecordEndpoints.ReadAsync` сворачивает строки с одинаковым ключом
+- [x] 2.4 `RecentRecordEndpoints.ReadAsync` сворачивает строки с одинаковым ключом
   `(RecordType, Opens?.Id ?? hit.Id)`, оставляя позднее открытие (при Б на 0.3) [CORE-25.3]. Проверка —
   `RecentRecordsTests`: отметки v3 и v4 одного шаблона — одна строка со временем позднего открытия; три
   комплекта и два счёта — пять строк
-- [ ] 2.5 Отказ поставщика `id` — группа в `refused`, остальные записи отдаются [ID-13]. Проверка —
+- [x] 2.5 Отказ поставщика `id` — группа в `refused`, остальные записи отдаются [ID-13]. Проверка —
   `RecentRecordsTests` с поставщиком, бросающим исключение (как у отказа группы `costs`)
-- [ ] 2.6 `IRecentRecords` в `BHS.CRG.Application` (`ReassignAsync(recordType, from, to)` — перенести или
+- [x] 2.6 `IRecentRecords` в `BHS.CRG.Application` (`ReassignAsync(recordType, from, to)` — перенести или
   слить с поздним открытием) с реализацией рядом с `RecentRecordEndpoints`; обработчик
   `DeleteTemplateCommand` после удаления версии, если шаблон жив, переносит её отметки на текущую версию —
   в той же единице работы (при Б на 0.3) [ID-13] [CORE-25.3]. Проверка — `RecentRecordsTests`: отметка v3,
@@ -72,37 +75,37 @@
 
 ## 3. Клиент
 
-- [ ] 3.1 `RecordGroupDef` += `inPalette?: false`; `openGroups` такие группы пропускает; `RECORD_GROUPS` +=
+- [x] 3.1 `RecordGroupDef` += `inPalette?: false`; `openGroups` такие группы пропускает; `RECORD_GROUPS` +=
   `sets` («Комплекты», знак из `shared/ui/icons`) и `templates` («Шаблоны», `Description`), обе
   `inPalette: false` (по 0.1) [UI-35.1] [UI-31]. Проверка — `paletteSearch.test.ts` (или
   `CommandPalette.test.tsx`): чипов и групп «Комплекты» и «Шаблоны» нет
-- [ ] 3.2 `RecordRoute` += `href?: (id, opens) => string` — адрес целиком (Р-4); `RECORD_ROUTES` +=
+- [x] 3.2 `RecordRoute` += `href?: (id, opens) => string` — адрес целиком (Р-4); `RECORD_ROUTES` +=
   `КомплектДокументов` (экран `/document-sets`, `href` → `/document-sets/<Under>/sets/<id>`) и
   `ШаблонДокумента` (экран `/templates`, `href` → `/templates?type=<Under>&template=<Opens.Id ?? id>`);
   `recentTarget` у маршрута с `href` зовёт его, без `opens` — `null`; тип `RecentRecord` += `opens`
   [UI-35.1]. Проверка — новый `recentLink.test.ts`: адреса обоих типов (у шаблона — `Opens.Id`, а не
   отмеченная версия); без `opens` — `null`; без `core.constructions.read` у комплекта и без
   `id.config.edit` у шаблона — `null`
-- [ ] 3.3 `recordLink` и `hitRoute` отказывают маршруту с `href`, как маршруту с `at` [UI-35.1].
+- [x] 3.3 `recordLink` и `hitRoute` отказывают маршруту с `href`, как маршруту с `at` [UI-35.1].
   Проверка — `recordRoutes.test.ts`: `recordLink(recordScreen('КомплектДокументов', …), id)` — `null`, а не
   `/document-sets/<id>`; `hitRoute` для такого маршрута — `null`
-- [ ] 3.4 Отметки: `useRecentTouch('КомплектДокументов', set?.id)` в `SetDetail`;
+- [x] 3.4 Отметки: `useRecentTouch('КомплектДокументов', set?.id)` в `SetDetail`;
   `useRecentTouch('ШаблонДокумента', …)` в `TemplatesPage` — только в режиме «Шаблоны» и только для
   осознанного выбора (`selectTemplate`) или шаблона из `?template=` адреса входа; авто-выбор, память
   браузера и режимы библиотек — `null` (Р-6) [UI-35.1]. Проверка — `recordRoutesRecent.test.ts` зелёный без
   правки; vitest страницы шаблонов: вход без адреса, смена типа и переход в библиотеку отметки не шлют,
   выбор в списке и вход с `?template=` — шлют
-- [ ] 3.5 Перепись права экрана: у групп `sets` и `templates` право раздела их экрана в `navConfig`
+- [x] 3.5 Перепись права экрана: у групп `sets` и `templates` право раздела их экрана в `navConfig`
   (`openTo`) совпадает с правом экрана, которое проверяет `IdRecordSearch` (Р-3) [UI-35.1] [AUTH-8].
   Проверка — vitest против списка, выписанного из серверной константы (ссылка на файл в комментарии теста);
   расхождение — красный тест с подсказкой, какую сторону править
-- [ ] 3.6 Блок «Недавние» показывает строки комплекта и шаблона с местом справа; записи без экрана —
+- [x] 3.6 Блок «Недавние» показывает строки комплекта и шаблона с местом справа; записи без экрана —
   в строке «не показано» [UI-35.1]. Проверка — `HomePage.test.tsx`: строка комплекта со стройкой, строка
   шаблона с типом документа; карточка комплекта при закрытом экране «Строек» — в счёте «не показано»
 
 ## 4. Документы и живой прогон
 
-- [ ] 4.1 `docs/USER_GUIDE.md`, Главная: «Недавние» помнят и комплекты, и шаблоны; шаблон — когда его
+- [x] 4.1 `docs/USER_GUIDE.md`, Главная: «Недавние» помнят и комплекты, и шаблоны; шаблон — когда его
   выбрали (оглавление — `cd docs/tools && npm run toc`, если менялись заголовки) [UI-35.1]. Проверка —
   ревью PR; проверка «Frontend» (оглавление) зелёная
 - [ ] 4.2 Живой прогон: открыть комплект → Главная → комплект первым в «Недавних», щелчок открывает его
@@ -110,10 +113,10 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecentRecords|FullyQualifiedName~RecordSearch|FullyQualifiedName~ModuleContract|FullyQualifiedName~ContractPermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Template"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecentRecords|FullyQualifiedName~RecordSearch|FullyQualifiedName~ModuleContract|FullyQualifiedName~ContractPermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Template"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 5.5 Весь список живых прогонов CI зелёный (зонтик `shell-00-epic`, D6)
 
 ## Workflow follow-up

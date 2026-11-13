@@ -55,6 +55,11 @@ internal static class DomainRegistration
     builder.Services.AddScoped<IRepository<TemplateAsset>, Repository<TemplateAsset>>();
     builder.Services.AddScoped<BHS.CRG.Application.Templates.IDocumentTemplateInvalidator,
         BHS.CRG.Application.Templates.DocumentTemplateInvalidator>();
+    // «Недавние» Главной (CORE-25.3): отметка открытия — адресу, перенос отметок — удалению версии шаблона
+    // (shell-09, Р-5). Один экземпляр на запрос: перенос ложится в ту же единицу работы, что удаление.
+    builder.Services.AddScoped<BHS.CRG.Api.Endpoints.Account.RecentRecords>();
+    builder.Services.AddScoped<BHS.CRG.Application.Recent.IRecentRecords>(
+        sp => sp.GetRequiredService<BHS.CRG.Api.Endpoints.Account.RecentRecords>());
     builder.Services.AddScoped<IRepository<GeneratedFile>, Repository<GeneratedFile>>();
 
     // Сверка на непротиворечивость (issue #433).

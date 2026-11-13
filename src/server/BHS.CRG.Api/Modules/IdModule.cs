@@ -2,6 +2,7 @@ using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Api.Endpoints.QualityDocs;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Exchange;
 
 namespace BHS.CRG.Api.Modules;
 
@@ -80,10 +81,13 @@ public sealed class IdModule : IAppModule
     ];
 
     /// <summary>
-    /// Своих служб у обёртки нет: всё, чем пользуется исполнительная документация, регистрируется
-    /// общим кодом запуска. Появятся при переезде кода в собственный проект модуля.
+    /// Службы обёртки — только вклады модуля в контракты ядра: группы «Поиска записей» «Комплекты» и
+    /// «Шаблоны» (<see cref="IdRecordSearch" />, shell-09). Выключен модуль — их нет, и «Недавние» не
+    /// принимают отметок его типов. Остальное, чем пользуется исполнительная документация, регистрируется
+    /// общим кодом запуска — до переезда кода в собственный проект модуля.
     /// </summary>
-    public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
+    public void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
+        services.AddModuleContract<BHS.CRG.Modules.Search.IRecordSearch, IdRecordSearch>(Code);
 
     /// <summary>
     /// Заводские профили распознавания модуля (ТЗ ID-2, CORE-Q6, issue #1075): штамп, обложка и
