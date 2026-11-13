@@ -74,7 +74,7 @@ scene() { # scene [ВМЕСТЕ] — чистый сценарий: все по�
     rm -rf "$STUB"; mkdir -p "$STUB"
     passed 2000 > "$STUB/1.out"; passed 1000 > "$STUB/2.out"
     passed 300 > "$STUB/3.out"; passed 400 > "$STUB/4.out"
-    echo "${1:-4}" > "$STUB/peers"
+    echo "${1:-2}" > "$STUB/peers"
 }
 run() { out=$(bash "$RUN" "$@" 2>&1); rc=$?; calls=$(cat "$STUB/calls" 2>/dev/null); }
 verdict() { # verdict НОМЕР — итоговая строка потока без времени: оно от прогона к прогону своё
@@ -89,14 +89,20 @@ check 'код возврата — 0'                        '0' "$rc"
 has   'итог первого потока'                     'Поток 1: 2000 тестов' "$out"
 has   'итог второго потока'                     'Поток 2: 1000 тестов' "$out"
 has   'итог четвёртого потока'                  'Поток 4: 400 тестов' "$out"
-has   'сумма по всем потокам'                   'Всего тестов: 3700' "$out"
+has   'сумма первой доли'                       'Всего тестов: 3000' "$out"
+has   'сумма второй доли'                       'Всего тестов: 700' "$out"
 check 'сборка — один раз'                       '1' "$(grep -c '^build|' <<<"$calls")"
 check 'прогонов — четыре'                       '4' "$(grep -c '^test|' <<<"$calls")"
 check 'все прогоны — без сборки'                '4' "$(grep '^test|' <<<"$calls" | grep -c -- '--no-build')"
 for n in 1 2 3 4; do has "база потока $n"      "db=bhs_crg_test_s$n|" "$calls"; done
 check 'язык вывода назван всем'                 '4' "$(grep '^test|' <<<"$calls" | grep -c 'lang=en|')"
 hasnt 'потоки шли одновременно'                 'потоки идут по очереди' "$out"
-hasnt 'без доли о доле не сказано'              'Доля ' "$out"
+# Без доли — доли по очереди, по два потока разом: четыре разом исчерпали соединения сервера базы.
+has   'без доли — первая доля'                  'Доля 1/2: потоки 1 2 из 4' "$out"
+has   'без доли — вторая доля'                  'Доля 2/2: потоки 3 4 из 4' "$out"
+first_done=$(grep -n 'Всего тестов: 3000' <<<"$out" | cut -d: -f1)
+second_start=$(grep -n '^Доля 2/2' <<<"$out" | cut -d: -f1)
+check 'вторая доля — после итога первой'        '1' "$([ "${first_done:-0}" -lt "${second_start:-0}" ] && echo 1 || echo 0)"
 
 echo
 echo '── Своя база и свои аргументы ──'
@@ -157,17 +163,28 @@ has   'четвёртому потоку — четвёртый фильтр'   
 
 echo
 echo '── Префиксы, накрывающие друг друга, — отказ до запуска ──'
-# Копия скрипта с испорченным списком: «Invoice» накрыл бы «InvoiceP» соседней строки, а повтор «M»
-# отдал бы M-классы двум потокам.
+# Копия скрипта с испорченным списком: «Invoice» накрыл бы «InvoiceP» соседней строки, повтор «M»
+# отдал бы M-классы двум потокам, а «invoicep» — то же, что «InvoiceP»: фильтр dotnet test регистр не
+# различает (`~` сравнивает без него).
 broken() { # broken ЧТО-ДОПИСАТЬ-К-ПОСЛЕДНЕЙ-СТРОКЕ-STREAMS
     sed "s/^\(    'A B [^']*\)'/\1 $1'/" "$RUN" > "$SB/broken.sh"
     grep -q "^    'A B .* $1'" "$SB/broken.sh" || { echo "образец строки STREAMS сменился — правьте broken()"; exit 1; }
 }
-for extra in Invoice M; do
+for extra in Invoice M invoicep; do
     broken "$extra"; scene; out=$(bash "$SB/broken.sh" 2>&1); rc=$?; calls=$(cat "$STUB/calls" 2>/dev/null)
     check "лишний «$extra»: код 2"                 '2' "$rc"
     check "лишний «$extra»: dotnet не зван"        '' "$calls"
     has   "лишний «$extra»: назван"                "«$extra»" "$out"
+done
+
+# Пустая строка — поток без фильтра: `--filter ''` прогнал бы весь набор, повторив все прочие потоки.
+for empty in "''" "'  '"; do
+    sed "s/^STREAMS=($/STREAMS=(\n    $empty/" "$RUN" > "$SB/broken.sh"
+    grep -q "^    $empty$" "$SB/broken.sh" || { echo "образец STREAMS=( сменился — правьте проверку пустой строки"; exit 1; }
+    scene; out=$(bash "$SB/broken.sh" 2>&1); rc=$?; calls=$(cat "$STUB/calls" 2>/dev/null)
+    check "пустая строка $empty: код 2"           '2' "$rc"
+    check "пустая строка $empty: dotnet не зван"  '' "$calls"
+    has   "пустая строка $empty: названа"         'без префиксов' "$out"
 done
 
 echo
@@ -186,7 +203,8 @@ has   '2/2: поток 3'                            'db=bhs_crg_test_s3|' "$cal
 has   '2/2: поток 4'                            'db=bhs_crg_test_s4|' "$calls"
 hasnt '2/2: без потока 1'                       'db=bhs_crg_test_s1|' "$calls"
 check '--shard K/N --filters — фильтры доли'    "$(sed -n '3,4p' <<<"$filters")" "$(bash "$RUN" --shard 2/2 --filters)"
-for value in '' '0/2' '3/2' '2' 'a/b' '1/0' '1/3'; do
+# С ведущим нулём — тоже: bash считает «08» восьмеричным, и вместо отказа вышла бы ошибка оболочки.
+for value in '' '0/2' '3/2' '2' 'a/b' '1/0' '1/3' '01/2' '1/02' '1/08'; do
     scene; run --shard "$value" --no-build
     check "--shard «$value»: код 2"               '2' "$rc"
     check "--shard «$value»: dotnet не зван"      '' "$calls"

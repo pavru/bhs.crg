@@ -231,8 +231,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Восстановление и сохранение — раздельно: долей две, а ключ у них один. Общий `actions/cache`
+      # сохранял бы кеш из обеих, и при промахе вторая выгружала бы тот же архив впустую и получала
+      # «Unable to reserve cache» — предупреждение, которое читают как поломку. Сохраняет первая
+      # доля (шаг после сборки).
       - name: Кеш пакетов NuGet
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: nuget
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           # Только csproj: версии пакетов живут в них (центрального Directory.Packages.props нет).
@@ -332,6 +337,16 @@ jobs:
         env:
           SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build BHS.CRG.slnx -c Debug
+
+      # Сразу после сборки: пакеты к этому моменту уже скачаны, а упавшие тесты не должны лишать
+      # кеша следующий прогон. Первая доля — по номеру работы в матрице, а не по значению `part`:
+      # сменись число долей, сравнение с '1/2' молча перестало бы сохранять кеш вовсе.
+      - name: Сохранить кеш пакетов NuGet
+        if: ${{ strategy.job-index == 0 && steps.nuget.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
 
       # Версия — та же, что в образе API; почему скриптом и почему читается из Dockerfile — в нём.
       - name: Typst CLI

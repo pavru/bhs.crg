@@ -3,7 +3,8 @@
 # Тесты backend несколькими потоками — процессами `dotnet test` одновременно, каждый на своей базе
 # (issue #1164; четыре потока на двух раннерах — с 13.11.2026).
 #
-#   bash scripts/backend-tests.sh                        собрать и прогнать все потоки разом
+#   bash scripts/backend-tests.sh                        собрать и прогнать все доли по очереди,
+#                                                        по два потока разом — как на раннере CI
 #   bash scripts/backend-tests.sh --no-build -c Debug    прогнать собранное
 #   bash scripts/backend-tests.sh --shard 1/2 --no-build -c Debug
 #                                                        только потоки первой доли из двух (так
@@ -47,6 +48,12 @@
 # дал второй раннер. Число долей названо в матрице работы в ci.yml; что оно делит число потоков,
 # сверяет backend-tests.tests.sh.
 #
+# Без `--shard` доли идут ПО ОЧЕРЕДИ, а не все потоки разом. Четыре процесса тестов на одном
+# сервере базы исчерпали его соединения: на стенде разработчика `max_connections` — 100, и сервер
+# общий с соседними прогонами, — и тесты падали отказом «too many clients already» (13.11.2026).
+# Пока соединения хватало, четыре разом шли 7:40 против 12:11 по два; но прогон, который краснеет от
+# соседа, хуже долгого. По два разом — ровно то, что проверено в CI.
+#
 # Базы потоков — <BHS_TEST_DB>_s1 … _sN (по умолчанию bhs_crg_test_s1 …), рядом с каждой — базы
 # хостов модулей с теми же суффиксами, что всегда. На машине разработчика они остаются лежать, как
 # и база обычного прогона.
@@ -75,8 +82,16 @@ STREAMS=(
 count=$((${#STREAMS[@]} + 1))
 
 # Префиксы не накрывают друг друга — ни в одной строке, ни в разных. Повтор — тоже накрытие.
+# ⚠️ Без учёта регистра: так сравнивает сам фильтр (`~` у dotnet test — OrdinalIgnoreCase), и
+# «Invoices» рядом с «InvoiceS» отдал бы InvoiceSameFileTests двум потокам.
 all_prefixes=()
 for line in "${STREAMS[@]}"; do
+    # Строка без префиксов — поток без фильтра: `--filter ''` прогнал бы весь набор, повторив все
+    # прочие потоки, и отчитался бы зелёным.
+    if [ -z "${line//[[:space:]]/}" ]; then
+        echo 'backend-tests.sh: в STREAMS строка без префиксов — у потока не было бы фильтра. Уберите строку или впишите префиксы.' >&2
+        exit 2
+    fi
     # shellcheck disable=SC2206 # строка нарочно разбивается на префиксы
     all_prefixes+=($line)
 done
@@ -84,7 +99,7 @@ for i in "${!all_prefixes[@]}"; do
     for j in "${!all_prefixes[@]}"; do
         [ "$i" -ne "$j" ] || continue
         p="${all_prefixes[$i]}"; q="${all_prefixes[$j]}"
-        case "$q" in "$p"*)
+        case "${q,,}" in "${p,,}"*)
             echo "backend-tests.sh: префикс «$p» накрывает «$q» — классы на «$q» шли бы в двух потоках. Поправьте STREAMS." >&2
             exit 2 ;;
         esac
@@ -142,8 +157,9 @@ selected=()
 if [ "$shard_given" -eq 0 ]; then
     for ((n = 1; n <= count; n++)); do selected+=("$n"); done
 else
-    if ! [[ "$shard" =~ ^([0-9]+)/([0-9]+)$ ]] || [ "${BASH_REMATCH[2]}" -lt 1 ] \
-        || [ "${BASH_REMATCH[1]}" -lt 1 ] || [ "${BASH_REMATCH[1]}" -gt "${BASH_REMATCH[2]}" ]; then
+    # Без ведущих нулей: «08» арифметика bash читает как восьмеричное, и вместо этого отказа вышла бы
+    # ошибка оболочки, а «010» молча значило бы восемь.
+    if ! [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || [ "${BASH_REMATCH[1]}" -gt "${BASH_REMATCH[2]}" ]; then
         echo "backend-tests.sh: --shard ждёт «доля/всего», например 1/2, а получено «$shard»." >&2
         exit 2
     fi
@@ -180,7 +196,29 @@ if [ "$build" -eq 1 ]; then
     pass dotnet build "$PROJECT" || exit 1
 fi
 
-[ "$shard_given" -eq 1 ] && echo "Доля $shard: потоки ${selected[*]} из $count"
+# ── Без доли: доли по очереди ─────────────────────────────────────────────────────────────────
+# Каждую долю гоняет этот же скрипт с `--shard`: потоки, итог и уборка — те же, что в CI. Красная
+# доля не останавливает следующие — как и поток не останавливает соседа: сначала увидеть всё.
+#
+# Прерванный прогон гасит долю, которая идёт: без этого TERM убил бы только эту оболочку, а доля
+# со своими `dotnet test` осталась бы работать без присмотра — и без вывода.
+AT_ONCE=2
+if [ "$shard_given" -eq 0 ]; then
+    if [ $((count % AT_ONCE)) -ne 0 ]; then
+        echo "backend-tests.sh: потоков $count, по $AT_ONCE разом поровну они не делятся. Поправьте STREAMS." >&2
+        exit 2
+    fi
+    waves=$((count / AT_ONCE)); rc=0; child=''
+    trap '[ -n "$child" ] && kill -TERM "$child" 2>/dev/null && wait "$child"; exit 143' TERM INT
+    for ((k = 1; k <= waves; k++)); do
+        bash "${BASH_SOURCE[0]}" --shard "$k/$waves" --no-build ${args[@]+"${args[@]}"} & child=$!
+        wait "$child" || rc=1
+        child=''
+    done
+    exit "$rc"
+fi
+
+echo "Доля $shard: потоки ${selected[*]} из $count"
 
 logs="$(mktemp -d)"
 reported=0
