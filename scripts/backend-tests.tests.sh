@@ -160,8 +160,8 @@ echo '── Префиксы, накрывающие друг друга, — �
 # Копия скрипта с испорченным списком: «Invoice» накрыл бы «InvoiceP» соседней строки, а повтор «M»
 # отдал бы M-классы двум потокам.
 broken() { # broken ЧТО-ДОПИСАТЬ-К-ПОСЛЕДНЕЙ-СТРОКЕ-STREAMS
-    sed "s/^\(    'A B C D E W InvoiceL\)'/\1 $1'/" "$RUN" > "$SB/broken.sh"
-    grep -q "InvoiceL $1'" "$SB/broken.sh" || { echo "образец строки STREAMS сменился — правьте broken()"; exit 1; }
+    sed "s/^\(    'A B [^']*\)'/\1 $1'/" "$RUN" > "$SB/broken.sh"
+    grep -q "^    'A B .* $1'" "$SB/broken.sh" || { echo "образец строки STREAMS сменился — правьте broken()"; exit 1; }
 }
 for extra in Invoice M; do
     broken "$extra"; scene; out=$(bash "$SB/broken.sh" 2>&1); rc=$?; calls=$(cat "$STUB/calls" 2>/dev/null)
