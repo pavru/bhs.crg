@@ -66,7 +66,8 @@ public class MigrateToPrefixedAddressingHandler(
     IUserLibProvider userLib,
     IRepository<Domain.Documents.TypstUserLib> libRepo,
     IRepository<Domain.Documents.TypstUserLibFile> libFileRepo,
-    ITypstSyntaxChecker checker
+    ITypstSyntaxChecker checker,
+    ITemplateVersionWriter versionWriter
 ) : IRequestHandler<MigrateToPrefixedAddressingCommand, PrefixedAddressingReport>
 {
     public async Task<PrefixedAddressingReport> Handle(
@@ -230,18 +231,16 @@ public class MigrateToPrefixedAddressingHandler(
 
         // Шаблоны прочитаны с отслеживанием (GetAllAsync): признаки, погашенные доменом, контекст
         // запишет сам, без Update — тот переписал бы каждую версию целиком, вместе с Content.
+        // Новые версии в контекст не добавляем: их вставит запись ниже, ПОСЛЕ погашения (D4).
         var (created, replacedBy) = ForkVersions(
             templates, newTemplateContent, "Переход на адресацию Код.Имя (issue #773)");
-        foreach (var version in created) await templateRepo.AddAsync(version, ct);
 
-        // Пересаживаем документы на новые версии — вместе с их переопределениями параметров, иначе
-        // настройки страницы и подстановки, привязанные к прежнему id, потерялись бы молча.
+        // Пересаживаем документы на новые версии — общей операцией, той же, что у новой версии
+        // шаблона (D6): с переопределениями параметров, иначе настройки страницы и подстановки,
+        // привязанные к прежнему id, потерялись бы молча.
         foreach (var obj in repin)
         {
-            foreach (var (oldId, newId) in replacedBy)
-                if (obj.TemplateId == oldId) obj.SetTemplate(newId);
-            obj.SetTemplateIds(ReplaceIds(obj.TemplateIds, replacedBy));
-            obj.SetTemplateParams(ReplaceParamKeys(obj.TemplateParams, replacedBy));
+            obj.RepinTemplates(replacedBy);
             instanceRepo.Update(obj);
         }
 
@@ -258,11 +257,11 @@ public class MigrateToPrefixedAddressingHandler(
                     libFileRepo.Update(file);
                 }
 
-        await docTypeRepo.SaveChangesAsync(ct);
-        await templateRepo.SaveChangesAsync(ct);
-        await instanceRepo.SaveChangesAsync(ct);
-        if (newLibEntry is not null) await libRepo.SaveChangesAsync(ct);
-        if (newLibFiles.Count > 0) await libFileRepo.SaveChangesAsync(ct);
+        // Одна единица работы на всё — типы, погашенные версии, документы, библиотека; новые версии
+        // вставляются последними той же транзакцией: частичный индекс «одна действующая» иначе
+        // отверг бы вставку, пришедшую раньше погашения (D4).
+        await versionWriter.SaveRetiredThenInsertAsync(
+            created, "Шаблоны тем временем изменили — запустите переход заново.", ct);
 
         return new(true, renames, blockChanges, templateChanges, ambiguous, skipped,
             repin.Count, libChanges, blocked);
@@ -272,20 +271,6 @@ public class MigrateToPrefixedAddressingHandler(
     private static bool MentionsAny(string? templateIdsJson, IEnumerable<Guid> ids)
         => !string.IsNullOrWhiteSpace(templateIdsJson)
            && ids.Any(id => templateIdsJson.Contains(id.ToString(), StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Список выбранных версий: старые id → новые. Форма JSON сохраняется как есть.</summary>
-    private static string? ReplaceIds(string? json, IReadOnlyDictionary<Guid, Guid> replacedBy)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return json;
-        foreach (var (oldId, newId) in replacedBy)
-            json = json.Replace(oldId.ToString(), newId.ToString(), StringComparison.OrdinalIgnoreCase);
-        return json;
-    }
-
-    /// <summary>Переопределения параметров хранятся объектом «id версии → значения»: переносим ключи,
-    /// иначе документ после пересадки потерял бы свои настройки, ничего об этом не сказав.</summary>
-    private static string? ReplaceParamKeys(string? json, IReadOnlyDictionary<Guid, Guid> replacedBy)
-        => ReplaceIds(json, replacedBy);
 
     /// <summary>Схема типа с переписанными блоками — или null, если менять нечего.</summary>
     private static (JsonDocument? Schema, int Calls, int Paths, List<string> Ambiguous) RewriteTypeSchema(

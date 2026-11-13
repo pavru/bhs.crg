@@ -224,29 +224,6 @@ public partial class BackupService
         db.ChangeTracker.Clear();
     }
 
-    private async Task RestoreTemplatesAsync(
-        BackupTemplate[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
-    {
-        var existingIds = await db.Templates.Select(e => e.Id).ToHashSetAsync(ct);
-        var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
-        foreach (var item in items)
-        {
-            if (!validDocTypeIds.Contains(item.DocumentTypeId))
-            {
-                warnings.Add($"Шаблон «{item.Name}» v{item.Version}: тип документа {item.DocumentTypeId} не найден, пропущен.");
-                continue;
-            }
-            var entity = Template.Restore(
-                item.Id, item.DocumentTypeId, item.Name, item.Content, item.Version,
-                item.IsActive, item.IsDefault,
-                item.CreatedAt, item.UpdatedAt, item.Parameters, item.Comment);
-            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
-            if (existingIds.Contains(item.Id)) stats.TemplatesUpdated++; else stats.TemplatesCreated++;
-        }
-        await db.SaveChangesAsync(ct);
-        db.ChangeTracker.Clear();
-    }
-
     private async Task RestoreCatalogEntitiesAsync(
         BackupCatalogEntity[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
@@ -679,7 +656,9 @@ public partial class BackupService
         var (ok, skipped) = Split(await CommonTableOnlyAsync(items, i => i.CompositeTypeId, "Документы комплектов", warnings, ct), i => sets.Contains(i.SetId) && types.Contains(i.CompositeTypeId));
         Warn(warnings, skipped.Count, "документов", "их комплекта или типа нет ни в копии, ни в системе");
 
-        int created = 0, updated = 0;
+        // Выбор погашенной версии — к действующей того же шаблона (решение 0.4, BackupService.Restore.Templates).
+        var repin = await TemplateRepinMapAsync(ct);
+        int created = 0, updated = 0, repinned = 0;
         foreach (var item in ok)
         {
             if (!TryParseEnum<DocumentStatus>(item.Status, "статус документа", warnings, out var status))
@@ -692,6 +671,7 @@ public partial class BackupService
                 status, item.SortOrder,
                 item.TemplateId, item.TemplateIds, item.TemplateParams,
                 JsonDocument.Parse(item.PluginData.GetRawText()));
+            if (obj.RepinTemplates(repin, selectionOnly: true)) repinned++;
 
             var exists = existing.Contains(item.Id);
             db.Entry(obj).State = exists ? EntityState.Modified : EntityState.Added;
@@ -701,8 +681,9 @@ public partial class BackupService
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
         stats.Count("Документы комплектов", created, updated);
+        WarnRepinned(warnings, repinned);
 
-        await RestoreGeneratedFilesAsync(ok, stats, warnings, ct);
+        await RestoreGeneratedFilesAsync(ok, repin, stats, warnings, ct);
     }
 
     /// <summary>
@@ -710,7 +691,7 @@ public partial class BackupService
     /// фасету, и до её появления вставка отвергается внешним ключом.
     /// </summary>
     private async Task RestoreGeneratedFilesAsync(
-        IReadOnlyList<BackupDocument> documents, RestoreStats stats, List<string> warnings,
+        IReadOnlyList<BackupDocument> documents, IReadOnlyDictionary<Guid, Guid> repin, RestoreStats stats, List<string> warnings,
         CancellationToken ct)
     {
         var files = documents.SelectMany(d => d.GeneratedFiles.Select(f => (Document: d, File: f)))
@@ -721,7 +702,7 @@ public partial class BackupService
         var existing = await db.GeneratedFiles.Select(x => x.Id).ToHashSetAsync(ct);
         var (c, u) = await UpsertAsync(files.Select(x => (x.File.Id, GeneratedFile.Restore(
             x.File.Id, x.Document.Id, Enum.Parse<OutputFormat>(x.File.Format), x.File.BlobPath,
-            x.File.TemplateId, x.File.CreatedAt, x.File.UpdatedAt))), existing, ct);
+            RetargetedTemplate(x.Document, x.File, repin), x.File.CreatedAt, x.File.UpdatedAt))), existing, ct);
         stats.Count("Выпущенные файлы", c, u);
     }
 

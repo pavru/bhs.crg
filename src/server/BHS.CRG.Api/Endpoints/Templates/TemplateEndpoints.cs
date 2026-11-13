@@ -63,6 +63,8 @@ public static class TemplateEndpoints
         });
 
         // Явное «Сохранить как новую версию» (issue #360) — форк новой версии + опц. примечание.
+        // Гонку двух новых версий (#1922) и двух созданий под одним названием (#1924) переводит в 409
+        // запись версий (ITemplateVersionWriter, D5) — для всех путей сразу, а не на каждом адресе.
         admin.MapPost("/{id:guid}/versions", async (Guid id, NewVersionRequest req, IMediator m)
             => Results.Ok(await m.Send(new UpdateTemplateCommand(id, req.Content, req.Comment))));
 

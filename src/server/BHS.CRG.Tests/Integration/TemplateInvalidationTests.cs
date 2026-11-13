@@ -250,7 +250,7 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
     // ── Новая версия ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NewVersion_ResetsNoPinDocs_WhenVersionDefault_ButNotPinnedToOld()
+    public async Task NewVersion_ResetsNoPinDocs_WhenVersionDefault_AndRepinsPinnedToOld()
     {
         var dtId = await CreateDocTypeAsync("DT_INV6");
         var t = await CreateTemplateAsync(dtId, "Шаблон");
@@ -260,13 +260,16 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
         var noPin = await AddGeneratedDocAsync(setId, dtId);
         var pinnedOld = await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t.Id);
 
-        // Новая версия наследует дефолт → default-active сместился → no-pin сброс; пиннутый на
-        // старую версию не трогаем (её содержимое не менялось).
+        // Новая версия наследует дефолт → default-active сместился → no-pin сброс. Закреплённый за
+        // гаснущей версией переходит на новую и тоже возвращается в черновик (вариант А #1923): прежде
+        // он оставался на погашенной, и генерация ему отказывала.
         using var scope = fixture.Services.CreateScope();
-        await Mediator(scope).Send(new UpdateTemplateCommand(t.Id, "content v2"));
+        var result = await Mediator(scope).Send(new UpdateTemplateCommand(t.Id, "content v2"));
 
         Assert.Equal(DocumentStatus.Draft, await StatusAsync(noPin));
-        Assert.Equal(DocumentStatus.Generated, await StatusAsync(pinnedOld));
+        Assert.Equal(DocumentStatus.Draft, await StatusAsync(pinnedOld));
+        Assert.Equal(result.Template.Id, await PinAsync(pinnedOld));
+        Assert.Equal(2, result.ResetDocuments);
     }
 
     [Fact]

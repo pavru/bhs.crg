@@ -41,7 +41,10 @@ export interface NewVersionPlan {
   retires: Template[];
   /** Перейдёт ли к новой версии «по умолчанию» с другой версии шаблона. */
   takesDefault: boolean;
-  /** Сколько документов закреплено за гаснущими версиями. */
+  /**
+   * Сколько документов закреплено за гаснущими версиями — открытой, если она действующая, и
+   * {@link retires}. Сервер пересадит их на новую версию и вернёт в черновик (#1923, вариант А).
+   */
   pinnedToRetired: number;
   /**
    * Перейдут ли на новую версию документы без выбранного шаблона — правилом сервера: новая
@@ -61,7 +64,8 @@ export function newVersionPlan(
     next: nextVersionOf(templates, template),
     retires,
     takesDefault: !template.isDefault && siblings.some(t => t.isDefault),
-    pinnedToRetired: retires.reduce((n, t) => n + (usage[t.id]?.count ?? 0), 0),
+    pinnedToRetired: [...(template.isActive ? [template] : []), ...retires]
+      .reduce((n, t) => n + (usage[t.id]?.count ?? 0), 0),
     noPinDocsMove: newIsDefault || !otherDefault,
   };
 }

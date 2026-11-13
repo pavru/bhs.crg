@@ -13,10 +13,11 @@ import type { NewVersionPlan } from './groupTemplates';
 const saveContent = vi.fn();
 vi.mock('@/shared/api/templates', () => ({
   useSaveTemplateContent: () => ({ mutateAsync: saveContent, isPending: false }),
-  useCreateTemplateVersion: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateTemplateVersion: () => ({ mutateAsync: (...args: unknown[]) => createVersion(...args), isPending: false }),
   useSetTemplateDefault: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 const invalidateQueries = vi.fn();
+const createVersion = vi.fn();
 vi.mock('@tanstack/react-query', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-query')>()),
   useQueryClient: () => ({ invalidateQueries }),
@@ -29,6 +30,7 @@ vi.mock('@/shared/ui/CodeEditor', () => ({
       onMount({
         getSelection: () => ({ startLineNumber: 1 }),
         getModel: () => null,
+        getValue: () => area.current?.value ?? '',
         executeEdits,
         focus: () => area.current?.focus(),
         hasTextFocus: () => document.activeElement === area.current,
@@ -45,7 +47,7 @@ vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 
 const { EditorPanel } = await import('./EditorPanel');
 
-afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); });
+afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); createVersion.mockReset(); });
 
 const template = (isActive: boolean): Template => ({
   id: 't1', documentTypeId: 'd1', name: 'АОСР', content: '= АОСР', parameters: null, comment: null,
@@ -172,8 +174,10 @@ describe('окно новой версии от исторической (issue 
     const text = screen.getByText(/уйдёт в историю/).textContent ?? '';
     expect(text).toContain('Действующая v4');
     expect(text).toContain('«по умолчанию»');
-    expect(text).toContain('2 документа');
     expect(text).toContain('без выбранного шаблона перейдут на v5');
+    // Закреплённые за гаснущей следуют за шаблоном (#1923, вариант А), а не «выбирают заново».
+    expect(text).toContain('2 документа перейдут на новую версию и вернутся в черновик');
+    expect(text).not.toContain('выбрать шаблон заново');
     // План берётся из списка страницы — при открытии окна он перечитывается.
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['templates', 'd1'] });
   });
@@ -182,5 +186,35 @@ describe('окно новой версии от исторической (issue 
     renderPanel(false);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
     expect(screen.getByText(/Текущая версия сохранится в истории/)).toBeTruthy();
+  });
+
+  it('отказ «шаблон тем временем изменили» — в окне, окно открыто, план перечитан (ревью PR #1958)', async () => {
+    createVersion.mockRejectedValueOnce(Object.assign(new Error('Request failed'), {
+      response: { status: 409, data: { error: 'Шаблон тем временем изменили — откройте его заново.' } },
+    }));
+    renderPanel(false);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    invalidateQueries.mockClear();
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Создать v3' })); });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('Шаблон тем временем изменили — откройте его заново.');
+    expect(screen.getByRole('button', { name: 'Создать v3' })).toBeTruthy();
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['templates', 'd1'] });
+  });
+
+  it('за действующей закреплено три документа — окно говорит, что они перейдут (#1923)', async () => {
+    renderPanel(false, { ...NO_RETIRE, pinnedToRetired: 3 });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
+      .toContain('3 документа перейдут на новую версию и вернутся в черновик');
+  });
+
+  it('один документ — глагол в единственном числе', async () => {
+    renderPanel(false, { ...NO_RETIRE, pinnedToRetired: 1 });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
+      .toContain('1 документ перейдёт на новую версию и вернётся в черновик');
   });
 });

@@ -10,7 +10,7 @@ import { SplitButton } from '@/shared/ui/SplitButton';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
-import { ruCount } from '@/shared/utils/pluralize';
+import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
 import type { Template, DocumentType } from '@/shared/api/types';
@@ -21,6 +21,7 @@ import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type { NewVersionPlan } from './groupTemplates';
 import type * as monacoEditor from 'monaco-editor';
+import { apiError, isConflict } from '@/shared/utils/apiError';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
 
@@ -74,14 +75,21 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
 
 // ─── New-version dialog ───────────────────────────────────────────────────────
 
-function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
+function NewVersionDialog({ plan, saving, error, onCancel, onConfirm }: {
   plan: NewVersionPlan;
   saving: boolean;
+  /** Отказ сохранения — здесь, в окне: под окном его закрыл бы оверлей. */
+  error: string;
   onCancel: () => void;
   onConfirm: (comment: string) => void;
 }) {
   const [comment, setComment] = useState('');
   const retired = plan.retires.map(t => `v${t.version}`).join(', ');
+  // Закреплённые за гаснущими версиями следуют за шаблоном (#1923, вариант А) — сервер их пересадит.
+  const one = ruPlural(plan.pinnedToRetired, 'one', 'few', 'many') === 'one';
+  const pinnedMove = plan.pinnedToRetired > 0 && (
+    <> {ruCount(plan.pinnedToRetired, 'документ', 'документа', 'документов')}{' '}
+      {one ? 'перейдёт' : 'перейдут'} на новую версию и {one ? 'вернётся' : 'вернутся'} в черновик.</>);
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title="Сохранить как новую версию"
       footer={
@@ -96,6 +104,7 @@ function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
         {plan.retires.length === 0 ? (
           <p className="text-body-medium text-on-surface-variant">
             Будет создана <strong>версия v{plan.next}</strong>. Текущая версия сохранится в истории.
+            {pinnedMove}
           </p>
         ) : (
           // От исторической версии гаснет не она, а действующая (issue #1920): об этом и говорим.
@@ -103,10 +112,10 @@ function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
             Будет создана <strong>версия v{plan.next}</strong> из этой. Действующая {retired} уйдёт в историю
             {plan.takesDefault && <> и передаст v{plan.next} признак «по умолчанию»</>}.
             {plan.noPinDocsMove && <> Документы без выбранного шаблона перейдут на v{plan.next} и вернутся в черновик.</>}
-            {plan.pinnedToRetired > 0 && <> За {retired} закреплено {ruCount(plan.pinnedToRetired, 'документ', 'документа', 'документов')} —
-              им нужно будет выбрать шаблон заново.</>}
+            {pinnedMove}
           </p>
         )}
+        {error && <p role="alert" className="text-body-medium text-error">{error}</p>}
         <TextField label="Примечание к версии (необязательно)" value={comment}
           onChange={e => setComment(e.target.value)} autoFocus />
       </div>
@@ -138,6 +147,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
   const [newVersionOpen, setNewVersionOpen] = useState(false);
+  const [newVersionError, setNewVersionError] = useState('');
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const saveContentMutation = useSaveTemplateContent();
   const newVersionMutation = useCreateTemplateVersion();
@@ -202,9 +212,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
 
   // Номер и гаснущие версии окно берёт из списка страницы, а его мог обогнать другой
   // администратор: при открытии окна список перечитывается, и окно показывает свежий план.
-  function openNewVersion() {
+  function refreshVersionPlan() {
     void qc.invalidateQueries({ queryKey: ['templates', template.documentTypeId] });
     void qc.invalidateQueries({ queryKey: ['template-usage', template.documentTypeId] });
+  }
+
+  function openNewVersion() {
+    refreshVersionPlan();
+    setNewVersionError('');
     setNewVersionOpen(true);
   }
 
@@ -226,7 +241,11 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       notifyReset(res.resetDocuments);
       setNewVersionOpen(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      // Отказ — в окне, а не в панели под ним (ревью PR #1958): иначе его не видно, и повторное
+      // нажатие молча сохранило бы версию поверх соседской. На «шаблон тем временем изменили» план
+      // перечитывается — окно покажет, какой номер и чьи версии теперь уйдут в историю.
+      setNewVersionError(apiError(err, 'Ошибка сохранения'));
+      if (isConflict(err)) refreshVersionPlan();
     } finally {
       setSaving(false);
       savingRef.current = false;
@@ -402,6 +421,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
         <NewVersionDialog
           plan={versionPlan}
           saving={saving}
+          error={newVersionError}
           onCancel={() => setNewVersionOpen(false)}
           onConfirm={handleSaveAsNewVersion}
         />

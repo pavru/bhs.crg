@@ -14,6 +14,14 @@ public static class DbFailure
         ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     /// <summary>
+    /// Нарушение уникальности ИМЕННО этих ограничений. Чужое столкновение, объявленное «такая запись
+    /// уже есть», увело бы разбирательство в сторону — поэтому ловящий называет свои индексы.
+    /// </summary>
+    public static bool IsUniqueViolationOf(DbUpdateException ex, params string[] constraints) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+        && constraints.Contains(pg.ConstraintName);
+
+    /// <summary>
     /// Нарушение внешнего ключа — «того, на что ссылаются, уже нет»: строку, на которую указывает
     /// запись, удалили между проверкой и сохранением.
     /// </summary>
