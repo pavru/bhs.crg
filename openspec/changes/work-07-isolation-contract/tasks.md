@@ -2,24 +2,29 @@
 
 ## 1. PR 1: параметр доступа и граница выдачи
 
-- [ ] 1.1 `BHS.CRG.Modules/Access/ModuleReach.cs`; построение `ModuleReader` (готовый, из `plan-22`) из
-  `DataAccess` в `Api` [WORK-40] [CORE-24.1]. Проверка — `ModulePortMirrorTests` сверяет зеркало,
-  `ModuleBoundaryTests` зелёный
+- [ ] 1.1 `BHS.CRG.Modules/Access/ModuleReach.cs`; `ModuleReader` (готовый, из `plan-22`) для пути таблиц
+  строится готовым `ModuleReadersPort.From(DataAccess)`; доккомментарий `ModuleReader` — охват вычисляет
+  модуль, в параметр он не входит [WORK-40] [CORE-24.1]. Проверка — `ModulePortMirrorTests` сверяет
+  зеркало без правки ожиданий, `ModuleBoundaryTests` зелёный
 - [ ] 1.2 `ModuleTableQuery.UserId` → `Reader`; `ModuleTableService.cs:74` и `ModuleTableService.Shortcuts.cs:44`
-  без `UserId!.Value`; система у `PerUser`-таблицы — отказ с причиной [WORK-40] [CORE-24.1] [WORK-41].
-  Проверка — `ModuleTableIsolationTests` на пробном модуле: задание без человека получает отказ с текстом
-  причины, а не исключение и не пустую страницу
+  без `UserId!.Value`; отказ системе — в воротах (`ModuleTableService.cs:176`), на любой таблице, с
+  причиной [WORK-40] [CORE-24.1] [WORK-41]. Проверка — `ModuleTableIsolationTests` на пробном модуле с
+  `PerUser`-таблицей: задание без человека получает отказ с названием таблицы и текстом причины, а не
+  исключение и не пустую страницу; служба строк не вызвана
 - [ ] 1.3 `ModuleTable.Boundaries` (код, текст с `{sites}`), `ModuleTablePage.Outcome`; `Problems()`
   отвергает пустой список и повтор кода [CORE-24.3]. Проверка — `ModuleTableCatalogTests`: такое
   объявление не стартует с названием таблицы
-- [ ] 1.4 Ответ таблицы: `boundary` применившегося исхода и `boundaryOutcome`; не названный исход у
-  таблицы с несколькими — отказ; первая строка XLSX (`ModuleTableExport.cs`); набор
+- [ ] 1.4 Ответ строк таблицы: `boundary` применившегося исхода и `boundaryOutcome`; не названный исход
+  у таблицы с несколькими и не объявленный исход — отказ; описание несёт границу, только если она одна;
+  строка шапки XLSX сразу за названием (`ModuleTableExport.cs`, сегодня границы в файле нет); набор
   (`ModuleTableDataProvider.cs`) и MCP [CORE-24.3] [AUTH-12.1]. Проверка — `ModuleTableIsolationTests`:
   экран, XLSX, набор и MCP дают одни строки и одну строку «… ваших строек (4)»; `McpGateInventoryTests` зелёный
-- [ ] 1.5 Чужой ключ строки (`row`) под отбором по правам — 404, как несуществующий [WORK-39].
-  Проверка — тест на пробном модуле
-- [ ] 1.6 `InvoiceTable.cs` — одна граница; клиент `shared/api/tables.ts` — `boundaryOutcome` [CORE-24.3].
-  Проверка — `SystemDataSetDeclarationTests` и тесты таблицы счетов зелёные без правки ожиданий
+- [ ] 1.5 Чужой ключ строки (`row`) под отбором по правам — тот же ответ, что на несуществующий: пустая
+  выдача, а не 403 [WORK-39]. Проверка — тест на пробном модуле
+- [ ] 1.6 `InvoiceTable.cs` — одна граница; клиент `shared/api/tables.ts` — `boundaryOutcome`, `boundary`
+  описания может быть пустым; подзаголовок `TableViewHeader.tsx` — граница из ответа строк [CORE-24.3].
+  Проверка — `SystemDataSetDeclarationTests` и тесты таблицы счетов зелёные без правки ожиданий; vitest
+  подзаголовка
 
 ## 2. PR 2: перепись чтения изолированных записей
 
