@@ -28,19 +28,19 @@
 
 ## 2. PR 2: перепись чтения изолированных записей
 
-- [ ] 2.1 `BHS.CRG.Modules/Data/IIsolatedRecord.cs` [WORK-39] [CORE-3]. Проверка — сборка решения
-- [ ] 2.2 `Tests/Configuration/IsolatedReadInventoryTests.cs`: нет `DbSet<T>` у изолированной записи;
+- [x] 2.1 `BHS.CRG.Modules/Data/IIsolatedRecord.cs` [WORK-39] [CORE-3]. Проверка — сборка решения
+- [x] 2.2 `Tests/Configuration/IsolatedReadInventoryTests.cs`: нет `DbSet<T>` у изолированной записи;
   `Set<T>()` и сырой SQL с её таблицей — только в файле из списка с причиной; `PerUser`-таблица без
   изолированной записи — красный [WORK-39] [WORK-40] [CORE-3]. Проверка — тест сначала красный на
   образцах исходника с чтением в обход (каждое из трёх нарушений), затем зелёный на решении
-- [ ] 2.3 Вписать перепись в `InventoryScopeTests` (проекты через `SolutionModules.WithCore`) [CORE-3].
+- [x] 2.3 Вписать перепись в `InventoryScopeTests` (проекты через `SolutionModules.WithCore`) [CORE-3].
   Проверка — `InventoryScopeTests` зелёный
-- [ ] 2.4 `docs/DEV_NOTES.md`: изолированная запись — пометка, файл чтения, параметр доступа и охват;
+- [x] 2.4 `docs/DEV_NOTES.md`: изолированная запись — пометка, файл чтения, параметр доступа и охват;
   почему не `HasQueryFilter`. Проверка — ревью PR
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~ModuleTable|FullyQualifiedName~IsolatedRead|FullyQualifiedName~SystemDataSet|FullyQualifiedName~McpGateInventory|FullyQualifiedName~ModulePortMirror|FullyQualifiedName~InventoryScope|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~ModuleTable|FullyQualifiedName~IsolatedRead|FullyQualifiedName~SystemDataSet|FullyQualifiedName~McpGateInventory|FullyQualifiedName~ModulePortMirror|FullyQualifiedName~InventoryScope|FullyQualifiedName~ModuleBoundary"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

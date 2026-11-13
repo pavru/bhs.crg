@@ -676,8 +676,23 @@ export async function pickSites(page, label) {
 export const queueChip = page =>
   page.getByRole('group', { name: 'Отбор списка счетов' }).getByRole('combobox', { name: 'Очередь счетов' });
 
+/**
+ * Числа очередей приходят ПОЗЖЕ подписи (issue #1950): чип и пункты рисуются сразу, выбранными по адресу, а
+ * число «Разобрать» несёт отдельный запрос счётчика (`/costs/invoices/queues/parsing`, не тот, что у Главной).
+ * Пока он в полёте, числа нет, и это не ошибка экрана: «не посчитано» не «ноль». Чтение сразу после перехода
+ * с Главной давало `''`, и проверка мигала. Поэтому читаем, когда страница затихла (`settled`): тогда ответ
+ * счётчика уже нарисован, и `''` значит «числа нет», а не «ещё не пришло». Не ответил счётчик — отказ
+ * `settled` называет его запрос. Опрос текста до непустого (первая версия PR #1952) путал одно с другим:
+ * законная пустота стоила бы срока опроса, а ответ медленнее срока снова давал `''`.
+ *
+ * Страница должна быть под наблюдением — её ставит `login()` (`settled` иначе откажет с подсказкой).
+ */
+
 /** Число на закрытом чипе очередей — у выбранной очереди; `''` — числа нет (в покое или пустая очередь). */
-export const queueChipCount = async page => /·\s*(\S+)$/.exec((await queueChip(page).innerText()).trim())?.[1] ?? '';
+export async function queueChipCount(page) {
+  await settled(page);
+  return /·\s*(\S+)$/.exec((await queueChip(page).innerText()).trim())?.[1] ?? '';
+}
 
 /** Выбрать очередь по подписи пункта, «Все счета» — снять отбор. Список закрывается сам. */
 export async function pickQueue(page, label) {
@@ -686,20 +701,20 @@ export async function pickQueue(page, label) {
 }
 
 /**
- * Число очереди — из её пункта в меню (имя пункта — подпись, число — справа, описанием): открыть, прочесть,
- * закрыть по Esc. Отбор не меняется. `null` — пункта нет (пустая очередь скрыта), `''` — пункт без числа.
+ * Число очереди — из её пункта в меню (имя пункта — подпись, число — справа, описанием): открыть, дождаться
+ * затишья, прочесть, закрыть по Esc. Отбор не меняется. `null` — пункта нет (пустая очередь скрыта), `''` —
+ * пункт без числа. Пункт читается ОДНИМ обращением (`allInnerTexts` не ждёт): между «пункт есть» и «текст
+ * пункта» открытый список мог перерисоваться без него, и чтение текста ждало бы пропавший пункт 30 с.
  */
 export async function queueOptionCount(page, label) {
   await queueChip(page).click();
   const list = page.getByRole('listbox');
   await list.waitFor({ timeout: 10_000 });
-  const option = list.getByRole('option', { name: label, exact: true });
-  const count = (await option.count())
-    ? (await option.innerText()).replace(label, '').trim()
-    : null;
+  await settled(page);
+  const [text] = await list.getByRole('option', { name: label, exact: true }).allInnerTexts();
   await page.keyboard.press('Escape');
   await list.waitFor({ state: 'hidden', timeout: 5_000 });
-  return count;
+  return text === undefined ? null : text.replace(label, '').trim();
 }
 
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
