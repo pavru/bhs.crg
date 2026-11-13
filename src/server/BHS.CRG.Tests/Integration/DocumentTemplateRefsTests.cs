@@ -271,4 +271,16 @@ public class DocumentTemplateRefsTests(IntegrationTestFixture fixture) : IAsyncL
 
         Assert.Equal(a, (await RefsAsync(doc)).Id);
     }
+
+    [Fact]
+    public async Task Params_EmptyObject_IsStoredAsNull()
+    {
+        // Клиент шлёт «нет переопределений» пустым объектом: без тела адрес отвечал 415.
+        var (doc, a, _, _) = await ArrangeAsync();
+        await SendAsync(new SetDocumentTemplateParamsCommand(doc, $"{{\"{a}\":{{\"x\":1}}}}"));
+
+        await SendAsync(new SetDocumentTemplateParamsCommand(doc, "{}"));
+
+        Assert.Null((await RefsAsync(doc)).Params);
+    }
 }
