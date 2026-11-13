@@ -124,12 +124,22 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
             await db.BlobRegistry.Where(e => e.Path == path).Select(e => e.Owner).SingleAsync());
     }
 
-    /// <summary>Оценка веса копии считает файл счёта: она берёт пути из того же места, что и архив.</summary>
+    /// <summary>
+    /// Оценка веса копии считает файл счёта: она берёт пути из того же места, что и архив. И называет его
+    /// долей модуля (work-05, ТЗ WORK-35): модуль без файлов стоит в разбивке с нулём, а не пропадает.
+    /// </summary>
     [Fact]
     public async Task Оценка_веса_копии_считает_файл_счёта()
     {
         var (client, _) = await SignInAsync("Admin");
         await ForgetInvoicesAsync();
+        using (var before = _host.Services.CreateScope())
+        {
+            var empty = await before.ServiceProvider.GetRequiredService<BackupService>()
+                .EstimateSizeAsync(long.MaxValue, BackupScope.Full);
+            Assert.Equal(new BackupModuleWeight(CostsModule.ModuleCode, "Счета и накладные", 0, 0),
+                Assert.Single(empty.Variant.Modules));
+        }
         var invoice = await CreateAsync(client);
         var body = "%PDF-1.4 " + new string('я', 4000);
         await AttachScanAsync(client, invoice, "Счёт 32.pdf", body);
@@ -142,6 +152,10 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.True(estimate.Variant.BlobBytes >= System.Text.Encoding.UTF8.GetByteCount(body),
             $"файл счёта в оценку не вошёл: файлов {estimate.Variant.BlobCount}, байт {estimate.Variant.BlobBytes}");
         Assert.InRange(Math.Abs(estimate.Variant.TotalBytes - archive.Length), 0, 1024);
+
+        var costs = Assert.Single(estimate.Variant.Modules);
+        Assert.Equal((CostsModule.ModuleCode, "Счета и накладные", 1), (costs.Code, costs.Title, costs.Count));
+        Assert.Equal(System.Text.Encoding.UTF8.GetByteCount(body), costs.Bytes);
     }
 
     /// <summary>

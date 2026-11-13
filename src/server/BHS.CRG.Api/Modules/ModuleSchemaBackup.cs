@@ -41,6 +41,9 @@ namespace BHS.CRG.Api.Modules;
 public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IServiceProvider scoped)
     : IModuleSchemaBackup
 {
+    public IReadOnlyList<BackupModuleName> Modules =>
+        [.. WithSchema().Select(m => new BackupModuleName(m.Module.Code, m.Module.Title))];
+
     public async Task<BackupModuleSchema[]> ReadAsync(
         DbTransaction transaction, List<string> warnings, CancellationToken ct)
     {

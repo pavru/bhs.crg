@@ -28,6 +28,13 @@ namespace BHS.CRG.Application.Backup;
 public interface IModuleSchemaBackup
 {
     /// <summary>
+    /// Модули, чьи схемы снимает копия, — коды и названия для разбивки веса копии (work-05, ТЗ WORK-35).
+    /// Тот же перечень, по которому <see cref="ReadAsync" /> снимает секции: включённые модули со своей
+    /// схемой. Названий модулей инфраструктура иначе не узнает — реестр модулей за границей контрактов.
+    /// </summary>
+    IReadOnlyList<BackupModuleName> Modules { get; }
+
+    /// <summary>
     /// Снять данные схем включённых модулей в рамках уже открытой транзакции ядра.
     /// </summary>
     /// <param name="transaction">Транзакция ядра, в которой читается манифест. Таблицы модуля
@@ -72,6 +79,9 @@ public interface IModuleSchemaBackup
         BackupModuleSchema[] restored, IReadOnlySet<string> inArchive, List<string> warnings,
         CancellationToken ct);
 }
+
+/// <summary>Модуль, чьи данные едут в копии: код — как в секции копии, название — для человека.</summary>
+public sealed record BackupModuleName(string Code, string Title);
 
 /// <summary>Итог восстановления схем модулей.</summary>
 /// <param name="Stats">Секции отчёта: по одной на таблицу модуля.</param>
