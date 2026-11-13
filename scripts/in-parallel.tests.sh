@@ -196,6 +196,14 @@ check 'упавшая повторена после группы'          'да
 has   'отказ помечен для сводки прогона'        '::error::Не прошло: Вторая, Третья' "$out"
 scene; GITHUB_ACTIONS=true run 'Первая' 'echo прошла-1'
 hasnt 'зелёный шаг отказом не помечен'          '::error::' "$out"
+scene; GITHUB_ACTIONS=true run 'Первая' 'echo "::error::причина-с-меткой"; echo "::warning file=a.sh::осторожно"; echo "::notice::к-сведению"; echo "  ::error::не-в-начале"; exit 1'
+check 'метка ветви — ещё раз с начала строки'   '1' "$(grep -c '^::error::причина-с-меткой$' <<<"$out")"
+check 'и предупреждение с параметрами'          '1' "$(grep -c '^::warning file=a.sh::осторожно$' <<<"$out")"
+check 'и пометка «к сведению»'                  '1' "$(grep -c '^::notice::к-сведению$' <<<"$out")"
+check 'не метка — с начала строки не повторена' '0' "$(grep -c '^ *::error::не-в-начале$' <<<"$out")"
+has   'строка с меткой осталась в потоке ветви' 'Первая │ ' "$(grep 'причина-с-меткой' <<<"$out")"
+scene; run 'Первая' 'echo "::error::вне-actions"'
+check 'вне Actions — метка не повторена'        '0' "$(grep -c '^::error::вне-actions$' <<<"$out")"
 scene; run 'Первая' 'echo прошла-1'
 hasnt 'вне Actions групп нет'                   '::group::' "$out"
 
