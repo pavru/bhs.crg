@@ -31,8 +31,8 @@ public class AgentRulesCopyTests
         var claude = Read("CLAUDE.md");
         var agents = Read("AGENTS.md");
 
-        Assert.Contains(AnchorLine, claude);
-        Assert.Contains(AnchorLine, agents);
+        Assert.True(claude.Contains(AnchorLine, StringComparison.Ordinal), MissingAnchor("CLAUDE.md"));
+        Assert.True(agents.Contains(AnchorLine, StringComparison.Ordinal), MissingAnchor("AGENTS.md"));
 
         var body = claude[(claude.IndexOf(AnchorLine, StringComparison.Ordinal) + 1)..];
 
@@ -41,6 +41,11 @@ public class AgentRulesCopyTests
             "работают по устаревшим правилам и об этом не узнают. Перенесите тело CLAUDE.md " +
             $"(всё от «{Anchor}») в AGENTS.md ниже его шапки — тем же коммитом, что и правку.");
     }
+
+    private static string MissingAnchor(string file) =>
+        $"В {file} нет заголовка «{Anchor}» отдельной строкой (без пробелов в конце). С него начинается " +
+        "общее тело CLAUDE.md и AGENTS.md: переименовали — верните заголовок или поменяйте Anchor здесь " +
+        "вместе с обоими файлами.";
 
     private static string Read(string name) =>
         File.ReadAllText(Path.Combine(RepoRoot, name)).ReplaceLineEndings("\n");
