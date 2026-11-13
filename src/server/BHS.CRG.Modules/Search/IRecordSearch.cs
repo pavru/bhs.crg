@@ -47,11 +47,19 @@ public interface IRecordSearch
 /// <param name="Title">Название группы для человека: «Счета».</param>
 /// <param name="RecordType">Код типа записи (<c>СчётНаОплату</c>): по нему клиент знает экран записи, а
 /// «Недавние» — владельца записи. Уникален на экземпляр.</param>
-/// <param name="Requires">Ключ доступа — то же право, что у списка записей группы (<c>costs.invoice.read</c>).</param>
+/// <param name="Requires">Ключ доступа — то же право, что у списка записей группы (<c>costs.invoice.read</c>).
+/// Право ЭКРАНА записи, если оно другое (комплект открывается под «Стройками», шаблон — под «Шаблонами»),
+/// ключом не выражается: его поставщик проверяет сам и без него отвечает «скрыто» — второй пояс
+/// (shell-09, Р-3). Так сервер не отдаёт карточек, которые клиент открыть не может.</param>
 /// <param name="Archive">Что группа делает с архивными записями (ТЗ CORE-34.4): решение объявлено, а не
 /// подразумевается.</param>
+/// <param name="Searchable">Ищется ли группа по строке запроса (shell-09, Р-2 — Б). Группа «только
+/// карточки» (<c>false</c>) отдаёт карточки по идентификатору («Недавние») тем же ключом, но поиск её не
+/// спрашивает, а сужение <c>group=</c> до неё — 400, как до необъявленной. Признак объявлен, а не
+/// подразумевается: палитра научится искать группу — он снимается одной строкой.</param>
 public sealed record RecordSearchGroup(
-    string Code, string Title, string RecordType, string Requires, RecordSearchArchive Archive);
+    string Code, string Title, string RecordType, string Requires, RecordSearchArchive Archive,
+    bool Searchable = true);
 
 /// <summary>
 /// Архив в поиске (ТЗ CORE-34.4, правило <c>purpose=choice</c>, #1185): поиск — это выбор, и архивная запись
@@ -84,9 +92,20 @@ public sealed record RecordSearchHits(IReadOnlyList<RecordSearchHit> Items, bool
 /// <param name="Place">Где запись: стройка набора данных.</param>
 /// <param name="Amount">Сумма — у счёта; форматирует клиент.</param>
 /// <param name="Level">Уровень записи — у той, чей экран зависит от уровня (набор данных).</param>
+/// <param name="Opens">Под какой записью открывается экран этой и что на нём открыть — у той, чей адрес
+/// требует другую запись (комплект — стройку, шаблон — тип документа). Прежние поставщики не заполняют.</param>
 public sealed record RecordSearchHit(
     Guid Id, string Title, string? Detail = null, string? Place = null, decimal? Amount = null,
-    RecordSearchLevel? Level = null);
+    RecordSearchLevel? Level = null, RecordSearchOpens? Opens = null);
+
+/// <summary>
+/// Как открыть запись, чей экран стоит под другой записью (shell-09, Р-4): адрес комплекта —
+/// <c>/document-sets/&lt;стройка&gt;/sets/&lt;id&gt;</c>, шаблона — <c>/templates?type=&lt;тип&gt;&amp;template=&lt;версия&gt;</c>.
+/// Адрес строит клиент: модуль адресов клиента не знает.
+/// </summary>
+/// <param name="Under">Запись, под которой открывается экран: стройка комплекта, тип документа шаблона.</param>
+/// <param name="Id">Что открыть, если не саму запись: текущая версия шаблона, а не отмеченная.</param>
+public sealed record RecordSearchOpens(Guid Under, Guid? Id = null);
 
 /// <summary>
 /// Где лежит запись, у которой экран свой на каждом уровне (shell-05, решение владельца 12.11.2026 — «А»):

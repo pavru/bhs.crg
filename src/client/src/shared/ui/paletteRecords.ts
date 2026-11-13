@@ -1,7 +1,7 @@
 import type { AccessInfo } from '@/shared/api/access';
 import type { RecordSearchGroup, RecordSearchHit } from '@/shared/api/recordSearch';
 import { formatMoney } from '@/shared/format/format';
-import { Apartment, Layers, ReceiptLong, type IconDef } from './icons';
+import { Apartment, Description, FolderOpen, Layers, ReceiptLong, type IconDef } from './icons';
 import { recordScreen, type RecordRoute } from './recordRoutes';
 
 /**
@@ -23,6 +23,9 @@ export interface RecordGroupDef {
   within: string;
   /** Знак записи группы — в палитре и в «Недавних» Главной: что это за запись, а не где она лежит. */
   icon: IconDef;
+  /** Группа «только карточки» (shell-09, Р-2 — Б): её записи помнят «Недавние», но палитра её не ищет —
+   *  ни чипа, ни группы. Тот же признак у группы на сервере (`Searchable: false`). */
+  inPalette?: false;
 }
 
 /** Порядок — как у групп в палитре: «Действия» → эти → разделы. */
@@ -30,6 +33,9 @@ export const RECORD_GROUPS: readonly RecordGroupDef[] = [
   { code: 'invoices', label: 'Счета', recordType: 'СчётНаОплату', within: 'счетах', icon: ReceiptLong },
   { code: 'constructions', label: 'Стройки', recordType: 'Стройка', within: 'стройках', icon: Apartment },
   { code: 'datasets', label: 'Наборы данных', recordType: 'НаборДанных', within: 'наборах данных', icon: Layers },
+  // Группы модуля `id` (`IdRecordSearch`) — пока только для «Недавних»: поиск ими — отдельный change.
+  { code: 'sets', label: 'Комплекты', recordType: 'КомплектДокументов', within: 'комплектах', icon: FolderOpen, inPalette: false },
+  { code: 'templates', label: 'Шаблоны', recordType: 'ШаблонДокумента', within: 'шаблонах', icon: Description, inPalette: false },
 ];
 
 export interface OpenGroup {
@@ -38,9 +44,10 @@ export interface OpenGroup {
   route: RecordRoute;
 }
 
-/** Группы, открытые человеку: экран записи есть и открыт. */
+/** Группы палитры, открытые человеку: экран записи есть и открыт. Группы «только карточки» — не в палитре. */
 export function openGroups(access: AccessInfo): OpenGroup[] {
   return RECORD_GROUPS.flatMap(def => {
+    if (def.inPalette === false) return [];
     const route = recordScreen(def.recordType, access);
     return route ? [{ def, route }] : [];
   });

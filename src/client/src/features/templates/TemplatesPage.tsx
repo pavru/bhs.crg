@@ -20,6 +20,7 @@ import { TypeBlocksPanel } from './TypeBlocksPanel';
 import { TemplateSidebar, DocTypeSelector, VersionCleanupModal } from './TemplateSidebar';
 import { groupTemplates, newVersionPlan, type TemplateGroup } from './groupTemplates';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
 // ─── New template form ────────────────────────────────────────────────────────
 
 interface NewTemplateFormProps {
@@ -107,8 +108,8 @@ export function TemplatesPage() {
   const [restored] = useState(() => {
     const urlType = searchParams.get('type') ?? '';
     return urlType
-      ? { typeId: urlType, templateId: searchParams.get('template') ?? '' }
-      : readLastTemplate();
+      ? { typeId: urlType, templateId: searchParams.get('template') ?? '', fromUrl: true }
+      : { ...readLastTemplate(), fromUrl: false };
   });
 
   const [pickedTypeId, setPickedTypeId] = useState(restored.typeId);
@@ -121,6 +122,12 @@ export function TemplatesPage() {
     useState<{ typeId: string; template: Template | null } | null>(null);
   // Восстанавливаемая версия ждёт здесь загрузки списка: сброс шаблона при смене типа её не трёт.
   const pendingTemplateId = useRef(restored.templateId);
+  /**
+   * Шаблон, который ОТКРЫЛИ (shell-09, Р-6): выбрали в списке или назвали адресом входа (`?template=`, в
+   * том числе из «Недавних»). Только он отмечается в «Недавних»: авто-выбор страницы, память браузера и
+   * подмена мёртвой версии — выбор не человека, и шаблоны, которых никто не открывал, вытесняли бы записи.
+   */
+  const [openedId, setOpenedId] = useState<string | null>(null);
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [cleanupGroup, setCleanupGroup] = useState<TemplateGroup | null>(null);
   const [maxVersions] = useMaxTemplateVersions();
@@ -170,6 +177,7 @@ export function TemplatesPage() {
 
   const selectTemplate = (t: Template | null) => {
     setSelectedTemplate(t);
+    setOpenedId(t?.id ?? null);
     pendingTemplateId.current = '';   // осознанный выбор отменяет восстановление
     persist(t?.documentTypeId ?? selectedTypeId, t?.id ?? '');
   };
@@ -188,6 +196,8 @@ export function TemplatesPage() {
         ?? templates.find(t => t.isActive)
         ?? templates[0];
       setSelectedTemplate(active);
+      // Версия, названная адресом входа, — открытая; из памяти браузера и авто-выбор — нет.
+      if (wanted && restored.fromUrl) setOpenedId(wanted.id);
       // Версию вычистили или удалили вместе с шаблоном: подменяем молча, но адрес не должен и
       // дальше называть мёртвую версию — ссылка вела бы не туда, куда обещает.
       if (pending && !wanted) {
@@ -204,9 +214,14 @@ export function TemplatesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templates]);
 
+  // Режим страницы в условие НЕ входит: библиотеки Typst выбора шаблона не меняют и `openedId` не ставят, а
+  // сброс отметки на их вкладке слал бы её заново при каждом возврате на «Шаблоны» — без нового открытия.
+  useRecentTouch('ШаблонДокумента', selectedTemplate && selectedTemplate.id === openedId ? openedId : null);
+
   function handleTypeChange(id: string) {
     setPickedTypeId(id);
     setSelectedTemplate(null);
+    setOpenedId(null);
     pendingTemplateId.current = '';
     persist(id, '');
   }

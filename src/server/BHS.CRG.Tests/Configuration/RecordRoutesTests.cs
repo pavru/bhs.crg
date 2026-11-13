@@ -29,6 +29,7 @@ public class RecordRoutesTests
             .Select(e => e.Table.RecordType).Where(t => t is not null)
             .Concat(CoreRecordSearch.Declared.Select(g => g.RecordType))
             .Append(CostsRecordSearch.Declared.RecordType)
+            .Concat(BHS.CRG.Api.Modules.IdRecordSearch.Declared.Select(g => g.RecordType))
             .ToHashSet(StringComparer.Ordinal);
         var routed = RoutedTypes();
 
@@ -38,6 +39,24 @@ public class RecordRoutesTests
         Assert.All(routed, type => Assert.True(declared.Contains(type),
             $"В {ClientFile} экран назван для типа записи «{type}», а ни таблицы модулей, ни группы поиска с таким типом нет: " +
             $"объявлены {string.Join(", ", declared)}. Ссылка на этот экран не появится нигде."));
+    }
+
+    /// <summary>
+    /// Право экрана групп модуля <c>id</c> (shell-09, задача 3.5; Р-3) записано дважды: константой у
+    /// поставщика и списком в клиентской переписи, которая сверяет его с разделом навигации. Здесь — что
+    /// список клиента выписан с сервера: правка одной константы без другой — красный тест здесь или там.
+    /// </summary>
+    [Fact]
+    public void Право_экрана_групп_id_совпадает_со_списком_клиентской_переписи()
+    {
+        const string census = "src/client/src/shared/ui/recordScreenRights.test.ts";
+        var text = File.ReadAllText(Path.Combine(RepoRoot, census));
+        var block = Regex.Match(text, @"SERVER_SCREEN_RIGHTS[^=]*=\s*\{(?<body>[^}]*)\}", RegexOptions.Singleline);
+        Assert.True(block.Success, $"В {census} не нашёлся список SERVER_SCREEN_RIGHTS — сверять нечего.");
+        var client = Regex.Matches(block.Groups["body"].Value, @"(?<code>\w+):\s*'(?<right>[^']+)'")
+            .ToDictionary(m => m.Groups["code"].Value, m => m.Groups["right"].Value);
+
+        Assert.Equal(BHS.CRG.Api.Modules.IdRecordSearch.ScreenRights.OrderBy(kv => kv.Key), client.OrderBy(kv => kv.Key));
     }
 
     /// <summary>Ключи списка <c>RECORD_ROUTES</c> — коды типов в кавычках до двоеточия.</summary>

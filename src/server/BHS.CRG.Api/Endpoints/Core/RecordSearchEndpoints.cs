@@ -40,7 +40,8 @@ public static class RecordSearchEndpoints
             var words = RecordSearchText.Words(q);
             if (!words.Any(w => w.Length >= MinLength))
                 return Results.BadRequest(new { error = $"Запрос поиска — слово от {MinLength} знаков, параметром q." });
-            if (!string.IsNullOrEmpty(group) && catalog.Find(group) is null)
+            // Группа «только карточки» для поиска не объявлена — и отказ тот же (shell-09, Р-2).
+            if (!string.IsNullOrEmpty(group) && catalog.Find(group) is not { Group.Searchable: true })
                 return Results.BadRequest(new { error = $"Неизвестная группа поиска «{group}»." });
 
             var groups = await search.SearchAsync(words,
