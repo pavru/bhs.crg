@@ -7,6 +7,9 @@
     "apartment": {
       "fill": true
     },
+    "apps": {
+      "fill": true
+    },
     "archive": {},
     "arrow_back": {},
     "arrow_downward": {},
@@ -71,6 +74,9 @@
     "drive_file_move": {},
     "edit": {},
     "edit_note": {},
+    "engineering": {
+      "fill": true
+    },
     "equal": {},
     "error": {
       "export": "ErrorIcon",

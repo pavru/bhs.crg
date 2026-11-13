@@ -185,7 +185,7 @@ const sideScroll = page => page.evaluate(() => document.documentElement.scrollWi
  */
 const shellTargets = page => page.evaluate(() => {
   const px = v => parseFloat(v) || 0;
-  const items = [...document.querySelectorAll('#app-bottom-nav a, main > header button, main > header a, [data-testid=section-menu-trigger]')]
+  const items = [...document.querySelectorAll('#app-bottom-nav a, #app-bottom-nav button, main > header button, main > header a, [data-testid=section-menu-trigger]')]
     .map(el => ({ el, box: el.getBoundingClientRect(), name: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 30) }))
     .filter(({ box }) => box.width > 0 && box.height > 0);
   const small = items.map(({ el, box, name }) => {
@@ -245,10 +245,26 @@ async function narrowChecks(page, check) {
       const header = await page.locator('main > header').boundingBox();
       if (!header || Math.round(header.height) !== 64) throw new Error(`шапка на 390 px высотой ${header?.height}px, а не 64 — не в одну строку`);
       // Гамбургера нет: разделы — внизу (#1434).
-      if (await page.getByRole('button', { name: 'Меню', exact: true }).count()) throw new Error('в шапке остался гамбургер');
-      // Те же рабочие разделы, что в рейле рабочего стола: копия, разошедшаяся с рейлом, прятала бы разделы.
-      const shown = (await page.getByTestId('bottom-nav').getByRole('link').allInnerTexts()).map(t => t.trim());
-      if (shown.join('|') !== work.join('|')) throw new Error(`внизу [${shown}], в рейле рабочего стола [${work}]`);
+      if (await page.locator('main > header').getByRole('button', { name: 'Меню', exact: true }).count()) throw new Error('в шапке остался гамбургер');
+      // Внизу у всех три места (work-03, Р0 — телефон Б), от числа разделов не зависит.
+      const bar = page.getByTestId('bottom-nav');
+      const places = (await bar.locator('a, button').allInnerTexts()).map(t => t.trim());
+      if (places.join('|') !== 'Главная|Закреплённые|Меню') throw new Error(`внизу [${places}], ждали «Главная · Закреплённые · Меню»`);
+      // Лист «Меню» — те же рабочие разделы, что в рейле рабочего стола, кроме Главной: она — местом строки.
+      // Копия, разошедшаяся с рейлом, прятала бы разделы.
+      await bar.getByRole('button', { name: 'Меню', exact: true }).click();
+      const sheet = page.getByRole('dialog', { name: 'Меню' });
+      await sheet.waitFor();
+      // Заголовки РАЗДЕЛОВ листа, а не групп страниц внутри них («Отчёты и закрытие месяца»).
+      const listed = (await sheet.locator('section > h3').allInnerTexts()).map(t => t.trim());
+      // «Назад» закрывает лист, а не страницу под ним (#1418). Сначала закрыть, потом сравнивать: лист,
+      // оставленный открытым, перекрыл бы страницу всем проверкам ниже.
+      const before = page.url();
+      await page.goBack();
+      await sheet.waitFor({ state: 'detached' });
+      if (page.url() !== before) throw new Error(`«Назад» с листа «Меню» увела на ${page.url()}`);
+      const expected = work.filter(t => t !== 'Главная');
+      if (listed.join('|') !== expected.join('|')) throw new Error(`в «Меню» [${listed}], в рейле рабочего стола [${expected}]`);
       for (const width of [390, 375]) {
         await page.setViewportSize({ width, height: 844 });
         const extra = await sideScroll(page);
@@ -271,6 +287,31 @@ async function narrowChecks(page, check) {
         }
       }
       await page.setViewportSize({ width: 390, height: 844 });
+    });
+
+    // Страница из листа «Меню» открывается, лист за собой закрывается; «Закреплённые» открывают свой лист —
+    // со списком или с подсказкой, как закрепить (work-03, work-04).
+    await check('narrow-menu-sheet-opens-a-page-and-pinned-sheet-opens', async () => {
+      const bar = page.getByTestId('bottom-nav');
+      await bar.getByRole('button', { name: 'Меню', exact: true }).click();
+      const sheet = page.getByRole('dialog', { name: 'Меню' });
+      await sheet.waitFor();
+      await sheet.getByRole('link', { name: 'Стройки', exact: true }).click();
+      await sheet.waitFor({ state: 'detached' });
+      await page.waitForURL(url => url.pathname === '/document-sets');
+      await settled(page);
+      if ((await bar.getByRole('button', { name: 'Меню', exact: true }).getAttribute('aria-current')) !== 'true'
+        && (await bar.getByRole('button', { name: 'Закреплённые', exact: true }).getAttribute('aria-current')) !== 'true')
+        throw new Error('на странице «Строек» не отмечено ни «Меню», ни «Закреплённые»');
+
+      await bar.getByRole('button', { name: 'Закреплённые', exact: true }).click();
+      const pinned = page.getByRole('dialog', { name: 'Закреплённые' });
+      await pinned.waitFor();
+      const links = await pinned.getByRole('link').count();
+      const text = await pinned.innerText();
+      if (!links && !text.includes('Закрепите страницу')) throw new Error(`лист «Закреплённые» пуст и без подсказки: «${text}»`);
+      await page.keyboard.press('Escape');
+      await pinned.waitFor({ state: 'detached' });
     });
 
     // Основное действие экрана на телефоне — плавающая кнопка с подписью (#1434): та же кнопка экрана

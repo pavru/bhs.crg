@@ -2,7 +2,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
-import { BottomNav } from './BottomNav';
+import { BottomNav, MENU_EMPTY_HINT, PINNED_EMPTY_HINT } from './BottomNav';
+import { useLeaveGuard, type LeaveHandler } from './NavigationGuard';
 import { PrimaryFab } from './PrimaryFab';
 import { PrimaryActionButton } from './PrimaryActionButton';
 import { PrimaryFabContext, useCoversPrimaryFab, usePrimaryFabState } from './primaryFabContext';
@@ -60,23 +61,95 @@ function shown(ui: React.ReactNode, at = '/invoices', menu: SectionMenuValue | n
   );
 }
 
-// Какие разделы внизу (рабочие, без «Системы»), решает `phoneChrome` — см. его тест.
+// Какие разделы попадают в строку и в «Меню» (рабочие, без «Системы»), решает `phoneChrome` — см. его тест.
 const work = sections.filter(s => !s.def.admin);
+const placeNames = () => [...screen.getByRole('navigation', { name: 'Разделы' }).querySelectorAll('a, button')]
+  .map(el => el.textContent);
 
+/** Нижняя строка телефона (work-03, макет Р0, телефон — вариант Б): «Главная · Закреплённые · Меню». */
 describe('нижняя навигация', () => {
-  it('разделы с подписями; свой отмечен', () => {
+  it('три постоянных места у всех — от числа разделов не зависит', () => {
     shown(<BottomNav sections={work} active="costs" />);
-    const nav = screen.getByRole('navigation', { name: 'Разделы' });
-    const links = nav.querySelectorAll('a');
-    // Главная — первой ([UI-33], shell-08), «Системы» внизу нет.
-    expect([...links].map(a => a.textContent)).toEqual(['Главная', 'Стройки', 'Затраты']);
-    expect([...links].map(a => a.getAttribute('aria-current'))).toEqual([null, null, 'true']);
+    expect(placeNames()).toEqual(['Главная', 'Закреплённые', 'Меню']);
+    cleanup();
+    shown(<BottomNav sections={work.slice(0, 1)} active="home" />, '/home');
+    expect(placeNames()).toEqual(['Главная', 'Закреплённые', 'Меню']);
   });
 
-  it('раздел ведёт на свою первую страницу', () => {
+  it('отмечено, где человек: Главная, закреплённая страница или «Меню»', () => {
+    const current = () => [...screen.getByRole('navigation', { name: 'Разделы' }).querySelectorAll('a, button')]
+      .map(el => el.getAttribute('aria-current'));
+    shown(<BottomNav sections={work} active="home" />, '/home');
+    expect(current()).toEqual(['true', null, null]);
+    cleanup();
     shown(<BottomNav sections={work} active="costs" />);
-    fireEvent.click(screen.getByRole('link', { name: 'Стройки' }));
-    expect(screen.getByLabelText('адрес').textContent).toBe('/document-sets');
+    expect(current()).toEqual([null, null, 'true']);
+    cleanup();
+    const pinned = [{ item: page('/invoices', 'Счета', 'costs'), section: 'Учёт затрат', outside: false }];
+    shown(<BottomNav sections={work} active="costs" pinned={pinned} />, '/invoices/42');
+    expect(current()).toEqual([null, 'true', null]);
+    cleanup();
+    // «Система» — из меню профиля, в листе её нет: «Меню» не отмечено, как и на профиле.
+    shown(<BottomNav sections={work} active="system" />, '/users');
+    expect(current()).toEqual([null, null, null]);
+  });
+
+  it('«Главная» ведёт на Главную', () => {
+    shown(<BottomNav sections={work} active="costs" />);
+    fireEvent.click(screen.getByRole('link', { name: 'Главная' }));
+    expect(screen.getByLabelText('адрес').textContent).toBe('/home');
+  });
+
+  it('«Меню» — лист со всеми рабочими разделами и их страницами; выбор страницы закрывает лист', async () => {
+    shown(<BottomNav sections={work} active="costs" pinnable={() => true} />, '/home');
+    fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Меню' });
+    // Главная — местом строки, а не разделом листа; «Системы» нет — она в меню профиля.
+    expect([...sheet.querySelectorAll('section > h3')].map(h => h.textContent)).toEqual(['Стройки', 'Затраты']);
+    // У строки страницы — «⋮» с закреплением, как у пункта подпанели.
+    expect(screen.getByRole('button', { name: 'Действия: Накладные' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Накладные' }));
+    expect(screen.getByLabelText('адрес').textContent).toBe('/waybills');
+    expect(screen.queryByRole('dialog', { name: 'Меню' })).toBeNull();
+  });
+
+  it('переход, отменённый охраной ухода, лист не закрывает; подтверждённый — закрывает', async () => {
+    let proceed: (() => void) | null = null;
+    const onLeave: LeaveHandler = go => { proceed = go; };
+    function Dirty() { useLeaveGuard(true, onLeave); return null; }
+    shown(<><Dirty /><BottomNav sections={work} active="costs" /></>);
+    fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Меню' });
+    fireEvent.click(screen.getByRole('link', { name: 'Накладные' }));
+    // «Остаться»: адрес прежний, лист на месте — выбор можно продолжить.
+    expect(screen.getByLabelText('адрес').textContent).toBe('/invoices');
+    expect(sheet.isConnected).toBe(true);
+    await act(async () => { proceed!(); });
+    expect(screen.getByLabelText('адрес').textContent).toBe('/waybills');
+    expect(screen.queryByRole('dialog', { name: 'Меню' })).toBeNull();
+  });
+
+  it('без рабочих разделов, кроме Главной, лист «Меню» говорит, почему пуст', async () => {
+    shown(<BottomNav sections={work.slice(0, 1)} active="home" />, '/home');
+    fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    expect((await screen.findByRole('dialog', { name: 'Меню' })).textContent).toContain(MENU_EMPTY_HINT);
+  });
+
+  it('«Закреплённые» — лист закреплений с разделом второй строкой; пусто — подсказка, как закрепить', async () => {
+    const pinned = [
+      { item: page('/waybills', 'Накладные', 'costs'), section: 'Учёт затрат', outside: false },
+      { item: page('/datasets', 'Наборы данных', 'data'), section: 'Данные', outside: true },
+    ];
+    shown(<BottomNav sections={work} active="home" pinned={pinned} />, '/home');
+    fireEvent.click(screen.getByRole('button', { name: 'Закреплённые' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Закреплённые' });
+    expect([...sheet.querySelectorAll('a')].map(a => a.textContent))
+      .toEqual(['НакладныеУчёт затрат', 'Наборы данныхДанные · вне пространства']);
+    cleanup();
+
+    shown(<BottomNav sections={work} active="home" />, '/home');
+    fireEvent.click(screen.getByRole('button', { name: 'Закреплённые' }));
+    expect((await screen.findByRole('dialog', { name: 'Закреплённые' })).textContent).toContain(PINNED_EMPTY_HINT);
   });
 
   it('navigation bar MD3: surface-container без черты, подпись label-medium одним весом', () => {
@@ -84,10 +157,9 @@ describe('нижняя навигация', () => {
     const nav = screen.getByRole('navigation', { name: 'Разделы' });
     expect(nav.className).toContain('bg-surface-container');
     expect(nav.className).not.toMatch(/\bborder-t\b/);
-    const label = (name: string) => screen.getByRole('link', { name }).querySelector('span:last-child')!.className;
-    expect(screen.getByRole('link', { name: 'Затраты' }).className).toContain('text-label-medium');
-    expect(label('Затраты')).not.toMatch(/font-/);
-    expect(label('Стройки')).not.toMatch(/font-/);
+    const menu = screen.getByRole('button', { name: 'Меню' });
+    expect(menu.className).toContain('text-label-medium');
+    expect(menu.querySelector('span:last-child')!.className).not.toMatch(/font-/);
   });
 
   it('без рабочих разделов строки нет', () => {
