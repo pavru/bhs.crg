@@ -131,12 +131,9 @@ public class TemplateHandlers(
             blobs.AddRange(o.ResetToDraft());
             objRepo.Update(o);
         }
-        // Шаблон жив — отметки «Недавних» удаляемой версии переходят к текущей (shell-09, Р-5): иначе
-        // очистка версий молча убирала бы живой шаблон с Главной. Тем же SaveChanges, что удаление.
-        var rest = await repo.FindAsync(
-            v => v.DocumentTypeId == t.DocumentTypeId && v.Name == t.Name && v.Id != t.Id, ct);
-        if (TemplateCurrentVersion.Of(rest.Select(v => v.Facts())) is { } current)
-            await recent.ReassignAsync(IdRecordTypes.Template, t.Id, current.Id, ct);
+        // Отметки «Недавних» удаляемой версии — к текущей из оставшихся, а последней — снимаются (shell-09,
+        // Р-5): иначе очистка версий молча убирала бы живой шаблон с Главной.
+        await recent.TemplateVersionLeavingAsync(t.Id, ct);
         repo.Remove(t);
         await repo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);

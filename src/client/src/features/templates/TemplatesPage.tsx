@@ -214,9 +214,9 @@ export function TemplatesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templates]);
 
-  // Библиотеки Typst — не шаблон: в их режимах отметки нет.
-  useRecentTouch('ШаблонДокумента',
-    mode === 'templates' && selectedTemplate && selectedTemplate.id === openedId ? openedId : null);
+  // Режим страницы в условие НЕ входит: библиотеки Typst выбора шаблона не меняют и `openedId` не ставят, а
+  // сброс отметки на их вкладке слал бы её заново при каждом возврате на «Шаблоны» — без нового открытия.
+  useRecentTouch('ШаблонДокумента', selectedTemplate && selectedTemplate.id === openedId ? openedId : null);
 
   function handleTypeChange(id: string) {
     setPickedTypeId(id);

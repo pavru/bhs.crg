@@ -78,6 +78,17 @@ describe('страница шаблонов: отметка «Недавних»
     expect(touched()).toEqual([]);
   });
 
+  it('вкладка библиотеки и обратно — открытие то же, второй отметки нет', () => {
+    shown('/templates?type=t-1');
+    fireEvent.click(screen.getByText('выбрать a-1'));
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('tab', { name: /Общие функции Typst/ }));
+      fireEvent.click(screen.getByRole('tab', { name: /Шаблоны документов/ }));
+    }
+    expect(screen.getByTestId('editor').textContent).toBe('a-1');
+    expect(touched()).toEqual(['a-1']);
+  });
+
   it('выбор в списке — отметка этой версии', () => {
     shown('/templates?type=t-1');
     fireEvent.click(screen.getByText('выбрать a-1'));

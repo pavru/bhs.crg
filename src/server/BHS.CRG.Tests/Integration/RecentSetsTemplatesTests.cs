@@ -156,6 +156,22 @@ public sealed class RecentSetsTemplatesTests(InvoiceLineHost host) : InvoiceLine
     }
 
     [Fact]
+    public async Task Новые_версии_шаблона_не_занимают_мест_предела()
+    {
+        var (admin, adminUser) = await SignInAsync("Admin");
+        var (_, sets) = await SetsAsync("Раздел", 1);
+        await TouchAsync(admin, Set, sets[0]);
+        var (_, versions) = await TemplateAsync(1);
+        await TouchAsync(admin, Shape, versions[0]);
+        // Правка шаблона — новая версия, и страница открывает её: отметка одна на шаблон, а не на версию,
+        // иначе каждая правка вытесняла бы из «Недавних» по чужой записи.
+        var last = versions[0];
+        for (var i = 0; i < 3; i++) await TouchAsync(admin, Shape, last = await NewVersionAsync(last));
+
+        Assert.Equal([last, sets[0]], (await StoredAsync(adminUser)).OrderBy(id => id == sets[0]));
+    }
+
+    [Fact]
     public async Task Две_действующие_версии_каждое_чтение_ведёт_на_большую()
     {
         var (admin, _) = await SignInAsync("Admin");
@@ -204,19 +220,23 @@ public sealed class RecentSetsTemplatesTests(InvoiceLineHost host) : InvoiceLine
         await TouchAsync(both, Shape, versions[0]);
         var next = await NewVersionAsync(versions[0]);
         await TouchAsync(both, Shape, next);
+        // Обе версии отмечены разом — так бывает лишь от открытия двух версий одновременно (запись держит
+        // одну отметку на шаблон): перенос сливает их, а не упирается в ключ.
+        await MarkAsync(bothUser, versions[0], DateTimeOffset.UtcNow.AddMinutes(1));
 
         await SendAsync(new DeleteTemplateCommand(versions[0]));
 
         Assert.Equal([next], await StoredAsync(firstUser));
         Assert.Equal([next], await StoredAsync(bothUser));
+        Assert.True(await OpenedAtAsync(bothUser, next) > DateTimeOffset.UtcNow, "слитая отметка — с поздним открытием");
         foreach (var client in new[] { first, both })
             Assert.Equal(next, Assert.Single(await ItemsAsync(client)).GetProperty("opens").GetProperty("id").GetGuid());
     }
 
     [Fact]
-    public async Task Удалили_все_версии_шаблона_нет()
+    public async Task Удалили_все_версии_шаблона_нет_и_отметка_места_не_занимает()
     {
-        var (admin, _) = await SignInAsync("Admin");
+        var (admin, adminUser) = await SignInAsync("Admin");
         var (_, versions) = await TemplateAsync(1);
         var invoice = await CreateAsync(admin);
         await TouchAsync(admin, Shape, versions[0]);
@@ -225,6 +245,7 @@ public sealed class RecentSetsTemplatesTests(InvoiceLineHost host) : InvoiceLine
         await SendAsync(new DeleteTemplateCommand(versions[0]));
 
         Assert.Equal([invoice], (await ItemsAsync(admin)).Select(Id));
+        Assert.Equal([invoice], await StoredAsync(adminUser));
     }
 
     // ── Отказ поставщика ──────────────────────────────────────────────────────
@@ -275,6 +296,23 @@ public sealed class RecentSetsTemplatesTests(InvoiceLineHost host) : InvoiceLine
         using var scope = host.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().UserRecentRecords
             .Where(r => r.UserId == userId).Select(r => r.RecordId).ToListAsync();
+    }
+
+    /// <summary>Отметка прямо в базе — состояние, которого адрес отметки сам не создаёт.</summary>
+    private async Task MarkAsync(Guid userId, Guid recordId, DateTimeOffset openedAt)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO user_recent_records ("UserId", "RecordType", "RecordId", "OpenedAt")
+            VALUES ({userId}, {Shape}, {recordId}, {openedAt});
+            """);
+    }
+
+    private async Task<DateTimeOffset> OpenedAtAsync(Guid userId, Guid recordId)
+    {
+        using var scope = host.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().UserRecentRecords
+            .Where(r => r.UserId == userId && r.RecordId == recordId).Select(r => r.OpenedAt).SingleAsync();
     }
 
     /// <summary>Стройка «Корпус …» с разделом и комплектами «Комплект 1…n» в нём.</summary>

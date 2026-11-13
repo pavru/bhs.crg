@@ -75,7 +75,8 @@ public static class RecentRecordEndpoints
     /// <para><b>Свёртка</b> (shell-09, Р-5): строки, ведущие на одно и то же, — одна строка с поздним
     /// открытием. Ключ — <c>(тип, Opens.Id ?? Id)</c>: версии одного шаблона ведут на его текущую версию, а
     /// без <c>Opens.Id</c> (комплект, счёт, стройка, набор) ключ — сама запись, и разные записи не
-    /// сворачиваются.</para>
+    /// сворачиваются. Это второй пояс: одну отметку на шаблон держит уже запись (<see cref="RecentRecords.TouchAsync" />),
+    /// а две остаются лишь от открытия двух версий разом.</para>
     /// </summary>
     internal static async Task<RecentRecordsView> ReadAsync(
         AppDbContext db, RecordSearchService search, Guid userId, CancellationToken ct)

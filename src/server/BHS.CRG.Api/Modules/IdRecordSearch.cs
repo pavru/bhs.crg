@@ -106,13 +106,14 @@ public sealed class IdRecordSearch(AppDbContext db) : IRecordSearch
             .ToListAsync(ct);
         if (asked.Count == 0) return [];
 
-        // Версии всех спрошенных шаблонов одним запросом, без содержимого: отбор по типам, имя — в памяти.
+        // Версии всех спрошенных шаблонов одним запросом, без содержимого. Отбор по типам и по именам — в
+        // базе; пара (тип, имя) — в памяти: одноимённый шаблон другого спрошенного типа отсекается здесь.
         List<Guid> types = [.. asked.Select(a => a.DocumentTypeId).Distinct()];
-        HashSet<string> names = [.. asked.Select(a => a.Name)];
-        var versions = (await db.Templates.AsNoTracking().Where(t => types.Contains(t.DocumentTypeId))
+        List<string> names = [.. asked.Select(a => a.Name).Distinct()];
+        var versions = (await db.Templates.AsNoTracking()
+                .Where(t => types.Contains(t.DocumentTypeId) && names.Contains(t.Name))
                 .Select(t => new { t.DocumentTypeId, t.Name, t.Id, t.IsActive, t.IsDefault, t.Version, t.UpdatedAt })
                 .ToListAsync(ct))
-            .Where(v => names.Contains(v.Name))
             .GroupBy(v => (v.DocumentTypeId, v.Name))
             .ToDictionary(g => g.Key, g => TemplateCurrentVersion.Of(
                 g.Select(v => new TemplateVersionFacts(v.Id, v.IsActive, v.IsDefault, v.Version, v.UpdatedAt)))!);
