@@ -345,6 +345,12 @@ await check('matrix-under-read-only-right', async () => {
     // клиентским переходом, документ прежний, и состояние «сеть затихла» у него наступило ещё на
     // странице входа — ожидание вернулось бы сразу, не дождавшись ничего.
     await reader.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
+    // Без права заводить счета правая часть не зовёт ни перетащить файлы, ни завести счёт (shell-07-scan-drop-hint):
+    // приглашение кончилось бы отказом.
+    await reader.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
+    await reader.getByTestId('ld-detail').getByText('Выберите счёт').waitFor({ timeout: 10_000 });
+    if (await reader.getByTestId('ld-detail').getByText(/перетащите|заведите/i).count())
+      throw new Error('руководителя без права зовут перетащить файлы или завести счёт');
     const matrix = await openMatrix(reader, first, 'разноска по объектам');
 
     const text = (await cells(matrix)).flat().join(' ');
