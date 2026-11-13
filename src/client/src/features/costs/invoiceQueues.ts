@@ -5,8 +5,9 @@ import { Archive, Checklist, DocumentScanner, Help, Warning } from '@/shared/ui/
 import type { IconDef } from '@/shared/ui/icons/types';
 
 /**
- * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — чипами над
- * списком, выбор один. Здесь — чистая логика: что написано на чипе, что в строке и что в пустом списке.
+ * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — пунктами меню одного
+ * чипа над списком (costs-invoice-filter-row, [COST-6.2]), выбор один. Здесь — чистая логика: какие пункты
+ * в меню и с какими числами, что несёт закрытый чип, что в строке и что в пустом списке.
  */
 
 /** Подписи чипов. Короче, чем у готовых отборов реестра: рейл — 320 пикселей. */
@@ -86,6 +87,80 @@ export function queueChip(
     ...(doubt ? [`Число неполное — ${queues.doubt}.`] : []),
   ];
   return { count, title: said.join(' '), doubt };
+}
+
+/** Пункт меню очередей: подпись, знак очереди и число справа. */
+export interface QueueOption {
+  value: InvoiceQueue;
+  label: string;
+  icon: IconDef;
+  iconTone?: 'error' | 'warning';
+  /** Число справа; пусто — числа нет: не пришло, или очередь пуста, но выбрана. */
+  count: string;
+  /** Подсказка закрытого чипа, когда выбрана эта очередь: что в ней и сколько. */
+  title: string;
+}
+
+/**
+ * Пункты меню очередей (costs-invoice-filter-row, D2) — по тому же правилу показа, что были чипы:
+ * «Разобрать» есть всегда; «Не распознано» — выбрана, числа не пришли либо оно больше нуля; «Удалённые
+ * записи» и «В архиве» — по `queueChip`. Число, которое не пришло, нулём не рисуется.
+ *
+ * @param parsing сколько под «Разобрать»; `undefined` — не посчитано.
+ * @param failed числа очередей не пришли: «Не распознано» остаётся — отбор работает и без числа.
+ * @param active выбранная очередь — её пункт остаётся и пустым, иначе отбор нечем снять.
+ */
+export function queueOptions(
+  queues: InvoiceQueues | undefined, parsing: number | undefined, failed: boolean, active: InvoiceQueue | null,
+): QueueOption[] {
+  const options: QueueOption[] = [{
+    value: 'parsing', label: QUEUE_LABEL.parsing, icon: QUEUE_MARK.parsing.icon,
+    count: parsing ? String(parsing) : '',
+    title: 'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
+      + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`),
+  }];
+  // «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Числа не пришли — пункт
+  // остаётся: адрес чисел падает вместе с опросом ссылок ядра, а сам отбор при этом работает.
+  if (active === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0)
+    options.push({
+      value: 'unrecognized', label: QUEUE_LABEL.unrecognized,
+      icon: QUEUE_MARK.unrecognized.icon, iconTone: QUEUE_MARK.unrecognized.tone,
+      count: queues && queues.unrecognized > 0 ? String(queues.unrecognized) : '',
+      title: 'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
+        + (queues ? '' : ' Сколько их — не посчитано.'),
+    });
+  for (const queue of ['lost', 'archived'] as const) {
+    const chip = queueChip(queue, queues, active === queue);
+    if (!chip) continue;
+    // «Возможно» и «точно потеряно» — разными знаками, а не цветом одного (WCAG 1.4.1, [UI-68]).
+    const mark = queue === 'lost' && chip.doubt ? LOST_DOUBT_MARK : QUEUE_MARK[queue];
+    options.push({ value: queue, label: QUEUE_LABEL[queue], icon: mark.icon, iconTone: mark.tone, count: chip.count, title: chip.title });
+  }
+  return options;
+}
+
+/** Ведущий знак закрытого чипа очередей: есть счета с удалёнными записями. */
+export interface QueueLead {
+  icon: IconDef;
+  tone: 'error' | 'warning';
+  /** Имя знака для диктора — знак и есть сообщение. */
+  iconLabel: string;
+  /** Подсказка чипа в покое: сколько таких счетов и что с ними делать. */
+  title: string;
+}
+
+/**
+ * Знак удалённых записей на закрытом чипе (costs-invoice-filter-row, D3) — или `null`, когда потерянного нет.
+ * Стоит и под выбранной очередью: выбрав «В архиве», человек не должен перестать видеть, что где-то
+ * потеряны записи. Правило то же, что у пункта: `queueChip` без «выбрана» — пустой выбранной очереди знак
+ * не нужен, исправлять в ней нечего. «Не распознано» знака не даёт: это рабочая очередь, а не поломка.
+ */
+export function queueLead(queues: InvoiceQueues | undefined): QueueLead | null {
+  const lost = queueChip('lost', queues, false);
+  if (!lost) return null;
+  return lost.doubt
+    ? { icon: LOST_DOUBT_MARK.icon, tone: LOST_DOUBT_MARK.tone, iconLabel: 'Возможно, есть счета с удалёнными записями', title: lost.title }
+    : { icon: QUEUE_MARK.lost.icon, tone: 'error', iconLabel: 'Есть счета с удалёнными записями', title: lost.title };
 }
 
 /** Сколько пунктов «чего не хватает» помещается в строку списка: рейл — 320 пикселей. */

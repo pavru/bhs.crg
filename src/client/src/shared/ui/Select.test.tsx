@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Select, SelectItem } from './Select';
+import { Checklist, DocumentScanner, Warning } from './icons';
+import type { ChipLead } from './Chip';
 
 // Radix Select зовёт API указателя и прокрутки, которых в jsdom нет.
 beforeAll(() => {
@@ -173,5 +175,73 @@ describe('Select без подписи: вид по месту ([UI-69])', () =>
     void <Select variant="chip" aria-label="Итог" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
     // @ts-expect-error — плотному полю без подписи имя даёт только aria-label
     void <Select density="dense" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
+  });
+});
+
+describe('чип отбора и пункт: знак и число (costs-invoice-filter-row, [UI-69])', () => {
+  function Queue({ count, lost = false }: { count?: string; lost?: boolean }) {
+    const [value, setValue] = useState('');
+    const lead: ChipLead = lost ? { icon: Warning, iconTone: 'error', iconLabel: 'Есть счета с удалёнными записями' } : {};
+    return (
+      <Select variant="chip" aria-label="Очередь" value={value} onValueChange={setValue} emptyItem="Все счета"
+        count={value ? count : undefined} {...lead}>
+        <SelectItem value="parsing" icon={Checklist} count="3812">Разобрать</SelectItem>
+        <SelectItem value="unrecognized" icon={DocumentScanner} iconTone="warning" count="645">Не распознано</SelectItem>
+      </Select>
+    );
+  }
+  const chip = () => screen.getByRole('combobox', { name: 'Очередь' });
+
+  it('без новых свойств чип прежний: ни знака, ни числа', () => {
+    render(<Queue />);
+    expect(chip().querySelectorAll('svg')).toHaveLength(1); // только стрелка
+    expect(chip().textContent).toBe('Все счета');
+  });
+
+  it('знак о проблеме стоит перед подписью с именем для диктора, контейнер не перекрашен', () => {
+    render(<Queue lost />);
+    const mark = chip().querySelector('svg[aria-label="Есть счета с удалёнными записями"]');
+    expect(mark).not.toBeNull();
+    expect(mark!.getAttribute('class')).toContain('text-error');
+    expect(chip().className).not.toContain('error');
+  });
+
+  it('открытый список: знак и число у пункта, отметка выбранного видна', () => {
+    render(<Queue />);
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    const option = screen.getByRole('option', { name: /Не распознано/ });
+    expect(option.textContent).toBe('Не распознано 645');
+    const [mark] = option.querySelectorAll('svg');
+    expect(mark.getAttribute('class')).toContain('text-warning');
+    const number = [...option.querySelectorAll('span')].find(s => s.textContent === '645')!;
+    expect(number.className).toContain('ml-auto');
+    // Место отметки не занято числом: у пункта прежний отступ справа под неё.
+    expect(option.className).toContain('pr-8');
+  });
+
+  it('на закрытый чип уходит подпись пункта, число — только переданное экраном', () => {
+    const { unmount } = render(<Queue />);
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: /Разобрать/ }));
+    expect(chip().textContent).toBe('Разобрать');
+    unmount();
+
+    render(<Queue count="3812" />);
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: /Разобрать/ }));
+    expect(chip().textContent).toBe('Разобрать· 3812');
+    expect(chip().hasAttribute('data-selected')).toBe(true);
+    // Отметка выбранного — у выбранного пункта.
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    expect(screen.getByRole('option', { name: /Разобрать/ }).getAttribute('data-state')).toBe('checked');
+  });
+
+  it('тон и имя знака — только вместе со знаком; у поля этих свойств нет', () => {
+    // @ts-expect-error — цвет без знака снова стал бы тоном ([UI-68])
+    void <Select variant="chip" aria-label="Q" value="" onValueChange={() => {}} emptyItem="Все" iconTone="error"><SelectItem value="a">A</SelectItem></Select>;
+    // @ts-expect-error — у поля знака и числа чипа нет
+    void <Select label="Поле" value="" onValueChange={() => {}} count="3"><SelectItem value="a">A</SelectItem></Select>;
+    // @ts-expect-error — тон пункта без знака
+    void <SelectItem value="a" iconTone="warning">A</SelectItem>;
   });
 });

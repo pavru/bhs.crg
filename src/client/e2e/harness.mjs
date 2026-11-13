@@ -669,6 +669,39 @@ export async function pickSites(page, label) {
   await settled(page);
 }
 
+/**
+ * Чип очередей над лентой счетов — один `Select` «Очередь счетов» (costs-invoice-filter-row, [COST-6.2]):
+ * «Все счета» в покое, выбранная очередь — «Разобрать · 3812». Отдельных чипов на очередь больше нет.
+ */
+export const queueChip = page =>
+  page.getByRole('group', { name: 'Отбор списка счетов' }).getByRole('combobox', { name: 'Очередь счетов' });
+
+/** Число на закрытом чипе очередей — у выбранной очереди; `''` — числа нет (в покое или пустая очередь). */
+export const queueChipCount = async page => /·\s*(\S+)$/.exec((await queueChip(page).innerText()).trim())?.[1] ?? '';
+
+/** Выбрать очередь по подписи пункта, «Все счета» — снять отбор. Список закрывается сам. */
+export async function pickQueue(page, label) {
+  await pickOption(queueChip(page), label);
+  await page.getByRole('listbox').waitFor({ state: 'hidden', timeout: 5_000 });
+}
+
+/**
+ * Число очереди — из её пункта в меню (имя пункта — подпись, число — справа, описанием): открыть, прочесть,
+ * закрыть по Esc. Отбор не меняется. `null` — пункта нет (пустая очередь скрыта), `''` — пункт без числа.
+ */
+export async function queueOptionCount(page, label) {
+  await queueChip(page).click();
+  const list = page.getByRole('listbox');
+  await list.waitFor({ timeout: 10_000 });
+  const option = list.getByRole('option', { name: label, exact: true });
+  const count = (await option.count())
+    ? (await option.innerText()).replace(label, '').trim()
+    : null;
+  await page.keyboard.press('Escape');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  return count;
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

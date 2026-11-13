@@ -23,7 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 import {
-  BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until,
+  BASE, launchBrowser, login, createChecks, named, settled, watchRequests, expandInvoiceParts, invoiceMenu, until, pickQueue,
   FRESH_PANELS, takePanels, setPanels, underRoute, unrouteQuiet, pageApi,
 } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
@@ -358,9 +358,9 @@ try {
       () => row.getByText(BAD_FILE.row).waitFor({ timeout: 15_000 }));
 
     // Отбор «Не распознано» — тот же счёт стоит под ним.
-    await page.getByRole('button', { name: /^Не распознано/ }).click();
+    await pickQueue(page, 'Не распознано');
     await named('под отбором «Не распознано» счёта нет', () => row.waitFor({ timeout: 10_000 }));
-    await page.getByRole('button', { name: /^Не распознано/ }).click();
+    await pickQueue(page, 'Все счета');
     // Файл остаётся закрытым: проверки загрузки ниже смотрят список. Выбор возвращает проверка 8а.
   });
 

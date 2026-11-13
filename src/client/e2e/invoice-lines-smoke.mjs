@@ -20,7 +20,9 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-lines-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, pickOption, expandInvoiceParts, until, unrouteQuiet } from './harness.mjs';
+import {
+  BASE, launchBrowser, login, createChecks, pickOption, pickQueue, queueChipCount, queueOptionCount, expandInvoiceParts, until, unrouteQuiet,
+} from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { reconciliationChecks } from './invoice-reconciliation-checks.mjs';
 import { saveRaceChecks } from './invoice-save-race-checks.mjs';
@@ -397,9 +399,8 @@ try {
     });
 
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
-    // Чип в ряду отборов списка, а не флажок (issue #1186): три очереди одним приёмом, выбор один.
-    await page.getByRole('group', { name: 'Отбор списка счетов' })
-      .getByRole('button', { name: /^Разобрать/ }).click();
+    // Очередь — пункт меню чипа «Очередь счетов» над лентой (issue #1186, costs-invoice-filter-row), выбор один.
+    await pickQueue(page, 'Разобрать');
     const row = page.getByRole('button', { name: new RegExp(waiting) }).first();
     await row.waitFor({ timeout: 10_000 });
 
@@ -408,16 +409,21 @@ try {
     if (!said.startsWith('осталось:'))
       throw new Error(`строка черновика не называет, чего не хватает: «${said}»`);
 
-    // Число у чипа — число строк под ним: считает сервер тем же условием, каким отбирает. Ждём
-    // согласия, а не сверяем один раз: стенд общий, и соседний прогон мог завести черновик между
-    // двумя чтениями — экран перечитает оба, и сойтись они обязаны.
+    // Число выбранной очереди на чипе — число строк под ней: считает сервер тем же условием, каким
+    // отбирает. Ждём согласия, а не сверяем один раз: стенд общий, и соседний прогон мог завести черновик
+    // между двумя чтениями — экран перечитает оба, и сойтись они обязаны.
     await page.waitForFunction(() => {
-      const chip = [...document.querySelectorAll('[role="group"][aria-label="Отбор списка счетов"] button')]
-        .map(b => b.getAttribute('aria-label') ?? '').find(l => l.startsWith('Разобрать, счетов: '));
-      return chip?.endsWith(`: ${document.querySelectorAll('[data-testid="invoice-row"]').length}`);
+      const chip = document.querySelector('[role="group"][aria-label="Отбор списка счетов"] [role="combobox"]');
+      const count = /·\s*(\d+)$/.exec(chip?.textContent?.trim() ?? '')?.[1];
+      return count === String(document.querySelectorAll('[data-testid="invoice-row"]').length);
     }, null, { timeout: 15_000 }).catch(() => {
       throw new Error('число у чипа «Разобрать» не сошлось с числом счетов под отбором');
     });
+    // То же число — у пункта меню (на чип его передаёт экран, а не Radix из пункта). Сверяем с чипом, а не
+    // со строками: оба из одного ответа сервера, и соседний прогон между чтениями сверку не уронит.
+    const onChip = await queueChipCount(page);
+    const inMenu = await queueOptionCount(page, 'Разобрать');
+    if (inMenu !== onChip) throw new Error(`у пункта «Разобрать» число «${inMenu}», у чипа — «${onChip}»`);
 
     // А разобранный счёт из очереди уходит: иначе очередь перестала бы быть очередью.
     if ((await page.getByRole('button', { name: new RegExp(`СЧ-Н${stamp}`) }).count()) !== 0)
@@ -474,8 +480,7 @@ try {
     };
 
     await page.goto(`${BASE}/invoices`, { waitUntil: 'networkidle' });
-    await page.getByRole('group', { name: 'Отбор списка счетов' })
-      .getByRole('button', { name: /^Разобрать/ }).click();
+    await pickQueue(page, 'Разобрать');
     await page.getByPlaceholder('Номер, поставщик, назначение…').fill(`СЧ-Д${stamp}`);
     await page.getByRole('button', { name: new RegExp(names[firstId]) }).first().click();
     await opened(firstId);

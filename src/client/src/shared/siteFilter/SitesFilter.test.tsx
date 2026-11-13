@@ -83,11 +83,12 @@ describe('отбор «Стройки»', () => {
     expect(text).not.toContain('4');
   });
 
-  it('выключен — «Все стройки»; выбор в поповере включает избранные', () => {
+  it('выключен — категория «Стройки», диктор слышит положение; выбор в поповере включает избранные', () => {
     const value = filterOf(['a'], { on: false });
     shown(value, { hidden: 0 });
     const chip = screen.getByTestId('sites-filter');
-    expect(chip.textContent).toBe('Все стройки');
+    expect(chip.textContent).toBe('Стройки');
+    expect(chip.getAttribute('aria-label')).toBe('Стройки — все');
     fireEvent.click(chip);
     const popover = screen.getByTestId('sites-filter-popover');
     const choices = within(popover).getAllByRole('radio');
@@ -120,10 +121,10 @@ describe('отбор «Стройки»', () => {
     expect(value.setOn).not.toHaveBeenCalled();
   });
 
-  it('избранного нет — «Все стройки», в поповере только выбор строек', () => {
+  it('избранного нет — «Стройки», в поповере только выбор строек', () => {
     shown(filterOf([]));
     const chip = screen.getByTestId('sites-filter');
-    expect(chip.textContent).toBe('Все стройки');
+    expect(chip.textContent).toBe('Стройки');
     fireEvent.click(chip);
     const popover = screen.getByTestId('sites-filter-popover');
     expect(within(popover).queryByRole('radiogroup')).toBeNull();
