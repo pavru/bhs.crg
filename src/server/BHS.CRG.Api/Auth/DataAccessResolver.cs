@@ -63,6 +63,12 @@ public sealed class DataAccessResolver(
     /// <inheritdoc />
     public async Task<DataAccess> ForUserAsync(Guid userId, CancellationToken ct)
     {
+        // Владельца нет вовсе — задачу поставил не человек (расписание, старт, такт модуля). Это не
+        // «автор удалён»: искать учётную запись 00000000-… значило бы назвать в отказе удалённым того,
+        // кого не было (ревью PR #1957).
+        if (userId == Guid.Empty)
+            return DataAccess.OfSystem("задачу поставил не человек — у неё нет автора");
+
         using var scope = scopes.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var effective = scope.ServiceProvider.GetRequiredService<EffectivePermissions>();

@@ -95,4 +95,13 @@ public interface IJobService
     /// которых нет или которые не работа модуля, в ответе нет.
     /// </summary>
     Task<IReadOnlyList<JobDto>> GetModuleWorksAsync(IReadOnlyCollection<Guid> jobIds, CancellationToken ct);
+
+    /// <summary>
+    /// Последняя по постановке работа МОДУЛЯ над целью — в любом статусе; <c>null</c> — не ставили ни разу.
+    ///
+    /// <para>Заведено под такт модулей (work-08, ТЗ WORK-41): «когда ставили последнюю» и «идёт ли
+    /// она» такт читает из таблицы задач, а не из своей записи состояния — второе место правды разошлось
+    /// бы с очередью. Цель такта постоянная, поэтому его задачи по ней и находятся.</para>
+    /// </summary>
+    Task<JobDto?> GetLatestModuleWorkAsync(Guid targetId, CancellationToken ct);
 }

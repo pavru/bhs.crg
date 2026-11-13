@@ -1146,6 +1146,8 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TargetId", "CreatedAt");
+
                     b.HasIndex("UserId", "Status");
 
                     b.ToTable("jobs", (string)null);

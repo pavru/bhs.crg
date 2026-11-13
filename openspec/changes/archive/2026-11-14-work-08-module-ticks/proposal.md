@@ -36,8 +36,10 @@
 ## Impact
 
 - **Сервер:** `BHS.CRG.Modules/IAppModule.cs` (`Ticks`), новый `BHS.CRG.Modules/Ports/ModuleTick.cs`;
-  новый `Api/Modules/ModuleTickService.cs`; `Api/Modules/Ports/ModuleWorkRunner.cs` (автор журнала у
-  задачи такта); проверка объявлений при старте рядом с `ModuleWork.EnsureHandled`.
+  новые `Api/Modules/ModuleTickCatalog.cs` и `Api/Modules/ModuleTickService.cs`;
+  `Api/Modules/Ports/ModuleWorkRunner.cs` (автор журнала у задачи такта) и `ModuleReadersPort.cs`
+  (параметр доступа задачи такта); `IJobService.GetLatestModuleWorkAsync`; проверка обработчиков при
+  старте — `StartupTasks`, рядом с `ModuleWork.EnsureHandled`.
 - **Тесты:** `ModuleTickServiceTests` (пробный модуль, `TimeProvider`), `ModuleTickDeclarationTests`.
 - **Документы:** `docs/DEV_NOTES.md` — такт против своего фонового цикла модуля.
 - Клиент не меняется; нового пишущего адреса нет.
