@@ -5880,12 +5880,18 @@ DELETE /api/common-data/{id}                409 несёт { error, canArchive, 
                                     core.catalog.purge — allowed:false и пустая разбивка.
 GET    /api/work-types?purpose=choice|display&q=  — классификатор видов работ (WORK-59, plan-03): дверь
                                     ядра, чтение под core.catalog.read; q — часть кода, наименования,
-                                    названия или псевдонима. GET /{id} — запись целиком.
+                                    названия или псевдонима. GET /{id} — запись целиком (без
+                                    классификатора — 404). Классификатор не заведён (нет типа
+                                    ВидРаботы) — 409 { code: "directory-missing", reason: "unit-missing"
+                                    | "not-created", error } (#1936, CORE-20.4): unit-missing — нет
+                                    справочника единиц, not-created — единицы есть, классификатор
+                                    появится при следующем запуске. Пустой классификатор — 200 и [].
+                                    Порядок отказов: право (403) → purpose (400) → справочник (409).
 POST   /api/work-types                      { displayName, data, aliases?, createAnyway?, scope?, scopeId?,
                                     refsStandIn?, compositeTypeId? } — заведение под core.worktypes.edit,
                                     без версии; уровень по умолчанию System; тип — ВидРаботы или его
                                     подтип (по умолчанию сам ВидРаботы, чужой тип — 400). Нет
-                                    классификатора (нет справочника единиц) — 409. PUT /{id}, DELETE /{id}, POST /{id}/archive и
+                                    классификатора — 409 с тем же телом, что у чтения. PUT /{id}, DELETE /{id}, POST /{id}/archive и
                                     /{id}/unarchive — под тем же правом и ТОЛЬКО с If-Match: без него 400,
                                     с устаревшим 409 «вид работы тем временем изменили». Ответ архива
                                     несёт новую version. Чужая запись за дверью — 404.
