@@ -7,14 +7,35 @@
 // что внутри прогона: сначала посмотреть всё, потом сообщить итог.
 //
 // Запуск:  node e2e/run-suites.mjs keyboard routing types settings
+//          node e2e/run-suites.mjs --shard 2/3 keyboard routing …   — только вторая доля из трёх
+//
+// Доля (CI гоняет прогоны тремя работами) берёт из названного списка свою часть по весам из
+// `shards.mjs`; почему долями, а не одновременно на одном стенде, — там же.
 
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SUITE_SECONDS, parseShardArg, splitIntoShards } from './shards.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const suites = process.argv.slice(2);
+let suites;
+try {
+  const { shard, rest } = parseShardArg(process.argv.slice(2));
+  suites = rest;
+  if (shard && rest.length) {
+    const shards = splitIntoShards(rest, SUITE_SECONDS, shard.count);
+    suites = shards[shard.index - 1];
+    const weight = list => list.reduce((sum, name) => sum + SUITE_SECONDS[name], 0);
+    console.log(`доля ${shard.index} из ${shard.count}: ${suites.join(' ')}`);
+    console.log(`по весам, с: ${shards.map((list, i) => `${i + 1} — ${weight(list)}`).join(', ')}`);
+  }
+} catch (err) {
+  console.error(err.message);
+  process.exit(2);
+}
 if (!suites.length) {
+  // В том числе пустая доля: долей больше, чем наборов. Зелёная работа, не проверившая ничего,
+  // была бы враньём — пусть краснеет.
   console.error('Не названо ни одного прогона: node e2e/run-suites.mjs keyboard routing …');
   process.exit(2);
 }
