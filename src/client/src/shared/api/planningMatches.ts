@@ -5,6 +5,7 @@ import type { NomenclatureSearchResult } from './invoices';
 import type { EstimateRow, HiddenPart, PlanMark } from './planningEstimates';
 import type { CommonDataEntry } from './types';
 import { useListDocumentTypes } from './documentTypes';
+import { directoryMissingOf, type DirectoryMissingRefusal } from './directoryMissing';
 
 /**
  * Сопоставление строк смет с видами работ и материалов с номенклатурой (change `plan-09-estimate-ui`, ТЗ PLAN-6.1,
@@ -86,12 +87,35 @@ export function workTypeChoice(entry: CommonDataEntry): WorkTypeChoice {
 
 const WORK_TYPES = ['planning', 'work-type-choices'] as const;
 
-/** Виды работ НА ВЫБОР (архивных нет) — классификатор целиком: видов десятки, не тысячи. */
+/** Запасные слова отказа «классификатор не заведён» — если сервер их не прислал. */
+export const WORK_TYPES_MISSING = 'Классификатор видов работ ещё не заведён.';
+
+/** Виды работ на выбор; `missing` — классификатор не заведён, и `items` тогда пуст. */
+export interface WorkTypeChoices {
+  items: WorkTypeChoice[];
+  missing: DirectoryMissingRefusal | null;
+}
+
+/**
+ * Виды работ НА ВЫБОР (архивных нет) — классификатор целиком: видов десятки, не тысячи.
+ *
+ * Незаведённый классификатор (`directory-missing`, [WORK-59] [CORE-20.4]) — значение `missing`, а не
+ * исключение: это состояние экземпляра, а не поломка чтения. Исключением отказ повторялся бы по `retry`
+ * и рисовался бы веткой ошибки, а пустым списком — сливался бы с «классификатор пуст».
+ */
 export function useWorkTypeChoices(enabled = true) {
   return useQuery({
     queryKey: WORK_TYPES,
-    queryFn: () => apiClient.get<CommonDataEntry[]>('/work-types', { params: { purpose: 'choice' } })
-      .then(r => r.data.map(workTypeChoice)),
+    queryFn: async (): Promise<WorkTypeChoices> => {
+      try {
+        const r = await apiClient.get<CommonDataEntry[]>('/work-types', { params: { purpose: 'choice' } });
+        return { items: r.data.map(workTypeChoice), missing: null };
+      } catch (e) {
+        const missing = directoryMissingOf(e, WORK_TYPES_MISSING);
+        if (missing) return { items: [], missing };
+        throw e;
+      }
+    },
     enabled,
     staleTime: 60_000,
   });

@@ -215,7 +215,7 @@ Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `
 тронули только `docs/tz` и `openspec`, — см. ниже): backend
 (сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
 храповики линта и интерфейса, `md3:migrate --check` на всей истории — забытый перевод шкалы формы в ветке до перехода), логика скриптов (`deploy/update.sh`, `deploy/install.sh`, `scripts/bump-version.sh`, `scripts/backend-tests.sh`, `scripts/in-parallel.sh`) вместе с живой проверкой конвертера офисных файлов (`deploy/converter.tests.sh`)
-и **живые прогоны в браузере** — четырьмя независимыми
+и **живые прогоны в браузере** (тремя долями, у каждой свой стенд) — четырьмя независимыми
 работами. **Node — одна версия на всё: `.nvmrc` в корне** (CI ставит по нему, образ `web` и `engines`
 называют её же, сверяет `nodeVersion.test.ts`; подробности — DEV_NOTES).
 

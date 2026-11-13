@@ -80,6 +80,20 @@ const asked = () => vi.mocked(apiClient.get).mock.calls
   .map(([, c]) => (c as { params?: { from?: string; to?: string } } | undefined)?.params)
   .filter(p => p?.from).map(p => `${p!.from}|${p!.to}`);
 
+/**
+ * Отбор стройки отчёта ([COST-20], ревью PR #1939): пустое значение — «По всем стройкам», а не «Все стройки»:
+ * рядом стоит отбор избранных «Стройки», и два чипа о стройках не различаются одним словом.
+ */
+describe('отбор стройки отчёта', () => {
+  it('в покое — «По всем стройкам» рядом с «Стройки»', async () => {
+    mount(filterOf([]));
+    const chip = await screen.findByRole('combobox', { name: 'Стройка' });
+    expect(chip.textContent).toContain('По всем стройкам');
+    expect(screen.getByTestId('sites-filter').textContent).toContain('Стройки');
+    expect(screen.queryByText('Все стройки')).toBeNull();
+  });
+});
+
 describe('отчёт всех строек под фильтром', () => {
   it('неизбранные — одной строкой без числа счетов; итог тот же', async () => {
     mount(filterOf(['a']));

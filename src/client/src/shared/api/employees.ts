@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { ACCESS_KEY } from './access';
+import { directoryMissingOf as directoryMissingRefusalOf } from './directoryMissing';
 import type { CommonDataEntry } from './types';
 
 /**
@@ -33,16 +34,13 @@ export interface DirectoryMissing {
 }
 
 /**
- * Отказ «справочник не заведён» — по ПОЛЮ ответа, а не по словам: текст сервер волен переписать, а
- * экран по нему решает, предлагать ли «Завести».
+ * Отказ «справочник не заведён» — общим разбором (`directoryMissing.ts`), с причиной, суженной до двух
+ * значений этой двери: экран по ней решает, предлагать ли «Завести».
  */
 export function directoryMissingOf(e: unknown): DirectoryMissing | null {
-  const r = (e as { response?: { status?: number; data?: { code?: unknown; reason?: unknown; error?: unknown } } })?.response;
-  if (r?.status !== 409 || r.data?.code !== 'directory-missing') return null;
-  return {
-    reason: r.data.reason === 'person-missing' ? 'person-missing' : 'not-created',
-    error: typeof r.data.error === 'string' ? r.data.error : 'Справочник сотрудников не заведён.',
-  };
+  const missing = directoryMissingRefusalOf(e, 'Справочник сотрудников не заведён.');
+  if (!missing) return null;
+  return { reason: missing.reason === 'person-missing' ? 'person-missing' : 'not-created', error: missing.error };
 }
 
 export const EMPLOYEES_KEY = ['employees'] as const;

@@ -15,7 +15,7 @@ export function useRateChoice(sourceUnit: string | null, initial?: { workTypeId:
   const [workTypeId, setWorkTypeId] = useState(initial?.workTypeId ?? '');
   // Пустая строка — коэффициент не набран: берётся предложенный сервером.
   const [typed, setTyped] = useState(initial?.factor != null ? formatInput(initial.factor) : '');
-  const chosen = types.data?.find(t => t.id === workTypeId) ?? null;
+  const chosen = types.data?.items.find(t => t.id === workTypeId) ?? null;
   const suggestion = useUnitFactor(sourceUnit, chosen?.unitId ?? null);
   const suggested = suggestion.data?.factor ?? null;
   const factor = typed.trim() ? parseFactor(typed) : suggested;

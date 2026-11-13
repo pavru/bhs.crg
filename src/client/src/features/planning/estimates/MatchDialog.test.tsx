@@ -160,6 +160,33 @@ describe('новый вид работы — только с правом на �
   });
 });
 
+describe('классификатор не заведён — состояние, а не «пусто» [WORK-59] [CORE-20.4]', () => {
+  const MISSING = 'Классификатор видов работ ещё не заведён: нет справочника единиц измерения.';
+
+  beforeEach(() => {
+    permissions = ['plan.estimate.edit', 'core.worktypes.edit'];
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/work-types') {
+        throw { response: { status: 409, data: { code: 'directory-missing', reason: 'unit-missing', error: MISSING } } };
+      }
+      throw new Error(`неожиданный адрес ${url}`);
+    });
+  });
+
+  it.each([
+    ['раздел', { kind: 'section', code: '9' } as MatchTarget],
+    ['строка', { kind: 'row', rowId: 'r4' } as MatchTarget],
+  ])('%s: слова отказа подсказкой поля, без «Классификатор пуст» и без «Новый вид работы» даже с правом', async (_, target) => {
+    mount(target);
+    expect(await screen.findByText(MISSING)).toBeTruthy();
+    const select = screen.getByRole('combobox', { name: 'Вид работы' });
+    expect(select.hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByText('Классификатор пуст')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Новый вид работы' })).toBeNull();
+  });
+});
+
 describe('строка: «запомнено» с отменой', () => {
   it('«Отменить подстановку» снимает сопоставление строки — она снова ждёт', async () => {
     const onClose = mount({ kind: 'row', rowId: 'r4' });

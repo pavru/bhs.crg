@@ -21,10 +21,18 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
     <div className="grid gap-3 sm:grid-cols-2">
       {types.isError ? (
         <p role="alert" className="text-body-medium text-error">{apiError(types.error, 'Классификатор видов работ не прочитался')}</p>
+      ) : types.data?.missing ? (
+        // Классификатор не заведён ([WORK-59] [CORE-20.4]) — состояние экземпляра, а не поломка: поле недоступно,
+        // слова сервера — подсказкой (причина и выход), без роли alert. «Классификатор пуст» здесь солгал бы:
+        // в пустой можно завести вид работы, а в незаведённый — нет.
+        <Select label="Вид работы" value="" onValueChange={state.pick} disabled
+          placeholder="Классификатор не заведён" hint={types.data.missing.error}>
+          {null}
+        </Select>
       ) : (
         <Select label="Вид работы" value={state.workTypeId} onValueChange={state.pick} disabled={!types.data}
-          placeholder={types.data ? (types.data.length ? 'Выберите вид работы' : 'Классификатор пуст') : 'Читаем классификатор…'}>
-          {types.data?.map(t => <SelectItem key={t.id} value={t.id}>{t.code ? `${t.code} ${t.name}` : t.name}</SelectItem>)}
+          placeholder={types.data ? (types.data.items.length ? 'Выберите вид работы' : 'Классификатор пуст') : 'Читаем классификатор…'}>
+          {types.data?.items.map(t => <SelectItem key={t.id} value={t.id}>{t.code ? `${t.code} ${t.name}` : t.name}</SelectItem>)}
         </Select>
       )}
       <div className="space-y-1">
