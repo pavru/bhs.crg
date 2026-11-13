@@ -284,6 +284,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
 
         long blobBytes = 0;
         var missing = new HashSet<string>(StringComparer.Ordinal);
+        var byModule = new Dictionary<string, (long Bytes, int Count)>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
             // null — только «объекта нет»; отказ хранилища — отказ оценки (issue #1427), а не копия,
@@ -307,6 +308,12 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             {
                 blobBytes += size.Value;
                 overhead += EntryOverhead($"blobs/{path}");
+                // Файл, который назвали два модуля, у первого (BlobHolders.Add): в архиве он один.
+                if (selection.Holders[path].Module is { } module)
+                {
+                    var (bytes, count) = byModule.GetValueOrDefault(module);
+                    byModule[module] = (bytes + size.Value, count + 1);
+                }
             }
         }
 
@@ -327,8 +334,24 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             ManifestBytes: manifestBytes,
             BlobBytes: blobBytes,
             BlobCount: paths.Count,
-            MissingBlobCount: missing.Count);
+            MissingBlobCount: missing.Count,
+            Modules: ModuleWeights(byModule));
     }
+
+    /// <summary>
+    /// Доля файлов каждого модуля (work-05, ТЗ WORK-35) — все модули, чьи схемы снимает копия, и с
+    /// нулём тоже. Состав «Настройка» данных модулей не несёт, и там у всех нули — это правда о копии.
+    /// Чужого кода в <paramref name="byModule" /> не бывает: секции копии снимает тот же перечень модулей
+    /// (<see cref="IModuleSchemaBackup.Modules" /> и <see cref="IModuleSchemaBackup.ReadAsync" />).
+    /// </summary>
+    private BackupModuleWeight[] ModuleWeights(Dictionary<string, (long Bytes, int Count)> byModule) =>
+    [
+        .. modules.Modules.Select(m =>
+        {
+            var (bytes, count) = byModule.GetValueOrDefault(m.Code);
+            return new BackupModuleWeight(m.Code, m.Title, bytes, count);
+        }),
+    ];
 
     private async Task<BackupManifest> BuildManifestAsync(
         BackupScope scope, List<string> warnings, CancellationToken ct)

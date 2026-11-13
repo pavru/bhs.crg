@@ -5,6 +5,7 @@ import { formatBytes } from '@/shared/api/attachments';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { fetchBackupSize } from '@/shared/api/backup';
 import type { BackupScope } from '@/shared/api/types';
+import { backupModuleShare } from './backupModuleShare';
 
 // Вес копии против предела загрузки через браузер. Вынесен из BackupSection (issue #1427): файл
 // стоит на храповике размера, а строке веса понадобился ещё один исход — отказ хранилища.
@@ -46,6 +47,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
 
   const variant = data.variant;
   const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
+  const moduleShare = backupModuleShare(variant.modules);
 
   return (
     <div className="space-y-1">
@@ -53,6 +55,11 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
         Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
         {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
       </p>
+      {/*
+        Доля модулей (work-05, WORK-35): без неё фото модуля незаметно растворились бы в общей
+        сумме, и рост копии было бы не на что списать.
+      */}
+      {moduleShare && <p className="text-body-small text-on-surface-variant">{moduleShare}</p>}
       {/*
         Предел касается ТОЛЬКО браузерной загрузки: копия сверх него снимается и восстанавливается
         по-прежнему — просто переносится файлом. Сказать об этом надо заранее: с полным составом

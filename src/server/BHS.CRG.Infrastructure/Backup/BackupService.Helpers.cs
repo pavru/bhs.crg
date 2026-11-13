@@ -158,7 +158,7 @@ public partial class BackupService
         // он приходит готовым, чтобы архив, оценка веса и паспорт брали пути из одного места.
         foreach (var m in manifest.ModuleData ?? [])
             foreach (var path in m.Files ?? [])
-                holders.Add(path, BlobHolder.Module);
+                holders.Add(path, BlobHolder.ModuleFile(m.Module));
         return holders.Of;
     }
 

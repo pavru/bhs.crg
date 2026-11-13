@@ -56,6 +56,9 @@ public static class ModulePorts
                 (sp, _) => new ModuleRenditionsPort(sp.GetRequiredService<RenditionStore>(), code,
                     sp.GetRequiredService<ILogger<ModuleRenditionsPort>>()));
         }
+        // Подготовка фото (work-05, WORK-33): поворот по EXIF, уменьшение, превью, геометка данными. Без
+        // ключа модуля — в хранилище порт не пишет, байты модуль кладёт своим портом файлов.
+        services.AddScoped<IModulePhotos, ModulePhotosPort>();
         services.AddScoped<IModuleNotifications, ModuleNotificationsPort>();
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();

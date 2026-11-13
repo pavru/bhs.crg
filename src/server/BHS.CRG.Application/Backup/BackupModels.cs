@@ -444,13 +444,21 @@ public record BackupSizeEstimate(
 /// <paramref name="MissingBlobCount" /> - файлы, которых в хранилище уже нет: экспорт их пропускает
 /// с предупреждением, и в копию они не попадут. Число здесь не ради веса, а потому, что оно
 /// означает битые ссылки, о которых иначе узнать неоткуда.
+///
+/// <para><paramref name="Modules" /> — доля файлов модулей в <paramref name="BlobBytes" /> (work-05, ТЗ WORK-35):
+/// без неё фото модуля незаметно растворились бы в общей сумме. Перечислены все модули, чьи схемы
+/// снимает копия, — и модуль без файлов, с нулём: «нет файлов» и «модуль не учтён» — разные ответы.</para>
 /// </summary>
 public record BackupSizeVariant(
     long TotalBytes,
     long ManifestBytes,
     long BlobBytes,
     int BlobCount,
-    int MissingBlobCount);
+    int MissingBlobCount,
+    IReadOnlyList<BackupModuleWeight> Modules);
+
+/// <summary>Файлы одного модуля в копии: сколько весят и сколько их — только те, что есть в хранилище.</summary>
+public record BackupModuleWeight(string Code, string Title, long Bytes, int Count);
 
 /// <summary>
 /// Вес копии не оценить: хранилище файлов отказало в ответе (issue #1427).

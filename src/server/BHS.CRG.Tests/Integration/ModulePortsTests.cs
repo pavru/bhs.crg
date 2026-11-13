@@ -35,7 +35,7 @@ namespace BHS.CRG.Tests.Integration;
 /// же причине, что у <see cref="CostsOnlyHost" />: состав системных ролей приводится при старте к
 /// объявленному, и хост с другим набором модулей менял бы права ролям у соседних классов.</para>
 /// </summary>
-public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsHost>, IAsyncLifetime
+public partial class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsHost>, IAsyncLifetime
 {
     /// <summary>
     /// База чистится перед каждым тестом: журнал и справочник здесь проверяются ЕДИНСТВЕННОЙ записью,

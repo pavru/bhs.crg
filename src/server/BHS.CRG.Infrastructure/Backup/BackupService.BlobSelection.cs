@@ -53,13 +53,15 @@ public partial class BackupService
 
     /// <param name="DataSetFileId">Набор — у <see cref="BlobHolderKind.DataSetFile" /> и
     /// <see cref="BlobHolderKind.DataSetPart" />.</param>
-    private sealed record BlobHolder(BlobHolderKind Kind, Guid? DataSetFileId = null)
+    /// <param name="Module">Код модуля — у <see cref="BlobHolderKind.Module" />: по нему оценка веса
+    /// называет долю файлов каждого модуля (work-05, ТЗ WORK-35).</param>
+    private sealed record BlobHolder(BlobHolderKind Kind, Guid? DataSetFileId = null, string? Module = null)
     {
         public static readonly BlobHolder Record = new(BlobHolderKind.Record);
         public static readonly BlobHolder Generated = new(BlobHolderKind.Generated);
         public static readonly BlobHolder QualityScan = new(BlobHolderKind.QualityScan);
         public static readonly BlobHolder TemplateAsset = new(BlobHolderKind.TemplateAsset);
-        public static readonly BlobHolder Module = new(BlobHolderKind.Module);
+        public static BlobHolder ModuleFile(string module) => new(BlobHolderKind.Module, Module: module);
         public static BlobHolder FileOf(Guid fileId) => new(BlobHolderKind.DataSetFile, fileId);
         public static BlobHolder PartOf(Guid fileId) => new(BlobHolderKind.DataSetPart, fileId);
     }

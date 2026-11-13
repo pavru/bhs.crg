@@ -52,7 +52,7 @@ public sealed class BackupJobRunner(
         // Успех — в колокольчик: копия снимается минутами, и к её концу человек уже не смотрит на
         // экран настроек. Отказ туда же кладёт общий обработчик фоновых задач.
         await notifications.PublishAsync(NotificationSeverity.Info, "Резервная копия создана",
-            $"{info.FileName} — {FormatSize(info.SizeBytes)}.", "Резервное копирование", userId, ct: ct);
+            $"{info.FileName} — {BHS.CRG.Infrastructure.Common.ByteSizeText.Format(info.SizeBytes)}.", "Резервное копирование", userId, ct: ct);
         return info;
     }
 
@@ -164,11 +164,4 @@ public sealed class BackupJobRunner(
         state.Managed.RemoveAll(n => deleted.Contains(n, StringComparer.OrdinalIgnoreCase));
     }
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        >= 1024L * 1024 * 1024 => $"{bytes / 1024d / 1024 / 1024:0.#} ГБ",
-        >= 1024L * 1024 => $"{bytes / 1024d / 1024:0.#} МБ",
-        >= 1024 => $"{bytes / 1024d:0.#} КБ",
-        _ => $"{bytes} Б",
-    };
 }
