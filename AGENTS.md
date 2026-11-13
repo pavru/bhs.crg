@@ -345,8 +345,8 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   темы пишет `npm run md3:theme`), шкала радиусов и теней. Новый экран сверяется с ним (issue #1348).
   ⚠️ **Новый экран, компонент или заметная переделка взаимодействия — сначала три макета в Claude
   (артефакты типа «Design») и выбор владельца, потом код** (issue #1545). Дизайн-система —
-  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/UPzvpNJpoqNWsGWMAXCYQh); пока `/design-sync` не
-  пишет в Claude, она заморожена на 2.74.0, и для компонентов новее макет опирается на код и `.d.ts`.
+  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/UPzvpNJpoqNWsGWMAXCYQh), синхронизирована с кодом
+  (13.11.2026 — master 2.117.0); нарисованные раньше экраны макетов сами не догоняются — сверяйте с кодом.
   Порядок, исключения и что делать без доступа к артефактам Claude —
   [docs/UI.md](docs/UI.md#новый-экран-порядок).
 - `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
