@@ -637,79 +637,6 @@ jobs:
           cache: npm
           cache-dependency-path: src/client/package-lock.json
 
-      # Хранилище поднимаем шагами, а не сервисом: сервисам GitHub нельзя передать аргументы команды,
-      # а Garage без них не стартует — и, в отличие от MinIO, его ещё надо ИНИЦИАЛИЗИРОВАТЬ.
-      #
-      # Образ ЧИТАЕМ из docker-compose.yml дев-стенда целиком — вместе с реестром, а не одну версию,
-      # и тем же приёмом, что версию Typst ниже. Причина та же: прогоны обязаны идти на том
-      # хранилище, что стоит у разработчика. Раньше тег не указывался вовсе, то есть бралось
-      # `latest`, и разойтись эти два хранилища могли только молча (issue #878).
-      #
-      # Читаем из ПОСТАВКИ: прогоны обязаны идти на том хранилище, что поедет в продакшн. На первом
-      # этапе issue #885 источником временно был дев-compose — поставка тогда ещё стояла на MinIO;
-      # со вторым этапом обе снова сошлись, и сверяет их сторож в работе backend.
-      - name: Хранилище Garage
-        run: |
-          GARAGE_IMAGE=$(sed -n 's|^ *image: *\(dxflrs/garage:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
-          if [ -z "$GARAGE_IMAGE" ]; then
-            echo "::error::В deploy/docker-compose.yml не нашёлся образ хранилища (dxflrs/garage:…) — брать неоткуда"
-            exit 1
-          fi
-          echo "образ хранилища из поставки: $GARAGE_IMAGE"
-
-          # Конфигурация — та же, что у дев-стенда и (со второго этапа) у поставки. Правим одно:
-          # rpc_public_addr, потому что здесь узел зовут не «garage», а по петле.
-          sed 's|^rpc_public_addr = .*|rpc_public_addr = "127.0.0.1:3901"|' deploy/garage.toml > /tmp/garage.toml
-
-          docker run -d --name garage --network host \
-            -e GARAGE_RPC_SECRET=6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c \
-            -e GARAGE_ADMIN_TOKEN=ci-only-admin-token \
-            -v /tmp/garage.toml:/etc/garage.toml:ro \
-            -v garage_meta:/var/lib/garage/meta \
-            -v garage_data:/var/lib/garage/data \
-            "$GARAGE_IMAGE" /garage server
-
-          # Инициализация — ТЕМ ЖЕ скриптом, что поднимает дев-стенд и поедет в поставку. Повторить
-          # его команды здесь отдельно значило бы проверять не то, что работает у людей: разойдясь,
-          # два списка команд не сказали бы об этом никак.
-          docker build -f deploy/Dockerfile.garage-init -t garage-init deploy
-          docker run --rm --network host \
-            -e GARAGE_RPC_SECRET=6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c \
-            -e GARAGE_BUCKET=bhs-crg-e2e \
-            -e GARAGE_KEY_ID=GK0123456789abcdef01234567 \
-            -e GARAGE_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
-            -v /tmp/garage.toml:/etc/garage.toml:ro \
-            -v garage_meta:/var/lib/garage/meta \
-            garage-init
-
-      # Конвертер офисных файлов (issue #1270): прогон счетов прикладывает Excel и ждёт рядом с
-      # формой его вид для чтения. Серверные тесты ходят к подставному конвертеру — настоящий
-      # встречается с приложением только здесь.
-      #
-      # Образ ЧИТАЕМ из поставки, как и хранилище выше. Настройки названы те, от которых зависит
-      # ответ прогона: русская локаль и перезапуск после каждого документа. Остальное — сеть без
-      # выхода наружу, ограничения контейнера, согласие стенда с поставкой — сторожит
-      # `deploy/converter.tests.sh` в работе «Скрипт обновления»; здесь порт опубликован на петлю,
-      # потому что сервер запущен на хосте.
-      - name: Конвертер офисных файлов
-        run: |
-          CONVERTER_IMAGE=$(sed -n 's|^ *image: *\(gotenberg/gotenberg:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
-          if [ -z "$CONVERTER_IMAGE" ]; then
-            echo "::error::В deploy/docker-compose.yml не нашёлся образ конвертера (gotenberg/gotenberg:…) — брать неоткуда"
-            exit 1
-          fi
-          echo "конвертер: $CONVERTER_IMAGE"
-          docker run -d --name converter -p 127.0.0.1:3910:3000 \
-            -e LANG=ru_RU.UTF-8 -e LC_ALL=ru_RU.UTF-8 \
-            "$CONVERTER_IMAGE" gotenberg --api-timeout=30s --libreoffice-restart-after=1 --libreoffice-auto-start
-          for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3910/health >/dev/null 2>&1; then echo "конвертер готов"; exit 0; fi
-            sleep 2
-          done
-          echo "::error::Конвертер офисных файлов не поднялся за две минуты"
-          docker logs --tail 50 converter 2>&1 || true
-          exit 1
-
       # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
       # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
       # Проверять надо ТЕМ ЖЕ компилятором, что поедет в продакшн: версию скрипт читает из
@@ -727,9 +654,14 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
           path: ~/.nuget/packages
 
-      # Три ветви ОДНОВРЕМЕННО (issue #1178), сводит их `scripts/in-parallel.sh` (его логику
+      # Пять ветвей ОДНОВРЕМЕННО (issue #1178), сводит их `scripts/in-parallel.sh` (его логику
       # проверяет работа «Скрипт обновления»). Замер и почему шаг не сжимается до самой долгой
-      # ветви — docs/DEV_NOTES.md, «Живые прогоны: подготовка тремя ветвями».
+      # ветви — docs/DEV_NOTES.md, «Живые прогоны: подготовка ветвями».
+      #
+      # - Хранилище и конвертер — тоже ветви, а не шаги до сборки: их образы грузятся, пока
+      #   собирается сервер. Шагами они стояли по очереди перед сборкой и брали 20–30 с. Сервисом
+      #   работы их не поднять: сервису нельзя передать аргументы команды, а Garage без них не
+      #   стартует и его ещё надо инициализировать. Что и откуда берут — в самих скриптах.
       #
       # - Клиент — без проверки типов (`build:bundle`): её делает обязательная работа Frontend, а
       #   здесь однопоточный `tsc -b` был самым дорогим соседом сборки сервера.
@@ -750,9 +682,10 @@ jobs:
       # ключ): обновите секрет SIXLABORS_LICENSE_KEY в хранилищах Actions И Dependabot.
       #
       # ⚠️ Окружение шага достаётся всем ветвям, а две из них ставят пакеты npm, чьи установочные
-      # скрипты — чужой код (в том числе из PR Dependabot). Поэтому ветви npm ключ с себя СНИМАЮТ
-      # (`unset`). Новая ветвь, запускающая чужой код, обязана начинаться так же.
-      - name: Сборка сервера, клиента и установка браузера
+      # скрипты — чужой код (в том числе из PR Dependabot), ещё две запускают чужие образы. Поэтому
+      # все ветви, кроме сборки сервера, ключ с себя СНИМАЮТ (`unset`). Новая ветвь, запускающая
+      # чужой код, обязана начинаться так же.
+      - name: Подготовка стенда — сборка, браузер, хранилище, конвертер
         timeout-minutes: 10
         env:
           SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
@@ -763,7 +696,11 @@ jobs:
             'Сборка клиента' \
               'unset SixLaborsLicenseKey; cd src/client && npm ci && npm run build:bundle' \
             'Браузер' \
-              'unset SixLaborsLicenseKey; npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium'
+              'unset SixLaborsLicenseKey; npm i --prefix "$RUNNER_TEMP/playwright" playwright@1.62.1 && "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium' \
+            'Хранилище' \
+              'unset SixLaborsLicenseKey; bash scripts/ci-e2e-garage.sh' \
+            'Конвертер' \
+              'unset SixLaborsLicenseKey; bash scripts/ci-e2e-converter.sh'
 
       # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
       # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и
