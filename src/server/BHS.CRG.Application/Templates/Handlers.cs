@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Recent;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -9,7 +10,8 @@ public class TemplateHandlers(
     IRepository<TemplateAsset> templateAssetRepo,
     IDomainObjectRepository objRepo,
     IBlobStorage blobStorage,
-    IDocumentTemplateInvalidator invalidator) :
+    IDocumentTemplateInvalidator invalidator,
+    IRecentRecords recent) :
     IRequestHandler<CreateTemplateCommand, Template>,
     IRequestHandler<UpdateTemplateCommand, TemplateMutationResult>,
     IRequestHandler<SaveTemplateContentCommand, TemplateMutationResult>,
@@ -129,6 +131,9 @@ public class TemplateHandlers(
             blobs.AddRange(o.ResetToDraft());
             objRepo.Update(o);
         }
+        // Отметки «Недавних» удаляемой версии — к текущей из оставшихся, а последней — снимаются (shell-09,
+        // Р-5): иначе очистка версий молча убирала бы живой шаблон с Главной.
+        await recent.TemplateVersionLeavingAsync(t.Id, ct);
         repo.Remove(t);
         await repo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);

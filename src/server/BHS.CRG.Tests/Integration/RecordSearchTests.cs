@@ -197,8 +197,8 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         await using var probed = host.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
         {
             // Синтетический поставщик от имени включённого модуля — тот же приём, что у сторожей каталога
-            // контрактов: вклад модуля в контракт со многими поставщиками один, а у «id» его нет.
-            services.AddModuleContract<IRecordSearch, FailingSearch>("id");
+            // контрактов: вклад модуля в контракт со многими поставщиками один, и проба подменяет вклад «id».
+            services.SwapModuleContract<IRecordSearch, FailingSearch>("id");
             services.AddSingleton(new RecordSearchLimits(PerGroup: TimeSpan.FromMilliseconds(300)));
         }));
         var client = await GrantedSignIn.WithPermissionsAsync(probed, "costs.invoice.read", CorePermissions.ConstructionsRead);
@@ -238,6 +238,33 @@ public class RecordSearchTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         var hidden = Assert.IsType<ContractAnswer<IReadOnlyList<RecordSearchHit>>.Hidden>(
             await search.CardsAsync(CostsRecordSearch.Group, [id], ModuleReader.Of(Guid.NewGuid(), "чужой", []), default));
         Assert.Equal("costs.invoice.read", hidden.Permission);
+    }
+
+    /// <summary>
+    /// Группа «только карточки» (shell-09, задача 1.1; ТЗ AUTH-16.1, CORE-34): комплекты модуля <c>id</c>
+    /// поиском не спрашиваются, сужение до них — 400, как до необъявленной группы, а прежние группы ищутся.
+    /// </summary>
+    [Fact]
+    public async Task Группа_только_карточки_не_ищется_а_сужение_до_неё_400()
+    {
+        var mark = Mark();
+        var (admin, _) = await SignInAsync("Admin");
+        var site = await SiteNamedAsync($"Стройка {mark}");
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var section = Section.Create(site, "Раздел");
+            db.Sections.Add(section);
+            db.DocumentSets.Add(DocumentSet.Create(section.Id, $"Комплект {mark}"));
+            await db.SaveChangesAsync();
+        }
+
+        // Группы отвечают и пустыми: проверяется, что группы комплектов нет вовсе, а стройка нашлась.
+        var groups = (await GroupsAsync(admin, mark)).ToDictionary(Code);
+        Assert.DoesNotContain(BHS.CRG.Api.Modules.IdRecordSearch.SetsGroup, groups.Keys);
+        Assert.Single(groups["constructions"].GetProperty("items").EnumerateArray());
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.GetAsync($"/api/search?q={mark}&group={BHS.CRG.Api.Modules.IdRecordSearch.SetsGroup}")).StatusCode);
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATALOG_RECORD, DATASET_RECORD, RECORD_ROUTES, hitRoute, openTo, recordHref, recordLink, recordScreen } from './recordRoutes';
+import { CATALOG_RECORD, DATASET_RECORD, RECORD_ROUTES, SET_RECORD, TEMPLATE_RECORD, hitRoute, openTo, recordHref, recordLink, recordScreen } from './recordRoutes';
 import { workNav, settingsNav } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 
@@ -83,6 +83,16 @@ describe('адрес записи по типу', () => {
     expect(hitRoute(RECORD_ROUTES['Стройка'], null, both)).toBe(RECORD_ROUTES['Стройка']);
     // Строка таблицы уровня не знает — ссылки на набор из неё нет, а не ссылка на системную страницу.
     expect(link('НаборДанных', ID, both)).toBeNull();
+  });
+
+  // Комплект и шаблон открываются под другой записью (shell-09, Р-4): адрес знает только карточка «Недавних».
+  it('у комплекта и шаблона ссылки из строки таблицы и из палитры нет', () => {
+    const all = access(['core.constructions.read', 'id.document.read', 'id.config.edit']);
+    // Не `/document-sets/<id комплекта>` — страница стройки, которой нет.
+    expect(link('КомплектДокументов', ID, all)).toBeNull();
+    expect(link('ШаблонДокумента', ID, all)).toBeNull();
+    expect(hitRoute(SET_RECORD, null, all)).toBeNull();
+    expect(hitRoute(TEMPLATE_RECORD, null, all)).toBeNull();
   });
 
   // Двести ссылок страницы с одним именем в списке ссылок читалки экрана неразличимы.

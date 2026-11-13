@@ -11,8 +11,9 @@ public class UserRecentRecordConfiguration : IEntityTypeConfiguration<UserRecent
         b.ToTable("user_recent_records");
 
         // Ключ — сама запись у пользователя: повторное открытие поднимает строку, а не добавляет вторую.
-        // Пишется одной командой «вставить или поднять» (RecentRecordEndpoints) — ключ и есть то, о
-        // что она упирается.
+        // Пишется только командами «вставить или поднять» (BHS.CRG.Api/Endpoints/Account/RecentRecords:
+        // отметка открытия и уход версии шаблона) — ключ и есть то, обо что они упираются. Отслеживаемой
+        // вставкой сюда не пишут: вставка, параллельная открытию, упала бы на этом ключе.
         b.HasKey(e => new { e.UserId, e.RecordType, e.RecordId });
 
         b.Property(e => e.RecordType).IsRequired().HasMaxLength(64);

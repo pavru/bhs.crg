@@ -386,6 +386,27 @@ await check('employees-card-unlinks-with-confirmation', async () => {
 });
 
 
+// «Недавние» помнят комплект (shell-09, [UI-35.1]): открытый комплект стоит на Главной первым, и щелчок по
+// строке открывает его на его экране — под своей стройкой (адрес из карточки сервера, `opens`).
+await check('home-recent-opens-document-set', async () => {
+  const setPath = `/document-sets/${CONSTRUCTION}/sets/${SET}`;
+  await page.goto(`${BASE}${setPath}`);
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+  // Отметка уходит без ожидания ответа: затихшая страница — отметка записана.
+  await settled(page);
+  await page.goto(`${BASE}/home`);
+  await settled(page);
+  const first = page.getByTestId('home-recent-row').first();
+  await first.waitFor({ timeout: 10000 });
+  const href = await first.getAttribute('href');
+  if (href !== setPath) throw new Error(`первой в «Недавних» стоит «${href}», а открыт комплект ${setPath}`);
+  await first.click();
+  await page.waitForURL(url => url.pathname === setPath, { timeout: 10000 })
+    .catch(() => { throw new Error(`щелчок по строке комплекта увёл не к нему: ${page.url()}`); });
+  await page.waitForSelector('tbody tr', { timeout: 15000 });
+});
+
+
 } finally {
   await browser.close();
 }

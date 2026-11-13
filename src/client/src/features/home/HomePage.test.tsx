@@ -244,6 +244,31 @@ describe('«Выполняется» и «Полезно знать»', () => {
       expect(screen.queryByTestId('home-recent-row')).toBeNull();
     });
 
+    // shell-09 ([UI-35.1]): комплект — под своей стройкой, шаблон — текущей версией под своим типом.
+    it('комплект — со стройкой, шаблон — с типом документа; ведут на свои экраны', () => {
+      permissions = ['core.constructions.read', 'id.document.read', 'id.config.edit'];
+      recent = { data: { items: [
+        invoice({ recordType: 'КомплектДокументов', group: 'sets', groupTitle: 'Комплекты', module: 'id', id: 'k-1',
+          title: 'Раздел ЭМ', detail: 'ЭМ', place: 'Корпус 2', opens: { under: 'c-2' } }),
+        invoice({ recordType: 'ШаблонДокумента', group: 'templates', groupTitle: 'Шаблоны', module: 'id', id: 'v-3',
+          title: 'АОСР — основной', detail: 'v4', place: 'АОСР', opens: { under: 't-1', id: 'v-4' } }),
+      ], refused: [] }, isPending: false, isError: false };
+      shown();
+      const rows = screen.getAllByTestId('home-recent-row');
+      expect(rows.map(r => r.getAttribute('href'))).toEqual(['/document-sets/c-2/sets/k-1', '/templates?type=t-1&template=v-4']);
+      expect(rows[0].textContent).toContain('Комплекты · Корпус 2');
+      expect(rows[1].textContent).toContain('Шаблоны · АОСР');
+    });
+
+    it('комплект при закрытых «Стройках» — в счёте «не показано», а не ссылкой', () => {
+      permissions = ['id.document.read'];
+      recent = { data: { items: [invoice({ recordType: 'КомплектДокументов', group: 'sets', groupTitle: 'Комплекты', module: 'id',
+        id: 'k-1', title: 'Раздел ЭМ', opens: { under: 'c-2' } })], refused: [] }, isPending: false, isError: false };
+      shown();
+      expect(screen.queryByTestId('home-recent-row')).toBeNull();
+      expect(screen.getByTestId('home-recent-hidden').textContent).toBe('1 запись не показана: экран для неё вам недоступен.');
+    });
+
     it('группа не ответила — сказано словами, а не пусто', () => {
       recent = { data: { items: [], refused: [{ group: 'invoices', title: 'Счета', reason: 'модуль не ответил' }] }, isPending: false, isError: false };
       shown();

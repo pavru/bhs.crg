@@ -1,5 +1,5 @@
 import type { AccessInfo } from '@/shared/api/access';
-import type { RecordLevel } from '@/shared/api/recordSearch';
+import type { RecordLevel, RecordOpens } from '@/shared/api/recordSearch';
 import { workNav, settingsNav } from './navConfig';
 import { allowed } from './navAccess';
 
@@ -30,6 +30,10 @@ export interface RecordRoute {
   /** Экран свой на каждом уровне (набор данных): маршрут уровня записи — с ЕГО экраном, правом которого
    *  он закрыт, — либо null, если у уровня адреса нет. Без уровня (строка таблицы) ссылки нет вовсе. */
   at?: (level: RecordLevel) => RecordRoute | null;
+  /** Адрес целиком — у записи, чей экран стоит под другой записью (shell-09, Р-4): комплект — под стройкой,
+   *  шаблон — под типом документа. Его знает только карточка (`opens`), поэтому строка таблицы и палитра
+   *  такой записи ссылки не дают. `screen` остаётся — им проверяется право раздела. */
+  href?: (id: string, opens: RecordOpens) => string;
 }
 
 /** Счёт на оплату — на экране счетов; он же читает параметр, чтобы открыть названный счёт. */
@@ -67,12 +71,29 @@ export const DATASET_RECORD = { ...DATASET_SYSTEM, at: dataSetAt } as const sati
  */
 export const CATALOG_RECORD = { screen: '/common-data', param: 'entry', label: 'Открыть в справочнике' } as const satisfies RecordRoute;
 
+/** Комплект документов — под своей стройкой; экран закрыт правом «Строек» (shell-09). */
+export const SET_RECORD = {
+  screen: '/document-sets', label: 'Открыть комплект',
+  href: (id: string, opens: RecordOpens) =>
+    `/document-sets/${encodeURIComponent(opens.under)}/sets/${encodeURIComponent(id)}`,
+} as const satisfies RecordRoute;
+
+/** Шаблон документа — на странице шаблонов, под своим типом, текущей версией, а не отмеченной (shell-09, Р-5). */
+export const TEMPLATE_RECORD = {
+  screen: '/templates', label: 'Открыть шаблон',
+  href: (id: string, opens: RecordOpens) =>
+    `/templates?${new URLSearchParams({ type: opens.under, template: opens.id ?? id })}`,
+} as const satisfies RecordRoute;
+
 /** Ключ — код типа записи, тем же письмом, что у модуля на сервере (`CostsRecordTypes`). */
 export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
   'СчётНаОплату': INVOICE_RECORD,
   // Коды типов ядра — те же, что у групп поиска ядра на сервере (`CoreRecordSearch`).
   'Стройка': CONSTRUCTION_RECORD,
   'НаборДанных': DATASET_RECORD,
+  // Коды типов модуля `id` — те же, что у его групп поиска на сервере (`IdRecordSearch`).
+  'КомплектДокументов': SET_RECORD,
+  'ШаблонДокумента': TEMPLATE_RECORD,
 };
 
 /**
@@ -81,6 +102,8 @@ export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
  * системный — правом наборов данных. Нет уровня или экран закрыт — строки нет: она вела бы в отказ.
  */
 export function hitRoute(group: RecordRoute, level: RecordLevel | null | undefined, access: AccessInfo): RecordRoute | null {
+  // Адрес под другой записью строит только карточка «Недавних» (`recentTarget`): у найденного его нет.
+  if (group.href) return null;
   if (!group.at) return group;
   const route = level ? group.at(level) : null;
   return route ? openTo(route, access) : null;
@@ -118,7 +141,9 @@ export function openTo(route: RecordRoute, access: AccessInfo): RecordRoute | nu
 export function recordLink(screen: RecordRoute | null, id: string | null, name?: string): RecordLink | null {
   // Экран уровня без уровня не выбрать: строка таблицы его не знает, и ссылка на экран группы привела бы
   // набор стройки на системную страницу, где его нет (ревью #1915).
-  if (!screen || !id || screen.at) return null;
+  // Так же экран под другой записью (комплект под стройкой): `/document-sets/<id комплекта>` — страница
+  // стройки, которой нет (shell-09, Р-4).
+  if (!screen || !id || screen.at || screen.href) return null;
   return {
     to: recordHref(screen, id),
     label: name ? `${screen.label}: ${name}` : screen.label,
