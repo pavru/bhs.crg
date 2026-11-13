@@ -18,7 +18,7 @@
 
 ## 2. Живая проверка и документы
 
-- [ ] 2.1 Живые прогоны [COST-8]:
+- [x] 2.1 Живые прогоны [COST-8]:
   - `e2e/invoice-file-drop-checks.mjs`: без открытого счёта правая часть говорит «перетащите сюда файлы
     счетов (… PDF …)», бросок на неё заводит и открывает черновик;
   - `e2e/allocation-matrix-smoke.mjs`: руководителя без права правая часть не зовёт ни перетащить, ни завести.
@@ -32,5 +32,5 @@
 - [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
 - [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.4 Весь список живых прогонов CI зелёный (зонтик, D6)
-- [ ] 3.5 PR #1925 с меткой `version:minor` и строкой «Closes #1435»
+- [x] 3.4 Весь список живых прогонов CI зелёный (зонтик, D6)
+- [x] 3.5 PR #1925 с меткой `version:minor` и строкой «Closes #1435» — слит 13.11.2026 (`35298621`), версия 2.113.0
