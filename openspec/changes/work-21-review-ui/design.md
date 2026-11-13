@@ -45,7 +45,7 @@
       сверяет серверный `ReviewMarkCatalogTests`. Здесь к нему добавляется только вид:
       `features/work/review/reviewMarks.ts` — порядок, значок и тон по коду.
     - Маршрут — в `src/client/src/shared/ui/navConfig.ts`, в раздел рейла `work-03`. Право пункта —
-      «любое из» `work.report.review`, `work.report.read.all`.
+      «любое из» `work.report.review`, `work.report.read`.
   - **PR 2 — карточка.**
     - `ReportCard.tsx` — шапка, строки на `DataGrid`, фото-превью.
     - `src/client/src/shared/ui/JournalFeed.tsx` — новая общая лента журнала (D17).

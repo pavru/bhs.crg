@@ -3,6 +3,8 @@ using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -33,6 +35,11 @@ public class ModuleReferenceInventoryTests
         PlanDbContext.Configure(planOptions, "Host=127.0.0.1;Database=never");
         using var plan = new PlanDbContext(planOptions.Options);
         yield return (new PlanModule(), plan.Model);
+
+        var workOptions = new DbContextOptionsBuilder<WorkDbContext>();
+        WorkDbContext.Configure(workOptions, "Host=127.0.0.1;Database=never");
+        using var work = new WorkDbContext(workOptions.Options);
+        yield return (new WorkModule(), work.Model);
     }
 
     private static readonly string[] ReferenceTypes = ["uuid", "uuid[]", "json", "jsonb", "json[]", "jsonb[]"];

@@ -25,7 +25,7 @@
   `nothing-pending`, `filtered-out` со сбросом отбора [WORK-39] [CORE-24.3]. Проверка — vitest на три
   причины
 - [ ] 2.4 Пункт «Приёмка» в `navConfig.ts` раздела `work` с правом «любое из» `work.report.review`,
-  `work.report.read.all` [AUTH-16.1]. Проверка — `railSections.test.ts` и `navAccess.test.ts` зелёные
+  `work.report.read` [AUTH-16.1]. Проверка — `railSections.test.ts` и `navAccess.test.ts` зелёные
 - [ ] 2.5 Живой прогон `src/client/e2e/work-review-smoke.mjs` (очередь): посев двух отчётов с
   пометками, вписать в `test:e2e:ci` и `e2e/README.md` [WORK-28]. Проверка — прогон зелёный на стенде
 - [ ] 2.6 `docs/USER_GUIDE.md`: раздел «Приёмка отчётов» — очередь, пометки, отбор; `npm run toc` в

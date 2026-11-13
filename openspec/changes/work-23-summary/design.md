@@ -35,7 +35,7 @@
   - **PR 1 — адрес.**
     - `src/server/BHS.CRG.Modules.Work/Summary/SummaryEndpoints.cs` — `GET /api/work/summary?from&to&construction`
       в группе `/api/work`. Ворота — составная политика «любое из» `work.report.review`,
-      `work.report.read.all` (`work-03`).
+      `work.report.read` (`work-03`).
     - `Summary/SummaryLayout.cs` — чистая функция. Вход: назначения, отчёты, периоды работы, «сегодня» и
       окна по стройкам. Выход: строки и клетки с кодами. Вся логика кодов — здесь, без базы.
     - `Summary/SummaryStates.cs` — каталог кодов: `report`, `zero-hours`, `draft`, `not-received`,

@@ -1,6 +1,7 @@
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Plan;
+using BHS.CRG.Modules.Work;
 
 namespace BHS.CRG.Api.Modules;
 
@@ -22,5 +23,5 @@ namespace BHS.CRG.Api.Modules;
 public static class DeliveredModules
 {
     /// <summary>Новые экземпляры на каждый вызов: модуль — объявление без состояния.</summary>
-    public static IAppModule[] All() => [new IdModule(), new CostsModule(), new PlanModule()];
+    public static IAppModule[] All() => [new IdModule(), new CostsModule(), new PlanModule(), new WorkModule()];
 }
