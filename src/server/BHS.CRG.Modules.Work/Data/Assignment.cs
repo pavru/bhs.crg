@@ -101,7 +101,11 @@ public sealed class Assignment
 
     public static string Day(DateOnly day) => day.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 
-    private static void EnsurePeriod(AssignmentKind kind, DateOnly from, DateOnly? to)
+    /// <summary>
+    /// Годен ли период для вида: монтажник — с концом, конец не раньше начала. Отказ — 400 со словами. Зовут и
+    /// сущность, и разбор запроса — до похода в справочник и замка.
+    /// </summary>
+    public static void EnsurePeriod(AssignmentKind kind, DateOnly from, DateOnly? to)
     {
         if (to is null && kind == AssignmentKind.Installer)
             throw new InvalidRequestException(

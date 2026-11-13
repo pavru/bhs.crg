@@ -89,6 +89,7 @@ public static class AssignmentEndpoints
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
         }
+        gate.Forget();
 
         await log.RecordAsync(AssignmentActions.Created, assignment.Id.ToString(),
             AssignmentActions.Label(employee.FullName, site.Name, kind), after: assignment.Period, ct: ct);
@@ -116,7 +117,7 @@ public static class AssignmentEndpoints
             return AssignmentRules.Unprocessable(employee, reason);
 
         await db.LockSiteAsync(assignment.ConstructionId, ct);
-        if (await gate.LeavesNoManagerAsync(assignment, (from, to), ct)) throw new ConflictException(AssignmentGate.LastManager);
+        if (await gate.LeavesNoManagerAsync(assignment, (from, to), ct: ct)) throw new ConflictException(AssignmentGate.LastManager);
         if (await AssignmentRules.OverlapAsync(db, assignment.EmployeeId, assignment.ConstructionId, assignment.Kind,
                 from, to, assignment.Id, ct) is { } existing)
             throw AssignmentRules.Overlapping(existing, employee.FullName);
@@ -125,6 +126,8 @@ public static class AssignmentEndpoints
         assignment.ChangePeriod(from, to, time.GetUtcNow());
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        // Менеджер мог сократить своё назначение: признаки ответа — по записанному.
+        gate.Forget();
 
         await log.RecordAsync(AssignmentActions.Changed, assignment.Id.ToString(),
             AssignmentActions.Label(employee.FullName, site.Name, assignment.Kind), before, assignment.Period, ct);
@@ -142,7 +145,7 @@ public static class AssignmentEndpoints
         EnsureSeen(request, db.VersionOf(assignment));
         await db.LockSiteAsync(assignment.ConstructionId, ct);
 
-        var (refusal, forbidden) = await gate.RemovalAsync(assignment, ct);
+        var (refusal, forbidden) = await gate.RemovalAsync(assignment, ct: ct);
         if (refusal is not null) throw forbidden ? new ForbiddenException(refusal) : new ConflictException(refusal);
 
         db.Assignments.Remove(assignment);

@@ -59,24 +59,37 @@ public sealed class AssignmentGate(IModuleUser user, IModuleEmployees employees,
     /// Почему назначение нельзя снять: право по стройке или «на стройке не останется менеджера». <c>null</c> —
     /// можно. Второе — не запрет права, а состояние стройки: адрес отвечает на него 409, а не 403.
     /// </summary>
-    public async Task<(string? Refusal, bool Forbidden)> RemovalAsync(Assignment assignment, CancellationToken ct = default)
+    /// <param name="site">Все назначения стройки, если они уже прочитаны (чтение назначений стройки): тогда
+    /// «останется ли менеджер» считается по ним, без запроса на каждую строку.</param>
+    public async Task<(string? Refusal, bool Forbidden)> RemovalAsync(
+        Assignment assignment, IReadOnlyCollection<Assignment>? site = null, CancellationToken ct = default)
     {
         if (await RefusalAsync(assignment.ConstructionId, ct) is { } refusal) return (refusal, true);
-        return await LeavesNoManagerAsync(assignment, null, ct) ? (LastManager, false) : (null, false);
+        return await LeavesNoManagerAsync(assignment, null, site, ct) ? (LastManager, false) : (null, false);
     }
+
+    /// <summary>
+    /// Забыть посчитанное на запрос: запись могла сменить стройки спрашивающего (менеджер сократил своё
+    /// назначение), и признаки ответа обязаны считаться по записанному, а не по тому, что было до неё.
+    /// </summary>
+    public void Forget() => _state = null;
 
     /// <summary>
     /// Оставит ли снятие (<paramref name="newPeriod" /> = <c>null</c>) или правка периода стройку без
     /// действующего на сегодня менеджера. С правом «на любых стройках» — не вопрос: ему и разрешено.
     /// </summary>
     public async Task<bool> LeavesNoManagerAsync(
-        Assignment assignment, (DateOnly From, DateOnly? To)? newPeriod, CancellationToken ct = default)
+        Assignment assignment, (DateOnly From, DateOnly? To)? newPeriod, IReadOnlyCollection<Assignment>? site = null,
+        CancellationToken ct = default)
     {
         if (assignment.Kind != AssignmentKind.Manager || await SitesAllAsync(ct)) return false;
         if (await clock.TodayOnSiteAsync(assignment.ConstructionId, ct) is not { } today) return false;
         if (!assignment.Covers(today)) return false;
         if (newPeriod is { } p && p.From <= today && (p.To is not { } to || today <= to)) return false;
 
+        if (site is not null)
+            return !site.Any(a => a.ConstructionId == assignment.ConstructionId && a.Kind == AssignmentKind.Manager
+                && a.Id != assignment.Id && a.Covers(today));
         var others = await db.Assignments.AsNoTracking()
             .Where(a => a.ConstructionId == assignment.ConstructionId && a.Kind == AssignmentKind.Manager
                 && a.Id != assignment.Id && a.DateFrom <= today && (a.DateTo == null || a.DateTo >= today))
@@ -89,7 +102,7 @@ public sealed class AssignmentGate(IModuleUser user, IModuleEmployees employees,
         if (_state is { } known) return known;
         var all = await user.HasAsync(WorkModule.SitesAll, ct);
         var me = user.Id is { } id ? await employees.OfAccountAsync(id, ct) : null;
-        IReadOnlySet<Guid> managed = me is null ? new HashSet<Guid>() : await sites.OfEmployeeAsync(me.Id, ct: ct);
+        IReadOnlySet<Guid> managed = me is null ? new HashSet<Guid>() : await sites.OfEmployeeAsync(me, ct: ct);
         _state = (all, managed, me is not null);
         return _state.Value;
     }

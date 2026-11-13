@@ -257,4 +257,27 @@ public class AssignmentGateTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(JsonValueKind.Null, (await JsonAsync(response)).GetProperty("dateTo").ValueKind);
     }
+
+    /// <summary>
+    /// Признаки ответа правки — по записанному: менеджер сократил своё назначение до вчера (на стройке есть
+    /// второй менеджер), и в ответе изменить его он уже не может — стройка больше не его.
+    /// </summary>
+    [Fact]
+    public async Task Признаки_ответа_правки_по_записанному()
+    {
+        var colleague = await world.EmployeeAsync(_type, "Соколова Вера Андреевна");
+        await world.AssignedAsync(colleague, _siteA, AssignmentKind.Manager, "2026-06-01", null);
+        var (_, client) = await world.ManagerAsync(_manager);
+        var own = (await JsonAsync(await client.GetAsync($"/api/work/assignments?constructionId={_siteA}")))
+            .GetProperty("items").EnumerateArray().Single(i => i.GetProperty("employeeId").GetGuid() == _manager);
+        Assert.True(own.GetProperty("canChange").GetBoolean());
+
+        var response = await client.SendAsync(Versioned(HttpMethod.Put, $"/api/work/assignments/{own.GetProperty("id").GetGuid()}",
+            own.GetProperty("version").GetString(), new { dateFrom = "2026-06-01", dateTo = "2026-10-30" }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await JsonAsync(response);
+        Assert.False(body.GetProperty("canChange").GetBoolean());
+        Assert.Contains("не менеджер этой стройки", body.GetProperty("changeReason").GetString());
+    }
 }

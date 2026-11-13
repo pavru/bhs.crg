@@ -24,20 +24,27 @@ public sealed class ManagerSites(WorkDbContext db, IModuleClock clock, IModuleEm
     /// <summary>
     /// Стройки, где у сотрудника действует назначение «менеджер» — на <paramref name="on" />, а не названа
     /// дата — на сегодня каждой стройки. Стройка, которой больше нет, в набор не входит.
+    ///
+    /// <para><b>Действует — пока сотрудник работает.</b> Годность проверяют заведение и правка, но увольнение
+    /// и архив ставят позже, назначения не трогая: бессрочный «менеджер» иначе назначал бы и видел стройку и
+    /// после ухода. Архивный — ничего; на день, когда сотрудник не работает (уволен с … или ещё не принят), —
+    /// ничего.</para>
     /// </summary>
-    public async Task<IReadOnlySet<Guid>> OfEmployeeAsync(Guid employeeId, DateOnly? on = null, CancellationToken ct = default)
+    public async Task<IReadOnlySet<Guid>> OfEmployeeAsync(ModuleEmployee employee, DateOnly? on = null, CancellationToken ct = default)
     {
-        var managed = await db.Assignments.AsNoTracking()
-            .Where(a => a.EmployeeId == employeeId && a.Kind == AssignmentKind.Manager)
-            .ToListAsync(ct);
         var sites = new HashSet<Guid>();
+        if (employee.Archived) return sites;
+        var managed = await db.Assignments.AsNoTracking()
+            .Where(a => a.EmployeeId == employee.Id && a.Kind == AssignmentKind.Manager)
+            .ToListAsync(ct);
         foreach (var assignment in managed)
         {
             if (sites.Contains(assignment.ConstructionId)) continue;
             // «Сегодня» спрашивается и при названной дате: незнакомая стройка отвечает null — так удалённая
             // стройка не остаётся «своей».
             if (await clock.TodayOnSiteAsync(assignment.ConstructionId, ct) is not { } today) continue;
-            if (assignment.Covers(on ?? today)) sites.Add(assignment.ConstructionId);
+            var day = on ?? today;
+            if (assignment.Covers(day) && employee.NotWorkingOn(day) is null) sites.Add(assignment.ConstructionId);
         }
         return sites;
     }
@@ -52,6 +59,6 @@ public sealed class ManagerSites(WorkDbContext db, IModuleClock clock, IModuleEm
         if (reader.IsSystem) return ModuleReach.OfSites([]);
         if (reader.Allows(WorkModule.SitesAll)) return ModuleReach.All;
         if (await employees.OfAccountAsync(reader.UserId!.Value, ct) is not { } me) return ModuleReach.OfSites([]);
-        return ModuleReach.OfSites(await OfEmployeeAsync(me.Id, ct: ct));
+        return ModuleReach.OfSites(await OfEmployeeAsync(me, ct: ct));
     }
 }

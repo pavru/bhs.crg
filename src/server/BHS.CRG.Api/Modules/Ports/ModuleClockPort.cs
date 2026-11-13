@@ -15,13 +15,16 @@ namespace BHS.CRG.Api.Modules.Ports;
 ///
 /// <para>Пояс читается один раз на область (порт — scoped, то есть на запрос): запись счёта и ответ чтения
 /// следом спрашивают «сегодня» оба, и второй запрос к настройкам ничего бы не добавил (ревью PR #1790).
-/// Стройка — тоже один раз на область: «мои стройки» спрашивают её дважды — дата и граница.</para>
+/// Пояса строек — одним чтением всех строек на область: «мои стройки» и охват менеджера спрашивают
+/// «сегодня» у каждой своей стройки, и чтение по одной давало бы запрос на стройку. Стройка, заведённая
+/// после этого чтения, дочитывается сама.</para>
 /// </summary>
 public sealed class ModuleClockPort(
     IAppSettingsStore settings, TimeProvider time, IRepository<Construction> constructions) : IModuleClock
 {
     private TimeZoneInfo? _zone;
     private readonly Dictionary<Guid, TimeZoneInfo?> _sites = [];
+    private bool _allRead;
 
     public async Task<DateOnly> TodayAsync(CancellationToken ct = default) =>
         SiteZones.DateOf(await CompanyAsync(ct), time.GetUtcNow());
@@ -39,6 +42,14 @@ public sealed class ModuleClockPort(
     private async Task<TimeZoneInfo?> SiteAsync(Guid constructionId, CancellationToken ct)
     {
         if (_sites.TryGetValue(constructionId, out var known)) return known;
+        if (!_allRead)
+        {
+            _allRead = true;
+            var company = await CompanyAsync(ct);
+            foreach (var each in await constructions.GetAllAsync(ct))
+                _sites[each.Id] = SiteZones.Of(each.TimeZoneId, company).Zone;
+            if (_sites.TryGetValue(constructionId, out known)) return known;
+        }
         var site = await constructions.GetByIdAsync(constructionId, ct);
         var zone = site is null ? null : SiteZones.Of(site.TimeZoneId, await CompanyAsync(ct)).Zone;
         _sites[constructionId] = zone;

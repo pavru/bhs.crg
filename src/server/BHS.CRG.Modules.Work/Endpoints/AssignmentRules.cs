@@ -19,14 +19,33 @@ internal static class AssignmentRules
     /// </summary>
     public static string? Unfit(ModuleEmployee employee, AssignmentKind kind, DateOnly from, DateOnly? to)
     {
-        if (employee.Archived) return "в архиве";
+        if (employee.Archived) return Archived;
         if (employee.EmployedFrom is { } hired && hired > from) return $"принят с {Assignment.Day(hired)}";
         // «Уволен с» — первый день, когда сотрудник уже не работает: он входит в период, если не позже конца,
         // а бессрочному назначению мешает любая дата увольнения.
         if (employee.EmployedTo is { } gone && (to is not { } end || gone <= end)) return $"уволен с {Assignment.Day(gone)}";
         // «Свои стройки» менеджера вычисляются через учётную запись: без неё назначение не дало бы ничего.
-        if (kind == AssignmentKind.Manager && !employee.Account.IsLinked) return "сотрудник не связан с учётной записью";
+        if (kind == AssignmentKind.Manager && !employee.Account.IsLinked) return NotLinked;
         return null;
+    }
+
+    private const string Archived = "в архиве";
+
+    private const string NotLinked = "сотрудник не связан с учётной записью";
+
+    /// <summary>
+    /// Почему назначение нельзя изменить никаким периодом — признак <c>canChange</c> (D15 зонтика). Правка зовёт
+    /// <see cref="Unfit" />, и эти причины отвергают её при любых датах: кнопка, показанная при них, всегда
+    /// получала бы 422. Даты приёма и увольнения сюда не входят — они зависят от названного периода, и отказ по
+    /// ним правка называет сама.
+    /// </summary>
+    public static string? Unchangeable(ModuleEmployee? employee, AssignmentKind kind)
+    {
+        var reason = employee is null ? "сотрудника больше нет в справочнике"
+            : employee.Archived ? Archived
+            : kind == AssignmentKind.Manager && !employee.Account.IsLinked ? NotLinked
+            : null;
+        return reason is null ? null : $"Назначение не изменить: {reason}.";
     }
 
     /// <summary>
@@ -77,7 +96,7 @@ internal static class AssignmentRules
         if (from is not { } start)
             throw new InvalidRequestException("Не задано начало периода (dateFrom).");
         // Сущность проверит ещё раз при записи; здесь — до похода в справочник и замка.
-        _ = Assignment.Create(Guid.Empty, Guid.Empty, kind, start, to, DateTimeOffset.UnixEpoch);
+        Assignment.EnsurePeriod(kind, start, to);
         return (start, to);
     }
 }

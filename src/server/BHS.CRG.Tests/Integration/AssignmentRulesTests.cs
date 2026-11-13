@@ -124,7 +124,8 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
             $"/api/work/assignments/candidates?constructionId={_siteA}&kind=installer&dateFrom=2026-11-01&dateTo=2026-11-30");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var items = (await JsonAsync(response)).GetProperty("items").EnumerateArray()
+        var body = await JsonAsync(response);
+        var items = body.GetProperty("items").EnumerateArray()
             .ToDictionary(i => i.GetProperty("employeeId").GetGuid());
         Assert.True(items[fit].GetProperty("eligible").GetBoolean());
         Assert.False(items[gone].GetProperty("eligible").GetBoolean());
@@ -132,6 +133,44 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
         Assert.False(items[busy].GetProperty("eligible").GetBoolean());
         Assert.Equal("уже назначен 10.11.2026–20.11.2026", items[busy].GetProperty("reason").GetString());
         Assert.Equal("2026-11-10", items[busy].GetProperty("assigned").GetProperty("dateFrom").GetString());
+        Assert.False(body.GetProperty("more").GetBoolean());
+    }
+
+    /// <summary>Кандидатов больше предела — выдача обрезана и говорит об этом (<c>more</c>), а не выглядит всем штатом.</summary>
+    [Fact]
+    public async Task Кандидатов_больше_предела_more()
+    {
+        for (var i = 0; i <= CandidatesLimit; i++) await world.EmployeeAsync(_type, $"Монтажник {i:000}");
+
+        var body = await JsonAsync(await _client.GetAsync(
+            $"/api/work/assignments/candidates?constructionId={_siteA}&kind=installer&dateFrom=2026-11-01&dateTo=2026-11-30"));
+
+        Assert.Equal(CandidatesLimit, body.GetProperty("items").GetArrayLength());
+        Assert.True(body.GetProperty("more").GetBoolean());
+    }
+
+    private const int CandidatesLimit = 200;
+
+    /// <summary>
+    /// Сотрудник в архиве — правку отвергнет любой период, и признак говорит это заранее: <c>canChange: false</c>
+    /// с причиной, а <c>PUT</c> — 422 (D15 зонтика: кнопка и отказ не расходятся). Снять — можно.
+    /// </summary>
+    [Fact]
+    public async Task Архивному_правка_закрыта_признаком_и_отказом()
+    {
+        var employee = await world.EmployeeAsync(_type, "Кузнецов Иван Петрович");
+        await world.AssignedAsync(employee, _siteA, AssignmentKind.Installer, "2026-11-01", "2026-11-30");
+        await world.ArchiveAsync(employee);
+
+        var item = Assert.Single((await JsonAsync(await _client.GetAsync($"/api/work/assignments?constructionId={_siteA}")))
+            .GetProperty("items").EnumerateArray());
+        Assert.False(item.GetProperty("canChange").GetBoolean());
+        Assert.Contains("в архиве", item.GetProperty("changeReason").GetString());
+        Assert.True(item.GetProperty("canRemove").GetBoolean());
+
+        var change = await _client.SendAsync(Versioned(HttpMethod.Put, $"/api/work/assignments/{item.GetProperty("id").GetGuid()}",
+            item.GetProperty("version").GetString(), new { dateFrom = "2026-11-01", dateTo = "2026-11-10" }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, change.StatusCode);
     }
 
     /// <summary>Назначение держит сотрудника: удалить нельзя, отказ называет «назначения — 3» (ТЗ CORE-34.1).</summary>

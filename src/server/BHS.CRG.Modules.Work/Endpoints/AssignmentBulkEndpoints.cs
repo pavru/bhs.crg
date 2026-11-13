@@ -47,10 +47,13 @@ internal static class AssignmentBulkEndpoints
         var (from, to) = AssignmentRules.Period(parsed, dateFrom, dateTo);
         await AssignmentEndpoints.SiteAsync(constructions, siteId, ct);
 
-        if (await employees.SearchAsync(q, from, Max, ct) is not { } found) return AssignmentRules.DirectoryMissing();
+        // На одного больше предела: так видно, что выдача обрезана. Обрезанная без признака выглядела бы всем
+        // штатом, и «нужного нет» значило бы лишь «не дочитано» — сузьте строкой поиска (q).
+        if (await employees.SearchAsync(q, from, Max + 1, ct) is not { } found) return AssignmentRules.DirectoryMissing();
+        var more = found.Items.Count > Max;
         var assigned = await OverlapsAsync(db, siteId, parsed, from, to, ct);
 
-        var items = found.Items.Select(e =>
+        var items = found.Items.Take(Max).Select(e =>
         {
             var existing = assigned.GetValueOrDefault(e.Id);
             var reason = AssignmentRules.Unfit(e, parsed, from, to)
@@ -58,7 +61,7 @@ internal static class AssignmentBulkEndpoints
             return new AssignmentCandidateDto(e.Id, e.FullName, e.PersonnelNumber, reason is null, reason,
                 existing is null ? null : new AssignedPeriod(existing.Id, existing.DateFrom, existing.DateTo));
         }).ToList();
-        return Results.Ok(new { items, inArchive = found.InArchive, limit = Max });
+        return Results.Ok(new { items, inArchive = found.InArchive, limit = Max, more });
     }
 
     /// <summary>
@@ -114,6 +117,7 @@ internal static class AssignmentBulkEndpoints
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
         }
+        gate.Forget();
 
         foreach (var (assignment, employee) in created)
             await log.RecordAsync(AssignmentActions.Created, assignment.Id.ToString(),

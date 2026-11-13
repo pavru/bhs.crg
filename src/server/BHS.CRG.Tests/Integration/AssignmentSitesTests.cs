@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
@@ -100,8 +101,9 @@ public class AssignmentSitesTests(AssignmentHost host) : IAsyncLifetime
             var reach = await sites.ReachAsync(reader);
             Assert.Equal(ModuleReachKind.Sites, reach.Kind);
             Assert.Equal(new[] { siteA, siteB }.Order(), reach.Sites.Order());
-            Assert.Equal(2, (await sites.OfEmployeeAsync(employee, Day("2099-01-01"))).Count);
-            Assert.Empty(await sites.OfEmployeeAsync(employee, Day("2026-05-31")));
+            var me = (await scope.ServiceProvider.GetRequiredService<IModuleEmployees>().GetAsync([employee]))!.Single();
+            Assert.Equal(2, (await sites.OfEmployeeAsync(me, Day("2099-01-01"))).Count);
+            Assert.Empty(await sites.OfEmployeeAsync(me, Day("2026-05-31")));
 
             var all = ModuleReader.Of(userId, "Орлов М. С.", [WorkModule.Assign, WorkModule.SitesAll, WorkModule.ModuleCode]);
             Assert.Equal(ModuleReachKind.All, (await sites.ReachAsync(all)).Kind);
@@ -122,5 +124,34 @@ public class AssignmentSitesTests(AssignmentHost host) : IAsyncLifetime
         var write = await client.PostAsJsonAsync("/api/work/assignments",
             Body(colleague, siteB, "installer", "2026-11-01", "2026-11-15"));
         Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+    }
+
+    /// <summary>
+    /// Увольнение ставят позже назначения и назначений не трогает: бессрочный «менеджер», уволенный с 15.10,
+    /// с этого дня стройки своей не имеет — не назначает на ней, охвата не получает, в «моих стройках» её нет.
+    /// До увольнения стройка его.
+    /// </summary>
+    [Fact]
+    public async Task Уволенный_менеджер_своих_строек_не_имеет()
+    {
+        var employee = await world.EmployeeAsync(_type, "Захаров Пётр Ильич", dismissed: "2026-10-15");
+        var installer = await world.EmployeeAsync(_type, "Миронов Глеб");
+        var site = await world.SiteAsync("Стройка В");
+        await world.AssignedAsync(employee, site, AssignmentKind.Manager, "2026-06-01", null);
+        var (userId, client) = await world.ManagerAsync(employee);
+
+        var write = await client.PostAsJsonAsync("/api/work/assignments",
+            Body(installer, site, "installer", "2026-11-01", "2026-11-15"));
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+
+        var mine = await JsonAsync(await client.GetAsync("/api/work/sites/mine"));
+        Assert.Empty(mine.GetProperty("items").EnumerateArray());
+        Assert.Equal("not-assigned", mine.GetProperty("boundary").GetProperty("reason").GetString());
+
+        using var scope = host.Services.CreateScope();
+        var sites = scope.ServiceProvider.GetRequiredService<ManagerSites>();
+        Assert.Empty((await sites.ReachAsync(ModuleReader.Of(userId, "Захаров П. И.", [WorkModule.Assign]))).Sites);
+        var me = (await scope.ServiceProvider.GetRequiredService<IModuleEmployees>().GetAsync([employee]))!.Single();
+        Assert.Equal([site], await sites.OfEmployeeAsync(me, Day("2026-10-01")));
     }
 }

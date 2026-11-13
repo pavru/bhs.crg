@@ -22,12 +22,15 @@ public sealed record AssignmentSiteDto(
 /// </summary>
 internal static class AssignmentViews
 {
+    /// <param name="site">Все назначения стройки, если уже прочитаны: «последний менеджер» считается по ним.</param>
     public static async Task<AssignmentDto> OneAsync(
         WorkDbContext db, AssignmentGate gate, Assignment assignment, ModuleEmployee? employee, DateOnly? today,
-        CancellationToken ct)
+        CancellationToken ct, IReadOnlyCollection<Assignment>? site = null)
     {
-        var change = await gate.RefusalAsync(assignment.ConstructionId, ct);
-        var (remove, _) = await gate.RemovalAsync(assignment, ct);
+        // Право по стройке — и то, что отвергнет правку при любом периоде: иначе кнопка вела бы в 422.
+        var change = await gate.RefusalAsync(assignment.ConstructionId, ct)
+            ?? AssignmentRules.Unchangeable(employee, assignment.Kind);
+        var (remove, _) = await gate.RemovalAsync(assignment, site, ct);
         return new AssignmentDto(
             assignment.Id, assignment.EmployeeId, employee?.FullName ?? "сотрудник удалён", employee?.PersonnelNumber,
             assignment.ConstructionId, Assignment.KindCode(assignment.Kind), assignment.DateFrom, assignment.DateTo,
@@ -41,7 +44,7 @@ internal static class AssignmentViews
     {
         var result = new List<AssignmentDto>(assignments.Count);
         foreach (var a in assignments)
-            result.Add(await OneAsync(db, gate, a, employees.GetValueOrDefault(a.EmployeeId), today, ct));
+            result.Add(await OneAsync(db, gate, a, employees.GetValueOrDefault(a.EmployeeId), today, ct, assignments));
         // Менеджеры — первыми; дальше по ФИО и началу — порядок задаёт сервер, клиент не сортирует.
         return [.. result
             .OrderBy(a => a.Kind == "manager" ? 0 : 1)

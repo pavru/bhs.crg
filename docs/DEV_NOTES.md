@@ -6277,7 +6277,7 @@ DELETE /api/work/assignments/{id}           + If-Match → 204. Последни
                                     Журнал — work.assignment.created|changed|removed.
 GET    /api/work/assignments/candidates?constructionId=&kind=&dateFrom=&dateTo=&q= → { items: [{
                                     employeeId, name, personnelNumber, eligible, reason, assigned }],
-                                    inArchive, limit } — причины исключения считает сервер.
+                                    inArchive, limit, more } — причины исключения считает сервер; more — выдача обрезана, сузьте q.
 POST   /api/work/assignments/bulk           { constructionId, kind, dateFrom, dateTo?, employeeIds }
                                     ≤ 200 — всё или ничего: 422 { error, refused: [{ employeeId,
                                     name, reason }] }, не заведено ни одного.

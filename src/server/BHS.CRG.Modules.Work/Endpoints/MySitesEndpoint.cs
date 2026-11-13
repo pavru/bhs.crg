@@ -59,6 +59,9 @@ internal static class MySitesEndpoint
             if (!sites.TryGetValue(group.Key, out var site)) continue;
             if (await clock.TodayOnSiteAsync(site.Id, ct) is not { } today) continue;
             var day = date ?? today;
+            // Уволенный (или ещё не принятый) на этот день своих строек не имеет: увольнение ставят позже
+            // назначения, и действующее на бумаге назначение не делает стройку своей.
+            if (me.Archived || me.NotWorkingOn(day) is not null) continue;
             var kinds = group.Where(a => a.Covers(day)).Select(a => a.Kind).Distinct().Order()
                 .Select(Assignment.KindCode).ToList();
             if (kinds.Count > 0) items.Add(new MySiteDto(site.Id, site.Name, kinds, today, site.TimeZoneId));

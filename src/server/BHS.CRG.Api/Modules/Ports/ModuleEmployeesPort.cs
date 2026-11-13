@@ -23,6 +23,11 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// <para>Связь с учётной записью (<c>work-11-assignments</c>) — из таблицы связи <c>work-01</c>, одним
 /// запросом на весь справочник: поле карточки <c>УчётнаяЗапись</c> связь не заполняет, и прочитанное
 /// оттуда расходилось бы с тем, по чему считаются «свои» отчёты.</para>
+///
+/// <para><b>Справочник читается раз на область</b> (порт — scoped, то есть на запрос): ворота стройки
+/// спрашивают сотрудника учётной записи, адрес следом — назначаемого, и каждый вопрос иначе читал бы весь
+/// справочник заново. Модули сотрудников не пишут, а запись ядра и чтение порта в одном запросе не
+/// встречаются.</para>
 /// </summary>
 public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<DocumentType> types, AppDbContext db) : IModuleEmployees
 {
@@ -55,7 +60,20 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
             found.Count(e => e.Archived));
     }
 
+    private List<ModuleEmployee>? _all;
+    private bool _loaded;
+
     private async Task<List<ModuleEmployee>?> AllAsync(CancellationToken ct)
+    {
+        if (!_loaded)
+        {
+            _all = await LoadAsync(ct);
+            _loaded = true;
+        }
+        return _all;
+    }
+
+    private async Task<List<ModuleEmployee>?> LoadAsync(CancellationToken ct)
     {
         var all = await types.GetAllAsync(ct);
         if (CoreDirectories.Family(all, CoreRecordTypes.EmployeeCode) is not { } family) return null;
