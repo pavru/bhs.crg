@@ -1,5 +1,8 @@
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Endpoints;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,8 +14,9 @@ namespace BHS.CRG.Modules.Work;
 /// Назначения, отчёты монтажников, их приёмка, сверка бригад и закрытие периода; принятые объёмы — другим
 /// модулям, без часов и людей.
 ///
-/// <para>⚠️ Сейчас это КАРКАС (change <c>work-10-skeleton</c>): объявление, права первой двери, пустая
-/// группа адресов за воротами и своя схема без таблиц. Каркас первым проверяет то, что у четвёртого
+/// <para>Первая дверь — назначения (change <c>work-11-assignments</c>): кто на какой стройке монтажник и
+/// менеджер, «мои стройки» и охват менеджера. До неё был КАРКАС (<c>work-10-skeleton</c>): объявление, права и
+/// своя схема без таблиц. Каркас первым проверил то, что у четвёртого
 /// модуля с данными ломается молча: приложение поднимается только с <c>work</c>, без <c>id</c>,
 /// <c>costs</c> и <c>plan</c> (<c>WorkOnlyHostTests</c>), а объявленные права наполняют составы системных
 /// ролей — и тем самым меняют их навигацию.</para>
@@ -69,10 +73,10 @@ public sealed class WorkModule : IAppModule
     /// Объявленное раньше, право было бы галкой, которая не делает ничего, — а «Инженер ИД» с одним
     /// <c>work.facts.read</c> до признака права контракта у него получил бы пустой модуль.</para>
     ///
-    /// <para>Даже эти пять пока без двери: группа <c>/api/work</c> пуста, назначения приходят с
-    /// <c>work-11</c>, отчёты — с <c>work-13</c>. Объявлены они в каркасе нарочно, как у <c>plan</c>: составы
-    /// ролей проверяются на живых правах сразу. Что дверей ещё нет, названо поимённо в
-    /// <c>WorkOnlyHostTests</c>, и запись уйдёт оттуда, как только дверь появится.</para>
+    /// <para>Дверь есть пока у одного: назначения (<c>work.assignment.edit</c>, <c>work-11</c>); отчёты придут с
+    /// <c>work-13</c>. Объявлены права в каркасе нарочно, как у <c>plan</c>: составы ролей проверяются на живых
+    /// правах сразу. Права без двери названы поимённо в <c>WorkOnlyHostTests</c>, и запись уходит оттуда, как
+    /// только дверь появится.</para>
     ///
     /// <para>«Свои стройки» — стройки с действующим назначением «менеджер» (WORK-46): поля «менеджер» у
     /// стройки нет, в ядро привязка данных к пользователю не вводится (инвариант #675). Граница
@@ -136,14 +140,28 @@ public sealed class WorkModule : IAppModule
     public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
 
     /// <summary>
-    /// Единственная служба каркаса — свой контекст. Строку подключения модуль берёт из настроек
+    /// Колонки, держащие записи ядра (ТЗ CORE-34.1): назначение держит сотрудника и стройку.
+    /// </summary>
+    public IReadOnlyList<ModuleReference> References => WorkReferences.All;
+
+    /// <summary>
+    /// Свой контекст, действия журнала и ворота назначений. Строку подключения модуль берёт из настроек
     /// приложения; что она задана, проверяет ядро при старте, раньше модулей. Регистрирует контекст
     /// модуль, а мигрирует ядро: выключенный модуль не регистрирует ничего (AUTH-19), и его схема
     /// остаётся такой, какой была.
+    ///
+    /// <para>Действия журнала — одиночкой, как у <c>costs</c> и <c>plan</c>: каталог действий ядра собирает
+    /// объявления один раз при старте. Ворота и охват — на запрос: «свои» стройки обязаны читаться заново
+    /// после каждого снятия (design <c>work-11</c>).</para>
     /// </summary>
-    public void RegisterServices(IServiceCollection services, IConfiguration configuration) =>
+    public void RegisterServices(IServiceCollection services, IConfiguration configuration)
+    {
         services.AddDbContext<WorkDbContext>(options =>
             WorkDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
+        services.AddSingleton<IModuleActivityActions, AssignmentActions>();
+        services.AddScoped<ManagerSites>();
+        services.AddScoped<AssignmentGate>();
+    }
 
     /// <summary>
     /// Путь модуля. Объявлен ДО первого адреса: по нему ядро отвечает отказом «модуль не подключён» на
@@ -153,11 +171,15 @@ public sealed class WorkModule : IAppModule
     public IReadOnlyList<string> RoutePrefixes => ["/api/work"];
 
     /// <summary>
-    /// Группа модуля заводится пустой. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому
-    /// первый адрес, добавленный здесь (<c>work-11</c>), закрыт самим фактом регистрации — права же на
-    /// нём названы поимённо: доступ к модулю и право на назначения — разные вещи.
+    /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
+    /// самим фактом регистрации — права же на нём названы поимённо: доступ к модулю и право на назначения —
+    /// разные вещи. Первые адреса — назначения и «мои стройки» (<c>work-11</c>).
     /// </summary>
-    public void MapEndpoints(IEndpointRouteBuilder endpoints) { }
+    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        AssignmentEndpoints.Map(endpoints);
+        MySitesEndpoint.Map(endpoints);
+    }
 
     /// <summary>
     /// Инициализировать нечего: справочников у каркаса нет, а системные роли («Монтажник», «Менеджер

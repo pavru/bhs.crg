@@ -8,8 +8,11 @@ namespace BHS.CRG.Modules.Ports;
 /// <param name="EmployedTo">«Уволен с» — по тэгу <c>employee.employedTo</c>: первый день, когда сотрудник уже
 /// не работает.</param>
 /// <param name="Archived">Карточка в архиве (ТЗ CORE-34.4). Архив — не увольнение: дат он не трогает.</param>
+/// <param name="Account">Связь с учётной записью (ТЗ WORK-47, CORE-7; change <c>work-11-assignments</c>) —
+/// из таблицы связи ядра (<c>work-01</c>), а не из поля карточки <c>УчётнаяЗапись</c>.</param>
 public sealed record ModuleEmployee(
-    Guid Id, string FullName, string? PersonnelNumber, DateOnly? EmployedFrom, DateOnly? EmployedTo, bool Archived)
+    Guid Id, string FullName, string? PersonnelNumber, DateOnly? EmployedFrom, DateOnly? EmployedTo, bool Archived,
+    ModuleEmployeeAccount Account)
 {
     /// <summary>
     /// Пометка для выбора на дату: «уволен с …» или «принят с …» — либо <c>null</c>, если в этот день
@@ -22,9 +25,37 @@ public sealed record ModuleEmployee(
         : null;
 }
 
+/// <summary>Состояние связи сотрудника с учётной записью.</summary>
+public enum ModuleAccountState
+{
+    /// <summary>Связи нет.</summary>
+    None,
+
+    /// <summary>Связан с действующей учётной записью.</summary>
+    Linked,
+
+    /// <summary>
+    /// Учётную запись удалили, связь осталась (<c>work-01</c>): «удалена», а не «не связан» — иначе экран
+    /// предложил бы связать сотрудника, которого никто не отвязывал.
+    /// </summary>
+    Deleted,
+}
+
+/// <summary>Связь сотрудника с учётной записью — как её видит модуль.</summary>
+/// <param name="UserId">Учётная запись; есть только у <see cref="ModuleAccountState.Linked" />.</param>
+/// <param name="Name">Имя учётной записи: живое у связанной, снимком на момент связывания — у удалённой.</param>
+public sealed record ModuleEmployeeAccount(ModuleAccountState State, Guid? UserId, string? Name)
+{
+    public static ModuleEmployeeAccount None { get; } = new(ModuleAccountState.None, null, null);
+
+    /// <summary>Связан с действующей учётной записью.</summary>
+    public bool IsLinked => State == ModuleAccountState.Linked;
+}
+
 /// <summary>
 /// Справочник сотрудников ядра — ЧТЕНИЕ (ТЗ PLAN-16, CORE-7; change <c>plan-03-work-types-door</c>):
-/// исполнители работ графика. Связь с учётной записью сюда не входит — её строит этап 4 (<c>work-01</c>).
+/// исполнители работ графика. Связь с учётной записью — с <c>work-11-assignments</c>: состояние у каждого
+/// сотрудника (<see cref="ModuleEmployee.Account" />) и обратный вопрос (<see cref="OfAccountAsync" />).
 ///
 /// <para>Поля — по тэгам <c>employee.*</c>, а не по ключам: ключи заказчик вправе переименовать.</para>
 ///
@@ -36,6 +67,13 @@ public sealed record ModuleEmployee(
 /// </summary>
 public interface IModuleEmployees
 {
+    /// <summary>
+    /// Код отказа «справочник не заведён» — один у двери сотрудников ядра и у адресов модулей, читающих
+    /// сотрудников (<c>work-11-assignments</c>): две константы одного кода однажды разошлись бы, и клиент
+    /// перестал бы узнавать один из отказов (D1 <c>core-work-types-not-set-up</c>).
+    /// </summary>
+    const string NotSetUpCode = "directory-missing";
+
     /// <summary>Что сказать человеку, когда порт ответил <c>null</c>.</summary>
     const string NotSetUp =
         "Справочник «Сотрудник» не заведён: на экземпляре нет справочника лиц («Персона»), от которого он " +
@@ -51,4 +89,11 @@ public interface IModuleEmployees
     /// (<see cref="ModuleEmployee.NotWorkingOn" />).
     /// </summary>
     Task<ModuleChoice<ModuleEmployee>?> SearchAsync(string? query, DateOnly onDate, int limit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Сотрудник, связанный с учётной записью (ТЗ WORK-47): «свои» стройки и отчёты считаются через него.
+    /// <c>null</c> — действующей связи нет (или нет справочника: тогда нет и связи). Связь берётся из таблицы
+    /// ядра, а не из поля карточки: поле <c>УчётнаяЗапись</c> связь не заполняет.
+    /// </summary>
+    Task<ModuleEmployee?> OfAccountAsync(Guid userId, CancellationToken ct = default);
 }

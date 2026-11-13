@@ -6257,6 +6257,34 @@ POST   /api/employees/directory             «Завести» справочн�
                                     если его нет, а «Персона» есть → { typeId, created }. Нет
                                     «Персоны» — 409 { code: directory-missing, reason:
                                     person-missing }. Существующий тип не перепроецирует (F2).
+GET    /api/work/assignments?constructionId=  → { construction: { id, name, timeZoneId,
+                                    timeZoneInherited, today, canAssign, reason }, items: [{ id,
+                                    employeeId, employeeName, personnelNumber, constructionId, kind:
+                                    installer|manager, dateFrom, dateTo, active, version, canChange,
+                                    changeReason, canRemove, removeReason }] } (WORK-21, work-11).
+                                    Все адреса назначений — work.assignment.edit; стройку проверяет
+                                    AssignmentGate: свои стройки (назначение «менеджер»), с
+                                    work.sites.all — любые. Нет справочника сотрудников — 409
+                                    { code: directory-missing, error }.
+POST   /api/work/assignments                { employeeId, constructionId, kind, dateFrom, dateTo? } →
+                                    201. Без If-Match (названное исключение: новая запись). Чужая
+                                    стройка — 403; негодный сотрудник — 422 { error, reason,
+                                    refused }; пересечение того же вида на стройке — 409 с периодом.
+PUT    /api/work/assignments/{id}           { dateFrom, dateTo } + If-Match. Сменить сотрудника,
+                                    стройку или вид — 400 с полем. Сократить последнего менеджера до
+                                    прошлого — 409 (только work.sites.all).
+DELETE /api/work/assignments/{id}           + If-Match → 204. Последний действующий менеджер — 409.
+                                    Журнал — work.assignment.created|changed|removed.
+GET    /api/work/assignments/candidates?constructionId=&kind=&dateFrom=&dateTo=&q= → { items: [{
+                                    employeeId, name, personnelNumber, eligible, reason, assigned }],
+                                    inArchive, limit, more } — причины исключения считает сервер; more — выдача обрезана, сузьте q.
+POST   /api/work/assignments/bulk           { constructionId, kind, dateFrom, dateTo?, employeeIds }
+                                    ≤ 200 — всё или ничего: 422 { error, refused: [{ employeeId,
+                                    name, reason }] }, не заведено ни одного.
+GET    /api/work/sites/mine?date=           → { items: [{ id, name, kinds, today, timeZoneId }],
+                                    boundary: { text: «ваши стройки (N)», count, reason: null |
+                                    not-assigned | not-linked | directory-missing } } — только
+                                    назначенные на дату; ворота модуля, без права назначать.
 GET    /api/search?q=&group=           → { groups: [{ code, title, module, recordType, items: [{ id,
                                     title, detail, place, amount, level }], more, refused }] }
                                     (level — { scope, scopeId, constructionId } набора данных:

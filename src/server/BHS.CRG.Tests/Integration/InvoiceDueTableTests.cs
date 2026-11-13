@@ -35,6 +35,14 @@ public sealed class InvoiceClockHost : InvoiceLineHost
         public DateOnly Today { get; set; }
 
         public Task<DateOnly> TodayAsync(CancellationToken ct = default) => Task.FromResult(Today);
+
+        // Счёт к стройке не привязан и «сегодня на стройке» не спрашивает; двойник отвечает тем же днём,
+        // чтобы порт оставался подменяемым целиком (work-11-assignments).
+        public Task<DateOnly?> TodayOnSiteAsync(Guid constructionId, CancellationToken ct = default) =>
+            Task.FromResult<DateOnly?>(Today);
+
+        public Task<DateOnly?> SiteDateOfAsync(Guid constructionId, DateTimeOffset instant, CancellationToken ct = default) =>
+            Task.FromResult<DateOnly?>(Today);
     }
 }
 

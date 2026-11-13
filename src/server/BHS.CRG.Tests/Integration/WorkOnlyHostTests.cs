@@ -61,17 +61,16 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     }
 
     /// <summary>
-    /// Включённый модуль отказом «модуля нет» на своём пути НЕ отвечает. Адресов у каркаса нет, поэтому
-    /// ответ — пустой 404, а не 501: получив 501 от включённого модуля, человек пошёл бы включать то, что
-    /// уже включено. Ворота группы проверит первый адрес под ними (<c>work-11</c>): путь без адреса
-    /// отвечает 404 раньше авторизации.
+    /// Включённый модуль отказом «модуля нет» на своём пути НЕ отвечает: получив 501 от включённого модуля,
+    /// человек пошёл бы включать то, что уже включено. Первый адрес под группой (<c>work-11</c>) стоит за
+    /// воротами: без входа — 401, а не 404 «адреса нет» и не 501.
     /// </summary>
     [Fact]
     public async Task Enabled_module_does_not_refuse_its_own_paths()
     {
         var response = await host.CreateClient().GetAsync("/api/work/assignments");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>
@@ -127,7 +126,6 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     public void Module_permissions_open_a_door_or_are_named_as_doorless() =>
         ModuleOnlyChecks.DoorOrNamedDoorless(host, WorkModule.ModuleCode, new Dictionary<string, string>
         {
-            [WorkModule.Assign] = "назначения на свои стройки — work-11",
             [WorkModule.ReportOwn] = "свои отчёты — work-13",
             [WorkModule.ReportReview] = "отчёты своих строек и ввод за сотрудника — work-13",
             [WorkModule.ReportRead] = "чтение всех отчётов — work-13",

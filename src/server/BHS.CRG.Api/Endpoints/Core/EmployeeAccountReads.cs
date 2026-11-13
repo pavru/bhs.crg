@@ -148,7 +148,7 @@ public sealed class EmployeeAccountReads(AppDbContext db, IRepository<DocumentTy
     }
 
     public const string NotLinked = "not-linked";
-    public const string DirectoryMissing = "directory-missing";
+    public const string DirectoryMissing = BHS.CRG.Modules.Ports.IModuleEmployees.NotSetUpCode;
 
     private sealed record UserRow(Guid Id, string Name, string Login);
 
