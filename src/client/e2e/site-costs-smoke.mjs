@@ -11,7 +11,7 @@
 //      итогу колонки «Сумма» в реестре, открытом этой стрелкой.
 //   2а. `every-section-arrow-equals-the-registry-total` — срез «по разделам» (G5b, issue #1198): та же
 //      сумма, что по контрагентам; строки раздела и «без раздела» есть, и каждая стрелка сходится с реестром.
-//   3. `all-sites-total-equals-the-registry-and-back-returns` — «Все стройки»: строка стройки прогона
+//   3. `all-sites-total-equals-the-registry-and-back-returns` — «По всем стройкам»: строка стройки прогона
 //      есть, итог равен реестру, а «назад» возвращает отчёт с тем же периодом.
 //   4. `all-sites-folds-non-favorite-and-keeps-the-total` — под «Избранными стройками» (issue #1223)
 //      неизбранные стройки — одной строкой, видной без прокрутки на 1366×768; итог тот же, столбец
@@ -208,7 +208,7 @@ await check('every-section-arrow-equals-the-registry-total', async () => {
   if (!lines.includes(SECTION)) throw new Error(`после перезагрузки срез не по разделам: ${lines.join(' | ')}`);
 });
 
-// ── 3. Все стройки: строка стройки, итог равен реестру, «назад» возвращает отчёт ──────────────────
+// ── 3. По всем стройкам: строка стройки, итог равен реестру, «назад» возвращает отчёт ─────────────
 await check('all-sites-total-equals-the-registry-and-back-returns', async () => {
   const query = `from=${month}&to=${month}`;
   await open(query);
