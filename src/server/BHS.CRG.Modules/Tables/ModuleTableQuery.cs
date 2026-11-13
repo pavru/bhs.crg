@@ -130,7 +130,13 @@ public sealed record TableSort(string Column, ModuleTableColumnKind Kind, bool D
 /// <param name="Columns">Колонки, которые спрашивающему ОТКРЫТЫ. Остальные служба вправе не считать
 /// вовсе; ядро всё равно вычистит их из ответа — гарантия стоит в одном месте, а не в каждой
 /// службе.</param>
-/// <param name="UserId">От чьего имени читаем: нужен таблице с построчной изоляцией.</param>
+/// <param name="Reader">От чьего имени читаем (ТЗ WORK-40, CORE-24.1; work-07) — кто спрашивает и его
+/// ключи. Таблица с построчной изоляцией вычисляет по нему охват (<see cref="Access.ModuleReach" />) и
+/// называет исход (<see cref="ModuleTablePage.Outcome" />).
+///
+/// <para>Система сюда не доходит никогда: ядро отказывает ей в воротах таблицы, раньше службы строк.
+/// Поэтому служба вправе рассчитывать на <see cref="Access.ModuleReader.UserId" /> — но проверять
+/// <see cref="Access.ModuleReader.IsSystem" /> всё равно дешевле, чем объяснять пустую выдачу.</para></param>
 /// <param name="Filter">Отбор; null — все строки.</param>
 /// <param name="Sort">Сортировка по порядку важности; пусто — порядок таблицы по умолчанию.</param>
 /// <param name="Offset">Сколько строк отбора пропустить.</param>
@@ -146,7 +152,7 @@ public sealed record TableSort(string Column, ModuleTableColumnKind Kind, bool D
 /// ключи ответа с запрошенным и на чужой строке останавливается.</para></param>
 public sealed record ModuleTableQuery(
     IReadOnlySet<string> Columns,
-    Guid UserId,
+    Access.ModuleReader Reader,
     TableFilter? Filter = null,
     IReadOnlyList<TableSort>? Sort = null,
     int Offset = 0,
@@ -174,6 +180,9 @@ public sealed record ModuleTableQuery(
 /// умеющий отказать частично: без этого слова её пустая клетка и число строк под отбором по ней
 /// значили бы «всё на месте», когда на деле не проверено. Ядро ставит причину подписью колонки и
 /// отдаёт её вместе с числом готового отбора. null — сомнений нет.</param>
+/// <param name="Outcome">Какой исход отбора применился — по нему ядро выбирает строку границы выдачи
+/// (<see cref="ModuleTable.Boundaries" />, ТЗ CORE-24.3). У таблицы с одной границей можно не называть;
+/// у таблицы с несколькими не названный исход — отказ чтения: данные без подписи не отдаются.</param>
 public sealed record ModuleTablePage(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     int Count,
@@ -181,7 +190,8 @@ public sealed record ModuleTablePage(
     IReadOnlyDictionary<string, string>? Notes = null,
     IReadOnlyList<string>? Keys = null,
     TableRowBreakdown? Breakdown = null,
-    IReadOnlyDictionary<string, string>? Doubts = null);
+    IReadOnlyDictionary<string, string>? Doubts = null,
+    ModuleTableOutcome? Outcome = null);
 
 /// <summary>
 /// Итог по колонке — по всему отбору (ТЗ CORE-33).

@@ -25,6 +25,7 @@ import { withSitesChip } from './tableSites';
 import { useTableKnown } from './tableKnown';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
+import { tableBoundary } from './tableBoundary';
 import {
   PAGE_SIZES, wholeTableHash, withColumnShown, withFilter,
   withFilterChange, withPageStep, withRow, withSize, withSort, type TableView, type ViewChange,
@@ -176,7 +177,7 @@ export function TablePage() {
   return (
     <div className="h-full flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col px-6 py-4">
-        <TableViewHeader address={address} decl={decl} lookup={lookup} view={view} base={base} saved={saved.data}
+        <TableViewHeader address={address} decl={decl} boundary={tableBoundary(decl, table.data)} lookup={lookup} view={view} base={base} saved={saved.data}
           savedProblem={saved.isError && !saved.data ? apiError(saved.error, 'Сохранённые представления не загрузились') : null}
           onChange={setView} onLeaving={setLeaving} />
 

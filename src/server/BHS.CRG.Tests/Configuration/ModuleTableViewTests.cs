@@ -207,7 +207,7 @@ public class ModuleTableViewTests
         Sort: [new("Дата", Descending: true)], Totals: [new("Сумма", "sum")], Pinned: 1, Filters: ["Дата"]);
 
     private static ModuleTable Table(params ModuleTableView[] views) => new(
-        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
         [
             new("Номер", "Номер", ModuleTableColumnKind.Text),
             new("Дата", "Дата", ModuleTableColumnKind.Date),

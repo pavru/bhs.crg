@@ -117,7 +117,7 @@ public class ModuleTableRowKeyTests
     private static ModuleTableService Service(ProbeRows rows)
     {
         var table = new ModuleTable(
-            "registry", "Реестр", "запись", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+            "registry", "Реестр", "запись", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
             [new("Номер", "Номер", ModuleTableColumnKind.Text)], typeof(ProbeRows));
         var services = new ServiceCollection().AddSingleton(rows).BuildServiceProvider();
         return new ModuleTableService(new ModuleTableCatalog([new ProbeModule(table)]), null!, services);
