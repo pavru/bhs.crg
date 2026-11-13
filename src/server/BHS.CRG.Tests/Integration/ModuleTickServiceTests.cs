@@ -22,8 +22,8 @@ namespace BHS.CRG.Tests.Integration;
 /// <para>Служба создаётся тестом с подставными часами и шагает по вызову (<see cref="ModuleTickService.TickAsync" />),
 /// а очередь, исполнитель, обработчик, журнал и порт параметра доступа — настоящие.</para>
 ///
-/// <para>⚠️ Часы теста отсчитываются от <c>CreatedAt</c> последней задачи: его ставят часы машины, а не
-/// подставные (в поставке это одни часы). Отсчёт от «сейчас теста» смешал бы двое часов.</para>
+/// <para>Часы — одни на хост (<see cref="ModuleTicksHost.Clock" />): по ним такт считает срок, а очередь
+/// ставит <c>CreatedAt</c> задачи, как в поставке.</para>
 /// </summary>
 public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<ModuleTicksHost>, IAsyncLifetime
 {
@@ -32,6 +32,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     public async Task InitializeAsync()
     {
         Gate.Reset();
+        host.Clock.Now = DateTimeOffset.UtcNow;
         await host.ResetDatabaseAsync();
     }
 
@@ -46,7 +47,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     public async Task Срок_прошёл_ставится_одна_задача_в_общую_очередь()
     {
         var log = new Recording();
-        var clock = new TestClock(DateTimeOffset.UtcNow);
+        var clock = host.Clock;
         var service = Service(clock, log);
 
         // Задач такта не было никогда — первая встаёт сразу: ждать периода не от чего.
@@ -78,7 +79,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     public async Task Задача_такта_идёт_вторая_не_ставится_и_ошибки_нет()
     {
         var log = new Recording();
-        var clock = new TestClock(DateTimeOffset.UtcNow);
+        var clock = host.Clock;
         var service = Service(clock, log);
 
         Gate.Hold();
@@ -106,7 +107,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     public async Task После_недели_простоя_одна_задача_а_не_по_одной_за_каждый_срок()
     {
         var log = new Recording();
-        var clock = new TestClock(DateTimeOffset.UtcNow);
+        var clock = host.Clock;
         var service = Service(clock, log);
 
         await service.TickAsync(default);
@@ -126,9 +127,15 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
 
         var jobs = await JobsAsync();
         Assert.Equal(2, jobs.Count);
+        // Постановка — по тем же часам, что и срок: задача встала «неделю спустя», а не «сейчас машины».
+        Assert.Equal(before.CreatedAt.AddDays(7), jobs[1].CreatedAt);
         await Gate.NextAsync();
         Gate.Release();
         await SucceededAsync(jobs[1].Id);
+
+        // Завершилась — а период с её постановки не прошёл: следующей нет.
+        await service.TickAsync(default);
+        Assert.Equal(2, (await JobsAsync()).Count);
         Assert.Empty(log.Problems);
     }
 
@@ -158,7 +165,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     [Fact]
     public async Task Задача_такта_пишет_журнал_и_читает_данные_от_имени_системы_с_названием()
     {
-        await Service(new TestClock(DateTimeOffset.UtcNow), new Recording()).TickAsync(default);
+        await Service(host.Clock, new Recording()).TickAsync(default);
         var job = Assert.Single(await JobsAsync());
         var (run, reader) = await Gate.NextAsync();
         await SucceededAsync(job.Id);
@@ -193,7 +200,7 @@ public class ModuleTickServiceTests(ModuleTicksHost host) : IClassFixture<Module
     public async Task Отказ_задачи_такта_уходит_общесистемным_уведомлением()
     {
         Gate.FailWith = "Окно подачи не прочитать";
-        await Service(new TestClock(DateTimeOffset.UtcNow), new Recording()).TickAsync(default);
+        await Service(host.Clock, new Recording()).TickAsync(default);
         var job = Assert.Single(await JobsAsync());
         await Gate.NextAsync();
 

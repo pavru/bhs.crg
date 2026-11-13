@@ -1,3 +1,4 @@
+using BHS.CRG.Api.Activity;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Modules.Access;
@@ -12,27 +13,19 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// <para>Не второй расчёт ключей, а перенос готового: правило «ключ модуля = модуль открыт» живёт в
 /// <see cref="DataAccessResolver" /> одно, и разойтись с воротами здесь нечему.</para>
 ///
-/// <para>⚠️ Задача такта модуля (work-08, ТЗ WORK-41) — система С НАЗВАНИЕМ ТАКТА, а не «автор задачи
-/// удалён»: владельца у неё нет по устройству, и поиск учётной записи <see cref="Guid.Empty" /> дал бы
-/// ложную причину отказа.</para>
+/// <para>⚠️ Задача такта модуля (work-08, ТЗ WORK-41) — система С НАЗВАНИЕМ ТАКТА. Такт узнаёт исполнитель
+/// (<see cref="ModuleWorkRunner" />) и называет его окружением вызова (<see cref="SystemActivityScope" />):
+/// отсюда же берётся подпись журнала, так что причина отказа и автор записи не расходятся.</para>
 /// </summary>
-public sealed class ModuleReadersPort(DataAccessResolver access, IHttpContextAccessor http, ModuleTickCatalog ticks)
-    : IModuleReaders
+public sealed class ModuleReadersPort(DataAccessResolver access, IHttpContextAccessor http) : IModuleReaders
 {
     public async Task<ModuleReader> ForRequestAsync(CancellationToken ct = default) =>
         From(await access.ForRequestAsync(http, ct));
 
     public async Task<ModuleReader> ForJobAsync(ModuleJobRun run, CancellationToken ct = default) =>
-        TickOf(run) is { } tick
-            ? ModuleReader.OfSystem(tick.Tick.Title)
+        run.UserId == Guid.Empty && SystemActivityScope.What is { } what
+            ? ModuleReader.OfSystem(what)
             : From(await access.ForUserAsync(run.UserId, ct));
-
-    /// <summary>
-    /// Такт ли поставил задачу. Операции в <see cref="ModuleJobRun" /> нет — у такта она одна на цель, и
-    /// цель с пустым владельцем узнаётся однозначно.
-    /// </summary>
-    private ModuleTickEntry? TickOf(ModuleJobRun run) =>
-        run.UserId == Guid.Empty ? ticks.All.FirstOrDefault(e => e.TargetId == run.TargetId) : null;
 
     public ModuleReader ForSystem(string reason) => ModuleReader.OfSystem(reason);
 

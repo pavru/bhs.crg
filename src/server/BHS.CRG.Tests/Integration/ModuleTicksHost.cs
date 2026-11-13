@@ -3,6 +3,7 @@ using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Tests.Configuration;
+using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +26,12 @@ public sealed class ModuleTicksHost : ModuleOnlyHost
 
     protected override string DatabaseSuffix => "ticks";
 
+    /// <summary>
+    /// Часы хоста: по ним и такт считает «сейчас», и очередь ставит <c>CreatedAt</c> задачи — одни часы
+    /// на срок и на постановку, как в поставке. Тест двигает их сам.
+    /// </summary>
+    internal TestClock Clock { get; } = new(DateTimeOffset.UtcNow);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -34,6 +41,7 @@ public sealed class ModuleTicksHost : ModuleOnlyHost
             services.AddScoped<IModuleJobHandler, ProbeTickWork>();
             services.AddSingleton<IModuleActivityActions, ProbeModuleActivity>();
             services.AddSingleton(ProbeTick.Catalog());
+            services.AddSingleton<TimeProvider>(Clock);
         });
     }
 }

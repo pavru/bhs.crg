@@ -82,9 +82,14 @@ public class Job : Entity
 
     private Job() { }
 
-    public static Job Create(JobKind kind, Guid userId, Guid targetId, string title, string? payload = null)
+    /// <param name="createdAt">Момент постановки по часам ПОСТАВИВШЕГО (<c>TimeProvider</c>); <c>null</c> —
+    /// часы машины. Нужен такту модульных заданий (work-08): срок он считает от постановки, и момент
+    /// постановки обязан идти по тем же часам, что и «сейчас» такта.</param>
+    public static Job Create(JobKind kind, Guid userId, Guid targetId, string title, string? payload = null,
+        DateTimeOffset? createdAt = null)
         => new()
         {
+            CreatedAt = createdAt ?? DateTimeOffset.UtcNow,
             Kind = kind,
             Status = JobStatus.Queued,
             UserId = userId,

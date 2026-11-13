@@ -69,6 +69,12 @@ public class ModuleTickDeclarationTests
         Assert.Contains("операция «costs.проба» не модуля «work»", refusal.Message);
     }
 
+    /// <summary>Регистр кода операции — как у поиска обработчика: «Work.autosubmit» своему модулю не чужая.</summary>
+    [Fact]
+    public void Операция_своего_модуля_узнаётся_без_учёта_регистра() =>
+        _ = new ModuleTickCatalog([new TickingModule("work",
+            new ModuleTick("autosubmit", "Автоподача отчётов", "Work.autosubmit", Five))]);
+
     [Fact]
     public void Годное_объявление_проходит_и_цель_такта_постоянна()
     {

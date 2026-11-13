@@ -45,7 +45,8 @@ public sealed record ModuleTick(string Code, string Title, string Operation, Tim
         if (string.IsNullOrWhiteSpace(Title)) Add("нет названия — в журнале и отказе было бы пусто");
         if (string.IsNullOrWhiteSpace(Operation))
             Add("нет операции — ставить нечего");
-        else if (!Operation.StartsWith(module + ".", StringComparison.Ordinal))
+        // Без учёта регистра — как поиск обработчика и постановка: одно правило о коде операции.
+        else if (!Operation.StartsWith(module + ".", StringComparison.OrdinalIgnoreCase))
             Add($"операция «{Operation}» не модуля «{module}» — такт ставит только свою работу");
         if (Period < MinPeriod)
             Add($"период {Period} короче шага службы ({MinPeriod.TotalMinutes:0} мин)");

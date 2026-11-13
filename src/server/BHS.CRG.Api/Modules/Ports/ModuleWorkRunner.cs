@@ -119,8 +119,8 @@ internal sealed record ModuleWork(string Operation, string? Body)
 ///
 /// <para><b>Задача такта</b> (ТЗ WORK-41, work-08) — от имени системы с названием такта: записи журнала,
 /// сделанные в ней, подписаны «Система — <c>такт</c>» (<see cref="SystemActivityScope" />). Узнаётся она
-/// по цели, операции и пустому владельцу (<see cref="ModuleTickCatalog.Find" />); параметр доступа той же
-/// задачи отвечает системой с тем же названием (<see cref="ModuleReadersPort" />).</para>
+/// по цели, операции и пустому владельцу (<see cref="ModuleTickCatalog.Find" />) — ЗДЕСЬ, одно на систему:
+/// параметр доступа той же задачи (<see cref="ModuleReadersPort" />) берёт название из того же окружения.</para>
 /// </summary>
 public sealed class ModuleWorkRunner(IEnumerable<IModuleJobHandler> handlers, ModuleTickCatalog ticks)
     : IModuleWorkRunner

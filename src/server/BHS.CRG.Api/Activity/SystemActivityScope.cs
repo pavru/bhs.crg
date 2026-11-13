@@ -16,10 +16,18 @@ namespace BHS.CRG.Api.Activity;
 /// </summary>
 public static class SystemActivityScope
 {
-    private static readonly AsyncLocal<ActivityActor?> Current = new();
+    private static readonly AsyncLocal<string?> Current = new();
+
+    /// <summary>
+    /// Чем занята система в этой работе; <c>null</c> — не названо. Её же причиной отвечает параметр доступа
+    /// задачи (<c>ModuleReadersPort.ForJobAsync</c>): подпись журнала и причина отказа — одно название из
+    /// одного места, и разойтись им нечему (ревью PR #1957).
+    /// </summary>
+    internal static string? What => Current.Value;
 
     /// <summary>Автор, назначенный окружением; <c>null</c> — не назначен.</summary>
-    internal static ActivityActor? Actor => Current.Value;
+    internal static ActivityActor? Actor =>
+        Current.Value is { } what ? new ActivityActor(null, $"{ActivityActor.System.Name} — {what}") : null;
 
     /// <summary>Подписать всё, что сделано до <c>Dispose</c>, как «Система — <paramref name="what" />».</summary>
     public static IDisposable Begin(string what)
@@ -28,11 +36,11 @@ public static class SystemActivityScope
             throw new ArgumentException("Система обязана назвать, чем занята: иначе подпись — просто «Система».", nameof(what));
 
         var previous = Current.Value;
-        Current.Value = new ActivityActor(null, $"{ActivityActor.System.Name} — {what}");
+        Current.Value = what;
         return new Restore(previous);
     }
 
-    private sealed class Restore(ActivityActor? previous) : IDisposable
+    private sealed class Restore(string? previous) : IDisposable
     {
         public void Dispose() => Current.Value = previous;
     }

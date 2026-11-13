@@ -1,6 +1,7 @@
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Api.Modules;
@@ -39,28 +40,11 @@ public sealed class ModuleTickService(
     /// </summary>
     private static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(2);
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        // Тактов нет — смотреть не на что: без строки в журнале и без таймера.
-        if (ticks.All.Count == 0) return;
-
-        try { await Task.Delay(StartDelay, time, ct); } catch (OperationCanceledException) { return; }
-
-        using var timer = new PeriodicTimer(Step, time);
-        do
-        {
-            try { await TickAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (Exception ex) { logger.LogWarning(ex, "Сбой цикла тактов модулей"); }
-        }
-        while (await SafeWait(timer, ct));
-    }
-
-    private static async Task<bool> SafeWait(PeriodicTimer t, CancellationToken ct)
-    {
-        try { return await t.WaitForNextTickAsync(ct); }
-        catch (OperationCanceledException) { return false; }
-    }
+    protected override Task ExecuteAsync(CancellationToken ct) =>
+        // Тактов нет — смотреть не на что: без таймера и без строки в журнале.
+        ticks.All.Count == 0
+            ? Task.CompletedTask
+            : PeriodicLoop.RunAsync(time, StartDelay, Step, TickAsync, logger, "такты модулей", ct);
 
     /// <summary>
     /// Один шаг: каждый такт — отдельно, и сбой одного не останавливает остальные. Открыт ради тестов:
@@ -71,7 +55,9 @@ public sealed class ModuleTickService(
         foreach (var entry in ticks.All)
         {
             try { await TickOneAsync(entry, ct); }
-            catch (OperationCanceledException) { throw; }
+            // Остановка приложения — конец шага. Иная отмена (тайм-аут команды базы) — сбой ЭТОГО такта:
+            // остальные такты шагают дальше, а цикл не кончается (ревью PR #1957).
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Такт «{Tick}» модуля «{Module}» не поставил задачу",
@@ -117,7 +103,12 @@ public sealed class ModuleTickService(
     public static bool IsDue(TimeSpan period, JobDto? last, DateTimeOffset now)
     {
         if (last is null) return true;
-        if (last.Status is nameof(JobStatus.Queued) or nameof(JobStatus.Running)) return false;
+        // Статус — значением перечисления, а не строкой: нераспознанный статус — отказ шага, а не «задача
+        // кончилась» (иначе идущая задача получила бы вторую, ревью PR #1957).
+        if (!Enum.TryParse<JobStatus>(last.Status, out var status))
+            throw new InvalidOperationException(
+                $"Статус задачи такта «{last.Status}» не распознан: идёт ли она, неизвестно, и вторую не ставим.");
+        if (status is JobStatus.Queued or JobStatus.Running) return false;
         return now - last.CreatedAt >= period;
     }
 }

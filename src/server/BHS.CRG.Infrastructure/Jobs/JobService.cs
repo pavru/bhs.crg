@@ -11,8 +11,14 @@ namespace BHS.CRG.Infrastructure.Jobs;
 /// Постановка задач в фон и запрос активных. Создаёт запись Job(Queued) в БД (источник истины) и толкает
 /// id в <see cref="JobQueue"/>; выполнение — в <see cref="JobBackgroundService"/> вне HTTP-реквеста.
 /// </summary>
-public class JobService(AppDbContext db, JobQueue queue) : IJobService
+public class JobService(AppDbContext db, JobQueue queue, TimeProvider? time = null) : IJobService
 {
+    /// <summary>
+    /// Часы постановки — те же, что у служб по расписанию (такт модулей считает срок от <c>CreatedAt</c>,
+    /// work-08). Умолчание — часы машины: тестам, создающим службу руками, часы не нужны.
+    /// </summary>
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+
     /// <summary>Код нарушения уникальности в PostgreSQL.</summary>
     private const string UniqueViolation = "23505";
 
@@ -21,7 +27,7 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
 
     public async Task<Guid> EnqueueAsync(JobKind kind, Guid userId, Guid targetId, string title, string? payload, CancellationToken ct)
     {
-        var job = Job.Create(kind, userId, targetId, title, payload);
+        var job = Job.Create(kind, userId, targetId, title, payload, _time.GetUtcNow());
         db.Jobs.Add(job);
         try
         {
