@@ -2,7 +2,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
-import { BottomNav, PINNED_EMPTY_HINT } from './BottomNav';
+import { BottomNav, MENU_EMPTY_HINT, PINNED_EMPTY_HINT } from './BottomNav';
+import { useLeaveGuard, type LeaveHandler } from './NavigationGuard';
 import { PrimaryFab } from './PrimaryFab';
 import { PrimaryActionButton } from './PrimaryActionButton';
 import { PrimaryFabContext, useCoversPrimaryFab, usePrimaryFabState } from './primaryFabContext';
@@ -87,6 +88,10 @@ describe('нижняя навигация', () => {
     const pinned = [{ item: page('/invoices', 'Счета', 'costs'), section: 'Учёт затрат', outside: false }];
     shown(<BottomNav sections={work} active="costs" pinned={pinned} />, '/invoices/42');
     expect(current()).toEqual([null, 'true', null]);
+    cleanup();
+    // «Система» — из меню профиля, в листе её нет: «Меню» не отмечено, как и на профиле.
+    shown(<BottomNav sections={work} active="system" />, '/users');
+    expect(current()).toEqual([null, null, null]);
   });
 
   it('«Главная» ведёт на Главную', () => {
@@ -106,6 +111,28 @@ describe('нижняя навигация', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Накладные' }));
     expect(screen.getByLabelText('адрес').textContent).toBe('/waybills');
     expect(screen.queryByRole('dialog', { name: 'Меню' })).toBeNull();
+  });
+
+  it('переход, отменённый охраной ухода, лист не закрывает; подтверждённый — закрывает', async () => {
+    let proceed: (() => void) | null = null;
+    const onLeave: LeaveHandler = go => { proceed = go; };
+    function Dirty() { useLeaveGuard(true, onLeave); return null; }
+    shown(<><Dirty /><BottomNav sections={work} active="costs" /></>);
+    fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Меню' });
+    fireEvent.click(screen.getByRole('link', { name: 'Накладные' }));
+    // «Остаться»: адрес прежний, лист на месте — выбор можно продолжить.
+    expect(screen.getByLabelText('адрес').textContent).toBe('/invoices');
+    expect(sheet.isConnected).toBe(true);
+    await act(async () => { proceed!(); });
+    expect(screen.getByLabelText('адрес').textContent).toBe('/waybills');
+    expect(screen.queryByRole('dialog', { name: 'Меню' })).toBeNull();
+  });
+
+  it('без рабочих разделов, кроме Главной, лист «Меню» говорит, почему пуст', async () => {
+    shown(<BottomNav sections={work.slice(0, 1)} active="home" />, '/home');
+    fireEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    expect((await screen.findByRole('dialog', { name: 'Меню' })).textContent).toContain(MENU_EMPTY_HINT);
   });
 
   it('«Закреплённые» — лист закреплений с разделом второй строкой; пусто — подсказка, как закрепить', async () => {

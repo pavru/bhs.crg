@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BottomSheet } from './BottomSheet';
 import { Icon } from './Icon';
@@ -17,6 +17,12 @@ export const MENU_LABEL = 'Меню';
 /** Подсказка пустого листа «Закреплённые»: как закрепить — на телефоне это «⋮» строки в «Меню» (work-04). */
 export const PINNED_EMPTY_HINT = 'Закрепите страницу в меню «⋮» её строки — в листе «Меню»';
 
+/**
+ * Пустой лист «Меню»: рабочих разделов, кроме Главной, у человека нет. Место строки при этом остаётся —
+ * строка у всех одна (Р0), — а лист говорит, почему в нём пусто, вместо того чтобы молчать.
+ */
+export const MENU_EMPTY_HINT = 'Других разделов у вас пока нет: их открывают права, которые выдаёт администратор';
+
 type Place = 'home' | 'pinned' | 'menu';
 
 /**
@@ -31,7 +37,12 @@ type Place = 'home' | 'pinned' | 'menu';
  *   телефоне оно — пункт меню профиля (решение владельца от 17.10.2026).
  *
  * Отмечено место, где человек сейчас: Главная — на Главной, «Закреплённые» — на закреплённой странице,
- * «Меню» — на любой другой странице раздела. Вне разделов (профиль) не отмечено ничего.
+ * «Меню» — на странице раздела из листа. Вне разделов листа (профиль, «Система» из меню профиля) не
+ * отмечено ничего: отметка звала бы туда, где текущей страницы нет.
+ *
+ * Лист открыт на той записи истории, где его открыли: любой переход (выбор страницы, «Главная») его
+ * закрывает, а переход, отменённый охраной ухода, — нет: человек, ответивший «Остаться», видит лист, из
+ * которого выбирал. Поэтому закрытие — по смене записи (`location.key`), а не по клику на ссылку.
  *
  * Разделы отбирает `phoneChrome`: рабочие, без «Системы». Разделов нет — нет и строки: пустая полоса у
  * края звала бы нажать в никуда. Высота — `h-20`; она же записана в `phoneLayout.ts` для тех, кто обходит
@@ -47,18 +58,22 @@ export function BottomNav({ sections, active, pinned = [], pinnable = () => fals
   pinnable?: (to: string) => boolean;
 }) {
   const guardedClick = useGuardedNavClick();
-  const { pathname } = useLocation();
+  const { pathname, key } = useLocation();
   const [sheet, setSheet] = useState<'pinned' | 'menu' | null>(null);
+  // Сброс при смене записи — в рендере, а не эффектом: закоммиченный кадр уже без листа.
+  const [openedAt, setOpenedAt] = useState(key);
+  if (openedAt !== key) {
+    setOpenedAt(key);
+    if (sheet) setSheet(null);
+  }
   if (sections.length === 0) return null;
 
   const home = sections.find(s => s.def.id === 'home');
   const menu = sections.filter(s => s.def.id !== 'home');
   const pinnedHere = !!ownerItem(pathname, pinned.map(e => e.item));
-  const here: Place | null = active === 'home' ? 'home' : pinnedHere ? 'pinned' : active ? 'menu' : null;
+  const inMenu = menu.some(s => s.def.id === active);
+  const here: Place | null = active === 'home' ? 'home' : pinnedHere ? 'pinned' : inMenu ? 'menu' : null;
   const close = () => setSheet(null);
-  // Выбор страницы в листе закрывает лист — иначе он лежал бы поверх открытой страницы. «⋮» строки
-  // открывает своё меню в портале, а не здесь: закрепление лист не закрывает.
-  const closeOnLink = (e: MouseEvent) => { if ((e.target as HTMLElement).closest('a')) close(); };
 
   return (
     <>
@@ -81,7 +96,7 @@ export function BottomNav({ sections, active, pinned = [], pinnable = () => fals
       </nav>
 
       <BottomSheet open={sheet === 'pinned'} onClose={close} title={PINNED_GROUP_LABEL}>
-        <div data-testid="pinned-sheet" onClick={closeOnLink}>
+        <div data-testid="pinned-sheet">
           {pinned.length
             ? <div className="space-y-0.5">{pinned.map(entry => <PinnedLink key={entry.item.to} entry={entry} />)}</div>
             : <p className="py-4 text-body-medium text-on-surface-variant">{PINNED_EMPTY_HINT}</p>}
@@ -89,7 +104,8 @@ export function BottomNav({ sections, active, pinned = [], pinnable = () => fals
       </BottomSheet>
 
       <BottomSheet open={sheet === 'menu'} onClose={close} title={MENU_LABEL}>
-        <div data-testid="menu-sheet" className="space-y-6" onClick={closeOnLink}>
+        <div data-testid="menu-sheet" className="space-y-6">
+          {!menu.length && <p className="py-4 text-body-medium text-on-surface-variant">{MENU_EMPTY_HINT}</p>}
           {menu.map(section => (
             <section key={section.def.id} aria-labelledby={`menu-sheet-${section.def.id}`}>
               {/* Подпись — как в рейле рабочего стола (Р0): один и тот же раздел зовётся одним словом. */}
