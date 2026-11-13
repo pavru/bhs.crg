@@ -24,8 +24,8 @@
 
 ## 2. Каркас и границы (после `plan-21` и `plan-22`, STG-18.1)
 
-- [ ] 2.1 `work-10-skeleton` (1) — проект модуля, схема `work`, права первой двери [WORK-45] [CORE-1]
-  [CORE-4]. Проверка — `WorkOnlyHostTests` зелёный в CI
+- [x] 2.1 `work-10-skeleton` (1) — проект модуля, схема `work`, права первой двери [WORK-45] [CORE-1]
+  [CORE-4]. Проверка — `WorkOnlyHostTests` зелёный в CI (PR #1932; архив 13.11.2026)
 - [x] 2.2 `work-02-contract-permissions` (0) — **снят**: «право контракта» строит этап 3
   (`plan-21-contract-permissions`, D18) [AUTH-8.1] [WORK-48]. Проверка — `plan-21` заархивирован, change
   `work-02` удалён без архивации (`plan-21` слит #1853, архив `2026-11-10-plan-21-contract-permissions`;
