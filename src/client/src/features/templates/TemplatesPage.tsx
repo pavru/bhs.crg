@@ -8,6 +8,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
+import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
@@ -31,28 +32,34 @@ interface NewTemplateFormProps {
   onCreated: (t: Template) => void;
 }
 
-function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCreated }: NewTemplateFormProps) {
+export function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCreated }: NewTemplateFormProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  // Занятое название (#1924) — отказ этого поля: показываем у него, окно остаётся открытым с вводом.
+  const [nameError, setNameError] = useState('');
   const mutation = useCreateTemplate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setNameError('');
     try {
       const content = buildBlankTypst(name.trim() || 'Новый шаблон', docType, allDocTypes);
       const t = await mutation.mutateAsync({ documentTypeId, name, content });
       onCreated(t);
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка создания');
+      const message = apiError(err, 'Ошибка создания');
+      if (isConflict(err)) setNameError(message);
+      else setError(message);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
-        <TextField label="Название шаблона" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        <TextField label="Название шаблона" value={name} error={nameError || undefined}
+          onChange={(e) => { setName(e.target.value); setNameError(''); }} required autoFocus />
         <p className="text-body-small text-on-surface-variant">
           Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
         </p>

@@ -29,6 +29,17 @@ public class GeneratedFile : Entity
             Id = id, ObjectId = objectId, Format = format, BlobPath = blobPath, TemplateId = templateId,
             CreatedAt = createdAt, UpdatedAt = updatedAt,
         };
+
+    /// <summary>
+    /// Файл переходит к новой версии того же шаблона вместе с закреплением документа
+    /// (<c>DomainObject.RepinTemplates</c>). Иначе он остался бы помечен погашенной версией: сборка
+    /// комплекта поставила бы его в конец, а следующая генерация не заменила бы его, а добавила второй.
+    /// </summary>
+    internal void RetargetTemplate(Guid templateId)
+    {
+        TemplateId = templateId;
+        TouchUpdatedAt();
+    }
 }
 
 public enum OutputFormat { Pdf }

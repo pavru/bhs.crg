@@ -34,6 +34,10 @@ describe('newVersionPlan (issue #1920)', () => {
     expect(newVersionPlan(list, list[1])).toEqual({ next: 5, retires: [], takesDefault: false, pinnedToRetired: 0, noPinDocsMove: true });
   });
 
+  it('от действующей — закреплённые за ней считаются: сервер пересадит их на новую (#1923)', () => {
+    expect(newVersionPlan(list, list[1], { 'Основной-4': { count: 3 }, 'Основной-2': { count: 7 } }).pinnedToRetired).toBe(3);
+  });
+
   it('по умолчанию у типа — другой шаблон: документы без выбора остаются на нём', () => {
     expect(newVersionPlan(list, list[2]).noPinDocsMove).toBe(false);
   });

@@ -2168,6 +2168,15 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasIndex("DocumentTypeId", "IsDefault");
 
+                    b.HasIndex("DocumentTypeId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_templates_one_active")
+                        .HasFilter("\"IsActive\"");
+
+                    b.HasIndex("DocumentTypeId", "Name", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_templates_version");
+
                     b.ToTable("templates", (string)null);
                 });
 

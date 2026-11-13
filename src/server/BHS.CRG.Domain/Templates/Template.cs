@@ -4,6 +4,9 @@ namespace BHS.CRG.Domain.Templates;
 
 public class Template : Entity
 {
+    /// <summary>Предел длины названия — он же у колонки базы.</summary>
+    public const int NameMaxLength = 256;
+
     public Guid DocumentTypeId { get; private set; }
     public string Name { get; private set; } = default!;
     public int Version { get; private set; } = 1;
@@ -127,6 +130,31 @@ public class Template : Entity
     public void SetParameters(string? parametersJson)
     {
         Parameters = parametersJson;
+        TouchUpdatedAt();
+    }
+
+    // ── Разовая починка накопленных дублей (TemplateVersionRepair) ───────────────────────────
+
+    /// <summary>Гасит версию как лишнюю действующую: признаки шаблона переходят к оставшейся.</summary>
+    internal void RetireAsDuplicate()
+    {
+        IsActive = false;
+        IsDefault = false;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Оставшаяся действующая принимает «по умолчанию», если оно было у любой версии шаблона.</summary>
+    internal void KeepAsActive(bool isDefault)
+    {
+        if (IsDefault == isDefault) return;
+        IsDefault = isDefault;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Новый номер версии, чей прежний был неоднозначен (повторялся внутри шаблона).</summary>
+    internal void Renumber(int version)
+    {
+        Version = version;
         TouchUpdatedAt();
     }
 }
