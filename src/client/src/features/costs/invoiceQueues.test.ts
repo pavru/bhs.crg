@@ -39,6 +39,10 @@ describe('чип очереди', () => {
     expect(doubt?.count).toBe('?');
     expect(doubt?.doubt).toBe(true);
     expect(doubt?.title).toContain('Число неполное — проверено не всё: колонок — 1.');
+    // Ноль не зовёт исправлять: «не найдено», а не «…: 0. Откройте счёт» (ревью PR #1942).
+    expect(doubt?.title).toMatch(/^Счетов с удалёнными записями справочника не найдено\./);
+    expect(doubt?.title).not.toContain('Откройте счёт');
+    expect(queueChip('archived', numbers({ archived: 0 }), true)?.title).toBe('Неоплаченных счетов с записями из архива не найдено.');
     expect(queueChip('lost', numbers({ doubt: 'проверено не всё' }), false)?.count).toBe('3?');
   });
 

@@ -83,9 +83,11 @@ export function SiteCostsPage() {
           subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
 
         <div className="flex flex-wrap items-end gap-3">
-          {/* Отбор отчёта — чип с меню ([UI-69]): «Все стройки» возвращает его в покой. */}
+          {/* Отбор отчёта — чип с меню ([UI-69]): «По всем стройкам» возвращает его в покой. Не «Все стройки»:
+              рядом стоит отбор избранных «Стройки» ([UI-95]), и два чипа о стройках с похожими именами и разным
+              смыслом путались (ревью PR #1939). */}
           <div className="h-10 flex items-center">
-            <Select variant="chip" aria-label="Стройка" emptyItem="Все стройки"
+            <Select variant="chip" aria-label="Стройка" emptyItem="По всем стройкам"
               value={site ?? ''} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value || null })}>
               <SiteSelectItems choices={choices} />
