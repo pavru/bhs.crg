@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { railSections, settingsNav, workNav, type NavItem } from './navConfig';
+import { Engineering } from './icons';
+import { WORK_ENTRY_RANK, railSections, settingsNav, workNav, type NavItem } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 import { visibleNav } from './navAccess';
 import { activeRail, buildRail, groupItems, panelAt, railDef } from './railSections';
@@ -73,6 +74,32 @@ describe('рейл разделов', () => {
     const rail = buildRail(workNav, settingsNav);
     expect(rail.map(s => s.def.label)).toEqual(['Главная', 'Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
     expect(railDef('plan').title).toBe('Планирование');
+  });
+
+  // Раздел модуля «Учёт работ» (work-03, макет Р0): за «Планами», подпись «Работы».
+  it('раздел «Работы» — за «Планами»; без видимых пунктов и при одном праве контракта его нет', () => {
+    const ids = railSections.map(s => s.id);
+    expect(ids.indexOf('work')).toBe(ids.indexOf('plan') + 1);
+    expect(railDef('work')).toMatchObject({ label: 'Работы', title: 'Учёт работ', icon: Engineering });
+    expect(railDef('work').admin).toBeFalsy();
+    // Пунктов модуля в меню ещё нет (их заводят change экранов) — и раздела в рейле нет.
+    expect(buildRail(workNav, settingsNav).map(s => s.def.id)).not.toContain('work');
+
+    // Пункт так, как его впишет work-22: модуль, право, раздел и ранг из таблицы.
+    const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Engineering, module: 'work',
+      permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports };
+    const menu = [...workNav, myReports];
+    const work = (open: boolean, permissions: string[]): AccessInfo => ({
+      permissions, modules: [{ code: 'work', title: 'Учёт работ', available: open }],
+    });
+    const fitter = work(true, ['work.report.own']);
+    expect(buildRail(visibleNav(menu, fitter), []).map(s => s.def.id)).toEqual(['home', 'work']);
+    // Право контракта модуль не открывает (plan-21): он приходит с `available: false`, и раздела нет.
+    const engineer = work(false, ['work.facts.read', 'work.report.own']);
+    expect(buildRail(visibleNav(menu, engineer), []).map(s => s.def.id)).toEqual(['home']);
+    // Модуль открыт, а права пункта нет — пустой раздел тоже не строится.
+    const reviewer = work(true, ['work.report.review']);
+    expect(buildRail(visibleNav(menu, reviewer), []).map(s => s.def.id)).toEqual(['home']);
   });
 
   it('адрес принадлежит разделу по самому длинному пункту', () => {
