@@ -199,6 +199,15 @@ internal static class StartupTasks
         // смену, сорвавшуюся между фиксацией модуля и фиксацией ядра. Сторож останавливает запуск: обработчик
         // забытой настройки не позвали бы никогда, и запертые счета остались бы без книги. Выравнивание — нет:
         // несведённый счёт оно называет в журнале приложения, а его следующая запись откажет с причиной.
+        // Такты модулей (work-08, ТЗ WORK-41): объявление проверено при сборке каталога, а есть ли у
+        // операции такта обработчик — видно только здесь, в области служб (обработчики scoped). Такт
+        // без обработчика отказывал бы на каждом сроке уведомлением — запуск обязан остановиться.
+        // Обработчики разрешаются, только если такты есть: без тактов проверять нечего, а создавать
+        // при каждом старте все обработчики всех модулей незачем.
+        var ticks = scope.ServiceProvider.GetRequiredService<BHS.CRG.Api.Modules.ModuleTickCatalog>();
+        if (ticks.All.Count > 0)
+            ticks.EnsureHandled(scope.ServiceProvider.GetServices<BHS.CRG.Modules.Ports.IModuleJobHandler>());
+
         BHS.CRG.Api.Modules.ModuleSettingWriter.Validate(
             scope.ServiceProvider.GetServices<BHS.CRG.Modules.Settings.IModuleSettingChange>(),
             scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.Settings.ModuleSettingCatalog>(),

@@ -196,6 +196,11 @@ internal static class WorkerRegistration
     // этапа 2, issue #1069). Сразу за регистрацией модулей: службы модулей их спрашивают, а сами
     // порты опираются на зарегистрированное выше.
     builder.Services.AddModulePorts();
+    // Такт модульных заданий (work-08, ТЗ WORK-41): раз в минуту ставит задачи тактов включённых
+    // модулей. Выключатель — для тестового хоста, по той же причине, что у планового копирования:
+    // такт ставил бы работу модуля посреди чужих тестов. В поставке переменную не задают.
+    if (builder.Configuration.GetValue("ModuleTicks:Enabled", true))
+        builder.Services.AddHostedService<BHS.CRG.Api.Modules.ModuleTickService>();
     // Таблицы модулей (ТЗ CORE-33, G1b, issue #1089): служба для экрана и поставщик набора данных на
     // каждую объявленную таблицу. Сразу за модулями — каталог таблиц собран там.
     BHS.CRG.Api.Modules.Tables.ModuleTableRegistration.AddModuleTables(builder.Services);

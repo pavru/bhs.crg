@@ -22,7 +22,8 @@ public sealed class HttpContextActivityActor(IHttpContextAccessor http) : IActiv
         get
         {
             var user = http.HttpContext?.User;
-            if (user?.Identity?.IsAuthenticated != true) return ActivityActor.System;
+            // Вне запроса — система; чем она занята, может назвать фоновая работа (такт модуля, work-08).
+            if (user?.Identity?.IsAuthenticated != true) return SystemActivityScope.Actor ?? ActivityActor.System;
 
             var id = Guid.TryParse(
                 user.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? user.FindFirstValue(ClaimTypes.NameIdentifier),
