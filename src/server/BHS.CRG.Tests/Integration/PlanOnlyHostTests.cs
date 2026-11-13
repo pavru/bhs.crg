@@ -9,7 +9,6 @@ using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -100,39 +99,14 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// (AUTH-1, AUTH-19).
     /// </summary>
     [Fact]
-    public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database()
-    {
-        _ = host.CreateClient();
-
-        var catalog = host.Services.GetRequiredService<PermissionCatalog>();
-        var plan = catalog.All.Where(p => p.Code.StartsWith("plan.", StringComparison.Ordinal)).ToList();
-
+    public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database() =>
         // Три из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
         // вместе с первым адресом, который оно открывает; сметы — первая дверь модуля, себестоимость
         // закрывает модель сметы (06). Остальные приходят своими change (offer — 13, pricelist — 14,
-        // календарь и графики — 18, права контракта — 23). Число названо здесь нарочно: право, добавленное
+        // календарь и графики — 18, права контракта — 23). Список назван здесь нарочно: право, добавленное
         // без своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(3, plan.Count);
-        Assert.Equal([PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead],
-            plan.Select(p => p.Code).Order(StringComparer.Ordinal));
-        Assert.All(plan, p => Assert.Null(p.Validate()));
-        Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
-        Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("costs.", StringComparison.Ordinal));
-        Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("work.", StringComparison.Ordinal));
-
-        using var scope = host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Contains("_plan", db.Database.GetConnectionString() ?? string.Empty);
-
-        var stored = await db.Permissions.Where(p => p.Code.StartsWith("plan.")).ToListAsync();
-        foreach (var declared in plan)
-        {
-            var row = stored.SingleOrDefault(p => p.Code == declared.Code);
-            Assert.True(row is not null, $"Право «{declared.Code}» объявлено модулем, но в базу не попало.");
-            Assert.True(row!.IsDeclared, $"Право «{declared.Code}» объявлено, но помечено как невыдаваемое.");
-            Assert.Equal(declared.Gives, row.Gives);
-        }
-    }
+        await ModuleOnlyChecks.DeclaredAndStoredAsync(host, PlanModule.ModuleCode,
+            [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead], "id", "costs", "work");
 
     /// <summary>
     /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
@@ -143,39 +117,14 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// и потребует этого.</para>
     /// </summary>
     [Fact]
-    public void Module_permissions_open_a_door_or_are_named_as_doorless()
-    {
-        _ = host.CreateClient();
-
-        // Пусто: двери смет пришли с моделью сметы (plan-06). Себестоимость (plan.estimate.cost) двери не
-        // открывает — она открывает часть ответа, — поэтому на воротах её нет и здесь она названа ниже.
-        Dictionary<string, string> doorless = new()
+    public void Module_permissions_open_a_door_or_are_named_as_doorless() =>
+        // Двери смет пришли с моделью сметы (plan-06). Себестоимость (plan.estimate.cost) двери не
+        // открывает — она открывает часть ответа, — поэтому на воротах её нет и здесь она названа.
+        ModuleOnlyChecks.DoorOrNamedDoorless(host, PlanModule.ModuleCode, new Dictionary<string, string>
         {
             [PlanModule.EstimateCost] =
                 "не дверь, а часть ответа: без права ответы смет и строк идут без денег (plan-06, PLAN-11)",
-        };
-
-        var catalog = host.Services.GetRequiredService<PermissionCatalog>();
-        var used = EndpointInventory.GatingPermissions(EndpointInventory.Routes(host.Services));
-
-        var silent = catalog.Codes
-            .Where(c => c.StartsWith("plan.", StringComparison.Ordinal))
-            .Where(c => !used.Contains(c) && !doorless.ContainsKey(c))
-            .Order(StringComparer.Ordinal).ToList();
-
-        Assert.True(silent.Count == 0,
-            "Право модуля объявлено, но не стоит ни на одном адресе. Галка в редакторе ролей будет " +
-            "выдаваться и не делать ничего. Поставьте право на дверь либо назовите здесь задачу, " +
-            "которая её принесёт:\n  " + string.Join("\n  ", silent));
-
-        var stale = doorless.Keys.Where(used.Contains).Order(StringComparer.Ordinal).ToList();
-        Assert.True(stale.Count == 0,
-            "У этих прав двери уже есть — уберите записи:\n  " + string.Join("\n  ", stale));
-
-        var unknown = doorless.Keys.Where(c => !catalog.Declares(c)).Order(StringComparer.Ordinal).ToList();
-        Assert.True(unknown.Count == 0,
-            "В списке есть коды, которых модуль не объявляет:\n  " + string.Join("\n  ", unknown));
-    }
+        });
 
     /// <summary>
     /// Состав <c>/api/account/access</c> по системным ролям — права <c>plan.*</c> и признак модуля
@@ -213,19 +162,9 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     [InlineData("Installer", false)]
     [InlineData("Supplier", false)]
     [InlineData("WorksManager", false)]
-    public async Task System_roles_get_exactly_their_plan_permissions(string role, bool opens, params string[] expected)
-    {
-        var access = await AccessAsync(await SignInAsync(role));
-
-        var plan = access.Permissions.Where(c => c.StartsWith("plan.", StringComparison.Ordinal))
-            .Order(StringComparer.Ordinal).ToArray();
+    public async Task System_roles_get_exactly_their_plan_permissions(string role, bool opens, params string[] expected) =>
         // Точное равенство — оно же и «у сметчика ни одного plan.offer.*»: лишний код здесь не прошёл бы.
-        Assert.Equal(expected, plan);
-
-        var module = Assert.Single(access.Modules, m => m.Code == PlanModule.ModuleCode);
-        Assert.Equal(opens, module.Available);
-        Assert.Equal(new PlanModule().UsesSections, module.Sections);
-    }
+        await ModuleOnlyChecks.RoleGetsExactlyAsync(host, new PlanModule(), role, opens, expected);
 
     /// <summary>
     /// Права КОНТРАКТА модуль не открывают (AUTH-8.1, D11 зонтика <c>plan-00-epic</c>): роль, у которой
@@ -279,11 +218,10 @@ public sealed class PlanOnlyCollection : ICollectionFixture<PlanOnlyHost>
 /// Хост «только планирование»: <c>Modules__Enabled=plan</c> и своя база «…_plan» (как он держится —
 /// <see cref="ModuleOnlyHost" />).
 ///
-/// <para>⚠️ Схема <c>plan</c> СНОСИТСЯ до запуска (ревью PR #1580). Без этого проверка «схема
+/// <para>⚠️ Схема <c>plan</c> СНОСИТСЯ до запуска (ревью PR #1580): без этого проверка «схема
 /// мигрирована при старте» проходила бы на схеме, оставшейся от прошлого прогона, — и с вырезанной
-/// миграцией модуля тоже. Так же устроен <see cref="ModuleSchemaHost" /> для <c>costs</c>. Снос — после
-/// того, как база занята (<see cref="TestRunDatabase.ClaimAsync" />): чужой прогон на ней же обязан
-/// получить отказ раньше первой правки. Заодно база создаётся, если её нет.</para>
+/// миграцией модуля тоже. Так же устроен <see cref="ModuleSchemaHost" /> для <c>costs</c>. Как и когда
+/// сносится — <see cref="ModuleOnlyHost" />.</para>
 /// </summary>
 public sealed class PlanOnlyHost : ModuleOnlyHost
 {
@@ -291,18 +229,5 @@ public sealed class PlanOnlyHost : ModuleOnlyHost
 
     protected override string DatabaseSuffix => "plan";
 
-    /// <summary>Снос схемы до старта действительно был — тест опирается на него и проверяет это.</summary>
-    internal bool SchemaDroppedBeforeStart { get; }
-
-    public PlanOnlyHost()
-    {
-        // Task.Run — чтобы ожидание в конструкторе не зависело от контекста синхронизации xUnit.
-        Task.Run(() => TestRunDatabase.ClaimAsync(ConnectionString, ClaimPatience)).GetAwaiter().GetResult();
-
-        using var conn = new NpgsqlConnection(ConnectionString);
-        conn.Open();
-        using var cmd = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {PlanDbContext.SchemaName} CASCADE", conn);
-        cmd.ExecuteNonQuery();
-        SchemaDroppedBeforeStart = true;
-    }
+    protected override IReadOnlyList<string> SchemasDroppedBeforeStart => [PlanDbContext.SchemaName];
 }

@@ -8,10 +8,8 @@ using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
-using BHS.CRG.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -28,7 +26,7 @@ namespace BHS.CRG.Tests.Integration;
 ///
 /// <para>⚠️ Хост живёт на СВОЕЙ базе (<c>…_work</c>) по той же причине, что и соседи: состав системных ролей
 /// приводится при старте к объявленному, и на общей тестовой базе этот хост снял бы у ролей права
-/// остальных модулей.</para>
+/// остальных модулей. И стартует он как ЧИСТАЯ установка — ядро тоже с нуля (<see cref="WorkOnlyHost" />).</para>
 /// </summary>
 [Collection(WorkOnlyCollection.Name)]
 public class WorkOnlyHostTests(WorkOnlyHost host)
@@ -44,13 +42,16 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
 
         var registry = host.Services.GetRequiredService<ModuleRegistry>();
         Assert.Equal([WorkModule.ModuleCode], registry.Enabled.Select(m => m.Code));
-        Assert.Equal(["costs", "id", "plan"], registry.Disabled.Select(m => m.Code).Order(StringComparer.Ordinal));
 
+        // Каждый — Contains, а не точный список выключенных: модуль, который появится в сборке позже, к
+        // учёту работ отношения не имеет и ронять этот тест не должен.
         foreach (var (path, module) in new[]
                  {
                      ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/plan/estimates", "plan"),
                  })
         {
+            Assert.Contains(module, registry.Disabled.Select(m => m.Code));
+
             var response = await client.GetAsync(path);
 
             Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
@@ -74,10 +75,10 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     }
 
     /// <summary>
-    /// Схема модуля создана при старте — с нуля: хост сносит её до запуска (<see cref="WorkOnlyHost" />),
-    /// поэтому схема и история с начальной миграцией могли появиться только от миграции модуля в этом
-    /// старте. В истории ядра миграций модуля нет (ТЗ CORE-4). Порядок «ядро, затем модуль» — код
-    /// <c>StartupTasks</c>; здесь видно, что до модуля дело дошло на экземпляре без трёх других.
+    /// Миграции на чистой установке: хост сносит схемы ядра и модуля до запуска (<see cref="WorkOnlyHost" />),
+    /// поэтому история ядра и история модуля с начальной миграцией могли появиться только в этом старте. В
+    /// истории ядра миграций модуля нет (ТЗ CORE-4). Порядок «ядро, затем модуль» — код <c>StartupTasks</c>;
+    /// здесь видно, что на экземпляре без трёх других модулей до модуля дело дошло.
     /// </summary>
     [Fact]
     public async Task Work_schema_is_migrated_with_its_own_history()
@@ -88,7 +89,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         var work = scope.ServiceProvider.GetRequiredService<WorkDbContext>();
 
         Assert.Contains("_work", work.Database.GetConnectionString() ?? string.Empty);
-        Assert.True(host.SchemaDroppedBeforeStart, "Хост не снёс схему до старта — проверка шла бы вхолостую.");
+        Assert.True(host.SchemaDroppedBeforeStart, "Хост не снёс схемы до старта — проверка шла бы вхолостую.");
         Assert.Empty(await work.Database.GetPendingMigrationsAsync());
         Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_Initial", StringComparison.Ordinal));
 
@@ -105,90 +106,43 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     [Fact]
     public async Task Work_permissions_are_declared_with_explanations_and_reach_the_database()
     {
-        _ = host.CreateClient();
-
-        var catalog = host.Services.GetRequiredService<PermissionCatalog>();
-        var work = catalog.All.Where(p => p.Code.StartsWith("work.", StringComparison.Ordinal)).ToList();
-
         // Пять из восьми прав WORK-45 — правило этапа (D2 зонтика work-00-epic): право объявляется вместе с
         // первым адресом, который оно открывает. work.crew.approve — work-18, work.facts.read (право
-        // контракта) — work-27, work.devices.manage — этап 5. Число названо нарочно: право, добавленное без
+        // контракта) — work-27, work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
         // своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(5, work.Count);
-        Assert.Equal(
+        var work = await ModuleOnlyChecks.DeclaredAndStoredAsync(host, WorkModule.ModuleCode,
             [WorkModule.Assign, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview, WorkModule.SitesAll],
-            work.Select(p => p.Code).Order(StringComparer.Ordinal));
-        Assert.All(work, p => Assert.Null(p.Validate()));
+            "id", "costs", "plan");
+
         Assert.All(work, p => Assert.False(p.Contract, $"«{p.Code}» — права контракта каркас не объявляет."));
         // В «читать всё» входит одно чтение отчётов; остальные пишут (AUTH-5.2, WORK-39).
         Assert.Equal([WorkModule.ReportRead], work.Where(p => p.ReadAll is { Included: true }).Select(p => p.Code));
-        foreach (var prefix in new[] { "id.", "costs.", "plan." })
-            Assert.DoesNotContain(catalog.Codes, c => c.StartsWith(prefix, StringComparison.Ordinal));
-
-        using var scope = host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Contains("_work", db.Database.GetConnectionString() ?? string.Empty);
-
-        var stored = await db.Permissions.Where(p => p.Code.StartsWith("work.")).ToListAsync();
-        foreach (var declared in work)
-        {
-            var row = stored.SingleOrDefault(p => p.Code == declared.Code);
-            Assert.True(row is not null, $"Право «{declared.Code}» объявлено модулем, но в базу не попало.");
-            Assert.True(row!.IsDeclared, $"Право «{declared.Code}» объявлено, но помечено как невыдаваемое.");
-            Assert.Equal(declared.Gives, row.Gives);
-        }
     }
 
     /// <summary>
-    /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
-    /// <see cref="EndpointGateInventoryTests" /> для модуля, выключенного на умолчательном хосте, AUTH-19).
-    ///
-    /// <para>Список — храповик: change, приносящий дверь, обязан убрать свою строку, иначе тест упадёт и
-    /// потребует этого.</para>
+    /// Права модуля либо стоят на двери, либо названы здесь с причиной (храповик: запись права, у которого
+    /// дверь появилась, обязана уйти).
     /// </summary>
     [Fact]
-    public void Module_permissions_open_a_door_or_are_named_as_doorless()
-    {
-        _ = host.CreateClient();
-
-        Dictionary<string, string> doorless = new()
+    public void Module_permissions_open_a_door_or_are_named_as_doorless() =>
+        ModuleOnlyChecks.DoorOrNamedDoorless(host, WorkModule.ModuleCode, new Dictionary<string, string>
         {
             [WorkModule.Assign] = "назначения на свои стройки — work-11",
-            [WorkModule.SitesAll] = "назначения на любые стройки — work-11; приёмка на любых — work-16",
             [WorkModule.ReportOwn] = "свои отчёты — work-13",
             [WorkModule.ReportReview] = "отчёты своих строек и ввод за сотрудника — work-13",
             [WorkModule.ReportRead] = "чтение всех отчётов — work-13",
-        };
-
-        var catalog = host.Services.GetRequiredService<PermissionCatalog>();
-        var used = EndpointInventory.GatingPermissions(EndpointInventory.Routes(host.Services));
-
-        var silent = catalog.Codes
-            .Where(c => c.StartsWith("work.", StringComparison.Ordinal))
-            .Where(c => !used.Contains(c) && !doorless.ContainsKey(c))
-            .Order(StringComparer.Ordinal).ToList();
-
-        Assert.True(silent.Count == 0,
-            "Право модуля объявлено, но не стоит ни на одном адресе. Галка в редакторе ролей будет " +
-            "выдаваться и не делать ничего. Поставьте право на дверь либо назовите здесь задачу, " +
-            "которая её принесёт:\n  " + string.Join("\n  ", silent));
-
-        var stale = doorless.Keys.Where(used.Contains).Order(StringComparer.Ordinal).ToList();
-        Assert.True(stale.Count == 0,
-            "У этих прав двери уже есть — уберите записи:\n  " + string.Join("\n  ", stale));
-
-        var unknown = doorless.Keys.Where(c => !catalog.Declares(c)).Order(StringComparer.Ordinal).ToList();
-        Assert.True(unknown.Count == 0,
-            "В списке есть коды, которых модуль не объявляет:\n  " + string.Join("\n  ", unknown));
-    }
+            // Не дверь и не станет ею (ревью PR #1932): право снимает границу «свои стройки» ВНУТРИ адресов
+            // назначений и приёмки — его спрашивает сам адрес (IModuleUser.HasAsync, design work-11), как
+            // себестоимость сметы у plan. Запись постоянная.
+            [WorkModule.SitesAll] =
+                "не дверь, а граница внутри адресов назначений (work-11) и приёмки (work-16): «на любых стройках»",
+        });
 
     /// <summary>
     /// Состав <c>/api/account/access</c> по системным ролям — права <c>work.*</c> и признак модуля (ТЗ
-    /// WORK-45, AUTH-14; D2 зонтика).
-    ///
-    /// <para>Объявление права молча меняет навигацию ролей: права, заранее вписанные в составы
-    /// (<c>SystemRoles</c>), после объявления наполняют роли. Поэтому набор сверяется ТОЧНО, а не
-    /// «содержит»: лишнее право здесь — пункт меню, которого роль не должна была получить.</para>
+    /// WORK-45, AUTH-14; D2 зонтика). Объявление права молча меняет навигацию ролей: права, заранее
+    /// вписанные в составы (<c>SystemRoles</c>), после объявления наполняют роли. Поэтому набор сверяется
+    /// ТОЧНО.
     ///
     /// <list type="bullet">
     ///   <item>«Администратор» — всё объявленное, в том числе <c>work.sites.all</c> («или администратор» из
@@ -213,18 +167,8 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     [InlineData("Estimator", false)]
     [InlineData("Supplier", false)]
     [InlineData("Accountant", false)]
-    public async Task System_roles_get_exactly_their_work_permissions(string role, bool opens, params string[] expected)
-    {
-        var access = await AccessProbe.AccessAsync(await SignInAsync(role));
-
-        var work = access.Permissions.Where(c => c.StartsWith("work.", StringComparison.Ordinal))
-            .Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(expected, work);
-
-        var module = Assert.Single(access.Modules, m => m.Code == WorkModule.ModuleCode);
-        Assert.Equal(opens, module.Available);
-        Assert.Equal(new WorkModule().UsesSections, module.Sections);
-    }
+    public async Task System_roles_get_exactly_their_work_permissions(string role, bool opens, params string[] expected) =>
+        await ModuleOnlyChecks.RoleGetsExactlyAsync(host, new WorkModule(), role, opens, expected);
 
     /// <summary>
     /// «Справочник не заведён» ≠ «пусто» (<c>SkipWhenBlocked</c>, ТЗ WORK-47, CORE-8). На чистой установке
@@ -234,6 +178,10 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     ///
     /// <para>Адресов у каркаса нет — перевод <c>null</c> в отказ адреса модуля делает его первый потребитель
     /// (<c>work-11</c>); здесь проверено, что на экземпляре без <c>id</c> различать есть чем.</para>
+    ///
+    /// <para>⚠️ Предусловие держит снос ядра до старта (<see cref="WorkOnlyHost" />): между прогонами типы не
+    /// копятся. Внутри прогона его держит правило коллекции — классы, которые заводят справочники, живут на
+    /// своём хосте, а не на этом.</para>
     /// </summary>
     [Fact]
     public async Task Missing_directories_answer_not_set_up_rather_than_empty()
@@ -244,9 +192,8 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         var types = await scope.ServiceProvider.GetRequiredService<AppDbContext>().DocumentTypes
             .Select(t => t.Code).ToListAsync();
         // Предусловие обязано выполняться: с «Персоной» в базе проверка шла бы вхолостую.
-        Assert.DoesNotContain(types, c => string.Equals(c, CoreRecordTypes.PersonCode, StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(CoreRecordTypes.EmployeeCode, types);
-        Assert.DoesNotContain(CoreRecordTypes.WorkTypeCode, types);
+        foreach (var code in new[] { CoreRecordTypes.PersonCode, CoreRecordTypes.EmployeeCode, CoreRecordTypes.WorkTypeCode })
+            Assert.DoesNotContain(types, c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase));
 
         var employees = scope.ServiceProvider.GetRequiredService<IModuleEmployees>();
         Assert.Null(await employees.SearchAsync(null, new DateOnly(2026, 11, 13), 10));
@@ -258,17 +205,20 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         Assert.Null(await workTypes.GetAsync([Guid.NewGuid()]));
         Assert.Contains("Справочник «Вид работы» не заведён", IModuleWorkTypes.NotSetUp, StringComparison.Ordinal);
 
-        var response = await (await SignInAsync(SystemRoles.Admin)).GetAsync("/api/employees");
+        var response = await (await AccessProbe.SignInAsync(host, SystemRoles.Admin, "work")).GetAsync("/api/employees");
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("directory-missing", body.GetProperty("code").GetString());
         Assert.Equal("person-missing", body.GetProperty("reason").GetString());
     }
-
-    private Task<HttpClient> SignInAsync(string role) => AccessProbe.SignInAsync(host, role, "work");
 }
 
-/// <summary>Один хост «только учёт работ» на все классы, которым он нужен (как у счетов и смет).</summary>
+/// <summary>
+/// Один хост «только учёт работ» на все классы, которым он нужен (как у счетов и смет).
+///
+/// <para>⚠️ Класс, который заводит справочники ядра («Персону», единицы), сюда не входит: этот хост —
+/// чистая установка, и на ней проверяется «справочник не заведён».</para>
+/// </summary>
 [CollectionDefinition(Name)]
 public sealed class WorkOnlyCollection : ICollectionFixture<WorkOnlyHost>
 {
@@ -279,10 +229,10 @@ public sealed class WorkOnlyCollection : ICollectionFixture<WorkOnlyHost>
 /// Хост «только учёт работ»: <c>Modules__Enabled=work</c> и своя база «…_work» (как он держится —
 /// <see cref="ModuleOnlyHost" />).
 ///
-/// <para>⚠️ Схема <c>work</c> СНОСИТСЯ до запуска, как у <see cref="PlanOnlyHost" />: без этого проверка
-/// «схема мигрирована при старте» проходила бы на схеме, оставшейся от прошлого прогона, — и с вырезанной
-/// миграцией модуля тоже. Снос — после того, как база занята (<see cref="TestRunDatabase.ClaimAsync" />):
-/// чужой прогон на ней же обязан получить отказ раньше первой правки.</para>
+/// <para>⚠️ До запуска СНОСЯТСЯ и схема <c>work</c>, и схема ядра (ревью PR #1932): хост стартует как
+/// чистая установка. Без сноса ядра база хоста копила бы типы между прогонами, и проверка «справочник не
+/// заведён» зависела бы от того, что осталось с прошлого раза; заодно каждый прогон проверяет порядок
+/// «миграции ядра с нуля, затем модуль» (задача 2.2 change). Стоит секунды: ядро мигрирует с пустой базы.</para>
 /// </summary>
 public sealed class WorkOnlyHost : ModuleOnlyHost
 {
@@ -290,18 +240,5 @@ public sealed class WorkOnlyHost : ModuleOnlyHost
 
     protected override string DatabaseSuffix => "work";
 
-    /// <summary>Снос схемы до старта действительно был — тест опирается на него и проверяет это.</summary>
-    internal bool SchemaDroppedBeforeStart { get; }
-
-    public WorkOnlyHost()
-    {
-        // Task.Run — чтобы ожидание в конструкторе не зависело от контекста синхронизации xUnit.
-        Task.Run(() => TestRunDatabase.ClaimAsync(ConnectionString, ClaimPatience)).GetAwaiter().GetResult();
-
-        using var conn = new NpgsqlConnection(ConnectionString);
-        conn.Open();
-        using var cmd = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {WorkDbContext.SchemaName} CASCADE", conn);
-        cmd.ExecuteNonQuery();
-        SchemaDroppedBeforeStart = true;
-    }
+    protected override IReadOnlyList<string> SchemasDroppedBeforeStart => [WorkDbContext.SchemaName, "public"];
 }
