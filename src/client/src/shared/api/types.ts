@@ -295,6 +295,19 @@ export interface BackupSizeVariant {
   blobCount: number;
   /** Файлы, потерянные хранилищем: в копию они не попадут. */
   missingBlobCount: number;
+  /**
+   * Доля файлов модулей в `blobBytes` (work-05, WORK-35): все модули, чьи данные едут в копии, —
+   * и модуль без файлов, с нулём.
+   */
+  modules: BackupModuleWeight[];
+}
+
+/** Файлы одного модуля в копии — только те, что есть в хранилище. */
+export interface BackupModuleWeight {
+  code: string;
+  title: string;
+  bytes: number;
+  count: number;
 }
 
 export interface BackupSizeEstimate {

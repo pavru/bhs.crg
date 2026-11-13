@@ -32,7 +32,7 @@ public static class ImageDownscaler
     public const int MaxSide = 2400;
 
     /// <summary>Качество JPEG для копий без прозрачности. 90 — предел, за которым размер растёт быстрее пользы.</summary>
-    private const int JpegQuality = 90;
+    internal const int JpegQuality = 90;
 
     /// <summary>Потолок площади: 8000×8000 с запасом покрывает скан A0 при 600 dpi.</summary>
     public const long MaxPixels = 64_000_000;
@@ -81,16 +81,8 @@ public static class ImageDownscaler
         if (longest <= maxSide)
             return new DownscaleResult(null, mimeType, bitmap.Width, bitmap.Height, bitmap.Width, bitmap.Height);
 
-        var scale = (double)maxSide / longest;
-        var width = Math.Max(1, (int)Math.Round(bitmap.Width * scale));
-        var height = Math.Max(1, (int)Math.Round(bitmap.Height * scale));
-
-        // Mitchell, а НЕ SKSamplingOptions.Default (issue #534): Default — это Nearest, то есть
-        // выбрасывание строк и столбцов. На чертеже с линиями в 1 пиксель это уничтожает ровно то,
-        // ради чего мы вообще подбирали порог 2400 px: линия, попавшая на выброшенную строку,
-        // исчезает целиком. Побочно nearest даёт и БОЛЬШИЙ файл — резкие края хуже сжимаются.
-        var sampling = new SKSamplingOptions(SKCubicResampler.Mitchell);
-        using var resized = bitmap.Resize(new SKImageInfo(width, height), sampling);
+        var (width, height) = Fit(bitmap.Width, bitmap.Height, maxSide);
+        using var resized = bitmap.Resize(new SKImageInfo(width, height), Sampling);
         if (resized is null) return new DownscaleResult(null, mimeType, bitmap.Width, bitmap.Height, bitmap.Width, bitmap.Height);
 
         // Прозрачность решает формат, а не исходный тип: PNG без альфы незачем держать PNG'ом, а
@@ -107,6 +99,25 @@ public static class ImageDownscaler
             data.ToArray(),
             hasAlpha ? "image/png" : "image/jpeg",
             width, height, bitmap.Width, bitmap.Height);
+    }
+
+    /// <summary>
+    /// Интерполяция уменьшения — одна на вложения и фото модулей (work-05).
+    ///
+    /// <para>Mitchell, а НЕ <c>SKSamplingOptions.Default</c> (issue #534): Default — это Nearest, то есть
+    /// выбрасывание строк и столбцов. На чертеже с линиями в 1 пиксель это уничтожает ровно то, ради
+    /// чего мы вообще подбирали порог 2400 px: линия, попавшая на выброшенную строку, исчезает целиком.
+    /// Побочно nearest даёт и БОЛЬШИЙ файл — резкие края хуже сжимаются.</para>
+    /// </summary>
+    internal static SKSamplingOptions Sampling => new(SKCubicResampler.Mitchell);
+
+    /// <summary>Размеры, вписанные длинной стороной в <paramref name="maxSide" />; меньшее не увеличивается.</summary>
+    internal static (int Width, int Height) Fit(int width, int height, int maxSide)
+    {
+        var longest = Math.Max(width, height);
+        if (longest <= maxSide) return (width, height);
+        var scale = (double)maxSide / longest;
+        return (Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
     }
 
     /// <summary>

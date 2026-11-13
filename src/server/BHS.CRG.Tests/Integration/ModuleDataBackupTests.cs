@@ -655,6 +655,8 @@ public partial class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAs
     private sealed class InsertsBeforeReading(IModuleSchemaBackup inner, Func<Task> insert)
         : IModuleSchemaBackup
     {
+        public IReadOnlyList<BackupModuleName> Modules => inner.Modules;
+
         public async Task<BackupModuleSchema[]> ReadAsync(
             DbTransaction transaction, List<string> warnings, CancellationToken ct)
         {
