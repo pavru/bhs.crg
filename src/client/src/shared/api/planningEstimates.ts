@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } f
 import { apiClient } from './client';
 import type { DistributionCounts } from './planningDistribution';
 import type { CommonDataEntry } from './types';
+import { directoryMissingOf, type DirectoryMissingRefusal } from './directoryMissing';
 
 /**
  * Сметы модуля «Планирование» (change `plan-09-estimate-ui`, ТЗ PLAN-1, PLAN-2, PLAN-5, PLAN-5.2): сметы
@@ -316,6 +317,12 @@ export function planRefusal(e: unknown): PlanRefusal {
   }
 }
 
+/** Названия видов работ по идентификаторам; `missing` — классификатор не заведён, и карта пуста. */
+export interface WorkTypeNames {
+  names: ReadonlyMap<string, string>;
+  missing: DirectoryMissingRefusal | null;
+}
+
 /**
  * Названия видов работ классификатора — для показа того, что у строки уже стоит (архивные на месте).
  * Классификатор читается целиком: видов в одной смете десятки, и запрос на каждый был бы дороже.
@@ -323,8 +330,18 @@ export function planRefusal(e: unknown): PlanRefusal {
 export function useWorkTypeNames(enabled = true) {
   return useQuery({
     queryKey: ['planning', 'work-type-names'],
-    queryFn: () => apiClient.get<CommonDataEntry[]>('/work-types', { params: { purpose: 'display' } })
-      .then(r => new Map(r.data.map(e => [e.id, e.displayName]))),
+    // Незаведённый классификатор ([WORK-59] [CORE-20.4]) — «названий нет», а не ошибка: строк с видом
+    // работы у такого экземпляра нет, и показывать нечего. Значением — чтобы отказ не повторялся по `retry`.
+    queryFn: async (): Promise<WorkTypeNames> => {
+      try {
+        const r = await apiClient.get<CommonDataEntry[]>('/work-types', { params: { purpose: 'display' } });
+        return { names: new Map(r.data.map(e => [e.id, e.displayName])), missing: null };
+      } catch (e) {
+        const missing = directoryMissingOf(e);
+        if (missing) return { names: new Map(), missing };
+        throw e;
+      }
+    },
     enabled,
     staleTime: 60_000,
   });
