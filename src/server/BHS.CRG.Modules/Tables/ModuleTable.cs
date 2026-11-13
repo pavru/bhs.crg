@@ -128,8 +128,10 @@ public sealed record ModuleTableColumn(
 /// разноски». Зерно не меняется: поле нижнего уровня в верхнем зерне бывает только свёрнутым.</param>
 /// <param name="Requires">Ключ доступа к таблице — право или код модуля. Обязателен.</param>
 /// <param name="Isolation">Вид отбора строк — обязан быть выбран, см. <see cref="ModuleTableIsolation" />.</param>
-/// <param name="Boundary">Текст границы выдачи (ТЗ CORE-24.3) — словами модуля, что именно отдаёт
-/// таблица и кому.</param>
+/// <param name="Boundaries">Граница выдачи (ТЗ CORE-24.3) — словами модуля, что именно отдаёт таблица и
+/// кому: строка на КАЖДЫЙ исход отбора (<see cref="ModuleTableBoundary" />). Таблице без выбора хватает
+/// одной (<see cref="ModuleTableBoundary.Only" />), и служба строк исход тогда может не называть; у таблицы
+/// с несколькими — обязана (<see cref="ModuleTablePage.Outcome" />), иначе чтение отказывает.</param>
 /// <param name="Columns">Системные колонки в порядке показа.</param>
 /// <param name="Reader">Служба модуля, отбирающая строки: реализует <see cref="IModuleTableRows" /> и
 /// зарегистрирована модулем в <c>RegisterServices</c>. Объявленная таблица без зарегистрированной
@@ -154,7 +156,7 @@ public sealed record ModuleTable(
     string Grain,
     string Requires,
     ModuleTableIsolation Isolation,
-    string Boundary,
+    IReadOnlyList<ModuleTableBoundary> Boundaries,
     IReadOnlyList<ModuleTableColumn> Columns,
     Type Reader,
     string? RecordType = null,
@@ -176,7 +178,7 @@ public sealed record ModuleTable(
             problems.Add("не назван параметр доступа (право или код модуля): без него таблица отдавала бы " +
                          "строки всем, кто вошёл");
         if (Isolation == ModuleTableIsolation.Unset) problems.Add("не объявлен вид отбора строк");
-        if (string.IsNullOrWhiteSpace(Boundary)) problems.Add("нет текста границы выдачи");
+        BoundaryProblems(problems);
         // null у ссылочных полей — тоже негодное объявление, а не NullReferenceException без имени
         // таблицы: модуль может собираться без проверки nullable (ревью PR #1130).
         if (Reader is null) problems.Add("не названа служба строк");
@@ -240,4 +242,33 @@ public sealed record ModuleTable(
 
         return problems;
     }
+
+    /// <summary>
+    /// Граница выдачи: хотя бы одна строка, у каждой код и текст, коды различны. Два исхода одного кода
+    /// служба строк различить не может — и подпись досталась бы первому из них наугад.
+    /// </summary>
+    private void BoundaryProblems(List<string> problems)
+    {
+        if (Boundaries is null or { Count: 0 })
+        {
+            problems.Add("нет текста границы выдачи — ни одной строки о том, что именно таблица отдаёт");
+            return;
+        }
+        foreach (var boundary in Boundaries)
+        {
+            if (boundary is null) { problems.Add("в границе выдачи пустое место"); continue; }
+            if (string.IsNullOrWhiteSpace(boundary.Code)) problems.Add("у строки границы выдачи не назван код исхода");
+            if (string.IsNullOrWhiteSpace(boundary.Text))
+                problems.Add($"у исхода «{boundary.Code}» нет текста границы выдачи");
+        }
+        foreach (var twice in Boundaries.Where(b => !string.IsNullOrWhiteSpace(b?.Code))
+                     .GroupBy(b => b.Code, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            problems.Add($"исход «{twice.Key}» границы выдачи объявлен дважды");
+    }
+
+    /// <summary>
+    /// Граница, которую можно назвать БЕЗ строк — в описании таблицы: только если она одна и числа строек
+    /// не просит. Иначе исход известен лишь по ответу службы строк, и угаданная подпись была бы хуже пустой.
+    /// </summary>
+    public string? StaticBoundary => Boundaries is [{ CountsSites: false } only] ? only.Text : null;
 }

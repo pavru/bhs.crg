@@ -110,7 +110,7 @@ public class ModuleTableShortcutTests
     private static ModuleTableShortcut Good() => new("lost", "Потерянные ссылки", "Ссылки", "есть", "Замените запись");
 
     private static ModuleTable Table(params ModuleTableShortcut[] shortcuts) => new(
-        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
         [
             new("Номер", "Номер", ModuleTableColumnKind.Text),
             new("Доля", "Доля", ModuleTableColumnKind.Number, DependsOnFilter: true),

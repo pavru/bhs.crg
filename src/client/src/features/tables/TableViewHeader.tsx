@@ -19,6 +19,7 @@ import {
 import { wholeTableHash, type TableView, type ViewChange } from './tableViewState';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
+import { tableSubtitle } from './tableBoundary';
 
 /** Право заводить и править общие представления (сервер проверяет его сам — здесь только показ). */
 const SHARE = 'core.views.share';
@@ -37,9 +38,11 @@ type Asked = { kind: 'create' } | { kind: 'rename' | 'remove'; saved: SavedTable
  * чужое общее без права не правится — у обоих «Сохранить» нет вовсе, есть «Сохранить как своё».
  * Сервер отказывает и сам (409 «заперто», 403), но до отказа человека не доводим.</p>
  */
-export function TableViewHeader({ address, decl, lookup, view, base, saved, savedProblem, onChange, onLeaving }: {
+export function TableViewHeader({ address, decl, boundary, lookup, view, base, saved, savedProblem, onChange, onLeaving }: {
   address: string;
   decl: TableDeclaration;
+  /** Граница выдачи применившегося исхода — из ответа строк (`tableBoundary`). */
+  boundary: string | null;
   lookup: ViewLookup;
   view: TableView;
   /** От чего отсчитаны изменения: умолчания таблицы либо настройка открытого представления. */
@@ -190,7 +193,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             <Button variant="text" onClick={() => onChange(v => withViewReset(v, base))}>Сбросить</Button>
           </>
         )}
-        subtitle={`Строка — ${decl.grain}. ${decl.boundary.replace(/\.$/, '')}.`} />
+        subtitle={tableSubtitle(decl.grain, boundary)} />
 
       {asked?.kind === 'create' && (
         <SaveViewDialog heading="Сохранить представление" action="Сохранить" share={canShare}

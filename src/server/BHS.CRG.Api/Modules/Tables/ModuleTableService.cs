@@ -1,3 +1,4 @@
+using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Tables;
@@ -71,11 +72,18 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         // только они едут в строках, иначе `?columns=Номер` тащил бы в каждой строке всю таблицу.
         var open = columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
         var shown = marked.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
-        var (query, refusal) = ModuleTableQueries.Build(table.Title, columns, open, shown, request, access.UserId!.Value);
+        // Параметр доступа — тот же, что у межмодульных контрактов (ModuleReadersPort.From): система
+        // сюда не доходит, ворота отказали ей выше, — и службе строк не приходится гадать, кто спросил.
+        var (query, refusal) = ModuleTableQueries.Build(
+            table.Title, columns, open, shown, request, ModuleReadersPort.From(access));
         if (query is null) return (null, columns, refusal);
 
-        var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
-        var page = await reader.ReadAsync(query, ct);
+        var rows = (IModuleTableRows)services.GetRequiredService(table.Reader);
+        var page = await rows.ReadAsync(query, ct);
+
+        // Подпись — ДО строк: данные, которым не нашлось границы выдачи, не отдаются вовсе (ТЗ CORE-24.3).
+        var (boundary, outcome, unsigned) = BoundaryOf(table, page.Outcome);
+        if (unsigned is not null) return (null, columns, unsigned);
 
         // Ключ — у каждой строки или ни у одной: список короче строк сдвинул бы ключи, и панель
         // открыла бы соседнюю строку под именем выбранной.
@@ -112,6 +120,8 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         // обязана стоять в одном месте. Забытое службой значение суммы иначе ушло бы наружу.
         return (Dto(entry, noted, [.. page.Rows.Select(r => Only(r, shown))]) with
         {
+            Boundary = boundary,
+            BoundaryOutcome = outcome,
             Count = page.Count,
             Offset = request.Offset,
             Limit = request.Limit,
@@ -138,7 +148,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         if (opened is null) return (null, denied);
 
         var (entry, table) = (opened.Entry, opened.Entry.Table);
-        return (new(entry.Address, table.Title, table.Grain, table.Boundary, opened.Columns,
+        return (new(entry.Address, table.Title, table.Grain, table.StaticBoundary, opened.Columns,
             opened.Off is null ? null : TableColumnReasons.ModuleOff,
             opened.Off is null ? Views(table) : [],
             // У выключенного модуля строк нет — и вести из них некуда.
@@ -292,7 +302,39 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
     private static TableDto Dto(
         ModuleTableEntry entry, IReadOnlyList<TableColumnDto> columns,
         IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string? state = null) =>
-        new(entry.Address, entry.Table.Title, entry.Table.Grain, entry.Table.Boundary, columns, rows, state);
+        new(entry.Address, entry.Table.Title, entry.Table.Grain, entry.Table.StaticBoundary, columns, rows, state);
+
+    /// <summary>
+    /// Строка границы выдачи применившегося исхода (ТЗ CORE-24.3; work-07) — текст с подставленным числом
+    /// строек и код исхода, либо отказ.
+    ///
+    /// <para><b>Отказ, а не первая строка.</b> Служба, не назвавшая исход у таблицы с несколькими, — ошибка
+    /// модуля, и подписать её данные первой строкой значило бы сказать менеджеру «все отчёты» там, где ему
+    /// отдали четыре стройки. Тот же приём, что у набора данных (<c>SystemDataSetDeclaration.BoundaryFor</c>).</para>
+    /// </summary>
+    internal static (string? Text, string? Code, TableRefusal? Refusal) BoundaryOf(
+        ModuleTable table, ModuleTableOutcome? outcome)
+    {
+        if (outcome is null)
+        {
+            if (table.Boundaries is [{ CountsSites: false } only]) return (only.Text, only.Code, null);
+            return (null, null, Unsigned(table, table.Boundaries.Count > 1
+                ? $"объявлено исходов отбора — {table.Boundaries.Count}, а служба строк не назвала, какой применился"
+                : "граница выдачи ждёт число строек, а служба строк исхода не назвала"));
+        }
+
+        var declared = table.Boundaries.FirstOrDefault(
+            b => string.Equals(b.Code, outcome.Code, StringComparison.OrdinalIgnoreCase));
+        if (declared is null)
+            return (null, null, Unsigned(table, $"служба строк назвала исход «{outcome.Code}», а таблица его не объявляла"));
+        if (declared.CountsSites && outcome.Sites is null)
+            return (null, null, Unsigned(table, $"исход «{declared.Code}» считает стройки, а служба строк их число не назвала"));
+        return (declared.Render(outcome.Sites), declared.Code, null);
+    }
+
+    private static TableRefusal Unsigned(ModuleTable table, string why) => new(StatusCodes.Status409Conflict,
+        $"Таблица «{table.Title}» не отдана: {why}. Данные без подписи не отдаются — человек прочитал бы " +
+        "о них не то, что ему отдали.");
 
     /// <summary>
     /// Вид поля схемы (или базы примитива) → вид колонки. Перечисление, строка, текст — текстом: в

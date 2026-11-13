@@ -34,7 +34,9 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
             ModuleTableIsolation.PerUser => SystemDataSetIsolation.PerUser,
             _ => SystemDataSetIsolation.Unset,
         },
-        [entry.Table.Boundary],
+        // Все строки границы — по исходу каждая (work-07); какая подписала эти данные, говорит результат
+        // чтения (DataSetParseResult.Boundary), и выбирает её ворота набора (BoundaryFor).
+        [.. entry.Table.Boundaries.Select(b => b.Text)],
         ColumnsByRight: entry.Table.Columns.Any(c => c.Requires is not null));
 
     /// <summary>Адрес таблицы — для сторожа объявлений: имя класса у всех таблиц одно.</summary>
@@ -105,7 +107,10 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
             closed.ToDictionary(c => c.Key, c => c.Reason ?? "", StringComparer.Ordinal),
             kept.Where(c => c.Options is not null).ToDictionary(c => c.Key, c => c.Options!, StringComparer.Ordinal));
 
-        return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning), Types: types);
+        // Граница применившегося исхода — та же строка, что у экрана и выгрузки: набор и MCP подписывают
+        // данные ею, а не первой объявленной (ТЗ CORE-24.3).
+        return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning),
+            Boundary: table.Boundary, Types: types);
     }
 
     private static IReadOnlyDictionary<string, string?> Strings(

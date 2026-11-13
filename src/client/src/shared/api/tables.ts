@@ -93,7 +93,11 @@ export interface TableDeclaration {
   address: string;
   title: string;
   grain: string;
-  boundary: string;
+  /**
+   * Граница выдачи (ТЗ CORE-24.3). В описании — только если её можно назвать без строк; у таблицы с
+   * несколькими исходами отбора — null, и подпись приходит с ответом строк (`tableBoundary`).
+   */
+  boundary: string | null;
   columns: TableColumn[];
   /** Состояние таблицы целиком: `module-off` либо null. */
   state: string | null;
@@ -144,6 +148,8 @@ export interface TableData extends TableDeclaration {
    * среди показанных — по ней мог стоять отбор. ⚠️ Пустая выдача с сомнением — не «таких строк нет».
    */
   doubts?: { column: string; label: string; reason: string }[] | null;
+  /** Код применившегося исхода отбора (`own`, `sites`, `all`…); граница его — в `boundary`. */
+  boundaryOutcome?: string | null;
 }
 
 /**

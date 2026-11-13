@@ -298,7 +298,7 @@ public class TableConditionsTests
     public void Описание_без_объявленной_колонки_отказывает_при_сборке_и_называет_её()
     {
         var table = new ModuleTable(
-            "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+            "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
             [
                 new("Номер", "Номер", ModuleTableColumnKind.Text),
                 new("Сумма", "Сумма", ModuleTableColumnKind.Number),
@@ -330,7 +330,7 @@ public class TableConditionsTests
     public void Перечень_колонки_выбора_обязан_совпасть_со_словами_запроса()
     {
         var table = new ModuleTable(
-            "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+            "probe", "Проба", "запись", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
             [new("Вид", "Вид", ModuleTableColumnKind.Choice, Options: ["Первый", "Второй"])],
             typeof(object));
         TableSql<Probe> With(Dictionary<int, string> words) =>
