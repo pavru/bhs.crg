@@ -18,16 +18,23 @@ public class AgentRulesCopyTests
     /// <summary>Начало общего тела. Выше него у каждого файла своя шапка, и это нормально.</summary>
     private const string Anchor = "## Что это за проект";
 
+    /// <summary>
+    /// Якорь ищется ЗАГОЛОВКОМ — целой строкой, а не подстрокой: шапка <c>CLAUDE.md</c> называет его в
+    /// тексте предупреждения, и поиск подстроки однажды начал «тело» с середины шапки — копия
+    /// унаследовала обрывок чужого предупреждения, а тест был зелёным.
+    /// </summary>
+    private const string AnchorLine = "\n" + Anchor + "\n";
+
     [Fact]
     public void AgentsMd_IsVerbatimCopyOfClaudeMd()
     {
         var claude = Read("CLAUDE.md");
         var agents = Read("AGENTS.md");
 
-        Assert.Contains(Anchor, claude);
-        Assert.Contains(Anchor, agents);
+        Assert.Contains(AnchorLine, claude);
+        Assert.Contains(AnchorLine, agents);
 
-        var body = claude[claude.IndexOf(Anchor, StringComparison.Ordinal)..];
+        var body = claude[(claude.IndexOf(AnchorLine, StringComparison.Ordinal) + 1)..];
 
         Assert.True(agents.EndsWith(body, StringComparison.Ordinal),
             "AGENTS.md разошёлся с CLAUDE.md. Это не оформление: агенты, читающие AGENTS.md, " +
