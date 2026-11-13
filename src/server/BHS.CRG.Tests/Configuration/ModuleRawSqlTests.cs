@@ -39,10 +39,9 @@ public class ModuleRawSqlTests
             $"Из снимка модели ядра собрано таблиц: {tables.Count}. Среди них нет ожидаемых — проверка ниже " +
             "не смотрит ни на что.");
 
-        var touch = new Regex(
-            @"\b(?:FROM|INTO|UPDATE|JOIN|TABLE|TRUNCATE)\s+(?:ONLY\s+)?(?:public\.)?\\?""?(" +
-            string.Join('|', tables.Select(Regex.Escape)) + @")\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // Выражение общее с переписью изолированных записей. Схема ядра необязательна: путь поиска базы —
+        // она, и голое имя до таблицы ядра доходит.
+        var touch = SourceTree.SqlTouch("public", schemaOptional: true, tables);
 
         var found = new List<string>();
         foreach (var file in Sources())
@@ -50,7 +49,7 @@ public class ModuleRawSqlTests
             var rel = SourceTree.Relative(file);
             if (Deliberate.ContainsKey(rel)) continue;
 
-            var text = Code(File.ReadAllText(file));
+            var text = SourceTree.WithoutComments(File.ReadAllText(file));
             foreach (Match m in touch.Matches(text))
                 found.Add($"{rel}:{SourceTree.LineOf(text, m.Index)}  {m.Value.Trim()}");
         }
@@ -91,8 +90,4 @@ public class ModuleRawSqlTests
                 Path.Combine(SourceTree.SolutionDir, project), "*.cs", SearchOption.AllDirectories))
             .Where(f => !f.Contains($"{sep}obj{sep}") && !f.Contains($"{sep}bin{sep}"));
     }
-
-    /// <summary>Без строк-комментариев: «обновление из таблицы…» в пояснении — не запрос.</summary>
-    private static string Code(string text) =>
-        string.Join('\n', text.Split('\n').Select(line => line.TrimStart().StartsWith("//") ? string.Empty : line));
 }
