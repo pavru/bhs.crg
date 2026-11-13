@@ -32,18 +32,22 @@ PR 1 Архитектор уточняет форму объявления оч�
 - [x] 1.4 Записать в `docs/UI.md`, раздел «Оболочка», правило «наведение мыши может скрывать только
   ускоритель для действия, у которого есть и видимый вход» (`design.md`, D4) — тем PR из 1.1–1.3, что
   сливается первым. Проверка — ревью PR; строка правила в `docs/UI.md`. Несёт #1913 (`shell-08-home` PR 1): `docs/UI.md`, раздел «Оболочка»
-- [ ] 1.5 Закрыть #1428, когда закрыты #1433, #1435, #1436. Проверка — issue закрыт с перечнем PR
+- [x] 1.5 Закрыть #1428, когда закрыты #1433, #1435, #1436. Проверка — issue закрыт с перечнем PR. #1428 закрыт
+  13.11.2026 (completed); #1433 закрыт 12.11, #1436 — 12.11, #1435 — 13.11. PR детей: #1909, #1915, #1913,
+  #1916, #1925, #1929
 - [x] 1.6 `shell-09-recent-sets-templates` (1) — комплекты и шаблоны в «Недавних» Главной, продолжение
   `shell-08-home` (решение владельца 12.11.2026) [ID-13] [UI-35.1] [CORE-25.3] [CORE-34]. Проверка — change
   заархивирован. Код — #1929, архив 13.11.2026
 
 ## 2. Верификация эпика
 
-- [ ] 2.1 В каждом PR эпика — весь список живых прогонов CI зелёный (`design.md`, D6), а не выборка
-- [ ] 2.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Invoice"` — зелёный в PR, которые трогают сервер
-- [ ] 2.3 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 2.4 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 2.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 2.1 В каждом PR эпика — весь список живых прогонов CI зелёный (`design.md`, D6), а не выборка. Сверено
+  13.11.2026 по `gh pr view`: у #1909, #1915, #1913, #1916, #1925, #1929 все 7 проверок SUCCESS, включая «Живые прогоны (браузер)»
+- [x] 2.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Invoice"` — зелёный в PR, которые трогают сервер
+- [x] 2.3 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 2.4 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 2.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+  (2.2–2.5 идут внутри обязательных проверок «Backend» и «Frontend»; в слитых PR детей обе SUCCESS, см. 2.1)
 
 ## Workflow follow-up
 
