@@ -7,6 +7,7 @@ import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/typ
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { TextField } from '@/shared/ui/TextField';
+import { knownTemplateParams } from './templateRefs';
 
 /**
  * Значения параметров ОДНОГО сфокусированного шаблона на документе. Параметры индивидуальны для
@@ -15,8 +16,9 @@ import { TextField } from '@/shared/ui/TextField';
  * шаблон не участвует в генерации — показываем метку: значения сохранятся, но PDF по нему не создастся.
  * Изменение сбрасывает документ в черновик (влияет на вывод).
  */
-export function DocumentTemplateParams({ setId, instance, template, participating }: {
-  setId: string; instance: DocumentInstance; template: Template; participating: boolean;
+export function DocumentTemplateParams({ setId, instance, template, templates, participating }: {
+  /** Все шаблоны типа: ключи параметров удалённых шаблонов запись не пересылает (issue #1960). */
+  setId: string; instance: DocumentInstance; template: Template; templates: Template[]; participating: boolean;
 }) {
   const setParams = useSetDocumentTemplateParams();
   const allOverrides = useMemo<Record<string, Record<string, unknown>>>(() => {
@@ -28,7 +30,7 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
 
   function commit(nextForTemplate: Record<string, unknown>) {
     // Пустой под-объект шаблона убираем, а если после этого пусто всё — пишем null.
-    const merged = { ...allOverrides, [template.id]: nextForTemplate };
+    const merged = { ...knownTemplateParams(allOverrides, templates), [template.id]: nextForTemplate };
     const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => Object.keys(v).length > 0));
     setParams.mutate({ setId, instanceId: instance.id, params: Object.keys(clean).length ? clean : null });
   }
@@ -73,6 +75,11 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
             );
           })}
         </div>
+      )}
+      {setParams.isError && (
+        <p className="text-body-small text-error">
+          {setParams.error instanceof Error ? setParams.error.message : 'Не удалось сохранить параметры'}
+        </p>
       )}
     </div>
   );

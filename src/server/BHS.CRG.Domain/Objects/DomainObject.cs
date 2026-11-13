@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
@@ -306,15 +307,15 @@ public class DomainObject : Entity
     private string? RepinParamKeys(Func<Guid, Guid?> target)
     {
         if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return null;
-        System.Text.Json.Nodes.JsonObject? obj;
-        try { obj = System.Text.Json.Nodes.JsonNode.Parse(Doc.TemplateParams) as System.Text.Json.Nodes.JsonObject; }
+        JsonObject? obj;
+        try { obj = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
         catch (JsonException) { return null; }
         if (obj is null) return null;
 
         var entries = obj.Select(kv => (kv.Key, kv.Value,
             To: Guid.TryParse(kv.Key, out var id) ? target(id) : null)).ToList();
         if (entries.All(e => e.To is null)) return null;
-        var result = new System.Text.Json.Nodes.JsonObject();
+        var result = new JsonObject();
         foreach (var e in entries
                      .OrderBy(e => e.To is null)
                      .ThenBy(e => e.Key, StringComparer.Ordinal))
@@ -322,6 +323,60 @@ public class DomainObject : Entity
         return result.ToJsonString();
     }
 
+
+    /// <summary>Убирает переопределения параметров удаляемого шаблона (issue #1960): ключ шаблона, которого
+    /// нет, генерация не читает, а клиент пересылал бы его с каждой записью. Пустой объект → null.
+    /// Вывод не меняется — в черновик не сбрасывает. Возвращает, было ли что убирать.</summary>
+    public bool DropTemplateParams(Guid templateId)
+    {
+        if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return false;
+        JsonObject? root;
+        try { root = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
+        catch (JsonException) { return false; }
+        if (root is null || !root.Remove(templateId.ToString())) return false;
+        Doc.TemplateParams = root.Count == 0 ? null : root.ToJsonString();
+        TouchUpdatedAt();
+        return true;
+    }
+    /// <summary>Убирает ссылки на шаблоны вне <paramref name="known"/> (issue #1960): одиночный пин,
+    /// элементы выбора и ключи переопределений (нечитаемые выбор и переопределения — целиком: генерация
+    /// их и так не видит). Пустое → null. Для мест, где отказать некому, — восстановления копии,
+    /// снятой до разовой чистки. Возвращает число убранных ссылок.</summary>
+    public int ForgetUnknownTemplates(IReadOnlySet<Guid> known)
+    {
+        var removed = 0;
+        if (Doc.TemplateId is { } single && !known.Contains(single)) { Doc.TemplateId = null; removed++; }
+        if (!string.IsNullOrWhiteSpace(Doc.TemplateIds))
+        {
+            List<Guid>? ids;
+            try { ids = JsonSerializer.Deserialize<List<Guid>>(Doc.TemplateIds); }
+            catch (JsonException) { ids = null; }
+            var lost = ids is null ? 1 : ids.Count(id => !known.Contains(id));
+            if (lost > 0)
+            {
+                var kept = ids?.Where(known.Contains).Distinct().ToList() ?? [];
+                Doc.TemplateIds = kept.Count == 0 ? null : JsonSerializer.Serialize(kept);
+                removed += lost;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(Doc.TemplateParams))
+        {
+            JsonObject? root;
+            try { root = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
+            catch (JsonException) { root = null; }
+            var dead = root?.Where(p => !(Guid.TryParse(p.Key, out var id) && known.Contains(id)))
+                .Select(p => p.Key).ToList();
+            if (root is null) { Doc.TemplateParams = null; removed++; }
+            else if (dead!.Count > 0)
+            {
+                foreach (var key in dead) root.Remove(key);
+                Doc.TemplateParams = root.Count == 0 ? null : root.ToJsonString();
+                removed += dead.Count;
+            }
+        }
+        if (removed > 0) TouchUpdatedAt();
+        return removed;
+    }
     public void SetTemplateParams(string? json) { Doc.TemplateParams = json; TouchUpdatedAt(); }
     public void UpdatePluginData(JsonDocument pluginData) { Doc.PluginData = pluginData; TouchUpdatedAt(); }
 

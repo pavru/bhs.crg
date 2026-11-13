@@ -11,6 +11,7 @@ import type { DocumentInstance, Template } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from '../fields';
 import { InstanceAuditModal } from './InstanceAuditModal';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
+import { effectiveTemplateOf, knownTemplateIds } from './templateRefs';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -97,14 +98,15 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
    */
   const [localSelection, setLocalSelection] =
     useState<{ from: string | null | undefined; ids: string[] } | null>(null);
-  const selectedTemplateIds = localSelection && localSelection.from === instance.templateIds
+  const storedTemplateIds = localSelection && localSelection.from === instance.templateIds
     ? localSelection.ids
     : parseIdArray(instance.templateIds);
-  // Эффективный шаблон для параметров/дефолт-скачивания: первый выбранный → по умолчанию → первый активный.
-  const effectiveTemplate = activeTemplates.find((t: Template) => t.id === selectedTemplateIds[0])
-    ?? activeTemplates.find((t: Template) => t.id === instance.templateId)
-    ?? activeTemplates.find((t: Template) => t.isDefault)
-    ?? activeTemplates[0];
+  // Только известные шаблоны типа (issue #1960): id удалённого шаблона не показать и не снять, а
+  // сервер запись с ним отвергает. Пока список грузится, известного нет — берём как есть.
+  const selectedTemplateIds = templatesLoading ? storedTemplateIds : knownTemplateIds(storedTemplateIds, templates);
+  // Эффективный шаблон для параметров/дефолт-скачивания: первый действующий из выбранных → пин →
+  // по умолчанию → первый активный (как у предпросмотра).
+  const effectiveTemplate = effectiveTemplateOf(selectedTemplateIds, activeTemplates, instance.templateId);
   // Фокус — какой шаблон сейчас «раскрыт» в блоке параметров (ортогонально членству в генерации).
   // По умолчанию — эффективный; держим фокус при переключении галок, если он ещё валиден.
   // Выбранный человеком фокус держится, пока такой шаблон вообще есть среди активных; иначе
@@ -152,7 +154,14 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       ? [...new Set([...selectedTemplateIds, id])]
       : selectedTemplateIds.filter(x => x !== id);
     setLocalSelection({ from: instance.templateIds, ids: next });
-    setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
+    setError('');
+    setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next }, {
+      // Отказ — отказом: снять оптимистичную галку и сказать почему, иначе показан выбор, которого нет.
+      onError: (err: unknown) => {
+        setLocalSelection(null);
+        setError(err instanceof Error ? err.message : 'Не удалось сохранить выбор шаблонов');
+      },
+    });
   }
 
   const pdfFiles = instance.generatedFiles.filter(f => f.format === 'Pdf');
@@ -187,7 +196,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       </div>
 
       {focusedTemplate && (
-        <DocumentTemplateParams setId={setId} instance={instance} template={focusedTemplate}
+        <DocumentTemplateParams setId={setId} instance={instance} template={focusedTemplate} templates={templates}
           participating={selectedTemplateIds.length === 0 || selectedTemplateIds.includes(focusedTemplate.id)} />
       )}
 
