@@ -10,7 +10,7 @@ namespace BHS.CRG.Api.Endpoints.Core;
 /// <summary>
 /// Справочники ядра, записи которых пишутся СВОЕЙ дверью под своим правом, а общим адресом
 /// справочников — нет (WORK-59). Реестр, а не условие в двери: вторая такая группа — сотрудники
-/// (решение владельца по C15, work-01), третья (варианты работ, work-06) — строка здесь, а не копия
+/// (решение владельца по C15, work-01), третья — варианты работ (work-06): строка здесь, а не копия
 /// отказа. Зеркало на клиенте — <c>OWN_DOORS</c> в
 /// <c>shared/api/commonData.ts</c>.
 ///
@@ -30,6 +30,9 @@ public static class OwnDoorTypes
         // Реквизиты сотрудника правит один экран — «Сотрудники» (решение владельца по C15, 11.11.2026).
         new(CoreRecordTypes.EmployeeCode, EmployeeEndpoints.Door, CorePermissions.EmployeesEdit,
             "Сотрудники", "заводить и править сотрудников"),
+        // Варианты вида работ (WORK-49, work-06) — тем же правом, что и сам классификатор.
+        new(CoreRecordTypes.WorkVariantCode, WorkVariantEndpoints.Door, CorePermissions.WorkTypesEdit,
+            "Варианты вида работ", "вести классификатор видов работ"),
     ];
 
     /// <summary>

@@ -12,10 +12,13 @@ export const WORK_TYPE_CODE = 'ВидРаботы';
 /** Код справочника сотрудников — зеркало серверного `CoreRecordTypes.EmployeeCode`. */
 export const EMPLOYEE_CODE = 'Сотрудник';
 
+/** Код справочника вариантов вида работ — зеркало серверного `CoreRecordTypes.WorkVariantCode` (work-06). */
+export const WORK_VARIANT_CODE = 'ВариантРаботы';
+
 /**
  * Справочники, которые пишутся СВОЕЙ дверью под своим правом (WORK-59), — зеркало серверного
  * `OwnDoorTypes`. Ключ — код КОРНЯ семьи: подтип вида работы — тоже вид работы, и общий адрес сервер
- * отвергает для всей семьи. Вторая такая группа (варианты работ, work-06) — строка здесь и там.
+ * отвергает для всей семьи. Групп три — виды работ, сотрудники и варианты работ (work-06); новая — строка здесь и там.
  */
 const OWN_DOORS: Readonly<Record<string, { base: string; permission: string; screen?: readonly unknown[] }>> = {
   [WORK_TYPE_CODE]: { base: '/work-types', permission: 'core.worktypes.edit' },
@@ -23,6 +26,8 @@ const OWN_DOORS: Readonly<Record<string, { base: string; permission: string; scr
   // живёт своим ключом, и запись формой общих данных обязана сбросить и его: иначе заведённый на экране
   // сотрудник не появлялся бы в списке до перезагрузки (ревью PR #1908).
   [EMPLOYEE_CODE]: { base: '/employees', permission: 'core.employees.edit', screen: EMPLOYEES_KEY },
+  // Варианты вида работ (WORK-49, work-06) — тем же правом, что и сам классификатор; экран — каталог.
+  [WORK_VARIANT_CODE]: { base: '/work-variants', permission: 'core.worktypes.edit' },
 };
 
 const COMMON = { base: '/common-data', permission: 'core.catalog.edit' };

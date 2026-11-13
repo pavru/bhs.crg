@@ -130,30 +130,14 @@ public static class WorkTypeEndpoints
             IServiceScopeFactory scopes, CancellationToken ct) => SetArchiveAsync(id, false, http, m, types, scopes, ct));
     }
 
-    /// <summary>
-    /// Ответ архива несёт НОВУЮ версию: архив её сдвигает, и экран, предлагающий «Вернуть» тостом,
-    /// без неё назвал бы прежнюю — и получил бы отказ на собственное действие.
-    ///
-    /// <para>⚠️ Версия читается в СВЕЖЕЙ области. Архив пишет признак условным обновлением мимо
-    /// отслеживания, а запись, прочитанная выше для сверки, осталась в контексте запроса — повторное
-    /// чтение там отдало бы её же, с прежней версией (поймано тестом).</para>
-    /// </summary>
+    /// <summary>Архив и возврат — общим помощником дверей (<see cref="OwnDoorWrites.SetArchiveAsync" />): ответ несёт новую версию.</summary>
     private static async Task<IResult> SetArchiveAsync(
         Guid id, bool archived, HttpRequest http, IMediator m, IRepository<DocumentType> types,
         IServiceScopeFactory scopes, CancellationToken ct)
     {
         if (await WorkTypeAsync(id, m, types, ct) is not { } entry) return Results.NotFound();
         if (Seen(http, entry, out _) is { } refused) return refused;
-
-        try
-        {
-            var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);
-            using var fresh = scopes.CreateScope();
-            var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);
-            return Results.Ok(new { done.Id, done.DisplayName, done.Archived, done.Changed, version = after?.Version });
-        }
-        catch (NotFoundException) { return Results.NotFound(); }
-        catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+        return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct);
     }
 
     /// <summary>
@@ -169,17 +153,9 @@ public static class WorkTypeEndpoints
         return family is not null && family.ContainsKey(entry.CompositeTypeId) ? entry : null;
     }
 
-    /// <summary>
-    /// Версия, названная заголовком: нет — 400, устарела — 409 словами вида работы. Правка сверяет её ещё
-    /// раз под блокировкой (команда), и опоздавшая правка получает общий текст «запись изменили».
-    /// </summary>
-    private static IResult? Seen(HttpRequest http, DomainObject entry, out string seen)
-    {
-        if (RecordIfMatch.Refuse(http, out seen) is { } refused) return refused;
-        return string.Equals(entry.Version, seen.Trim(), StringComparison.Ordinal)
-            ? null
-            : Results.Conflict(new { error = Moved });
-    }
+    /// <summary>Версия из <c>If-Match</c> — общим помощником дверей, отказ — словами вида работы.</summary>
+    private static IResult? Seen(HttpRequest http, DomainObject entry, out string seen) =>
+        OwnDoorWrites.Seen(http, entry, Moved, out seen);
 
     /// <summary>Совпадает ли вид работы с поиском: код, наименование, название записи, псевдонимы.</summary>
     private static bool Matches(DomainObject entry, string q, WorkTypeKeys keys)

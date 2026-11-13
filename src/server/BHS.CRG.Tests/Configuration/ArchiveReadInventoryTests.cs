@@ -271,7 +271,7 @@ public partial class ArchiveReadInventoryTests
         var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests),
                 typeof(SupplierMatchTests), typeof(SupplierMatchListTests), typeof(SupplierTermsTests),
                 typeof(NomenclatureIntakeTests), typeof(FieldSuggestionTests),
-                typeof(WorkTypeEndpointsTests), typeof(ModuleWorkTypesPortTests),
+                typeof(WorkTypeEndpointsTests), typeof(WorkVariantEndpointsTests), typeof(ModuleWorkTypesPortTests),
                 typeof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests), typeof(BHS.CRG.Tests.Plan.ResourceMatchingTests),
                 typeof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests), typeof(OrganizationShortNamePortTests),
                 typeof(EmployeeAccountLinkTests) }

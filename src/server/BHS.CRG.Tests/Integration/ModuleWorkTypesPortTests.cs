@@ -123,6 +123,67 @@ public class ModuleWorkTypesPortTests(IntegrationTestFixture fixture) : IAsyncLi
         Assert.False(shown.Single(u => u.Id == metre.Id).Archived);
     }
 
+    // ── Варианты вида работ (work-06, [WORK-25] [CORE-20.4]) ──────────────────
+
+    /// <summary>
+    /// Вид без вариантов — пустой список, а не отказ; архивный вариант — с признаком, а не пропуском;
+    /// варианты чужого вида к этому виду не попадают.
+    /// </summary>
+    [Fact]
+    public async Task Вид_отдаёт_свои_варианты_архивный_с_признаком()
+    {
+        var variants = new WorkVariantSeed(fixture);
+        var (variantType, cable, wire) = await variants.SetUpAsync();
+        var tray = await variants.VariantAsync(variantType, cable, "в лотке");
+        var pipe = await variants.VariantAsync(variantType, cable, "в трубе");
+        await seed.ArchiveAsync(pipe.Id);
+
+        var got = (await Port<IModuleWorkTypes>().GetAsync([cable.Id, wire.Id]))!;
+
+        var cableVariants = got.Single(w => w.Id == cable.Id).Variants;
+        Assert.Equal([tray.Id, pipe.Id], cableVariants.Select(v => v.Id));
+        Assert.False(cableVariants[0].Archived);
+        Assert.True(cableVariants[1].Archived);
+        Assert.Equal("в трубе", cableVariants[1].Name);
+        Assert.Empty(got.Single(w => w.Id == wire.Id).Variants);
+        // Поиск на выбор несёт те же варианты: отделять живые — дело модуля, признак у него есть.
+        Assert.Equal(2, Assert.Single((await Port<IModuleWorkTypes>().SearchAsync("01.02", 10))!.Items).Variants.Count);
+    }
+
+    /// <summary>
+    /// Чей это вариант: пара «вид работы А, вариант вида Б» распознаётся по ответу порта, — по нему
+    /// модуль отвергает строку отчёта. Неизвестный идентификатор в ответ не попадает.
+    /// </summary>
+    [Fact]
+    public async Task Порт_называет_вид_владельца_варианта()
+    {
+        var variants = new WorkVariantSeed(fixture);
+        var (variantType, cable, wire) = await variants.SetUpAsync();
+        var tray = await variants.VariantAsync(variantType, cable, "в лотке");
+
+        var got = Assert.Single((await Port<IModuleWorkTypes>().GetVariantsAsync([tray.Id, Guid.NewGuid()]))!);
+
+        Assert.Equal(cable.Id, got.WorkTypeId);
+        Assert.True(got.BelongsTo(cable.Id));
+        Assert.False(got.BelongsTo(wire.Id));
+    }
+
+    /// <summary>
+    /// Справочника вариантов нет — «не заведён» (<c>null</c>), а не «вариантов нет»; у видов работ при
+    /// этом пустые списки: сам вид читается и без вариантов.
+    /// </summary>
+    [Fact]
+    public async Task Без_справочника_вариантов_не_заведён_а_у_видов_пусто()
+    {
+        Assert.Null(await Port<IModuleWorkTypes>().GetVariantsAsync([Guid.NewGuid()]));
+
+        var (unit, type) = await seed.ClassifierAsync();
+        var work = await seed.RecordAsync(type.Id, "Монтаж", WorkTypeSeed.WorkTypeData("01", "Монтаж", await seed.RecordAsync(unit.Id, "шт")));
+
+        Assert.Null(await Port<IModuleWorkTypes>().GetVariantsAsync([Guid.NewGuid()]));
+        Assert.Empty(Assert.Single((await Port<IModuleWorkTypes>().GetAsync([work.Id]))!).Variants);
+    }
+
     /// <summary>Порт из своей области — как его получает модуль на запросе.</summary>
     private TPort Port<TPort>() where TPort : notnull
     {

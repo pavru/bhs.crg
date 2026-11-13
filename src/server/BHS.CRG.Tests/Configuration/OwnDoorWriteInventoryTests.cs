@@ -5,7 +5,7 @@ namespace BHS.CRG.Tests.Configuration;
 
 /// <summary>
 /// Перепись мест, которые пишут записи общих данных командами: каждое либо само дверь справочника со
-/// своим правом (<c>OwnDoorTypes</c>, сейчас — виды работ), либо отвергает его записи
+/// своим правом (<c>OwnDoorTypes</c>: виды работ, сотрудники, варианты работ), либо отвергает его записи
 /// (<c>OwnDoorTypes.RefuseCommonPathAsync</c> выше команды), либо названо исключением с причиной,
 /// почему записи такого справочника до него не доходят (WORK-59, риск из design.md plan-03).
 ///
@@ -31,6 +31,9 @@ public class OwnDoorWriteInventoryTests
     [
         "BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs",
         "BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs",
+        "BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs",
+        // Общий помощник дверей видов работ и вариантов: архив зовут только они, найдя запись своей семьи.
+        "BHS.CRG.Api/Endpoints/Core/OwnDoorWrites.cs",
     ];
 
     /// <summary>Сколько строк выше команды ищется отказ.</summary>
@@ -49,7 +52,12 @@ public class OwnDoorWriteInventoryTests
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand("] = Door,
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand("] = Door,
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id), ct); return Results.NoContent(); }"] = Door,
-        ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);"] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/OwnDoorWrites.cs|var done = await m.Send(new SetRecordArchiveCommand(id, archived), ct);"] = Door,
+
+        // Дверь вариантов вида работ (work-06): своя семья, и правило записи варианта — её.
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var created = await m.Send(new CreateCommonDataEntryCommand("] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var updated = await m.Send(new UpdateCommonDataEntryCommand("] = Door,
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|try { await m.Send(new DeleteCommonDataEntryCommand(id), ct); return Results.NoContent(); }"] = Door,
 
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand("] = Refuses,
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand("] = Refuses,
