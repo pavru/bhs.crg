@@ -268,14 +268,15 @@ public class TemplateHandlers(
         return acc.ToDictionary(kv => kv.Key, kv => new TemplateUsage(kv.Value.Count, kv.Value.Names));
     }
 
+    /// <summary>Шаблон, который возьмёт документ типа без выбора (D7, [ID-3]): тот же запасной выбор,
+    /// что у генерации, а не первая попавшаяся действующая строка.</summary>
     public async Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
-    {
-        var matches = await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId && t.IsActive, ct);
-        return matches.FirstOrDefault();
-    }
+        => Generation.TemplateChoice.Fallback(await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct));
 
-    public Task<IReadOnlyList<Template>> Handle(ListTemplatesQuery q, CancellationToken ct)
-        => repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct);
+    /// <summary>Шаблоны типа в порядке запасного выбора (D6, [ID-3]): тогда «первый действующий» формы
+    /// генерации на клиенте — тот же, что возьмёт сервер.</summary>
+    public async Task<IReadOnlyList<Template>> Handle(ListTemplatesQuery q, CancellationToken ct)
+        => Generation.TemplateChoice.Order(await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct));
 
     public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {

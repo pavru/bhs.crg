@@ -26,12 +26,6 @@ public class GenerateDocumentHandler(
     INotificationService notifications
 ) : IRequestHandler<GenerateDocumentCommand, IReadOnlyList<GeneratedFile>>
 {
-    private static List<Guid> ParseGuidList(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        try { return JsonSerializer.Deserialize<List<Guid>>(json) ?? []; } catch { return []; }
-    }
-
     public async Task<IReadOnlyList<GeneratedFile>> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(cmd.InstanceId, ct)
@@ -45,24 +39,11 @@ public class GenerateDocumentHandler(
         {
             var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct)).ToList();
 
-            // Список шаблонов для генерации: выбранный НАБОР (мульти-шаблоны) или один эффективный
-            // (явно выбранный → по умолчанию → первый активный) — как раньше при пустом наборе.
-            var selectedIds = ParseGuidList(instance.TemplateIds);
-            List<Template> templates;
-            if (selectedIds.Count > 0)
-            {
-                templates = candidates.Where(t => selectedIds.Contains(t.Id) && t.IsActive).ToList();
-                if (templates.Count == 0)
-                    throw new ConflictException("Ни один из выбранных шаблонов не активен.");
-            }
-            else
-            {
-                var single = (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
-                    ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
-                    ?? candidates.FirstOrDefault(t => t.IsActive)
-                    ?? throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
-                templates = [single];
-            }
+            // Шаблоны выпуска — общим правилом с предпросмотром и отладочным пакетом (TemplateChoice,
+            // [ID-3]): выбранный набор в порядке выбора, иначе один эффективный.
+            var templates = TemplateChoice.For(instance, candidates);
+            if (templates.Count == 0)
+                throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
 
             // Контекст и все проверки — тем же кодом, что у предпросмотра, проверки документа и
             // отладочного пакета (D1). Генерация отказывает на ошибке в ЛЮБОЙ корзине: незаполненное

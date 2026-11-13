@@ -58,7 +58,7 @@ public static class GenerationEndpoints
             }
         });
 
-        // Живой предпросмотр (issue #193): рендер ДЕФОЛТНОГО шаблона на переданных (несохранённых)
+        // Живой предпросмотр (issue #193): рендер шаблона генерации (TemplateChoice) на переданных (несохранённых)
         // реквизитах в PDF. Эфемерно — ничего не персистит. PDF → 200 application/pdf;
         // нет шаблона → 200 {noTemplate:true}; ошибка резолва/Typst → 422 {error, diagnostics}.
         g.MapPost("/preview/{instanceId:guid}", async (

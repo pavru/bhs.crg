@@ -30,14 +30,14 @@ public class GetGenerationDebugBundleHandler(
         var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);
         if (instance is null) return null;
 
-        // Тот же выбор шаблона, что и в GenerateDocumentHandler.
+        // Пакет отлаживает то, что выпустит генерация: первый из её шаблонов, общим правилом
+        // (TemplateChoice, [ID-3]). Прежде пакет не читал выбранный набор и брал «первый активный» без
+        // порядка — после восстановления копии он отдавал другой шаблон (issue #1401).
         var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
-        Template? template = null;
-        if (instance.TemplateId.HasValue)
-            template = await templateRepo.GetByIdAsync(instance.TemplateId.Value, ct);
-        template ??= candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
-            ?? candidates.FirstOrDefault(t => t.IsActive)
-            ?? throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
+        var chosen = TemplateChoice.For(instance, candidates);
+        if (chosen.Count == 0)
+            throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
+        var template = chosen[0];
 
         // Контекст и запрос — тем же кодом, что у генерации (D1, D2). Пакет не останавливается ни на
         // одной корзине: отлаживают как раз документы, которые генерация не выпустит, — а её ошибки
