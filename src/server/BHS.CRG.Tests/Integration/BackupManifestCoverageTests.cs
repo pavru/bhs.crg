@@ -139,7 +139,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         [nameof(BHS.CRG.Modules.Plan.Data.PlanDbContext)] =
             "схема целиком, секцией ModuleData манифеста — как у счетов (сметы, редакции, строки, plan-06)",
         [nameof(BHS.CRG.Modules.Work.Data.WorkDbContext)] =
-            "схема целиком, секцией ModuleData манифеста — как у счетов; таблиц у каркаса ещё нет (work-10)",
+            "схема целиком, секцией ModuleData манифеста — как у счетов (назначения, work-11)",
     };
 
     /// <summary>

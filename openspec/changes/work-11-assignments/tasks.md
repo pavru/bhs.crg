@@ -17,50 +17,50 @@
 
 ## 2. Назначения в модуле
 
-- [ ] 2.1 `Data/Assignment.cs`, `WorkDbContext` и миграция
+- [x] 2.1 `Data/Assignment.cs`, `WorkDbContext` и миграция
   `dotnet ef migrations add Assignments --project src/server/BHS.CRG.Modules.Work --context WorkDbContext`;
   проверка в базе «конец null только у `manager`» [WORK-21] [WORK-46]. Проверка — на пересозданной базе
   миграция применяется; вставка `installer` без конца отвергается базой
-- [ ] 2.2 `Access/AssignmentGate.cs` — право по стройке (`work.assignment.edit` + действующее назначение «менеджер»
+- [x] 2.2 `Access/AssignmentGate.cs` — право по стройке (`work.assignment.edit` + действующее назначение «менеджер»
   или `work.sites.all`) [WORK-21] [WORK-46]. Проверка — тест: чужая стройка — 403; с `work.sites.all` —
   успех; учётная запись без сотрудника — 403 с причиной
-- [ ] 2.3 Адреса `GET/POST /api/work/assignments`, `PUT/DELETE /api/work/assignments/{id}` с `If-Match`
+- [x] 2.3 Адреса `GET/POST /api/work/assignments`, `PUT/DELETE /api/work/assignments/{id}` с `If-Match`
   через `SeenVersion`, отказ сменить сотрудника, стройку или вид [WORK-21] [AUTH-8] [AUTH-9]. Проверка —
   тесты: без `If-Match` — 400, устаревшая версия — 409, монтажник без `work.assignment.edit` — 403, хост без `work`
   — 501; `EndpointGateInventoryTests` зелёный
-- [ ] 2.4 Признаки `canAssign`, `canChange`, `canRemove` с причиной в ответе чтения назначений — от
+- [x] 2.4 Признаки `canAssign`, `canChange`, `canRemove` с причиной в ответе чтения назначений — от
   `AssignmentGate` [WORK-21] [WORK-46]. Проверка — тест: для каждого из трёх случаев (своя стройка, чужая,
   последний менеджер) признак совпадает с ответом пишущего адреса
-- [ ] 2.5 Проверки назначения: пересечение на той же стройке того же вида — 409 с периодом; сотрудник
+- [x] 2.5 Проверки назначения: пересечение на той же стройке того же вида — 409 с периодом; сотрудник
   уволен, не принят или в архиве на часть периода — 422 с причиной; `manager` без учётной записи — 422;
   последнее назначение «менеджер» снимает только `work.sites.all` [WORK-21] [WORK-27] [WORK-46].
   Проверка — по тесту на каждый отказ; две стройки в один день — успех
-- [ ] 2.6 `GET /api/work/assignments/candidates` (`eligible`, `reason`) и `POST /api/work/assignments/bulk`
+- [x] 2.6 `GET /api/work/assignments/candidates` (`eligible`, `reason`) и `POST /api/work/assignments/bulk`
   «всё или ничего» [WORK-21]. Проверка — тест: пачка с одним уволенным даёт 422 с его именем, ни одного
   назначения не заведено
-- [ ] 2.7 Объявления ссылок в `WorkReferences.cs` на сотрудника и стройку [CORE-34.1]. Проверка — тест:
+- [x] 2.7 Объявления ссылок в `WorkReferences.cs` на сотрудника и стройку [CORE-34.1]. Проверка — тест:
   удаление сотрудника с тремя назначениями — отказ «назначения: 3»; `ModuleReferenceInventoryTests` зелёный
-- [ ] 2.8 Действия `work.assignment.*` в журнал ядра через `IModuleActivityLog` [CORE-28]. Проверка —
+- [x] 2.8 Действия `work.assignment.*` в журнал ядра через `IModuleActivityLog` [CORE-28]. Проверка —
   тест: снятие оставляет запись с прежним периодом; `ActivityLogInventoryTests` зелёный
 
 ## 3. Свои стройки и разрешение доступа
 
-- [ ] 3.1 `GET /api/work/sites/mine?date=` — назначенные стройки с `today` и `boundary` («ваши стройки
+- [x] 3.1 `GET /api/work/sites/mine?date=` — назначенные стройки с `today` и `boundary` («ваши стройки
   (N)», `reason: not-assigned`) [WORK-24] [WORK-8] [CORE-24.3]. Проверка — тест: из 40 строек приходят
   две назначенные; без назначений — `not-assigned`; Владивосток в 20:00 по Москве даёт `today` = завтра
-- [ ] 3.2 `Access/ManagerSites.cs` отвечает охватом `ModuleReach` (`work-07`) из действующих назначений
+- [x] 3.2 `Access/ManagerSites.cs` отвечает охватом `ModuleReach` (`work-07`) из действующих назначений
   «менеджер»; `work.sites.all` — `All` [WORK-46] [WORK-39] [WORK-40]. Проверка — тест: после снятия
   назначения следующий запрос стройку не видит; открытый конец действует на любую дату после начала
-- [ ] 3.4 «Справочник не заведён» — 409 `directory-missing` у адресов, читающих сотрудников; каркасные
+- [x] 3.4 «Справочник не заведён» — 409 `directory-missing` у адресов, читающих сотрудников; каркасные
   переписи (`WorkOnlyHostTests`, `BackupManifestCoverageTests`) переведены на первую таблицу и первую
   дверь (сверка с master, design). Проверка — тест на хосте «только `work`» без «Персоны»
-- [ ] 3.3 `docs/ADMIN_GUIDE.md`: кто назначает, что даёт `work.sites.all`, почему менеджер должен быть
+- [x] 3.3 `docs/ADMIN_GUIDE.md`: кто назначает, что даёт `work.sites.all`, почему менеджер должен быть
   связан с учётной записью; `cd docs/tools && npm run toc`. Проверка — проверка «Frontend» (содержание)
   зелёная
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Assignment|FullyQualifiedName~ModuleClock|FullyQualifiedName~ModuleEmployees|FullyQualifiedName~ModuleConstructions|FullyQualifiedName~ActivityLogInventory|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Costs"` — зелёный
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Assignment|FullyQualifiedName~ModuleClock|FullyQualifiedName~ModuleEmployees|FullyQualifiedName~ModuleConstructions|FullyQualifiedName~ActivityLogInventory|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~Costs"` — зелёный
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

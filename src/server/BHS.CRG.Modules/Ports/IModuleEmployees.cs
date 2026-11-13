@@ -67,6 +67,13 @@ public sealed record ModuleEmployeeAccount(ModuleAccountState State, Guid? UserI
 /// </summary>
 public interface IModuleEmployees
 {
+    /// <summary>
+    /// Код отказа «справочник не заведён» — один у двери сотрудников ядра и у адресов модулей, читающих
+    /// сотрудников (<c>work-11-assignments</c>): две константы одного кода однажды разошлись бы, и клиент
+    /// перестал бы узнавать один из отказов (D1 <c>core-work-types-not-set-up</c>).
+    /// </summary>
+    const string NotSetUpCode = "directory-missing";
+
     /// <summary>Что сказать человеку, когда порт ответил <c>null</c>.</summary>
     const string NotSetUp =
         "Справочник «Сотрудник» не заведён: на экземпляре нет справочника лиц («Персона»), от которого он " +
