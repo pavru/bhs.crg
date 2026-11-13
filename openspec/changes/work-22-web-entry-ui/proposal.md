@@ -49,7 +49,9 @@
     `WorkTypePicker.tsx`, `MaterialPicker.tsx`, `PhotoGallery.tsx`;
   - правки `shared/ui/Calendar.tsx`, `DateInput.tsx`, `DateField.tsx` (проп «сегодня»), `navConfig.ts`,
     `paletteActions.ts`.
-- **Сервер:** не меняется. Адреса несут `work-11`, `work-13`, `work-14`, `work-15`, `work-17`.
+- **Сервер:** адреса несут `work-11`, `work-13`, `work-14`, `work-15`, `work-17`. Здесь — одна правка:
+  роль «Монтажник» без `ReferenceReads` в `Auth/SystemRoles.cs` (решение владельца 13.11.2026, задача 2.9),
+  поэтому идёт весь backend.
 - **Живой прогон:** `src/client/e2e/work-entry-smoke.mjs`.
 - **Документы:** `docs/USER_GUIDE.md`, содержание (`npm run toc` в `docs/tools`).
 - **Макеты:** раунд Р3 — три варианта и выбор владельца до кода.
