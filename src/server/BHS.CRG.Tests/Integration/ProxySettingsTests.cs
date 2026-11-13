@@ -131,7 +131,7 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
         Assert.Contains("Туннель не проверяли", answer.GetProperty("message").GetString()!);
-        Assert.Equal(1, listener.Accepted);
+        Assert.Equal(1, await listener.AcceptedAsync(1));
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var answer = await CheckAsync(new { url = listener.Url });
 
         Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
-        Assert.Equal(1, listener.Accepted);
+        Assert.Equal(1, await listener.AcceptedAsync(1));
     }
 
     [Fact]
@@ -198,6 +198,19 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         public string Url => $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}";
         public int Accepted => Volatile.Read(ref _accepted);
+
+        /// <summary>
+        /// Сколько принято, когда принятых стало <paramref name="expected" /> (или вышел срок).
+        /// Соединение принимает ядро, и проверка узнаёт об успехе раньше, чем цикл приёма дойдёт до
+        /// счётчика: под нагрузкой, рядом с другими потоками тестов, прочитанный сразу счётчик
+        /// отставал на единицу (CI, PR #1946). Ноль так не ждут — его подтверждает только срок.
+        /// </summary>
+        public async Task<int> AcceptedAsync(int expected)
+        {
+            var until = DateTime.UtcNow.AddSeconds(5);
+            while (Accepted < expected && DateTime.UtcNow < until) await Task.Delay(20);
+            return Accepted;
+        }
 
         public Listener()
         {
