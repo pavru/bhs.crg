@@ -1,11 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import type { FileKind } from '@/shared/api/fileKinds';
-import { emptyDropTail, selectHint } from './invoiceDropWords';
+import type { FileKind, FileKindsInfo } from '@/shared/api/fileKinds';
+import { dropInvited, fromFileTitle, selectHint } from './invoiceDropWords';
+import { emptyText } from './invoiceQueues';
 
 /** Слова о броске до броска (shell-07-scan-drop-hint, [COST-8] [COST-31]): правдивы о месте, форматах и праве. */
 
-const kind = (label: string) => ({ label } as FileKind);
+const kind = (label: string, recognized = true) => ({ label, recognized } as FileKind);
 const KINDS = [kind('PDF'), kind('PNG'), kind('JPEG'), kind('Excel'), kind('Excel'), kind('Word')];
+const info = (kinds: FileKind[]) => ({ kinds } as FileKindsInfo);
+
+describe('звать ли к броску', () => {
+  const base = { canEdit: true, coarse: false, info: info(KINDS) };
+
+  it('право, мышь и распознаваемые виды — зовём', () => {
+    expect(dropInvited(base)).toBe(true);
+  });
+
+  it('реестр ещё не пришёл — зовём: бросок примут, перечень допишется', () => {
+    expect(dropInvited({ ...base, info: undefined })).toBe(true);
+  });
+
+  it('без права, на касании (планшет любой ширины) и когда не распознаётся ничего — не зовём', () => {
+    expect(dropInvited({ ...base, canEdit: false })).toBe(false);
+    expect(dropInvited({ ...base, coarse: true })).toBe(false);
+    expect(dropInvited({ ...base, info: info([kind('PDF', false), kind('Word', false)]) })).toBe(false);
+  });
+});
 
 describe('описание «Выберите счёт»', () => {
   it('называет форматы реестра в скобках и исход', () => {
@@ -19,27 +39,28 @@ describe('описание «Выберите счёт»', () => {
     expect(text).not.toContain('(');
   });
 
-  it('без права описания нет: ни «перетащите», ни «заведите»', () => {
+  it('не зовём — описания нет: ни «перетащите», ни «заведите»', () => {
     expect(selectHint(false, KINDS)).toBeUndefined();
   });
 });
 
-describe('хвост пустого списка', () => {
-  const base = { canEdit: true, wide: true, queue: null, query: '' };
+describe('подсказка «Счёт из файла» — тот же перечень', () => {
+  it('с реестром — через двоеточие, без него — без перечня', () => {
+    expect(fromFileTitle(KINDS)).toBe('Один или несколько файлов: PDF, PNG, JPEG, Excel и Word. Файлы можно перетащить в окно.');
+    expect(fromFileTitle([])).toBe('Один или несколько файлов. Файлы можно перетащить в окно.');
+  });
+});
 
-  it('без отбора и поиска на рабочем столе — о броске в окно', () => {
-    expect('Счетов пока нет.' + emptyDropTail(base))
+describe('пустой список', () => {
+  it('без отбора и поиска, когда зовём, — о броске в окно', () => {
+    expect(emptyText(null, '', undefined, true))
       .toBe('Счетов пока нет. Перетащите файлы счетов в окно или нажмите «Счёт из файла».');
+    expect(emptyText(null, '  ', undefined, true)).toContain('Перетащите');
   });
 
-  it('под отбором, поиском, без права и на телефоне — ничего', () => {
-    expect(emptyDropTail({ ...base, queue: 'parsing' })).toBe('');
-    expect(emptyDropTail({ ...base, query: 'КабельТорг' })).toBe('');
-    expect(emptyDropTail({ ...base, canEdit: false })).toBe('');
-    expect(emptyDropTail({ ...base, wide: false })).toBe('');
-  });
-
-  it('пробелы в поиске — не поиск', () => {
-    expect(emptyDropTail({ ...base, query: '  ' })).not.toBe('');
+  it('не зовём, под отбором или поиском — без слов о броске', () => {
+    expect(emptyText(null, '', undefined)).toBe('Счетов пока нет.');
+    expect(emptyText('parsing', '', undefined, true)).not.toContain('Перетащите');
+    expect(emptyText(null, 'КабельТорг', undefined, true)).toBe('Ничего не найдено.');
   });
 });

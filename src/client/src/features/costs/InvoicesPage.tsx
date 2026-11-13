@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useComposedSearchParams } from '@/shared/hooks/useComposedSearchParams';
 import { useRecentTouch } from '@/shared/hooks/useRecentTouch';
-import { WIDE, useMedia } from '@/shared/hooks/useMedia';
+import { COARSE, useMedia } from '@/shared/hooks/useMedia';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarClock, Description, LinkIcon, Sell } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
@@ -29,7 +29,7 @@ import {
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
 import { useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
-import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { acceptOf, recognizedKinds, useFileKinds } from '@/shared/api/fileKinds';
 import { useInvoiceFileIntake } from './useInvoiceFileIntake';
 import { UNCHECKED_NOTE } from './scanIntake';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -46,7 +46,7 @@ import {
   type HeldRow, type QueueExit, type QueueTrace,
 } from './invoiceQueues';
 import { InvoiceScanBatchBar } from './InvoiceScanBatchBar';
-import { emptyDropTail, selectHint } from './invoiceDropWords';
+import { dropInvited, fromFileTitle as fromFileWords, selectHint } from './invoiceDropWords';
 import { useQueueFilter } from './useQueueFilter';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
 import { InvoiceFileButton, type FileShow } from './InvoiceFileButton';
@@ -452,7 +452,7 @@ export function InvoicesPage() {
   };
   const canEdit = hasPermission(access, 'costs.invoice.edit');
   // О броске до броска говорят пустые состояния (shell-07): цель — всё окно, отдельного места под неё нет.
-  const wide = useMedia(WIDE);
+  const invited = dropInvited({ canEdit, coarse: useMedia(COARSE), info: kinds.data });
   const actions = pageActions({
     articles: hasPermission(access, 'costs.articles.edit'), edit: canEdit, creating: create.isPending,
     onArticles: () => setArticlesOpen(true), onMatches: () => setMatchesOpen(true),
@@ -465,7 +465,7 @@ export function InvoicesPage() {
       onShowAll={() => setFilter(null)} onRetry={() => retryRejected(intake.port)} onOpen={switchTo}
       onAccept={print => acceptHeld(print, intake.port)} />
   );
-  const fromFileTitle = `Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить в окно.`;
+  const fromFileTitle = fromFileWords(readable);
   // При открытом счёте вход — в сводке, всегда (D7 у 14): в шапке списка его нет, кнопка не прыгает по ширине.
   const fromFile = canEdit
     ? <FromFileButton loading={loading} title={fromFileTitle} onClick={() => scanInput.current?.click()} />
@@ -563,7 +563,8 @@ export function InvoicesPage() {
             {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && !(onlyUpload && catchingUp)
               && !(filter === null && (query.trim() ? sites.foundHidden : sites.hidden) > 0) && (
               <div className="px-3 py-2 text-body-small text-on-surface-variant space-y-1">
-                <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues) + emptyDropTail({ canEdit, wide, queue, query })}</p>
+                {/* «Нажмите «Счёт из файла»» — только без открытого счёта: при нём кнопки с этой подписью нет, вход — значком. */}
+                <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues, invited && selected === null)}</p>
                 {(onlyUpload || (queue && !query.trim())) && (
                   <button type="button" className="underline hover:text-on-surface" onClick={() => setFilter(null)}>
                     Показать все счета
@@ -601,7 +602,7 @@ export function InvoicesPage() {
         opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
             <EmptyState icon={<Icon icon={Description} size={40} />} title="Выберите счёт"
-              description={selectHint(canEdit, readable)} />
+              description={selectHint(invited, readable)} />
           </div>
         ) : opened.kind === 'loading' ? (
           <div className="flex-1 grid place-items-center text-body-small text-on-surface-variant">Счёт загружается…</div>
