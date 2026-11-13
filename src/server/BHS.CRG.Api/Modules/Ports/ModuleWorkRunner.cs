@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Api.Activity;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
@@ -115,15 +116,29 @@ internal sealed record ModuleWork(string Operation, string? Body)
 /// контракты модулей сослаться не может — модулем считается любой проект, сославшийся на них.
 /// Поэтому цикл знает только «есть кому выполнить», а кто именно — известно здесь, где и без того
 /// перечислены модули.</para>
+///
+/// <para><b>Задача такта</b> (ТЗ WORK-41, work-08) — от имени системы с названием такта: записи журнала,
+/// сделанные в ней, подписаны «Система — <c>такт</c>» (<see cref="SystemActivityScope" />). Узнаётся она
+/// по цели, операции и пустому владельцу (<see cref="ModuleTickCatalog.Find" />) — ЗДЕСЬ, одно на систему:
+/// параметр доступа той же задачи (<see cref="ModuleReadersPort" />) берёт название из того же окружения.</para>
 /// </summary>
-public sealed class ModuleWorkRunner(IEnumerable<IModuleJobHandler> handlers) : IModuleWorkRunner
+public sealed class ModuleWorkRunner(IEnumerable<IModuleJobHandler> handlers, ModuleTickCatalog ticks)
+    : IModuleWorkRunner
 {
-    public Task RunAsync(Guid jobId, Guid targetId, Guid userId, string? payload,
+    public async Task RunAsync(Guid jobId, Guid targetId, Guid userId, string? payload,
         Func<string, int, int, Task> report, CancellationToken ct)
     {
         var work = ModuleWork.Unwrap(jobId, payload);
         var handler = ModuleWork.EnsureHandled(work.Operation, handlers);
+        var run = new ModuleJobRun(jobId, targetId, userId, work.Body, report);
 
-        return handler.RunAsync(new ModuleJobRun(jobId, targetId, userId, work.Body, report), ct);
+        if (ticks.Find(targetId, work.Operation, userId) is not { } tick)
+        {
+            await handler.RunAsync(run, ct);
+            return;
+        }
+
+        using (SystemActivityScope.Begin(tick.Tick.Title))
+            await handler.RunAsync(run, ct);
     }
 }

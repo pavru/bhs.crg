@@ -49,25 +49,11 @@ public class BackupScheduleService(
     /// </summary>
     private static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(2);
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        try { await Task.Delay(StartDelay, ct); } catch (OperationCanceledException) { return; }
-
-        using var timer = new PeriodicTimer(Tick);
-        do
-        {
-            try { await TickAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (Exception ex) { logger.LogWarning(ex, "Сбой цикла планового копирования"); }
-        }
-        while (await SafeWait(timer, ct));
-    }
-
-    private static async Task<bool> SafeWait(PeriodicTimer t, CancellationToken ct)
-    {
-        try { return await t.WaitForNextTickAsync(ct); }
-        catch (OperationCanceledException) { return false; }
-    }
+    // Цикл — общий (PeriodicLoop): тайм-аут базы на шаге — сбой шага, а не конец расписания. Часы
+    // таймера — системные, как и были: подставные часы тестов двигают «сейчас», а не ожидание.
+    protected override Task ExecuteAsync(CancellationToken ct) =>
+        Common.PeriodicLoop.RunAsync(TimeProvider.System, StartDelay, Tick, TickAsync, logger,
+            "плановое резервное копирование", ct);
 
     /// <summary>
     /// Одна проверка срока. Открыта ради теста, что служба берёт пояс КОМПАНИИ: правило <see

@@ -98,6 +98,23 @@ public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Contains(gone.ToString(), reader.SystemReason);
     }
 
+    /// <summary>
+    /// Задача без владельца (поставлена вне запроса: расписание, старт) — система с честной причиной, а не
+    /// «учётная запись 00000000-… удалена»: удалять было некого (ревью PR #1957).
+    /// </summary>
+    [Fact]
+    public async Task Операция_без_владельца_идёт_от_системы_а_не_от_удалённого_автора()
+    {
+        using var scope = fixture.Services.CreateScope();
+
+        var reader = await scope.ServiceProvider.GetRequiredService<IModuleReaders>().ForJobAsync(Run(Guid.Empty));
+
+        Assert.True(reader.IsSystem);
+        Assert.Empty(reader.Keys);
+        Assert.Contains("не человек", reader.SystemReason);
+        Assert.DoesNotContain("удалена", reader.SystemReason);
+    }
+
     [Fact]
     public void Система_без_человека_несёт_причину_и_не_несёт_ключей()
     {

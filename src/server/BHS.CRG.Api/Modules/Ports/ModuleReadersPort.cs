@@ -1,3 +1,4 @@
+using BHS.CRG.Api.Activity;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Modules.Access;
@@ -11,6 +12,10 @@ namespace BHS.CRG.Api.Modules.Ports;
 ///
 /// <para>Не второй расчёт ключей, а перенос готового: правило «ключ модуля = модуль открыт» живёт в
 /// <see cref="DataAccessResolver" /> одно, и разойтись с воротами здесь нечему.</para>
+///
+/// <para>⚠️ Задача такта модуля (work-08, ТЗ WORK-41) — система С НАЗВАНИЕМ ТАКТА. Такт узнаёт исполнитель
+/// (<see cref="ModuleWorkRunner" />) и называет его окружением вызова (<see cref="SystemActivityScope" />):
+/// отсюда же берётся подпись журнала, так что причина отказа и автор записи не расходятся.</para>
 /// </summary>
 public sealed class ModuleReadersPort(DataAccessResolver access, IHttpContextAccessor http) : IModuleReaders
 {
@@ -18,7 +23,9 @@ public sealed class ModuleReadersPort(DataAccessResolver access, IHttpContextAcc
         From(await access.ForRequestAsync(http, ct));
 
     public async Task<ModuleReader> ForJobAsync(ModuleJobRun run, CancellationToken ct = default) =>
-        From(await access.ForUserAsync(run.UserId, ct));
+        run.UserId == Guid.Empty && SystemActivityScope.What is { } what
+            ? ModuleReader.OfSystem(what)
+            : From(await access.ForUserAsync(run.UserId, ct));
 
     public ModuleReader ForSystem(string reason) => ModuleReader.OfSystem(reason);
 

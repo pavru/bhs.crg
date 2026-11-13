@@ -103,6 +103,9 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         // своему расписанию. Ни один тест на них не опирается; сами службы в контейнере остаются.
         ["Updates:CheckerEnabled"] = "false",
         ["Health:MonitorEnabled"] = "false",
+        // Такт модульных заданий (work-08) — то же: такт модуля ставил бы его работу посреди чужих
+        // тестов. Сама служба проверяется вызовом шага (ModuleTickServiceTests), а не ожиданием минут.
+        ["ModuleTicks:Enabled"] = "false",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
