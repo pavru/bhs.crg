@@ -41,10 +41,22 @@ public sealed class ModulePhotosPort(IAppSettingsStore settings) : IModulePhotos
     private async Task<DateTimeOffset?> TakenAtAsync(DateTime? local, TimeSpan? offset, CancellationToken ct)
     {
         if (local is not { } at) return null;
-        if (offset is { } known) return new DateTimeOffset(at, known);
+        if (offset is { } known) return Moment(at, known);
         var zone = await settings.GetCompanyTimeZoneAsync(ct);
         // Час, которого в поясе нет (перевод часов вперёд), смещение даёт по ближайшему — снимок от этого
         // не становится чужим, а отказ из-за метаданных был бы хуже.
-        return new DateTimeOffset(at, zone.GetUtcOffset(at));
+        return Moment(at, zone.GetUtcOffset(at));
+    }
+
+    /// <summary>
+    /// Момент съёмки или <c>null</c>, если его не выразить: пояс дальше ±14 ч или время у края календаря
+    /// («0001:01:01» с поясом +03:00 уходит за начало времён). Конструктор DateTimeOffset на таком
+    /// бросает — и загрузка фото падала бы 500-м из-за метаданных, которые по замыслу просто теряются.
+    /// </summary>
+    public static DateTimeOffset? Moment(DateTime at, TimeSpan offset)
+    {
+        if (offset.Duration() > TimeSpan.FromHours(14) || offset.Ticks % TimeSpan.TicksPerMinute != 0) return null;
+        var utc = at.Ticks - offset.Ticks;
+        return utc < DateTime.MinValue.Ticks || utc > DateTime.MaxValue.Ticks ? null : new DateTimeOffset(at, offset);
     }
 }

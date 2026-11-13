@@ -46,6 +46,32 @@ public class ExifReaderTests
         Assert.Same(ExifFacts.None, ExifReader.Read("not a jpeg at all"u8));
     }
 
+    /// <summary>
+    /// Пояс дальше ±14:00 не бывает, и DateTimeOffset такой не примет: «+14:30» — пояса нет, время остаётся.
+    /// </summary>
+    [Theory]
+    [InlineData("+14:30", null)]
+    [InlineData("-14:01", null)]
+    [InlineData("+14:00", 14 * 60)]
+    [InlineData("-09:30", -(9 * 60 + 30))]
+    [InlineData("+3:00 ", null)]
+    public void Пояс_за_пределом_14_часов_даёт_пустоту(string offset, int? minutes)
+    {
+        var facts = Read(PhotoSamples.Exif(takenAt: "2026:11:13 10:20:30", offset: offset));
+
+        Assert.Equal(minutes is { } m ? TimeSpan.FromMinutes(m) : null, facts.Offset);
+        Assert.Equal(new DateTime(2026, 11, 13, 10, 20, 30), facts.TakenAt);
+    }
+
+    [Theory]
+    [InlineData("2026:13:01 10:00:00")]
+    [InlineData("2026:11:13")]
+    [InlineData("    :  :     :  :  ")]
+    public void Негодное_время_даёт_пустоту(string takenAt)
+    {
+        Assert.Null(Read(PhotoSamples.Exif(takenAt: takenAt)).TakenAt);
+    }
+
     [Fact]
     public void Время_без_пояса_приходит_без_пояса()
     {

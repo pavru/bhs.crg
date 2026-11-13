@@ -52,7 +52,8 @@ public static class ExifReader
     {
         try
         {
-            return FindExifSegment(jpeg) is { } tiff ? ReadTiff(tiff) : ExifFacts.None;
+            var tiff = FindExifSegment(jpeg);
+            return tiff.IsEmpty ? ExifFacts.None : ReadTiff(tiff);
         }
         catch (Exception e) when (e is ArgumentOutOfRangeException or IndexOutOfRangeException or OverflowException)
         {
@@ -153,14 +154,19 @@ public static class ExifReader
     private static TimeSpan? ParseOffset(string? text)
     {
         // «+03:00» — знак, часы, минуты. Иное (в том числе «   :  » у камер, не знающих пояса) — нет пояса.
+        // Дальше ±14:00 поясов не бывает, и DateTimeOffset такое смещение не примет вовсе.
         if (text is not { Length: 6 } || text[0] is not ('+' or '-') || text[3] != ':') return null;
         if (!int.TryParse(text.AsSpan(1, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var h) ||
             !int.TryParse(text.AsSpan(4, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var m) ||
             h > 14 || m > 59)
             return null;
         var span = new TimeSpan(h, m, 0);
+        if (span > MaxOffset) return null;
         return text[0] == '-' ? -span : span;
     }
+
+    /// <summary>Крайний пояс — тот же предел, что у <see cref="DateTimeOffset" />.</summary>
+    private static readonly TimeSpan MaxOffset = TimeSpan.FromHours(14);
 
     private readonly record struct Entry(ushort Tag, ushort Type, uint Count, int ValueAt);
 

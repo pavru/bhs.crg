@@ -50,16 +50,22 @@ public static class ImageDownscaler
         {
             using var codec = SKCodec.Create(new MemoryStream(source));
             if (codec is null) return null;   // не распознали — уменьшать всё равно не будем
-            var pixels = (long)codec.Info.Width * codec.Info.Height;
-            return pixels > maxPixels
-                ? $"Изображение {codec.Info.Width}×{codec.Info.Height} слишком велико для обработки."
-                : null;
+            return PixelCountExceeded(codec.Info, maxPixels);
         }
         catch (Exception)
         {
             return null;
         }
     }
+
+    /// <summary>
+    /// То же по уже прочитанному заголовку — для того, у кого кодек открыт (фото модулей, work-05): второй
+    /// разбор того же заголовка ничего не добавил бы, а его молчаливый отказ пропустил бы файл.
+    /// </summary>
+    internal static string? PixelCountExceeded(SKImageInfo info, long maxPixels) =>
+        (long)info.Width * info.Height > maxPixels
+            ? $"Изображение {info.Width}×{info.Height} слишком велико для обработки."
+            : null;
 
     /// <summary>
     /// Уменьшенная копия или «не понадобилось». Нераспознанный формат (в том числе SVG — он

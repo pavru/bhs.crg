@@ -1,4 +1,5 @@
 using System.Text;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Generation;
 using SkiaSharp;
 
@@ -99,6 +100,24 @@ public class PhotoPreparerTests
     }
 
     /// <summary>
+    /// Декодирование с уменьшением не опускается ниже длинной стороны: у 4400×3300 ближайший масштаб JPEG
+    /// по округлению — 1/2, то есть 2200, и снимок вышел бы меньше, чем разрешено. Берётся 5/8 (2750), а
+    /// до 2400 доуменьшает Mitchell.
+    /// </summary>
+    [Theory]
+    [InlineData(4400, 3300, 2400, 1800)]
+    [InlineData(8000, 6000, 2400, 1800)]   // 48 Мп, как у телефона: 1/4 даёт 2000, берётся 3/8
+    [InlineData(2401, 1800, 2400, 1799)]   // на пиксель больше предела: масштаба DCT нет, декодируется целиком
+    public async Task Декодирование_с_уменьшением_не_опускается_ниже_длинной_стороны(int w, int h, int width, int height)
+    {
+        var photo = Assert.IsType<PhotoPrepared>(await Prepare(PhotoSamples.Jpeg(w, h)));
+
+        Assert.Equal((width, height), (photo.Width, photo.Height));
+        using var image = Decode(photo.Image);
+        Assert.True(IsRed(image.GetPixel(10, 10)), "Красный угол пропал: картинка не та.");
+    }
+
+    /// <summary>
     /// Снимок телефона «набок»: 4032×3024 с ориентацией 6 («повернуть на 90° по часовой») ложится книжным
     /// 1800×2400. Красный угол исходного левого верха после поворота — справа сверху.
     /// </summary>
@@ -185,9 +204,11 @@ public class PhotoPreparerTests
     [Fact]
     public void Предел_называется_так_как_его_прочтёт_человек()
     {
-        Assert.Equal("15 МБ", PhotoPreparer.Size(15 * Mb));
-        Assert.Equal("1,5 МБ", PhotoPreparer.Size(Mb + Mb / 2));
-        Assert.Equal("500 КБ", PhotoPreparer.Size(500 * 1024));
+        Assert.Equal("15 МБ", ByteSizeText.Format(15 * Mb));
+        Assert.Equal("1,5 МБ", ByteSizeText.Format(Mb + Mb / 2));
+        Assert.Equal("500 КБ", ByteSizeText.Format(500 * 1024));
+        Assert.Equal("2,5 ГБ", ByteSizeText.Format(2560 * Mb));
+        Assert.Equal("12 Б", ByteSizeText.Format(12));
     }
 
     private static bool IsRed(SKColor c) => c.Red > 200 && c.Green < 60 && c.Blue < 60;

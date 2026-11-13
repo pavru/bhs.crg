@@ -341,23 +341,17 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     /// <summary>
     /// Доля файлов каждого модуля (work-05, ТЗ WORK-35) — все модули, чьи схемы снимает копия, и с
     /// нулём тоже. Состав «Настройка» данных модулей не несёт, и там у всех нули — это правда о копии.
+    /// Чужого кода в <paramref name="byModule" /> не бывает: секции копии снимает тот же перечень модулей
+    /// (<see cref="IModuleSchemaBackup.Modules" /> и <see cref="IModuleSchemaBackup.ReadAsync" />).
     /// </summary>
-    private BackupModuleWeight[] ModuleWeights(Dictionary<string, (long Bytes, int Count)> byModule)
-    {
-        var named = modules.Modules;
-        var weights = new List<BackupModuleWeight>();
-        foreach (var m in named)
+    private BackupModuleWeight[] ModuleWeights(Dictionary<string, (long Bytes, int Count)> byModule) =>
+    [
+        .. modules.Modules.Select(m =>
         {
             var (bytes, count) = byModule.GetValueOrDefault(m.Code);
-            weights.Add(new BackupModuleWeight(m.Code, m.Title, bytes, count));
-        }
-        // Код из копии, которого нет в перечне, — секция снята не этим перечнем. Так не бывает, но
-        // молча потерять его байты значило бы занизить долю модулей; название тогда — сам код.
-        foreach (var (code, (bytes, count)) in byModule)
-            if (!named.Any(m => m.Code == code))
-                weights.Add(new BackupModuleWeight(code, code, bytes, count));
-        return [.. weights];
-    }
+            return new BackupModuleWeight(m.Code, m.Title, bytes, count);
+        }),
+    ];
 
     private async Task<BackupManifest> BuildManifestAsync(
         BackupScope scope, List<string> warnings, CancellationToken ct)

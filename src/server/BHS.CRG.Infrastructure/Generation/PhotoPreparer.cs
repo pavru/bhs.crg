@@ -1,3 +1,4 @@
+using BHS.CRG.Infrastructure.Common;
 using SkiaSharp;
 
 namespace BHS.CRG.Infrastructure.Generation;
@@ -46,7 +47,7 @@ public static class PhotoPreparer
 
         var bytes = await ReadAtMostAsync(content, limits.MaxBytes, ct);
         if (bytes is null)
-            return new PhotoRefused(PhotoRefusalReason.TooLarge, $"Файл больше {Size(limits.MaxBytes)}.");
+            return new PhotoRefused(PhotoRefusalReason.TooLarge, $"Файл больше {ByteSizeText.Format(limits.MaxBytes)}.");
         return Prepare(bytes, limits);
     }
 
@@ -56,29 +57,51 @@ public static class PhotoPreparer
         using var codec = CreateCodec(bytes);
         if (codec is null) return NotAnImage();
 
-        // Площадь — по заголовку: SKCodec пиксели не декодирует. Текст тот же, что у вложений ядра.
-        if (ImageDownscaler.PixelCountExceeded(bytes, limits.MaxPixels) is { } tooMany)
+        // Площадь — по заголовку этого же кодека: SKCodec пиксели не декодирует. Текст тот же, что у
+        // вложений ядра.
+        if (ImageDownscaler.PixelCountExceeded(codec.Info, limits.MaxPixels) is { } tooMany)
             return new PhotoRefused(PhotoRefusalReason.TooManyPixels, tooMany);
 
-        var origin = codec.EncodedOrigin;
-        SKBitmap? decoded;
-        try { decoded = SKBitmap.Decode(codec); }
-        catch (Exception) { decoded = null; }
+        using var decoded = Decode(codec, limits.MaxSide);
         if (decoded is null) return NotAnImage();
 
-        using (decoded)
+        // Уменьшение — до поворота: длинная сторона от поворота не меняется, а вертеть меньшую картинку
+        // дешевле. SkiaSharp, не сумевший уменьшить, — та же картинка, которую не прочли: отказ значением,
+        // а не «внутренняя ошибка» на загрузке.
+        if (!TryShrink(decoded, limits.MaxSide, out var shrunk)) return NotAnImage();
+        using (shrunk)
         {
-            // Уменьшение — до поворота: длинная сторона от поворота не меняется, а вертеть меньшую
-            // картинку дешевле.
-            // SkiaSharp, не сумевший уменьшить картинку, — та же картинка, которую не прочли: отказ
-            // значением, а не «внутренняя ошибка» на загрузке.
-            if (Resize(decoded, limits.MaxSide) is not { } resized) return NotAnImage();
-            using var image = Orient(resized, origin, out var width, out var height);
-            using var preview = Resize(image, limits.PreviewSide);
-            if (preview is null) return NotAnImage();
-            var facts = ExifReader.Read(bytes);
-            return new PhotoPrepared(Jpeg(image), Jpeg(preview), width, height, facts.Geo, facts.TakenAt, facts.Offset);
+            using var image = Orient(shrunk ?? decoded, codec.EncodedOrigin, out var width, out var height);
+            if (!TryShrink(image, limits.PreviewSide, out var preview)) return NotAnImage();
+            using (preview)
+            {
+                var facts = ExifReader.Read(bytes);
+                return new PhotoPrepared(Jpeg(image), Jpeg(preview ?? image), width, height,
+                    facts.Geo, facts.TakenAt, facts.Offset);
+            }
         }
+    }
+
+    /// <summary>
+    /// Декодирование сразу в уменьшенном виде, где формат это умеет: JPEG — масштабом DCT n/8, WebP — любым.
+    /// Берётся наименьший масштаб, при котором длинная сторона ещё не меньше <paramref name="maxSide" />:
+    /// дальше доуменьшает Mitchell, и качество то же. Снимок с телефона на 48 Мп так занимает в памяти
+    /// десятки мегабайт, а не почти двести. PNG масштаба не знает — декодируется целиком.
+    /// </summary>
+    private static SKBitmap? Decode(SKCodec codec, int maxSide)
+    {
+        var full = codec.Info;
+        var size = new SKSizeI(full.Width, full.Height);
+        for (var num = 1; num < 8; num++)
+        {
+            var scaled = codec.GetScaledDimensions(num / 8f);
+            if (Math.Max(scaled.Width, scaled.Height) < maxSide) continue;
+            if ((long)scaled.Width * scaled.Height < (long)size.Width * size.Height) size = scaled;
+            break;
+        }
+
+        try { return SKBitmap.Decode(codec, full.WithSize(size.Width, size.Height)); }
+        catch (Exception) { return null; }   // повреждённый файл бросает, а не отвечает null
     }
 
     private static PhotoRefused NotAnImage() =>
@@ -113,20 +136,24 @@ public static class PhotoPreparer
         catch (Exception) { return null; }
     }
 
-    /// <summary>Уменьшенная копия или та же картинка копией, если она уже в пределах; не вышло — null.</summary>
-    private static SKBitmap? Resize(SKBitmap source, int maxSide)
+    /// <summary>
+    /// Уменьшенная копия в <paramref name="shrunk" />; уже в пределах — там <c>null</c>, и копии нет.
+    /// <c>false</c> — уменьшить было нужно, а SkiaSharp не смог.
+    /// </summary>
+    private static bool TryShrink(SKBitmap source, int maxSide, out SKBitmap? shrunk)
     {
+        shrunk = null;
         var (width, height) = ImageDownscaler.Fit(source.Width, source.Height, maxSide);
+        if (width == source.Width && height == source.Height) return true;
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, source.ColorSpace);
-        return width == source.Width && height == source.Height
-            ? source.Copy()
-            : source.Resize(info, ImageDownscaler.Sampling);
+        shrunk = source.Resize(info, ImageDownscaler.Sampling);
+        return shrunk is not null;
     }
 
     /// <summary>
     /// Картинка, повёрнутая по отметке EXIF, — пиксель в пиксель: каждая ориентация — перестановка
     /// осей, без интерполяции. Заодно непрозрачная: PNG с прозрачностью ложится на белое, а не на
-    /// чёрное, которым JPEG заменил бы прозрачные пиксели. Исходную освобождает.
+    /// чёрное, которым JPEG заменил бы прозрачные пиксели. Исходную не освобождает.
     /// </summary>
     private static SKBitmap Orient(SKBitmap source, SKEncodedOrigin origin, out int width, out int height)
     {
@@ -149,15 +176,12 @@ public static class PhotoPreparer
             _ => SKMatrix.Identity,
         };
 
-        using (source)
-        {
-            var result = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque, source.ColorSpace));
-            using var canvas = new SKCanvas(result);
-            canvas.Clear(SKColors.White);
-            canvas.SetMatrix(matrix);
-            canvas.DrawBitmap(source, 0, 0);
-            return result;
-        }
+        var result = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque, source.ColorSpace));
+        using var canvas = new SKCanvas(result);
+        canvas.Clear(SKColors.White);
+        canvas.SetMatrix(matrix);
+        canvas.DrawBitmap(source, 0, 0);
+        return result;
     }
 
     /// <summary>
@@ -169,17 +193,5 @@ public static class PhotoPreparer
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, ImageDownscaler.JpegQuality);
         return data.ToArray();
-    }
-
-    /// <summary>«15 МБ», «1,5 МБ», «500 КБ» — предел так, как его прочтёт человек.</summary>
-    public static string Size(long bytes)
-    {
-        const double kb = 1024, mb = kb * 1024;
-        var culture = System.Globalization.CultureInfo.GetCultureInfo("ru-RU");
-        return bytes >= mb
-            ? (bytes / mb).ToString("0.#", culture) + " МБ"
-            : bytes >= kb
-                ? (bytes / kb).ToString("0.#", culture) + " КБ"
-                : bytes + " Б";
     }
 }

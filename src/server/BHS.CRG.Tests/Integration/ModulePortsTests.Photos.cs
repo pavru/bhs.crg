@@ -53,6 +53,37 @@ public partial class ModulePortsTests
     }
 
     /// <summary>
+    /// Время у края календаря или пояс за ±14 ч — момента нет, а фото есть. Конструктор DateTimeOffset на
+    /// таком бросает, и загрузка падала бы 500-м из-за метаданных.
+    /// </summary>
+    [Theory]
+    [InlineData("0001:01:01 00:00:00", "+03:00")]
+    [InlineData("9999:12:31 23:59:59", "-03:00")]
+    [InlineData("0001:01:01 00:00:00", null)]   // пояс компании восточнее Гринвича — тоже за краем
+    public async Task Время_съёмки_за_краем_календаря_не_роняет_фото(string takenAt, string? offset)
+    {
+        using var scope = host.Services.CreateScope();
+        var zone = await scope.ServiceProvider
+            .GetRequiredService<BHS.CRG.Application.Settings.IAppSettingsStore>().GetCompanyTimeZoneAsync();
+        if (offset is null && zone.GetUtcOffset(DateTime.MinValue) <= TimeSpan.Zero) return;   // край — только восточнее
+        var shot = PhotoSamples.WithExif(PhotoSamples.Jpeg(400, 300), PhotoSamples.Exif(takenAt: takenAt, offset: offset));
+
+        var photo = Assert.IsType<PreparedPhoto>(
+            await scope.ServiceProvider.GetRequiredService<IModulePhotos>().PrepareAsync(new MemoryStream(shot), PhotoLimits));
+
+        Assert.Null(photo.TakenAt);
+    }
+
+    [Theory]
+    [InlineData(15 * 60)]
+    [InlineData(-(14 * 60 + 1))]
+    public void Момент_съёмки_с_поясом_за_пределом_не_выражается(int minutes)
+    {
+        Assert.Null(BHS.CRG.Api.Modules.Ports.ModulePhotosPort.Moment(new DateTime(2026, 11, 13), TimeSpan.FromMinutes(minutes)));
+        Assert.NotNull(BHS.CRG.Api.Modules.Ports.ModulePhotosPort.Moment(new DateTime(2026, 11, 13), TimeSpan.FromHours(14)));
+    }
+
+    /// <summary>
     /// Отказ лимита — значение, и после него в реестре блобов ничего не появилось: порт в хранилище не
     /// пишет вовсе.
     /// </summary>
