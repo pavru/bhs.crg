@@ -12,9 +12,9 @@
 // а не в каком порядке.
 
 /**
- * Вес набора — секунды в CI, от строки «──────── имя ────────» до следующей (прогон 43366209391,
- * 13.11.2026, более долгий из двух замеренных). Точность не нужна: вес решает только, в какую долю
- * лечь набору. Новый набор без веса — отказ сторожа `suites.test.mjs` с просьбой вписать.
+ * Вес набора — секунды в CI (прогон 43366209391, 13.11.2026, более долгий из двух замеренных; с тех
+ * пор итог `run-suites.mjs` печатает их у каждого набора). Точность не нужна: вес решает только, в
+ * какую долю лечь набору. Новый набор без веса — отказ сторожа `shards.test.mjs` с просьбой вписать.
  */
 export const SUITE_SECONDS = {
   harness: 16,
@@ -79,10 +79,16 @@ export function splitIntoShards(names, seconds, count) {
 export function parseShardArg(args) {
   const rest = [];
   let value = null;
+  const take = next => {
+    // Второй ключ — отказ, а не «побеждает последний»: склеенная команда молча прогнала бы не ту
+    // долю, и разбирающий смотрел бы не на те наборы.
+    if (value !== null) throw new Error(`--shard назван дважды: «${value}» и «${next}»`);
+    value = next;
+  };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--shard') { value = args[++i] ?? ''; continue; }
-    if (arg.startsWith('--shard=')) { value = arg.slice('--shard='.length); continue; }
+    if (arg === '--shard') { take(args[++i] ?? ''); continue; }
+    if (arg.startsWith('--shard=')) { take(arg.slice('--shard='.length)); continue; }
     rest.push(arg);
   }
   if (value === null) return { shard: null, rest };
@@ -93,4 +99,25 @@ export function parseShardArg(args) {
     throw new Error(`--shard ждёт «доля/всего», например 2/3, а получено «${value}»`);
   }
   return { shard: { index, count }, rest };
+}
+
+/**
+ * Число долей CI — из матрицы работы `e2e` в `ci.yml` (`shard: ['1/3', '2/3', '3/3']`). Для
+ * сторожей: и раскладку, и предел входов они считают по тому числу, с которым CI на самом деле идёт.
+ * Значения обязаны идти подряд от 1/N до N/N — иначе доля без работы не гонялась бы нигде, а работа
+ * с несуществующей долей отказывала бы.
+ *
+ * @param {string} ciYaml текст ci.yml
+ * @returns {number} N
+ */
+export function ciShardCount(ciYaml) {
+  const matrix = /^\s*shard: \[([^\]]*)\]\s*$/m.exec(ciYaml);
+  if (!matrix) throw new Error('в ci.yml не нашлась матрица `shard: [\'1/N\', …]` — считать не из чего');
+  const values = matrix[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+  const count = values.length;
+  const expected = Array.from({ length: count }, (_, i) => `${i + 1}/${count}`);
+  if (values.join() !== expected.join()) {
+    throw new Error(`матрица долей в ci.yml — ${values.join(', ')}, а должна быть ${expected.join(', ')}`);
+  }
+  return count;
 }

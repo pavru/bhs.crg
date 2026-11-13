@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SUITE_SECONDS, ciShardCount, splitIntoShards } from './shards.mjs';
 
 /**
  * Каждый живой прогон обязан гоняться в CI (issue #975).
@@ -75,7 +76,7 @@ describe('состав живых прогонов в CI', () => {
   });
 
   /**
-   * Входы всех прогонов CI обязаны помещаться в предел частоты (issue #1160).
+   * Входы каждой доли прогонов CI обязаны помещаться в предел частоты (issue #1160).
    *
    * Сервер пускает 30 входов за пять минут с одного адреса, а наборы ходят с одного — и с тех пор,
    * как прогоны перестали ждать паузами, все их входы попадают в ОДНО окно. Тридцать первый вход
@@ -123,8 +124,18 @@ describe('состав живых прогонов в CI', () => {
 
     // Иначе счёт сошёлся бы и на нуле — например, переименуй кто-нибудь помощник входа.
     expect(total, 'в наборах не найдено ни одного входа — счёт ничего не считает').toBeGreaterThan(10);
-    expect(total, `входов в прогоне CI ${total}, а сервер пускает ${limit} за окно (запас ${RESERVE}): `
-      + perSuite.filter(([, calls]) => calls).map(([name, calls]) => `${name} ${calls}`).join(', '))
+
+    // Счёт — по ДОЛЕ, а не по всему списку: у каждой доли CI свой сервер и свой счётчик входов
+    // (`shards.mjs`). Весь список против предела одного сервера требовал бы поднять предел втрое
+    // раньше нужного — и уводил бы стенд от поставки без причины.
+    const logins = new Map(perSuite);
+    const shards = splitIntoShards(inCi, SUITE_SECONDS, ciShardCount(ci)).map(list => {
+      const counted = list.filter(name => logins.get(name));
+      return { calls: counted.reduce((sum, name) => sum + logins.get(name), 0), counted };
+    });
+    const busiest = shards.reduce((a, b) => (b.calls > a.calls ? b : a));
+    expect(busiest.calls, `входов в доле CI ${busiest.calls}, а её сервер пускает ${limit} за окно `
+      + `(запас ${RESERVE}): ${busiest.counted.map(name => `${name} ${logins.get(name)}`).join(', ')}`)
       .toBeLessThanOrEqual(limit - RESERVE);
   });
 

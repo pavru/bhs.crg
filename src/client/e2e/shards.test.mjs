@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SUITE_SECONDS, parseShardArg, splitIntoShards } from './shards.mjs';
+import { SUITE_SECONDS, ciShardCount, parseShardArg, splitIntoShards } from './shards.mjs';
 
 /**
  * Доли живых прогонов CI (`shards.mjs`): ни один набор не потерян и не идёт дважды.
@@ -18,17 +18,11 @@ const inCi = (pkg.scripts['test:e2e:ci'] ?? '').split(/\s+/).slice(2);
 const ci = readFileSync(path.join(here, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
 
 describe('доли живых прогонов CI', () => {
-  // Число долей — из ci.yml: и список матрицы, и знаменатель в `--shard` обязаны его называть.
-  const matrix = /^\s*shard: \[([\d, ]+)\]\s*$/m.exec(ci);
-  const denominators = [...ci.matchAll(/--shard \$\{\{ matrix\.shard \}\}\/(\d+)/g)].map(m => Number(m[1]));
-
-  it('в ci.yml матрица долей 1…N и запуск с тем же N', () => {
-    expect(matrix, 'в ci.yml не нашлась матрица `shard: [1, 2, …]` — считать не из чего').not.toBeNull();
-    expect(denominators.length, 'в ci.yml не нашёлся запуск `--shard ${{ matrix.shard }}/N`').toBe(1);
-    const listed = matrix[1].split(',').map(s => Number(s.trim()));
-    const count = denominators[0];
-    expect(listed, `матрица ${listed.join(', ')} не совпадает с --shard …/${count}: доля без работы `
-      + 'не гоняется нигде, а работа без доли отказывает').toEqual(Array.from({ length: count }, (_, i) => i + 1));
+  it('в ci.yml матрица долей 1/N…N/N, и шаг прогонов передаёт её как есть', () => {
+    expect(ciShardCount(ci)).toBeGreaterThan(1);
+    // Иначе матрица была бы для вида: шаг гонял бы весь список в каждой работе (или свою долю
+    // своим числом, разойдясь с матрицей).
+    expect(ci).toMatch(/npm run test:e2e:ci -- --shard \$\{\{ matrix\.shard \}\}$/m);
   });
 
   it('у каждого набора CI есть вес, и нет весов без набора', () => {
@@ -40,7 +34,7 @@ describe('доли живых прогонов CI', () => {
   });
 
   it('каждый набор CI — ровно в одной доле, и пустых долей нет', () => {
-    const count = denominators[0];
+    const count = ciShardCount(ci);
     const shards = splitIntoShards(inCi, SUITE_SECONDS, count);
     expect(shards).toHaveLength(count);
     for (const [i, list] of shards.entries()) expect(list.length, `доля ${i + 1} пуста`).toBeGreaterThan(0);
@@ -84,5 +78,30 @@ describe('parseShardArg', () => {
 
   it('ключ без значения — отказ', () => {
     expect(() => parseShardArg(['a', '--shard'])).toThrow(/--shard/);
+  });
+
+  it('ключ дважды — отказ, а не «побеждает последний»', () => {
+    expect(() => parseShardArg(['--shard', '1/3', 'a', '--shard=2/3'])).toThrow(/дважды/);
+  });
+});
+
+describe('ciShardCount', () => {
+  it.each([
+    ["shard: ['1/3', '2/3', '3/3']", 3],
+    ['shard: ["1/2", "2/2"]', 2],
+  ])('%s → %i', (line, count) => {
+    expect(ciShardCount(`    matrix:\n      ${line}\n`)).toBe(count);
+  });
+
+  it.each([
+    "shard: ['1/3', '2/3']",
+    "shard: ['1/3', '3/3', '2/3']",
+    'shard: [1, 2, 3]',
+  ])('матрица «%s» — отказ', line => {
+    expect(() => ciShardCount(`      ${line}\n`)).toThrow(/должна быть/);
+  });
+
+  it('матрицы нет — отказ', () => {
+    expect(() => ciShardCount('jobs: {}\n')).toThrow(/не нашлась/);
   });
 });
