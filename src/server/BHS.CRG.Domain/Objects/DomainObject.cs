@@ -227,6 +227,78 @@ public class DomainObject : Entity
         }
         if (changed) TouchUpdatedAt();
     }
+    /// <summary>
+    /// Пересаживает закрепления на шаблон: каждая версия из <paramref name="replacedBy"/> заменяется
+    /// своей новой (id-template-version-integrity, D6). Закрепление значит «этот шаблон», а не «эта
+    /// строка»: иначе новая версия оставляла бы документ на погашенной, и генерация отказывала бы
+    /// «ни один из выбранных шаблонов не активен» (#1923).
+    /// <list type="bullet">
+    /// <item>одиночный <see cref="TemplateId"/> — заменяется;</item>
+    /// <item>набор <see cref="TemplateIds"/> — элементы на месте, порядок сохраняется, повтор после
+    /// замены убирается;</item>
+    /// <item>ключи <see cref="TemplateParams"/> — переносятся: иначе настройки документа, привязанные
+    /// к прежнему id, потерялись бы молча. Если у новой версии свои переопределения уже есть, остаются
+    /// они.</item>
+    /// </list>
+    /// <paramref name="selectionOnly"/> — разовая починка (D8, п. 3): только набор и переопределения
+    /// выбранных в нём версий. Одиночный пин тогда не трогается — он и так генерируется, а пересадка
+    /// молча сменила бы его PDF. Возвращает, изменилось ли что-нибудь.
+    /// </summary>
+    public bool RepinTemplates(IReadOnlyDictionary<Guid, Guid> replacedBy, bool selectionOnly = false)
+    {
+        if (Facet is null || replacedBy.Count == 0) return false;
+        var changed = false;
+        if (!selectionOnly && Doc.TemplateId is { } single && replacedBy.TryGetValue(single, out var singleTo))
+        {
+            Doc.TemplateId = singleTo;
+            changed = true;
+        }
+
+        var ids = ParsedTemplateIds();
+        var selected = ids.Where(replacedBy.ContainsKey).ToHashSet();
+        if (selected.Count > 0)
+        {
+            var mapped = new List<Guid>();
+            foreach (var id in ids)
+            {
+                var to = replacedBy.GetValueOrDefault(id, id);
+                if (!mapped.Contains(to)) mapped.Add(to);
+            }
+            Doc.TemplateIds = JsonSerializer.Serialize(mapped);
+            changed = true;
+        }
+
+        var moved = RepinParamKeys(id => (selectionOnly ? selected.Contains(id) : replacedBy.ContainsKey(id))
+            ? replacedBy[id] : null);
+        if (moved is not null) { Doc.TemplateParams = moved; changed = true; }
+        if (changed) TouchUpdatedAt();
+        return changed;
+    }
+
+    /// <summary>
+    /// Переопределения с перенесёнными ключами — или null, если переносить нечего. Правило то же, что
+    /// у SQL миграции TemplateVersionIntegrity: ключ, который не переносится, сильнее перенесённого; из
+    /// двух перенесённых в один остаётся больший по тексту ключ.
+    /// </summary>
+    private string? RepinParamKeys(Func<Guid, Guid?> target)
+    {
+        if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return null;
+        System.Text.Json.Nodes.JsonObject? obj;
+        try { obj = System.Text.Json.Nodes.JsonNode.Parse(Doc.TemplateParams) as System.Text.Json.Nodes.JsonObject; }
+        catch (JsonException) { return null; }
+        if (obj is null) return null;
+
+        var entries = obj.Select(kv => (kv.Key, kv.Value,
+            To: Guid.TryParse(kv.Key, out var id) ? target(id) : null)).ToList();
+        if (entries.All(e => e.To is null)) return null;
+        var result = new System.Text.Json.Nodes.JsonObject();
+        foreach (var e in entries
+                     .OrderBy(e => e.To is null)
+                     .ThenBy(e => e.Key, StringComparer.Ordinal))
+            result[e.To?.ToString() ?? e.Key] = e.Value?.DeepClone();
+        return result.ToJsonString();
+    }
+
     public void SetTemplateParams(string? json) { Doc.TemplateParams = json; TouchUpdatedAt(); }
     public void UpdatePluginData(JsonDocument pluginData) { Doc.PluginData = pluginData; TouchUpdatedAt(); }
 

@@ -47,6 +47,10 @@ internal static class StartupTasks
             ? await BHS.CRG.Infrastructure.Persistence.MigrationCensus.ReadAsync(db)
             : null;
 
+        // Сообщения миграций (RAISE NOTICE) — в журнал старта: так разовая починка данных называет,
+        // сколько строк тронула (TemplateVersionIntegrity). Миграции идут через соединение контекста.
+        if (migrating && db.Database.GetDbConnection() is Npgsql.NpgsqlConnection npgsql)
+            npgsql.Notice += (_, e) => app.Logger.LogInformation("Миграция: {Notice}", e.Notice.MessageText);
         await db.Database.MigrateAsync();
 
         if (migrating)

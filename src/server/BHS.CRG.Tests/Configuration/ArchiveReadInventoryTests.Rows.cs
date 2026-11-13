@@ -199,6 +199,8 @@ public partial class ArchiveReadInventoryTests
             Documents("документы типа — сброс вывода при правке шаблона"),
         ["BHS.CRG.Application/Templates/Handlers.cs|var docs = await objRepo.GetDocumentsOfTypeAsync(t.DocumentTypeId, ct);"] =
             Documents("документы типа — сброс вывода при правке шаблона"),
+        ["BHS.CRG.Application/Templates/Handlers.cs|foreach (var doc in (await objRepo.GetDocumentsOfTypeAsync(newVersion.DocumentTypeId, ct))"] =
+            Documents("документы типа — пересадка закреплённых на новую версию шаблона (#1923)"),
 
         ["BHS.CRG.Infrastructure/Backup/BackupService.Manifest.cs|? await db.DomainObjects.AsNoTracking().Include(o => o.Facet)"] =
             Documents("копия: документы"),

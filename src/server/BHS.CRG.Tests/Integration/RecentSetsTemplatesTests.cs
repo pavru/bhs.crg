@@ -172,26 +172,26 @@ public sealed class RecentSetsTemplatesTests(InvoiceLineHost host) : InvoiceLine
     }
 
     [Fact]
-    public async Task Две_действующие_версии_каждое_чтение_ведёт_на_большую()
+    public async Task Вторую_действующую_версию_база_не_примет_и_отметка_ведёт_на_единственную()
     {
+        // Накопленные до #1921 данные «две действующие» после id-template-version-integrity невозможны:
+        // их чинит миграция, а новую вторую отвергает индекс. Правило «каждое чтение ведёт на
+        // большую» ([ID-13]) остаётся сторожем, но завести его состояние нечем.
         var (admin, _) = await SignInAsync("Admin");
         var (type, versions) = await TemplateAsync(1);
-        Guid second;
         using (var scope = host.Services.CreateScope())
         {
-            // Накопленные до #1921 данные: вторая действующая с большим номером.
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var first = await db.Templates.AsNoTracking().SingleAsync(t => t.Id == versions[0]);
-            var copy = Template.Restore(Guid.NewGuid(), type, first.Name, "x", 2, isActive: true, isDefault: false,
-                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(-1));
-            db.Templates.Add(copy);
-            await db.SaveChangesAsync();
-            second = copy.Id;
+            db.Templates.Add(Template.Restore(Guid.NewGuid(), type, first.Name, "x", 2, isActive: true, isDefault: false,
+                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(-1)));
+            var refused = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            Assert.True(DbFailure.IsUniqueViolationOf(refused,
+                BHS.CRG.Infrastructure.Persistence.Configurations.TemplateConfiguration.OneActiveIndex));
         }
         await TouchAsync(admin, Shape, versions[0]);
 
-        for (var i = 0; i < 2; i++)
-            Assert.Equal(second, Assert.Single(await ItemsAsync(admin)).GetProperty("opens").GetProperty("id").GetGuid());
+        Assert.Equal(versions[0], Assert.Single(await ItemsAsync(admin)).GetProperty("opens").GetProperty("id").GetGuid());
     }
 
     [Fact]

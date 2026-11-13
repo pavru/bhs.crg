@@ -172,8 +172,10 @@ describe('окно новой версии от исторической (issue 
     const text = screen.getByText(/уйдёт в историю/).textContent ?? '';
     expect(text).toContain('Действующая v4');
     expect(text).toContain('«по умолчанию»');
-    expect(text).toContain('2 документа');
     expect(text).toContain('без выбранного шаблона перейдут на v5');
+    // Закреплённые за гаснущей следуют за шаблоном (#1923, вариант А), а не «выбирают заново».
+    expect(text).toContain('2 документа перейдут на новую версию и вернутся в черновик');
+    expect(text).not.toContain('выбрать шаблон заново');
     // План берётся из списка страницы — при открытии окна он перечитывается.
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['templates', 'd1'] });
   });
@@ -182,5 +184,19 @@ describe('окно новой версии от исторической (issue 
     renderPanel(false);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
     expect(screen.getByText(/Текущая версия сохранится в истории/)).toBeTruthy();
+  });
+
+  it('за действующей закреплено три документа — окно говорит, что они перейдут (#1923)', async () => {
+    renderPanel(false, { ...NO_RETIRE, pinnedToRetired: 3 });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
+      .toContain('3 документа перейдут на новую версию и вернутся в черновик');
+  });
+
+  it('один документ — глагол в единственном числе', async () => {
+    renderPanel(false, { ...NO_RETIRE, pinnedToRetired: 1 });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
+    expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
+      .toContain('1 документ перейдёт на новую версию и вернётся в черновик');
   });
 });

@@ -44,6 +44,84 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.True(t.IsActive);
     }
 
+    // ── Название шаблона в типе не повторяется (#1924) ───────────────────────
+
+    [Fact]
+    public async Task Create_TakenName_Refused_AndTemplateUnchanged()
+    {
+        var dtId = await CreateDocTypeAsync("DT_N1");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new CreateTemplateCommand(dtId, "Основной", "v1"));
+
+        using (var s = fixture.Services.CreateScope())
+        {
+            // Обрезка по краям — та же строка, а не новый шаблон.
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                Mediator(s).Send(new CreateTemplateCommand(dtId, "  Основной ", "чужой v1")));
+            Assert.Contains("уже есть", ex.Message);
+        }
+
+        using var scope = fixture.Services.CreateScope();
+        var all = await Mediator(scope).Send(new ListTemplatesQuery(dtId));
+        var only = Assert.Single(all);
+        Assert.DoesNotContain("чужой", only.Content);
+        Assert.True(only.IsActive);
+    }
+
+    [Fact]
+    public async Task Create_SameNameInOtherType_Created()
+    {
+        var a = await CreateDocTypeAsync("DT_N2A");
+        var b = await CreateDocTypeAsync("DT_N2B");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new CreateTemplateCommand(a, "Основной", "x"));
+
+        using var scope = fixture.Services.CreateScope();
+        var t = await Mediator(scope).Send(new CreateTemplateCommand(b, "Основной", "x"));
+        Assert.Equal(b, t.DocumentTypeId);
+        Assert.Equal(1, t.Version);
+    }
+
+    [Fact]
+    public async Task Duplicate_WithoutName_PicksFirstFreeCopyName()
+    {
+        var dtId = await CreateDocTypeAsync("DT_N3");
+        Template source;
+        using (var s = fixture.Services.CreateScope())
+            source = await Mediator(s).Send(new CreateTemplateCommand(dtId, "Основной", "x"));
+
+        Template first, second;
+        using (var s = fixture.Services.CreateScope())
+            first = await Mediator(s).Send(new DuplicateTemplateCommand(source.Id, null));
+        using (var s = fixture.Services.CreateScope())
+            second = await Mediator(s).Send(new DuplicateTemplateCommand(source.Id, null));
+
+        Assert.Equal("Основной (копия)", first.Name);
+        Assert.Equal("Основной (копия 2)", second.Name);
+        Assert.Equal(1, first.Version);
+        Assert.Equal(1, second.Version);
+        Assert.True(first.IsActive && second.IsActive);
+    }
+
+    [Fact]
+    public async Task Duplicate_TakenExplicitName_Refused()
+    {
+        var dtId = await CreateDocTypeAsync("DT_N4");
+        Template source;
+        using (var s = fixture.Services.CreateScope())
+        {
+            source = await Mediator(s).Send(new CreateTemplateCommand(dtId, "Основной", "x"));
+            await Mediator(s).Send(new CreateTemplateCommand(dtId, "Краткий", "y"));
+        }
+
+        using (var s = fixture.Services.CreateScope())
+            await Assert.ThrowsAsync<ConflictException>(() =>
+                Mediator(s).Send(new DuplicateTemplateCommand(source.Id, "Краткий")));
+
+        using var scope = fixture.Services.CreateScope();
+        Assert.Equal(2, (await Mediator(scope).Send(new ListTemplatesQuery(dtId))).Count);
+    }
+
     // ── Update (versioning) ───────────────────────────────────────────────────
 
     [Fact]

@@ -11,7 +11,8 @@ public class TemplateHandlers(
     IDomainObjectRepository objRepo,
     IBlobStorage blobStorage,
     IDocumentTemplateInvalidator invalidator,
-    IRecentRecords recent) :
+    IRecentRecords recent,
+    ITemplateVersionWriter versionWriter) :
     IRequestHandler<CreateTemplateCommand, Template>,
     IRequestHandler<UpdateTemplateCommand, TemplateMutationResult>,
     IRequestHandler<SaveTemplateContentCommand, TemplateMutationResult>,
@@ -28,7 +29,10 @@ public class TemplateHandlers(
         // Стандартные импорты (systemlib + typeblocks) вставляем ТОЛЬКО при создании шаблона (issue #353):
         // дальше шаблон компилируется дословно, поэтому импорты обязаны жить в его содержимом.
         var content = Generation.SystemTypstLib.EnsureImports(cmd.Content);
-        var template = Template.Create(cmd.DocumentTypeId, cmd.Name, content);
+        // Название обрезается по краям, но сравнивается точно — как группирует страница (D1).
+        var name = (cmd.Name ?? "").Trim();
+        await EnsureNameFreeAsync(cmd.DocumentTypeId, name, ct);
+        var template = Template.Create(cmd.DocumentTypeId, name, content);
         await repo.AddAsync(template, ct);
         await repo.SaveChangesAsync(ct);
         return template;
@@ -49,21 +53,58 @@ public class TemplateHandlers(
         // Меняются только версии с признаками — их и пишем: Update у неотслеживаемой строки
         // переписывает её целиком, вместе с Content каждой исторической версии.
         var touched = versions.Where(v => v.IsActive || v.IsDefault).ToList();
+        // Гаснут действующие — именно они, а не исходная: от v2 при действующей v4 гаснет v4 (#1920).
+        var retiring = versions.Where(v => v.IsActive).Select(v => v.Id).ToList();
         var newVersion = existing.CreateNewVersion(cmd.Content, versions, cmd.Comment);
         foreach (var v in touched) repo.Update(v);
-        await repo.AddAsync(newVersion, ct);
-        await repo.SaveChangesAsync(ct);
+
+        // Закреплённые за гаснущими версиями переходят на новую (вариант А #1923, D6): закрепление
+        // значит «этот шаблон». Иначе документ оставался на погашенной, и генерация отказывала.
+        // Выпущенные возвращаются в черновик — их PDF напечатан прежней версией. Блобы — после
+        // коммита: откат не осиротит файлы.
+        var replacedBy = retiring.ToDictionary(id => id, _ => newVersion.Id);
+        var blobs = new List<string>();
+        var repinnedReset = 0;
+        foreach (var doc in (await objRepo.GetDocumentsOfTypeAsync(newVersion.DocumentTypeId, ct))
+                     .Where(o => retiring.Any(o.PinsTemplate)))
+        {
+            doc.RepinTemplates(replacedBy);
+            if (doc.Status != Domain.Documents.DocumentStatus.Draft)
+            {
+                blobs.AddRange(doc.ResetToDraft());
+                repinnedReset++;
+            }
+            objRepo.Update(doc);
+        }
+
+        // Сначала погашение и пересадка, потом вставка — порядок, которого требует индекс (D4).
+        // Проигравший гонку получает здесь 23505, адрес превращает его в 409 (D5).
+        await versionWriter.SaveRetiredThenInsertAsync([newVersion], ct);
+        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         await DuplicateTemplateAssetsAsync(existing.Id, newVersion.Id, ct);
         // Документы без выбранного шаблона устарели (issue #362), если их шаблон сменился:
         // новая версия стала шаблоном по умолчанию — или его у типа нет, и они берут любой
         // действующий, а действующие только что сменились (issue #1920: от исторической версии
-        // гасится действующая и не по умолчанию). Запиннутые на старую версию не трогаем: её
-        // содержимое не менялось.
+        // гасится действующая и не по умолчанию).
         var reset = newVersion.IsDefault || !await HasDefaultActiveAsync(newVersion.DocumentTypeId, ct)
             ? await invalidator.OnDefaultChangedAsync(newVersion.DocumentTypeId, ct)
             : 0;
-        return new TemplateMutationResult(newVersion, reset);
+        return new TemplateMutationResult(newVersion, reset + repinnedReset);
     }
+
+    /// <summary>
+    /// Название шаблона в типе не повторяется (#1924): шаблон — все версии с одним типом и одним
+    /// названием, и создание под занятым названием добавляло бы действующую v1 в чужой шаблон.
+    /// Гонку двух созданий ловит уникальный индекс (D3), здесь — внятный отказ без гонки.
+    /// </summary>
+    private async Task EnsureNameFreeAsync(Guid documentTypeId, string name, CancellationToken ct)
+    {
+        if (await IsNameTakenAsync(documentTypeId, name, ct))
+            throw new ConflictException($"Шаблон с таким названием уже есть: «{name}».");
+    }
+
+    private async Task<bool> IsNameTakenAsync(Guid documentTypeId, string name, CancellationToken ct)
+        => (await repo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.Name == name, ct)).Count > 0;
 
     private async Task<bool> HasDefaultActiveAsync(Guid documentTypeId, CancellationToken ct)
         => (await repo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsDefault && t.IsActive, ct)).Count > 0;
@@ -87,7 +128,19 @@ public class TemplateHandlers(
     {
         var source = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
-        var name = string.IsNullOrWhiteSpace(cmd.NewName) ? $"{source.Name} (копия)" : cmd.NewName.Trim();
+        string name;
+        if (!string.IsNullOrWhiteSpace(cmd.NewName))
+        {
+            name = cmd.NewName.Trim();
+            await EnsureNameFreeAsync(source.DocumentTypeId, name, ct);
+        }
+        else
+        {
+            // Без названия — первое свободное (D2): вторая «(копия)» влилась бы в первую.
+            name = $"{source.Name} (копия)";
+            for (var n = 2; await IsNameTakenAsync(source.DocumentTypeId, name, ct); n++)
+                name = $"{source.Name} (копия {n})";
+        }
         var copy = source.Duplicate(name);
         await repo.AddAsync(copy, ct);
         await repo.SaveChangesAsync(ct);

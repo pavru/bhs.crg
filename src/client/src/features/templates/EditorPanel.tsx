@@ -10,7 +10,7 @@ import { SplitButton } from '@/shared/ui/SplitButton';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
-import { ruCount } from '@/shared/utils/pluralize';
+import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
 import type { Template, DocumentType } from '@/shared/api/types';
@@ -82,6 +82,11 @@ function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
 }) {
   const [comment, setComment] = useState('');
   const retired = plan.retires.map(t => `v${t.version}`).join(', ');
+  // Закреплённые за гаснущими версиями следуют за шаблоном (#1923, вариант А) — сервер их пересадит.
+  const one = ruPlural(plan.pinnedToRetired, 'one', 'few', 'many') === 'one';
+  const pinnedMove = plan.pinnedToRetired > 0 && (
+    <> {ruCount(plan.pinnedToRetired, 'документ', 'документа', 'документов')}{' '}
+      {one ? 'перейдёт' : 'перейдут'} на новую версию и {one ? 'вернётся' : 'вернутся'} в черновик.</>);
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title="Сохранить как новую версию"
       footer={
@@ -96,6 +101,7 @@ function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
         {plan.retires.length === 0 ? (
           <p className="text-body-medium text-on-surface-variant">
             Будет создана <strong>версия v{plan.next}</strong>. Текущая версия сохранится в истории.
+            {pinnedMove}
           </p>
         ) : (
           // От исторической версии гаснет не она, а действующая (issue #1920): об этом и говорим.
@@ -103,8 +109,7 @@ function NewVersionDialog({ plan, saving, onCancel, onConfirm }: {
             Будет создана <strong>версия v{plan.next}</strong> из этой. Действующая {retired} уйдёт в историю
             {plan.takesDefault && <> и передаст v{plan.next} признак «по умолчанию»</>}.
             {plan.noPinDocsMove && <> Документы без выбранного шаблона перейдут на v{plan.next} и вернутся в черновик.</>}
-            {plan.pinnedToRetired > 0 && <> За {retired} закреплено {ruCount(plan.pinnedToRetired, 'документ', 'документа', 'документов')} —
-              им нужно будет выбрать шаблон заново.</>}
+            {pinnedMove}
           </p>
         )}
         <TextField label="Примечание к версии (необязательно)" value={comment}
