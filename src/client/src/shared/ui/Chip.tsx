@@ -2,6 +2,7 @@ import { Icon } from './Icon';
 import { Check, Close, KeyboardArrowDown, type IconDef } from './icons';
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { Tooltip } from './Tooltip';
+import { LEAD_TONE } from './leadTone';
 
 /**
  * Чип MD3 ([UI-68], issue #1351): 32 px, форма 8, подпись `label-large`. Вид выводится из свойств, а тип —
@@ -43,8 +44,8 @@ type Common = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   count?: ReactNode;
 };
 
-/** Ведущий знак: цвет роли и имя — только вместе со знаком. */
-type Lead =
+/** Ведущий знак: цвет роли и имя — только вместе со знаком. Тот же тип у чипа отбора `Select` ([UI-69]). */
+export type ChipLead =
   | { icon?: undefined; iconTone?: never; iconLabel?: never }
   | { icon: IconDef; iconTone?: 'error' | 'warning'; iconLabel?: string };
 
@@ -52,7 +53,7 @@ type Filter = { selected: boolean; menu?: boolean; onRemove?: never; removeLabel
 type Input = { onRemove: () => void; removeLabel: string; selected?: boolean; removeOnly?: boolean; menu?: never };
 type Assist = { selected?: never; menu?: boolean; onRemove?: never; removeLabel?: never; removeOnly?: never };
 
-export type ChipProps = Common & ((Filter & Lead) | (Input & Lead) | (Assist & Lead & { icon: IconDef }));
+export type ChipProps = Common & ((Filter & ChipLead) | (Input & ChipLead) | (Assist & ChipLead & { icon: IconDef }));
 
 const BASE = 'inline-flex items-center h-8 rounded-sm border text-label-large';
 /**
@@ -66,7 +67,6 @@ const TOUCH_REMOVE = '[--_touch-inset:-8px_-4px_-8px_0]';
 
 const UNSELECTED = 'border-outline-variant text-on-surface-variant bg-surface';
 const SELECTED = 'border-transparent bg-secondary-container text-on-secondary-container';
-const TONE = { error: 'text-error', warning: 'text-warning' } as const;
 
 export function Chip(props: ChipProps) {
   const {
@@ -77,7 +77,7 @@ export function Chip(props: ChipProps) {
   const shown = toggles && selected ? Check : icon;
   // Ведущий знак — своего цвета: primary у невыбранного (MD3), роль — у знака о состоянии. У отключённого
   // знак гаснет вместе с подписью: цвет берёт у кнопки.
-  const leadTone = rest.disabled || shown === Check ? '' : iconTone ? TONE[iconTone] : selected ? '' : 'text-primary';
+  const leadTone = rest.disabled || shown === Check ? '' : iconTone ? LEAD_TONE[iconTone] : selected ? '' : 'text-primary';
   // Отключённый по MD3: выбранный — заливка on-surface 12 % без контура, невыбранный — контур 12 %.
   const container = `${BASE} ${selected ? `${SELECTED} disabled-container` : `${UNSELECTED} disabled-outlined`}`;
   const body = (

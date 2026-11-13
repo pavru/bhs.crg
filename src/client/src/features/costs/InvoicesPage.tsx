@@ -529,7 +529,7 @@ export function InvoicesPage() {
           {/* Счёт ещё грузится, не найден или не прочитан — сводки нет, и «Счёт из файла» встаёт сюда (ревью PR #1823). */}
           {selected !== null && <InvoiceListHeader actions={actions} fromFile={opened.kind === 'open' ? null : fromFile} />}
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
-          <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
+          <InvoiceQueueChips queue={queue} upload={onlyUpload} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
             onRetry={() => void counts.refetch()}
             // Под очередью и отбором загрузки рейл не урезается (#1221) — и отбора «Стройки» там нет.

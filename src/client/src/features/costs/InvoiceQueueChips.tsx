@@ -1,76 +1,68 @@
-import { Chip } from '@/shared/ui/Chip';
 import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
-import { LOST_DOUBT_MARK, QUEUE_LABEL, QUEUE_MARK, queueChip } from './invoiceQueues';
+import type { ChipLead } from '@/shared/ui/Chip';
+import { UploadFile } from '@/shared/ui/icons';
+import { Select, SelectItem } from '@/shared/ui/Select';
+import { parseQueue, queueLead, queueOptions } from './invoiceQueues';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
+/** Значение пункта «Эта загрузка» — не очередь: наружу не уходит. */
+const UPLOAD = 'upload';
+const UPLOAD_TITLE = 'Показаны только счета этой загрузки. «Все счета» или очередь снимают этот отбор.';
+
 /**
- * Очереди списка счетов чипами (issue #1186): «Разобрать», «Удалённые записи 3», «В архиве 5».
+ * Очереди списка счетов (issue #1186) — одним чипом отбора с меню «Очередь счетов» (costs-invoice-filter-row,
+ * issue #1910, [COST-6.2]): «Все счета» в покое, выбранная очередь — «Разобрать · 3812». Четыре чипа с
+ * числами у заказчика вставали над лентой (колонка 320) столбиком в пять рядов.
  *
- * Выбор один, повторное нажатие снимает: отбирает сервер, и пересечения очередей он не считает —
- * «разобрать И удалённые» никто не просил.
+ * Выбор один: отбирает сервер, и пересечения очередей он не считает — «разобрать И удалённые» никто не
+ * просил. Снимает отбор пункт «Все счета». Пункты и их числа — `queueOptions`; удалённые записи видны и на
+ * закрытом чипе ведущим знаком (`queueLead`), иначе сигнал о поломке прятался бы в меню.
  *
- * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, чипов «наведите
+ * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, пунктов «наведите
  * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry, sites }: {
+export function InvoiceQueueChips({ queue, upload = false, onChange, queues, parsing, failed, onRetry, sites }: {
   queue: InvoiceQueue | null;
+  /**
+   * Список урезан до одной загрузки («Показать только их»). Чип тогда называет её, «Эта загрузка», а не
+   * «Все счета»: в покое он утверждал бы, что показано всё, а пункт «Все счета» — тот же, что выбран, —
+   * Radix не сообщает, и вернуть общий список им было бы нельзя (ревью PR #1934). Выбор очереди или «Все
+   * счета» отбор загрузки снимает, как прежде чип очереди.
+   */
+  upload?: boolean;
   onChange: (queue: InvoiceQueue | null) => void;
   /** Числа; `undefined` — не пришли или их не спрашивали. */
   queues: InvoiceQueues | undefined;
   /** Сколько счетов под «Разобрать»; `undefined` — не посчитано (идёт запрос, отказ, прежний сервер). */
   parsing: number | undefined;
-  /** Числа не пришли: это не «ноль», и молча убрать чип нельзя. */
+  /** Числа не пришли: это не «ноль», и молча убрать пункт нельзя. */
   failed: boolean;
   onRetry: () => void;
-  /** Отбор «Стройки» (#1432) — последним: под очередью его нет, и уходя, он не сдвигает чипы очередей. */
+  /** Отбор «Стройки» (#1432) — последним: под очередью его нет, и уходя, он не сдвигает чип очередей. */
   sites?: ReactNode;
 }) {
-  const toggle = (next: InvoiceQueue) => onChange(queue === next ? null : next);
-  const lost = queueChip('lost', queues, queue === 'lost');
-  const archived = queueChip('archived', queues, queue === 'archived');
+  const options = queueOptions(queues, parsing, failed, queue);
+  const chosen = options.find(o => o.value === queue);
+  const lead = queueLead(queues);
+  // Знак — свойства чипа как есть (`QueueLead` — это `ChipLead` с подсказкой); без знака — пусто.
+  const mark: ChipLead = lead ?? {};
 
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 px-3 py-1.5 text-body-small" role="group" aria-label="Отбор списка счетов">
-      {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
-          черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
-          равно нулю, — «не посчитано» нулём не рисуем. */}
-      <Chip selected={queue === 'parsing'} icon={QUEUE_MARK.parsing.icon} count={parsing ? String(parsing) : undefined}
-        title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
-          + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
-        onClick={() => toggle('parsing')}
-        aria-label={parsing ? `${QUEUE_LABEL.parsing}, счетов: ${parsing}` : undefined}>
-        {QUEUE_LABEL.parsing}
-      </Chip>
-      {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
-          нажатый чип остаётся — иначе отбор нечем снять. */}
-      {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
-          к распознаванию не относящимся, а сам отбор при этом работает. */}
-      {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
-        <Chip selected={queue === 'unrecognized'} icon={QUEUE_MARK.unrecognized.icon} count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
-          title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
-            + (queues ? '' : ' Сколько их — не посчитано.')}
-          iconTone={QUEUE_MARK.unrecognized.tone} onClick={() => toggle('unrecognized')}
-          aria-label={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`}>
-          {QUEUE_LABEL.unrecognized}
-        </Chip>
-      )}
-      {lost && (
-        // «Возможно» и «точно потеряно» — разными знаками, а не цветом одного (WCAG 1.4.1, [UI-68]).
-        <Chip selected={queue === 'lost'} icon={(lost.doubt ? LOST_DOUBT_MARK : QUEUE_MARK.lost).icon} iconTone={(lost.doubt ? LOST_DOUBT_MARK : QUEUE_MARK.lost).tone}
-          count={lost.count} title={lost.title} onClick={() => toggle('lost')}
-          aria-label={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`}>
-          {QUEUE_LABEL.lost}
-        </Chip>
-      )}
-      {archived && (
-        <Chip selected={queue === 'archived'} icon={QUEUE_MARK.archived.icon} count={archived.count}
-          title={archived.title} onClick={() => toggle('archived')}
-          aria-label={`${QUEUE_LABEL.archived}, счетов: ${archived.count || 'нет'}`}>
-          {QUEUE_LABEL.archived}
-        </Chip>
-      )}
+      {/* На закрытый чип из пункта уходит только подпись — число выбранной очереди чип несёт сам: «Разобрать · 3812».
+          Подсказка — о выбранной очереди, а в покое — об удалённых записях, если они есть. */}
+      <Select variant="chip" aria-label="Очередь счетов" emptyItem="Все счета"
+        value={upload ? UPLOAD : queue ?? ''} onValueChange={v => { if (v !== UPLOAD) onChange(parseQueue(v)); }}
+        {...mark} count={chosen?.count || undefined} title={chosen?.title ?? (upload ? UPLOAD_TITLE : lead?.title)}>
+        {upload && <SelectItem value={UPLOAD} icon={UploadFile}>Эта загрузка</SelectItem>}
+        {options.map(o => (
+          <SelectItem key={o.value} value={o.value} icon={o.icon} iconTone={o.iconTone} count={o.count || undefined}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </Select>
       {failed && (
         <Tooltip content="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
           <button type="button" onClick={onRetry} className="text-on-surface-variant underline hover:text-on-surface">

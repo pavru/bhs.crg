@@ -46,11 +46,14 @@ export async function favoritesChecks(page, check) {
     await settled(page);
 
     await check('favorites-empty-filter-says-all', async () => {
-      // Избранного нет — отбор над списком говорит «Все стройки», а в его поповере только выбор строек:
-      // положение «Избранные» без избранного показало бы всё и выглядело бы сломанным (#1432).
+      // Избранного нет — отбор над списком выключен и называет категорию, «Стройки» ([UI-95]), а в его
+      // поповере только выбор строек: положение «Избранные» без избранного показало бы всё и выглядело бы
+      // сломанным (#1432). Положение выключенного — в имени для диктора.
       const chip = page.getByTestId('sites-filter');
       await chip.waitFor({ timeout: 5000 });
-      if ((await chip.innerText()).trim() !== 'Все стройки') throw new Error(`отбор без избранного: «${await chip.innerText()}»`);
+      if ((await chip.innerText()).trim() !== 'Стройки') throw new Error(`отбор без избранного: «${await chip.innerText()}»`);
+      if ((await chip.getAttribute('aria-label')) !== 'Стройки — все')
+        throw new Error(`имя отбора без избранного: «${await chip.getAttribute('aria-label')}»`);
       // Шапка об избранном больше не говорит: отбор стоит у списка, который урезает.
       if (/Избранн/.test(await page.locator('main > header').innerText())) throw new Error('избранное осталось в шапке');
       await chip.click();
