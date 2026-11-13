@@ -25,8 +25,7 @@ const GROUP_ID = 'pinned-group-items';
  * Закреплений нет — группы нет вовсе: пустая группа в каждой подпанели звала бы в никуда.
  */
 export function PinnedGroup({ entries }: { entries: PinnedEntry[] }) {
-  const { collapsed, setCollapsed, unpin } = usePinnedPages();
-  const guardedClick = useGuardedNavClick();
+  const { collapsed, setCollapsed } = usePinnedPages();
   if (entries.length === 0) return null;
 
   return (
@@ -40,20 +39,31 @@ export function PinnedGroup({ entries }: { entries: PinnedEntry[] }) {
       </button>
       {!collapsed && (
         <div id={GROUP_ID} className="space-y-0.5">
-          {entries.map(entry => (
-            <PageRow key={entry.item.to} actions={[{ key: 'unpin', label: UNPIN_LABEL, icon: KeepOff, onSelect: () => unpin(entry.item.to) }]}
-              label={entry.item.label}>
-              <Link to={entry.item.to} onClick={guardedClick(entry.item.to)} className={`${panelLink(false, true)} pr-12`}>
-                <span className="flex-1 min-w-0 flex flex-col">
-                  <span className="truncate">{entry.item.label}</span>
-                  <span className="truncate text-body-small text-on-surface-variant">{entryNote(entry)}</span>
-                </span>
-              </Link>
-            </PageRow>
-          ))}
+          {entries.map(entry => <PinnedLink key={entry.item.to} entry={entry} />)}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Закреплённая страница — двумя строками: подпись и раздел (с «вне пространства»); «⋮» — «Открепить
+ * страницу». Одна на группу подпанели и лист «Закреплённые» телефона (work-03): разойдясь, они показали бы
+ * одно и то же закрепление по-разному.
+ */
+export function PinnedLink({ entry }: { entry: PinnedEntry }) {
+  const { unpin } = usePinnedPages();
+  const guardedClick = useGuardedNavClick();
+  return (
+    <PageRow actions={[{ key: 'unpin', label: UNPIN_LABEL, icon: KeepOff, onSelect: () => unpin(entry.item.to) }]}
+      label={entry.item.label}>
+      <Link to={entry.item.to} onClick={guardedClick(entry.item.to)} className={`${panelLink(false, true)} pr-12`}>
+        <span className="flex-1 min-w-0 flex flex-col">
+          <span className="truncate">{entry.item.label}</span>
+          <span className="truncate text-body-small text-on-surface-variant">{entryNote(entry)}</span>
+        </span>
+      </Link>
+    </PageRow>
   );
 }
 
