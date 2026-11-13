@@ -4,7 +4,15 @@ namespace BHS.CRG.Modules.Ports;
 public sealed record ModuleSection(Guid Id, string Name);
 
 /// <summary>Стройка ядра вместе с её разделами.</summary>
-public sealed record ModuleConstruction(Guid Id, string Name, IReadOnlyList<ModuleSection> Sections);
+/// <param name="TimeZoneId">
+/// Действующий пояс стройки в форме IANA (ТЗ CORE-5, WORK-8; change <c>work-11-assignments</c>): свой пояс
+/// стройки, а не задан — пояс компании. Не <c>null</c> никогда: модуль считает по нему сутки и сам
+/// настроек ядра не видит, а «не задан» без ответа «тогда какой» заставил бы его угадывать.
+/// </param>
+/// <param name="TimeZoneInherited">Пояс не задан у стройки и взят у компании — экран говорит «как у
+/// компании», а не выдаёт пояс компании за выбранный.</param>
+public sealed record ModuleConstruction(
+    Guid Id, string Name, IReadOnlyList<ModuleSection> Sections, string TimeZoneId, bool TimeZoneInherited);
 
 /// <summary>
 /// Стройки и разделы ядра — ЧТЕНИЕ (ТЗ COST-10, CORE-34): цель части разноски счёта (задача F1,

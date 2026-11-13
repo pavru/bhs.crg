@@ -2,14 +2,14 @@
 
 ## 1. Порты ядра
 
-- [ ] 1.1 `ModuleConstruction` получает `TimeZoneId` (действующий) и `TimeZoneInherited`; заполнение в
+- [x] 1.1 `ModuleConstruction` получает `TimeZoneId` (действующий) и `TimeZoneInherited`; заполнение в
   `ModuleConstructionsPort.cs` с поясом компании из `IAppSettingsStore` [CORE-5] [WORK-8]. Проверка —
   тест порта: стройка без пояса приходит с поясом компании и признаком; тесты `costs` зелёные
-- [ ] 1.2 `IModuleClock.TodayOnSiteAsync` и `SiteDateOf` в `ModuleClockPort.cs`; двойник
+- [x] 1.2 `IModuleClock.TodayOnSiteAsync` и `SiteDateOf` в `ModuleClockPort.cs`; двойник
   `InvoiceDueTableTests.TestClock` дополнен [CORE-5] [WORK-8]. Проверка — тест на подставном
   `TimeProvider`: 23:59:59 и 00:00:00 по поясу стройки дают разные даты; Владивосток против Москвы;
   удалённая стройка — `null`
-- [ ] 1.3 `ModuleEmployee.Account` в порту `IModuleEmployees` (`plan-03`): состояние связи из таблицы
+- [x] 1.3 `ModuleEmployee.Account` в порту `IModuleEmployees` (`plan-03`): состояние связи из таблицы
   `work-01`, не из поля карточки; ~~поля по тэгам, архив, «не заведён»~~ — `plan-03` [CORE-7] [CORE-20.4].
   Проверка — `ModuleEmployeesPortTests` дополнен: связанный — `linked` с именем; удалённая учётная запись
   даёт `deleted`; значение в поле `УчётнаяЗапись` без связи — `none`; `OfAccountAsync` отдаёт сотрудника
