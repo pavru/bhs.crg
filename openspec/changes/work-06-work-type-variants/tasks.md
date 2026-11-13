@@ -43,7 +43,7 @@
 
 ## 4. Клиент и документы
 
-- [ ] 4.1 `shared/api/commonData.ts`: строка `ВариантРаботы` в `OWN_DOORS` — запись адресами двери,
+- [x] 4.1 `shared/api/commonData.ts`: строка `ВариантРаботы` в `OWN_DOORS` — запись адресами двери,
   действия каталога (`RecordWriteGate`) — по `core.worktypes.edit` [WORK-49]. Проверка — vitest на
   выбор адреса и права по типу (`commonData.door.test.ts`); вручную под «Сметчиком»: вариант
   заводится, архивируется, удаление занятого — отказ с числом
@@ -53,7 +53,7 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkVariant|FullyQualifiedName~WorkTypeEndpoints|FullyQualifiedName~ModuleWorkTypes|FullyQualifiedName~CoreRecordType|FullyQualifiedName~OwnDoorWrite|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ArchiveRead|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkVariant|FullyQualifiedName~WorkTypeEndpoints|FullyQualifiedName~ModuleWorkTypes|FullyQualifiedName~CoreRecordType|FullyQualifiedName~OwnDoorWrite|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ArchiveRead|FullyQualifiedName~ModuleBoundary"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
