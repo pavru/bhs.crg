@@ -29,9 +29,7 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
           <MenuGroup>
             {group.label && <MenuLabel>{group.label}</MenuLabel>}
             {group.items.map(({ to, label }) => (
-              // Копия страницы (закреплённая, work-04) галочкой не отмечается: отмечена страница на своём месте.
-              <MenuItem key={to} to={to} checked={to === here && !group.copies}
-                current={to === here && !group.copies} description={group.notes?.[to]}>{label}</MenuItem>
+              <MenuItem key={to} to={to} checked={to === here} current={to === here}>{label}</MenuItem>
             ))}
           </MenuGroup>
         </Fragment>

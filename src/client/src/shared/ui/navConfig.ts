@@ -1,4 +1,4 @@
-import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Group, HistoryIcon, Home, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
+import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Engineering, Group, HistoryIcon, Home, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -47,7 +47,7 @@ export interface NavItem {
  * короток на любом экране, а двадцать пунктов перестают быть одним списком, который надо прочесть
  * целиком, чтобы найти нужное.
  */
-export type RailId = 'home' | 'constructions' | 'data' | 'costs' | 'plan' | 'system';
+export type RailId = 'home' | 'constructions' | 'data' | 'costs' | 'plan' | 'work' | 'system';
 
 export interface RailSectionDef {
   id: RailId;
@@ -93,6 +93,13 @@ export const railSections: RailSectionDef[] = [
   // занят модулем ИД (% плана у разделов). Пока у раздела нет видимых пунктов, его нет в рейле.
   { id: 'plan',   label: 'Планы',  icon: Assignment, title: 'Планирование',
     hint: 'Сметы, коммерческие предложения, прайс-лист и календарь' },
+  // Модуль «Учёт работ» (work-03, макет Р0, выбор владельца 11.11.2026) — за «Планами». Подпись «Работы»
+  // совпадает с блоком «Работы» карточки стройки — владелец это принял; «Учёт работ» в 80 px не
+  // помещается. Значок — «человек в каске»: гаечный ключ занят «Системой», планшет — «Планами».
+  // ⚠️ `workNav` ниже — «рабочие пункты» против `settingsNav`, а не этот модуль. Пока у раздела нет
+  // видимых пунктов (их приносят work-12, work-21…work-23), его нет в рейле.
+  { id: 'work',   label: 'Работы', icon: Engineering, title: 'Учёт работ',
+    hint: 'Отчёты о работах, приёмка, сводка и назначения' },
   // Подпись «Система», заголовок «Администрирование»: полное слово в 80 px рейла не помещается
   // (решение владельца, 17.10.2026).
   { id: 'system', label: 'Система', icon: Build,    title: 'Администрирование',
@@ -106,6 +113,26 @@ export const railSections: RailSectionDef[] = [
  * была бы циклом импорта, на котором пункт Главной ниже встречал бы её ещё не объявленной.
  */
 export const HOME_ENTRY_RANK = 100;
+
+/**
+ * Ранги страницы входа пунктов модуля «Учёт работ» (work-03, ТЗ AUTH-16.1, WORK-2; макет Р0, выбор
+ * владельца 11.11.2026). Пункты заводят change экранов и берут ранг отсюда, а не пишут число по месту:
+ * порядок рангов — решение макета, и два числа в двух файлах разошлись бы молча.
+ *
+ * - `myReports` — «Мои отчёты» (`work.report.own`, work-22): монтажник после входа попадает на свои
+ *   отчёты, а не на Главную (WORK-2).
+ * - `review` — «Приёмка» (`work.report.review`, work-21): аккаунт с одним модулем «Учёт работ» без своих
+ *   отчётов входит в приёмку; со своими отчётами и приёмкой — в «Мои отчёты», поэтому ранг больше.
+ *
+ * Оба меньше Главной, но действуют лишь при одном модуле аккаунта (правило `entryPage.ts`, plan-02):
+ * «Менеджер проекта» и «Администратор» входят на Главную. «Сводке» (work-23) и «Назначениям» (work-12)
+ * ранга нет: Р0 не делает их страницей входа, и аккаунт, которому видны только они, входит на Главную.
+ *
+ * Порядок пунктов в подпанели «Работ» — «Мои отчёты», «Приёмка», «Сводка», «Назначения»: от личного к
+ * общему, как жизнь отчёта (Р0). «Вариантов работ» в разделе нет — они правятся в «Общих данных»: пункт
+ * здесь открыл бы раздел ролям без модуля.
+ */
+export const WORK_ENTRY_RANK = { myReports: 10, review: 20 } as const;
 
 const COSTS_REPORTS = 'Отчёты и закрытие месяца';
 const PLAN_DIRECTORIES = 'Справочники';
