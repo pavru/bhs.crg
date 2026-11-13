@@ -75,9 +75,19 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         // в таблице больше нет, служба таблиц отдаёт закрытой с причиной — источник не отказывает.
         SystemDataSets.TryParseTableMarker(marker, out _, out var wanted);
         var (table, refusal) = await tables.ReadAsync(entry.Address, access, new TableRequest(Columns: wanted), ct);
+        // Кроме одного отказа: данные без подписи (work-07). Ворота тут ни при чём — служба строк модуля не
+        // назвала исход, — и человек с агентом получают причину отказом 409, а не ошибкой ядра.
         if (table is null)
+        {
+            if (refusal is { Unsigned: true }) SystemDataSetRules.RefuseUnsigned(refusal.Error);
             throw new InvalidOperationException(
                 $"Ворота набора пропустили к таблице «{entry.Address}», а служба таблиц отказала: {refusal!.Error}");
+        }
+        // Подпись набора — только та, что дала служба таблиц. Без неё ворота набора взяли бы объявленную
+        // строку как есть, с местом «{sites}» вместо числа строек (BoundaryFor). Так бывает у выключенного
+        // модуля: строк не читали, исхода нет, и подписать пустую выдачу нечем.
+        SystemDataSetRules.EnsureSigned(entry.Table.Title, table.Boundary,
+            table.State is null ? "служба таблиц не назвала границу выдачи" : "модуль выключен, и исхода отбора нет");
         // Колонка, чьё значение зависит от отбора, в набор не едет: набор отбирает строки САМ, уже
         // после чтения, и «доля по разноске» посчиталась бы здесь без отбора — полной суммой под
         // именем доли. В наборе остаётся колонка с постоянным смыслом.

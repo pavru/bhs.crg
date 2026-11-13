@@ -17,11 +17,16 @@ public sealed record ModuleTableBoundary(string Code, string Text)
     /// <summary>Место для числа строек в тексте.</summary>
     public const string SitesPlace = "{sites}";
 
-    /// <summary>Код единственного исхода таблицы, которой выбирать не из чего.</summary>
+    /// <summary>Код единственного исхода по умолчанию — у таблицы, которая отдаёт всем одно.</summary>
     public const string OnlyCode = "all";
 
-    /// <summary>Граница таблицы без выбора исхода: одна строка на все случаи.</summary>
-    public static IReadOnlyList<ModuleTableBoundary> Only(string text) => [new(OnlyCode, text)];
+    /// <summary>
+    /// Граница с одним исходом. Служба строк такой таблицы может исход не называть — подпишет эта строка.
+    /// Назвала — код обязан совпасть с <paramref name="code" />: таблица с одной границей «ваши отчёты»,
+    /// чья служба по образцу пишет <c>ModuleTableOutcome.Of(reach)</c>, объявляет её кодом <c>own</c>, и
+    /// тогда исход «all» у читающего всё — отказ, а не подпись «ваши» под всеми отчётами.
+    /// </summary>
+    public static IReadOnlyList<ModuleTableBoundary> Only(string text, string code = OnlyCode) => [new(code, text)];
 
     /// <summary>Нужно ли этому тексту число строек.</summary>
     public bool CountsSites => Text?.Contains(SitesPlace, StringComparison.Ordinal) == true;

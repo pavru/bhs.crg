@@ -1,5 +1,8 @@
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Api.Modules.Tables;
 using BHS.CRG.Application.Tables;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Http;
@@ -126,6 +129,56 @@ public class ModuleTableIsolationTests
         { "не объявлен", _ => new("region"), "исход «region», а таблица его не объявляла" },
         { "нет числа строек", _ => new("sites"), "считает стройки, а служба строк их число не назвала" },
     };
+
+    /// <summary>
+    /// Та же ошибка модуля на пути набора и MCP — отказ 409 с названием таблицы, а не исключение ядра
+    /// «ворота пропустили» (500): ворота тут ни при чём, и причину обязан прочесть и человек, и агент.
+    /// </summary>
+    [Fact]
+    public async Task Набор_над_таблицей_без_подписи_отказывает_с_причиной()
+    {
+        var provider = new ModuleTableDataProvider(Entry(), Service(new ReportRows { Outcome = _ => null }));
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => provider.ProvideAsync(
+            ModuleTableDataProvider.MarkerOf(Entry()), CatalogScope.System, null, ManagerAccess, default));
+        Assert.Contains($"«{Title}»", error.Message);
+        Assert.Contains("не назвала, какой применился", error.Message);
+    }
+
+    /// <summary>
+    /// У выключенного модуля строк не читали и исхода нет. Набор не подписывает пустую выдачу объявленной
+    /// строкой как есть — с «{sites}» вместо числа, — а отказывает, называя причину.
+    /// </summary>
+    [Fact]
+    public async Task Набор_при_выключенном_модуле_не_подписывается_сырой_строкой()
+    {
+        var off = DataAccess.Of(Manager, "Менеджер Пробный", [Module, "core.datasets.read", Review], []);
+        var provider = new ModuleTableDataProvider(Entry(), Service(new ReportRows()));
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => provider.ProvideAsync(
+            ModuleTableDataProvider.MarkerOf(Entry()), CatalogScope.System, null, off, default));
+        Assert.Contains("модуль выключен", error.Message);
+        Assert.DoesNotContain(ModuleTableBoundary.SitesPlace, error.Message);
+    }
+
+    /// <summary>
+    /// Одна граница со своим кодом: служба, называющая исход по образцу (<c>ModuleTableOutcome.Of</c>),
+    /// подписывается им, а исход, которого граница не описывает, — по-прежнему отказ.
+    /// </summary>
+    [Fact]
+    public async Task Одна_граница_с_кодом_исхода_принимает_свой_исход_и_только_его()
+    {
+        var own = Table(ModuleTableBoundary.Only("Отдаёт ваши отчёты", "own"));
+
+        var (signed, refusal) = await Service(new ReportRows(), own).ReadAsync(Address, InstallerAccess, new TableRequest(), default);
+        Assert.Null(refusal);
+        Assert.Equal("Отдаёт ваши отчёты", signed!.Boundary);
+        Assert.Equal("own", signed.BoundaryOutcome);
+
+        var (_, chief) = await Service(new ReportRows(), own).ReadAsync(Address, ChiefAccess, new TableRequest(), default);
+        Assert.Equal(StatusCodes.Status409Conflict, chief!.Status);
+        Assert.Contains("исход «all», а таблица его не объявляла", chief.Error);
+    }
 
     /// <summary>
     /// Чужая строка по ключу — тот же ответ, что несуществующая: пустая выдача, а не 403 (ТЗ WORK-39). По

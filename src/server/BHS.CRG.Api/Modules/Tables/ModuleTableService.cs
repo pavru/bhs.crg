@@ -334,7 +334,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
 
     private static TableRefusal Unsigned(ModuleTable table, string why) => new(StatusCodes.Status409Conflict,
         $"Таблица «{table.Title}» не отдана: {why}. Данные без подписи не отдаются — человек прочитал бы " +
-        "о них не то, что ему отдали.");
+        "о них не то, что ему отдали.", Unsigned: true);
 
     /// <summary>
     /// Вид поля схемы (или базы примитива) → вид колонки. Перечисление, строка, текст — текстом: в
@@ -350,4 +350,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
 }
 
 /// <summary>Отказ таблицы — код ответа и текст для человека.</summary>
-public sealed record TableRefusal(int Status, string Error);
+/// <param name="Unsigned">Строки прочитаны, но подписать их нечем: служба строк не назвала исход отбора
+/// или назвала не тот (ТЗ CORE-24.3; work-07). Это ошибка модуля, а не ворот, — и путь набора отличает
+/// её от отказа ворот, чтобы отдать причину отказом 409, а не исключением ядра.</param>
+public sealed record TableRefusal(int Status, string Error, bool Unsigned = false);
