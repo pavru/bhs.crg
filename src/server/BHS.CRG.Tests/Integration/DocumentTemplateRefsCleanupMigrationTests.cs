@@ -35,7 +35,7 @@ public class DocumentTemplateRefsCleanupMigrationTests : IAsyncLifetime
     private static readonly DateTimeOffset T0 = new(2026, 7, 19, 9, 0, 0, TimeSpan.Zero);
     private static Guid G(int n) => Guid.Parse($"00000000-0000-0000-0000-{n:D12}");
 
-    // Живые шаблоны — 1 и 2; 91 и 92 удалены до #364.
+    // Живые шаблоны типа — 1 и 2; 3 — шаблон ДРУГОГО типа; 91 и 92 удалены до #364.
     private sealed record Doc(Guid Id, Guid? TemplateId, string? TemplateIds, string? TemplateParams);
 
     private static string P(params int[] ids) =>
@@ -52,7 +52,14 @@ public class DocumentTemplateRefsCleanupMigrationTests : IAsyncLifetime
         new(G(103), G(1), $"[\"{G(1)}\",\"{G(1)}\"]", P(1)),
         // Старый плоский вид параметров — ключи не шаблоны.
         new(G(104), null, null, """{"x":1}"""),
+        // Ревью PR #1963: шаблон чужого типа, null и число в выборе, ВЕРХНИЙ регистр, иной вид id.
+        new(G(105), G(3), $"[\"{G(3)}\",null,5,\"{Upper(1)}\",\"{G(2):N}\",\"{G(2)}\",\"{G(1)}\"]",
+            $"{{\"{G(3)}\":{{\"v\":3}},\"{Upper(2)}\":{{\"v\":2}},\"{G(1):N}\":{{\"v\":1}}}}"),
+        // Ключ лишь в верхнем регистре — переписан строчными, убирать нечего.
+        new(G(106), null, null, $"{{\"{Upper(1)}\":{{\"v\":1}}}}"),
     ];
+
+    private static string Upper(int n) => G(n).ToString().ToUpperInvariant();
 
     [Fact]
     public async Task Висячие_ссылки_убраны_так_же_как_доменной_функцией()
@@ -65,11 +72,14 @@ public class DocumentTemplateRefsCleanupMigrationTests : IAsyncLifetime
 
         var type = DocumentType.Create("АОСР", "AOSR", DocumentTypeKind.Document, null,
             JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
-        db.DocumentTypes.Add(type);
+        var other = DocumentType.Create("Протокол", "PROT", DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[]}"""), TypeOwner.Core, TypeVisibility.Shared);
+        db.DocumentTypes.AddRange(type, other);
         await db.SaveChangesAsync();
         db.Templates.AddRange(
             Template.Restore(G(1), type.Id, "Основной", "= 1", 1, true, true, T0, T0),
-            Template.Restore(G(2), type.Id, "Краткий", "= 2", 1, true, false, T0, T0));
+            Template.Restore(G(2), type.Id, "Краткий", "= 2", 1, true, false, T0, T0),
+            Template.Restore(G(3), other.Id, "Чужой", "= 3", 1, true, true, T0, T0));
         db.DomainObjects.AddRange(Objects(type.Id));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
@@ -88,6 +98,10 @@ public class DocumentTemplateRefsCleanupMigrationTests : IAsyncLifetime
         Assert.Equal([G(1), G(1)], Ids(docs[G(103)].TemplateIds));
         Assert.Equal(Params(P(1)), Params(docs[G(103)].TemplateParams));
         Assert.Null(docs[G(104)].TemplateParams);
+        Assert.Null(docs[G(105)].TemplateId);
+        Assert.Equal([G(1), G(2)], Ids(docs[G(105)].TemplateIds));
+        Assert.Equal(Params(P(2)), Params(docs[G(105)].TemplateParams));
+        Assert.Equal(Params(P(1)), Params(docs[G(106)].TemplateParams));
 
         // Та же чистка доменной функцией — итог тот же.
         var known = new HashSet<Guid> { G(1), G(2) };

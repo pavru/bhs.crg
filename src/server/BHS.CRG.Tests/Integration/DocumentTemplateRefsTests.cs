@@ -173,4 +173,102 @@ public class DocumentTemplateRefsTests(IntegrationTestFixture fixture) : IAsyncL
 
         Assert.Null((await RefsAsync(doc)).Params);
     }
+
+    // ── Погашенная версия (ревью PR #1963) ─────────────────────────────────────
+
+    private async Task<Guid> RetireAsync(Guid templateId)
+        => (await SendAsync(new UpdateTemplateCommand(templateId, "content v2"))).Template.Id;
+
+    private async Task StoreSelectionAsync(Guid docId, string json)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
+        var o = (await repo.GetByIdAsync(docId))!;
+        o.SetTemplateIds(json);
+        await repo.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Selection_NewRetiredVersion_IsRefused()
+    {
+        // Страница со старым списком показывает v1 действующей; щелчок по ней — отказ, а не «сохранено»,
+        // которое генерация потом пропустит.
+        var (doc, a, b, _) = await ArrangeAsync();
+        await RetireAsync(a);
+
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => SendAsync(new SetDocumentTemplatesCommand(doc, Ids(b, a))));
+
+        Assert.Contains("не действует", ex.Message);
+        Assert.Contains(a.ToString(), ex.Message);
+        Assert.Null((await RefsAsync(doc)).Ids);
+    }
+
+    [Fact]
+    public async Task Selection_AlreadyStoredRetiredVersion_DoesNotLockTheDocument()
+    {
+        // Давняя погашенная в выборе остаётся, пока существует: иначе любая правка выбора упиралась бы в 400.
+        var (doc, a, b, _) = await ArrangeAsync();
+        await RetireAsync(a);
+        await StoreSelectionAsync(doc, Ids(a));
+
+        await SendAsync(new SetDocumentTemplatesCommand(doc, Ids(a, b)));
+
+        Assert.Equal([a, b], Stored((await RefsAsync(doc)).Ids));
+    }
+
+    [Fact]
+    public async Task Params_NewKeyOfRetiredVersion_IsRefused()
+    {
+        var (doc, a, _, _) = await ArrangeAsync();
+        await RetireAsync(a);
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => SendAsync(new SetDocumentTemplateParamsCommand(doc, $"{{\"{a}\":{{\"x\":1}}}}")));
+    }
+
+    // ── Вид ключа и повтор (ревью PR #1963) ────────────────────────────────────
+
+    [Fact]
+    public async Task Params_UpperCaseKey_IsStoredCanonical()
+    {
+        // Генерация ищет ключ строчными: «AAAA…» был бы «сохранён» и не действовал.
+        var (doc, a, _, _) = await ArrangeAsync();
+
+        await SendAsync(new SetDocumentTemplateParamsCommand(doc, $"{{\"{a.ToString().ToUpperInvariant()}\":{{\"x\":1}}}}"));
+
+        AssertJson($"{{\"{a}\":{{\"x\":1}}}}", (await RefsAsync(doc)).Params);
+    }
+
+    [Theory]
+    [InlineData("N")] // 32 цифры без дефисов
+    [InlineData("B")] // в фигурных скобках
+    public async Task Params_KeyInOtherGuidFormat_IsRefused(string format)
+    {
+        var (doc, a, _, _) = await ArrangeAsync();
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => SendAsync(new SetDocumentTemplateParamsCommand(doc, $"{{\"{a.ToString(format)}\":{{\"x\":1}}}}")));
+    }
+
+    [Fact]
+    public async Task Params_DuplicateKey_IsRefusedAs400_NotAs500()
+    {
+        var (doc, a, _, _) = await ArrangeAsync();
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => SendAsync(new SetDocumentTemplateParamsCommand(doc, $"{{\"{a}\":{{}},\"{a}\":{{\"x\":1}}}}")));
+    }
+
+    [Fact]
+    public async Task SinglePin_HistoricVersion_IsAccepted()
+    {
+        // Одиночный пин генерация берёт и на исторической версии — для него правило «новая — действующая» не стоит.
+        var (doc, a, _, _) = await ArrangeAsync();
+        await RetireAsync(a);
+
+        await SendAsync(new SetDocumentTemplateCommand(doc, a));
+
+        Assert.Equal(a, (await RefsAsync(doc)).Id);
+    }
 }

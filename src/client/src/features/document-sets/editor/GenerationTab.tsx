@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { BugReport, CheckCircle, Description, Download, ErrorIcon, Mail, Stethoscope, VerifiedUser, Visibility, Warning } from '@/shared/ui/icons';
@@ -11,7 +11,7 @@ import type { DocumentInstance, Template } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from '../fields';
 import { InstanceAuditModal } from './InstanceAuditModal';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
-import { effectiveTemplateOf, knownTemplateIds } from './templateRefs';
+import { effectiveTemplateOf, paramTemplateIds, unknownTemplateRefs } from './templateRefs';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -84,7 +84,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   const shownDiagnostics = diagnostics ?? sharedDiagnostics ?? null;
   const mutation = useGenerateDocument();
   const setTemplatesMutation = useSetDocumentTemplates();
-  const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
+  const { data: templates = [], isLoading: templatesLoading, refetch: refetchTemplates } = useListTemplates(instance.documentTypeId);
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
   /**
@@ -98,12 +98,17 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
    */
   const [localSelection, setLocalSelection] =
     useState<{ from: string | null | undefined; ids: string[] } | null>(null);
-  const storedTemplateIds = localSelection && localSelection.from === instance.templateIds
+  const selectedTemplateIds = localSelection && localSelection.from === instance.templateIds
     ? localSelection.ids
     : parseIdArray(instance.templateIds);
-  // Только известные шаблоны типа (issue #1960): id удалённого шаблона не показать и не снять, а
-  // сервер запись с ним отвергает. Пока список грузится, известного нет — берём как есть.
-  const selectedTemplateIds = templatesLoading ? storedTemplateIds : knownTemplateIds(storedTemplateIds, templates);
+  // Ссылка на шаблон, которого нет в списке, — прежде всего устаревший список (issue #1960): новая
+  // версия пересаживает выбор на свой id, а запрос шаблонов от этого не обновляется. Перечитываем
+  // его, а id пересылаем как есть — есть ли такой шаблон, решает сервер. Ключ эффекта — сами id: на
+  // каждый новый набор незнакомых один запрос, а не по запросу на рендер.
+  const unknownRefs = templatesLoading
+    ? ''
+    : unknownTemplateRefs(selectedTemplateIds, paramTemplateIds(instance.templateParams), templates).join(',');
+  useEffect(() => { if (unknownRefs) void refetchTemplates(); }, [unknownRefs, refetchTemplates]);
   // Эффективный шаблон для параметров/дефолт-скачивания: первый действующий из выбранных → пин →
   // по умолчанию → первый активный (как у предпросмотра).
   const effectiveTemplate = effectiveTemplateOf(selectedTemplateIds, activeTemplates, instance.templateId);
@@ -159,6 +164,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       // Отказ — отказом: снять оптимистичную галку и сказать почему, иначе показан выбор, которого нет.
       onError: (err: unknown) => {
         setLocalSelection(null);
+        void refetchTemplates(); // частая причина — устаревший список шаблонов
         setError(err instanceof Error ? err.message : 'Не удалось сохранить выбор шаблонов');
       },
     });
@@ -196,7 +202,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       </div>
 
       {focusedTemplate && (
-        <DocumentTemplateParams setId={setId} instance={instance} template={focusedTemplate} templates={templates}
+        <DocumentTemplateParams setId={setId} instance={instance} template={focusedTemplate}
           participating={selectedTemplateIds.length === 0 || selectedTemplateIds.includes(focusedTemplate.id)} />
       )}
 

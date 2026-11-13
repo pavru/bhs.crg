@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Template } from '@/shared/api/types';
-import { effectiveTemplateOf, knownTemplateIds, knownTemplateParams } from './templateRefs';
+import { effectiveTemplateOf, paramTemplateIds, unknownTemplateRefs } from './templateRefs';
 
 function tpl(id: string, extra: Partial<Template> = {}): Template {
   return {
@@ -14,12 +14,16 @@ describe('ссылки документа на шаблоны (issue #1960)', ()
   const b = tpl('b');
   const def = tpl('def', { isDefault: true });
 
-  it('выбор — только известные шаблоны, порядок сохраняется', () => {
-    expect(knownTemplateIds(['gone', 'b', 'a'], [a, b])).toEqual(['b', 'a']);
+  it('незнакомые id — из выбора и параметров, без повторов', () => {
+    expect(unknownTemplateRefs(['new', 'a', 'new'], ['b', 'gone'], [a, b])).toEqual(['gone', 'new']);
+    expect(unknownTemplateRefs(['a'], ['b'], [a, b])).toEqual([]);
   });
 
-  it('параметры — только ключи известных шаблонов', () => {
-    expect(knownTemplateParams({ a: { x: 1 }, gone: { y: 2 } }, [a, b])).toEqual({ a: { x: 1 } });
+  it('ключи параметров — только у объекта', () => {
+    expect(paramTemplateIds('{"a":{"x":1},"b":{}}')).toEqual(['a', 'b']);
+    expect(paramTemplateIds('[1]')).toEqual([]);
+    expect(paramTemplateIds('не json')).toEqual([]);
+    expect(paramTemplateIds(null)).toEqual([]);
   });
 
   it('эффективный — первый ДЕЙСТВУЮЩИЙ из выбранных, а не первый id', () => {

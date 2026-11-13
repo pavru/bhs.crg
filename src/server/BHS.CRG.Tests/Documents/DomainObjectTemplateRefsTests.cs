@@ -78,4 +78,54 @@ public class DomainObjectTemplateRefsTests
         Assert.False(doc.DropTemplateParams(Gone));
         Assert.True(JsonNode.DeepEquals(JsonNode.Parse(Params(Kept)), JsonNode.Parse(doc.TemplateParams!)));
     }
+
+    [Fact]
+    public void ForgetUnknown_ElementsThatAreNotRefs_AreDropped_ValidKept()
+    {
+        // null, число и иной вид id — не ссылки; правило то же, что у SQL миграции (ревью PR #1963):
+        // прежде null в массиве ронял разбор и стирал весь выбор.
+        var doc = Doc(null, $"[null, 5, \"{Kept:N}\", \"{Kept.ToString().ToUpperInvariant()}\", \"{Kept}\"]", null);
+
+        Assert.Equal(3, doc.ForgetUnknownTemplates(new HashSet<Guid> { Kept }));
+        Assert.Equal([Kept], JsonSerializer.Deserialize<Guid[]>(doc.TemplateIds!));
+    }
+
+    [Fact]
+    public void ForgetUnknown_UpperCaseParamKey_IsRewrittenCanonical_NotCounted()
+    {
+        var doc = Doc(null, null, $"{{\"{Kept.ToString().ToUpperInvariant()}\":{{\"x\":1}}}}");
+
+        Assert.Equal(0, doc.ForgetUnknownTemplates(new HashSet<Guid> { Kept }));
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(Params(Kept)), JsonNode.Parse(doc.TemplateParams!)));
+    }
+
+    [Fact]
+    public void ForgetUnknown_ParamKeyInOtherFormat_IsDropped()
+    {
+        var doc = Doc(null, null, $"{{\"{Kept:N}\":{{\"x\":1}}}}");
+
+        Assert.Equal(1, doc.ForgetUnknownTemplates(new HashSet<Guid> { Kept }));
+        Assert.Null(doc.TemplateParams);
+    }
+
+    [Fact]
+    public void DuplicateParamKeys_DoNotThrow()
+    {
+        // JsonObject разбирает лениво: повтор ключа бросал ArgumentException мимо catch (JsonException).
+        var dup = $"{{\"{Kept}\":{{}},\"{Kept}\":{{\"x\":1}}}}";
+
+        Assert.False(Doc(null, null, dup).DropTemplateParams(Kept));
+        var doc = Doc(null, null, dup);
+        Assert.Equal(1, doc.ForgetUnknownTemplates(new HashSet<Guid> { Kept }));
+        Assert.Null(doc.TemplateParams);
+    }
+
+    [Fact]
+    public void DropTemplateParams_FindsUpperCaseKey()
+    {
+        var doc = Doc(null, null, $"{{\"{Gone.ToString().ToUpperInvariant()}\":{{\"x\":1}}}}");
+
+        Assert.True(doc.DropTemplateParams(Gone));
+        Assert.Null(doc.TemplateParams);
+    }
 }

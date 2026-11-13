@@ -1,24 +1,28 @@
 import type { Template } from '@/shared/api/types';
 
 /**
- * Ссылки документа на шаблоны — выбор для генерации и ключи параметров — через ИЗВЕСТНЫЕ шаблоны
- * типа (issue #1960).
+ * Ссылки документа на шаблоны — выбор для генерации и ключи параметров (issue #1960).
  *
- * Документ мог хранить id шаблонов, которых давно нет: их показ не рисует, снять их человек не
- * может, а запись пересылала их обратно с каждым щелчком. Теперь сервер такую запись отвергает
- * (400) — значит, отсюда они уйти не должны, а в выборе «первого» — участвовать.
+ * Есть ли такой шаблон, решает СЕРВЕР: запись со ссылкой не на шаблон типа он отвергает (400), а
+ * накопленные висячие убрала миграция. Здесь id, которого нет в загруженном списке, означает прежде
+ * всего, что УСТАРЕЛ список: новая версия шаблона пересаживает выбор на свой id, а запрос списка
+ * шаблонов — отдельный и от этого не обновляется. Выбросить такой id из записи значило бы молча
+ * стереть выбор человека, поэтому его пересылают как есть, а список перечитывают.
  */
-export function knownTemplateIds(ids: readonly string[], templates: readonly Pick<Template, 'id'>[]): string[] {
+export function unknownTemplateRefs(
+  ids: readonly string[], paramKeys: readonly string[], templates: readonly Pick<Template, 'id'>[],
+): string[] {
   const known = new Set(templates.map(t => t.id));
-  return ids.filter(id => known.has(id));
+  return [...new Set([...ids, ...paramKeys])].filter(id => !known.has(id)).sort();
 }
 
-/** Переопределения параметров только известных шаблонов. */
-export function knownTemplateParams<T>(
-  overrides: Record<string, T>, templates: readonly Pick<Template, 'id'>[],
-): Record<string, T> {
-  const known = new Set(templates.map(t => t.id));
-  return Object.fromEntries(Object.entries(overrides).filter(([id]) => known.has(id)));
+/** Ключи переопределений параметров (id шаблонов); битый или пустой JSON — без ключей. */
+export function paramTemplateIds(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const o: unknown = JSON.parse(json);
+    return o && typeof o === 'object' && !Array.isArray(o) ? Object.keys(o) : [];
+  } catch { return []; }
 }
 
 /**

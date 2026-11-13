@@ -20,13 +20,17 @@ public partial class BackupServiceTests
     [Fact]
     public async Task Restore_DocumentTemplateRefsToMissingTemplates_ArePruned_AndCounted()
     {
-        Guid typeId, setId, kept;
+        Guid typeId, setId, kept, foreign;
         using (var scope = fixture.Services.CreateScope())
         {
             var m = scope.ServiceProvider.GetRequiredService<IMediator>();
             typeId = (await m.Send(new CreateDocumentTypeCommand("DT_BK_REFS", "DT_BK_REFS", DocumentTypeKind.Document,
                 null, JsonDocument.Parse("""{"fields":[]}""")))).Id;
             kept = (await m.Send(new CreateTemplateCommand(typeId, "Живой", "content"))).Id;
+            // Шаблон есть, но ЧУЖОГО типа — генерация его не видит, ссылка такая же висячая.
+            var otherType = (await m.Send(new CreateDocumentTypeCommand("DT_BK_OTHER", "DT_BK_OTHER",
+                DocumentTypeKind.Document, null, JsonDocument.Parse("""{"fields":[]}""")))).Id;
+            foreign = (await m.Send(new CreateTemplateCommand(otherType, "Чужой", "content"))).Id;
             var c = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
             var s = await m.Send(new CreateSectionCommand(c.Id, "Раздел"));
             setId = (await m.Send(new CreateDocumentSetCommand(s.Id, "Комплект"))).Id;
@@ -41,7 +45,7 @@ public partial class BackupServiceTests
             Documents =
             [
                 new BackupDocument(docId, setId, typeId, "АОСР 1", empty, [], "Draft", 0,
-                    gone, JsonSerializer.Serialize(new[] { gone, kept }),
+                    gone, JsonSerializer.Serialize(new[] { gone, kept, foreign }),
                     $"{{\"{kept}\":{{\"x\":1}},\"{gone}\":{{\"y\":2}}}}", empty, [], now, now),
             ],
         };
@@ -49,7 +53,7 @@ public partial class BackupServiceTests
         var report = await ImportManifestZipAsync(manifest);
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
-        Assert.Contains(report.Warnings, w => w.Contains("ссылок документов на шаблоны: 3"));
+        Assert.Contains(report.Warnings, w => w.Contains("ссылок документов на шаблоны: 4"));
         using (var scope = fixture.Services.CreateScope())
         {
             var doc = (await scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>().GetByIdAsync(docId))!;

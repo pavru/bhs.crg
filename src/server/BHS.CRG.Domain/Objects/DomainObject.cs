@@ -329,48 +329,57 @@ public class DomainObject : Entity
     public bool DropTemplateParams(Guid templateId)
     {
         if (string.IsNullOrWhiteSpace(Doc.TemplateParams)) return false;
-        JsonObject? root;
-        try { root = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
-        catch (JsonException) { return false; }
-        if (root is null || !root.Remove(templateId.ToString())) return false;
+        if (TemplateRefJson.TryParseObject(Doc.TemplateParams) is not { } root) return false;
+        var keys = root.Where(p => TemplateRefJson.TemplateKey(p.Key) == templateId).Select(p => p.Key).ToList();
+        if (keys.Count == 0) return false;
+        foreach (var key in keys) root.Remove(key);
         Doc.TemplateParams = root.Count == 0 ? null : root.ToJsonString();
         TouchUpdatedAt();
         return true;
     }
-    /// <summary>Убирает ссылки на шаблоны вне <paramref name="known"/> (issue #1960): одиночный пин,
-    /// элементы выбора и ключи переопределений (нечитаемые выбор и переопределения — целиком: генерация
-    /// их и так не видит). Пустое → null. Для мест, где отказать некому, — восстановления копии,
-    /// снятой до разовой чистки. Возвращает число убранных ссылок.</summary>
+
+    /// <summary>Убирает ссылки на шаблоны вне <paramref name="known"/> — шаблонов ТИПА документа
+    /// (issue #1960): одиночный пин, элементы выбора и ключи переопределений. Ссылка — id в виде «D»
+    /// (<see cref="TemplateRefJson.TemplateKey(string?)"/>); число, null, иной вид — не ссылка.
+    /// Оставшееся пишется каноническим видом, выбор — без повторов; не массив и не объект — null,
+    /// пустое — null. Чего уборка не коснулась, не трогается. Для мест, где отказать некому, —
+    /// восстановления копии; то же правило у SQL миграции DocumentTemplateRefsCleanup.
+    /// Возвращает число убранных ссылок.</summary>
     public int ForgetUnknownTemplates(IReadOnlySet<Guid> known)
     {
         var removed = 0;
         if (Doc.TemplateId is { } single && !known.Contains(single)) { Doc.TemplateId = null; removed++; }
         if (!string.IsNullOrWhiteSpace(Doc.TemplateIds))
         {
-            List<Guid>? ids;
-            try { ids = JsonSerializer.Deserialize<List<Guid>>(Doc.TemplateIds); }
-            catch (JsonException) { ids = null; }
-            var lost = ids is null ? 1 : ids.Count(id => !known.Contains(id));
+            var ids = TemplateRefJson.TryParseArray(Doc.TemplateIds)?.Select(TemplateRefJson.TemplateKey).ToList();
+            var lost = ids is null ? 1 : ids.Count(id => id is not { } v || !known.Contains(v));
             if (lost > 0)
             {
-                var kept = ids?.Where(known.Contains).Distinct().ToList() ?? [];
+                var kept = ids?.OfType<Guid>().Where(known.Contains).Distinct().ToList() ?? [];
                 Doc.TemplateIds = kept.Count == 0 ? null : JsonSerializer.Serialize(kept);
                 removed += lost;
             }
         }
         if (!string.IsNullOrWhiteSpace(Doc.TemplateParams))
         {
-            JsonObject? root;
-            try { root = JsonNode.Parse(Doc.TemplateParams) as JsonObject; }
-            catch (JsonException) { root = null; }
-            var dead = root?.Where(p => !(Guid.TryParse(p.Key, out var id) && known.Contains(id)))
-                .Select(p => p.Key).ToList();
-            if (root is null) { Doc.TemplateParams = null; removed++; }
-            else if (dead!.Count > 0)
+            if (TemplateRefJson.TryParseObject(Doc.TemplateParams) is not { } root) { Doc.TemplateParams = null; removed++; }
+            else
             {
-                foreach (var key in dead) root.Remove(key);
-                Doc.TemplateParams = root.Count == 0 ? null : root.ToJsonString();
-                removed += dead.Count;
+                var lost = 0;
+                var renamed = false;
+                var kept = new JsonObject();
+                foreach (var (key, value) in root)
+                {
+                    if (TemplateRefJson.TemplateKey(key) is { } id && known.Contains(id))
+                    {
+                        renamed |= key != id.ToString();
+                        kept[id.ToString()] = value?.DeepClone();
+                    }
+                    else lost++;
+                }
+                if (lost > 0 || renamed) Doc.TemplateParams = kept.Count == 0 ? null : kept.ToJsonString();
+                if (renamed && lost == 0) TouchUpdatedAt(); // ключ переписан в канонический вид, убирать нечего
+                removed += lost;
             }
         }
         if (removed > 0) TouchUpdatedAt();

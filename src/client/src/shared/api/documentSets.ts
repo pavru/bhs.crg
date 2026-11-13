@@ -180,7 +180,7 @@ export function useSetDocumentTemplates() {
   });
 }
 
-/** Переопределения значений параметров шаблона на документе — params = объект {имя:значение} или null. */
+/** Переопределения значений параметров шаблона на документе — params = объект {idШаблона:{имя:значение}} или null (ключ — шаблон типа документа, иначе 400). */
 export function useSetDocumentTemplateParams() {
   const qc = useQueryClient();
   return useMutation({

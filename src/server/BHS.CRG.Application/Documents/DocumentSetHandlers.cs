@@ -5,7 +5,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using BHS.CRG.Domain.Templates;
+using BHS.CRG.Application.Templates;
 using MediatR;
 
 namespace BHS.CRG.Application.Documents;
@@ -17,7 +17,7 @@ public class DocumentSetHandlers(
     IRepository<DocumentType> docTypeRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<QualityDocument> qualityDocRepo,
-    IRepository<Template> templateRepo,
+    ITypeTemplates typeTemplates,
     IReferenceIndex refIndex,
     IRecordHolders holders,
     IBlobStorage blobStorage,
@@ -384,7 +384,7 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
-        var ids = DocumentTemplateRefs.CheckedIds(cmd.TemplateIds, await TypeTemplatesAsync(obj, ct));
+        var ids = DocumentTemplateRefs.CheckedIds(cmd.TemplateIds, obj.TemplateIds, await TypeTemplatesAsync(obj, ct));
         var blobs = obj.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
         obj.SetTemplateIds(ids);
         objRepo.Update(obj);
@@ -396,7 +396,7 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
-        var overrides = DocumentTemplateRefs.CheckedParams(cmd.Params, await TypeTemplatesAsync(obj, ct));
+        var overrides = DocumentTemplateRefs.CheckedParams(cmd.Params, obj.TemplateParams, await TypeTemplatesAsync(obj, ct));
         var blobs = obj.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
         obj.SetTemplateParams(overrides);
         objRepo.Update(obj);
@@ -406,6 +406,6 @@ public class DocumentSetHandlers(
     }
 
     /// <summary>Шаблоны типа документа — всё, на что его ссылки на шаблоны вправе указывать (issue #1960).</summary>
-    private async Task<HashSet<Guid>> TypeTemplatesAsync(DomainObject obj, CancellationToken ct)
-        => (await templateRepo.FindAsync(t => t.DocumentTypeId == obj.CompositeTypeId, ct)).Select(t => t.Id).ToHashSet();
+    private Task<IReadOnlyDictionary<Guid, bool>> TypeTemplatesAsync(DomainObject obj, CancellationToken ct)
+        => typeTemplates.ActiveByIdAsync(obj.CompositeTypeId, ct);
 }
