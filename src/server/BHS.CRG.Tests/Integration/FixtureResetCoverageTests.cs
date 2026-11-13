@@ -74,6 +74,8 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
             "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
         [nameof(BHS.CRG.Modules.Plan.Data.PlanDbContext)] =
             "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
+        [nameof(BHS.CRG.Modules.Work.Data.WorkDbContext)] =
+            "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
     };
 
     [Fact]

@@ -2,6 +2,7 @@ using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Plan;
+using BHS.CRG.Modules.Work;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +20,7 @@ public class CoreSectionsTests
     public void Объявления_модулей_сборки_годны()
     {
         // Реестр из настоящих модулей собирается — значит, их объявления прошли проверку.
-        var registry = new ModuleRegistry([new IdModule(), new CostsModule(), new PlanModule()], []);
+        var registry = new ModuleRegistry([new IdModule(), new CostsModule(), new PlanModule(), new WorkModule()], []);
 
         Assert.All(registry.Enabled, m => Assert.NotEmpty(m.UsesSections));
         // Счета без строек и справочников: пространство «Счета» не показало бы, куда разносить счёт.
@@ -28,6 +29,10 @@ public class CoreSectionsTests
         // «График»); без справочников — без видов работ и номенклатуры, с которыми сопоставляют смету.
         // Учётного периода у смет нет; «Ход работ» дописывает plan-25 своей константой.
         Assert.Equal(["constructions", "catalog", "employees"], new PlanModule().UsesSections);
+        // Учёт работ без строек — без назначений (WORK-21); без справочников — без классификатора видов
+        // работ, из которого строка отчёта выбирает работу (CORE-8); монтажник — сотрудник (WORK-47).
+        // Учётный период дописывает work-19, «Ход работ» — work-27, каждый своей строкой.
+        Assert.Equal(["constructions", "catalog", "employees"], new WorkModule().UsesSections);
         // Сотрудники — в каждом пространстве со справочниками: после C15 «Общие данные» сотрудника не
         // пишут, и пространство без раздела «Сотрудники» осталось бы без двери к ним (work-01).
         Assert.All(registry.Enabled.Where(m => m.UsesSections.Contains("catalog")),

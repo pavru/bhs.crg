@@ -20,7 +20,7 @@
 ## 2. Чтение и журнал ядра
 
 - [ ] 2.1 `GET /api/work/reports/{id}/journal` через параметр доступа `work-07`, политика «любое из»
-  `work.report.own`, `work.report.review`, `work.report.read.all` [WORK-39] [WORK-54] [AUTH-8] [AUTH-9].
+  `work.report.own`, `work.report.review`, `work.report.read` [WORK-39] [WORK-54] [AUTH-8] [AUTH-9].
   Проверка — тесты: чужой отчёт — 404; менеджер чужой стройки — 404; черновик у менеджера — 404, а введённый им самим — 200;
   `read.all` — 200; без прав модуля — отказ ворот; `EndpointGateInventoryTests` зелёный
 - [ ] 2.2 Дубль в журнал ядра: `work.report.deleted`, `work.report.edited-after-submission` через

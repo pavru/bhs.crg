@@ -6,28 +6,67 @@
 
 Инфраструктура второго контекста построена этапом 2: `ModuleDbContext`, `ModuleSchema`,
 `ModuleSchemaMigrator`, `MigrationCensus`, копия схемы. Поэтому каркас и схема идут одним PR, а не тремя,
-как A1 + A2a + A2b у `costs` (D1). Образец — PR #1105 (`8fb3af0b`) и #1107 (`9a815985`).
+как A1 + A2a + A2b у `costs` (D1). Образец — PR #1105 (`8fb3af0b`) и #1107 (`9a815985`) у `costs`, а
+ближе всего — каркас `plan` (PR #1580, `3c1afc6b`): он повторил тот же путь третьим модулем и вынес общее.
+
+**Сверено с master `cc70afb3` (13.11.2026)** — после нарезки слиты `plan-21` (право контракта), `plan-22`
+(межмодульный контракт, `ModuleReader`), `work-01`, `work-04`, `work-05`. Что поменялось для каркаса:
+
+- **409 при конфликте записи — общий.** `DbUpdateConcurrencyException` любого контекста переводит в 409
+  `ApiErrorMapping` (ревью PR #1580): своего перехвата у `WorkDbContext` нет, ссылка на
+  `CostsDbContext.cs:79-96` устарела. Свои слова («отчёт изменили…») таблица даст сама, переводя исключение
+  в `ConflictException`, — с первой таблицей (`work-13`).
+- **Хост «только модуль» — общая основа.** `ModuleOnlyHost` (код и суффикс базы) и `AccessProbe` (вход и
+  `/api/account/access`); хост сносит схему модуля до старта, иначе «схема мигрирована при старте» проходило
+  бы на схеме прошлого прогона (`PlanOnlyHost`).
+- **Новый контекст модуля вписывается в переписи**, которых в нарезке не было: `ModuleDbContextInventoryTests`
+  (сборка), его мета-сторож требует строк в `BackupManifestCoverageTests.ContextCoverage` и
+  `FixtureResetCoverageTests.ContextCoverage` («схема целиком»); модели контекста перечисляют
+  `ModuleFileInventoryTests`, `ModuleReferenceInventoryTests`, `OrganizationShortNameCensusTests`;
+  объявление — `CoreSectionsTests`.
+- **`plan-21` и `plan-22` каркаса не касаются.** Прав контракта каркас не объявляет (`work.facts.read` —
+  `work-27`), портов и контрактов не заводит (`work-11`, `work-09`); `ModuleReader` понадобится первому
+  чтению.
+- **«Справочник не заведён» уже различают порты ядра** (`plan-03`): `IModuleEmployees` и `IModuleWorkTypes`
+  отвечают `null`, слова для человека — их `NotSetUp`; дверь сотрудников ядра — 409 `directory-missing`
+  (`work-01`). Адресов у каркаса нет (Non-Goals), поэтому требование проверяется на портах в хосте «только
+  `work`», а переводит `null` в отказ модуля первый потребитель — `work-11`.
+- Строки составов ролей сместились: `SystemRoles.cs:62` («Инженер ИД»), `:68` («Монтажник»), `:81`
+  («Менеджер проекта»), `:142` («Производитель работ»).
 
 ## Goals / Non-Goals
 
 **Goals:** живой хост только с `work`; права первой двери; пустая схема с миграцией `Initial`.
 
-**Non-Goals:** таблицы данных, экраны, порты. Порты едут с первым потребителем (`work-11`).
+**Non-Goals:** таблицы данных, экраны, порты. Порты едут с первым потребителем (`work-11`). Раздел рейла
+и страница входа — `work-03`.
 
 ## Decisions
 
 - **Состав PR.**
   - `BHS.CRG.Modules.Work.csproj` ссылается на `BHS.CRG.Modules` и `BHS.CRG.Domain`.
-  - `WorkModule.cs` — по образцу `CostsModule.cs`: код, название, права, `Schema`, `RoutePrefixes = ["/api/work"]`,
-    пустые `MapEndpoints` и `InitializeAsync`.
-  - `Data/WorkDbContext.cs` (схема `work`, `xmin` как версия строки, 409 при конфликте — как
-    `CostsDbContext.cs:79-96`) и `Data/WorkDbContextFactory.cs` без строки подключения.
-  - `Migrations/*_Initial`.
+  - `WorkModule.cs` — по образцу `PlanModule.cs`: код, название, права, `Schema`, `UsesSections`,
+    `RoutePrefixes = ["/api/work"]`, пустые `MapEndpoints` и `InitializeAsync`.
+  - `Data/WorkDbContext.cs` (схема `work`, история миграций в ней же; конфликт записи — общий 409
+    `ApiErrorMapping`) и `Data/WorkDbContextFactory.cs` без строки подключения.
+  - `Migrations/*_Initial` — только схема.
+- **Коды двух прав — в форме `AUTH-1`** (решение владельца 13.11.2026). В таблице ТЗ стояли `work.assign`
+  (две части) и `work.report.read.all` (четыре): `AppPermission.Validate` останавливает старт на таком коде
+  (обнаружено при первом запуске хоста). Взята форма модели — `work.assignment.edit` и `work.report.read`,
+  как у `costs.allocate` → `costs.allocation.edit`; чтение входит в «читать всё» пометкой `ReadAllMark.In`, а
+  не суффиксом. Тем же PR переименованы таблица `WORK-45`, D2 зонтика и упоминания в `work-03`…`work-28`.
 - **Право `work.sites.all`** объясняется как «назначать и принимать отчёты на любых стройках». Оно
   заменяет «или администратор» из `WORK-21`. «Администратор» получает его сам: его состав равен
   справочнику прав.
+- **`UsesSections` = стройки, справочники, сотрудники.** Назначения ведутся по стройкам (`WORK-21`),
+  строка отчёта выбирает вид работы классификатора (`CORE-8`), монтажник — сотрудник учётной записи
+  (`WORK-47`). Учётный период (`WORK-15`) добавит `work-19`, «Ход работ» — `work-27`, каждый своей
+  строкой. Следствие названо вслух: «Монтажник», у которого до каркаса не было ни одного модуля, получает
+  пространство с разделами ядра, которые ему уже разрешены правами чтения справочников.
 - **Сторож.** `WorkOnlyHostTests` — живой хост с `Modules__Enabled=work` на своей базе (образец
-  `CostsOnlyHostTests`). Тест состава `/api/account/access` по системным ролям (D2).
+  `PlanOnlyHostTests`). Тест состава `/api/account/access` по системным ролям (D2) — точное равенство.
+  Права без двери названы поимённо храповиком, как у `plan-01`: двери приносят `work-11` (назначения) и
+  `work-13` (отчёты). Обратное направление — хост «только `plan`» не видит `work`.
 - **Чем ломается.** Обращение модуля к чему-либо помимо контрактов и домена — хост без `id` не
   поднимается. Объявить `work.facts.read` сейчас — тест «Инженер ИД» краснеет.
 - **Документы.** Команда `dotnet ef migrations add <Name> --project src/server/BHS.CRG.Modules.Work

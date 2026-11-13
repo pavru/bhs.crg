@@ -39,6 +39,7 @@ public class ModuleDbContextInventoryTests
         typeof(IAppModule).Assembly,
         typeof(BHS.CRG.Modules.Costs.CostsModule).Assembly,
         typeof(BHS.CRG.Modules.Plan.PlanModule).Assembly,
+        typeof(BHS.CRG.Modules.Work.WorkModule).Assembly,
     ];
 
     [Fact]

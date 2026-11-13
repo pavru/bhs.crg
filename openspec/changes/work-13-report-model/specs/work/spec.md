@@ -174,7 +174,7 @@
 Адреса `/api/work/reports` SHALL стоять за воротами модуля `work` и под правом `work.report.own`.
 
 #### Scenario: Без права своих отчётов
-- **WHEN** пользователь с одним правом `work.report.read.all` вызывает `POST /api/work/reports`
+- **WHEN** пользователь с одним правом `work.report.read` вызывает `POST /api/work/reports`
 - **THEN** ответ 403
 
 #### Scenario: Модуль выключен
