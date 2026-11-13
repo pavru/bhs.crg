@@ -11,6 +11,12 @@ export const WIDE = '(min-width: 768px)';
 /** Телефон — то, что ниже `WIDE`. */
 export const NARROW = '(max-width: 767.98px)';
 
+/**
+ * Основной указатель — касание: перетащить файл в окно нечем, какой бы ни была ширина (планшет в 1024 px).
+ * Говорить «перетащите» или нет, решает он, а не `WIDE` (площадка файла, подсказки о броске).
+ */
+export const COARSE = '(pointer: coarse)';
+
 /** Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. */
 export function useMedia(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);

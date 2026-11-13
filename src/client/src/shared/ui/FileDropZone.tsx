@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
 import { formatBytes } from '@/shared/format/format';
-import { useMedia } from '@/shared/hooks/useMedia';
+import { COARSE, useMedia } from '@/shared/hooks/useMedia';
 import { Button } from './Button';
 import { CircularProgress } from './CircularProgress';
 import { carriesFiles, droppedFiles, useFileDragActive, zoneRefusal } from './fileDrop';
@@ -32,8 +32,6 @@ export interface FileDropZoneProps {
   /** Выключена; строка — причина вместо заголовка («Сначала выберите стройку»). */
   disabled?: boolean | string;
 }
-
-const COARSE = '(pointer: coarse)';
 
 /** Точка события строго внутри узла — для `dragleave` без `relatedTarget`. */
 function within(e: DragEvent) {

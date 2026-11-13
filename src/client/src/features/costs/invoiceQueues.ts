@@ -315,8 +315,12 @@ export function keepTrace(trace: HeldRow | null, queue: InvoiceQueue | null, lis
  * @param queues числа сервера; `undefined` — не пришли (идёт запрос либо отказ). ⚠️ Тогда о запертых
  * счетах и о полноте проверки не известно ничего, и сказать «исправлять нечего» было бы отказом,
  * переодетым в ответ (ревью PR #1241).
+ * @param drop звать ли к броску в пустом списке без отбора и поиска (shell-07-scan-drop-hint, [COST-8]) — решает
+ * `dropInvited`; под отбором пустота говорит про отбор.
  */
-export function emptyText(queue: InvoiceQueue | null, query: string, queues: InvoiceQueues | undefined): string {
+export function emptyText(
+  queue: InvoiceQueue | null, query: string, queues: InvoiceQueues | undefined, drop = false,
+): string {
   const text = query.trim();
   if (text)
     return queue ? `В отборе «${QUEUE_LABEL[queue]}» по запросу «${text}» ничего нет.` : 'Ничего не найдено.';
@@ -340,6 +344,6 @@ export function emptyText(queue: InvoiceQueue | null, query: string, queues: Inv
       return queues.doubt
         ? `Счетов с записями из архива не найдено, но ${queues.doubt}.`
         : 'Неоплаченных счетов с записями из архива нет.';
-    default: return 'Счетов пока нет.';
+    default: return drop ? 'Счетов пока нет. Перетащите файлы счетов в окно или нажмите «Счёт из файла».' : 'Счетов пока нет.';
   }
 }

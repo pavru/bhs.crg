@@ -309,4 +309,16 @@ export async function invoiceFileDropChecks(page, check, h) {
       await page.keyboard.press('Escape');
     } finally { await page.setViewportSize(WIDE); }
   });
+
+  // О броске до броска (shell-07-scan-drop-hint, [COST-8] [COST-31]): пока счёт не открыт, правая часть говорит, что
+  // файлы можно перетащить сюда, и называет форматы реестра. Слова правдивы: бросок на неё заводит черновик.
+  await check('без открытого счёта правая часть зовёт перетащить файлы, и бросок туда заводит черновик', async () => {
+    await page.goto(`${h.base}/invoices`, { waitUntil: 'networkidle' });
+    // Ждём уже с перечнем: реестр видов может прийти после первой отрисовки, и описание сперва идёт без скобок.
+    const empty = page.getByTestId('ld-detail').getByText(/^Или перетащите сюда файлы счетов \([^)]*\bPDF\b[^)]*\)/);
+    await h.named('правая часть не говорит о броске с форматами реестра', () => empty.waitFor({ timeout: 10_000 }));
+    await dropOn(page, empty, [{ name: `Пусто-${h.stamp}.pdf`, buffer: bytesOf(`пусто ${h.stamp}`) }], h);
+    await h.named('бросок на правую часть не открыл черновик', () => page.waitForFunction(
+      () => new URL(location.href).searchParams.get('invoice') !== null, null, { timeout: 15_000 }));
+  });
 }
