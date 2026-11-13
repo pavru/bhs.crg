@@ -676,8 +676,29 @@ export async function pickSites(page, label) {
 export const queueChip = page =>
   page.getByRole('group', { name: 'Отбор списка счетов' }).getByRole('combobox', { name: 'Очередь счетов' });
 
-/** Число на закрытом чипе очередей — у выбранной очереди; `''` — числа нет (в покое или пустая очередь). */
-export const queueChipCount = async page => /·\s*(\S+)$/.exec((await queueChip(page).innerText()).trim())?.[1] ?? '';
+/**
+ * Число очереди приходит ПОЗЖЕ подписи (issue #1950): чип и пункты рисуются сразу, выбранными по адресу, а
+ * число «Разобрать» несёт отдельный запрос счётчика (`/costs/invoices/queues/parsing`, не тот, что у Главной).
+ * Пока он в полёте, числа нет, и это не ошибка экрана — «не посчитано» не «ноль». Однократное чтение сразу
+ * после перехода с Главной давало `''`, и проверка мигала. Поэтому читаем, пока число не появится; не
+ * появилось за `timeout` — отдаём последнее прочитанное (пустоту), и проверка называет её, а не таймаут.
+ */
+async function arrivedCount(read, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const count = await read();
+    if (count || Date.now() >= deadline) return count;
+    await sleep(40);
+  }
+}
+
+/**
+ * Число на закрытом чипе очередей — у выбранной очереди; ждёт его прихода (`arrivedCount`). `''` — числа
+ * так и не пришло: в покое, пустая очередь или счётчик не ответил. Пустота стоит `timeout` — хелпер зовут там,
+ * где число обязано быть.
+ */
+export const queueChipCount = page =>
+  arrivedCount(async () => /·\s*(\S+)$/.exec((await queueChip(page).innerText()).trim())?.[1] ?? '');
 
 /** Выбрать очередь по подписи пункта, «Все счета» — снять отбор. Список закрывается сам. */
 export async function pickQueue(page, label) {
@@ -687,16 +708,17 @@ export async function pickQueue(page, label) {
 
 /**
  * Число очереди — из её пункта в меню (имя пункта — подпись, число — справа, описанием): открыть, прочесть,
- * закрыть по Esc. Отбор не меняется. `null` — пункта нет (пустая очередь скрыта), `''` — пункт без числа.
+ * закрыть по Esc. Отбор не меняется. Число ждёт, как и чип (`arrivedCount`): открытый список перерисуется,
+ * когда ответит счётчик. `null` — пункта так и нет (пустая очередь скрыта), `''` — пункт так и без числа.
  */
 export async function queueOptionCount(page, label) {
   await queueChip(page).click();
   const list = page.getByRole('listbox');
   await list.waitFor({ timeout: 10_000 });
   const option = list.getByRole('option', { name: label, exact: true });
-  const count = (await option.count())
+  const count = await arrivedCount(async () => (await option.count())
     ? (await option.innerText()).replace(label, '').trim()
-    : null;
+    : null);
   await page.keyboard.press('Escape');
   await list.waitFor({ state: 'hidden', timeout: 5_000 });
   return count;
