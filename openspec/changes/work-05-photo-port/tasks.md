@@ -19,7 +19,7 @@
 ## 2. Учёт места
 
 - [ ] 2.1 Код модуля у холдера файла модуля (`BackupService.BlobSelection.cs`), суммы по модулям в
-  `MeasureAsync`, поле `Modules` в `BackupSizeVariant` — все включённые модули, в том числе с нулём
+  `MeasureAsync`, поле `Modules` в `BackupSizeVariant` — все включённые модули со своей схемой, в том числе с нулём
   [WORK-35] [CORE-26]. Проверка — `BackupServiceTests.Manifest`: скан счёта `costs` в разбивке, модуль без
   файлов — `bytes: 0, count: 0`
 - [ ] 2.2 Клиент: тип ответа в `shared/api/backup.ts`, строка «из них файлы модулей: …» в

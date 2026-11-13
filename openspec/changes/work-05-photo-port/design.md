@@ -5,7 +5,8 @@
 
 ## Context
 
-Сверено по коду master `f8a8b222`.
+Сверено по коду master `f8a8b222`, пересверено по `969510e9` (13.11.2026: после work-01, work-04, plan-21,
+plan-22 и core-attachment-owner).
 
 - `Infrastructure/Generation/ImageDownscaler.cs` (SkiaSharp):
   - порог `MaxSide = 2400`, `MaxPixels = 64 000 000`;
@@ -15,16 +16,22 @@
   - перекодирует в JPEG или PNG без метаданных (`:103-104`).
   Потребители — вложения (`Api/Endpoints/Attachments/AttachmentEndpoints.cs:70,87`), логотип и миграция
   картинок. Отметку ориентации EXIF не читает никто в решении.
-- `SixLabors.ImageSharp` в `Infrastructure.csproj:41-50` прибит только ради уязвимостей зависимостей
+- `SixLabors.ImageSharp` в `Infrastructure.csproj:45-56` прибит только ради уязвимостей зависимостей
   NPOI и PdfSharpCore. Комментарий там говорит прямо: «кодом не используется», строку уберут, когда
   библиотеки перейдут на исправленную версию.
 - Порты модулей — интерфейсы в `BHS.CRG.Modules/Ports/`, реализации в `Api/Modules/Ports/`, регистрация в
-  `ModulePorts.cs:42`. Порт файлов `IModuleBlobs` — путь к записи модуль сохраняет сам.
+  `ModulePorts.cs:42`. Порт файлов `IModuleBlobs` — путь к записи модуль сохраняет сам. С
+  `core-attachment-owner` он регистрируется по ключу, коду модуля, и пишет владельца в реестр блобов
+  (`BlobOwner`). Порту фото ключ не нужен: в хранилище он не ходит.
 - Настройки модуля — `IModuleSettings` и `NumberSetting` (`BHS.CRG.Modules/Settings/ModuleSetting.cs:101`).
-- Вес копии: `BackupService.EstimateSizeAsync` → `MeasureAsync` (`Backup/BackupService.cs:250-330`),
-  ответ `BackupSizeVariant` (`Application/Backup/BackupModels.cs:439-444`) — одна сумма `BlobBytes`. Файлы
-  модулей в выборку входят (`BackupService.BlobSelection.cs:50-62`, `BlobHolderKind.Module`), но холдер
-  не знает, чей модуль.
+- Вес копии: `BackupService.EstimateSizeAsync` → `MeasureAsync` (`Backup/BackupService.cs:251-331`),
+  ответ `BackupSizeVariant` (`Application/Backup/BackupModels.cs:448-453`) — одна сумма `BlobBytes`. Файлы
+  модулей в выборку входят (`BackupService.Helpers.cs:158-161`, `BlobHolderKind.Module`), но холдер
+  не знает, чей модуль. Код модуля при этом рядом: секция копии `BackupModuleSchema.Module`.
+- Названия модулей инфраструктура не знает: реестр модулей (`ModuleRegistry`) живёт в контрактах, а на
+  них ей ссылаться нельзя. Модули в копии ей называет порт `IModuleSchemaBackup` (реализация —
+  `Api/Modules/ModuleSchemaBackup.cs`), и только модули со своей схемой: у `id` схемы нет, его файлы —
+  файлы ядра.
 
 ## Goals / Non-Goals
 
@@ -66,9 +73,12 @@
   - повреждённый тег даёт `null`, а не отказ фото.
 - `Api/Modules/Ports/ModulePhotosPort.cs` и регистрация в `ModulePorts.cs`.
 - Вес копии:
-  - `BlobHolder` модуля получает код модуля;
+  - `BlobHolder` модуля получает код модуля — из секции копии `BackupModuleSchema.Module`;
   - `MeasureAsync` суммирует по нему;
-  - `BackupSizeVariant.Modules` перечисляет все включённые модули, в том числе с нулём;
+  - `BackupSizeVariant.Modules` перечисляет все включённые модули со своей схемой, в том числе с нулём.
+    Код и название дают `IModuleSchemaBackup.Modules` — тот же перечень, чьи секции снимает копия. Модуль
+    без схемы (`id`) в разбивке не стоит: его файлы хранит ядро, и «0 файлов» о нём было бы неправдой;
+  - файл, который назвали два модуля, считается у первого: в архиве он один;
   - клиент `shared/api/backup.ts`, строка `features/settings/BackupSizeLine.tsx`.
 
 ### Почему свой читатель EXIF, а не библиотека
