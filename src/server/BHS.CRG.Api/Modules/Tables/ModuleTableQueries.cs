@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Tables;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Tables;
 
 namespace BHS.CRG.Api.Modules.Tables;
@@ -27,7 +28,7 @@ public static class ModuleTableQueries
 {
     public static (ModuleTableQuery? Query, TableRefusal? Refusal) Build(
         string tableTitle, IReadOnlyList<TableColumnDto> columns, IReadOnlySet<string> open,
-        IReadOnlySet<string> shown, TableRequest request, Guid userId)
+        IReadOnlySet<string> shown, TableRequest request, ModuleReader reader)
     {
         var byKey = columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
 
@@ -51,7 +52,7 @@ public static class ModuleTableQueries
             .Where(open.Contains)
             .ToDictionary(key => key, key => TableKinds.Parse(byKey[key].Kind), StringComparer.Ordinal);
 
-        return (new ModuleTableQuery(shown, userId, filter, sort, request.Offset, request.Limit, totals,
+        return (new ModuleTableQuery(shown, reader, filter, sort, request.Offset, request.Limit, totals,
             string.IsNullOrWhiteSpace(request.Row) ? null : request.Row), null);
     }
 

@@ -223,8 +223,10 @@ public static class InvoiceTable
         "счёт",
         Requires: "costs",
         ModuleTableIsolation.None,
-        "Отдаёт все счета экземпляра — всем, кому открыт модуль «Счета и накладные»; суммы — только с " +
-        "правом «видеть счета на оплату»",
+        // Исход один: строки у всех одни, закрыты только суммы — колонками, а не строками.
+        ModuleTableBoundary.Only(
+            "Отдаёт все счета экземпляра — всем, кому открыт модуль «Счета и накладные»; суммы — только с " +
+            "правом «видеть счета на оплату»"),
         [
             new(InvoiceRequisites.NumberKey, "Номер счёта", ModuleTableColumnKind.Text),
             new(InvoiceRequisites.DateKey, "Дата счёта", ModuleTableColumnKind.Date),

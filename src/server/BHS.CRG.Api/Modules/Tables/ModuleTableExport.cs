@@ -160,9 +160,17 @@ public sealed class ModuleTableExport(
         var lines = new List<string>
         {
             view is null ? table.Title : $"{table.Title} — {view}",
+        };
+
+        // Граница выдачи — сразу за названием (ТЗ CORE-24.3; work-07): файл уходит из системы, и по нему
+        // самому не узнать, все ли это строки или «отчёты ваших строек (4)». Та же строка, что на экране.
+        if (!string.IsNullOrWhiteSpace(table.Boundary)) lines.Add(table.Boundary);
+
+        lines.AddRange(
+        [
             $"Выгружено {now.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture)}, {who}",
             $"Отбор: {TableFilterWords.Describe(DataSetRowFilterExecutor.Parse(body.Filter), all) ?? "нет — все строки таблицы"}",
-        };
+        ]);
 
         if (body.Sort is { Length: > 0 } sort)
             lines.Add("Порядок: " + string.Join(", ", sort.Select(s =>

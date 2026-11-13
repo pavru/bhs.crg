@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Tables;
 using BHS.CRG.Modules.Tables;
@@ -31,7 +32,8 @@ public sealed partial class ModuleTableService
         if (offered.Count == 0) return ([], null);
 
         var open = opened.Columns.Where(c => c.Unavailable is null).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
-        var reader = (IModuleTableRows)services.GetRequiredService(table.Reader);
+        var rows = (IModuleTableRows)services.GetRequiredService(table.Reader);
+        var reader = ModuleReadersPort.From(access);
 
         var queries = new List<ModuleTableQuery>();
         foreach (var shortcut in offered)
@@ -41,7 +43,7 @@ public sealed partial class ModuleTableService
             var request = new TableRequest([shortcut.Column], Condition(shortcut), Limit: 0);
             var (query, refusal) = ModuleTableQueries.Build(
                 table.Title, opened.Columns, open, new HashSet<string>([shortcut.Column], StringComparer.Ordinal),
-                request, access.UserId!.Value);
+                request, reader);
 
             // Объявление проверено при старте: колонка есть, не закрыта правом, значение из её перечня.
             // Отказ здесь — ошибка сборки, а не человека, и молча выбросить отбор из списка значило бы
@@ -53,7 +55,7 @@ public sealed partial class ModuleTableService
             queries.Add(query);
         }
 
-        var counts = await CountAsync(reader, queries, table, ct);
+        var counts = await CountAsync(rows, queries, table, ct);
         return ([.. offered.Select((shortcut, i) => new TableShortcutDto(
             shortcut.Code, shortcut.Title, shortcut.Hint, shortcut.Column, ModuleTableShortcut.Op, shortcut.Value,
             counts[i].Count, counts[i].Doubts?.GetValueOrDefault(shortcut.Column), shortcut.Quiet))], null);
