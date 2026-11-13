@@ -12,7 +12,7 @@ namespace BHS.CRG.Tests.Configuration;
 public class ModuleTableBreakdownsTests
 {
     private static readonly ModuleTable Table = new(
-        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, "Отдаёт всё",
+        "docs", "Документы", "документ", "probe", ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
         [
             new("Номер", "Номер", ModuleTableColumnKind.Text),
             new("Сумма", "Сумма", ModuleTableColumnKind.Number, "probe.money", "суммы", DependsOnFilter: true),
@@ -26,7 +26,7 @@ public class ModuleTableBreakdownsTests
             ],
             [new("Доля", Named: "Сумма", Whole: "Итого")]));
 
-    private static readonly ModuleTableQuery One = new(new HashSet<string>(), Guid.Empty, Row: "1");
+    private static readonly ModuleTableQuery One = new(new HashSet<string>(), BHS.CRG.Modules.Access.ModuleReader.Of(Guid.Empty, "прогон", []), Row: "1");
 
     /// <summary>
     /// Сумма расшифровки не сошлась с клеткой — блок не показан и сказано почему. Не исключение: оно

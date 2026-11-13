@@ -38,6 +38,43 @@ public class ModuleTableCatalogTests
         Assert.Contains("параметр доступа", error.Message);
     }
 
+    /// <summary>
+    /// Граница выдачи — строка на исход (ТЗ CORE-24.3; work-07). Объявление без единой строки или с двумя
+    /// исходами одного кода не стартует: первое подписало бы данные ничем, второе — наугад.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BrokenBoundaries))]
+    public void Негодная_граница_выдачи_роняет_старт_и_называет_таблицу(
+        string what, ModuleTableBoundary[] boundaries, string expected)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Modules:Enabled"] = "probe" })
+            .Build();
+
+        var error = Assert.Throws<InvalidOperationException>(() => new ServiceCollection()
+            .AddAppModules(config, new ProbeModule(Table() with { Boundaries = boundaries })));
+
+        Assert.Contains("«probe.registry»", error.Message);
+        Assert.True(error.Message.Contains(expected), $"{what}: ждали «{expected}», а названо: {error.Message}");
+    }
+
+    public static TheoryData<string, ModuleTableBoundary[], string> BrokenBoundaries() => new()
+    {
+        { "ни одной строки", [], "нет текста границы выдачи" },
+        { "исход без кода", [new(" ", "Отдаёт всё")], "не назван код исхода" },
+        { "исход без текста", [new("all", "")], "у исхода «all» нет текста" },
+        { "два исхода одного кода", [new("own", "Ваши"), new("OWN", "Тоже ваши")], "исход «own» границы выдачи объявлен дважды" },
+    };
+
+    [Fact]
+    public void Несколько_исходов_с_разными_кодами_годны()
+    {
+        Assert.Empty((Table() with
+        {
+            Boundaries = [new("own", "Ваши отчёты"), new("sites", "Отчёты ваших строек ({sites})"), new("all", "Все отчёты")],
+        }).Problems());
+    }
+
     /// <summary>Выключенный модуль проверяется тоже: его таблица отвечает «модуль выключен», а не пропадает.</summary>
     [Fact]
     public void Негодная_таблица_выключенного_модуля_тоже_роняет_старт()
@@ -140,7 +177,7 @@ public class ModuleTableCatalogTests
     [Fact]
     public void Каталог_называет_все_ошибки_разом()
     {
-        var broken = Table(requires: "") with { Boundary = "", Isolation = ModuleTableIsolation.Unset };
+        var broken = Table(requires: "") with { Boundaries = [], Isolation = ModuleTableIsolation.Unset };
 
         var error = Assert.Throws<InvalidOperationException>(() => new ModuleTableCatalog([new ProbeModule(broken)]));
 
@@ -252,7 +289,7 @@ public class ModuleTableCatalogTests
     }
 
     private static ModuleTable Table(string requires = "probe") => new(
-        "registry", "Реестр", "запись", requires, ModuleTableIsolation.None, "Отдаёт всё",
+        "registry", "Реестр", "запись", requires, ModuleTableIsolation.None, ModuleTableBoundary.Only("Отдаёт всё"),
         [new("Номер", "Номер", ModuleTableColumnKind.Text)], typeof(ProbeRows));
 
     private sealed class ProbeRows : IModuleTableRows

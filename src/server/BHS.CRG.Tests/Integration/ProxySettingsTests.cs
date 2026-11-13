@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -118,7 +119,7 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         Assert.False(answer.GetProperty("ok").GetBoolean());
         Assert.Contains("пароль", answer.GetProperty("message").GetString()!);
-        Assert.Equal(0, listener.Accepted);   // до чужого адреса проверка даже не дошла
+        Assert.Equal(0, await listener.QuietAcceptedAsync());   // до чужого адреса проверка даже не дошла
     }
 
     [Fact]
@@ -131,7 +132,7 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
         Assert.Contains("Туннель не проверяли", answer.GetProperty("message").GetString()!);
-        Assert.Equal(1, listener.Accepted);
+        Assert.Equal(1, await listener.AcceptedAsync(1));
     }
 
     [Fact]
@@ -147,7 +148,7 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var answer = await CheckAsync(new { url = listener.Url });
 
         Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
-        Assert.Equal(1, listener.Accepted);
+        Assert.Equal(1, await listener.AcceptedAsync(1));
     }
 
     [Fact]
@@ -198,6 +199,30 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         public string Url => $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}";
         public int Accepted => Volatile.Read(ref _accepted);
+
+        /// <summary>
+        /// Сколько принято, когда принятых стало <paramref name="expected" /> (или вышел срок).
+        /// Соединение принимает ядро, и проверка узнаёт об успехе раньше, чем цикл приёма дойдёт до
+        /// счётчика: под нагрузкой, рядом с другими потоками тестов, прочитанный сразу счётчик
+        /// отставал на единицу (CI, PR #1946).
+        /// </summary>
+        public async Task<int> AcceptedAsync(int expected)
+        {
+            var clock = Stopwatch.StartNew();
+            while (Accepted < expected && clock.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
+            return Accepted;
+        }
+
+        /// <summary>
+        /// Сколько принято, выждав. Ноль иначе не подтвердить: прочитанный сразу, он зеленел бы и тогда,
+        /// когда соединение уже принято ядром, а цикл приёма до счётчика ещё не дошёл, — то есть
+        /// именно при той поломке, от которой ноль сторожит.
+        /// </summary>
+        public async Task<int> QuietAcceptedAsync()
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            return Accepted;
+        }
 
         public Listener()
         {

@@ -176,8 +176,11 @@ public record TableColumnDto(
 /// <param name="ExportMax">Сколько строк отбора выгружается в файл за раз (G3b, issue #1096). Экрану
 /// он нужен, чтобы не предлагать выгрузку, которая заведомо откажет: невыполнимое действие на экране
 /// скрывают (решение владельца 11.10.2026). null — выгружать нечего: модуль выключен.</param>
+/// <param name="Boundary">Граница выдачи (ТЗ CORE-24.3) — только если её можно назвать без строк: у
+/// таблицы одна граница и числа строек она не просит. null — исход отбора известен лишь по ответу строк
+/// (<see cref="TableDto.Boundary" />), и подпись берётся оттуда (work-07).</param>
 public record TableDeclarationDto(
-    string Address, string Title, string Grain, string Boundary,
+    string Address, string Title, string Grain, string? Boundary,
     IReadOnlyList<TableColumnDto> Columns, string? State = null,
     IReadOnlyList<TableViewDto>? Views = null, string? RecordType = null, int? ExportMax = null);
 
@@ -225,8 +228,13 @@ public record TableViewTotalDto(string Column, string Aggregate);
 /// <param name="Doubts">По каким колонкам ответ НЕПОЛОН (issue #1186): значение колонки даёт опрос,
 /// который проверил не всё. ⚠️ Касается и колонки, которой среди показанных нет, — по ней мог стоять
 /// отбор: пустая выдача с сомнением — не «таких строк нет». null — сомнений нет.</param>
+/// <param name="Boundary">Граница выдачи того исхода отбора, что применился, — с подставленным числом
+/// строек (ТЗ CORE-24.3; work-07): «Отдаёт то, что видно вам: отчёты ваших строек (4)». У выключенного
+/// модуля строк нет и исхода нет — тогда как в описании (<see cref="TableDeclarationDto.Boundary" />).</param>
+/// <param name="BoundaryOutcome">Код применившегося исхода (<c>own</c>, <c>sites</c>, <c>all</c>…);
+/// null — строк не читали (модуль выключен).</param>
 public record TableDto(
-    string Address, string Title, string Grain, string Boundary,
+    string Address, string Title, string Grain, string? Boundary,
     IReadOnlyList<TableColumnDto> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     string? State = null,
@@ -234,7 +242,8 @@ public record TableDto(
     IReadOnlyDictionary<string, TableTotalDto>? Totals = null,
     IReadOnlyList<string>? Keys = null,
     TableBreakdownDto? Breakdown = null,
-    IReadOnlyList<TableDoubtDto>? Doubts = null);
+    IReadOnlyList<TableDoubtDto>? Doubts = null,
+    string? BoundaryOutcome = null);
 
 /// <summary>Колонка, по которой ответ неполон, и причина словами: «проверено не всё: …».</summary>
 public record TableDoubtDto(string Column, string Label, string Reason);

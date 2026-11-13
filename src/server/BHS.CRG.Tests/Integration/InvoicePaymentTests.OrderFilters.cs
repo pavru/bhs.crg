@@ -293,14 +293,18 @@ public partial class InvoicePaymentTests
                 services.GetRequiredService<IModulePeriods>()),
                 services.GetRequiredService<BHS.CRG.Modules.Ports.IModuleSettings>());
 
-        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn }, Guid.Empty, Limit: 1), default);
-        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { ArchivedColumn }, Guid.Empty, Limit: 1), default);
-        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn, ArchivedColumn }, Guid.Empty, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn }, Reader, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { ArchivedColumn }, Reader, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(new HashSet<string> { LostColumn, ArchivedColumn }, Reader, Limit: 1), default);
 
         Assert.Equal([false, true, true], recording.Asked);
     }
 
     /// <summary>Порт, который помнит, спрашивали ли его об архиве.</summary>
+    /// <summary>Читатель службы строк напрямую — без изоляции таблице счетов он не нужен ни для чего.</summary>
+    private static readonly BHS.CRG.Modules.Access.ModuleReader Reader =
+        BHS.CRG.Modules.Access.ModuleReader.Of(Guid.Empty, "прогон", []);
+
     private sealed class RecordingTargets(IModuleReferenceTargets inner) : IModuleReferenceTargets
     {
         public List<bool> Asked { get; } = [];
@@ -335,17 +339,17 @@ public partial class InvoicePaymentTests
                 services.GetRequiredService<BHS.CRG.Modules.Ports.IModuleSettings>());
         var plain = new HashSet<string> { InvoiceRequisites.NumberKey };
 
-        await rows.ReadAsync(new ModuleTableQuery(plain, Guid.Empty, Limit: 1), default);
+        await rows.ReadAsync(new ModuleTableQuery(plain, Reader, Limit: 1), default);
 
         var condition = new TableFilterCondition(LostColumn, ModuleTableColumnKind.Choice, "eq",
             [InvoiceTable.TroubleFixable], word => word == InvoiceTable.TroubleFixable);
         ModuleTableQuery[] asking =
         [
-            new(new HashSet<string> { LostColumn }, Guid.Empty),
-            new(new HashSet<string> { ArchivedColumn }, Guid.Empty),
-            new(plain, Guid.Empty, Filter: new TableFilterGroup(false, [condition])),
-            new(plain, Guid.Empty, Sort: [new TableSort(LostColumn, ModuleTableColumnKind.Choice, false)]),
-            new(plain, Guid.Empty, Totals: new Dictionary<string, ModuleTableColumnKind> { [ArchivedColumn] = ModuleTableColumnKind.Choice }),
+            new(new HashSet<string> { LostColumn }, Reader),
+            new(new HashSet<string> { ArchivedColumn }, Reader),
+            new(plain, Reader, Filter: new TableFilterGroup(false, [condition])),
+            new(plain, Reader, Sort: [new TableSort(LostColumn, ModuleTableColumnKind.Choice, false)]),
+            new(plain, Reader, Totals: new Dictionary<string, ModuleTableColumnKind> { [ArchivedColumn] = ModuleTableColumnKind.Choice }),
         ];
         foreach (var query in asking)
         {
