@@ -31,7 +31,8 @@ export type MatchTarget = { kind: 'section'; code: string | null } | { kind: 'ro
  *   Ждущие строки выбранной единицы отмечены флажками; снятые тоже остаются ждать.
  * - «Сопоставить и к следующему» — следующий раздел, где ждут, в этом же окне (из варианта 3).
  * - «Запомнить» включено по умолчанию: неверно запомненное исправляют в списке запомненного (ответ П1).
- * - «Новый вид работы» — шагом окна и только при `core.worktypes.edit`: без права пункта нет в разметке.
+ * - «Новый вид работы» — шагом окна и только при `core.worktypes.edit`: без права пункта нет в разметке. Нет его и
+ *   при незаведённом классификаторе ([WORK-59]): заведение всё равно получило бы отказ.
  * - Отказ 409 — над кнопками словами сервера, набранное цело; следующая попытка — по перечитанной редакции.
  */
 export function MatchDialog({ revision, rows, sections, target, onClose }: {
@@ -99,7 +100,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
   const [remember, setRemember] = useState(true);
   const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   const [creating, setCreating] = useState(false);
-  const canCreate = useCan().permission('core.worktypes.edit');
+  const canCreate = useCan().permission('core.worktypes.edit') && !state.types.data?.missing;
 
   const candidates = inSection.filter(r => waiting(r) && r.sourceUnit === chosenUnit);
   const picked = candidates.filter(r => !off.has(r.id));
@@ -203,7 +204,7 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
       cell: r => {
         if (r.workTypeId) return (
           <span className="text-body-small text-on-surface-variant">
-            {names.data?.get(r.workTypeId) ?? '…'}{r.volume !== null ? ` · ${formatQuantity(r.volume)}` : ''}
+            {names.data?.names.get(r.workTypeId) ?? '…'}{r.volume !== null ? ` · ${formatQuantity(r.volume)}` : ''}
             {r.marks.some(m => m.code === 'remembered') && <> <StatusText tone="quiet">запомнено</StatusText></>}
           </span>
         );
@@ -229,9 +230,9 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
   const [remember, setRemember] = useState(true);
   const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   const [creating, setCreating] = useState(false);
-  const canCreate = useCan().permission('core.worktypes.edit');
+  const canCreate = useCan().permission('core.worktypes.edit') && !state.types.data?.missing;
   const remembered = row.marks.find(m => m.code === 'remembered');
-  const current = row.workTypeId ? names.data?.get(row.workTypeId) ?? '…' : null;
+  const current = row.workTypeId ? names.data?.names.get(row.workTypeId) ?? '…' : null;
 
   const send = (choice: typeof state.choice, done: (version: string) => void) => {
     setRefusal(null);
