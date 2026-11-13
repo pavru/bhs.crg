@@ -7,6 +7,7 @@ import { forwardRef, useContext, useId, useRef, useState, type ReactNode } from 
 import { OutlinedField } from './OutlinedField';
 import { fieldBox, fieldDescribedBy, FieldMarkContext, useFieldDensity, useFieldScan, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
+import { markLayerFocus } from './layerFocus';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -202,7 +203,9 @@ export function Select({
       {variant === 'chip' ? (
         // Чип отбора ([UI-69]): триггер Radix — сам чип, и роль `combobox`, клавиатура и typeahead остаются.
         // Выбран, когда значение не пусто: «все» возвращает чип в покой. Знак, число и подсказку даёт экран.
-        <RS.Trigger asChild aria-label={aria['aria-label']}>
+        // Имя знака — в имени чипа: у триггера своё `aria-label`, и содержимое (знак с его именем) диктор
+        // уже не читает — знак о проблеме видел бы только зрячий (ревью PR #1934).
+        <RS.Trigger asChild aria-label={iconLabel && aria['aria-label'] ? `${aria['aria-label']} — ${iconLabel}` : aria['aria-label']}>
           <Chip selected={!!value} menu className={className} {...lead}
             count={count} title={title}><RS.Value placeholder={placeholder} /></Chip>
         </RS.Trigger>
@@ -220,7 +223,9 @@ export function Select({
         {!framed && <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>}
       </RS.Trigger>}
       <RS.Portal>
-        <RS.Content position="popper" sideOffset={4}
+        {/* Фокус, который Radix вернёт триггеру после выбора или Esc, — фокус слоя (`layerFocus.ts`), как у
+            `Menu`: закрыли список с клавиатуры — без отметки сама открывалась подсказка чипа (ревью PR #1934). */}
+        <RS.Content position="popper" sideOffset={4} onCloseAutoFocus={markLayerFocus}
           className={`z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-xs ${LAYER_SURFACE}`}>
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}

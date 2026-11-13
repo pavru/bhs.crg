@@ -82,8 +82,11 @@ describe('пункты меню очередей (costs-invoice-filter-row, [COS
     expect([unrecognized.icon, unrecognized.iconTone]).toEqual([DocumentScanner, 'warning']);
     expect([lost.icon, lost.iconTone]).toEqual([Warning, 'error']);
     expect([archived.icon, archived.iconTone]).toEqual([Archive, undefined]);
-    const doubt = queueOptions(numbers({ doubt: 'проверено не всё' }), 1, false, null).find(o => o.value === 'lost')!;
-    expect([doubt.icon, doubt.iconTone, doubt.count]).toEqual([Help, 'warning', '3?']);
+    const doubt = queueOptions(numbers({ lost: 0, doubt: 'проверено не всё' }), 1, false, null).find(o => o.value === 'lost')!;
+    expect([doubt.icon, doubt.iconTone, doubt.count]).toEqual([Help, 'warning', '?']);
+    // Найденные есть — они есть точно, неполным может быть только число: знак тот же, что без сомнения.
+    const partial = queueOptions(numbers({ doubt: 'проверено не всё' }), 1, false, null).find(o => o.value === 'lost')!;
+    expect([partial.icon, partial.iconTone, partial.count]).toEqual([Warning, 'error', '3?']);
   });
 
   it('подсказка пункта — о его очереди и её числе', () => {
@@ -95,13 +98,19 @@ describe('пункты меню очередей (costs-invoice-filter-row, [COS
 describe('знак закрытого чипа очередей', () => {
   it('потерянное — Warning цвета ошибки, с именем и подсказкой', () => {
     const lead = queueLead(numbers())!;
-    expect([lead.icon, lead.tone, lead.iconLabel]).toEqual([Warning, 'error', 'Есть счета с удалёнными записями']);
+    expect([lead.icon, lead.iconTone, lead.iconLabel]).toEqual([Warning, 'error', 'есть счета с удалёнными записями']);
     expect(lead.title).toContain('удалённая запись справочника: 3');
   });
 
-  it('проверено не всё — Help цвета предупреждения', () => {
+  it('не найдено, но проверено не всё — Help цвета предупреждения, «возможно»', () => {
     const lead = queueLead(numbers({ lost: 0, doubt: 'проверено не всё' }))!;
-    expect([lead.icon, lead.tone, lead.iconLabel]).toEqual([Help, 'warning', 'Возможно, есть счета с удалёнными записями']);
+    expect([lead.icon, lead.iconTone, lead.iconLabel]).toEqual([Help, 'warning', 'возможно, есть счета с удалёнными записями']);
+  });
+
+  it('найдены, а проверено не всё — знак «точно есть»: неполным бывает только число', () => {
+    const lead = queueLead(numbers({ lost: 3, doubt: 'проверено не всё' }))!;
+    expect([lead.icon, lead.iconTone, lead.iconLabel]).toEqual([Warning, 'error', 'есть счета с удалёнными записями']);
+    expect(lead.title).toContain('Число неполное');
   });
 
   it('без потерянного и без чисел — знака нет', () => {

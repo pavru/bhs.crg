@@ -57,6 +57,8 @@ export async function homeQueueChecks(page, check, { BASE, browser }) {
     await chip.waitFor({ timeout: 10_000 });
     if (!(await chosen())) throw new Error('после обновления страницы отбор «Разобрать» снят');
     await pickQueue(page, 'Все счета');
-    if (new URL(page.url()).searchParams.get('queue') !== null) throw new Error('«Все счета» не убрали очередь из адреса');
+    // Адрес пишет роутер следом за закрытием списка — ждём его, а не читаем один раз (ревью PR #1934).
+    await page.waitForURL(u => u.searchParams.get('queue') === null, { timeout: 10_000 })
+      .catch(() => { throw new Error('«Все счета» не убрали очередь из адреса'); });
   });
 }

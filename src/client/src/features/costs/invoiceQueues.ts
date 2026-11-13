@@ -3,6 +3,7 @@ import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { queueCountText } from '@/shared/ui/queueCount';
 import { Archive, Checklist, DocumentScanner, Help, Warning } from '@/shared/ui/icons';
 import type { IconDef } from '@/shared/ui/icons/types';
+import type { ChipLead } from '@/shared/ui/Chip';
 
 /**
  * Очереди списка счетов (issue #1186): «Разобрать», «Удалённые записи», «В архиве» — пунктами меню одного
@@ -132,22 +133,28 @@ export function queueOptions(
   for (const queue of ['lost', 'archived'] as const) {
     const chip = queueChip(queue, queues, active === queue);
     if (!chip) continue;
-    // «Возможно» и «точно потеряно» — разными знаками, а не цветом одного (WCAG 1.4.1, [UI-68]).
-    const mark = queue === 'lost' && chip.doubt ? LOST_DOUBT_MARK : QUEUE_MARK[queue];
+    const mark = queue === 'lost' ? lostMark(queues) : QUEUE_MARK[queue];
     options.push({ value: queue, label: QUEUE_LABEL[queue], icon: mark.icon, iconTone: mark.tone, count: chip.count, title: chip.title });
   }
   return options;
 }
 
-/** Ведущий знак закрытого чипа очередей: есть счета с удалёнными записями. */
-export interface QueueLead {
-  icon: IconDef;
-  tone: 'error' | 'warning';
-  /** Имя знака для диктора — знак и есть сообщение. */
-  iconLabel: string;
-  /** Подсказка чипа в покое: сколько таких счетов и что с ними делать. */
-  title: string;
+/**
+ * Знак удалённых записей — и у пункта, и на закрытом чипе. «Возможно» и «точно потеряно» — разными знаками,
+ * а не цветом одного (WCAG 1.4.1, [UI-68]). «Возможно» — только когда найденных нет, а проверено не всё:
+ * найденные есть — они есть точно, неполным может быть лишь число («3?»), и знак сомнения ослаблял бы
+ * сигнал о поломке (ревью PR #1934).
+ */
+function lostMark(queues: InvoiceQueues | undefined): QueueMark {
+  return queues && queues.lost === 0 && queues.doubt !== null ? LOST_DOUBT_MARK : QUEUE_MARK.lost;
 }
+
+/**
+ * Ведущий знак закрытого чипа очередей — свойства чипа отбора как есть (`ChipLead`, [UI-69]), плюс подсказка
+ * чипа в покое: сколько таких счетов и что с ними делать. `iconLabel` — имя знака для диктора: знак и есть
+ * сообщение, и чип добавляет его к своему имени.
+ */
+export type QueueLead = Extract<ChipLead, { icon: IconDef }> & { iconLabel: string; title: string };
 
 /**
  * Знак удалённых записей на закрытом чипе (costs-invoice-filter-row, D3) — или `null`, когда потерянного нет.
@@ -158,9 +165,11 @@ export interface QueueLead {
 export function queueLead(queues: InvoiceQueues | undefined): QueueLead | null {
   const lost = queueChip('lost', queues, false);
   if (!lost) return null;
-  return lost.doubt
-    ? { icon: LOST_DOUBT_MARK.icon, tone: LOST_DOUBT_MARK.tone, iconLabel: 'Возможно, есть счета с удалёнными записями', title: lost.title }
-    : { icon: QUEUE_MARK.lost.icon, tone: 'error', iconLabel: 'Есть счета с удалёнными записями', title: lost.title };
+  const mark = lostMark(queues);
+  return {
+    icon: mark.icon, iconTone: mark.tone, title: lost.title,
+    iconLabel: mark === LOST_DOUBT_MARK ? 'возможно, есть счета с удалёнными записями' : 'есть счета с удалёнными записями',
+  };
 }
 
 /** Сколько пунктов «чего не хватает» помещается в строку списка: рейл — 320 пикселей. */

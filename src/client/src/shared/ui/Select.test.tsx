@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Select, SelectItem } from './Select';
 import { Checklist, DocumentScanner, Warning } from './icons';
 import type { ChipLead } from './Chip';
+import { isLayerFocus } from './layerFocus';
 
 // Radix Select зовёт API указателя и прокрутки, которых в jsdom нет.
 beforeAll(() => {
@@ -181,7 +182,7 @@ describe('Select без подписи: вид по месту ([UI-69])', () =>
 describe('чип отбора и пункт: знак и число (costs-invoice-filter-row, [UI-69])', () => {
   function Queue({ count, lost = false }: { count?: string; lost?: boolean }) {
     const [value, setValue] = useState('');
-    const lead: ChipLead = lost ? { icon: Warning, iconTone: 'error', iconLabel: 'Есть счета с удалёнными записями' } : {};
+    const lead: ChipLead = lost ? { icon: Warning, iconTone: 'error', iconLabel: 'есть счета с удалёнными записями' } : {};
     return (
       <Select variant="chip" aria-label="Очередь" value={value} onValueChange={setValue} emptyItem="Все счета"
         count={value ? count : undefined} {...lead}>
@@ -190,7 +191,7 @@ describe('чип отбора и пункт: знак и число (costs-invoi
       </Select>
     );
   }
-  const chip = () => screen.getByRole('combobox', { name: 'Очередь' });
+  const chip = () => screen.getByRole('combobox', { name: /^Очередь/ });
 
   it('без новых свойств чип прежний: ни знака, ни числа', () => {
     render(<Queue />);
@@ -200,10 +201,35 @@ describe('чип отбора и пункт: знак и число (costs-invoi
 
   it('знак о проблеме стоит перед подписью с именем для диктора, контейнер не перекрашен', () => {
     render(<Queue lost />);
-    const mark = chip().querySelector('svg[aria-label="Есть счета с удалёнными записями"]');
+    // Имя знака — в имени чипа: своё aria-label триггера закрывает содержимое от диктора (ревью PR #1934).
+    expect(screen.getByRole('combobox', { name: 'Очередь — есть счета с удалёнными записями' })).toBeTruthy();
+    const mark = chip().querySelector('svg[aria-label="есть счета с удалёнными записями"]');
     expect(mark).not.toBeNull();
     expect(mark!.getAttribute('class')).toContain('text-error');
     expect(chip().className).not.toContain('error');
+  });
+
+  it('выбор с клавиатуры возвращает фокус чипу как фокус слоя — подсказка чипа сама не открывается', async () => {
+    // Подсказка не открывается на фокус, поставленный слоем (`focusCallsTooltip`, свои тесты у `layerFocus`);
+    // здесь — что возвращённый списком фокус помечен именно так (ревью PR #1934).
+    function Titled() {
+      const [value, setValue] = useState('');
+      return (
+        <Select variant="chip" aria-label="Очередь" value={value} onValueChange={setValue} emptyItem="Все счета" title="Подсказка очереди">
+          <SelectItem value="parsing">Разобрать</SelectItem>
+        </Select>
+      );
+    }
+    render(<Titled />);
+    const trigger = chip();
+    const marks: boolean[] = [];
+    trigger.addEventListener('focus', () => marks.push(isLayerFocus()));
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('option', { name: 'Разобрать' }), { key: 'Enter' });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(trigger.textContent).toBe('Разобрать');
+    expect(document.activeElement).toBe(trigger);
+    expect(marks.at(-1)).toBe(true);
   });
 
   it('открытый список: знак и число у пункта, отметка выбранного видна', () => {

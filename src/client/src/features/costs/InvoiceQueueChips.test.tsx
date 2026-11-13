@@ -25,9 +25,10 @@ function shown(props: Partial<ComponentProps<typeof InvoiceQueueChips>> = {}) {
     onRetry={() => {}} sites={<button type="button">Стройки</button>} {...props} />);
   return onChange;
 }
-const chip = () => screen.getByRole('combobox', { name: 'Очередь счетов' });
+const chip = () => screen.getByRole('combobox', { name: /^Очередь счетов/ });
 const open = () => fireEvent.keyDown(chip(), { key: 'Enter' });
-const LOST = 'svg[aria-label="Есть счета с удалёнными записями"]';
+const LOST = 'svg[aria-label="есть счета с удалёнными записями"]';
+const LOST_NAME = 'Очередь счетов — есть счета с удалёнными записями';
 
 describe('чип очередей счетов', () => {
   it('в покое — «Все счета», невыбранный; рядом отбор строек, отдельных чипов очередей нет', () => {
@@ -72,10 +73,26 @@ describe('чип очередей счетов', () => {
   it('есть потерянное — у закрытого чипа знак с именем, в покое и под другой очередью', () => {
     shown({ queues: numbers({ lost: 2 }) });
     expect(chip().querySelector(LOST)).not.toBeNull();
+    // Диктор слышит знак в имени чипа — и под другой очередью, где подсказка говорит о ней (ревью PR #1934).
+    expect(screen.getByRole('combobox', { name: LOST_NAME })).toBeTruthy();
     cleanup();
     shown({ queues: numbers({ lost: 2, archived: 1 }), queue: 'archived' });
     expect(chip().querySelector(LOST)).not.toBeNull();
+    expect(screen.getByRole('combobox', { name: LOST_NAME })).toBeTruthy();
     expect(chip().textContent).toBe('В архиве· 1');
+  });
+
+  it('отбор загрузки — чип называет её, а «Все счета» и очередь его снимают', () => {
+    const onChange = shown({ upload: true });
+    expect(chip().textContent).toBe('Эта загрузка');
+    expect(chip().hasAttribute('data-selected')).toBe(true);
+    open();
+    expect(screen.getAllByRole('option').map(o => o.textContent)[1]).toBe('Эта загрузка');
+    fireEvent.click(screen.getByRole('option', { name: 'Все счета' }));
+    expect(onChange).toHaveBeenLastCalledWith(null);
+    open();
+    fireEvent.click(screen.getByRole('option', { name: 'Разобрать' }));
+    expect(onChange).toHaveBeenLastCalledWith('parsing');
   });
 
   it('потерянного нет — ведущего знака нет', () => {

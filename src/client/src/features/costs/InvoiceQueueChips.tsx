@@ -2,9 +2,14 @@ import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import type { ChipLead } from '@/shared/ui/Chip';
+import { UploadFile } from '@/shared/ui/icons';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { parseQueue, queueLead, queueOptions } from './invoiceQueues';
 import { Tooltip } from '@/shared/ui/Tooltip';
+
+/** Значение пункта «Эта загрузка» — не очередь: наружу не уходит. */
+const UPLOAD = 'upload';
+const UPLOAD_TITLE = 'Показаны только счета этой загрузки. «Все счета» или очередь снимают этот отбор.';
 
 /**
  * Очереди списка счетов (issue #1186) — одним чипом отбора с меню «Очередь счетов» (costs-invoice-filter-row,
@@ -18,8 +23,15 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, пунктов «наведите
  * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry, sites }: {
+export function InvoiceQueueChips({ queue, upload = false, onChange, queues, parsing, failed, onRetry, sites }: {
   queue: InvoiceQueue | null;
+  /**
+   * Список урезан до одной загрузки («Показать только их»). Чип тогда называет её, «Эта загрузка», а не
+   * «Все счета»: в покое он утверждал бы, что показано всё, а пункт «Все счета» — тот же, что выбран, —
+   * Radix не сообщает, и вернуть общий список им было бы нельзя (ревью PR #1934). Выбор очереди или «Все
+   * счета» отбор загрузки снимает, как прежде чип очереди.
+   */
+  upload?: boolean;
   onChange: (queue: InvoiceQueue | null) => void;
   /** Числа; `undefined` — не пришли или их не спрашивали. */
   queues: InvoiceQueues | undefined;
@@ -34,15 +46,17 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
   const options = queueOptions(queues, parsing, failed, queue);
   const chosen = options.find(o => o.value === queue);
   const lead = queueLead(queues);
-  const mark: ChipLead = lead ? { icon: lead.icon, iconTone: lead.tone, iconLabel: lead.iconLabel } : {};
+  // Знак — свойства чипа как есть (`QueueLead` — это `ChipLead` с подсказкой); без знака — пусто.
+  const mark: ChipLead = lead ?? {};
 
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 px-3 py-1.5 text-body-small" role="group" aria-label="Отбор списка счетов">
       {/* На закрытый чип из пункта уходит только подпись — число выбранной очереди чип несёт сам: «Разобрать · 3812».
           Подсказка — о выбранной очереди, а в покое — об удалённых записях, если они есть. */}
       <Select variant="chip" aria-label="Очередь счетов" emptyItem="Все счета"
-        value={queue ?? ''} onValueChange={v => onChange(parseQueue(v))}
-        count={chosen?.count || undefined} title={chosen?.title ?? lead?.title} {...mark}>
+        value={upload ? UPLOAD : queue ?? ''} onValueChange={v => { if (v !== UPLOAD) onChange(parseQueue(v)); }}
+        {...mark} count={chosen?.count || undefined} title={chosen?.title ?? (upload ? UPLOAD_TITLE : lead?.title)}>
+        {upload && <SelectItem value={UPLOAD} icon={UploadFile}>Эта загрузка</SelectItem>}
         {options.map(o => (
           <SelectItem key={o.value} value={o.value} icon={o.icon} iconTone={o.iconTone} count={o.count || undefined}>
             {o.label}

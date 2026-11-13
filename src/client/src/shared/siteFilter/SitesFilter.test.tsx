@@ -47,9 +47,12 @@ describe('отбор «Стройки»', () => {
     expect((chip as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('не загрузилось — так и сказано: показаны все', () => {
+  it('не загрузилось — так и сказано: показаны все; подпись не шире выключенного', () => {
     shown(filterOf(['a'], { status: 'error' }));
-    expect(screen.getByTestId('sites-filter-error').textContent).toContain('избранные не загрузились');
+    const chip = screen.getByTestId('sites-filter-error');
+    expect(chip.textContent).toBe('Стройки');
+    expect(chip.getAttribute('aria-label')).toBe('Стройки — все: избранные не загрузились');
+    expect(chip.querySelector('svg')!.getAttribute('class')).toContain('text-warning');
   });
 
   it('включён — «Избранные стройки» и сколько скрыто; нажатым чип не бывает', () => {
