@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Work.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -46,6 +47,10 @@ public class OrganizationShortNameCensusTests
         var plan = new DbContextOptionsBuilder<PlanDbContext>();
         PlanDbContext.Configure(plan, "Host=127.0.0.1;Database=never");
         using (var db = new PlanDbContext(plan.Options)) yield return db.Model;
+
+        var work = new DbContextOptionsBuilder<WorkDbContext>();
+        WorkDbContext.Configure(work, "Host=127.0.0.1;Database=never");
+        using (var db = new WorkDbContext(work.Options)) yield return db.Model;
     }
 
     [Fact]

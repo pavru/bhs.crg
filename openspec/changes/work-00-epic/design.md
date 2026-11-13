@@ -77,7 +77,7 @@
 ### D2. Права объявляются вместе с первым адресом, который они открывают
 | Право | Change |
 |---|---|
-| `work.report.own`, `work.report.review`, `work.assign`, `work.sites.all`, `work.report.read.all` | 10 |
+| `work.report.own`, `work.report.review`, `work.assignment.edit`, `work.sites.all`, `work.report.read` | 10 |
 | `work.crew.approve` | 18 |
 | `work.facts.read` — право контракта, в том числе у «Менеджера проекта» | 27 |
 | `work.devices.manage` | этап 5 |

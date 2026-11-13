@@ -67,7 +67,7 @@
 чужой стройки, а пустота не выглядит как «никого нет».
 
 ### Ворота
-- Чтение групп: `work.report.review`, `work.crew.approve` или `work.report.read.all`, отбор — параметром
+- Чтение групп: `work.report.review`, `work.crew.approve` или `work.report.read`, отбор — параметром
   доступа (D4).
 - Утверждение: `perm:work.crew.approve` плюс стройка менеджера или `work.sites.all`.
 - Действие `approve` приходит в `actions` группы (D15) — по нему панель решает, рисовать ли кнопку.

@@ -46,6 +46,7 @@
     <ProjectReference Include="..\BHS.CRG.Modules\BHS.CRG.Modules.csproj" />
     <ProjectReference Include="..\BHS.CRG.Modules.Costs\BHS.CRG.Modules.Costs.csproj" />
     <ProjectReference Include="..\BHS.CRG.Modules.Plan\BHS.CRG.Modules.Plan.csproj" />
+    <ProjectReference Include="..\BHS.CRG.Modules.Work\BHS.CRG.Modules.Work.csproj" />
   </ItemGroup>
 
 </Project>

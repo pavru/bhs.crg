@@ -30,7 +30,7 @@
 ## 2. PR 2: адреса и протокол
 
 - [ ] 2.1 `Endpoints/ReportEndpoints.cs` под `work.report.own` за воротами модуля; сотрудник из связи
-  учётной записи [WORK-39] [AUTH-8] [AUTH-9]. Проверка — тесты: `work.report.read.all` без `own` — 403;
+  учётной записи [WORK-39] [AUTH-8] [AUTH-9]. Проверка — тесты: `work.report.read` без `own` — 403;
   хост без `work` — 501; учётная запись без сотрудника — 403 с причиной; сотрудник в теле — 400;
   `EndpointGateInventoryTests` зелёный
 - [ ] 2.2 `ReportAccess.FindOwnAsync` — чтение через параметр доступа `work-07`, чужой и несуществующий —

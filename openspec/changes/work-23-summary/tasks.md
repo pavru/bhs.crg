@@ -13,7 +13,7 @@
   not-assigned`, `contact: { state: 'not-tracked' }` [WORK-29] [WORK-39] [WORK-40] [CORE-24.3].
   Проверка — `Work/SummaryEndpointTests`: чужая стройка — 404, 32 дня — 400, «Руководитель» видит все
   стройки
-- [ ] 1.4 Ворота: «любое из» `work.report.review`, `work.report.read.all`, отказ выключенного модуля
+- [ ] 1.4 Ворота: «любое из» `work.report.review`, `work.report.read`, отказ выключенного модуля
   [AUTH-8] [AUTH-9]. Проверка — `EndpointGateInventoryTests` зелёный; монтажник — 403; хост без
   `work` — 501
 - [ ] 1.5 Запись `draft` без содержимого [WORK-54]. Проверка — тест сериализации: у `draft` нет полей
@@ -38,7 +38,7 @@
 - [ ] 3.3 `SummaryLegend.tsx`; `report` открывает карточку `work-21`, `draft` — подсказка с моментом
   автоподачи [WORK-29] [WORK-54]. Проверка — vitest: щелчок по `draft` карточку не открывает
 - [ ] 3.4 Пункт «Сводка» в `navConfig.ts` раздела `work` с правом «любое из» `work.report.review`,
-  `work.report.read.all` [AUTH-16.1]. Проверка — `navAccess.test.ts`: «Руководитель» видит пункт,
+  `work.report.read` [AUTH-16.1]. Проверка — `navAccess.test.ts`: «Руководитель» видит пункт,
   «Монтажник» — нет
 - [ ] 3.5 Живой прогон `src/client/e2e/work-summary-smoke.mjs`: посев с «не поступал», «не назначен» и
   ночной сменой; вписать в `test:e2e:ci` и `e2e/README.md` [WORK-29]. Проверка — прогон зелёный на

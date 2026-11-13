@@ -42,8 +42,10 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         Assert.Equal(["plan"], registry.Enabled.Select(m => m.Code));
         Assert.Contains("id", registry.Disabled.Select(m => m.Code));
         Assert.Contains("costs", registry.Disabled.Select(m => m.Code));
+        // И обратное направление к WorkOnlyHostTests (work-10): смета не опирается на учёт работ.
+        Assert.Contains("work", registry.Disabled.Select(m => m.Code));
 
-        foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs") })
+        foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/work/assignments", "work") })
         {
             var response = await client.GetAsync(path);
 
@@ -116,6 +118,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         Assert.All(plan, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("costs.", StringComparison.Ordinal));
+        Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("work.", StringComparison.Ordinal));
 
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

@@ -20,12 +20,12 @@
   `dotnet ef migrations add Assignments --project src/server/BHS.CRG.Modules.Work --context WorkDbContext`;
   проверка в базе «конец null только у `manager`» [WORK-21] [WORK-46]. Проверка — на пересозданной базе
   миграция применяется; вставка `installer` без конца отвергается базой
-- [ ] 2.2 `Access/AssignmentGate.cs` — право по стройке (`work.assign` + действующее назначение «менеджер»
+- [ ] 2.2 `Access/AssignmentGate.cs` — право по стройке (`work.assignment.edit` + действующее назначение «менеджер»
   или `work.sites.all`) [WORK-21] [WORK-46]. Проверка — тест: чужая стройка — 403; с `work.sites.all` —
   успех; учётная запись без сотрудника — 403 с причиной
 - [ ] 2.3 Адреса `GET/POST /api/work/assignments`, `PUT/DELETE /api/work/assignments/{id}` с `If-Match`
   через `SeenVersion`, отказ сменить сотрудника, стройку или вид [WORK-21] [AUTH-8] [AUTH-9]. Проверка —
-  тесты: без `If-Match` — 400, устаревшая версия — 409, монтажник без `work.assign` — 403, хост без `work`
+  тесты: без `If-Match` — 400, устаревшая версия — 409, монтажник без `work.assignment.edit` — 403, хост без `work`
   — 501; `EndpointGateInventoryTests` зелёный
 - [ ] 2.4 Признаки `canAssign`, `canChange`, `canRemove` с причиной в ответе чтения назначений — от
   `AssignmentGate` [WORK-21] [WORK-46]. Проверка — тест: для каждого из трёх случаев (своя стройка, чужая,

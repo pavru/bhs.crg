@@ -78,7 +78,7 @@ public static class SystemRoles
             [
                 "core.employees.read", "core.constructions.edit", CorePermissions.PeriodClose, CorePermissions.FilesUse,
                 .. ReferenceReads,
-                "work.report.review", "work.assign", "work.crew.approve", "work.devices.manage",
+                "work.report.review", "work.assignment.edit", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
                 // Планирование (PLAN-23): КП, прайс-лист и графики — его дело, а не сметчика. Сметы он
                 // ЧИТАЕТ — КП и график строятся из редакции сметы (решение В-1, PLAN-Q9, 22.10.2026), — но

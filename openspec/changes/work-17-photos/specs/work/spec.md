@@ -51,11 +51,11 @@
 
 ### Requirement: [AUTH-8] [AUTH-9] Ворота адресов фото
 Загрузка и удаление фото SHALL быть открыты тому, кто вправе править строку: автору своего отчёта
-(`work.report.own`) или менеджеру его стройки (`work.report.review`). Право `work.report.read.all` MUST
+(`work.report.own`) или менеджеру его стройки (`work.report.review`). Право `work.report.read` MUST
 давать только чтение. Адреса фото стоят за воротами модуля `work`.
 
 #### Scenario: Руководитель загружает фото
-- **WHEN** пользователь только с `work.report.read.all` загружает фото к отчёту
+- **WHEN** пользователь только с `work.report.read` загружает фото к отчёту
 - **THEN** ответ 403
 
 #### Scenario: Модуль выключен

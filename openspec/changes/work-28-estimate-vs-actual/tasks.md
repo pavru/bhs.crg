@@ -16,7 +16,7 @@
   [WORK-42] [WORK-43] [CORE-34]. Проверка — каждое состояние получено настоящим путём (`plan`
   выключен, нет `plan.labor.read`, нет принятых, ниже порога)
 - [ ] 1.6 `Endpoints/LaborEndpoints.cs`: ворота модуля, «любое из» `work.report.review` и
-  `work.report.read.all`, изоляция [WORK-39] [AUTH-8]. Проверка — интеграционные тесты: чужая стройка —
+  `work.report.read`, изоляция [WORK-39] [AUTH-8]. Проверка — интеграционные тесты: чужая стройка —
   404, монтажник — 403, модуль выключен — 501; `EndpointGateInventoryTests` зелёный
 - [ ] 1.7 Контракт `BHS.CRG.Modules/Exchange/IWorkProductivity.cs` под `work.facts.read`; реализация в
   `RegisterServices` [PLAN-16] [WORK-57]. Проверка — тест по ключам JSON: в ответе нет часов, отчётов и

@@ -15,7 +15,7 @@
 - Новый проект `BHS.CRG.Modules.Work`: `IAppModule` с кодом `work` и названием «Учёт работ». Пустая группа
   адресов `/api/work` за воротами модуля. Ни одного экрана и ни одной таблицы данных.
 - Права первой двери (`WORK-45`, D2) с объяснениями и `ReadAllMark`: `work.report.own`,
-  `work.report.review`, `work.assign`, `work.report.read.all`. Новое право `work.sites.all`
+  `work.report.review`, `work.assignment.edit`, `work.report.read`. Новое право `work.sites.all`
   («назначать и принимать на любых стройках», `WORK-46`).
 - Права `work.crew.approve`, `work.facts.read`, `work.devices.manage` **не объявляются** — их объявляют
   `work-18`, `work-27` и этап 5.

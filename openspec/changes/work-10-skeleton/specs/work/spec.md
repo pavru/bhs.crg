@@ -28,14 +28,14 @@ MUST держать в схеме `work` своего контекста со с
 - **THEN** перепись адресов падает с названием адреса
 
 ### Requirement: [WORK-45] [WORK-46] Права первой двери
-Модуль SHALL объявлять права `work.report.own`, `work.report.review`, `work.assign`, `work.sites.all` и
-`work.report.read.all` — каждое с объяснением и пометкой `ReadAllMark`. Право MUST NOT объявляться
+Модуль SHALL объявлять права `work.report.own`, `work.report.review`, `work.assignment.edit`, `work.sites.all` и
+`work.report.read` — каждое с объяснением и пометкой `ReadAllMark`. Право MUST NOT объявляться
 раньше первого адреса, который оно открывает: `work.crew.approve`, `work.facts.read` и
 `work.devices.manage` на этом шаге не объявлены.
 
 #### Scenario: Роли после объявления
 - **WHEN** экземпляр стартует с модулем `work`
-- **THEN** «Монтажник» получает `work.report.own`, а «Менеджер проекта» — `work.report.review` и `work.assign`
+- **THEN** «Монтажник» получает `work.report.own`, а «Менеджер проекта» — `work.report.review` и `work.assignment.edit`
 - **AND** состав `/api/account/access` по каждой системной роли совпадает с ожидаемым
 
 #### Scenario: Инженер ИД
