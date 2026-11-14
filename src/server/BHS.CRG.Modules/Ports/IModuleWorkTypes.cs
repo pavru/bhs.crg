@@ -11,9 +11,23 @@ namespace BHS.CRG.Modules.Ports;
 /// <param name="RequiresMaterials">Признак <c>work.requiresMaterials</c>: работа требует указания материалов.</param>
 /// <param name="ProducesId">Признак <c>work.producesId</c>: работа попадает в исполнительную документацию.</param>
 /// <param name="Archived">Вид в архиве (ТЗ CORE-34.4): из выбора убран, сохранённые ссылки целы.</param>
+/// <param name="Variants">Варианты вида (ТЗ WORK-49, WORK-25; change <c>work-06-work-type-variants</c>) —
+/// все, архивные с признаком, по наименованию. Вида без вариантов — пустой список, а не отказ: вариант
+/// у строки отчёта необязателен, если у вида их нет.</param>
 public sealed record ModuleWorkType(
     Guid Id, string? Code, string? Name, string DisplayName, Guid? UnitId, string? UnitName,
-    bool RequiresLocation, bool RequiresMaterials, bool ProducesId, bool Archived);
+    bool RequiresLocation, bool RequiresMaterials, bool ProducesId, bool Archived,
+    IReadOnlyList<ModuleWorkVariant> Variants);
+
+/// <summary>Вариант вида работы (ТЗ WORK-49): «в лотке», «в трубе» у «Прокладки кабеля».</summary>
+/// <param name="WorkTypeId">Вид работы, которому вариант принадлежит. Постоянен с заведения.</param>
+/// <param name="Name">Наименование варианта — уникально среди живых вариантов вида.</param>
+/// <param name="Archived">Вариант в архиве (ТЗ CORE-34.4): из выбора убран, сохранённые ссылки целы.</param>
+public sealed record ModuleWorkVariant(Guid Id, Guid WorkTypeId, string Name, bool Archived)
+{
+    /// <summary>Принадлежит ли вариант виду — по нему модуль отвергает строку с вариантом чужого вида.</summary>
+    public bool BelongsTo(Guid workTypeId) => WorkTypeId == workTypeId;
+}
 
 /// <summary>
 /// Классификатор видов работ ядра — ЧТЕНИЕ, типизированно (ТЗ CORE-20.4, PLAN-6.1; change
@@ -50,4 +64,11 @@ public interface IModuleWorkTypes
     /// запрос — все живые.
     /// </summary>
     Task<ModuleChoice<ModuleWorkType>?> SearchAsync(string? query, int limit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Варианты по идентификаторам — с видом-владельцем: модуль сверяет пару «вид работы, вариант» строки
+    /// (<see cref="ModuleWorkVariant.BelongsTo" />). Архивные на месте, с признаком; неизвестный
+    /// идентификатор в ответ не попадает. <c>null</c> — справочник вариантов не заведён.
+    /// </summary>
+    Task<IReadOnlyList<ModuleWorkVariant>?> GetVariantsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 }

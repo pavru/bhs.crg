@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPLOYEE_CODE, WORK_TYPE_CODE, archiveRequest, ownDoorCode, recordWriteBase, recordWritePermission } from './commonData';
+import { EMPLOYEE_CODE, WORK_TYPE_CODE, WORK_VARIANT_CODE, archiveRequest, ownDoorCode, recordWriteBase, recordWritePermission } from './commonData';
 
 describe('адрес записи по типу — дверь видов работ (WORK-59)', () => {
   it('вид работы пишется своей дверью, остальное — общим адресом', () => {
@@ -64,5 +64,26 @@ describe('дверь сотрудников — единственная (реш
   it('в архив сотрудник уходит дверью и с версией', () => {
     expect(archiveRequest({ id: 's1', archived: true, doorCode: EMPLOYEE_CODE, version: '5' }))
       .toEqual({ url: '/employees/s1/archive', headers: { 'If-Match': '5' } });
+  });
+});
+
+describe('дверь вариантов вида работ (WORK-49, work-06)', () => {
+  it('вариант и его подтип пишутся адресом /work-variants под правом классификатора', () => {
+    const types = [
+      { id: 'w', code: WORK_TYPE_CODE, parentId: null },
+      { id: 'v', code: WORK_VARIANT_CODE, parentId: null },
+      { id: 'v2', code: 'ВариантРаботыКабель', parentId: 'v' },
+    ];
+    expect(recordWriteBase(ownDoorCode('v2', types))).toBe('/work-variants');
+    expect(recordWritePermission(ownDoorCode('v', types))).toBe('core.worktypes.edit');
+    // Вариант — не вид работы: у каждого справочника своя дверь, хоть право и одно.
+    expect(recordWriteBase(ownDoorCode('w', types))).toBe('/work-types');
+  });
+
+  it('в архив и из архива вариант уходит дверью и с версией', () => {
+    expect(archiveRequest({ id: 'v1', archived: true, doorCode: WORK_VARIANT_CODE, version: '4' }))
+      .toEqual({ url: '/work-variants/v1/archive', headers: { 'If-Match': '4' } });
+    expect(archiveRequest({ id: 'v1', archived: false, doorCode: WORK_VARIANT_CODE, version: '5' }))
+      .toEqual({ url: '/work-variants/v1/unarchive', headers: { 'If-Match': '5' } });
   });
 });

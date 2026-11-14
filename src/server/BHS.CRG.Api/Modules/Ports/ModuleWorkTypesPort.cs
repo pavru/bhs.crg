@@ -60,6 +60,9 @@ public sealed class ModuleWorkTypesPort(IMediator mediator, IRepository<Document
             : (await mediator.Send(new CommonDataRefsByIdsQuery([.. units.Keys], unitIds), ct))
                 .ToDictionary(u => u.Id, u => u.DisplayName);
 
+        // Варианты — одним чтением на весь классификатор; справочника вариантов нет — у каждого вида пусто.
+        var variants = (await VariantsAsync(all, ct) ?? []).ToLookup(v => v.WorkTypeId);
+
         // Порядок — по коду: так классификатор читает сметчик. Сравнение культурное, как у списков ядра.
         return [.. read
             .Select(r =>
@@ -69,11 +72,42 @@ public sealed class ModuleWorkTypesPort(IMediator mediator, IRepository<Document
                     r.Entry.Id, CoreDirectories.Text(data, r.Keys.Code), CoreDirectories.Text(data, r.Keys.Name),
                     r.Entry.DisplayName ?? "", r.Unit, r.Unit is { } u ? unitNames.GetValueOrDefault(u) : null,
                     CoreDirectories.Flag(data, r.Keys.RequiresLocation), CoreDirectories.Flag(data, r.Keys.RequiresMaterials),
-                    CoreDirectories.Flag(data, r.Keys.ProducesId), r.Entry.IsArchived),
+                    CoreDirectories.Flag(data, r.Keys.ProducesId), r.Entry.IsArchived, [.. variants[r.Entry.Id]]),
                     Aliases: (IReadOnlyList<string>)[.. r.Entry.Aliases]);
             })
             .OrderBy(w => w.Item.Code ?? w.Item.DisplayName, StringComparer.CurrentCulture)
             .ThenBy(w => w.Item.DisplayName, StringComparer.CurrentCulture)];
+    }
+
+    public async Task<IReadOnlyList<ModuleWorkVariant>?> GetVariantsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        var all = await types.GetAllAsync(ct);
+        if (CoreDirectories.Family(all, CoreRecordTypes.WorkTypeCode) is null) return null;
+        if (await VariantsAsync(all, ct) is not { } variants) return null;
+        var wanted = ids.ToHashSet();
+        return [.. variants.Where(v => wanted.Contains(v.Id))];
+    }
+
+    /// <summary>
+    /// Все варианты, с архивом, — или <c>null</c>, если справочника вариантов нет. Вариант без ссылки на
+    /// вид (данные, положенные мимо двери) пропускается: принадлежать ему некому, и выдумывать владельца
+    /// порт не вправе.
+    /// </summary>
+    private async Task<List<ModuleWorkVariant>?> VariantsAsync(IReadOnlyList<DocumentType> all, CancellationToken ct)
+    {
+        if (CoreDirectories.Family(all, CoreRecordTypes.WorkVariantCode) is not { } family) return null;
+        var entries = new List<DomainObject>();
+        foreach (var typeId in family.Keys)
+            entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));
+
+        return [.. entries
+            .Select(e => (Entry: e, WorkType: CoreDirectories.Reference(e.Data.RootElement, CoreRecordTypes.WorkVariantWorkTypeKey)))
+            .Where(v => v.WorkType is not null)
+            .Select(v => new ModuleWorkVariant(
+                v.Entry.Id, v.WorkType!.Value,
+                CoreDirectories.Text(v.Entry.Data.RootElement, CoreRecordTypes.WorkVariantNameKey) ?? v.Entry.DisplayName ?? "",
+                v.Entry.IsArchived))
+            .OrderBy(v => v.Name, StringComparer.CurrentCulture)];
     }
 
     private static bool Matches(ModuleWorkType w, IReadOnlyList<string> aliases, string? query) =>
