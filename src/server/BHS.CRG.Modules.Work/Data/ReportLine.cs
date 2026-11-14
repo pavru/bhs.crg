@@ -91,19 +91,26 @@ public sealed class ReportLine : IIsolatedRecord
         Volume = values.Volume;
         UnitId = values.UnitId;
         SectionId = values.SectionId;
-        Location = Normalize(values.Location);
-        Comment = Normalize(values.Comment);
+        Location = ReportRules.Text(values.Location);
+        Comment = ReportRules.Text(values.Comment);
         IsCrew = values.IsCrew;
         WorkPlanItemId = workPlanItemId;
         Details = string.IsNullOrWhiteSpace(values.Details) ? "{}" : values.Details;
 
-        Materials.Clear();
-        Materials.AddRange(values.Materials.Select((m, i) => ReportLineMaterial.Create(Id, i, m.NomenclatureId!.Value, m.Note)));
-        Participants.Clear();
-        Participants.AddRange(values.Participants.Distinct().Select(e => ReportLineParticipant.Create(Id, e)));
+        // Материалы и участники пересобираются, только когда изменились: правка объёма не переписывает их строки.
+        var materials = values.Materials.Select(m => (m.NomenclatureId!.Value, ReportRules.Text(m.Note))).ToList();
+        if (!Materials.OrderBy(m => m.Position).Select(m => (m.NomenclatureId, m.Note)).SequenceEqual(materials))
+        {
+            Materials.Clear();
+            Materials.AddRange(materials.Select((m, i) => ReportLineMaterial.Create(Id, i, m.Item1, m.Item2)));
+        }
+        var participants = values.Participants.Distinct().ToHashSet();
+        if (!Participants.Select(p => p.EmployeeId).ToHashSet().SetEquals(participants))
+        {
+            Participants.Clear();
+            Participants.AddRange(participants.Select(e => ReportLineParticipant.Create(Id, e)));
+        }
     }
-
-    private static string? Normalize(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 }
 
 /// <summary>Материал строки во входе: ссылка на номенклатуру обязательна, текст — только в примечании (ТЗ WORK-50).</summary>
@@ -142,7 +149,7 @@ public sealed class ReportLineMaterial : IIsolatedRecord
     public static ReportLineMaterial Create(Guid lineId, int position, Guid nomenclatureId, string? note) => new()
     {
         Id = Guid.NewGuid(), LineId = lineId, Position = position, NomenclatureId = nomenclatureId,
-        Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
+        Note = ReportRules.Text(note),
     };
 }
 

@@ -21,18 +21,52 @@ public static class ReportRules
     /// <summary>Ключи часов, которых в строке быть не должно (ТЗ WORK-7): время — на отчёт целиком.</summary>
     public static readonly IReadOnlyList<string> LineHoursKeys = ["hours", "часы"];
 
-    /// <summary>Часы отчёта — от 0 до 24; <c>null</c> — ещё не названы (черновик).</summary>
+    /// <summary>Знаков после запятой у часов — столько хранит колонка <c>hours</c> (<c>numeric(5,2)</c>).</summary>
+    public const int HoursScale = 2;
+
+    /// <summary>Знаков после запятой у объёма — столько хранит колонка <c>volume</c> (<c>numeric(18,4)</c>).</summary>
+    public const int VolumeScale = 4;
+
+    /// <summary>Предел объёма строки: целая часть колонки <c>volume</c> — 14 знаков.</summary>
+    public const decimal MaxVolume = 99_999_999_999_999m;
+
+    /// <summary>
+    /// Часы отчёта — от 0 до 24, не точнее сотых; <c>null</c> — ещё не названы (черновик). Лишние знаки — отказ, а не
+    /// молчаливое округление базой: человек увидел бы потом не то, что ввёл.
+    /// </summary>
     public static void EnsureHours(decimal? hours)
     {
-        if (hours is { } h && (h < 0 || h > Report.MaxHours))
+        if (hours is not { } h) return;
+        if (h < 0 || h > Report.MaxHours)
             throw new InvalidRequestException(
                 $"Часы отчёта (hours) — от 0 до {Report.MaxHours.ToString(CultureInfo.InvariantCulture)}, а названо " +
                 $"{h.ToString(CultureInfo.InvariantCulture)}.");
+        if (decimal.Round(h, HoursScale) != h)
+            throw new InvalidRequestException($"Часы отчёта (hours) — не точнее сотых, а названо {h.ToString(CultureInfo.InvariantCulture)}.");
     }
 
     /// <summary>
+    /// Объём строки — не отрицательный, в пределах колонки и не точнее четырёх знаков. Ноль принимается: черновик
+    /// строки, где объём ещё не назван (колонка обязательна, «не названо» другим способом не сказать).
+    /// </summary>
+    public static void EnsureVolume(int position, decimal volume)
+    {
+        var at = $"Строка {position + 1}";
+        if (volume < 0)
+            throw new InvalidRequestException($"{at}: объём (volume) не может быть отрицательным.");
+        if (volume > MaxVolume)
+            throw new InvalidRequestException($"{at}: объём (volume) больше допустимого.");
+        if (decimal.Round(volume, VolumeScale) != volume)
+            throw new InvalidRequestException($"{at}: объём (volume) — не больше {VolumeScale} знаков после запятой.");
+    }
+
+    /// <summary>Текст поля как он ляжет в колонку: пустой и из пробелов — <c>null</c>, иначе без краевых пробелов.</summary>
+    public static string? Text(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    /// <summary>
     /// Строка не несёт часов (ТЗ WORK-7): поле молча отброшенным не будет — человек решил бы, что часы по строкам
-    /// сохранены. <paramref name="lineKeys" /> — имена полей строки в теле запроса.
+    /// сохранены. <paramref name="lineKeys" /> — имена полей строки: путь записи спрашивает о ключах сведений
+    /// (<see cref="ReportWriter" />), адрес — о полях строки в теле запроса.
     /// </summary>
     public static void EnsureNoLineHours(int position, IEnumerable<string> lineKeys)
     {
@@ -57,6 +91,7 @@ public static class ReportRules
             throw new InvalidRequestException($"{at}: вид работы (workTypeId) не найден в классификаторе.");
         if (line.UnitId == Guid.Empty)
             throw new InvalidRequestException($"{at}: не названа единица объёма (unitId).");
+        EnsureVolume(position, line.Volume);
 
         EnsureVariant(at, line.VariantId, workType);
         EnsureSection(at, line.SectionId, site);

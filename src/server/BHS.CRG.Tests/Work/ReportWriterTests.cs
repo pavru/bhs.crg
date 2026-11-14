@@ -1,6 +1,8 @@
 using BHS.CRG.Api.Modules;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Tests.Integration;
@@ -101,6 +103,8 @@ public class ReportWriterTests(AssignmentHost fixture) : IAsyncLifetime
         var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => WriteAsync((w, db) =>
             w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteA), [Line(s) with { Details = """{"Объём":5}""" }], 1, Now, default)));
         Assert.Contains("Строка 1, сведения", refusal.Message);
+        // Охрана — до порта перечня: отказ не оставил позиции без держателя.
+        Assert.Equal(0, await PlanItemCountAsync());
 
         await WriteAsync((w, db) =>
             w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteA), [Line(s) with { Details = "{}" }], 1, Now, default));
@@ -120,7 +124,100 @@ public class ReportWriterTests(AssignmentHost fixture) : IAsyncLifetime
         Assert.Equal(IModuleWorkTypes.NotSetUp, refusal.Message);
     }
 
+    /// <summary>Четвёрка занята другим отчётом сотрудника — отказ с его идентификатором, и позиции не заведены.</summary>
+    [Fact]
+    public async Task Занятая_четвёрка_отказ_с_существующим_отчётом()
+    {
+        var s = await SeedAsync();
+        var first = Guid.NewGuid();
+        await WriteAsync((w, db) => w.CreateAsync(first, s.Employee, Header(s.SiteA), [], 1, Now, default));
+
+        var twice = await Assert.ThrowsAsync<ReportKeyTakenException>(() => WriteAsync((w, db) =>
+            w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteA), [Line(s)], 2, Now, default)));
+        Assert.Equal(first, twice.ExistingId);
+        Assert.Equal(0, await PlanItemCountAsync());
+
+        // Ночная смена той же даты свободна; её перенос на дневную — тот же отказ.
+        var night = Guid.NewGuid();
+        await WriteAsync((w, db) =>
+            w.CreateAsync(night, s.Employee, Header(s.SiteA) with { Shift = ReportShift.Night }, [], 3, Now, default));
+        var moved = await Assert.ThrowsAsync<ReportKeyTakenException>(() => ChangeLinesAsync(night, s, [], 4));
+        Assert.Equal(first, moved.ExistingId);
+    }
+
+    /// <summary>Идентификатор строки занят строкой другого отчёта — 409 с номером строки, а не нарушение ключа базы.</summary>
+    [Fact]
+    public async Task Идентификатор_строки_другого_отчёта_отвергается()
+    {
+        var s = await SeedAsync();
+        var line = Line(s) with { SectionId = null };
+        await WriteAsync((w, db) => w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteA), [line], 1, Now, default));
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => WriteAsync((w, db) =>
+            w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteB), [Line(s) with { SectionId = null }, line], 2, Now, default)));
+
+        Assert.Contains("Строка 2", refusal.Message);
+        Assert.Contains("занят", refusal.Message);
+    }
+
+    /// <summary>Часы в сведениях строки и сведения не объектом — отказ с номером строки (ТЗ WORK-7).</summary>
+    [Theory]
+    [InlineData("""{"часы":4}""", "часы")]
+    [InlineData("[1,2]", "не JSON-объект")]
+    [InlineData("{не json", "не JSON")]
+    public async Task Сведения_с_часами_или_не_объектом_отвергаются(string details, string expected)
+    {
+        var s = await SeedAsync(withTypes: true);
+
+        var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => WriteAsync((w, db) =>
+            w.CreateAsync(Guid.NewGuid(), s.Employee, Header(s.SiteA), [Line(s) with { Details = details }], 1, Now, default)));
+
+        Assert.Contains("Строка 1", refusal.Message);
+        Assert.Contains(expected, refusal.Message);
+    }
+
+    /// <summary>Правка объёма не пересобирает материалы — записи те же; смена материала — новые записи.</summary>
+    [Fact]
+    public async Task Материалы_пересобираются_только_при_изменении()
+    {
+        var s = await SeedAsync();
+        var nomenclatureType = await seed.TypeAsync("НоменклатураТест", "Номенклатура");
+        var cable = await seed.RecordAsync(nomenclatureType.Id, "Кабель ВВГнг 3х2.5");
+        var tray = await seed.RecordAsync(nomenclatureType.Id, "Лоток 100х50");
+        var line = Line(s) with { Materials = [new(cable.Id, "остаток бухты")] };
+        var id = Guid.NewGuid();
+        await WriteAsync((w, db) => w.CreateAsync(id, s.Employee, Header(s.SiteA), [line], 1, Now, default));
+        var before = await MaterialIdsAsync(id);
+
+        await ChangeLinesAsync(id, s, [line with { Volume = 300m }], 2);
+        Assert.Equal(before, await MaterialIdsAsync(id));
+
+        await ChangeLinesAsync(id, s, [line with { Materials = [new(tray.Id, null)] }], 3);
+        Assert.NotEqual(before, await MaterialIdsAsync(id));
+    }
+
     // ── Подготовка ──
+
+    private Task ChangeLinesAsync(Guid id, Seeded s, IReadOnlyList<ReportLineValues> lines, long seq) =>
+        WriteAsync(async (w, db) =>
+        {
+            var report = await LoadAsync(db, id);
+            await w.ChangeAsync(report, Header(s.SiteA), lines, seq, Now, default);
+            return report;
+        });
+
+    private async Task<List<Guid>> MaterialIdsAsync(Guid reportId)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var report = await LoadAsync(scope.ServiceProvider.GetRequiredService<WorkDbContext>(), reportId);
+        return [.. report.Lines.SelectMany(l => l.Materials).Select(m => m.Id)];
+    }
+
+    private async Task<int> PlanItemCountAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        return (await scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>().GetAllAsync()).Count;
+    }
 
     private static readonly DateTimeOffset Now = AssignmentHost.Now;
 

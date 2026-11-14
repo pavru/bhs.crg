@@ -45,10 +45,15 @@ public class IsolatedReadInventoryTests
     /// <summary>
     /// Файл чтения → причина. Здесь и только здесь изолированная запись читается напрямую: метод с
     /// параметром доступа, вычисляющий охват. Первую изолированную запись — отчёт монтажника — завёл
-    /// <c>work-13</c> (PR 1, модель); его файл чтения приходит в PR 2 вместе с адресами: перечень не держит
-    /// файла, где чтения ещё нет (<see cref="Перечень_чтения_не_хранит_умерших_записей" />).
+    /// <c>work-13</c>.
     /// </summary>
-    private static readonly Dictionary<string, string> ReadFiles = new();
+    private static readonly Dictionary<string, string> ReadFiles = new()
+    {
+        ["BHS.CRG.Modules.Work/Data/ReportReads.cs"] =
+            "файл чтения отчёта монтажника (work-13). В PR 1 — только вопросы пути записи «занято ли»: четвёрка " +
+            "ключа (ответ — идентификатор отчёта ТОГО ЖЕ сотрудника) и идентификаторы строк (ответ — только факт " +
+            "занятости), полей чужого отчёта не отдаёт; чтение с охватом (ModuleReader) приходит сюда же с адресами",
+    };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
     public sealed record Isolated(string Type, string? Schema, string? Table);

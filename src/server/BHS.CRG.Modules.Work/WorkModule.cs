@@ -170,6 +170,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<AssignmentGate>();
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
+        services.AddScoped<ReportReads>();
         services.AddScoped<ReportWriter>();
     }
 

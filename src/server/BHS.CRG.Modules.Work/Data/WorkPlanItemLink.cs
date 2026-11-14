@@ -48,10 +48,13 @@ public sealed class WorkPlanItemLink(IModulePlanItems planItems)
                 result[demand.Line.Id] = item.Id;
                 continue;
             }
-            var refusal = batch.Refusals.FirstOrDefault(r => r.Key == key);
+            // Ни позиции, ни отказа — нарушение договора порта, а не ошибка запроса: 500 и журнал, а не 400 человеку.
+            var refusal = batch.Refusals.FirstOrDefault(r => r.Key == key)
+                          ?? throw new InvalidOperationException(
+                              "Порт перечня работ не ответил по ключу строки отчёта ни позицией, ни отказом.");
             throw new InvalidRequestException(
-                $"Строка {demand.Position + 1}, поле «{FieldOf(refusal?.Part)}»: позицию перечня работ не завести — " +
-                (refusal?.Reason ?? "порт перечня не ответил ни позицией, ни отказом."));
+                $"Строка {demand.Position + 1}, поле «{FieldOf(refusal.Part)}»: позицию перечня работ не завести — " +
+                refusal.Reason);
         }
         return result;
     }

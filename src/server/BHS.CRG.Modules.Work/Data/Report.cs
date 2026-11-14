@@ -85,7 +85,7 @@ public sealed class Report : IIsolatedRecord
         return new Report
         {
             Id = id, EmployeeId = employeeId, ConstructionId = constructionId, Date = date, Shift = shift,
-            Hours = hours, Status = ReportStatus.Draft, Note = Normalize(note), Seq = seq, CreatedAt = now, UpdatedAt = now,
+            Hours = hours, Status = ReportStatus.Draft, Note = ReportRules.Text(note), Seq = seq, CreatedAt = now, UpdatedAt = now,
         };
     }
 
@@ -98,7 +98,7 @@ public sealed class Report : IIsolatedRecord
         Date = date;
         Shift = shift;
         Hours = hours;
-        Note = Normalize(note);
+        Note = ReportRules.Text(note);
         Touch(seq, now);
     }
 
@@ -122,6 +122,4 @@ public sealed class Report : IIsolatedRecord
         "night" => ReportShift.Night,
         _ => throw new InvalidRequestException($"Смена (shift) «{code}» неизвестна: ожидается day или night."),
     };
-
-    private static string? Normalize(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 }

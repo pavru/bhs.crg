@@ -136,4 +136,41 @@ public class ReportRulesTests
         Assert.Equal(ReportShift.Night, Report.ParseShift(" Night "));
         Assert.Contains("shift", Refusal(() => Report.ParseShift("evening")));
     }
+
+    /// <summary>Объём: отрицательный, сверх колонки и точнее четырёх знаков — отказ с номером строки.</summary>
+    [Theory]
+    [InlineData("-1", "отрицательным")]
+    [InlineData("100000000000000", "больше допустимого")]
+    [InlineData("1.23456", "знаков после запятой")]
+    public void Объём_вне_колонки_отвергается(string volume, string expected)
+    {
+        var value = decimal.Parse(volume, System.Globalization.CultureInfo.InvariantCulture);
+        var text = Refusal(() => ReportRules.EnsureLine(1, Line() with { Volume = value }, Cable, SiteA));
+
+        Assert.Contains("Строка 2", text);
+        Assert.Contains(expected, text);
+    }
+
+    /// <summary>Ноль — черновик строки, где объём ещё не назван; четыре знака — ровно то, что хранит колонка.</summary>
+    [Fact]
+    public void Нулевой_и_точный_объём_принимаются()
+    {
+        ReportRules.EnsureLine(0, Line() with { Volume = 0m }, Cable, SiteA);
+        ReportRules.EnsureLine(0, Line() with { Volume = 12.3456m }, Cable, SiteA);
+    }
+
+    /// <summary>Часы точнее сотых — отказ, а не молчаливое округление колонкой.</summary>
+    [Fact]
+    public void Часы_точнее_сотых_отвергаются()
+    {
+        Assert.Contains("сотых", Refusal(() => ReportRules.EnsureHours(8.333m)));
+        ReportRules.EnsureHours(8.25m);
+    }
+
+    [Fact]
+    public void Текст_поля_пустой_становится_null()
+    {
+        Assert.Null(ReportRules.Text("   "));
+        Assert.Equal("оси 3–4", ReportRules.Text("  оси 3–4 "));
+    }
 }

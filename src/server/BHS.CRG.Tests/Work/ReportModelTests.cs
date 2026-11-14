@@ -176,12 +176,16 @@ public class ReportModelTests(AssignmentHost fixture) : IAsyncLifetime
 
         var fresh = Values(s, materials: [new(cable.Id, null)]);
         var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() =>
-            check.EnsureAsync([], [.. ReportReferenceCheck.OfLine(fresh)], default));
+            check.EnsureAsync([], [.. ReportReferenceCheck.OfLine(fresh, 2)], default));
         Assert.Contains("«материал»", refusal.Message);
         Assert.Contains("в архиве", refusal.Message);
+        // Человек ищет строку по номеру, а не по идентификатору.
+        Assert.Contains("(строка 3)", refusal.Message);
+        Assert.DoesNotContain(fresh.Id.ToString(), refusal.Message);
 
+        // Правка объёма той же строки, переставленной на другое место, — не новая ссылка.
         var volumeOnly = Values(s, materials: [new(cable.Id, null)]) with { Id = stored.Id, Volume = 250m };
-        await check.EnsureAsync([.. ReportReferenceCheck.OfLine(stored)], [.. ReportReferenceCheck.OfLine(volumeOnly)], default);
+        await check.EnsureAsync([.. ReportReferenceCheck.OfLine(stored)], [.. ReportReferenceCheck.OfLine(volumeOnly, 1)], default);
     }
 
     /// <summary>Пропавшая запись — тоже отказ: ссылка в никуда хуже ссылки в архив.</summary>
@@ -193,7 +197,7 @@ public class ReportModelTests(AssignmentHost fixture) : IAsyncLifetime
         var check = scope.ServiceProvider.GetRequiredService<ReportReferenceCheck>();
 
         var refusal = await Assert.ThrowsAsync<InvalidRequestException>(() => check.EnsureAsync(
-            [], [.. ReportReferenceCheck.OfLine(Values(s, crew: true, participants: [Guid.NewGuid()]))], default));
+            [], [.. ReportReferenceCheck.OfLine(Values(s, crew: true, participants: [Guid.NewGuid()]), 0)], default));
         Assert.Contains("«участник»", refusal.Message);
         Assert.Contains("не найдена", refusal.Message);
     }
