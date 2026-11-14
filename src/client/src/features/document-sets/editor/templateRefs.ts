@@ -26,18 +26,28 @@ export function paramTemplateIds(json: string | null | undefined): string[] {
 }
 
 /**
- * Эффективный шаблон — как его выберет предпросмотр (`PreviewDocument`): ПЕРВЫЙ из выбранных, что
- * действует, → одиночный пин → по умолчанию → первый действующий. Раньше брался строго первый id
- * выбора: висячий первым — и эффективным тихо становился шаблон по умолчанию, а не отмеченный.
+ * Эффективный шаблон — тем же правилом, что сервер (`TemplateChoice`, issue #1401):
+ * - выбор есть — ПЕРВЫЙ из выбранных, что действует; ни одного — `undefined`: сервер выпускать
+ *   откажет, и показать вместо этого запасной шаблон значило бы обещать документ, которого не будет
+ *   (незнакомый id — прежде всего устаревший список, его перечитывают);
+ * - без выбора — одиночный пин, в том числе на историческую версию (сервер её и берёт), → по
+ *   умолчанию → первый действующий.
+ *
+ * `templates` — все версии типа в порядке сервера: шаблоны по созданию, внутри — от новой версии,
+ * поэтому первый действующий — тот, что сервер возьмёт без «по умолчанию».
  */
 export function effectiveTemplateOf(
-  selectedIds: readonly string[], active: readonly Template[], pinnedId: string | null,
+  selectedIds: readonly string[], templates: readonly Template[], pinnedId: string | null,
 ): Template | undefined {
-  for (const id of selectedIds) {
-    const t = active.find(x => x.id === id);
-    if (t) return t;
+  const active = templates.filter(t => t.isActive);
+  if (selectedIds.length > 0) {
+    for (const id of selectedIds) {
+      const t = active.find(x => x.id === id);
+      if (t) return t;
+    }
+    return undefined;
   }
-  return active.find(t => t.id === pinnedId)
+  return templates.find(t => t.id === pinnedId)
     ?? active.find(t => t.isDefault)
     ?? active[0];
 }

@@ -40,4 +40,20 @@ public static class TemplateRefJson
     /// <summary>Элемент выбора как ссылка: строка в виде «D» — или null (число, null, иной вид).</summary>
     public static Guid? TemplateKey(JsonNode? node) =>
         node is JsonValue v && v.GetValueKind() == JsonValueKind.String ? TemplateKey(v.GetValue<string>()) : null;
+
+    /// <summary>
+    /// Выбор шаблонов (<c>TemplateIds</c>) по порядку, без повторов. Элемент, который ссылкой не
+    /// является, пропускается, а не роняет весь выбор. Одно правило у домена (пин, пересадка, снятие),
+    /// выбора шаблона выпуска и сборки комплекта: иначе генерация видела бы выбор, которого домен не
+    /// видит, — и новая версия не пересаживала бы его, а удаление не снимало бы.
+    /// </summary>
+    public static List<Guid> SelectionIds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        return TryParseArray(json)?
+            .Select(TemplateKey)
+            .OfType<Guid>()
+            .Distinct()
+            .ToList() ?? [];
+    }
 }

@@ -11,4 +11,11 @@ public interface ITemplateNames
 
     /// <summary>Различные занятые названия типа, начинающиеся с <paramref name="prefix" />.</summary>
     Task<IReadOnlySet<string>> StartingWithAsync(Guid documentTypeId, string prefix, CancellationToken ct = default);
+
+    /// <summary>
+    /// Создание каждого шаблона типа — наименьший <c>CreatedAt</c> его версий, по названию. Ключ
+    /// запасного выбора (D2, <see cref="Generation.TemplateChoice.Order"/>) без чтения исторических
+    /// версий: им нужен только возраст шаблона, а не их текст.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, DateTimeOffset>> FirstCreatedAsync(Guid documentTypeId, CancellationToken ct = default);
 }

@@ -309,4 +309,77 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
         // Документы без выбора печатаются шаблоном по умолчанию — его новая версия соседа не задела.
         Assert.Equal(DocumentStatus.Generated, await StatusAsync(noPin));
     }
+
+    // ── Шаблон документов без выбора без «по умолчанию» — самый ранний (issue #1401, D2) ──
+
+    [Fact]
+    public async Task InPlaceSave_ResetsNoPinDoc_WhenTemplateIsEarliestWithoutDefault()
+    {
+        var dtId = await CreateDocTypeAsync("DT_INV9");
+        var early = await CreateTemplateAsync(dtId, "Ранний");
+        var late = await CreateTemplateAsync(dtId, "Поздний");
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        // Сосед — не их шаблон: не сброс.
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new SaveTemplateContentCommand(late.Id, "edited"));
+        Assert.Equal(DocumentStatus.Generated, await StatusAsync(noPin));
+
+        // Ранний — их: PDF напечатан прежним текстом.
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new SaveTemplateContentCommand(early.Id, "edited"));
+        Assert.Equal(DocumentStatus.Draft, await StatusAsync(noPin));
+    }
+
+    [Fact]
+    public async Task NewVersion_OfNeighbor_InTypeWithoutDefault_DoesNotResetNoPinDocs()
+    {
+        var dtId = await CreateDocTypeAsync("DT_INV10");
+        await CreateTemplateAsync(dtId, "Ранний");
+        var late = await CreateTemplateAsync(dtId, "Поздний");
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        using var scope = fixture.Services.CreateScope();
+        await Mediator(scope).Send(new UpdateTemplateCommand(late.Id, "v2"));
+
+        Assert.Equal(DocumentStatus.Generated, await StatusAsync(noPin));
+    }
+
+    [Fact]
+    public async Task DeleteOldestVersion_ShiftsFallbackToNeighbor_ResetsNoPinDocs()
+    {
+        // «А» создан первым, «Б» — вторым, потом новая версия «А». Без «по умолчанию» документы без
+        // выбора берут «А» v2. Удалили историю «А» — шаблон «А» теперь моложе «Б», и берут «Б».
+        var dtId = await CreateDocTypeAsync("DT_INV11");
+        var a1 = await CreateTemplateAsync(dtId, "А");
+        await CreateTemplateAsync(dtId, "Б");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new UpdateTemplateCommand(a1.Id, "v2"));
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        using var scope = fixture.Services.CreateScope();
+        await Mediator(scope).Send(new DeleteTemplateCommand(a1.Id, false));
+
+        Assert.Equal(DocumentStatus.Draft, await StatusAsync(noPin));
+    }
+
+    [Fact]
+    public async Task DeleteVersion_NotChangingFallback_KeepsNoPinDocs()
+    {
+        var dtId = await CreateDocTypeAsync("DT_INV12");
+        await CreateTemplateAsync(dtId, "А");
+        var b1 = await CreateTemplateAsync(dtId, "Б");
+        using (var s = fixture.Services.CreateScope())
+            await Mediator(s).Send(new UpdateTemplateCommand(b1.Id, "v2"));
+        var setId = await CreateSetAsync();
+        var noPin = await AddGeneratedDocAsync(setId, dtId);
+
+        using var scope = fixture.Services.CreateScope();
+        await Mediator(scope).Send(new DeleteTemplateCommand(b1.Id, false));
+
+        Assert.Equal(DocumentStatus.Generated, await StatusAsync(noPin));
+    }
 }

@@ -14,20 +14,34 @@ public interface IDocumentTemplateInvalidator
 {
     /// <summary>
     /// Содержимое версии изменено на месте (Ctrl+S). Сбрасывает документы, запиннутые на эту
-    /// версию; а если версия — активная-дефолтная, то и no-pin документы этого типа (они
-    /// резолвятся в default-active). Возвращает число реально сброшенных документов.
+    /// версию; а если версия — шаблон документов без выбора (<see cref="Generation.TemplateChoice.Fallback"/>:
+    /// по умолчанию или, без него, самый ранний), то и no-pin документы этого типа. Возвращает число
+    /// реально сброшенных документов.
     /// </summary>
     Task<int> OnTemplateContentChangedAsync(Guid templateId, CancellationToken ct = default);
 
     /// <summary>
-    /// Эффективный default-active шаблон типа сменился (смена дефолта или новая версия в дефолтной
-    /// группе). Сбрасывает no-pin документы этого типа. Возвращает число сброшенных документов.
+    /// Эффективный default-active шаблон типа сменился (смена дефолта). Сбрасывает no-pin документы
+    /// этого типа. Возвращает число сброшенных документов.
     /// </summary>
     Task<int> OnDefaultChangedAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>Шаблон, который сейчас берут документы типа без выбора, — снимок до изменения шаблонов
+    /// (для <see cref="OnFallbackMayHaveChangedAsync"/>). Null — действующих нет.</summary>
+    Task<Guid?> FallbackOfAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Шаблоны типа изменились (новая версия, удаление версии). Если документы без выбора теперь берут
+    /// не <paramref name="before"/>, их PDF напечатан другим шаблоном — no-pin документы сбрасываются.
+    /// Ключ запасного выбора — возраст шаблона (D2), и удаление старейшей версии сдвигает его так же, как
+    /// смена шаблона по умолчанию. Возвращает число сброшенных документов.
+    /// </summary>
+    Task<int> OnFallbackMayHaveChangedAsync(Guid documentTypeId, Guid? before, CancellationToken ct = default);
 }
 
 public class DocumentTemplateInvalidator(
     IRepository<Template> templateRepo,
+    ITemplateNames names,
     IDomainObjectRepository objRepo,
     IBlobStorage blobStorage) : IDocumentTemplateInvalidator
 {
@@ -37,12 +51,22 @@ public class DocumentTemplateInvalidator(
         if (tpl is null) return 0;
 
         var docs = await objRepo.GetDocumentsOfTypeAsync(tpl.DocumentTypeId, ct);
-        var isDefaultActive = tpl.IsDefault && tpl.IsActive;
+        // Шаблон no-pin документов — тем же правилом, что у генерации: без «по умолчанию» это самый
+        // ранний шаблон, а не никакой (issue #1401).
+        var isFallback = await FallbackOfAsync(tpl.DocumentTypeId, ct) == templateId;
         var affected = docs
-            .Where(o => o.PinsTemplate(templateId) || (isDefaultActive && o.HasNoTemplatePin))
+            .Where(o => o.PinsTemplate(templateId) || (isFallback && o.HasNoTemplatePin))
             .ToList();
         return await ResetAllAsync(affected, ct);
     }
+
+    public async Task<Guid?> FallbackOfAsync(Guid documentTypeId, CancellationToken ct = default)
+        => Generation.TemplateChoice.Fallback(
+            await templateRepo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsActive, ct),
+            await names.FirstCreatedAsync(documentTypeId, ct))?.Id;
+
+    public async Task<int> OnFallbackMayHaveChangedAsync(Guid documentTypeId, Guid? before, CancellationToken ct = default)
+        => await FallbackOfAsync(documentTypeId, ct) == before ? 0 : await OnDefaultChangedAsync(documentTypeId, ct);
 
     public async Task<int> OnDefaultChangedAsync(Guid documentTypeId, CancellationToken ct = default)
     {

@@ -157,7 +157,9 @@ public class DocumentSetAssemblyService(
     private static IEnumerable<GeneratedFile> OrderPdfFiles(DomainObject inst)
     {
         var pdfs = inst.GeneratedFiles.Where(f => f.Format == OutputFormat.Pdf).ToList();
-        var order = ParseTemplateIds(inst.TemplateIds);
+        // Порядок выбора — тем же разбором, что у генерации (TemplateRefJson.SelectionIds): иначе один
+        // нечитаемый элемент отменял бы порядок, в котором генерация файлы выпустила.
+        var order = TemplateRefJson.SelectionIds(inst.TemplateIds);
         if (order.Count == 0) return pdfs;
         int Rank(GeneratedFile f)
         {
@@ -165,16 +167,6 @@ public class DocumentSetAssemblyService(
             return idx < 0 ? int.MaxValue : idx;
         }
         return pdfs.OrderBy(Rank);
-    }
-
-    private static List<Guid> ParseTemplateIds(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        try
-        {
-            return JsonSerializer.Deserialize<List<Guid>>(json) ?? [];
-        }
-        catch { return []; }
     }
 
     private async Task<byte[]> DownloadAsync(string blobPath, CancellationToken ct)
