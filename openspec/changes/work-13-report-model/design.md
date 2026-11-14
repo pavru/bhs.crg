@@ -6,15 +6,57 @@
 
 - Схема `work`, назначения и порты ядра — `work-10` и `work-11`. Параметр доступа и перепись
   изолированных таблиц — `work-07`. Варианты вида работ — `work-06`.
-- Позиция перечня уже есть таблицей ядра, но без правила «найди или создай»: оно ждёт первого
-  вызывающего (`src/server/BHS.CRG.Domain/Documents/WorkPlanItem.cs`, комментарий о `CORE-12`;
-  `src/server/BHS.CRG.Application/Documents/WorkPlanItems.cs` — только удаление). Правило строит этап 3
-  с импортом смет. `ReferenceTarget.WorkPlanItem` в контрактах уже объявлен
-  (`src/server/BHS.CRG.Modules/Data/ModuleReference.cs:17`).
-- Закрытого типа живьём ещё нет: `costs` объявляет только `Extendable` и `Open`
-  (`src/server/BHS.CRG.Modules.Costs/CostsRecordTypes.cs:100,173`). Проекция уровня —
-  `src/server/BHS.CRG.Api/Modules/ModuleTypeProjector.cs:148-150`.
+- Позиция перечня — таблица ядра с правилом «найди или создай»: порт `IModulePlanItems`
+  (`src/server/BHS.CRG.Modules/Ports/IModulePlanItems.cs`, `plan-04`). `ReferenceTarget.WorkPlanItem` в
+  контрактах объявлен (`src/server/BHS.CRG.Modules/Data/ModuleReference.cs`).
+- Закрытого типа живьём ещё нет: `costs` объявляет `Extendable` и `Open`, `plan` — `Open`
+  (`CostsRecordTypes.cs`, `PlanRecordTypes.cs`). Проекция уровня — `src/server/BHS.CRG.Api/Modules/ModuleTypeProjector.cs`.
 - Клиентских идентификаторов, повтора и курсора в системе нет нигде. Это первый протокол для этапа 5.
+
+### Сверка с master (15.11.2026)
+
+Change нарезан до `work-07`, `work-08`, `work-11`, `work-06` и до слияния `plan-04`. Что изменилось и
+как это меняет решения ниже:
+
+- **Порт позиции перечня есть (`plan-04`), условие старта выполнено.** Ответ — не «результат или отказ»,
+  а `PlanItemOutcome` с признаком `Found`: `Item = PlanItemResult(Id, Created)` или
+  `Refusal = PlanItemRefusal(Key, Part, Reason)`. Пакет — `FindOrCreateManyAsync` (повторы ключа
+  сливаются, ключи вставляются отсортированными). ⚠️ Порт проверяет архив **и у заведённой позиции**:
+  вид работы, ушедший в архив, даёт отказ, даже если позиция уже есть. Поэтому строка зовёт порт только
+  тогда, когда ключ новый или изменился; строка с прежним ключом хранит прежнюю позицию (`CORE-34.4`:
+  неизменённая ссылка на архивную запись принимается).
+- **Изоляция — пометкой и переписью (`work-07`).** Отчёт — первая запись с `IIsolatedRecord`. Помечены
+  все его части — отчёт, строка, материал, участник, протокол изменений: строки отчёта несут то же, что
+  отчёт, и `Set<ReportLine>()` в чужом файле читал бы чужие работы. Последствия переписи
+  `IsolatedReadInventoryTests`:
+  - у этих записей нет `DbSet` в `WorkDbContext`;
+  - навигаций от непомеченных сущностей к ним нет (связь — ключом);
+  - `Set<T>()` и SQL по их таблицам стоят только в файле чтения `Data/ReportReads.cs`, вписанном в
+    `ReadFiles` с причиной. Пишущий путь кладёт записи через `db.Add(…)`, а читает — через тот же файл.
+
+  Файл чтения появляется в PR 2 вместе с адресами: перепись отвергает файл в `ReadFiles`, где чтения нет.
+  В PR 1 пометка стоит, а сторож пометки — тест переписи, что модель `work` даёт ровно эти пять
+  изолированных записей: снятая пометка краснеет им, а не молчанием.
+- **Параметр доступа — `ModuleReader`, охват — `ModuleReach` (`work-07`, `work-11`).** Свои отчёты —
+  `ModuleReach.Own` (отчёты сотрудника читателя); ввод за сотрудника — `ManagerSites.ReachAsync(reader)`:
+  `OfSites(стройки менеджера)` или `All` при `work.sites.all`. Пустой `OfSites([])` — «ничего».
+- **Сотрудник учётной записи — `IModuleEmployees.OfAccountAsync(userId)` (`work-11`).** `null` означает и
+  «не связана», и «справочника нет»; различает их `GetAsync([]) is null`, как `/api/work/sites/mine`.
+  Справочника нет — 409 `{ code: "directory-missing", error }` (`IModuleEmployees.NotSetUpCode`), не связана
+  — 403 с причиной.
+- **Классификатор видов работ не заведён — 409 `directory-missing` здесь** (`work-11` отложил перевод
+  `null` порта `IModuleWorkTypes` первому читателю классификатора). Слова — `IModuleWorkTypes.NotSetUp`.
+- **Варианты — в порту видов работ (`work-06`).** `ModuleWorkType.Variants`, `ModuleWorkVariant.BelongsTo`
+  и `Archived`. Вариант — запись ядра `ВариантРаботы`, колонка `variant_id` держит её как
+  `ReferenceTarget.Record`.
+- **`assignedOnDate` — по таблице назначений модуля (`work-11`)**: любое назначение сотрудника на стройку
+  (`Assignment.Covers(date)`), то же правило, что у `/api/work/sites/mine`.
+- **Версия строки** — `WorkDbContext.VersionOf` читает теневое `xmin` и бросает исключение на строке без
+  отслеживания: отчёт, чью версию отдаёт ответ, читается с отслеживанием.
+- **Такт (`work-08`) здесь не нужен** — он у автоподачи `work-15`.
+- **Каркасные переписи:** `WorkOnlyHostTests` перечисляет права без двери — `work.report.own` и
+  `work.report.review` уходят оттуда в PR 2, `work.report.read` остаётся до `work-16`.
+  `BackupManifestCoverageTests` и `ModuleReferenceInventoryTests` видят новые таблицы и колонки в PR 1.
 
 ## Goals / Non-Goals
 
@@ -82,12 +124,12 @@
 - Порядок: сначала позиция в ядре («найди или создай» по уникальному ключу), потом строка в схеме модуля.
   Общей транзакции нет (`CORE-4`). Упавшее сохранение строки оставляет позицию без ссылок — это
   допустимое состояние перечня: повтор найдёт её же.
-- Порт — `plan-04-plan-item-port` (D18 зонтика): `IModulePlanItems.FindOrCreateAsync(PlanItemKey(WorkTypeId,
-  ConstructionId, SectionId?, UnitId))` → `PlanItemResult(Id, Created)` | отказ с составляющей.
+- Порт — `plan-04-plan-item-port` (D18 зонтика): `IModulePlanItems.FindOrCreateManyAsync` по ключам
+  `PlanItemKey(WorkTypeId, ConstructionId, SectionId?, UnitId)` строк отчёта → позиции по ключам и отказы
+  `PlanItemRefusal(Key, Part, Reason)`. Отказ — 400 с полем строки, названным по `Part`.
+- Порт зовётся только для строк, у которых ключ новый или изменился (см. «Сверка с master»).
 - Сторож — тест «две параллельные строки одного ключа — одна позиция» и тест сбоя между ядром и модулем.
-- **Условие снято:** порт строит `plan-04` (решение нарезки этапа 3 от 22.10.2026). Перед стартом
-  сверяется master; если порт устроен иначе, этот change сначала дополняется (`design.md`, `tasks.md`),
-  потом пишется код (`config.yaml`, `operations.apply`).
+- **Условие выполнено:** порт слит `plan-04` (#1596, 23.10.2026); устройство сверено 15.11.2026.
 
 ### Протокол повтора (MOB-15, MOB-16, MOB-17)
 - **Заведение** — `POST` с `id` в теле. Тот же `id` того же сотрудника — 200 с лежащим отчётом и признаком
@@ -104,9 +146,10 @@
 
 ### Свои отчёты и изоляция (D4)
 - Сотрудник отчёта — из связи учётной записи (`work-01`) через `IModuleEmployees`. Тело его не задаёт.
-- Чтение — только методом с параметром доступа (`work-07`): `DbSet<Report>` не выставлен, перепись
-  `work-07` ловит `Set<Report>()`.
-- Чужой и несуществующий отчёт дают один ответ 404 одним путём кода (`ReportAccess.FindOwnAsync`), чтобы
+- Чтение — только методом с параметром доступа (`work-07`) в файле чтения `Data/ReportReads.cs`:
+  `DbSet<Report>` не выставлен, перепись `work-07` ловит `Set<Report>()` вне этого файла.
+- Чужой и несуществующий отчёт дают один ответ 404 одним путём кода (`ReportReads.FindAsync(reader, reach,
+  id)`), чтобы
   ответы не разошлись.
 
 ### Архив и ссылки (CORE-34.1, CORE-34.4)

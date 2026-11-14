@@ -49,7 +49,8 @@
   - `Data/Report.cs`, `Data/ReportLine.cs`, `Data/ReportChange.cs`;
   - `WorkRecordTypes.cs`, `WorkReferences.cs`, адреса `Endpoints/ReportEndpoints.cs`;
   - миграции `Reports`.
-- **Зависимость от этапа 3:** порт «найди или создай» позицию перечня.
-- **Тесты:** `src/server/BHS.CRG.Tests/Work/*`, переписи `RecordWriteGuardCoverageTests` и
-  `ModuleReferenceInventoryTests`.
+- **Зависимость от этапа 3:** порт «найди или создай» позицию перечня — `IModulePlanItems` (`plan-04`, слит).
+- **Тесты:** `src/server/BHS.CRG.Tests/Work/*`, переписи `RecordWriteGuardCoverageTests`,
+  `ModuleReferenceInventoryTests`, `IsolatedReadInventoryTests` (первая изолированная запись и файл чтения
+  `Data/ReportReads.cs`) и `WorkOnlyHostTests` (права без двери).
 - **Документы:** `docs/DEV_NOTES.md` — протокол повтора и курсор (для этапа 5).
