@@ -26,7 +26,8 @@ public sealed record PreviewDocumentResult
 }
 
 /// <summary>
-/// Живой предпросмотр документа (issue #193): рендерит ДЕФОЛТНЫЙ шаблон на ПЕРЕДАННЫХ (возможно
+/// Живой предпросмотр документа (issue #193): рендерит шаблон генерации (первый из её шаблонов,
+/// <see cref="TemplateChoice"/>) на ПЕРЕДАННЫХ (возможно
 /// несохранённых) реквизитах в PDF. Read-only by contract: НЕ персистит файл, НЕ меняет статус,
 /// НЕ пишет метаданные, НЕ шлёт уведомления — эфемерный рендер для панели предпросмотра.
 /// </summary>
@@ -41,32 +42,20 @@ public class PreviewDocumentHandler(
     IDocumentGeneratorFactory generatorFactory
 ) : IRequestHandler<PreviewDocumentQuery, PreviewDocumentResult>
 {
-    private static List<Guid> ParseGuidList(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        try { return JsonSerializer.Deserialize<List<Guid>>(json) ?? []; } catch { return []; }
-    }
-
     public async Task<PreviewDocumentResult> Handle(PreviewDocumentQuery q, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);
         if (instance is null) return PreviewDocumentResult.Fail("Документ не найден.");
 
-        // Шаблон предпросмотра = как пользователь бы СГЕНЕРИРОВАЛ (issue #193 follow-up):
-        // выбранный набор (ПЕРВЫЙ выбранный в порядке TemplateIds, активный) → одиночный выбор
-        // (TemplateId) → дефолтный → первый активный. Зеркалит выбор в GenerateDocumentHandler.
-        var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct)).ToList();
-        Template? bySelected = null;
-        foreach (var id in ParseGuidList(instance.TemplateIds))
-        {
-            bySelected = candidates.FirstOrDefault(t => t.Id == id && t.IsActive);
-            if (bySelected is not null) break;
-        }
-        var template = bySelected
-            ?? (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
-            ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
-            ?? candidates.FirstOrDefault(t => t.IsActive);
-        if (template is null) return PreviewDocumentResult.NoTpl();
+        // Шаблон предпросмотра — тот, которым документ выпустит генерация: первый из её шаблонов,
+        // общим правилом (TemplateChoice, [ID-3]). Выбранные не действуют — отказ генерации, а не
+        // молча шаблон по умолчанию: тот показал бы документ, которого генерация не выпустит.
+        var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
+        IReadOnlyList<Template> chosen;
+        try { chosen = TemplateChoice.For(instance, candidates); }
+        catch (ConflictException ex) { return PreviewDocumentResult.Fail(ex.Message); }
+        if (chosen.Count == 0) return PreviewDocumentResult.NoTpl();
+        var template = chosen[0];
 
         // Проекция генерации с ПОДМЕНЁННЫМИ реквизитами (несохранённые правки формы), без записи в БД.
         var view = DocumentView.From(instance) with { Requisites = q.Requisites };

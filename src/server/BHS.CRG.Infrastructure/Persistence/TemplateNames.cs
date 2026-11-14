@@ -14,4 +14,13 @@ public sealed class TemplateNames(AppDbContext db) : ITemplateNames
             .Where(t => t.DocumentTypeId == documentTypeId && t.Name.StartsWith(prefix))
             .Select(t => t.Name).Distinct().ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
+
+    public async Task<IReadOnlyDictionary<string, DateTimeOffset>> FirstCreatedAsync(
+        Guid documentTypeId, CancellationToken ct = default)
+        => (await db.Templates
+            .Where(t => t.DocumentTypeId == documentTypeId)
+            .GroupBy(t => t.Name)
+            .Select(g => new { Name = g.Key, At = g.Min(t => t.CreatedAt) })
+            .ToListAsync(ct))
+            .ToDictionary(x => x.Name, x => x.At, StringComparer.Ordinal);
 }

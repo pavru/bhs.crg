@@ -109,9 +109,10 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
     ? ''
     : unknownTemplateRefs(selectedTemplateIds, paramTemplateIds(instance.templateParams), templates).join(',');
   useEffect(() => { if (unknownRefs) void refetchTemplates(); }, [unknownRefs, refetchTemplates]);
-  // Эффективный шаблон для параметров/дефолт-скачивания: первый действующий из выбранных → пин →
-  // по умолчанию → первый активный (как у предпросмотра).
-  const effectiveTemplate = effectiveTemplateOf(selectedTemplateIds, activeTemplates, instance.templateId);
+  // Эффективный шаблон для параметров/дефолт-скачивания — правилом сервера (TemplateChoice, #1401):
+  // первый действующий из выбранных (ни одного — нет эффективного, сервер откажет) → пин, хоть и на
+  // историческую версию → по умолчанию → первый действующий. Поэтому — все версии, а не действующие.
+  const effectiveTemplate = effectiveTemplateOf(selectedTemplateIds, templates, instance.templateId);
   // Фокус — какой шаблон сейчас «раскрыт» в блоке параметров (ортогонально членству в генерации).
   // По умолчанию — эффективный; держим фокус при переключении галок, если он ещё валиден.
   // Выбранный человеком фокус держится, пока такой шаблон вообще есть среди активных; иначе

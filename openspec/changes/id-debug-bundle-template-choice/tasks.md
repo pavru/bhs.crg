@@ -4,28 +4,48 @@
 
 ## 1. Одна функция выбора
 
-- [ ] 1.1 `Application/Generation/TemplateChoice.cs`: набор `TemplateIds` в порядке набора (активные;
-  ни одного — отказ) → явный `TemplateId` шаблона этого типа → по умолчанию (активный) → самый ранний
-  активный по `CreatedAt`, `Id` (D1–D5) [ID-3]. Проверка — юнит-тесты функции: каждое звено цепочки,
-  порядок кандидатов не влияет на ответ, явный шаблон чужого типа не берётся
-- [ ] 1.2 `GenerateDocumentHandler`, `PreviewDocument`, `GetGenerationDebugBundle` берут шаблон
+- [x] 1.1 `Application/Generation/TemplateChoice.cs`: набор `TemplateIds` в порядке набора (активные;
+  ни одного — отказ) → явный `TemplateId` шаблона этого типа → по умолчанию (активный) → действующая
+  версия самого раннего шаблона по ключу D2 (первая версия названия по `CreatedAt`, название, `Id`)
+  (D1–D5) [ID-3]. Проверка — юнит-тесты функции:
+  - каждое звено цепочки;
+  - порядок кандидатов не влияет на ответ;
+  - новая версия раннего шаблона выбор не меняет;
+  - явный шаблон чужого типа не берётся.
+- [x] 1.2 `GenerateDocumentHandler`, `PreviewDocument`, `GetGenerationDebugBundle` берут шаблон
   только через `TemplateChoice`; неверные комментарии «тот же выбор» / «зеркалит» заменить ссылкой на
   функцию [ID-3]. Проверка — grep `IsDefault && t.IsActive` в `Application/Generation` пуст
-- [ ] 1.3 `ListTemplatesQuery` отдаёт шаблоны в порядке `CreatedAt`, `Id` (D6) [ID-3]. Проверка —
-  интеграционный тест порядка списка
-- [ ] 1.4 Сторож [ID-3]:
+- [x] 1.3 `ListTemplatesQuery` отдаёт шаблоны в порядке D6, `GetActiveTemplateQuery` отвечает
+  запасным правилом D7 [ID-3]. Проверка — интеграционные тесты порядка списка и ответа «действующего»
+  при двух шаблонах без «по умолчанию»
+- [x] 1.4 Сторож [ID-3]:
   - два активных шаблона, экземпляр с `TemplateIds` — генерация, предпросмотр и отладочный пакет
     берут один и тот же (по `template.typ` пакета и шаблону выпущенного файла);
   - два активных без «по умолчанию», вставленные в обратном порядке `CreatedAt`, — все трое берут
-    ранний;
-  - все выбранные неактивны — у всех троих один отказ.
+    ранний; новая версия раннего — берут её же;
+  - все выбранные неактивны (состояние — прямой записью в базу: штатные пути его не дают) — у всех
+    троих один отказ.
   Проверка — на master тест красный (пакет берёт не тот шаблон), с 1.2 — зелёный
-- [ ] 1.5 До слияния — запрос на копии базы заказчика: сколько типов имеют больше одного активного
-  шаблона без «по умолчанию»; число — в описании PR. Проверка — отчёт в PR
+- [x] 1.5 До слияния — запрос на копии базы заказчика: сколько типов имеют больше одного действующего
+  шаблона (разных названий) без «по умолчанию»; число — в описании PR. Проверка — отчёт в PR
 
 ## 2. Верификация
 
-- [ ] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~TemplateChoice|FullyQualifiedName~Generation|FullyQualifiedName~Preview|FullyQualifiedName~TemplateInvalidation"` — зелёный
-- [ ] 2.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 2.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 2.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~TemplateChoice|FullyQualifiedName~Generation|FullyQualifiedName~Preview|FullyQualifiedName~TemplateHandler|FullyQualifiedName~TemplateInvalidation"` — зелёный
+- [x] 2.2 `bash scripts/backend-tests.sh` — весь backend зелёный
+- [x] 2.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 2.4 Клиент (тронут разделом 3): `cd src/client && npx tsc -b && npm test && npm run lint:ratchet && npm run ui:ratchet` — зелёные
+
+## 3. Разбор ревью PR #1967
+
+- [x] 3.1 Две действующие версии одного шаблона — берётся новая; список внутри шаблона — от новой версии
+  (D2, D6). Проверка — юнит-тест «две действующие версии», порядок в тесте списка
+- [x] 3.2 Документы без выбора сбрасываются, когда сменился запасной выбор: правка на месте, новая
+  версия, удаление версии (D8). Проверка — интеграционные тесты `TemplateInvalidationTests`, на прежних
+  обработчиках красные три из четырёх (четвёртый — «лишнего сброса нет»)
+- [x] 3.3 Одно правило разбора выбора `TemplateRefJson.SelectionIds` у домена, `TemplateChoice` и сборки
+  комплекта (D9). Проверка — доменный тест «нечитаемый элемент выбора пропускается»
+- [x] 3.4 Форма генерации — правилом сервера (D10). Проверка — vitest `templateRefs.test.ts`
+- [x] 3.5 `GetActiveTemplateQuery` без текстов исторических версий (D7). Проверка — юнит-тест «возраст
+  шаблона без исторических версий» и интеграционный тест ответа «действующего»
+- [x] 3.6 Отказ «нет действующего шаблона» — один (`TemplateChoice.Require`) у генерации и пакета
