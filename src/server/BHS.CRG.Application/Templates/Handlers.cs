@@ -49,6 +49,8 @@ public class TemplateHandlers(
     {
         var source = (await repo.FindAsync(t => t.Id == cmd.Id, ct)).SingleOrDefault()
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
+        // Шаблон документов без выбора — до изменения: новая версия может его сменить (D2).
+        var fallbackBefore = await invalidator.FallbackOfAsync(source.DocumentTypeId, ct);
         // Все версии шаблона, а не одна названная (issue #1920): номер и единственная действующая
         // считаются по ним. Чтение без отслеживания — и исходную берём из того же списка, иначе
         // в контексте оказались бы два экземпляра одной строки.
@@ -99,13 +101,10 @@ public class TemplateHandlers(
         // Проигравший гонку получает 409 (D5).
         await versionWriter.SaveRetiredThenInsertAsync([newVersion], ChangedMeanwhileMessage, ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        // Документы без выбранного шаблона устарели (issue #362), если их шаблон сменился:
-        // новая версия стала шаблоном по умолчанию — или его у типа нет, и они берут любой
-        // действующий, а действующие только что сменились (issue #1920: от исторической версии
-        // гасится действующая и не по умолчанию).
-        var reset = newVersion.IsDefault || !await HasDefaultActiveAsync(newVersion.DocumentTypeId, ct)
-            ? await invalidator.OnDefaultChangedAsync(newVersion.DocumentTypeId, ct)
-            : 0;
+        // Документы без выбранного шаблона устарели (issue #362), если их шаблон сменился: новая
+        // версия — того шаблона, что они берут (по умолчанию или, без него, самого раннего, #1401).
+        // Новая версия соседнего шаблона их не касается.
+        var reset = await invalidator.OnFallbackMayHaveChangedAsync(newVersion.DocumentTypeId, fallbackBefore, ct);
         return new TemplateMutationResult(newVersion, reset + repinnedReset);
     }
 
@@ -130,9 +129,6 @@ public class TemplateHandlers(
         if (await names.IsTakenAsync(documentTypeId, name, ct))
             throw new ConflictException($"Шаблон с таким названием уже есть: «{name}».");
     }
-
-    private async Task<bool> HasDefaultActiveAsync(Guid documentTypeId, CancellationToken ct)
-        => (await repo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsDefault && t.IsActive, ct)).Count > 0;
 
     // Простое сохранение (issue #360, Ctrl+S): правит содержимое активной версии на месте, без
     // новой версии и без дублирования ассетов (та же версия). Бросает, если версия не активна.
@@ -225,6 +221,10 @@ public class TemplateHandlers(
     {
         var t = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
 
+        // Шаблон документов без выбора — до удаления: возраст шаблона считается по старейшей из
+        // оставшихся версий (D2), и удаление истории может отдать запасной выбор соседу.
+        var fallbackBefore = await invalidator.FallbackOfAsync(t.DocumentTypeId, ct);
+
         // Документы, запиннутые на удаляемую версию, надо разрулить — иначе они осиротеют.
         var docs = await objRepo.GetDocumentsOfTypeAsync(t.DocumentTypeId, ct);
         var pinned = docs.Where(o => o.PinsTemplate(t.Id)).ToList();
@@ -251,6 +251,8 @@ public class TemplateHandlers(
         repo.Remove(t);
         await repo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
+        // Сменился шаблон документов без выбора — их PDF напечатан прежним (issue #362, #1401).
+        await invalidator.OnFallbackMayHaveChangedAsync(t.DocumentTypeId, fallbackBefore, ct);
     }
 
     public async Task<IReadOnlyDictionary<Guid, TemplateUsage>> Handle(GetTemplatesUsageQuery q, CancellationToken ct)
@@ -269,9 +271,13 @@ public class TemplateHandlers(
     }
 
     /// <summary>Шаблон, который возьмёт документ типа без выбора (D7, [ID-3]): тот же запасной выбор,
-    /// что у генерации, а не первая попавшаяся действующая строка.</summary>
+    /// что у генерации, а не первая попавшаяся действующая строка.
+    /// <para>Читаются только действующие версии: возраст шаблона приходит отдельным запросом без
+    /// текстов, а Typst каждой исторической версии ответу не нужен.</para></summary>
     public async Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.Fallback(await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct));
+        => Generation.TemplateChoice.Fallback(
+            await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId && t.IsActive, ct),
+            await names.FirstCreatedAsync(q.DocumentTypeId, ct));
 
     /// <summary>Шаблоны типа в порядке запасного выбора (D6, [ID-3]): тогда «первый действующий» формы
     /// генерации на клиенте — тот же, что возьмёт сервер.</summary>

@@ -37,13 +37,11 @@ public class GenerateDocumentHandler(
 
         try
         {
-            var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct)).ToList();
+            var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
 
             // Шаблоны выпуска — общим правилом с предпросмотром и отладочным пакетом (TemplateChoice,
             // [ID-3]): выбранный набор в порядке выбора, иначе один эффективный.
-            var templates = TemplateChoice.For(instance, candidates);
-            if (templates.Count == 0)
-                throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
+            var templates = TemplateChoice.Require(instance, candidates);
 
             // Контекст и все проверки — тем же кодом, что у предпросмотра, проверки документа и
             // отладочного пакета (D1). Генерация отказывает на ошибке в ЛЮБОЙ корзине: незаполненное

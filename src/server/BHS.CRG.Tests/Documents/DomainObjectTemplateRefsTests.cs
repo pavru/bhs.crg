@@ -128,4 +128,28 @@ public class DomainObjectTemplateRefsTests
         Assert.True(doc.DropTemplateParams(Gone));
         Assert.Null(doc.TemplateParams);
     }
+
+    [Fact]
+    public void Selection_UnreadableElement_IsSkipped_PinStillSeen()
+    {
+        // Правило выбора одно с генерацией (TemplateChoice, #1401): элемент-не-ссылка не делает набор
+        // «без пина» — иначе генерация видела бы выбор, а новая версия его не пересаживала.
+        var doc = Doc(null, $"[null, 42, \"{Kept}\"]", null);
+
+        Assert.True(doc.PinsTemplate(Kept));
+        Assert.False(doc.HasNoTemplatePin);
+        Assert.True(doc.RepinTemplates(new Dictionary<Guid, Guid> { [Kept] = Gone }));
+        Assert.Equal([Gone], TemplateRefJson.SelectionIds(doc.TemplateIds));
+    }
+
+    [Fact]
+    public void SelectionIds_InOrder_WithoutRepeats_OnlyDForm()
+    {
+        var json = $"[\"{Gone}\", \"{Kept:N}\", \"{Kept}\", \"{Gone}\"]";
+
+        Assert.Equal([Gone, Kept], TemplateRefJson.SelectionIds(json));
+        Assert.Empty(TemplateRefJson.SelectionIds("не json"));
+        Assert.Empty(TemplateRefJson.SelectionIds("{}"));
+        Assert.Empty(TemplateRefJson.SelectionIds(null));
+    }
 }

@@ -201,12 +201,9 @@ public class DomainObject : Entity
     public void SetTemplateIds(string? json) { Doc.TemplateIds = json; TouchUpdatedAt(); }
 
     // ── Пины шаблонов (issue #362/#364) — единая точка семантики «на что запиннут документ» ──
-    private List<Guid> ParsedTemplateIds()
-    {
-        if (string.IsNullOrWhiteSpace(Doc.TemplateIds)) return [];
-        try { return JsonSerializer.Deserialize<List<Guid>>(Doc.TemplateIds) ?? []; }
-        catch (JsonException) { return []; }
-    }
+    // Тем же правилом, что выбор шаблона выпуска (TemplateRefJson.SelectionIds): нечитаемый элемент
+    // пропускается, а не делает весь набор «без пина».
+    private List<Guid> ParsedTemplateIds() => TemplateRefJson.SelectionIds(Doc.TemplateIds);
 
     /// <summary>Документ запиннут на версию — явным одиночным <see cref="TemplateId"/> или в наборе <see cref="TemplateIds"/>.</summary>
     public bool PinsTemplate(Guid templateId) => Doc.TemplateId == templateId || ParsedTemplateIds().Contains(templateId);

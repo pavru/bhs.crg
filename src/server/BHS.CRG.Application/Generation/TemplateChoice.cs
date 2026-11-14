@@ -41,7 +41,7 @@ public static class TemplateChoice
     {
         var own = candidates.Where(t => t.DocumentTypeId == documentTypeId).ToList();
 
-        var selected = SelectedIds(templateIds);
+        var selected = TemplateRefJson.SelectionIds(templateIds);
         if (selected.Count > 0)
         {
             var byId = own.ToDictionary(t => t.Id);
@@ -60,41 +60,56 @@ public static class TemplateChoice
     }
 
     /// <summary>
+    /// То же, что <see cref="For(DomainObject, IEnumerable{Template})"/>, но пустой ответ — отказ:
+    /// выпускать нечем. Один текст у генерации и отладочного пакета.
+    /// </summary>
+    /// <exception cref="ConflictException">Набор выбран, но не действует, или действующих шаблонов нет.</exception>
+    public static IReadOnlyList<Template> Require(DomainObject document, IEnumerable<Template> candidates)
+    {
+        var chosen = For(document, candidates);
+        return chosen.Count > 0
+            ? chosen
+            : throw new ConflictException($"No active template for DocumentType {document.CompositeTypeId}");
+    }
+
+    /// <summary>
     /// Шаблон документа без выбора: по умолчанию (действующий), иначе действующая версия самого
     /// раннего шаблона (D2). Null — действующих нет. Тот же ответ даёт «действующий шаблон типа» (D7).
+    /// Две действующие версии одного шаблона (гонка #1922, данные до #1921) — берётся новая, как у
+    /// <see cref="TemplateCurrentVersion"/>.
     /// </summary>
-    public static Template? Fallback(IEnumerable<Template> typeTemplates)
+    /// <param name="typeTemplates">Версии шаблонов одного типа; достаточно действующих, если дано
+    /// <paramref name="firstCreated"/>.</param>
+    /// <param name="firstCreated">Создание шаблона по названию — когда исторические версии не
+    /// загружены (см. <see cref="Order"/>).</param>
+    public static Template? Fallback(
+        IEnumerable<Template> typeTemplates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
     {
-        var active = Order(typeTemplates).Where(t => t.IsActive).ToList();
+        var active = Order(typeTemplates, firstCreated).Where(t => t.IsActive).ToList();
         return active.FirstOrDefault(t => t.IsDefault) ?? active.FirstOrDefault();
     }
 
     /// <summary>
     /// Шаблоны в порядке запасного выбора (D2, D6). Шаблон — все версии одного названия в типе; шаблоны
-    /// идут по созданию первой из оставшихся версий, при равенстве — по названию, внутри шаблона — по
-    /// номеру версии и <c>Id</c>.
+    /// идут по созданию первой из оставшихся версий, при равенстве — по названию, внутри шаблона — от
+    /// новой версии к старой (затем <c>Id</c>). Тогда первая действующая в списке — та, что возьмёт
+    /// документ без выбора, и клиенту хватает порядка.
     /// <para>По созданию шаблона, а не версии: новая версия моложе всех, и порядок по версиям
     /// перекидывал бы выбор на соседний шаблон при каждом сохранении раннего. Копия переносит
     /// <c>CreatedAt</c> каждой версии, поэтому после восстановления порядок тот же.</para>
     /// </summary>
-    public static IReadOnlyList<Template> Order(IEnumerable<Template> templates)
+    /// <param name="firstCreated">Наименьший <c>CreatedAt</c> версий по названию шаблона (один тип) —
+    /// из запроса без текстов (<c>ITemplateNames.FirstCreatedAsync</c>). Без него — по загруженным
+    /// версиям, которых тогда должно хватать: загружены все.</param>
+    public static IReadOnlyList<Template> Order(
+        IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
         => templates
             .GroupBy(t => (t.DocumentTypeId, t.Name))
-            .OrderBy(g => g.Min(t => t.CreatedAt))
+            .OrderBy(g => firstCreated is not null && firstCreated.TryGetValue(g.Key.Name, out var at)
+                ? at
+                : g.Min(t => t.CreatedAt))
             .ThenBy(g => g.Key.Name, StringComparer.Ordinal)
             .ThenBy(g => g.Key.DocumentTypeId)
-            .SelectMany(g => g.OrderBy(t => t.Version).ThenBy(t => t.Id))
+            .SelectMany(g => g.OrderByDescending(t => t.Version).ThenByDescending(t => t.Id))
             .ToList();
-
-    /// <summary>Выбор по порядку, без повторов. Ссылка — id в виде «D», как его пишет запись
-    /// (<see cref="TemplateRefJson"/>); иной элемент пропускается, а не роняет весь выбор.</summary>
-    private static List<Guid> SelectedIds(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        return TemplateRefJson.TryParseArray(json)?
-            .Select(TemplateRefJson.TemplateKey)
-            .OfType<Guid>()
-            .Distinct()
-            .ToList() ?? [];
-    }
 }

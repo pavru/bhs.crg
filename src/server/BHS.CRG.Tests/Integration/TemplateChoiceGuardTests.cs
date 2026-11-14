@@ -168,7 +168,8 @@ public class TemplateChoiceGuardTests(IntegrationTestFixture fixture) : IAsyncLi
         var early2 = (await SendAsync(new UpdateTemplateCommand(early, "= ранний v2"))).Template.Id;
 
         var list = await SendAsync(new ListTemplatesQuery(type));
-        Assert.Equal([early, early2, late], list.Select(t => t.Id));
+        // Внутри шаблона — от новой версии: первая действующая в списке та, что возьмёт сервер.
+        Assert.Equal([early2, early, late], list.Select(t => t.Id));
 
         var active = await SendAsync(new GetActiveTemplateQuery(type));
         Assert.Equal(early2, active?.Id);

@@ -159,14 +159,38 @@ public class TemplateChoiceTests
     }
 
     [Fact]
-    public void Порядок_списка_шаблоны_по_созданию_версии_по_номеру()
+    public void Порядок_списка_шаблоны_по_созданию_версии_от_новой()
     {
         var a1 = Tpl("А", version: 1, active: false, day: 0);
         var b = Tpl("Б", day: 1);
         var a2 = Tpl("А", version: 2, day: 9);
 
-        var ordered = TemplateChoice.Order([b, a2, a1]);
+        var ordered = TemplateChoice.Order([b, a1, a2]);
 
-        Assert.Equal([a1.Id, a2.Id, b.Id], ordered.Select(t => t.Id));
+        Assert.Equal([a2.Id, a1.Id, b.Id], ordered.Select(t => t.Id));
+    }
+
+    [Fact]
+    public void Две_действующие_версии_шаблона_берётся_новая()
+    {
+        // Гонка #1922 или данные до #1921: как у TemplateCurrentVersion — новая, а не первая по номеру.
+        var a1 = Tpl("А", version: 1, day: 0);
+        var a2 = Tpl("А", version: 2, day: 9);
+        var b = Tpl("Б", day: 1);
+
+        Assert.Equal([a2.Id], Choose(null, null, a1, b, a2).Select(t => t.Id));
+        Assert.Equal(a2.Id, TemplateChoice.Order([a1, b, a2]).First(t => t.IsActive).Id);
+    }
+
+    [Fact]
+    public void Возраст_шаблона_можно_дать_без_исторических_версий()
+    {
+        // Только действующие версии: «А» v2 моложе «Б», но шаблон «А» создан раньше — его и берут.
+        var a2 = Tpl("А", version: 2, day: 9);
+        var b = Tpl("Б", day: 1);
+        var firstCreated = new Dictionary<string, DateTimeOffset> { ["А"] = T0, ["Б"] = T0.AddDays(1) };
+
+        Assert.Equal(a2.Id, TemplateChoice.Fallback([b, a2], firstCreated)?.Id);
+        Assert.Equal(b.Id, TemplateChoice.Fallback([b, a2])?.Id);
     }
 }
