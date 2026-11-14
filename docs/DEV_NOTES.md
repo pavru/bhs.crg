@@ -6216,6 +6216,24 @@ POST   /api/work-types                      { displayName, data, aliases?, creat
                                     правит, не удаляет и не архивирует: 409 { error, door: "/api/work-types" }
                                     (реестр OwnDoorTypes; зеркало в клиенте — OWN_DOORS).
                                     Возврат из архива и /purge общим адресом — как у любой записи.
+GET    /api/work-variants?purpose=choice|display&workTypeId=  — варианты вида работ (WORK-49, work-06):
+                                    дверь ядра, чтение под core.catalog.read; ответ записи несёт
+                                    workTypeId. GET /{id} — запись целиком. Не заведён — 409
+                                    directory-missing: нет классификатора — его reason, классификатор
+                                    есть, а вариантов нет — not-created. POST/PUT/DELETE/archive/
+                                    unarchive — как у /api/work-types (право core.worktypes.edit,
+                                    If-Match везде, кроме POST). Правило записи: ВидРаботы — ссылка
+                                    (вложенный объект, пусто, чужая запись — 400 { error, field }),
+                                    при заведении вид не в архиве (409 с field); вид у варианта
+                                    постоянен (409); наименование обязательно и уникально среди живых
+                                    вариантов ВИДА (409 { field, existingId }), «есть в архиве» —
+                                    archived-twin в пределах вида; возврат из архива при живом тёзке
+                                    или к архивному виду — 409. Общий адрес варианты не заводит, не
+                                    правит, не удаляет и не архивирует: 409 { door: "/api/work-variants" }.
+                                    Его возврат из архива (под core.catalog.edit, без версии — им
+                                    возвращает «есть в архиве») идёт по правилам двери: те же 409.
+                                    Ключ идентичности — одно Наименование (ссылка в ключ не входит):
+                                    ObjectResolver и сверка похожих «в лотке» разных видов не различают.
 POST   /api/common-data/{id}/purge          { references } → { id, name, references, untraceable } —
                                     удалить запись, потеряв ссылки выключенных модулей (#1187).
                                     Право core.catalog.purge. references — число из отказа: не

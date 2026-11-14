@@ -34,8 +34,19 @@ public partial class ArchiveReadInventoryTests
             Shown("вид работы по идентификатору: редактор и действия над ним, архивный — тоже"),
         ["BHS.CRG.Api/Endpoints/Core/OwnDoorTypes.cs|&& (await m.Send(new CommonDataRefsByIdsQuery([.. family.Keys], [id]), ct)).Count > 0;"] =
             Seen("из семьи ли со своей дверью запись для отказа общего адреса: архивный вид работы — тоже вид работы"),
-        ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);"] =
-            Seen("новая версия записи после архива — той самой, что только что отправили"),
+        ["BHS.CRG.Api/Endpoints/Core/OwnDoorWrites.cs|var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);"] =
+            Seen("новая версия записи после архива дверью видов работ или вариантов — той самой, что только что отправили"),
+        // ── Дверь вариантов вида работ (work-06) ──
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|entries.AddRange(await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct));"] =
+            ByPurpose("дверь вариантов: назначение называет клиент параметром purpose; без него — отказ", nameof(WorkVariantEndpointsTests.Список_двери_по_назначению)),
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
+            Shown("вариант по идентификатору: редактор и действия над ним, архивный — тоже"),
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|var workType = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
+            Seen("вид работы заводимого варианта: архивный находится и даёт отказ с полем, а не «не найден» (CORE-34.4)"),
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|if (await m.Send(new GetCommonDataEntryQuery(workTypeId), ct) is { IsArchived: true } workType)"] =
+            Seen("вид работы варианта, который возвращают из архива: архивный вид даёт отказ с полем (CORE-34.4)"),
+        ["BHS.CRG.Api/Endpoints/Core/WorkVariantEndpoints.cs|same.AddRange((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
+            Shown("тёзки варианта в виде: живой — дубль, архивный — «есть в архиве», поэтому показом"),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))"] =
             ByPurpose("назначение называет клиент параметром purpose; без него — отказ", nameof(ArchiveReadPurposeTests.Адрес_списка_требует_назначение_и_отвечает_по_нему)),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, records, typeId, archivedOnly)))"] =
@@ -70,7 +81,8 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Api/Modules/Ports/ModuleWorkTypesPort.cs|: (await mediator.Send(new CommonDataRefsByIdsQuery([.. units.Keys], unitIds), ct))"] =
             Shown("название единицы вида работы — ссылка уже стоит, архивная единица названа тоже"),
         ["BHS.CRG.Api/Modules/Ports/ModuleWorkTypesPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));"] =
-            Shown("весь классификатор показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleWorkTypesPortTests)"),
+            Shown("весь классификатор и все варианты показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом; " +
+                  "архивный вариант — с признаком (ModuleWorkTypesPortTests)").X(2),
         ["BHS.CRG.Api/Modules/Ports/ModulePlanItemsPort.cs|: (await mediator.Send(new CommonDataRefsByIdsQuery([.. family.Keys], [.. ids.Distinct()]), ct))"] =
             Shown("вид работы и единица ключа позиции — с признаком архива, и архивная составляющая даёт отказ, а не позицию (CORE-34.4; ModulePlanItemsPortTests.Архивный_вид_работы_даёт_отказ_с_составляющей)"),
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entries = await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, type.Id), ct);"] =

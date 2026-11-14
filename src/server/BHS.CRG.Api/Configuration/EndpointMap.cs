@@ -70,6 +70,7 @@ internal static class EndpointMap
     // Виды работ — классификатор ядра (CORE-8, WORK-59): своя дверь ради права core.worktypes.edit,
     // общий адрес справочников их не пишет.
     app.MapWorkTypeEndpoints();
+    app.MapWorkVariantEndpoints();
     // Подсказки поля по ранее введённому (issue #1530): права — в службе, по виду типов семьи поля.
     app.MapFieldSuggestionEndpoints();
     // Поиск записей для палитры (shell-05, CORE-34): права — у каждой группы, ключом её списка.
