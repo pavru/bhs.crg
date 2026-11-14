@@ -34,3 +34,18 @@
 - [x] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~TemplateChoice|FullyQualifiedName~Generation|FullyQualifiedName~Preview|FullyQualifiedName~TemplateHandler|FullyQualifiedName~TemplateInvalidation"` — зелёный
 - [x] 2.2 `bash scripts/backend-tests.sh` — весь backend зелёный
 - [x] 2.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 2.4 Клиент (тронут разделом 3): `cd src/client && npx tsc -b && npm test && npm run lint:ratchet && npm run ui:ratchet` — зелёные
+
+## 3. Разбор ревью PR #1967
+
+- [x] 3.1 Две действующие версии одного шаблона — берётся новая; список внутри шаблона — от новой версии
+  (D2, D6). Проверка — юнит-тест «две действующие версии», порядок в тесте списка
+- [x] 3.2 Документы без выбора сбрасываются, когда сменился запасной выбор: правка на месте, новая
+  версия, удаление версии (D8). Проверка — интеграционные тесты `TemplateInvalidationTests`, на прежних
+  обработчиках красные три из четырёх (четвёртый — «лишнего сброса нет»)
+- [x] 3.3 Одно правило разбора выбора `TemplateRefJson.SelectionIds` у домена, `TemplateChoice` и сборки
+  комплекта (D9). Проверка — доменный тест «нечитаемый элемент выбора пропускается»
+- [x] 3.4 Форма генерации — правилом сервера (D10). Проверка — vitest `templateRefs.test.ts`
+- [x] 3.5 `GetActiveTemplateQuery` без текстов исторических версий (D7). Проверка — юнит-тест «возраст
+  шаблона без исторических версий» и интеграционный тест ответа «действующего»
+- [x] 3.6 Отказ «нет действующего шаблона» — один (`TemplateChoice.Require`) у генерации и пакета
