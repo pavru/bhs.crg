@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useEffect, useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { DocumentType, Template } from '@/shared/api/types';
+import type { DocumentType, TemplateSummary } from '@/shared/api/types';
 import type { NewVersionPlan } from './groupTemplates';
 
 /**
@@ -11,7 +11,10 @@ import type { NewVersionPlan } from './groupTemplates';
  */
 
 const saveContent = vi.fn();
+// Текст версии — своим запросом (issue #1972); по умолчанию он уже получен.
+let contentState: { data?: string; isError?: boolean; error?: unknown } = { data: '= АОСР' };
 vi.mock('@/shared/api/templates', () => ({
+  useTemplateContent: () => contentState,
   useSaveTemplateContent: () => ({ mutateAsync: saveContent, isPending: false }),
   useCreateTemplateVersion: () => ({ mutateAsync: (...args: unknown[]) => createVersion(...args), isPending: false }),
   useSetTemplateDefault: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -47,10 +50,10 @@ vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 
 const { EditorPanel } = await import('./EditorPanel');
 
-afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); createVersion.mockReset(); });
+afterEach(() => { contentState = { data: '= АОСР' }; cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); createVersion.mockReset(); });
 
-const template = (isActive: boolean): Template => ({
-  id: 't1', documentTypeId: 'd1', name: 'АОСР', content: '= АОСР', parameters: null, comment: null,
+const template = (isActive: boolean): TemplateSummary => ({
+  id: 't1', documentTypeId: 'd1', name: 'АОСР', parameters: null, comment: null,
   version: 2, isActive, isDefault: true, createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
 });
 const docType = { id: 'd1', name: 'АОСР', schema: '{"fields":[]}' } as unknown as DocumentType;
@@ -216,5 +219,28 @@ describe('окно новой версии от исторической (issue 
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
     expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
       .toContain('1 документ перейдёт на новую версию и вернётся в черновик');
+  });
+});
+
+describe('EditorPanel: текст версии своим запросом (issue #1972)', () => {
+  it('пока текст не получен — редактора нет: Ctrl+S не записал бы пустой шаблон', () => {
+    contentState = {};
+    renderPanel(true);
+    expect(screen.queryByTestId('editor')).toBeNull();
+    expect(screen.getByRole('progressbar', { name: 'Загрузка текста шаблона' })).toBeTruthy();
+  });
+
+  it('текст не получен — отказ назван, редактора нет', () => {
+    contentState = { isError: true, error: Object.assign(new Error('Request failed'), { response: { status: 404, data: {} } }) };
+    renderPanel(true);
+    expect(screen.queryByTestId('editor')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByText(/./, { selector: 'span.text-error' })).toBeTruthy();
+  });
+
+  it('текст получен — редактор открыт, правок нет', () => {
+    renderPanel(true);
+    expect(screen.getByTestId('editor')).toBeTruthy();
+    expect(screen.queryByText('Есть несохранённые правки')).toBeNull();
   });
 });

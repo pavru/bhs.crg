@@ -11,7 +11,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
-import type { Template, DocumentType } from '@/shared/api/types';
+import type { TemplateSummary, DocumentType } from '@/shared/api/types';
 import { useMaxTemplateVersions } from '@/features/settings/useMaxTemplateVersions';
 import { buildBlankTypst } from './templateBlank';
 import { EditorPanel } from './EditorPanel';
@@ -29,7 +29,7 @@ interface NewTemplateFormProps {
   docType: DocumentType;
   allDocTypes: DocumentType[];
   onClose: () => void;
-  onCreated: (t: Template) => void;
+  onCreated: (t: TemplateSummary) => void;
 }
 
 export function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCreated }: NewTemplateFormProps) {
@@ -126,7 +126,7 @@ export function TemplatesPage() {
    * сменой типа и его запуском умещался кадр, в котором справа стоял шаблон ЧУЖОГО типа.
    */
   const [chosenTemplate, setChosenTemplate] =
-    useState<{ typeId: string; template: Template | null } | null>(null);
+    useState<{ typeId: string; template: TemplateSummary | null } | null>(null);
   // Восстанавливаемая версия ждёт здесь загрузки списка: сброс шаблона при смене типа её не трёт.
   const pendingTemplateId = useRef(restored.templateId);
   /**
@@ -138,7 +138,7 @@ export function TemplatesPage() {
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [cleanupGroup, setCleanupGroup] = useState<TemplateGroup | null>(null);
   const [maxVersions] = useMaxTemplateVersions();
-  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TemplateSummary | null>(null);
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<TemplateGroup | null>(null);
 
   const { data: docTypes = [] } = useListDocumentTypes();
@@ -152,7 +152,7 @@ export function TemplatesPage() {
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
   const { data: usage = {} } = useTemplatesUsage(selectedTypeId || undefined);
   const selectedTemplate = chosenTemplate?.typeId === selectedTypeId ? chosenTemplate.template : null;
-  const setSelectedTemplate = (t: Template | null) => setChosenTemplate({ typeId: selectedTypeId, template: t });
+  const setSelectedTemplate = (t: TemplateSummary | null) => setChosenTemplate({ typeId: selectedTypeId, template: t });
   const deleteMutation = useDeleteTemplate();
   const duplicateMutation = useDuplicateTemplate();
   const toast = useSnackbar();
@@ -182,7 +182,7 @@ export function TemplatesPage() {
     }, { replace: true });
   };
 
-  const selectTemplate = (t: Template | null) => {
+  const selectTemplate = (t: TemplateSummary | null) => {
     setSelectedTemplate(t);
     setOpenedId(t?.id ?? null);
     pendingTemplateId.current = '';   // осознанный выбор отменяет восстановление
@@ -233,7 +233,7 @@ export function TemplatesPage() {
     persist(id, '');
   }
 
-  function handleDelete(t: Template) {
+  function handleDelete(t: TemplateSummary) {
     setDeleteTarget(t);
   }
 

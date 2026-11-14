@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Warning } from '@/shared/ui/icons';
 import { useSetDocumentTemplateParams } from '@/shared/api/documentSets';
 import { parseTemplateParams } from '@/features/templates/templateParams';
-import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
+import type { DocumentInstance, TemplateSummary, TemplateParam } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { TextField } from '@/shared/ui/TextField';
@@ -16,7 +16,7 @@ import { TextField } from '@/shared/ui/TextField';
  * Изменение сбрасывает документ в черновик (влияет на вывод).
  */
 export function DocumentTemplateParams({ setId, instance, template, participating }: {
-  setId: string; instance: DocumentInstance; template: Template; participating: boolean;
+  setId: string; instance: DocumentInstance; template: TemplateSummary; participating: boolean;
 }) {
   const setParams = useSetDocumentTemplateParams();
   const allOverrides = useMemo<Record<string, Record<string, unknown>>>(() => {

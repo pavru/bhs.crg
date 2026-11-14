@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import type { DocumentType, Template } from '@/shared/api/types';
+import type { DocumentType, TemplateSummary } from '@/shared/api/types';
 import type { TemplateGroup } from './groupTemplates';
 import { TemplatesPage } from './TemplatesPage';
 
@@ -13,11 +13,11 @@ const types = [
   { id: 't-1', name: 'АОСР', kind: 'Document', isAbstract: false },
   { id: 't-2', name: 'Протокол', kind: 'Document', isAbstract: false },
 ] as DocumentType[];
-const version = (id: string, typeId: string, extra: Partial<Template> = {}): Template => ({
-  id, documentTypeId: typeId, name: `Шаблон ${typeId}`, content: '', parameters: null, comment: null, version: 1,
+const version = (id: string, typeId: string, extra: Partial<TemplateSummary> = {}): TemplateSummary => ({
+  id, documentTypeId: typeId, name: `Шаблон ${typeId}`, parameters: null, comment: null, version: 1,
   isActive: true, isDefault: true, createdAt: '', updatedAt: '', ...extra,
 });
-const byType: Record<string, Template[]> = {
+const byType: Record<string, TemplateSummary[]> = {
   't-1': [version('a-1', 't-1', { isActive: false, isDefault: false }), version('a-2', 't-1', { version: 2 })],
   't-2': [version('b-1', 't-2')],
 };
@@ -32,7 +32,7 @@ vi.mock('@/shared/api/templates', () => ({
 }));
 vi.mock('@/features/settings/useMaxTemplateVersions', () => ({ useMaxTemplateVersions: () => [10] }));
 vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info: vi.fn(), apiError: vi.fn() }) }));
-vi.mock('./EditorPanel', () => ({ EditorPanel: ({ template }: { template: Template }) => <div data-testid="editor">{template.id}</div> }));
+vi.mock('./EditorPanel', () => ({ EditorPanel: ({ template }: { template: TemplateSummary }) => <div data-testid="editor">{template.id}</div> }));
 vi.mock('./UserLibPanel', () => ({ UserLibPanel: () => <div>библиотека</div> }));
 vi.mock('./SystemLibPanel', () => ({ SystemLibPanel: () => <div>системная</div> }));
 vi.mock('./TypeBlocksPanel', () => ({ TypeBlocksPanel: () => <div>блоки</div> }));
@@ -40,7 +40,7 @@ vi.mock('./TypeBlocksPanel', () => ({ TypeBlocksPanel: () => <div>блоки</di
 vi.mock('./TemplateSidebar', () => ({
   DocTypeSelector: ({ onSelect }: { onSelect: (id: string) => void }) =>
     <button type="button" onClick={() => onSelect('t-2')}>сменить тип</button>,
-  TemplateSidebar: ({ groups, onSelect }: { groups: TemplateGroup[]; onSelect: (t: Template) => void }) =>
+  TemplateSidebar: ({ groups, onSelect }: { groups: TemplateGroup[]; onSelect: (t: TemplateSummary) => void }) =>
     <div>{groups.flatMap(g => g.versions).map(t =>
       <button type="button" key={t.id} onClick={() => onSelect(t)}>выбрать {t.id}</button>)}</div>,
   VersionCleanupModal: () => null,

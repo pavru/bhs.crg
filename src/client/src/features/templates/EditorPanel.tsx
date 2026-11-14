@@ -13,9 +13,10 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
-import type { Template, DocumentType } from '@/shared/api/types';
+import type { Template, TemplateSummary, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
-import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault } from '@/shared/api/templates';
+import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault, useTemplateContent } from '@/shared/api/templates';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
@@ -126,7 +127,7 @@ function NewVersionDialog({ plan, saving, error, onCancel, onConfirm }: {
 // ─── Editor panel ─────────────────────────────────────────────────────────────
 
 interface EditorPanelProps {
-  template: Template;
+  template: TemplateSummary;
   docType: DocumentType;
   allDocTypes: DocumentType[];
   onSaved: (updated: Template) => void;
@@ -138,11 +139,31 @@ interface EditorPanelProps {
   versionPlan: NewVersionPlan;
 }
 
-export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPlan }: EditorPanelProps) {
+/**
+ * Текст версии приходит своим запросом (issue #1972): список страницы отдаёт версии без текстов.
+ * Редактор открывается, когда текст получен, — иначе Monaco показал бы пустой шаблон, и Ctrl+S
+ * записал бы пустоту. Ответ сохранения кладёт текст в кэш, поэтому после записи загрузки нет и
+ * Monaco сохраняет курсор.
+ */
+export function EditorPanel(props: EditorPanelProps) {
+  const { data: serverContent, isError, error } = useTemplateContent(props.template.id);
+  if (serverContent === undefined)
+    return (
+      <div className="h-full flex items-center justify-center text-body-medium text-on-surface-variant">
+        {isError
+          ? <span className="text-error">{apiError(error, 'Не удалось загрузить текст шаблона')}</span>
+          : <CircularProgress label="Загрузка текста шаблона" />}
+      </div>
+    );
+  return <TemplateEditor {...props} serverContent={serverContent} />;
+}
+
+function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved, versionPlan }:
+  EditorPanelProps & { serverContent: string }) {
   useUserLibCompletion();
   useAssetCompletion();
   const qc = useQueryClient();
-  const [content, setContent] = useState(template.content);
+  const [content, setContent] = useState(serverContent);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
@@ -160,9 +181,9 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       toast.info(`${ruCount(count, 'документ', 'документа', 'документов')} переведено в черновик — PDF устарел`);
   }
 
-  // Есть ли несохранённые правки (dirty). После сохранения onSaved() подставляет
-  // обновлённый шаблон с тем же content → снова false.
-  const dirty = content !== template.content;
+  // Есть ли несохранённые правки (dirty). После сохранения текст версии в кэше — сохранённый
+  // (ответ записи), и признак снова false.
+  const dirty = content !== serverContent;
 
   // When true, the next template.id change came from our own save — skip content reset
   // so Monaco keeps its cursor position and scroll offset.
@@ -178,7 +199,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       justSavedRef.current = false;
       return;
     }
-    setContent(template.content);
+    setContent(serverContent);
   }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Простое сохранение (Ctrl+S) — правит текущую версию на месте. Историческую

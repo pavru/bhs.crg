@@ -164,13 +164,26 @@ public static class TemplateChoice
     /// версиям, которых тогда должно хватать: загружены все.</param>
     public static IReadOnlyList<Template> Order(
         IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
+        => Order(templates, t => new(t.Id, t.DocumentTypeId, t.Name, t.Version, t.CreatedAt), firstCreated);
+
+    /// <summary>Тот же порядок для версий без текстов (список страницы шаблонов, issue #1972) — все
+    /// версии типа, поэтому возраст шаблона берётся из них самих.</summary>
+    public static IReadOnlyList<TemplateSummary> Order(IEnumerable<TemplateSummary> templates)
+        => Order(templates, t => new(t.Id, t.DocumentTypeId, t.Name, t.Version, t.CreatedAt), firstCreated: null);
+
+    private readonly record struct OrderKey(Guid Id, Guid DocumentTypeId, string Name, int Version, DateTimeOffset CreatedAt);
+
+    private static IReadOnlyList<T> Order<T>(
+        IEnumerable<T> templates, Func<T, OrderKey> keyOf, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
         => templates
-            .GroupBy(t => (t.DocumentTypeId, t.Name))
+            .Select(t => (Row: t, Key: keyOf(t)))
+            .GroupBy(x => (x.Key.DocumentTypeId, x.Key.Name))
             .OrderBy(g => firstCreated is not null && firstCreated.TryGetValue(g.Key.Name, out var at)
                 ? at
-                : g.Min(t => t.CreatedAt))
+                : g.Min(x => x.Key.CreatedAt))
             .ThenBy(g => g.Key.Name, StringComparer.Ordinal)
             .ThenBy(g => g.Key.DocumentTypeId)
-            .SelectMany(g => g.OrderByDescending(t => t.Version).ThenByDescending(t => t.Id))
+            .SelectMany(g => g.OrderByDescending(x => x.Key.Version).ThenByDescending(x => x.Key.Id))
+            .Select(x => x.Row)
             .ToList();
 }

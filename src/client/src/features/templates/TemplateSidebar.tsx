@@ -8,7 +8,7 @@ import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type { PickType } from '@/shared/ui/TypePicker';
-import type { Template, DocumentType } from '@/shared/api/types';
+import type { TemplateSummary, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate, type TemplateUsage } from '@/shared/api/templates';
 import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
@@ -33,7 +33,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
   const [error, setError] = useState('');
 
   // Причина защиты версии от массового удаления (issue #364): рабочая / по умолчанию / запиннута.
-  function protectReason(t: Template, isLatest: boolean): string | null {
+  function protectReason(t: TemplateSummary, isLatest: boolean): string | null {
     if (usage[t.id]?.count) return `🔒 используется в ${ruCount(usage[t.id].count, 'докум.', 'докум.', 'докум.')} — по одной`;
     if (t.isDefault) return '★ по умолчанию';
     if (isLatest) return 'рабочая версия';
@@ -152,13 +152,13 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
 
 export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documentTypeId, usage = {}, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
   groups: TemplateGroup[];
-  selectedTemplate: Template | null;
+  selectedTemplate: TemplateSummary | null;
   maxVersions: number;
   documentTypeId: string;
   usage?: TemplateUsageMap;
-  onSelect: (t: Template) => void;
+  onSelect: (t: TemplateSummary) => void;
   onNew: () => void;
-  onDelete: (t: Template) => void;
+  onDelete: (t: TemplateSummary) => void;
   onDeleteGroup: (g: TemplateGroup) => void;
   onDuplicate: (g: TemplateGroup) => void;
   onCleanup: (g: TemplateGroup) => void;

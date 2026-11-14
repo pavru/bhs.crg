@@ -1,16 +1,34 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { Template } from './types';
+import type { Template, TemplateSummary } from './types';
 
+/** Версии шаблонов типа — без текстов (issue #1972). Текст версии — `useTemplateContent`. */
 export function useListTemplates(documentTypeId: string | undefined) {
   return useQuery({
     queryKey: ['templates', documentTypeId],
     queryFn: () =>
       apiClient
-        .get<Template[]>('/templates', { params: { documentTypeId } })
+        .get<TemplateSummary[]>('/templates', { params: { documentTypeId } })
         .then((r) => r.data),
     enabled: !!documentTypeId,
   });
+}
+
+export const templateContentKey = (id: string) => ['template-content', id] as const;
+
+/** Текст Typst одной версии (issue #1972) — его читает редактор, а не список. */
+export function useTemplateContent(id: string) {
+  return useQuery({
+    queryKey: templateContentKey(id),
+    queryFn: () =>
+      apiClient.get<{ content: string }>(`/templates/${id}/content`).then((r) => r.data.content),
+  });
+}
+
+/** Ответ записи несёт текст версии целиком: кладём его в кэш текста, чтобы редактор не перечитывал
+ *  только что сохранённое и не мигал загрузкой на новой версии. */
+function remember(qc: QueryClient, t: Template) {
+  qc.setQueryData(templateContentKey(t.id), t.content);
 }
 
 export function useCreateTemplate() {
@@ -18,7 +36,7 @@ export function useCreateTemplate() {
   return useMutation({
     mutationFn: (payload: { documentTypeId: string; name: string; content: string }) =>
       apiClient.post<Template>('/templates', payload).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+    onSuccess: (t) => { remember(qc, t); void qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }); },
   });
 }
 
@@ -27,7 +45,7 @@ export function useDuplicateTemplate() {
   return useMutation({
     mutationFn: ({ id, name }: { id: string; documentTypeId: string; name?: string }) =>
       apiClient.post<Template>(`/templates/${id}/duplicate`, { name }).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+    onSuccess: (t) => { remember(qc, t); void qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }); },
   });
 }
 
@@ -72,7 +90,10 @@ export function useSaveTemplateContent() {
   return useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       apiClient.put<TemplateMutationResult>(`/templates/${id}/content`, { content }).then((r) => r.data),
-    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
+    onSuccess: (res) => {
+      remember(qc, res.template);
+      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
+    },
   });
 }
 
@@ -82,7 +103,10 @@ export function useCreateTemplateVersion() {
   return useMutation({
     mutationFn: ({ id, content, comment }: { id: string; content: string; comment?: string | null }) =>
       apiClient.post<TemplateMutationResult>(`/templates/${id}/versions`, { content, comment }).then((r) => r.data),
-    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
+    onSuccess: (res) => {
+      remember(qc, res.template);
+      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
+    },
   });
 }
 
@@ -101,6 +125,9 @@ export function useSetTemplateDefault() {
   return useMutation({
     mutationFn: ({ id }: { id: string; documentTypeId: string }) =>
       apiClient.put<TemplateMutationResult>(`/templates/${id}/set-default`).then((r) => r.data),
-    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
+    onSuccess: (res) => {
+      remember(qc, res.template);
+      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
+    },
   });
 }

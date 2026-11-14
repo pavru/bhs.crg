@@ -122,11 +122,14 @@ export interface TemplateParam {
   default: string | number | boolean | null;
 }
 
-export interface Template {
+/**
+ * Версия шаблона в списке типа (`GET /templates`) — без текста Typst (issue #1972): версий много, а
+ * текст нужен одной — его отдаёт `GET /templates/{id}/content` (`useTemplateContent`).
+ */
+export interface TemplateSummary {
   id: string;
   documentTypeId: string;
   name: string;
-  content: string;
   /** JSON-текст массива TemplateParam[] (jsonb-строка) или null. Парсить на клиенте. */
   parameters: string | null;
   /** Необязательное примечание к версии (issue #360) — что за версия. */
@@ -136,6 +139,11 @@ export interface Template {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Версия шаблона целиком, с текстом — ответы создания и правки одной версии. */
+export interface Template extends TemplateSummary {
+  content: string;
 }
 
 export interface Construction {
