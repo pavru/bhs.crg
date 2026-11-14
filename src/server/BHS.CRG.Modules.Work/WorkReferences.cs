@@ -3,7 +3,8 @@ using BHS.CRG.Modules.Data;
 namespace BHS.CRG.Modules.Work;
 
 /// <summary>
-/// Колонки модуля, в которых лежат идентификаторы записей ядра (ТЗ CORE-34.1; change <c>work-11-assignments</c>).
+/// Колонки модуля, в которых лежат идентификаторы записей ядра (ТЗ CORE-34.1; changes <c>work-11-assignments</c>,
+/// <c>work-13-report-model</c>).
 ///
 /// <para>Список — не то, чем ядро НАХОДИТ держателей: оно сканирует схему само, и колонка, забытая здесь,
 /// удержит запись всё равно. Отсюда берутся слова отказа («Учёт работ: назначения — 3») вместо адреса
@@ -20,5 +21,38 @@ public static class WorkReferences
         ModuleReference.Holding("assignments", "employee_id", ReferenceTarget.Record, "назначения"),
         ModuleReference.Holding("assignments", "construction_id", ReferenceTarget.Construction,
             "назначения на эту стройку"),
+
+        // Отчёт монтажника и его строки (work-13). Новая ссылка на архивную запись отвергается
+        // (ReportReferenceCheck, CORE-34.4), уже стоящая — остаётся.
+        ModuleReference.Holding("reports", "employee_id", ReferenceTarget.Record, "отчёты монтажников"),
+        ModuleReference.Holding("reports", "construction_id", ReferenceTarget.Construction,
+            "отчёты монтажников по этой стройке"),
+        ModuleReference.Holding("report_lines", "work_type_id", ReferenceTarget.Record, "строки отчётов монтажников"),
+        ModuleReference.Holding("report_lines", "variant_id", ReferenceTarget.Record,
+            "строки отчётов монтажников с этим вариантом"),
+        ModuleReference.Holding("report_lines", "unit_id", ReferenceTarget.Record,
+            "строки отчётов монтажников с этой единицей"),
+        ModuleReference.Holding("report_lines", "section_id", ReferenceTarget.Section,
+            "строки отчётов монтажников по этому разделу"),
+        ModuleReference.Holding("report_lines", "work_plan_item_id", ReferenceTarget.WorkPlanItem,
+            "строки отчётов монтажников по этой позиции"),
+        // Сведения строки — по схеме типа «СтрокаРаботыСведения»: поле заказчика может сослаться на запись
+        // ядра, и цели в JSON разные.
+        ModuleReference.Holding("report_lines", "details", target: null, "сведения строк отчётов монтажников"),
+        ModuleReference.Holding("report_line_materials", "nomenclature_id", ReferenceTarget.Record,
+            "материалы в отчётах монтажников"),
+        ModuleReference.Holding("report_line_participants", "employee_id", ReferenceTarget.Record,
+            "участие в бригадных работах отчётов монтажников"),
+
+        // Протокол изменений — узкая запись для повтора и курсора: держит отчёт сам, а после удаления черновика
+        // запись остаётся нарочно — по ней клиент узнаёт об удалении.
+        ModuleReference.Remembering("report_changes", "report_id", target: null,
+            "свой отчёт модуля; удалённый черновик остаётся в протоколе — по записи клиент узнаёт об удалении"),
+        ModuleReference.Remembering("report_changes", "change_id", target: null,
+            "идентификатор изменения от клиента — ключ повтора, а не ссылка"),
+        ModuleReference.Remembering("report_changes", "employee_id", ReferenceTarget.Record,
+            "копия сотрудника отчёта для курсора «свои изменения»; держит сотрудника сам отчёт"),
+        ModuleReference.Remembering("report_changes", "construction_id", ReferenceTarget.Construction,
+            "копия стройки отчёта для курсора по стройкам; держит стройку сам отчёт"),
     ];
 }
