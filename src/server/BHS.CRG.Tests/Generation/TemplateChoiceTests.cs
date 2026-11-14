@@ -193,4 +193,17 @@ public class TemplateChoiceTests
         Assert.Equal(a2.Id, TemplateChoice.Fallback([b, a2], firstCreated)?.Id);
         Assert.Equal(b.Id, TemplateChoice.Fallback([b, a2])?.Id);
     }
+
+    [Fact]
+    public void Выбор_документа_без_исторических_версий_берёт_возраст_шаблона()
+    {
+        // Так кандидатов читает генерация (issue #1969): действующие версии и закреплённая. Без
+        // возраста шаблона документ без выбора ушёл бы к «Б» — v1 «А» в выборку не попала.
+        var a2 = Tpl("А", version: 2, day: 9);
+        var b = Tpl("Б", day: 1);
+        var firstCreated = new Dictionary<string, DateTimeOffset> { ["А"] = T0, ["Б"] = T0.AddDays(1) };
+
+        Assert.Equal([a2.Id], TemplateChoice.For(Type, null, null, [b, a2], firstCreated).Select(t => t.Id));
+        Assert.Equal([a2.Id], TemplateChoice.For(Type, null, null, [a2, b], firstCreated).Select(t => t.Id));
+    }
 }

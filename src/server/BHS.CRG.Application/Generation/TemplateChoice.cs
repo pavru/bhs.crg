@@ -1,3 +1,5 @@
+using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
@@ -30,14 +32,19 @@ public static class TemplateChoice
     /// Шаблоны выпуска документа по порядку. Пусто — у типа нет ни одного действующего шаблона
     /// (что ответить, решает вызывающий: генерация отказывает, предпросмотр говорит «нет шаблона»).
     /// </summary>
-    /// <param name="candidates">Шаблоны типа документа; чужие отбрасываются здесь же.</param>
+    /// <param name="candidates">Шаблоны типа документа; чужие отбрасываются здесь же. Достаточно
+    /// действующих версий и закреплённой (<see cref="CandidatesAsync"/>), если дано
+    /// <paramref name="firstCreated"/>.</param>
+    /// <param name="firstCreated">Создание шаблона по названию (см. <see cref="Order"/>).</param>
     /// <exception cref="ConflictException">Набор выбран, но ни один из выбранных не действует.</exception>
-    public static IReadOnlyList<Template> For(DomainObject document, IEnumerable<Template> candidates)
-        => For(document.CompositeTypeId, document.TemplateId, document.TemplateIds, candidates);
+    public static IReadOnlyList<Template> For(DomainObject document, IEnumerable<Template> candidates,
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        => For(document.CompositeTypeId, document.TemplateId, document.TemplateIds, candidates, firstCreated);
 
-    /// <inheritdoc cref="For(DomainObject, IEnumerable{Template})"/>
+    /// <inheritdoc cref="For(DomainObject, IEnumerable{Template}, IReadOnlyDictionary{string, DateTimeOffset}?)"/>
     public static IReadOnlyList<Template> For(
-        Guid documentTypeId, Guid? templateId, string? templateIds, IEnumerable<Template> candidates)
+        Guid documentTypeId, Guid? templateId, string? templateIds, IEnumerable<Template> candidates,
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
     {
         var own = candidates.Where(t => t.DocumentTypeId == documentTypeId).ToList();
 
@@ -55,7 +62,7 @@ public static class TemplateChoice
         }
 
         var pinned = templateId is { } pin ? own.FirstOrDefault(t => t.Id == pin) : null;
-        var single = pinned ?? Fallback(own);
+        var single = pinned ?? Fallback(own, firstCreated);
         return single is null ? [] : [single];
     }
 
@@ -64,12 +71,52 @@ public static class TemplateChoice
     /// выпускать нечем. Один текст у генерации и отладочного пакета.
     /// </summary>
     /// <exception cref="ConflictException">Набор выбран, но не действует, или действующих шаблонов нет.</exception>
-    public static IReadOnlyList<Template> Require(DomainObject document, IEnumerable<Template> candidates)
+    public static IReadOnlyList<Template> Require(DomainObject document, IEnumerable<Template> candidates,
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
     {
-        var chosen = For(document, candidates);
+        var chosen = For(document, candidates, firstCreated);
         return chosen.Count > 0
             ? chosen
             : throw new ConflictException($"No active template for DocumentType {document.CompositeTypeId}");
+    }
+
+    /// <summary>
+    /// Шаблоны выпуска документа, прочитанные из базы ровно в нужном объёме (issue #1969): действующие
+    /// версии типа и та, за которой документ закреплён (<c>TemplateId</c> бывает исторической
+    /// версией). Возраст шаблонов для запасного выбора — запросом без текстов: прежде генерация,
+    /// предпросмотр и отладочный пакет тянули Typst каждой сохранённой версии, а сборка комплекта —
+    /// на каждый документ.
+    /// </summary>
+    /// <exception cref="ConflictException">Набор выбран, но ни один из выбранных не действует.</exception>
+    public static async Task<IReadOnlyList<Template>> ForAsync(DomainObject document,
+        IRepository<Template> templates, ITemplateNames names, CancellationToken ct)
+    {
+        var (candidates, firstCreated) = await CandidatesAsync(document, templates, names, ct);
+        return For(document, candidates, firstCreated);
+    }
+
+    /// <summary>То же, что <see cref="ForAsync"/>, но пустой ответ — отказ (см. <see cref="Require"/>).</summary>
+    /// <exception cref="ConflictException">Набор выбран, но не действует, или действующих шаблонов нет.</exception>
+    public static async Task<IReadOnlyList<Template>> RequireAsync(DomainObject document,
+        IRepository<Template> templates, ITemplateNames names, CancellationToken ct)
+    {
+        var (candidates, firstCreated) = await CandidatesAsync(document, templates, names, ct);
+        return Require(document, candidates, firstCreated);
+    }
+
+    /// <summary>
+    /// Кандидаты выбора: выбранный набор берёт только действующие версии, запасной выбор — тоже,
+    /// историческая нужна одна — закреплённая. Остальные версии влияют на ответ лишь возрастом
+    /// шаблона, его и приносит <see cref="ITemplateNames.FirstCreatedAsync"/>.
+    /// </summary>
+    private static async Task<(IReadOnlyList<Template> Candidates, IReadOnlyDictionary<string, DateTimeOffset> FirstCreated)>
+        CandidatesAsync(DomainObject document, IRepository<Template> templates, ITemplateNames names, CancellationToken ct)
+    {
+        var type = document.CompositeTypeId;
+        var pin = document.TemplateId;
+        var candidates = await templates.FindAsync(
+            t => t.DocumentTypeId == type && (t.IsActive || t.Id == pin), ct);
+        return (candidates, await names.FirstCreatedAsync(type, ct));
     }
 
     /// <summary>

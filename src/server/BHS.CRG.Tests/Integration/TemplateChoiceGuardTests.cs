@@ -130,6 +130,22 @@ public class TemplateChoiceGuardTests(IntegrationTestFixture fixture) : IAsyncLi
     }
 
     [Fact]
+    public async Task Закреплён_на_исторической_версии_все_трое_берут_её()
+    {
+        // Генерация читает только действующие версии и закреплённую (issue #1969): историческая
+        // версия, за которой стоит документ, обязана дойти до выбора, хотя она и не действует.
+        TypstRequired.Ensure();
+        var type = await TypeAsync("CHOICE_E");
+        var marker = $"m-{Guid.NewGuid():N}";
+        var v1 = await TemplateAsync(type, "Основной", Right(marker));
+        await SendAsync(new UpdateTemplateCommand(v1, Wrong));
+        var docId = await DocAsync(type);
+        await SendAsync(new SetDocumentTemplateCommand(docId, v1));
+
+        await AssertAllTakeAsync(await ClientAsync(), docId, v1, marker);
+    }
+
+    [Fact]
     public async Task Все_выбранные_погашены_у_всех_троих_один_отказ()
     {
         var type = await TypeAsync("CHOICE_C");
