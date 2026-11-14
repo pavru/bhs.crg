@@ -37,6 +37,7 @@ public sealed record PreviewDocumentQuery(Guid InstanceId, JsonDocument Requisit
 public class PreviewDocumentHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
+    ITemplateNames templateNames,
     IGenerationContextBuilder contextBuilder,
     IGenerationRequestBuilder requestBuilder,
     IDocumentGeneratorFactory generatorFactory
@@ -50,9 +51,9 @@ public class PreviewDocumentHandler(
         // Шаблон предпросмотра — тот, которым документ выпустит генерация: первый из её шаблонов,
         // общим правилом (TemplateChoice, [ID-3]). Выбранные не действуют — отказ генерации, а не
         // молча шаблон по умолчанию: тот показал бы документ, которого генерация не выпустит.
-        var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
+        // Предпросмотр зовут на каждую правку формы — версии читаются только нужные (issue #1969).
         IReadOnlyList<Template> chosen;
-        try { chosen = TemplateChoice.For(instance, candidates); }
+        try { chosen = await TemplateChoice.ForAsync(instance, templateRepo, templateNames, ct); }
         catch (ConflictException ex) { return PreviewDocumentResult.Fail(ex.Message); }
         if (chosen.Count == 0) return PreviewDocumentResult.NoTpl();
         var template = chosen[0];

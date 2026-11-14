@@ -18,6 +18,7 @@ public class GenerateDocumentHandler(
     IDomainObjectRepository instanceRepo,
     IRepository<GeneratedFile> fileRepo,
     IRepository<Template> templateRepo,
+    ITemplateNames templateNames,
     IGenerationContextBuilder contextBuilder,
     IGenerationRequestBuilder requestBuilder,
     IDocumentGeneratorFactory generatorFactory,
@@ -37,11 +38,10 @@ public class GenerateDocumentHandler(
 
         try
         {
-            var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
-
             // Шаблоны выпуска — общим правилом с предпросмотром и отладочным пакетом (TemplateChoice,
-            // [ID-3]): выбранный набор в порядке выбора, иначе один эффективный.
-            var templates = TemplateChoice.Require(instance, candidates);
+            // [ID-3]): выбранный набор в порядке выбора, иначе один эффективный. Читаются только
+            // действующие версии и закреплённая (issue #1969).
+            var templates = await TemplateChoice.RequireAsync(instance, templateRepo, templateNames, ct);
 
             // Контекст и все проверки — тем же кодом, что у предпросмотра, проверки документа и
             // отладочного пакета (D1). Генерация отказывает на ошибке в ЛЮБОЙ корзине: незаполненное

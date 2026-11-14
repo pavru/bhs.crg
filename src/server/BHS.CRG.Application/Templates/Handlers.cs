@@ -258,14 +258,15 @@ public class TemplateHandlers(
     public async Task<IReadOnlyDictionary<Guid, TemplateUsage>> Handle(GetTemplatesUsageQuery q, CancellationToken ct)
     {
         var docs = await objRepo.GetDocumentsOfTypeAsync(q.DocumentTypeId, ct);
-        // Проходим версии типа один раз, накапливая пины по templateId (+ примеры имён).
-        var templates = await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct);
+        // Проходим версии типа один раз, накапливая пины по templateId (+ примеры имён). Нужны одни
+        // Id — без Typst каждой версии (issue #1969).
+        var versionIds = await names.VersionIdsAsync(q.DocumentTypeId, ct);
         var acc = new Dictionary<Guid, (int Count, List<string> Names)>();
-        foreach (var t in templates)
+        foreach (var id in versionIds)
         {
-            var users = docs.Where(o => o.PinsTemplate(t.Id)).ToList();
+            var users = docs.Where(o => o.PinsTemplate(id)).ToList();
             if (users.Count == 0) continue;
-            acc[t.Id] = (users.Count, users.Take(5).Select(o => o.DisplayName ?? "(без имени)").ToList());
+            acc[id] = (users.Count, users.Take(5).Select(o => o.DisplayName ?? "(без имени)").ToList());
         }
         return acc.ToDictionary(kv => kv.Key, kv => new TemplateUsage(kv.Value.Count, kv.Value.Names));
     }
@@ -274,15 +275,14 @@ public class TemplateHandlers(
     /// что у генерации, а не первая попавшаяся действующая строка.
     /// <para>Читаются только действующие версии: возраст шаблона приходит отдельным запросом без
     /// текстов, а Typst каждой исторической версии ответу не нужен.</para></summary>
-    public async Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.Fallback(
-            await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId && t.IsActive, ct),
-            await names.FirstCreatedAsync(q.DocumentTypeId, ct));
+    public Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
+        => Generation.TemplateChoice.FallbackAsync(q.DocumentTypeId, repo, names, ct);
 
     /// <summary>Шаблоны типа в порядке запасного выбора (D6, [ID-3]): тогда «первый действующий» формы
     /// генерации на клиенте — тот же, что возьмёт сервер.</summary>
     public async Task<IReadOnlyList<Template>> Handle(ListTemplatesQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.Order(await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct));
+        => Generation.TemplateChoice.Order(
+            await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct), firstCreated: null);
 
     public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {

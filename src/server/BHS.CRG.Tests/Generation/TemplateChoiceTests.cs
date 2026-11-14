@@ -1,6 +1,11 @@
+using System.Linq.Expressions;
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 
 namespace BHS.CRG.Tests.Generation;
@@ -25,8 +30,8 @@ public class TemplateChoiceTests
     /// <summary>Ответ на прямом и обратном порядке кандидатов — обязан совпасть.</summary>
     private static IReadOnlyList<Template> Choose(Guid? templateId, string? templateIds, params Template[] candidates)
     {
-        var forward = TemplateChoice.For(Type, templateId, templateIds, candidates);
-        var backward = TemplateChoice.For(Type, templateId, templateIds, candidates.Reverse());
+        var forward = TemplateChoice.For(Type, templateId, templateIds, candidates, firstCreated: null);
+        var backward = TemplateChoice.For(Type, templateId, templateIds, candidates.Reverse(), firstCreated: null);
         Assert.Equal(forward.Select(t => t.Id), backward.Select(t => t.Id));
         return forward;
     }
@@ -60,7 +65,7 @@ public class TemplateChoiceTests
         var old = Tpl("А", version: 1, active: false);
         var current = Tpl("А", version: 2, day: 1);
 
-        var ex = Assert.Throws<ConflictException>(() => TemplateChoice.For(Type, null, Ids(old), [old, current]));
+        var ex = Assert.Throws<ConflictException>(() => TemplateChoice.For(Type, null, Ids(old), [old, current], firstCreated: null));
         Assert.Equal(TemplateChoice.NoneSelectedActive, ex.Message);
     }
 
@@ -72,7 +77,7 @@ public class TemplateChoiceTests
         var a = Tpl("А");
         var foreign = Tpl("Чужой", type: Guid.NewGuid());
 
-        Assert.Throws<ConflictException>(() => TemplateChoice.For(Type, null, Ids(foreign), [a, foreign]));
+        Assert.Throws<ConflictException>(() => TemplateChoice.For(Type, null, Ids(foreign), [a, foreign], firstCreated: null));
     }
 
     [Fact]
@@ -165,7 +170,7 @@ public class TemplateChoiceTests
         var b = Tpl("Б", day: 1);
         var a2 = Tpl("А", version: 2, day: 9);
 
-        var ordered = TemplateChoice.Order([b, a1, a2]);
+        var ordered = TemplateChoice.Order([b, a1, a2], firstCreated: null);
 
         Assert.Equal([a2.Id, a1.Id, b.Id], ordered.Select(t => t.Id));
     }
@@ -179,7 +184,7 @@ public class TemplateChoiceTests
         var b = Tpl("Б", day: 1);
 
         Assert.Equal([a2.Id], Choose(null, null, a1, b, a2).Select(t => t.Id));
-        Assert.Equal(a2.Id, TemplateChoice.Order([a1, b, a2]).First(t => t.IsActive).Id);
+        Assert.Equal(a2.Id, TemplateChoice.Order([a1, b, a2], firstCreated: null).First(t => t.IsActive).Id);
     }
 
     [Fact]
@@ -191,6 +196,107 @@ public class TemplateChoiceTests
         var firstCreated = new Dictionary<string, DateTimeOffset> { ["А"] = T0, ["Б"] = T0.AddDays(1) };
 
         Assert.Equal(a2.Id, TemplateChoice.Fallback([b, a2], firstCreated)?.Id);
-        Assert.Equal(b.Id, TemplateChoice.Fallback([b, a2])?.Id);
+        Assert.Equal(b.Id, TemplateChoice.Fallback([b, a2], firstCreated: null)?.Id);
+    }
+
+    // ── Чтение кандидатов из базы (issue #1969) ──────────────────────────────────────────────
+
+    /// <summary>Шаблоны в «базе»: фильтр запроса применяется как есть — видно, что читает выбор.</summary>
+    private sealed class Store(params Template[] rows) : IRepository<Template>
+    {
+        public List<Guid> Read { get; } = [];
+        public Task<IReadOnlyList<Template>> FindAsync(Expression<Func<Template, bool>> predicate, CancellationToken ct = default)
+        {
+            IReadOnlyList<Template> found = rows.Where(predicate.Compile()).ToList();
+            Read.AddRange(found.Select(t => t.Id));
+            return Task.FromResult(found);
+        }
+        public Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Template>> GetAllAsync(CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AddAsync(Template entity, CancellationToken ct = default) => throw new NotSupportedException();
+        public void Update(Template entity) => throw new NotSupportedException();
+        public void Remove(Template entity) => throw new NotSupportedException();
+        public Task SaveChangesAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>Возраст шаблонов — по ВСЕМ версиям, как у настоящего запроса; считает обращения.</summary>
+    private sealed class Ages(params Template[] all) : ITemplateNames
+    {
+        public int Calls { get; private set; }
+        public Task<IReadOnlyDictionary<string, DateTimeOffset>> FirstCreatedAsync(Guid documentTypeId, CancellationToken ct = default)
+        {
+            Calls++;
+            IReadOnlyDictionary<string, DateTimeOffset> ages = all.Where(t => t.DocumentTypeId == documentTypeId)
+                .GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.Min(t => t.CreatedAt));
+            return Task.FromResult(ages);
+        }
+        public Task<bool> IsTakenAsync(Guid documentTypeId, string name, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlySet<string>> StartingWithAsync(Guid documentTypeId, string prefix, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Guid>> VersionIdsAsync(Guid documentTypeId, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private static DomainObject Doc(Guid? templateId = null, string? templateIds = null)
+        => DomainObject.RestoreDocument(Guid.NewGuid(), Type, null, JsonDocument.Parse("{}"), Guid.NewGuid(),
+            T0, T0, null, DocumentStatus.Draft, 0, templateId, templateIds, null, JsonDocument.Parse("{}"));
+
+    [Fact]
+    public async Task Закреплённая_историческая_версия_читается_остальные_исторические_нет()
+    {
+        var a1 = Tpl("А", version: 1, active: false);
+        var a2 = Tpl("А", version: 2, active: false, day: 1);
+        var a3 = Tpl("А", version: 3, day: 2);
+        var store = new Store(a1, a2, a3);
+        var ages = new Ages(a1, a2, a3);
+
+        var chosen = await TemplateChoice.ForAsync(Doc(templateId: a1.Id), store, ages, default);
+
+        Assert.Equal([a1.Id], chosen.Select(t => t.Id));
+        Assert.DoesNotContain(a2.Id, store.Read);
+        // Закрепление нашлось — запасной выбор не нужен, и возраст шаблонов не спрашивается.
+        Assert.Equal(0, ages.Calls);
+    }
+
+    [Fact]
+    public async Task Без_выбора_запасной_по_возрасту_шаблона_а_не_по_прочитанным_версиям()
+    {
+        // «А» v1 — самая ранняя версия типа, но она не действует и не читается. Без возраста шаблона
+        // выбор ушёл бы к «Б»: из прочитанного «А» v2 моложе.
+        var a1 = Tpl("А", version: 1, active: false);
+        var b = Tpl("Б", day: 1);
+        var a2 = Tpl("А", version: 2, day: 9);
+        var store = new Store(a1, b, a2);
+        var ages = new Ages(a1, b, a2);
+
+        var chosen = await TemplateChoice.RequireAsync(Doc(), store, ages, default);
+
+        Assert.Equal([a2.Id], chosen.Select(t => t.Id));
+        Assert.DoesNotContain(a1.Id, store.Read);
+        Assert.Equal(1, ages.Calls);
+    }
+
+    [Fact]
+    public async Task Выбранный_набор_без_запроса_возраста()
+    {
+        var a = Tpl("А");
+        var b = Tpl("Б", day: 1);
+        var ages = new Ages(a, b);
+
+        var chosen = await TemplateChoice.ForAsync(Doc(templateIds: Ids(b)), new Store(a, b), ages, default);
+
+        Assert.Equal([b.Id], chosen.Select(t => t.Id));
+        Assert.Equal(0, ages.Calls);
+    }
+
+    [Fact]
+    public async Task Закреплённая_версия_удалена_запасной_выбор()
+    {
+        // Ссылка ни на что (версию удалили мимо уборки) — как если бы закрепления не было.
+        var a = Tpl("А");
+        var ages = new Ages(a);
+
+        var chosen = await TemplateChoice.ForAsync(Doc(templateId: Guid.NewGuid()), new Store(a), ages, default);
+
+        Assert.Equal([a.Id], chosen.Select(t => t.Id));
+        Assert.Equal(1, ages.Calls);
     }
 }
