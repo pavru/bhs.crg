@@ -49,7 +49,7 @@ vi.mock('@/shared/ui/CodeEditor', () => ({
 vi.mock('@/shared/ui/typstUserLibCompletion', () => ({ useUserLibCompletion: () => {} }));
 vi.mock('@/shared/ui/typstAssetCompletion', () => ({ useAssetCompletion: () => {} }));
 vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info: vi.fn(), success: vi.fn(), error: vi.fn() }) }));
-vi.mock('./TemplateParamsPanel', () => ({ TemplateParamsPanel: () => null }));
+vi.mock('./TemplateParamsPanel', () => ({ TemplateParamsPanel: () => <div>Параметры шаблона</div> }));
 vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 
 const { EditorPanel } = await import('./EditorPanel');
@@ -232,6 +232,8 @@ describe('EditorPanel: текст версии своим запросом (issu
     renderPanel(true);
     expect(screen.queryByTestId('editor')).toBeNull();
     expect(screen.getByRole('progressbar', { name: 'Загрузка текста шаблона' })).toBeTruthy();
+    // Параметрам текст не нужен — они видны, не дожидаясь его (живой прогон types ищет их сразу).
+    expect(screen.getByText('Параметры шаблона')).toBeTruthy();
   });
 
   it('версии нет (404) — отказ назван словами, а не кодом ответа; редактора нет', () => {

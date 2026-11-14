@@ -154,16 +154,34 @@ function contentLoadError(error: unknown): string {
 }
 
 export function EditorPanel(props: EditorPanelProps) {
-  const { data: serverContent, isError, error } = useTemplateContent(props.template.id);
-  if (serverContent === undefined)
-    return (
-      <div className="h-full flex items-center justify-center text-body-medium text-on-surface-variant">
-        {isError
-          ? <span className="text-error">{contentLoadError(error)}</span>
-          : <CircularProgress label="Загрузка текста шаблона" />}
-      </div>
-    );
-  return <TemplateEditor {...props} serverContent={serverContent} />;
+  const { template, docType, onSaved } = props;
+  const { data: serverContent, isError, error } = useTemplateContent(template.id);
+  return (
+    <div className="flex flex-col h-full">
+      {serverContent === undefined ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center text-body-medium text-on-surface-variant">
+          {isError
+            ? <span className="text-error">{contentLoadError(error)}</span>
+            : <CircularProgress label="Загрузка текста шаблона" />}
+        </div>
+      ) : (
+        <TemplateEditor {...props} serverContent={serverContent} />
+      )}
+
+      {/* Параметры и ассеты тексту не нужны — они видны сразу, не дожидаясь его. */}
+      {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
+      <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
+      {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
+      <TemplateAssetsPanel
+        key={`assets-${template.id}`}
+        scope="Template" scopeId={template.id} title="Ассеты шаблона"
+        hintScopes={[
+          { scope: 'DocumentType', scopeId: docType.id, label: 'на уровне типа' },
+          { scope: 'System', scopeId: null, label: 'системных' },
+        ]}
+      />
+    </div>
+  );
 }
 
 function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved, versionPlan }:
@@ -350,7 +368,7 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap">
@@ -444,18 +462,6 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
           }}
         />
       </div>
-
-      {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
-      <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
-      {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
-      <TemplateAssetsPanel
-        key={`assets-${template.id}`}
-        scope="Template" scopeId={template.id} title="Ассеты шаблона"
-        hintScopes={[
-          { scope: 'DocumentType', scopeId: docType.id, label: 'на уровне типа' },
-          { scope: 'System', scopeId: null, label: 'системных' },
-        ]}
-      />
 
       {newVersionOpen && (
         <NewVersionDialog
