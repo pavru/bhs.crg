@@ -17,13 +17,12 @@
 (`WORK-49`, Р-4). Свободный текст в JSON вида работ дал бы варианты без постоянного идентификатора:
 строку отчёта нечем было бы удержать при переименовании, и запрет удалять занятое не сработал бы.
 
-Попутно: право `core.worktypes.edit` объявлено (`CorePermissions.cs:138`), но ни один адрес его не
-проверяет — вид работы правится общим `/api/common-data` под `core.catalog.edit`
-(`CommonDataEndpoints.cs:17`). Первой его открывает дверь видов работ `plan-03`; варианты получают вторую дверь под тем же правом.
+Право `core.worktypes.edit` открывает дверь видов работ `/api/work-types` (`plan-03`); варианты
+получают вторую дверь под тем же правом.
 
 ## What Changes
 
-- Тип ядра `ВариантРаботы` (уровень «расширяемый»): запертое обязательное поле `ВидРаботы` (ссылка на
+- Тип ядра `ВариантРаботы` (уровень «расширяемый»): обязательное поле ядра `ВидРаботы` (ссылка на
   запись вида работы) и `Наименование`. Объявляется ядром рядом с `Сотрудником` и `ВидомРаботы`.
 - Дверь ядра `/api/work-variants`: чтение под `core.catalog.read`, заведение, правка, удаление, архив —
   под `core.worktypes.edit`, каждый пишущий адрес, кроме заведения, — с `If-Match`. Ссылка варианта на
@@ -50,13 +49,15 @@
 
 - **Сервер:**
   - `Application/Documents/CoreRecordTypes.cs` — объявление `WorkVariant`;
-  - новый `Api/Endpoints/Core/WorkVariantEndpoints.cs` (по образцу `EmployeeEndpoints.cs`);
-  - отказ записи типа в `Api/Endpoints/Documents/CommonDataEndpoints.cs`;
+  - новый `Api/Endpoints/Core/WorkVariantEndpoints.cs` (по образцу `WorkTypeEndpoints.cs`) и общий
+    помощник своих дверей `Api/Endpoints/Core/OwnDoorWrites.cs` (выносится из `WorkTypeEndpoints.cs`);
+  - отказ общего адреса — строка в реестре `Api/Endpoints/Core/OwnDoorTypes.cs`;
   - порт `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` и реализация `Api/Modules/Ports/ModuleWorkTypesPort.cs`
     (заводит `plan-03`) — поле `Variants`.
-- **Клиент:** `shared/api/commonData.ts`, `document-sets/catalog/CatalogResource.tsx` — запись варианта
-  адресами двери. Экран каталога тот же, макеты не нужны (см. design).
-- **Тесты:** `WorkVariantEndpointsTests`, `ModuleWorkTypesPortTests` (дополняется), `EndpointGateInventoryTests`, `ArchiveReadInventoryTests`.
+- **Клиент:** `shared/api/commonData.ts` — строка в `OWN_DOORS`: запись варианта адресами двери, действия
+  по праву двери. Экран каталога тот же, макеты не нужны (см. design).
+- **Тесты:** `WorkVariantEndpointsTests`, `ModuleWorkTypesPortTests` (дополняется), `CoreRecordTypeProjectionTests`,
+  `EndpointGateInventoryTests`, `OwnDoorWriteInventoryTests`, `ArchiveReadInventoryTests`.
 - **Зависит от:** `plan-03-work-types-door` — дверь видов работ, порт `IModuleWorkTypes`, константа
   `core.worktypes.edit`.
 - **Документы:** `docs/ADMIN_GUIDE.md` — раздел о видах работ и вариантах.
