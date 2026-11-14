@@ -24,4 +24,7 @@ public interface ITemplateNames
 
     /// <summary>Все версии шаблонов типа без текстов (список страницы шаблонов, issue #1972).</summary>
     Task<IReadOnlyList<TemplateSummary>> SummariesAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>Текст Typst одной версии — одна колонка, без строки шаблона (issue #1972); null — версии нет.</summary>
+    Task<string?> ContentAsync(Guid id, CancellationToken ct = default);
 }

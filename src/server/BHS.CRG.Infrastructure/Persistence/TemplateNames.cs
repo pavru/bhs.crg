@@ -36,4 +36,7 @@ public sealed class TemplateNames(AppDbContext db) : ITemplateNames
             .Select(t => new TemplateSummary(t.Id, t.DocumentTypeId, t.Name, t.Version, t.Parameters,
                 t.Comment, t.IsActive, t.IsDefault, t.CreatedAt, t.UpdatedAt))
             .ToListAsync(ct);
+
+    public Task<string?> ContentAsync(Guid id, CancellationToken ct = default)
+        => db.Templates.Where(t => t.Id == id).Select(t => (string?)t.Content).FirstOrDefaultAsync(ct);
 }

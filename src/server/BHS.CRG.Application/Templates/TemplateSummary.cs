@@ -1,3 +1,5 @@
+using BHS.CRG.Domain.Templates;
+
 namespace BHS.CRG.Application.Templates;
 
 /// <summary>
@@ -15,4 +17,4 @@ public sealed record TemplateSummary(
     bool IsActive,
     bool IsDefault,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt) : ITemplateVersionKey;

@@ -234,6 +234,7 @@ public class TemplateChoiceTests
         public Task<IReadOnlySet<string>> StartingWithAsync(Guid documentTypeId, string prefix, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<Guid>> VersionIdsAsync(Guid documentTypeId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<TemplateSummary>> SummariesAsync(Guid documentTypeId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<string?> ContentAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private static DomainObject Doc(Guid? templateId = null, string? templateIds = null)

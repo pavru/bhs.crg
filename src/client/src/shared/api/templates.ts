@@ -25,10 +25,16 @@ export function useTemplateContent(id: string) {
   });
 }
 
-/** Ответ записи несёт текст версии целиком: кладём его в кэш текста, чтобы редактор не перечитывал
- *  только что сохранённое и не мигал загрузкой на новой версии. */
-function remember(qc: QueryClient, t: Template) {
+/**
+ * Записанная версия: ответ записи несёт её текст целиком — он кладётся в кэш текста, чтобы редактор не
+ * перечитывал только что сохранённое и не мигал загрузкой на новой версии; список типа перечитывается.
+ * Запрос текста, начатый ДО записи (перечитывание по фокусу окна), отменяется: иначе он пришёл бы
+ * позже и подменил сохранённый текст прежним.
+ */
+async function templateWritten(qc: QueryClient, t: Template) {
+  await qc.cancelQueries({ queryKey: templateContentKey(t.id), exact: true });
   qc.setQueryData(templateContentKey(t.id), t.content);
+  void qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] });
 }
 
 export function useCreateTemplate() {
@@ -36,7 +42,7 @@ export function useCreateTemplate() {
   return useMutation({
     mutationFn: (payload: { documentTypeId: string; name: string; content: string }) =>
       apiClient.post<Template>('/templates', payload).then((r) => r.data),
-    onSuccess: (t) => { remember(qc, t); void qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }); },
+    onSuccess: (t) => templateWritten(qc, t),
   });
 }
 
@@ -45,7 +51,7 @@ export function useDuplicateTemplate() {
   return useMutation({
     mutationFn: ({ id, name }: { id: string; documentTypeId: string; name?: string }) =>
       apiClient.post<Template>(`/templates/${id}/duplicate`, { name }).then((r) => r.data),
-    onSuccess: (t) => { remember(qc, t); void qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }); },
+    onSuccess: (t) => templateWritten(qc, t),
   });
 }
 
@@ -90,10 +96,7 @@ export function useSaveTemplateContent() {
   return useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       apiClient.put<TemplateMutationResult>(`/templates/${id}/content`, { content }).then((r) => r.data),
-    onSuccess: (res) => {
-      remember(qc, res.template);
-      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
-    },
+    onSuccess: (res) => templateWritten(qc, res.template),
   });
 }
 
@@ -103,10 +106,7 @@ export function useCreateTemplateVersion() {
   return useMutation({
     mutationFn: ({ id, content, comment }: { id: string; content: string; comment?: string | null }) =>
       apiClient.post<TemplateMutationResult>(`/templates/${id}/versions`, { content, comment }).then((r) => r.data),
-    onSuccess: (res) => {
-      remember(qc, res.template);
-      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
-    },
+    onSuccess: (res) => templateWritten(qc, res.template),
   });
 }
 
@@ -116,7 +116,7 @@ export function useUpdateTemplateParameters() {
   return useMutation({
     mutationFn: (p: { id: string; parameters: string | null }) =>
       apiClient.put<Template>(`/templates/${p.id}/parameters`, { parameters: p.parameters }).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+    onSuccess: (t) => templateWritten(qc, t),
   });
 }
 
@@ -125,9 +125,6 @@ export function useSetTemplateDefault() {
   return useMutation({
     mutationFn: ({ id }: { id: string; documentTypeId: string }) =>
       apiClient.put<TemplateMutationResult>(`/templates/${id}/set-default`).then((r) => r.data),
-    onSuccess: (res) => {
-      remember(qc, res.template);
-      void qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] });
-    },
+    onSuccess: (res) => templateWritten(qc, res.template),
   });
 }

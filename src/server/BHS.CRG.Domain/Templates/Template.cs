@@ -2,7 +2,7 @@ using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.Templates;
 
-public class Template : Entity
+public class Template : Entity, ITemplateVersionKey
 {
     /// <summary>Предел длины названия — он же у колонки базы.</summary>
     public const int NameMaxLength = 256;

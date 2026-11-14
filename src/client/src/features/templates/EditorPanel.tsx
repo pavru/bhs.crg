@@ -145,13 +145,21 @@ interface EditorPanelProps {
  * записал бы пустоту. Ответ сохранения кладёт текст в кэш, поэтому после записи загрузки нет и
  * Monaco сохраняет курсор.
  */
+/** Отказ чтения текста — словами: у 404 сервер тела не шлёт, и axios назвал бы лишь код ответа. */
+function contentLoadError(error: unknown): string {
+  if ((error as { response?: { status?: number } })?.response?.status === 404)
+    return 'Этой версии больше нет — её удалили. Выберите другую.';
+  const reason = (error as { response?: { data?: unknown } })?.response?.data ? apiError(error, '') : '';
+  return reason ? `Не удалось загрузить текст шаблона: ${reason}` : 'Не удалось загрузить текст шаблона.';
+}
+
 export function EditorPanel(props: EditorPanelProps) {
   const { data: serverContent, isError, error } = useTemplateContent(props.template.id);
   if (serverContent === undefined)
     return (
       <div className="h-full flex items-center justify-center text-body-medium text-on-surface-variant">
         {isError
-          ? <span className="text-error">{apiError(error, 'Не удалось загрузить текст шаблона')}</span>
+          ? <span className="text-error">{contentLoadError(error)}</span>
           : <CircularProgress label="Загрузка текста шаблона" />}
       </div>
     );
@@ -185,9 +193,12 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
   // (ответ записи), и признак снова false.
   const dirty = content !== serverContent;
 
-  // When true, the next template.id change came from our own save — skip content reset
-  // so Monaco keeps its cursor position and scroll offset.
-  const justSavedRef = useRef(false);
+  // Версия, к которой относится текст в редакторе, и её текст с сервера, который редактор взял.
+  const shownRef = useRef({ id: template.id, text: serverContent });
+  // Id версии, только что созданной отсюда: её текст и есть текст редактора — сбрасывать его не нужно,
+  // и Monaco сохраняет курсор. Именно id, а не флаг: флаг, не сброшенный сохранением на месте (id тот
+  // же — смены нет), подменил бы текст следующей открытой версии текстом этой.
+  const ownVersionRef = useRef<string | null>(null);
 
   // Re-entrancy guard: blocks a second save while one is in flight. State alone is
   // async, so a synchronous double-trigger (e.g. Ctrl+S) could fire two PUTs before
@@ -195,12 +206,21 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
   const savingRef = useRef(false);
 
   useEffect(() => {
-    if (justSavedRef.current) {
-      justSavedRef.current = false;
+    const shown = shownRef.current;
+    shownRef.current = { id: template.id, text: serverContent };
+    if (shown.id === template.id) {
+      // Та же версия, а текст с сервера другой: перечитан (правка соседа) или сохранён отсюда. Без
+      // своих правок редактор следует за ним — иначе показал бы прежний текст как «несохранённые
+      // правки», и Ctrl+S вернул бы его поверх соседского. Свои правки остаются.
+      if (shown.text !== serverContent) setContent(c => (c === shown.text ? serverContent : c));
+      return;
+    }
+    if (ownVersionRef.current === template.id) {
+      ownVersionRef.current = null;
       return;
     }
     setContent(serverContent);
-  }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [template.id, serverContent]);
 
   // Простое сохранение (Ctrl+S) — правит текущую версию на месте. Историческую
   // (неактивную) версию так править нельзя — её можно только форкнуть.
@@ -220,7 +240,6 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
       const res = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
-      justSavedRef.current = true; // prevent useEffect from resetting cursor
       onSaved(res.template);
       notifyReset(res.resetDocuments);
     } catch (err: unknown) {
@@ -257,7 +276,7 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
       });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
-      justSavedRef.current = true;
+      ownVersionRef.current = res.template.id;
       onSaved(res.template);
       notifyReset(res.resetDocuments);
       setNewVersionOpen(false);

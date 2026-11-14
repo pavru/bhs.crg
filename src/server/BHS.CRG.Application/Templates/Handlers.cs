@@ -283,10 +283,10 @@ public class TemplateHandlers(
     /// генерации на клиенте — тот же, что возьмёт сервер. Без текстов (issue #1972): версий много, а
     /// текст нужен одной — его отдаёт <see cref="GetTemplateContentQuery"/>.</summary>
     public async Task<IReadOnlyList<TemplateSummary>> Handle(ListTemplatesQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.Order(await names.SummariesAsync(q.DocumentTypeId, ct));
+        => Generation.TemplateChoice.Order(await names.SummariesAsync(q.DocumentTypeId, ct), firstCreated: null);
 
-    public async Task<string?> Handle(GetTemplateContentQuery q, CancellationToken ct)
-        => (await repo.GetByIdAsync(q.Id, ct))?.Content;
+    public Task<string?> Handle(GetTemplateContentQuery q, CancellationToken ct)
+        => names.ContentAsync(q.Id, ct);
 
     public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {

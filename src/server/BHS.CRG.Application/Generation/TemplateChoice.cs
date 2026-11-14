@@ -162,28 +162,17 @@ public static class TemplateChoice
     /// <param name="firstCreated">Наименьший <c>CreatedAt</c> версий по названию шаблона (один тип) —
     /// из запроса без текстов (<c>ITemplateNames.FirstCreatedAsync</c>). Без него — по загруженным
     /// версиям, которых тогда должно хватать: загружены все.</param>
-    public static IReadOnlyList<Template> Order(
-        IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
-        => Order(templates, t => new(t.Id, t.DocumentTypeId, t.Name, t.Version, t.CreatedAt), firstCreated);
-
-    /// <summary>Тот же порядок для версий без текстов (список страницы шаблонов, issue #1972) — все
-    /// версии типа, поэтому возраст шаблона берётся из них самих.</summary>
-    public static IReadOnlyList<TemplateSummary> Order(IEnumerable<TemplateSummary> templates)
-        => Order(templates, t => new(t.Id, t.DocumentTypeId, t.Name, t.Version, t.CreatedAt), firstCreated: null);
-
-    private readonly record struct OrderKey(Guid Id, Guid DocumentTypeId, string Name, int Version, DateTimeOffset CreatedAt);
-
-    private static IReadOnlyList<T> Order<T>(
-        IEnumerable<T> templates, Func<T, OrderKey> keyOf, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
+    /// <typeparam name="T">Версия с текстом или без (сводка списка, issue #1972) — порядок один.</typeparam>
+    public static IReadOnlyList<T> Order<T>(
+        IEnumerable<T> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
+        where T : ITemplateVersionKey
         => templates
-            .Select(t => (Row: t, Key: keyOf(t)))
-            .GroupBy(x => (x.Key.DocumentTypeId, x.Key.Name))
+            .GroupBy(t => (t.DocumentTypeId, t.Name))
             .OrderBy(g => firstCreated is not null && firstCreated.TryGetValue(g.Key.Name, out var at)
                 ? at
-                : g.Min(x => x.Key.CreatedAt))
+                : g.Min(t => t.CreatedAt))
             .ThenBy(g => g.Key.Name, StringComparer.Ordinal)
             .ThenBy(g => g.Key.DocumentTypeId)
-            .SelectMany(g => g.OrderByDescending(x => x.Key.Version).ThenByDescending(x => x.Key.Id))
-            .Select(x => x.Row)
+            .SelectMany(g => g.OrderByDescending(t => t.Version).ThenByDescending(t => t.Id))
             .ToList();
 }
