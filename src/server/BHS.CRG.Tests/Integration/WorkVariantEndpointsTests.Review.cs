@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Core;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
@@ -97,6 +98,57 @@ public partial class WorkVariantEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, twin.StatusCode);
         Assert.Equal(gone.Id, Assert.Single(await seed.Types.SendAsync(
             new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: variantType.Id))).Id);
+    }
+
+    /// <summary>
+    /// Общий адрес возврата (им экран возвращает запись из «есть в архиве») идёт по правилам двери:
+    /// рядом с живым тёзкой вариант не встаёт, к архивному виду не возвращается, — иначе дверь
+    /// обходилась бы соседним адресом и у вида оказывались бы два живых «в лотке».
+    /// </summary>
+    [Fact]
+    public async Task Общий_возврат_при_живом_тёзке_отказ()
+    {
+        var (variantType, cable, _) = await seed.SetUpAsync();
+        var gone = await seed.VariantAsync(variantType, cable, "в лотке");
+        await seed.Types.ArchiveAsync(gone.Id);
+        var live = await seed.VariantAsync(variantType, cable, "в лотке", createAnyway: true);
+        var engineer = await AccessProbe.SignInAsync(fixture, SystemRoles.IdEngineer, "wv");
+
+        var refused = await engineer.PostAsync($"/api/common-data/{gone.Id}/unarchive", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(live.Id, (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("existingId").GetGuid());
+        Assert.True((await seed.Types.SendAsync(new GetCommonDataEntryQuery(gone.Id)))!.IsArchived);
+    }
+
+    [Fact]
+    public async Task Общий_возврат_к_архивному_виду_отказ()
+    {
+        var (variantType, cable, _) = await seed.SetUpAsync();
+        var variant = await seed.VariantAsync(variantType, cable, "в лотке");
+        await seed.Types.ArchiveAsync(variant.Id);
+        await seed.Types.ArchiveAsync(cable.Id);
+        var engineer = await AccessProbe.SignInAsync(fixture, SystemRoles.IdEngineer, "wv");
+
+        var refused = await engineer.PostAsync($"/api/common-data/{variant.Id}/unarchive", null);
+
+        await AssertRefusedAsync(refused, HttpStatusCode.Conflict, CoreRecordTypes.WorkVariantWorkTypeKey, "в архиве");
+        Assert.True((await seed.Types.SendAsync(new GetCommonDataEntryQuery(variant.Id)))!.IsArchived);
+    }
+
+    /// <summary>Без тёзки и с живым видом общий возврат проходит — как у любой записи, без версии.</summary>
+    [Fact]
+    public async Task Общий_возврат_без_помех_проходит()
+    {
+        var (variantType, cable, _) = await seed.SetUpAsync();
+        var variant = await seed.VariantAsync(variantType, cable, "в лотке");
+        await seed.Types.ArchiveAsync(variant.Id);
+        var engineer = await AccessProbe.SignInAsync(fixture, SystemRoles.IdEngineer, "wv");
+
+        var returned = await engineer.PostAsync($"/api/common-data/{variant.Id}/unarchive", null);
+
+        Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+        Assert.False((await seed.Types.SendAsync(new GetCommonDataEntryQuery(variant.Id)))!.IsArchived);
     }
 
     /// <summary>

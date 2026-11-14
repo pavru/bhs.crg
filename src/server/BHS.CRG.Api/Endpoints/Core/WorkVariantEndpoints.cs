@@ -167,18 +167,40 @@ public static class WorkVariantEndpoints
             IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct) => SetArchiveAsync(id, false, http, m, types, scopes, db, ct));
     }
 
-    /// <summary>
-    /// Возврат из архива сверяет вид и наименование: вариант не возвращается к виду, который сам в
-    /// архиве (к такому вариант и не заводится), и не встаёт дублем рядом с живым «в лотке» того же вида.
-    /// Тёзка ищется под замком наименования — в одной транзакции с возвратом (ревью PR #1966).
-    /// </summary>
     private static async Task<IResult> SetArchiveAsync(
         Guid id, bool archived, HttpRequest http, IMediator m, IRepository<DocumentType> types,
         IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
     {
         if (await VariantAsync(id, m, types, ct) is not { } entry) return Results.NotFound();
         if (OwnDoorWrites.Seen(http, entry, Moved, out _) is { } refused) return refused;
-        if (archived || WorkTypeOf(entry) is not { } workTypeId) return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct);
+        return archived
+            ? await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct)
+            : await ReturnAsync(entry, m, types, scopes, db, ct);
+    }
+
+    /// <summary>
+    /// Возврат варианта ОБЩИМ адресом (<c>/api/common-data/{id}/unarchive</c>) — по правилам этой
+    /// двери; <c>null</c> — запись не вариант. Отвергать общий возврат нельзя: им экран возвращает
+    /// запись из «есть в архиве» и из вставки таблицы (<see cref="OwnDoorTypes.RefuseCommonPathAsync" />).
+    /// А пропускать без проверок — значит ставить два живых «в лотке» у одного вида (ревью PR #1966).
+    /// Версии общий адрес не требует — как и для любой другой записи.
+    /// </summary>
+    internal static async Task<IResult?> ReturnByCommonPathAsync(
+        Guid id, IMediator m, IRepository<DocumentType> types, IServiceScopeFactory scopes, AppDbContext db,
+        CancellationToken ct) =>
+        await VariantAsync(id, m, types, ct) is { } entry ? await ReturnAsync(entry, m, types, scopes, db, ct) : null;
+
+    /// <summary>
+    /// Возврат из архива сверяет вид и наименование: вариант не возвращается к виду, который сам в
+    /// архиве (к такому вариант и не заводится), и не встаёт дублем рядом с живым «в лотке» того же вида.
+    /// Тёзка ищется под замком наименования — в одной транзакции с возвратом (ревью PR #1966).
+    /// </summary>
+    private static async Task<IResult> ReturnAsync(
+        DomainObject entry, IMediator m, IRepository<DocumentType> types, IServiceScopeFactory scopes,
+        AppDbContext db, CancellationToken ct)
+    {
+        var id = entry.Id;
+        if (WorkTypeOf(entry) is not { } workTypeId) return await OwnDoorWrites.SetArchiveAsync(id, false, m, scopes, ct);
 
         if (await m.Send(new GetCommonDataEntryQuery(workTypeId), ct) is { IsArchived: true } workType)
             return Results.Conflict(new
@@ -188,7 +210,7 @@ public static class WorkVariantEndpoints
                 field = WorkTypeKey,
             });
         var family = Family(await types.GetAllAsync(ct))!;
-        return await OwnDoorWrites.SetArchiveAsync(id, archived, m, scopes, ct,
+        return await OwnDoorWrites.SetArchiveAsync(id, false, m, scopes, ct,
             guard: async () => NameOf(entry.Data.RootElement) is { } name
                                && await TwinAsync(family, workTypeId, name, except: id, m, ct) is { IsArchived: false } twin
                 ? Duplicate(twin)

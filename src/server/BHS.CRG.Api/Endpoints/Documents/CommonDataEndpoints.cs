@@ -7,6 +7,7 @@ using BHS.CRG.Api.Endpoints.Core;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -183,9 +184,13 @@ public static class CommonDataEndpoints
         // сняла бы его обычным сохранением. Право то же, что у правки: архив слабее удаления, и
         // своё право породило бы роль, которой удалять можно, а убрать из выбора нельзя.
         // Возврат из архива вида работы общим адресом не отвергается — см. OwnDoorTypes.RefuseCommonPathAsync.
+        // Вариант вида работ возвращается по правилам своей двери (ревью PR #1966): архивный вид и живой
+        // тёзка того же вида дают отказ, иначе общий адрес ставил бы два живых «в лотке» у одного вида.
         edit.MapPost("/{id:guid}/archive", async (Guid id, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
             await OwnDoorTypes.RefuseCommonPathAsync(id, null, m, types, ct) ?? await SetArchiveAsync(id, true, m));
-        edit.MapPost("/{id:guid}/unarchive", (Guid id, IMediator m) => SetArchiveAsync(id, false, m));
+        edit.MapPost("/{id:guid}/unarchive", async (Guid id, IMediator m, IRepository<DocumentType> types,
+            IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct) =>
+            await WorkVariantEndpoints.ReturnByCommonPathAsync(id, m, types, scopes, db, ct) ?? await SetArchiveAsync(id, false, m));
     }
 
     private static async Task<IResult> SetArchiveAsync(Guid id, bool archived, IMediator m)
