@@ -18,4 +18,7 @@ public interface ITemplateNames
     /// версий: им нужен только возраст шаблона, а не их текст.
     /// </summary>
     Task<IReadOnlyDictionary<string, DateTimeOffset>> FirstCreatedAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>Id всех версий шаблонов типа — без строк шаблонов (сводка закреплений, issue #1969).</summary>
+    Task<IReadOnlyList<Guid>> VersionIdsAsync(Guid documentTypeId, CancellationToken ct = default);
 }

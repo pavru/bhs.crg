@@ -61,9 +61,7 @@ public class DocumentTemplateInvalidator(
     }
 
     public async Task<Guid?> FallbackOfAsync(Guid documentTypeId, CancellationToken ct = default)
-        => Generation.TemplateChoice.Fallback(
-            await templateRepo.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsActive, ct),
-            await names.FirstCreatedAsync(documentTypeId, ct))?.Id;
+        => (await Generation.TemplateChoice.FallbackAsync(documentTypeId, templateRepo, names, ct))?.Id;
 
     public async Task<int> OnFallbackMayHaveChangedAsync(Guid documentTypeId, Guid? before, CancellationToken ct = default)
         => await FallbackOfAsync(documentTypeId, ct) == before ? 0 : await OnDefaultChangedAsync(documentTypeId, ct);

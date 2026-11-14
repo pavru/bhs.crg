@@ -23,4 +23,10 @@ public sealed class TemplateNames(AppDbContext db) : ITemplateNames
             .Select(g => new { Name = g.Key, At = g.Min(t => t.CreatedAt) })
             .ToListAsync(ct))
             .ToDictionary(x => x.Name, x => x.At, StringComparer.Ordinal);
+
+    public async Task<IReadOnlyList<Guid>> VersionIdsAsync(Guid documentTypeId, CancellationToken ct = default)
+        => await db.Templates
+            .Where(t => t.DocumentTypeId == documentTypeId)
+            .Select(t => t.Id)
+            .ToListAsync(ct);
 }

@@ -32,19 +32,18 @@ public static class TemplateChoice
     /// Шаблоны выпуска документа по порядку. Пусто — у типа нет ни одного действующего шаблона
     /// (что ответить, решает вызывающий: генерация отказывает, предпросмотр говорит «нет шаблона»).
     /// </summary>
-    /// <param name="candidates">Шаблоны типа документа; чужие отбрасываются здесь же. Достаточно
-    /// действующих версий и закреплённой (<see cref="CandidatesAsync"/>), если дано
-    /// <paramref name="firstCreated"/>.</param>
-    /// <param name="firstCreated">Создание шаблона по названию (см. <see cref="Order"/>).</param>
+    /// <param name="candidates">Шаблоны типа документа; чужие отбрасываются здесь же.</param>
+    /// <param name="firstCreated">Создание шаблона по названию (см. <see cref="Order"/>). Обязателен,
+    /// когда загружены не все версии и дело дойдёт до запасного выбора; null — загружены все.</param>
     /// <exception cref="ConflictException">Набор выбран, но ни один из выбранных не действует.</exception>
     public static IReadOnlyList<Template> For(DomainObject document, IEnumerable<Template> candidates,
-        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
         => For(document.CompositeTypeId, document.TemplateId, document.TemplateIds, candidates, firstCreated);
 
     /// <inheritdoc cref="For(DomainObject, IEnumerable{Template}, IReadOnlyDictionary{string, DateTimeOffset}?)"/>
     public static IReadOnlyList<Template> For(
         Guid documentTypeId, Guid? templateId, string? templateIds, IEnumerable<Template> candidates,
-        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
     {
         var own = candidates.Where(t => t.DocumentTypeId == documentTypeId).ToList();
 
@@ -67,12 +66,13 @@ public static class TemplateChoice
     }
 
     /// <summary>
-    /// То же, что <see cref="For(DomainObject, IEnumerable{Template})"/>, но пустой ответ — отказ:
+    /// То же, что <see cref="For(DomainObject, IEnumerable{Template}, IReadOnlyDictionary{string, DateTimeOffset}?)"/>,
+    /// но пустой ответ — отказ:
     /// выпускать нечем. Один текст у генерации и отладочного пакета.
     /// </summary>
     /// <exception cref="ConflictException">Набор выбран, но не действует, или действующих шаблонов нет.</exception>
     public static IReadOnlyList<Template> Require(DomainObject document, IEnumerable<Template> candidates,
-        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
     {
         var chosen = For(document, candidates, firstCreated);
         return chosen.Count > 0
@@ -83,9 +83,9 @@ public static class TemplateChoice
     /// <summary>
     /// Шаблоны выпуска документа, прочитанные из базы ровно в нужном объёме (issue #1969): действующие
     /// версии типа и та, за которой документ закреплён (<c>TemplateId</c> бывает исторической
-    /// версией). Возраст шаблонов для запасного выбора — запросом без текстов: прежде генерация,
-    /// предпросмотр и отладочный пакет тянули Typst каждой сохранённой версии, а сборка комплекта —
-    /// на каждый документ.
+    /// версией). Возраст шаблонов спрашивается, только когда дело дошло до запасного выбора, и без
+    /// текстов. Прежде генерация, предпросмотр и отладочный пакет тянули Typst каждой сохранённой
+    /// версии, а сборка комплекта — на каждый документ.
     /// </summary>
     /// <exception cref="ConflictException">Набор выбран, но ни один из выбранных не действует.</exception>
     public static async Task<IReadOnlyList<Template>> ForAsync(DomainObject document,
@@ -105,18 +105,32 @@ public static class TemplateChoice
     }
 
     /// <summary>
+    /// Шаблон документов типа без выбора (<see cref="Fallback"/>), прочитанный так же, как у генерации:
+    /// действующие версии и возраст шаблонов без текстов. Одно место у «действующего шаблона типа»
+    /// (D7) и сброса документов без выбора — иначе правило «что читать» разошлось бы между ними.
+    /// </summary>
+    public static async Task<Template?> FallbackAsync(Guid documentTypeId,
+        IRepository<Template> templates, ITemplateNames names, CancellationToken ct)
+        => Fallback(
+            await templates.FindAsync(t => t.DocumentTypeId == documentTypeId && t.IsActive, ct),
+            await names.FirstCreatedAsync(documentTypeId, ct));
+
+    /// <summary>
     /// Кандидаты выбора: выбранный набор берёт только действующие версии, запасной выбор — тоже,
     /// историческая нужна одна — закреплённая. Остальные версии влияют на ответ лишь возрастом
-    /// шаблона, его и приносит <see cref="ITemplateNames.FirstCreatedAsync"/>.
+    /// шаблона, а он нужен одному запасному выбору: при выборе или найденном закреплении его не
+    /// спрашиваем — предпросмотр зовут на каждую правку формы.
     /// </summary>
-    private static async Task<(IReadOnlyList<Template> Candidates, IReadOnlyDictionary<string, DateTimeOffset> FirstCreated)>
+    private static async Task<(IReadOnlyList<Template> Candidates, IReadOnlyDictionary<string, DateTimeOffset>? FirstCreated)>
         CandidatesAsync(DomainObject document, IRepository<Template> templates, ITemplateNames names, CancellationToken ct)
     {
         var type = document.CompositeTypeId;
         var pin = document.TemplateId;
         var candidates = await templates.FindAsync(
             t => t.DocumentTypeId == type && (t.IsActive || t.Id == pin), ct);
-        return (candidates, await names.FirstCreatedAsync(type, ct));
+        var fallback = TemplateRefJson.SelectionIds(document.TemplateIds).Count == 0
+            && !candidates.Any(t => t.Id == pin);
+        return (candidates, fallback ? await names.FirstCreatedAsync(type, ct) : null);
     }
 
     /// <summary>
@@ -127,10 +141,10 @@ public static class TemplateChoice
     /// </summary>
     /// <param name="typeTemplates">Версии шаблонов одного типа; достаточно действующих, если дано
     /// <paramref name="firstCreated"/>.</param>
-    /// <param name="firstCreated">Создание шаблона по названию — когда исторические версии не
-    /// загружены (см. <see cref="Order"/>).</param>
+    /// <param name="firstCreated">Создание шаблона по названию — обязателен, когда исторические
+    /// версии не загружены (см. <see cref="Order"/>); null — загружены все.</param>
     public static Template? Fallback(
-        IEnumerable<Template> typeTemplates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        IEnumerable<Template> typeTemplates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
     {
         var active = Order(typeTemplates, firstCreated).Where(t => t.IsActive).ToList();
         return active.FirstOrDefault(t => t.IsDefault) ?? active.FirstOrDefault();
@@ -149,7 +163,7 @@ public static class TemplateChoice
     /// из запроса без текстов (<c>ITemplateNames.FirstCreatedAsync</c>). Без него — по загруженным
     /// версиям, которых тогда должно хватать: загружены все.</param>
     public static IReadOnlyList<Template> Order(
-        IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated = null)
+        IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
         => templates
             .GroupBy(t => (t.DocumentTypeId, t.Name))
             .OrderBy(g => firstCreated is not null && firstCreated.TryGetValue(g.Key.Name, out var at)
