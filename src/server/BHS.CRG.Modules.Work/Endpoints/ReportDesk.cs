@@ -12,12 +12,15 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// откуда берётся сотрудник, а это решает адрес до вызова. Правила отчёта и строк — у <see cref="ReportWriter" />.
 ///
 /// <para><b>Протокол повтора.</b> Заведение несёт <c>id</c> от клиента: тот же <c>id</c> того же сотрудника — 200 с
-/// лежащим отчётом и <c>replayed: true</c>, чужой — 409 «идентификатор занят» без полей. Правка несёт <c>changeId</c>:
-/// уже применённый — 200 по текущему состоянию с версией из протокола, без второго применения и без 409 за версию.</para>
+/// лежащим отчётом и <c>replayed: true</c>, чужой — 409 «идентификатор занят» без полей; идентификатор удалённого
+/// черновика не заводится снова — 409. Правка несёт <c>changeId</c>: уже применённый — 200 по текущему состоянию с
+/// ТЕКУЩЕЙ версией, без второго применения и без 409 за версию. Тело и версия ответа всегда одного состояния: версия
+/// из протокола при более поздней правке разошлась бы с телом.</para>
 ///
-/// <para><b>Номер и протокол.</b> Каждое изменение получает номер последовательности <c>work.report_seq</c> и запись
-/// <see cref="ReportChange" /> с временем устройства и временем сервера; расхождение времён не отказ. Версия в
-/// протоколе — та, что ушла в ответе: поэтому отчёт сохраняется раньше записи протокола, обе — одной транзакцией.</para>
+/// <para><b>Номер и протокол.</b> Каждое изменение получает номер последовательности <c>work.report_seq</c> под замком
+/// отчётов сотрудника (<see cref="WorkDbContext.NextReportSeqAsync" />) и запись <see cref="ReportChange" /> с временем
+/// устройства и временем сервера; расхождение времён не отказ. Версия в протоколе — та, что ушла в ответе: поэтому
+/// отчёт сохраняется раньше записи протокола, обе — одной транзакцией.</para>
 ///
 /// <para><b>Порядок отказов правки:</b> запрос (400: версия, <c>changeId</c>, тело) → отчёт (404, чужой как
 /// несуществующий) → сотрудник в теле (400) → повтор (200) → версия (409) → стройка вне охвата (404) → правила
@@ -33,6 +36,9 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
     public const string SiteNotYours =
         "Стройка отчёта (constructionId) не найдена среди ваших строек: отчёт вводится за сотрудника только на стройке, " +
         "где вы менеджер.";
+
+    public const string Deleted =
+        "Отчёт с этим идентификатором (id) удалён — у нового отчёта идентификатор новый, его создаёт клиент.";
 
     public const string Stale =
         "Отчёт тем временем изменили, и эта правка не записана. Перечитайте отчёт и повторите: вы видели прежнее " +
@@ -50,11 +56,12 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         var header = body.Header();
         var lines = body.LineValues();
         if (await reads.HolderOfIdAsync(id, ct) is { } holder) return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, ct);
+        await EnsureNotDeletedAsync(id, employeeId, ct);
 
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            var (seq, now) = (await db.NextReportSeqAsync(ct), time.GetUtcNow());
+            var (seq, now) = (await db.NextReportSeqAsync(employeeId, ct), time.GetUtcNow());
             var report = await writer.CreateAsync(id, employeeId, header, lines, seq, now, ct);
             if (enteredBy is var (userId, name)) report.EnteredBy(userId, name);
             await db.SaveChangesAsync(ct);
@@ -71,6 +78,7 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
             if (await reads.HolderOfIdAsync(id, ct) is { } won) return await ReplayedOrTakenAsync(viewer, id, employeeId, won, ct);
             if (await reads.KeyHolderAsync(employeeId, header.ConstructionId, header.Date, header.Shift, id, ct) is { } key)
                 throw new ReportKeyTakenException(key);
+            await EnsureNotDeletedAsync(id, employeeId, ct);
             throw;
         }
     }
@@ -78,7 +86,7 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
     /// <summary>Править отчёт, видимый читателю, — или ответить повтором уже применённой правки.</summary>
     public async Task<IResult> ChangeAsync(ReportViewer viewer, Guid id, ReportRequest body, HttpRequest request, CancellationToken ct)
     {
-        var seen = Seen(request);
+        var seen = SeenVersions.Required(request, "отчёта");
         var changeId = body.ChangeId ?? throw new InvalidRequestException(
             "Не назван идентификатор изменения (changeId): его создаёт клиент, и повтор правки с ним не применится " +
             "второй раз.");
@@ -92,12 +100,12 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         if (body.EmployeeId is { } employee && employee != report.EmployeeId)
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
-        if (await reads.AppliedAsync(id, changeId, ct) is { } applied)
-            return Results.Ok(await views.OneAsync(report, replayed: true, version: applied.Version, ct: ct));
+        if (await reads.AppliedAsync(id, changeId, ct) is not null)
+            return Results.Ok(await views.OneAsync(report, replayed: true, ct: ct));
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
 
-        var (seq, now) = (await db.NextReportSeqAsync(ct), time.GetUtcNow());
+        var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         await writer.ChangeAsync(report, header, lines, seq, now, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
@@ -113,7 +121,7 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
     public async Task<IResult> RemoveDraftAsync(
         ReportViewer viewer, Guid id, Guid? changeId, DateTimeOffset? deviceTime, HttpRequest request, CancellationToken ct)
     {
-        var seen = Seen(request);
+        var seen = SeenVersions.Required(request, "отчёта");
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         if (await reads.FindAsync(viewer, id, ct) is not { } report)
         {
@@ -126,7 +134,7 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         if (report.Status != ReportStatus.Draft)
             throw new ConflictException("Удалить можно только черновик: поданный отчёт остаётся, его возвращают на правку.");
 
-        var seq = await db.NextReportSeqAsync(ct);
+        var seq = await db.NextReportSeqAsync(report.EmployeeId, ct);
         db.Add(ReportChange.Of(seq, report, changeId ?? Guid.NewGuid(), ReportChangeKind.Deleted, deviceTime,
             time.GetUtcNow(), null));
         db.Remove(report);
@@ -149,12 +157,11 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         throw new ConflictException(IdTaken);
     }
 
-    private static string Seen(HttpRequest request)
+    /// <summary>Идентификатор удалённого черновика не заводится снова: свой — «удалён», чужой — «занят».</summary>
+    private async Task EnsureNotDeletedAsync(Guid id, Guid employeeId, CancellationToken ct)
     {
-        if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
-        return seen ?? throw new InvalidRequestException(
-            $"Не названа версия отчёта, по которой собрана правка (заголовок {SeenVersion.Header}) — она приходит в " +
-            "ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
+        if (await reads.DeletedHolderAsync(id, ct) is { } owner)
+            throw new ConflictException(owner == employeeId ? Deleted : IdTaken);
     }
 }
 

@@ -34,22 +34,28 @@ public sealed record ReportDto(
 /// </summary>
 public sealed class ReportViews(WorkDbContext db)
 {
-    /// <param name="version">Версия из протокола у повтора правки (MOB-15); иначе — текущая версия строки.</param>
-    public async Task<ReportDto> OneAsync(Report report, bool replayed = false, string? version = null, CancellationToken ct = default) =>
-        (await ManyAsync([report], ct, replayed, version))[0];
+    /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
+    public async Task<ReportDto> OneAsync(Report report, bool replayed = false, CancellationToken ct = default) =>
+        (await ManyAsync([report], ct, replayed))[0];
 
+    /// <param name="versions">Версии отчётов, прочитанных без отслеживания (выдача курсора); не названы — версия
+    /// отслеживаемой строки.</param>
     public async Task<IReadOnlyList<ReportDto>> ManyAsync(
-        IReadOnlyList<Report> reports, CancellationToken ct, bool replayed = false, string? version = null)
+        IReadOnlyList<Report> reports, CancellationToken ct, bool replayed = false,
+        IReadOnlyDictionary<Guid, string>? versions = null)
     {
+        // Только пары «сотрудник, стройка» выдачи, а не вся история назначений сотрудников.
         var employees = reports.Select(r => r.EmployeeId).Distinct().ToList();
+        var sites = reports.Select(r => r.ConstructionId).Distinct().ToList();
         var assignments = employees.Count == 0
             ? []
-            : await db.Assignments.AsNoTracking().Where(a => employees.Contains(a.EmployeeId)).ToListAsync(ct);
+            : await db.Assignments.AsNoTracking()
+                .Where(a => employees.Contains(a.EmployeeId) && sites.Contains(a.ConstructionId)).ToListAsync(ct);
         return
         [
             .. reports.Select(r => Dto(r,
                 assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId && a.Covers(r.Date)),
-                replayed, version ?? db.VersionOf(r))),
+                replayed, versions is null ? db.VersionOf(r) : versions[r.Id])),
         ];
     }
 

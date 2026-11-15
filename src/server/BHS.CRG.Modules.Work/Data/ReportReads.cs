@@ -1,3 +1,4 @@
+using System.Globalization;
 using BHS.CRG.Modules.Access;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,7 +38,10 @@ public sealed record ReportViewer
 /// <summary>Изменения своих отчётов после курсора (ТЗ MOB-16): лежащие отчёты и удалённые черновики — по номеру.</summary>
 /// <param name="Cursor">Номер последнего отданного изменения — <c>since</c> следующего запроса.</param>
 /// <param name="More">Отдано не всё: следующий запрос с <paramref name="Cursor" /> получит остальное.</param>
-public sealed record ReportFeed(IReadOnlyList<Report> Items, IReadOnlyList<ReportGone> Deleted, long Cursor, bool More);
+/// <param name="Versions">Версия каждого отчёта выдачи — прочитана ДО тела (см. <see cref="ReportReads.SinceAsync" />).</param>
+public sealed record ReportFeed(
+    IReadOnlyList<Report> Items, IReadOnlyDictionary<Guid, string> Versions, IReadOnlyList<ReportGone> Deleted, long Cursor,
+    bool More);
 
 /// <summary>Удалённый черновик в выдаче курсора: идентификатор и номер удаления.</summary>
 public sealed record ReportGone(Guid Id, long Seq);
@@ -78,25 +82,49 @@ public sealed class ReportReads(WorkDbContext db)
         db.Set<ReportChange>().AsNoTracking().FirstOrDefaultAsync(c => c.ReportId == reportId && c.ChangeId == changeId, ct);
 
     /// <summary>
+    /// Сотрудник, чей отчёт с этим идентификатором был удалён, или <c>null</c>. Идентификатор удалённого черновика
+    /// не заводится снова (ТЗ MOB-15): опоздавший повтор исходного заведения иначе воскресил бы удалённое.
+    /// </summary>
+    public Task<Guid?> DeletedHolderAsync(Guid id, CancellationToken ct) =>
+        db.Set<ReportChange>().AsNoTracking()
+            .Where(c => c.ReportId == id && c.Kind == ReportChangeKind.Deleted)
+            .OrderByDescending(c => c.Seq)
+            .Select(c => (Guid?)c.EmployeeId)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>
     /// Свои отчёты, изменённые после номера <paramref name="since" />, и черновики, удалённые после него (ТЗ MOB-16), —
     /// не больше <paramref name="limit" /> записей вместе, по возрастанию номера. Номер отчёта — номер его последнего
     /// изменения, поэтому отчёт, правленый трижды, приходит один раз.
+    ///
+    /// <para><b>Без отслеживания</b>: выдача только читается. Версии читаются ПЕРВЫМИ, тела — вторыми: правка между
+    /// двумя чтениями даёт тело новее версии, и следующая правка клиента получит 409, а не запишется поверх чужой.
+    /// Обратный порядок дал бы версию новее тела — правку по устаревшему виду без отказа.</para>
     /// </summary>
     public async Task<ReportFeed> SinceAsync(Guid employeeId, long since, int limit, CancellationToken ct)
     {
-        var reports = await Full(db.Set<Report>().Where(r => r.EmployeeId == employeeId && r.Seq > since))
-            .OrderBy(r => r.Seq).Take(limit + 1).ToListAsync(ct);
+        var heads = await db.Set<Report>().AsNoTracking()
+            .Where(r => r.EmployeeId == employeeId && r.Seq > since)
+            .OrderBy(r => r.Seq).Take(limit + 1)
+            .Select(r => new { r.Id, r.Seq, Version = EF.Property<uint>(r, WorkDbContext.RowVersion) })
+            .ToListAsync(ct);
         var deleted = await db.Set<ReportChange>().AsNoTracking()
             .Where(c => c.EmployeeId == employeeId && c.Seq > since && c.Kind == ReportChangeKind.Deleted)
             .OrderBy(c => c.Seq).Take(limit + 1)
             .Select(c => new ReportGone(c.ReportId, c.Seq)).ToListAsync(ct);
 
-        var merged = reports.Select(r => (r.Seq, Report: (Report?)r, Gone: (ReportGone?)null))
-            .Concat(deleted.Select(d => (d.Seq, Report: (Report?)null, Gone: (ReportGone?)d)))
+        var merged = heads.Select(h => (h.Seq, Report: (Guid?)h.Id, Gone: (ReportGone?)null))
+            .Concat(deleted.Select(d => (d.Seq, Report: (Guid?)null, Gone: (ReportGone?)d)))
             .OrderBy(e => e.Seq).ToList();
         var page = merged.Take(limit).ToList();
+        var ids = page.Where(e => e.Report is not null).Select(e => e.Report!.Value).ToList();
+        var bodies = ids.Count == 0
+            ? new Dictionary<Guid, Report>()
+            : await Full(db.Set<Report>().AsNoTracking().Where(r => ids.Contains(r.Id))).ToDictionaryAsync(r => r.Id, ct);
+        // Отчёт, удалённый между двумя чтениями, пропускается: его удаление придёт следующей выдачей — номер больше.
         return new ReportFeed(
-            [.. page.Where(e => e.Report is not null).Select(e => e.Report!)],
+            [.. ids.Where(bodies.ContainsKey).Select(id => bodies[id])],
+            heads.ToDictionary(h => h.Id, h => h.Version.ToString(CultureInfo.InvariantCulture)),
             [.. page.Where(e => e.Gone is not null).Select(e => e.Gone!)],
             page.Count == 0 ? since : page[^1].Seq,
             merged.Count > limit);

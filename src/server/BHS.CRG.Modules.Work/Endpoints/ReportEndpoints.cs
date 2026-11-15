@@ -1,3 +1,4 @@
+using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
@@ -58,7 +59,7 @@ public static class ReportEndpoints
         var feed = await reads.SinceAsync(await MeAsync(user, employees, ct), after, take, ct);
         return Results.Ok(new
         {
-            items = await views.ManyAsync(feed.Items, ct),
+            items = await views.ManyAsync(feed.Items, ct, versions: feed.Versions),
             deleted = feed.Deleted,
             cursor = feed.Cursor,
             more = feed.More,
@@ -91,11 +92,27 @@ public static class ReportEndpoints
         CancellationToken ct) => ReportRefusals.RunAsync(async () =>
         await desk.ChangeAsync(ReportViewer.Own(await MeAsync(user, employees, ct)), id, body, request, ct));
 
-    /// <summary>Удалить свой черновик; <c>changeId</c> и <c>deviceTime</c> — в строке запроса (тела у DELETE нет).</summary>
+    /// <summary>
+    /// Удалить свой черновик; <c>changeId</c> и <c>deviceTime</c> — в строке запроса (тела у DELETE нет). Время
+    /// разбирается здесь, а не привязкой: незакодированный «+» смещения («+03:00») приходит в строке запроса пробелом,
+    /// и привязка отвечала бы 400 без слов.
+    /// </summary>
     private static Task<IResult> DeleteAsync(
-        Guid id, Guid? changeId, DateTimeOffset? deviceTime, HttpRequest request, IModuleUser user,
+        Guid id, Guid? changeId, string? deviceTime, HttpRequest request, IModuleUser user,
         IModuleEmployees employees, ReportDesk desk, CancellationToken ct) => ReportRefusals.RunAsync(async () =>
-        await desk.RemoveDraftAsync(ReportViewer.Own(await MeAsync(user, employees, ct)), id, changeId, deviceTime, request, ct));
+        await desk.RemoveDraftAsync(ReportViewer.Own(await MeAsync(user, employees, ct)), id, changeId,
+            DeviceTimeOf(deviceTime), request, ct));
+
+    /// <summary>Время устройства из строки запроса: ISO 8601; пробел на месте «+» смещения — тот же «+».</summary>
+    internal static DateTimeOffset? DeviceTimeOf(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var iso = text.Trim().Replace(' ', '+');
+        return DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at)
+            ? at
+            : throw new InvalidRequestException(
+                $"Время устройства (deviceTime) «{text}» не разобрано: ожидается ISO 8601, например 2026-11-16T18:00:00+03:00.");
+    }
 
     /// <summary>
     /// Сотрудник учётной записи. Справочника нет — 409 <c>directory-missing</c>; не связана — 403 с причиной. Различить
@@ -103,8 +120,9 @@ public static class ReportEndpoints
     /// </summary>
     internal static async Task<Guid> MeAsync(IModuleUser user, IModuleEmployees employees, CancellationToken ct)
     {
-        if (user.Id is { } userId && await employees.OfAccountAsync(userId, ct) is { } me) return me.Id;
-        if (await employees.GetAsync([], ct) is null) throw new WorkDirectoryMissingException(IModuleEmployees.NotSetUp);
+        var (me, reason) = await WorkAccounts.OfUserAsync(user, employees, ct);
+        if (me is not null) return me.Id;
+        if (reason == IModuleEmployees.NotSetUpCode) throw new WorkDirectoryMissingException(IModuleEmployees.NotSetUp);
         throw new ForbiddenException(NotLinked);
     }
 }
