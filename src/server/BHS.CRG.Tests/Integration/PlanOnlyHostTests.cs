@@ -101,13 +101,15 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Fact]
     public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database() =>
-        // Три из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
-        // вместе с первым адресом, который оно открывает; сметы — первая дверь модуля, себестоимость
-        // закрывает модель сметы (06). Остальные приходят своими change (offer — 13, pricelist — 14,
-        // календарь и графики — 18, права контракта — 23). Список назван здесь нарочно: право, добавленное
-        // без своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
+        // Шесть из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
+        // вместе с первым адресом или контрактом, который оно открывает; сметы — первая дверь модуля,
+        // себестоимость закрывает модель сметы (06), права контракта — части «Плановых работ» (23). Остальные
+        // приходят своими change (offer — 13, pricelist — 14, календарь и графики — 18). Список назван здесь
+        // нарочно: право, добавленное без своего change, обязано столкнуться с этой строкой и с объяснением
+        // рядом с ней.
         await ModuleOnlyChecks.DeclaredAndStoredAsync(host, PlanModule.ModuleCode,
-            [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead], "id", "costs", "work");
+            [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint, PlanModule.EstimateMaterials,
+             PlanModule.EstimateRead, PlanModule.LaborRead], "id", "costs", "work");
 
     /// <summary>
     /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
@@ -125,6 +127,11 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         {
             [PlanModule.EstimateCost] =
                 "не дверь, а часть ответа: без права ответы смет и строк идут без денег (plan-06, PLAN-11)",
+            // Права контракта двери не открывают по построению (AUTH-8.1): их «дверь» — часть ответа контракта
+            // «Плановые работы» в модуле-потребителе (plan-23).
+            [PlanModule.EstimateMaterials] = "право контракта: часть materials «Плановых работ» (plan-23)",
+            [PlanModule.LaborRead] = "право контракта: часть labor «Плановых работ» (plan-23)",
+            [PlanModule.EstimateHint] = "право контракта: часть hint «Плановых работ» (plan-23)",
         });
 
     /// <summary>
@@ -139,14 +146,13 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     ///   <item>«Администратор» — всё объявленное, на экземпляре с <c>plan</c> — и права <c>plan</c>.</item>
     ///   <item>«Сметчик» — сметы с себестоимостью (<c>plan.estimate.cost</c>, <c>plan-06</c>); ни одного
     ///   <c>plan.offer.*</c>: без права на КП он не видит цен продажи (PLAN-2).</item>
-    ///   <item>«Менеджер проекта» — только чтение смет, БЕЗ себестоимости (решение В-1, PLAN-Q9): КП,
-    ///   прайс-лист и графики объявят свои change.</item>
-    ///   <item>«Руководитель» — чтение смет с деньгами через «читать всё» (D12 зонтика); правка в него не
-    ///   входит.</item>
-    ///   <item>«Инженер ИД», «Бухгалтер», «Монтажник», «Снабженец» — модуля нет. У монтажника и
-    ///   снабженца в составе стоят права контракта (<c>plan.estimate.hint</c>,
-    ///   <c>plan.estimate.materials</c>) — они ещё не объявлены и пропускаются; модуль им не откроют и
-    ///   после объявления (AUTH-8.1, <c>plan-21</c>).</item>
+    ///   <item>«Менеджер проекта» — чтение смет, БЕЗ себестоимости (решение В-1, PLAN-Q9), и право контракта
+    ///   <c>plan.labor.read</c> (<c>plan-23</c>, WORK-57); КП, прайс-лист и графики объявят свои change.</item>
+    ///   <item>«Руководитель» — чтение смет с деньгами через «читать всё» (D12 зонтика); правка и права
+    ///   контракта (<c>ReadAllMark.Out</c>) в него не входят.</item>
+    ///   <item>«Инженер ИД», «Бухгалтер» — модуля и прав нет.</item>
+    ///   <item>«Монтажник» и «Снабженец» — модуля нет, а права контракта есть: <c>plan.estimate.hint</c> и
+    ///   <c>plan.estimate.materials</c> (<c>plan-23</c>). Модуль они не открывают (AUTH-8.1, <c>plan-21</c>).</item>
     /// </list>
     ///
     /// <para>Что ворота <c>/api/plan</c> закрыты ролям без прав модуля, проверяет первый адрес под ними —
@@ -154,14 +160,15 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// правилом (<c>ModuleAccess</c>), это сверяет <c>AccountAccessTests.Module_flag_matches_the_module_gate</c>.</para>
     /// </summary>
     [Theory]
-    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
+    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint,
+        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead)]
     [InlineData("Estimator", true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
-    [InlineData("ProjectManager", true, PlanModule.EstimateRead)]
+    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead)]
     [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("Accountant", false)]
-    [InlineData("Installer", false)]
-    [InlineData("Supplier", false)]
+    [InlineData("Installer", false, PlanModule.EstimateHint)]
+    [InlineData("Supplier", false, PlanModule.EstimateMaterials)]
     [InlineData("WorksManager", false)]
     public async Task System_roles_get_exactly_their_plan_permissions(string role, bool opens, params string[] expected) =>
         // Точное равенство — оно же и «у сметчика ни одного plan.offer.*»: лишний код здесь не прошёл бы.
@@ -172,11 +179,9 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// из прав <c>plan</c> в составе только они, не получает ни признака модуля, ни его ворот.
     ///
     /// <para>Роли отбираются по СОСТАВУ в <c>SystemRoles</c>, а не по ответу доступа, — нарочно (ревью
-    /// PR #1580). Сегодня права контракта ещё не объявлены, и «Монтажник» со «Снабженцем» модуля не
-    /// получают просто потому, что получать нечего. Объявит их <c>plan-23</c>; признак права контракта,
-    /// без которого любое <c>plan.*</c> открывает модуль (<c>ModuleAccess.IsOpen</c>), строит <c>plan-21</c>.
-    /// Если порядок перепутают, этот тест покраснеет сам — не дожидаясь, пока кто-то поправит ожидания в
-    /// таблице ролей выше.</para>
+    /// PR #1580). Права контракта объявлены (<c>plan-23</c>), и право в ответе доступа у роли есть — а модуля
+    /// нет: признак права контракта (<c>plan-21</c>) не даёт <c>ModuleAccess.IsOpen</c> открыть модуль по
+    /// началу кода. Закрыты и ворота: первый адрес модуля отвечает 403.</para>
     /// </summary>
     [Fact]
     public async Task Contract_rights_alone_do_not_open_the_module()
@@ -195,11 +200,15 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
 
         foreach (var role in contractOnly)
         {
-            var module = Assert.Single((await AccessAsync(await SignInAsync(role))).Modules,
-                m => m.Code == PlanModule.ModuleCode);
+            var client = await SignInAsync(role);
+            var access = await AccessAsync(client);
+            var module = Assert.Single(access.Modules, m => m.Code == PlanModule.ModuleCode);
             Assert.False(module.Available,
                 $"Роль «{role}» получила модуль plan, имея из его прав только права контракта. Признак права " +
                 "контракта (plan-21) обязан появиться раньше, чем права контракта объявят (plan-23).");
+            // Право объявлено и до роли дошло — иначе проверка выше была бы зелёной оттого, что проверять нечего.
+            Assert.Contains(access.Permissions, c => contract.Contains(c));
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/plan/estimates")).StatusCode);
         }
     }
 
