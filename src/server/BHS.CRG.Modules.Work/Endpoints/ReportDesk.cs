@@ -107,6 +107,8 @@ public sealed class ReportDesk(
             throw new InvalidRequestException("Идентификатор отчёта в теле (id) не совпадает с адресом.");
         var header = body.Header();
         var lines = body.LineValues();
+        // Автор — до транзакции: запрос к ядру не держит её открытой.
+        var actor = await ActorAsync(viewer, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
@@ -118,7 +120,7 @@ public sealed class ReportDesk(
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
 
-        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(report.EmployeeId, ct));
+        var executor = await ExecutorAsync(report.EmployeeId, ct);
         var before = ReportJournal.Capture(report);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         await writer.ChangeAsync(report, header, lines, seq, now, ct);
@@ -142,6 +144,7 @@ public sealed class ReportDesk(
         ReportViewer viewer, Guid id, Guid? changeId, DateTimeOffset? deviceTime, HttpRequest request, CancellationToken ct)
     {
         var seen = SeenVersions.Required(request, "отчёта");
+        var actor = await ActorAsync(viewer, ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         if (await reads.FindAsync(viewer, id, ct) is not { } report)
         {
@@ -154,7 +157,7 @@ public sealed class ReportDesk(
         if (report.Status != ReportStatus.Draft)
             throw new ConflictException("Удалить можно только черновик: поданный отчёт остаётся, его возвращают на правку.");
 
-        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(report.EmployeeId, ct));
+        var executor = await ExecutorAsync(report.EmployeeId, ct);
         var before = ReportJournal.Capture(report);
         // Что удалено — до удаления: каскад снимает строки с отчёта при сохранении.
         var removed = $"часы: {(report.Hours is { } h ? h.ToString("0.##", CultureInfo.InvariantCulture) : "—")}, строк: {report.Lines.Count}";

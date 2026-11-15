@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -102,6 +104,65 @@ public class ReportJournalAccessTests(AssignmentHost host) : IAsyncLifetime
         var entry = Assert.Single((await ReportWorld.JsonAsync(response)).GetProperty("items").EnumerateArray());
         Assert.Equal("Петров Пётр Петрович", entry.GetProperty("author").GetProperty("name").GetString());
         Assert.Equal(HttpStatusCode.NotFound, (await chief.GetAsync(Journal(draft))).StatusCode);
+    }
+
+    /// <summary>
+    /// Удалённый черновик журнал оставляет записью «удалён», и её читают те же, кто читал черновик: сотрудник отчёта и
+    /// автор ввода — 200; другой монтажник, другой менеджер той же стройки и руководитель — 404.
+    /// </summary>
+    [Fact]
+    public async Task Журнал_удалённого_черновика_читают_сотрудник_и_автор_ввода()
+    {
+        var (petrov, installer) = await world.InstallerAsync("Петров Пётр Петрович");
+        var (_, sidorov) = await world.InstallerAsync("Сидоров Семён Семёнович");
+        var (_, ivanov) = await world.ManagerAsync("Иванов Иван Иванович", world.SiteA);
+        var (_, kuznetsov) = await world.ManagerAsync("Кузнецов Кузьма Кузьмич", world.SiteA);
+        var (_, chief) = await world.Assignments.UserAsync("Руководитель", WorkModule.ReportRead);
+        var id = Guid.NewGuid();
+        Assert.Equal(HttpStatusCode.Created, (await ivanov.PostAsJsonAsync(EntryReportEndpoints.Path,
+            world.Draft(id, world.SiteA, employee: petrov))).StatusCode);
+        var version = (await ReportWorld.JsonAsync(await installer.GetAsync($"{ReportEndpoints.Path}/{id}")))
+            .GetProperty("version").GetString();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await ReportWorld.DeleteAsync(installer, $"{ReportEndpoints.Path}/{id}", version)).StatusCode);
+
+        foreach (var reader in new[] { installer, ivanov })
+        {
+            var response = await reader.GetAsync(Journal(id));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var kinds = (await ReportWorld.JsonAsync(response)).GetProperty("items").EnumerateArray()
+                .Select(e => e.GetProperty("kind").GetString()).ToList();
+            Assert.Equal(["created", "deleted"], kinds);
+        }
+        foreach (var stranger in new[] { sidorov, kuznetsov, chief })
+            Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync(Journal(id))).StatusCode);
+    }
+
+    /// <summary>
+    /// Права складываются: менеджер стройки А со своими отчётами читает журнал своего отчёта стройки Б, которой у
+    /// него нет в охвате менеджера.
+    /// </summary>
+    [Fact]
+    public async Task Менеджер_со_своими_отчётами_читает_свой_журнал_вне_своих_строек()
+    {
+        var (_, manager) = await world.ManagerAsync("Иванов Иван Иванович", world.SiteA, WorkModule.ReportOwn);
+        var onB = await CreateAsync(manager, world.SiteB);
+
+        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync(Journal(onB))).StatusCode);
+    }
+
+    /// <summary>
+    /// Свой сотрудник у читателя журнала расширяет чтение, а не запись: стройку вне охвата <c>Covers</c> не пускает —
+    /// иначе такой охват, попав в путь записи, перенёс бы отчёт на чужую стройку мимо отказа «не ваша стройка».
+    /// </summary>
+    [Fact]
+    public void Свой_сотрудник_у_широкого_охвата_не_открывает_запись_на_чужой_стройке()
+    {
+        var (site, other, me) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var viewer = ReportViewer.Of(ModuleReach.OfSites([site]), me);
+
+        Assert.True(viewer.Covers(site, me));
+        Assert.False(viewer.Covers(other, me));
     }
 
     /// <summary>Без прав модуля — отказ ворот, а не 404: адрес закрыт раньше, чем ищется отчёт.</summary>
