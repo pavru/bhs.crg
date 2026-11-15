@@ -19,7 +19,11 @@ public sealed record ReportViewer
 
     public ModuleReach Reach { get; }
 
-    /// <summary>Сотрудник читателя — только у охвата «свои».</summary>
+    /// <summary>
+    /// Сотрудник читателя. У охвата «свои» — чьи отчёты свои; у охвата шире — только у читателя журнала
+    /// (<see cref="Of" /> с <c>alsoOwn</c>): его отчёты видны и вне охвата строек. Пути записи сотрудник при широком
+    /// охвате не дают — <see cref="Covers" /> от него не расширяется.
+    /// </summary>
     public Guid? EmployeeId { get; }
 
     /// <summary>Свои отчёты сотрудника учётной записи.</summary>
@@ -28,8 +32,11 @@ public sealed record ReportViewer
     /// <summary>
     /// Отчёты охвата «стройки» или «все». Охват «свои» здесь без сотрудника — и потому не видит ничего: чьи отчёты
     /// «свои», знает только <see cref="Own" />.
+    ///
+    /// <para><paramref name="alsoOwn" /> — сотрудник читателя, чьи отчёты видны ему и вне охвата (журнал отчёта,
+    /// <c>work-14</c>): права складываются, и менеджер со своими отчётами видит и стройки, и свои.</para>
     /// </summary>
-    public static ReportViewer Of(ModuleReach reach) => new(reach, null);
+    public static ReportViewer Of(ModuleReach reach, Guid? alsoOwn = null) => new(reach, alsoOwn);
 
     /// <summary>Видна ли читателю запись стройки <paramref name="site" /> сотрудника <paramref name="employee" />.</summary>
     public bool Covers(Guid site, Guid employee) => Reach.Covers(site, own: EmployeeId == employee);
@@ -130,6 +137,53 @@ public sealed class ReportReads(WorkDbContext db)
             merged.Count > limit);
     }
 
+    /// <summary>
+    /// Журнал отчёта (ТЗ WORK-11, WORK-12, WORK-39, WORK-54; change <c>work-14-report-journal</c>), если отчёт виден
+    /// читателю, по номеру; невидимый и несуществующий — одинаково <c>null</c>. Черновик — отчёт без момента подачи —
+    /// виден только сотруднику отчёта и автору его ввода <paramref name="userId" />: содержимое черновика менеджер видит
+    /// после подачи. Статус здесь не годится: до <c>work-15</c> он у всех «черновик», и поданный отчёт им не назвать;
+    /// подача ставит статус и момент одной записью (<c>work-15</c>), и условия совпадают.
+    ///
+    /// <para><b>Удалённый черновик</b> журнал оставляет записью «удалён» (WORK-12), и прочесть её можно: удаляется только
+    /// черновик, поэтому и правило у него черновика — сотрудник отчёта и автор ввода, в охвате стройки и сотрудника из
+    /// записи протокола об удалении.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<ReportJournalEntry>?> JournalAsync(
+        ReportViewer viewer, Guid? userId, Guid id, CancellationToken ct)
+    {
+        var me = viewer.EmployeeId;
+        var live = await Visible(viewer).AsNoTracking().Where(r => r.Id == id)
+            .Select(r => new { r.SubmittedAt, r.EmployeeId, r.EnteredByUserId })
+            .FirstOrDefaultAsync(ct);
+        var readable = live is not null
+            ? live.SubmittedAt != null || live.EmployeeId == me || (userId != null && live.EnteredByUserId == userId)
+            : await DeletedDraftReadableAsync(viewer, userId, id, ct);
+        if (!readable) return null;
+        return await db.Set<ReportJournalEntry>().AsNoTracking()
+            .Where(e => e.ReportId == id).OrderBy(e => e.Seq).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Виден ли журнал удалённого черновика: стройка и сотрудник — из записи протокола об удалении, автор ввода — из
+    /// записи журнала о заведении (у отчёта, введённого за сотрудника, её автор и есть автор ввода).
+    /// </summary>
+    private async Task<bool> DeletedDraftReadableAsync(ReportViewer viewer, Guid? userId, Guid id, CancellationToken ct)
+    {
+        var gone = await db.Set<ReportChange>().AsNoTracking()
+            .Where(c => c.ReportId == id && c.Kind == ReportChangeKind.Deleted)
+            .OrderByDescending(c => c.Seq)
+            .Select(c => new { c.EmployeeId, c.ConstructionId })
+            .FirstOrDefaultAsync(ct);
+        if (gone is null) return false;
+        var me = viewer.EmployeeId;
+        var reached = viewer.Covers(gone.ConstructionId, gone.EmployeeId) || me == gone.EmployeeId;
+        if (!reached) return false;
+        if (me == gone.EmployeeId) return true;
+        if (userId is null) return false;
+        return await db.Set<ReportJournalEntry>().AsNoTracking()
+            .AnyAsync(e => e.ReportId == id && e.Kind == ReportJournalKinds.Created && e.EnteredFor && e.AuthorId == userId, ct);
+    }
+
     private IQueryable<Report> Visible(ReportViewer viewer)
     {
         var reports = db.Set<Report>();
@@ -142,7 +196,8 @@ public sealed class ReportReads(WorkDbContext db)
                 return reports.Where(r => r.EmployeeId == me);
             default:
                 var sites = viewer.Reach.Sites.ToArray();
-                return reports.Where(r => sites.Contains(r.ConstructionId));
+                var own = viewer.EmployeeId;
+                return reports.Where(r => sites.Contains(r.ConstructionId) || (own != null && r.EmployeeId == own));
         }
     }
 

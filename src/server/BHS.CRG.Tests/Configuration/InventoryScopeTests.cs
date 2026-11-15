@@ -78,6 +78,10 @@ public class InventoryScopeTests
             "сторож одного модуля: строки смет — таблица модуля планирования (plan-06)",
         ["BHS.CRG.Tests/Configuration/AssignmentGateInventoryTests.cs"] =
             "сторож одного модуля: ворота стройки назначений — адреса модуля учёта работ (work-11)",
+        ["BHS.CRG.Tests/Configuration/WorkJournalInventoryTests.cs"] =
+            "сторож одного модуля: журнал отчёта монтажника — таблица модуля учёта работ (work-14)",
+        ["BHS.CRG.Tests/Configuration/WorkJournalWritePathTests.cs"] =
+            "сторож одного модуля: запись мимо отслеживания по журналу отчёта модуля учёта работ (work-14)",
     };
 
     /// <summary>

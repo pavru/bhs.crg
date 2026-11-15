@@ -38,6 +38,7 @@ internal static class WorkReportModel
         report.Property(r => r.UpdatedAt).HasColumnName("updated_at");
         report.Property(r => r.EnteredByUserId).HasColumnName("entered_by_user_id");
         report.Property(r => r.EnteredByName).HasColumnName("entered_by_name").HasMaxLength(256);
+        report.Property(r => r.SubmittedAt).HasColumnName("submitted_at");
         report.Property<uint>(rowVersion).IsRowVersion();
         report.ToTable(t =>
         {
@@ -116,5 +117,26 @@ internal static class WorkReportModel
         // Курсор «свои изменения после N» (ТЗ MOB-16).
         change.HasIndex(c => new { c.EmployeeId, c.Seq }).HasDatabaseName("ix_report_changes_employee");
         change.HasIndex(c => new { c.ConstructionId, c.Seq }).HasDatabaseName("ix_report_changes_site");
+
+        // Журнал отчёта (work-14): только дописывается, ссылка на отчёт — без внешнего ключа, как у протокола.
+        var journal = builder.Entity<ReportJournalEntry>();
+        journal.ToTable("report_journal");
+        journal.HasKey(e => e.Id);
+        journal.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+        journal.Property(e => e.ReportId).HasColumnName("report_id");
+        journal.Property(e => e.ChangeId).HasColumnName("change_id");
+        journal.Property(e => e.Seq).HasColumnName("seq");
+        journal.Property(e => e.Kind).HasColumnName("kind").HasMaxLength(32);
+        journal.Property(e => e.AuthorId).HasColumnName("author_id");
+        journal.Property(e => e.AuthorName).HasColumnName("author_name").HasMaxLength(256);
+        journal.Property(e => e.ExecutorEmployeeId).HasColumnName("executor_employee_id");
+        journal.Property(e => e.ExecutorName).HasColumnName("executor_name").HasMaxLength(256);
+        journal.Property(e => e.EnteredFor).HasColumnName("entered_for");
+        journal.Property(e => e.DeviceTime).HasColumnName("device_time");
+        journal.Property(e => e.ServerTime).HasColumnName("server_time");
+        journal.Property(e => e.AfterSubmission).HasColumnName("after_submission");
+        journal.Property(e => e.Changes).HasColumnName("changes").HasColumnType("jsonb");
+        // Журнал одного отчёта по номеру — адрес чтения; одна запись на номер — как у протокола.
+        journal.HasIndex(e => new { e.ReportId, e.Seq }).IsUnique().HasDatabaseName("ux_report_journal_report_seq");
     }
 }

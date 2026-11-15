@@ -4,7 +4,7 @@ namespace BHS.CRG.Modules.Work;
 
 /// <summary>
 /// Колонки модуля, в которых лежат идентификаторы записей ядра (ТЗ CORE-34.1; changes <c>work-11-assignments</c>,
-/// <c>work-13-report-model</c>).
+/// <c>work-13-report-model</c>, <c>work-14-report-journal</c>).
 ///
 /// <para>Список — не то, чем ядро НАХОДИТ держателей: оно сканирует схему само, и колонка, забытая здесь,
 /// удержит запись всё равно. Отсюда берутся слова отказа («Учёт работ: назначения — 3») вместо адреса
@@ -57,5 +57,18 @@ public static class WorkReferences
         // Автор ввода за сотрудника (WORK-31): имя хранится снимком рядом, удаление учётной записи отчёта не касается.
         ModuleReference.Remembering("reports", "entered_by_user_id", ReferenceTarget.User,
             "кто ввёл отчёт за сотрудника — справочное поле с именем снимком; удаление учётной записи отчёта не касается"),
+
+        // Журнал отчёта (work-14) — свидетельство, а не держатель: только дописывается, имена — снимком, и после
+        // удаления черновика или записи ядра запись остаётся такой, какой была (WORK-12). Держит записи сам отчёт.
+        ModuleReference.Remembering("report_journal", "report_id", target: null,
+            "свой отчёт модуля; удалённый черновик остаётся в журнале записью «удалён»"),
+        ModuleReference.Remembering("report_journal", "change_id", target: null,
+            "идентификатор изменения от клиента — тот же, что у протокола, а не ссылка"),
+        ModuleReference.Remembering("report_journal", "author_id", ReferenceTarget.User,
+            "автор записи журнала — с именем снимком; удаление учётной записи журнал не меняет"),
+        ModuleReference.Remembering("report_journal", "executor_employee_id", ReferenceTarget.Record,
+            "исполнитель — сотрудник отчёта с именем снимком; держит сотрудника сам отчёт"),
+        ModuleReference.Remembering("report_journal", "changes", target: null,
+            "прежние и новые значения изменённых полей — снимок, а не ссылки; действующие ссылки держат отчёт и строки"),
     ];
 }

@@ -73,9 +73,9 @@ public sealed class WorkModule : IAppModule
     /// Объявленное раньше, право было бы галкой, которая не делает ничего, — а «Инженер ИД» с одним
     /// <c>work.facts.read</c> до признака права контракта у него получил бы пустой модуль.</para>
     ///
-    /// <para>Двери есть у трёх: назначения (<c>work.assignment.edit</c>, <c>work-11</c>), свои отчёты
-    /// (<c>work.report.own</c>) и ввод за сотрудника (<c>work.report.review</c>, <c>work-13</c>); чтение всех отчётов
-    /// придёт с <c>work-16</c>. Объявлены права в каркасе нарочно, как у <c>plan</c>: составы ролей проверяются на живых
+    /// <para>Двери есть у четырёх: назначения (<c>work.assignment.edit</c>, <c>work-11</c>), свои отчёты
+    /// (<c>work.report.own</c>) и ввод за сотрудника (<c>work.report.review</c>, <c>work-13</c>), чтение всех отчётов
+    /// (<c>work.report.read</c>) — журнал отчёта (<c>work-14</c>); остальное чтение придёт с <c>work-16</c>. Объявлены права в каркасе нарочно, как у <c>plan</c>: составы ролей проверяются на живых
     /// правах сразу. Права без двери названы поимённо в <c>WorkOnlyHostTests</c>, и запись уходит оттуда, как
     /// только дверь появится.</para>
     ///
@@ -167,6 +167,7 @@ public sealed class WorkModule : IAppModule
         services.AddDbContext<WorkDbContext>(options =>
             WorkDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
         services.AddSingleton<IModuleActivityActions, AssignmentActions>();
+        services.AddSingleton<IModuleActivityActions, ReportActions>();
         services.AddScoped<ManagerSites>();
         services.AddScoped<AssignmentGate>();
         services.AddScoped<WorkPlanItemLink>();
@@ -174,6 +175,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReads>();
         services.AddScoped<ReportWriter>();
         services.AddScoped<ReportViews>();
+        services.AddScoped<ReportJournal>();
         services.AddScoped<ReportDesk>();
     }
 
@@ -187,7 +189,8 @@ public sealed class WorkModule : IAppModule
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
     /// самим фактом регистрации — права же на нём названы поимённо: доступ к модулю и право на назначения —
-    /// разные вещи. Назначения и «мои стройки» (<c>work-11</c>), свои отчёты и ввод за сотрудника (<c>work-13</c>).
+    /// разные вещи. Назначения и «мои стройки» (<c>work-11</c>), свои отчёты и ввод за сотрудника (<c>work-13</c>),
+    /// журнал отчёта (<c>work-14</c>).
     /// </summary>
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -195,6 +198,7 @@ public sealed class WorkModule : IAppModule
         MySitesEndpoint.Map(endpoints);
         ReportEndpoints.Map(endpoints);
         EntryReportEndpoints.Map(endpoints);
+        ReportJournalEndpoint.Map(endpoints);
     }
 
     /// <summary>

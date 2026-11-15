@@ -67,11 +67,11 @@ internal sealed class ReportWorld(AssignmentHost host)
 
     /// <summary>Тело черновика: шапка и (по желанию) одна строка.</summary>
     public object Draft(Guid id, Guid site, decimal? hours = 8m, bool line = true, string date = Day16, Guid? employee = null,
-        Guid? changeId = null, string? deviceTime = null, string shift = "day") => new
+        Guid? changeId = null, string? deviceTime = null, string shift = "day", Guid? lineId = null, decimal volume = 120m) => new
     {
         id, employeeId = employee, constructionId = site, date, shift, hours, changeId, deviceTime,
         lines = line
-            ? new object[] { new { id = Guid.NewGuid(), workTypeId = WorkType, volume = 120m, unitId = Unit, location = "оси 3–4" } }
+            ? new object[] { new { id = lineId ?? Guid.NewGuid(), workTypeId = WorkType, volume, unitId = Unit, location = "оси 3–4" } }
             : [],
     };
 
