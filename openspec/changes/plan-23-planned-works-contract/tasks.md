@@ -36,7 +36,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PlannedWorks|FullyQualifiedName~ModuleContract|FullyQualifiedName~AccountAccess|FullyQualifiedName~PlanOnlyHost|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~PlanRowsInventory|FullyQualifiedName~CostsOnlyHost"` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PlannedWorks|FullyQualifiedName~ModuleContract|FullyQualifiedName~AccountAccess|FullyQualifiedName~PlanOnlyHost|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~PlanRowsInventory|FullyQualifiedName~CostsOnlyHost"` — зелёный
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
