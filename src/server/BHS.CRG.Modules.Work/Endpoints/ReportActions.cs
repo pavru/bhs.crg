@@ -5,8 +5,8 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 
 /// <summary>
 /// Действия журнала ядра об отчётах (ТЗ CORE-28; change <c>work-14-report-journal</c>) — дубль ключевых действий:
-/// удаление черновика и правка после подачи. Свидетельство само по себе лежит в журнале отчёта (одной транзакцией с
-/// правкой); журнал ядра пишется после фиксации и сбоем правку не откатывает.
+/// удаление черновика, правка после подачи и прогон автоподачи (<c>work-15</c>). Свидетельство само по себе лежит в
+/// журнале отчёта (одной транзакцией с правкой); журнал ядра пишется после фиксации и сбоем правку не откатывает.
 ///
 /// <para><b>Право чтения — <c>work.report.read</c></b>: запись называет сотрудника, стройку, дату и смену отчёта любой
 /// стройки, а видеть отчёты всех строек — это право «читать отчёты всех строек». Без него хватало бы открытого модуля,
@@ -20,7 +20,14 @@ public sealed class ReportActions : IModuleActivityActions
     public static readonly ModuleActivityAction EditedAfterSubmission =
         new("work.report.edited-after-submission", "Отчёт изменён после подачи", WorkModule.ReportRead);
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [Deleted, EditedAfterSubmission];
+    /// <summary>
+    /// Прогон автоподачи (ТЗ WORK-41, CORE-28; <c>work-15</c>) — одна запись на прогон с числом поданных, без цели:
+    /// каждый поданный отчёт назван в своём журнале записью «подан автоматически».
+    /// </summary>
+    public static readonly ModuleActivityAction AutoSubmitted =
+        new("work.report.auto-submitted", "Отчёты поданы автоматически", WorkModule.ReportRead);
+
+    public IReadOnlyList<ModuleActivityAction> Actions => [Deleted, EditedAfterSubmission, AutoSubmitted];
 
     /// <summary>Цель записи: «Петров П. П. — Стройка А, 16.11.2026, день».</summary>
     public static string Label(string employee, string site, Report report) =>

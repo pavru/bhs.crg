@@ -11,7 +11,7 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// <summary>
 /// Свои отчёты монтажника (ТЗ WORK-4, WORK-39, MOB-15, MOB-16, MOB-17, MOB-21, AUTH-8, AUTH-9; change
 /// <c>work-13-report-model</c>): <c>GET /api/work/reports?since=&amp;limit=</c>, <c>POST</c>, и <c>GET</c>, <c>PUT</c>,
-/// <c>DELETE /api/work/reports/{id}</c>.
+/// <c>DELETE /api/work/reports/{id}</c>, подача — <c>POST /api/work/reports/{id}/submit</c> (<c>work-15</c>).
 ///
 /// <para><b>Ворота.</b> Группа модуля закрыта воротами <c>module:work</c>, эта группа — правом
 /// <c>work.report.own</c>.</para>
@@ -43,7 +43,14 @@ public static class ReportEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
         group.MapDelete("/{id:guid}", DeleteAsync);
+        group.MapPost("/{id:guid}/submit", SubmitAsync);
     }
+
+    /// <summary>Подать свой отчёт (ТЗ WORK-10, <c>work-15</c>): <c>If-Match</c>, тело — по желанию.</summary>
+    private static Task<IResult> SubmitAsync(
+        Guid id, SubmitRequest? body, HttpRequest request, IModuleUser user, IModuleEmployees employees, ReportDesk desk,
+        CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+        await desk.SubmitAsync(ReportViewer.Own(await MeAsync(user, employees, ct)), id, body, request, ct));
 
     /// <summary>Свои отчёты, изменённые после <c>since</c>, удалённые с тех пор черновики и курсор (ТЗ MOB-16).</summary>
     private static Task<IResult> ListAsync(

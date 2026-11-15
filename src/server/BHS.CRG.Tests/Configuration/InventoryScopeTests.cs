@@ -82,6 +82,8 @@ public class InventoryScopeTests
             "сторож одного модуля: журнал отчёта монтажника — таблица модуля учёта работ (work-14)",
         ["BHS.CRG.Tests/Configuration/WorkJournalWritePathTests.cs"] =
             "сторож одного модуля: запись мимо отслеживания по журналу отчёта модуля учёта работ (work-14)",
+        ["BHS.CRG.Tests/Work/SubmissionCasesTests.cs"] =
+            "не сторож, а чтение файла примеров: окно подачи — правило модуля учёта работ, и файл лежит рядом с ним (work-15)",
     };
 
     /// <summary>

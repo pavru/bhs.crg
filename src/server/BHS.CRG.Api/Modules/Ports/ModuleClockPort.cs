@@ -29,6 +29,8 @@ public sealed class ModuleClockPort(
     public async Task<DateOnly> TodayAsync(CancellationToken ct = default) =>
         SiteZones.DateOf(await CompanyAsync(ct), time.GetUtcNow());
 
+    public DateTimeOffset UtcNow() => time.GetUtcNow();
+
     public Task<DateOnly?> TodayOnSiteAsync(Guid constructionId, CancellationToken ct = default) =>
         SiteDateOfAsync(constructionId, time.GetUtcNow(), ct);
 

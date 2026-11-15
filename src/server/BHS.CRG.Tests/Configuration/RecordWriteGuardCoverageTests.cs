@@ -107,11 +107,12 @@ public class RecordWriteGuardCoverageTests
                       "впервые — охрана как создание"),
         ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|else was.ApplyLine(i, line, items[line.Id]);"] =
             (Guarded, "правка строки отчёта монтажника: сведения сверяются с лежащими"),
-        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|Report.Create(id, employeeId, h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);"] =
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|Report.Create(id, employeeId, h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now,"] =
             (Free, "шапка отчёта — колонки закрытого типа «Отчёт монтажника»: данных по схеме у неё нет, охране сверять " +
                    "нечего; новые ссылки на архив проверяет ReportReferenceCheck"),
-        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|report.ChangeHeader(h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);"] =
-            (Free, "правка шапки отчёта — те же колонки закрытого типа, данных по схеме нет"),
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|report.ChangeHeader(h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now,"] =
+            (Free, "правка шапки отчёта — те же колонки закрытого типа, данных по схеме нет; окно подачи (work-15) — " +
+                   "производное даты, смены и пояса стройки"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
             (Free, "перенос ключа поля и починка аудита: их работа и есть трогать кривые данные; " +
                    "охрана сделала бы битую запись непочинимой, а правку схемы — обрывающейся на середине"),

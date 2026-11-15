@@ -10,10 +10,23 @@ public enum ReportShift
     Night,
 }
 
-/// <summary>Состояние отчёта. Пока одно — черновик; подача и приёмка приходят с <c>work-15</c> и <c>work-16</c>.</summary>
+/// <summary>
+/// Состояние отчёта (ТЗ WORK-9): черновик → подан → принят либо возвращён, и возвращённый снова подаётся. Подачу
+/// приносит <c>work-15</c>, приёмку и возврат — <c>work-16</c>.
+/// </summary>
 public enum ReportStatus
 {
     Draft,
+    Submitted,
+    Accepted,
+    Returned,
+}
+
+/// <summary>Кто подал отчёт (ТЗ WORK-10, WORK-54): человек или автоподача по концу окна.</summary>
+public enum ReportSubmitter
+{
+    Manual,
+    Auto,
 }
 
 /// <summary>
@@ -91,12 +104,28 @@ public sealed class Report : IIsolatedRecord
     /// </summary>
     public DateTimeOffset? SubmittedAt { get; private set; }
 
+    /// <summary>
+    /// Конец окна подачи — мгновение (ТЗ WORK-52, <c>work-15</c>): считается правилом
+    /// <see cref="Submission.SubmissionWindow" /> при заведении и при смене даты, смены или стройки и записывается.
+    /// Смена пояса стройки задним числом его не двигает.
+    /// </summary>
+    public DateTimeOffset WindowEndsAt { get; private set; }
+
+    /// <summary>Кто подал: человек или автоподача; <c>null</c> — отчёт не подавался.</summary>
+    public ReportSubmitter? SubmittedBy { get; private set; }
+
+    /// <summary>
+    /// Что не заполнено к автоподаче (ТЗ WORK-6, WORK-10) — JSON-массив <c>[{ line, lineId, field }]</c>; <c>null</c> —
+    /// всё заполнено или подал человек (ручная подача без обязательных полей не проходит).
+    /// </summary>
+    public string? RequiredMissing { get; private set; }
+
     /// <summary>Строки работ в порядке ввода (<see cref="ReportLine.Position" />).</summary>
     public List<ReportLine> Lines { get; private set; } = [];
 
     public static Report Create(
         Guid id, Guid employeeId, Guid constructionId, DateOnly date, ReportShift shift, decimal? hours,
-        string? note, long seq, DateTimeOffset now)
+        string? note, long seq, DateTimeOffset now, DateTimeOffset windowEndsAt)
     {
         if (id == Guid.Empty) throw new InvalidRequestException("Не назван идентификатор отчёта (id): его создаёт клиент.");
         if (constructionId == Guid.Empty) throw new InvalidRequestException(ReportRules.NoSite);
@@ -105,6 +134,7 @@ public sealed class Report : IIsolatedRecord
         {
             Id = id, EmployeeId = employeeId, ConstructionId = constructionId, Date = date, Shift = shift,
             Hours = hours, Status = ReportStatus.Draft, Note = ReportRules.Text(note), Seq = seq, CreatedAt = now, UpdatedAt = now,
+            WindowEndsAt = windowEndsAt.ToUniversalTime(),
         };
     }
 
@@ -115,16 +145,65 @@ public sealed class Report : IIsolatedRecord
         EnteredByName = string.IsNullOrWhiteSpace(name) ? userId.ToString() : name.Trim();
     }
 
-    /// <summary>Правка шапки: стройка, дата, смена, часы и примечание. Сотрудник не меняется — это другой отчёт.</summary>
-    public void ChangeHeader(Guid constructionId, DateOnly date, ReportShift shift, decimal? hours, string? note, long seq, DateTimeOffset now)
+    /// <summary>Отказ сменить ключ поданного или принятого отчёта (ТЗ MOB-35).</summary>
+    public const string KeyLocked =
+        "Дату, смену и стройку поданного отчёта меняет только возврат на правку: после подачи ключ отчёта не меняется.";
+
+    /// <summary>Сменятся ли этой правкой дата, смена или стройка — ключ отчёта и основа окна подачи.</summary>
+    public bool KeyChanges(Guid constructionId, DateOnly date, ReportShift shift) =>
+        constructionId != ConstructionId || date != Date || shift != Shift;
+
+    /// <summary>Ключ отчёта меняется только у черновика и возвращённого (ТЗ MOB-35, WORK-9).</summary>
+    public bool KeyEditable() => Status is ReportStatus.Draft or ReportStatus.Returned;
+
+    /// <summary>
+    /// Правка шапки: стройка, дата, смена, часы и примечание. Сотрудник не меняется — это другой отчёт.
+    /// <paramref name="windowEndsAt" /> — конец окна по новому ключу; записывается, только если ключ сменился: правка
+    /// часов окна не трогает, и пояс, исправленный задним числом, тоже (ТЗ WORK-52).
+    /// </summary>
+    public void ChangeHeader(
+        Guid constructionId, DateOnly date, ReportShift shift, decimal? hours, string? note, long seq, DateTimeOffset now,
+        DateTimeOffset windowEndsAt)
     {
         if (constructionId == Guid.Empty) throw new InvalidRequestException(ReportRules.NoSite);
         ReportRules.EnsureHours(hours);
+        if (KeyChanges(constructionId, date, shift))
+        {
+            if (!KeyEditable()) throw new ConflictException(KeyLocked);
+            WindowEndsAt = windowEndsAt.ToUniversalTime();
+        }
         ConstructionId = constructionId;
         Date = date;
         Shift = shift;
         Hours = hours;
         Note = ReportRules.Text(note);
+        Touch(seq, now);
+    }
+
+    /// <summary>
+    /// Отказ перехода «подан» (ТЗ WORK-9) с названием текущего статуса; <c>null</c> — подать можно. Поданный здесь
+    /// отказом не назван: повтор подачи отвечает 200 <c>alreadySubmitted</c>, и решает это адрес.
+    /// </summary>
+    public string? SubmitRefusal() => Status switch
+    {
+        ReportStatus.Draft or ReportStatus.Returned => null,
+        ReportStatus.Accepted => "Отчёт уже принят: подавать его снова нечего.",
+        _ => "Отчёт уже подан.",
+    };
+
+    /// <summary>
+    /// Подать отчёт (ТЗ WORK-9, WORK-10): статус, момент подачи и кто подал — одной записью, чтобы «черновик» по статусу
+    /// (удаление) и по моменту (журнал, <c>work-14</c>) не разошлись. Повторная подача возвращённого пишет новый
+    /// момент.
+    /// </summary>
+    /// <param name="requiredMissing">Незаполненное к автоподаче — JSON-массив; у ручной подачи <c>null</c>.</param>
+    public void Submit(DateTimeOffset at, ReportSubmitter by, string? requiredMissing, long seq, DateTimeOffset now)
+    {
+        if (SubmitRefusal() is { } refusal) throw new ConflictException(refusal);
+        Status = ReportStatus.Submitted;
+        SubmittedAt = at.ToUniversalTime();
+        SubmittedBy = by;
+        RequiredMissing = requiredMissing;
         Touch(seq, now);
     }
 
@@ -138,8 +217,14 @@ public sealed class Report : IIsolatedRecord
     /// <summary>Смена кодом ответа: <c>day</c> | <c>night</c>.</summary>
     public static string ShiftCode(ReportShift shift) => shift == ReportShift.Night ? "night" : "day";
 
-    /// <summary>Состояние кодом ответа и колонки: <c>draft</c>. Тот же вид пишет база (<c>HasConversion</c>).</summary>
+    /// <summary>
+    /// Состояние кодом ответа и колонки: <c>draft</c> | <c>submitted</c> | <c>accepted</c> | <c>returned</c>. Тот же вид
+    /// пишет база (<c>HasConversion</c>).
+    /// </summary>
     public static string StatusCode(ReportStatus status) => status.ToString().ToLowerInvariant();
+
+    /// <summary>Кто подал кодом ответа и колонки: <c>manual</c> | <c>auto</c>.</summary>
+    public static string SubmitterCode(ReportSubmitter by) => by.ToString().ToLowerInvariant();
 
     /// <summary>Разобрать смену из запроса: не названа — дневная (ТЗ MOB-35), неизвестная — отказ с названием поля.</summary>
     public static ReportShift ParseShift(string? code) => code?.Trim().ToLowerInvariant() switch

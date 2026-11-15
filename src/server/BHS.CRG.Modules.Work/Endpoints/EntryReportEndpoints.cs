@@ -10,7 +10,8 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 
 /// <summary>
 /// Ввод отчёта за сотрудника (ТЗ WORK-31, WORK-2, AUTH-8, AUTH-9; change <c>work-13-report-model</c>): <c>POST
-/// /api/work/entry/reports</c>, <c>GET</c> и <c>PUT /api/work/entry/reports/{id}</c> — для сотрудника без смартфона.
+/// /api/work/entry/reports</c>, <c>GET</c> и <c>PUT /api/work/entry/reports/{id}</c>, подача — <c>POST …/{id}/submit</c> (<c>work-15</c>) — для
+/// сотрудника без смартфона.
 ///
 /// <para><b>Отдельная группа, а не флаг у своих отчётов</b>: право и охват у них разные — здесь
 /// <c>work.report.review</c> и стройки менеджера (<see cref="ManagerSites.ReachAsync" />; с <c>work.sites.all</c> —
@@ -34,7 +35,17 @@ public static class EntryReportEndpoints
         group.MapPost("", CreateAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
+        group.MapPost("/{id:guid}/submit", SubmitAsync);
     }
+
+    /// <summary>
+    /// Подать отчёт, введённый за сотрудника (ТЗ WORK-31, <c>work-15</c>): тот же переход и те же правила окна и
+    /// обязательности, что у своих отчётов, охват — стройки менеджера.
+    /// </summary>
+    private static Task<IResult> SubmitAsync(
+        Guid id, SubmitRequest? body, HttpRequest request, IModuleReaders readers, ManagerSites sites, ReportDesk desk,
+        CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+        await desk.SubmitAsync(await ViewerAsync(readers, sites, ct), id, body, request, ct));
 
     private static Task<IResult> CreateAsync(
         ReportRequest body, IModuleUser user, IModuleReaders readers, ManagerSites sites, IModuleEmployees employees,

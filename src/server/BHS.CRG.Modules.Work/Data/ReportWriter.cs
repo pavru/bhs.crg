@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Submission;
 
 namespace BHS.CRG.Modules.Work.Data;
 
@@ -58,7 +59,7 @@ public sealed class ReportWriter(
             [.. ReportReferenceCheck.OfHeader(employeeId, header.ConstructionId), .. LineReferences(lines)], ct);
         await EnsureFreeAsync(reportId, employeeId, header, lines, ct);
 
-        var report = NewReport(reportId, employeeId, header, seq, now);
+        var report = NewReport(reportId, employeeId, header, seq, now, site);
         await PlaceLinesAsync(report, site, storedSite: site.Id, lines, ct);
         db.Add(report);
         return report;
@@ -72,6 +73,9 @@ public sealed class ReportWriter(
         Report report, ReportHeaderValues header, IReadOnlyList<ReportLineValues> lines, long seq, DateTimeOffset now,
         CancellationToken ct)
     {
+        // Ключ поданного не меняется (ТЗ MOB-35) — до всего, что оставляет след в ядре.
+        if (report.KeyChanges(header.ConstructionId, header.Date, header.Shift) && !report.KeyEditable())
+            throw new ConflictException(Report.KeyLocked);
         var site = await CheckAsync(header, lines, ct);
         await references.EnsureAsync(
             [.. ReportReferenceCheck.OfHeader(report.EmployeeId, report.ConstructionId), .. report.Lines.SelectMany(ReportReferenceCheck.OfLine)],
@@ -81,15 +85,19 @@ public sealed class ReportWriter(
         // Ключи лежащих строк — на ПРЕЖНЕЙ стройке: отчёт, перенесённый на другую, меняет ключ каждой строки.
         var storedSite = report.ConstructionId;
         await PlaceLinesAsync(report, site, storedSite, lines, ct);
-        ChangeHeader(report, header, seq, now);
+        ChangeHeader(report, header, seq, now, site);
     }
 
-    // Шапка — колонки закрытого типа: данных по схеме у неё нет, охране сверять нечего (перепись: Free).
-    private static Report NewReport(Guid id, Guid employeeId, ReportHeaderValues h, long seq, DateTimeOffset now) =>
-        Report.Create(id, employeeId, h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);
+    // Шапка — колонки закрытого типа: данных по схеме у неё нет, охране сверять нечего (перепись: Free). Конец окна
+    // подачи — по поясу стройки отчёта (ТЗ WORK-52): стройка в другом поясе со старым окном подала бы по чужим суткам.
+    private static Report NewReport(
+        Guid id, Guid employeeId, ReportHeaderValues h, long seq, DateTimeOffset now, ModuleConstruction site) =>
+        Report.Create(id, employeeId, h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now,
+            SubmissionWindow.EndsAt(site.TimeZoneId, h.Date, h.Shift));
 
-    private static void ChangeHeader(Report report, ReportHeaderValues h, long seq, DateTimeOffset now) =>
-        report.ChangeHeader(h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);
+    private static void ChangeHeader(Report report, ReportHeaderValues h, long seq, DateTimeOffset now, ModuleConstruction site) =>
+        report.ChangeHeader(h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now,
+            SubmissionWindow.EndsAt(site.TimeZoneId, h.Date, h.Shift));
 
     private static IEnumerable<ReportReference> LineReferences(IReadOnlyList<ReportLineValues> lines) =>
         lines.SelectMany((line, position) => ReportReferenceCheck.OfLine(line, position));

@@ -23,8 +23,10 @@ public class ReportJournalCaptureTests
         [$"{nameof(Report)}.{nameof(Report.Id)}"] = "ключ отчёта — колонка report_id записи",
         [$"{nameof(Report)}.{nameof(Report.EmployeeId)}"] =
             "сотрудник правкой не меняется (отказ 400) — колонки исполнителя записи",
-        [$"{nameof(Report)}.{nameof(Report.Status)}"] = "смена состояния — запись своего вида (подача, приёмка, возврат)",
-        [$"{nameof(Report)}.{nameof(Report.SubmittedAt)}"] = "момент подачи — запись подачи (work-15), а не правка",
+        [$"{nameof(Report)}.{nameof(Report.WindowEndsAt)}"] =
+            "конец окна — производное даты, смены и стройки (work-15), а они в журнале",
+        [$"{nameof(Report)}.{nameof(Report.SubmittedBy)}"] =
+            "кто подал — вид записи: submitted или auto-submitted (work-15)",
         [$"{nameof(Report)}.{nameof(Report.Seq)}"] = "номер последовательности — колонка seq записи",
         [$"{nameof(Report)}.{nameof(Report.CreatedAt)}"] = "служебное время — колонка server_time записи",
         [$"{nameof(Report)}.{nameof(Report.UpdatedAt)}"] = "служебное время — колонка server_time записи",

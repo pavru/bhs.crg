@@ -254,13 +254,16 @@ public class ReportJournalTests(AssignmentHost host) : IAsyncLifetime
         return [.. (await ReportWorld.JsonAsync(response)).GetProperty("items").EnumerateArray()];
     }
 
-    /// <summary>Поставить момент подачи прямо в базе: его пишет подача (<c>work-15</c>), которой ещё нет.</summary>
+    /// <summary>
+    /// Поставить подачу прямо в базе — статус и момент одной записью, как это делает подача (<c>work-15</c>): журналу
+    /// нужен точный момент, а адрес подачи ограничил бы его концом окна.
+    /// </summary>
     internal static async Task SubmitAsync(AssignmentHost host, Guid id, DateTimeOffset at)
     {
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<WorkDbContext>();
         Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work.reports SET submitted_at = {at.ToUniversalTime()} WHERE id = {id}"));
+            $"UPDATE work.reports SET status = 'submitted', submitted_by = 'manual', submitted_at = {at.ToUniversalTime()} WHERE id = {id}"));
     }
 
     private Task SubmitAsync(Guid id, DateTimeOffset at) => SubmitAsync(host, id, at);

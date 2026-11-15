@@ -2,6 +2,7 @@ using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,11 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// подачи дублируются в журнал действий ядра ПОСЛЕ фиксации (<see cref="ReportActions" />): сбой там — предупреждение
 /// в журнал приложения, а не откат, — свидетельство уже лежит в журнале отчёта.</para>
 ///
+/// <para><b>Подача</b> (<c>work-15</c>) — тот же ход для своих отчётов и ввода за сотрудника. Порядок отказов: версия
+/// не названа (400) → отчёт (404) → уже подан (200 <c>alreadySubmitted</c>, без сверки версии: изменения нет, и
+/// потерять нечего) → другой статус (409) → версия (409) → обязательные поля (422). Конфликт версии строки при
+/// сохранении — автоподача обогнала: перечитанный поданный отчёт отвечает тем же <c>alreadySubmitted</c>.</para>
+///
 /// <para><b>Порядок отказов правки:</b> запрос (400: версия, <c>changeId</c>, тело) → отчёт (404, чужой как
 /// несуществующий) → сотрудник в теле (400) → повтор (200) → версия (409) → стройка вне охвата (404) → правила
 /// записи (400/409).</para>
@@ -37,7 +43,7 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 public sealed class ReportDesk(
     WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
     IModuleUser user, IModuleEmployees employees, IModuleConstructions constructions, IModuleActivityLog log,
-    ILogger<ReportDesk> logger)
+    ReportSubmission submission, RequiredFields required, ILogger<ReportDesk> logger)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -137,6 +143,46 @@ public sealed class ReportDesk(
     }
 
     /// <summary>
+    /// Подать отчёт, видимый читателю (ТЗ WORK-9, WORK-10, WORK-6, WORK-31). Момент первой подачи — время действия, но
+    /// не позже конца окна (<see cref="SubmissionWindow.MomentOfManual" />); у повторной подачи возвращённого — время
+    /// действия: окно к возврату уже прошло.
+    /// </summary>
+    public async Task<IResult> SubmitAsync(
+        ReportViewer viewer, Guid id, SubmitRequest? body, HttpRequest request, CancellationToken ct)
+    {
+        var seen = SeenVersions.Required(request, "отчёта");
+        var actor = await ActorAsync(viewer, ct);
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
+            if (report.Status == ReportStatus.Submitted)
+                return Results.Ok(await views.OneAsync(report, alreadySubmitted: true, ct: ct));
+            if (report.SubmitRefusal() is { } refusal) throw new ConflictException(refusal);
+            if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
+            var missing = await required.OfAsync(report, ct) ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
+            if (missing.Count > 0) throw new RequiredMissingException(missing);
+
+            var executor = await ExecutorAsync(report.EmployeeId, ct);
+            var now = time.GetUtcNow();
+            var acted = body?.DeviceTime ?? now;
+            var at = report.Status == ReportStatus.Draft ? SubmissionWindow.MomentOfManual(acted, report.WindowEndsAt) : acted;
+            await submission.ApplyAsync(report, at, ReportSubmitter.Manual, missing: null, actor, executor,
+                body?.ChangeId ?? Guid.NewGuid(), body?.DeviceTime, now, ct);
+            await tx.CommitAsync(ct);
+            return Results.Ok(await views.OneAsync(report, ct: ct));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Автоподача (или вторая подача) успела между чтением и записью: поданный отчёт — повтор, иное — версия.
+            db.ChangeTracker.Clear();
+            if (await reads.FindAsync(viewer, id, ct) is { Status: ReportStatus.Submitted } won)
+                return Results.Ok(await views.OneAsync(won, alreadySubmitted: true, ct: ct));
+            throw new ConflictException(Stale);
+        }
+    }
+
+    /// <summary>
     /// Удалить черновик. Удаление пишется в протокол записью <see cref="ReportChangeKind.Deleted" />: по ней курсор
     /// называет отчёт удалённым, а повтор удаления с тем же <c>changeId</c> получает 204, а не 404.
     /// </summary>
@@ -229,7 +275,8 @@ public sealed class ReportDesk(
 
 /// <summary>
 /// Отказы пути записи, у которых в ответе есть поля сверх текста: занятый ключ отчёта — с идентификатором
-/// существующего (клиент открывает его, а не заводит второй), справочник не заведён — с кодом (ТЗ CORE-20.4).
+/// существующего (клиент открывает его, а не заводит второй), справочник не заведён — с кодом (ТЗ CORE-20.4),
+/// подача без обязательных полей — 422 с перечнем строк и полей (ТЗ WORK-6).
 /// </summary>
 internal static class ReportRefusals
 {
@@ -246,6 +293,14 @@ internal static class ReportRefusals
         catch (WorkDirectoryMissingException missing)
         {
             return Results.Conflict(new { code = missing.Code, error = missing.Message });
+        }
+        catch (RequiredMissingException missing)
+        {
+            return Results.UnprocessableEntity(new
+            {
+                error = missing.Message,
+                requiredMissing = missing.Missing.Select(m => new { line = m.Line, lineId = m.LineId, field = m.Field }),
+            });
         }
     }
 }

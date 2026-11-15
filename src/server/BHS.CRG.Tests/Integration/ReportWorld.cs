@@ -24,6 +24,9 @@ internal sealed class ReportWorld(AssignmentHost host)
     public Guid SiteA { get; private set; }
     public Guid SiteB { get; private set; }
     public Guid WorkType { get; private set; }
+
+    /// <summary>Вид работы с признаком «требует места» (ТЗ WORK-6) — для обязательности на подаче (<c>work-15</c>).</summary>
+    public Guid WorkTypeNeedsPlace { get; private set; }
     public Guid Unit { get; private set; }
 
     /// <summary>
@@ -42,6 +45,8 @@ internal sealed class ReportWorld(AssignmentHost host)
         Unit = unit.Id;
         WorkType = (await seed.RecordAsync(workType.Id, "Прокладка кабеля",
             WorkTypeSeed.WorkTypeData("01.02", "Прокладка кабеля", unit))).Id;
+        WorkTypeNeedsPlace = (await seed.RecordAsync(workType.Id, "Монтаж лотка",
+            WorkTypeSeed.WorkTypeData("01.03", "Монтаж лотка", unit, requiresLocation: true))).Id;
     }
 
     public Task<Guid> EmployeeAsync(string name) => world.EmployeeAsync(EmployeeType, name);
@@ -67,11 +72,12 @@ internal sealed class ReportWorld(AssignmentHost host)
 
     /// <summary>Тело черновика: шапка и (по желанию) одна строка.</summary>
     public object Draft(Guid id, Guid site, decimal? hours = 8m, bool line = true, string date = Day16, Guid? employee = null,
-        Guid? changeId = null, string? deviceTime = null, string shift = "day", Guid? lineId = null, decimal volume = 120m) => new
+        Guid? changeId = null, string? deviceTime = null, string shift = "day", Guid? lineId = null, decimal volume = 120m,
+        Guid? workType = null, string? location = "оси 3–4") => new
     {
         id, employeeId = employee, constructionId = site, date, shift, hours, changeId, deviceTime,
         lines = line
-            ? new object[] { new { id = lineId ?? Guid.NewGuid(), workTypeId = WorkType, volume, unitId = Unit, location = "оси 3–4" } }
+            ? new object[] { new { id = lineId ?? Guid.NewGuid(), workTypeId = workType ?? WorkType, volume, unitId = Unit, location } }
             : [],
     };
 

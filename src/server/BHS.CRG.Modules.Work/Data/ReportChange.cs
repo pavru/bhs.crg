@@ -8,6 +8,9 @@ public enum ReportChangeKind
     Created,
     Updated,
     Deleted,
+
+    /// <summary>Подан — человеком или автоподачей (<c>work-15</c>): курсор отдаёт телефону новый статус.</summary>
+    Submitted,
 }
 
 /// <summary>
@@ -75,6 +78,6 @@ public sealed class ReportChange : IIsolatedRecord, IAppendOnly
         Version = version,
     };
 
-    /// <summary>Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c>.</summary>
+    /// <summary>Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c> | <c>submitted</c>.</summary>
     public static string KindCode(ReportChangeKind kind) => kind.ToString().ToLowerInvariant();
 }

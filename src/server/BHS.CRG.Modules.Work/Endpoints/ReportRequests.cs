@@ -22,6 +22,13 @@ public sealed record ReportLineRequest(
 }
 
 /// <summary>
+/// Тело подачи отчёта (ТЗ WORK-10, MOB-15, MOB-17) — необязательное: без него момент — время сервера.
+/// </summary>
+/// <param name="ChangeId">Идентификатор изменения от клиента; не назван — его создаёт сервер.</param>
+/// <param name="DeviceTime">Время действия на устройстве — момент подачи, но не позже конца окна.</param>
+public sealed record SubmitRequest(Guid? ChangeId, DateTimeOffset? DeviceTime);
+
+/// <summary>
 /// Тело заведения и правки отчёта (ТЗ WORK-4, MOB-15, MOB-17).
 /// </summary>
 /// <param name="Id">Идентификатор отчёта от клиента — у заведения обязателен (MOB-15); у правки — только ради сверки.</param>

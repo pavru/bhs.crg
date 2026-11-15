@@ -9,6 +9,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Submission;
 using BHS.CRG.Tests.Integration;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -310,7 +311,8 @@ public class ReportModelTests(AssignmentHost fixture) : IAsyncLifetime
     private static long _seq;
 
     private static Report NewReport(Guid employee, Guid site, ReportShift shift) =>
-        Report.Create(Guid.NewGuid(), employee, site, Day16, shift, 8, null, Interlocked.Increment(ref _seq), DateTimeOffset.UtcNow);
+        Report.Create(Guid.NewGuid(), employee, site, Day16, shift, 8, null, Interlocked.Increment(ref _seq), DateTimeOffset.UtcNow,
+            SubmissionWindow.EndsAt("Europe/Moscow", Day16, shift));
 
     private static ReportLineValues Values(
         Seeded s, bool crew = false, IReadOnlyList<Guid>? participants = null, IReadOnlyList<ReportMaterialValues>? materials = null) =>

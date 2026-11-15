@@ -26,7 +26,13 @@ namespace BHS.CRG.Tests.Configuration;
 public class ModuleRawSqlTests
 {
     /// <summary>Кому обращение к таблице ядра разрешено — с причиной.</summary>
-    private static readonly Dictionary<string, string> Deliberate = new();
+    private static readonly Dictionary<string, string> Deliberate = new()
+    {
+        ["BHS.CRG.Modules.Work/Migrations/20261115231322_SubmissionWindow.cs"] =
+            "окно подачи прежних отчётов (work-15, ТЗ WORK-52): миграция один раз ЧИТАЕТ пояс стройки и пояс " +
+            "компании — портов в миграции нет, а пустое окно автоподача подала бы моментом «начала времён». " +
+            "Ничего в ядре не пишет; без таблиц ядра берёт Europe/Moscow",
+    };
 
     private static readonly Regex TableName = new(@"\.ToTable\(""(\w+)""", RegexOptions.Compiled);
 

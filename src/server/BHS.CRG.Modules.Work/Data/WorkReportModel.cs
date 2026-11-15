@@ -39,6 +39,11 @@ internal static class WorkReportModel
         report.Property(r => r.EnteredByUserId).HasColumnName("entered_by_user_id");
         report.Property(r => r.EnteredByName).HasColumnName("entered_by_name").HasMaxLength(256);
         report.Property(r => r.SubmittedAt).HasColumnName("submitted_at");
+        report.Property(r => r.WindowEndsAt).HasColumnName("window_ends_at");
+        report.Property(r => r.SubmittedBy).HasColumnName("submitted_by").HasMaxLength(8)
+            .HasConversion(v => v == null ? null : Report.SubmitterCode(v.Value),
+                v => v == null ? null : Enum.Parse<ReportSubmitter>(v, true));
+        report.Property(r => r.RequiredMissing).HasColumnName("required_missing").HasColumnType("jsonb");
         report.Property<uint>(rowVersion).IsRowVersion();
         report.ToTable(t =>
         {
@@ -50,6 +55,8 @@ internal static class WorkReportModel
         // Ключ отчёта (ТЗ WORK-4, MOB-35): без смены ночная работа затирала бы дневную. Сотрудник первым — он же
         // держащая колонка, и «кто держит сотрудника» идёт по этому индексу.
         report.HasIndex(r => new { r.EmployeeId, r.ConstructionId, r.Date, r.Shift }).IsUnique().HasDatabaseName("ux_reports_key");
+        // Черновики с истёкшим окном — запрос автоподачи (work-15, ТЗ WORK-10).
+        report.HasIndex(r => new { r.Status, r.WindowEndsAt }).HasDatabaseName("ix_reports_window");
         // Отчёты стройки по дате — приёмка и «кто держит стройку».
         report.HasIndex(r => new { r.ConstructionId, r.Date }).HasDatabaseName("ix_reports_site");
 

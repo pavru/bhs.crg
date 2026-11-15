@@ -1600,6 +1600,36 @@ D2 зонтика и упоминания в `work-03`…`work-28`.
 
 ---
 
+## Подача отчёта: окно мгновением и автоподача по состоянию
+
+Относится к change `work-15-submission` (этап 4, зонтик `work-00-epic`, D8, D12), ТЗ `WORK-6`, `WORK-8`–`WORK-11`,
+`WORK-41`, `WORK-52`, `MOB-18`, `MOB-35`.
+
+**Конец окна — колонка `window_ends_at`, а не расчёт на чтении.** Окно считает одно правило
+(`Submission/SubmissionWindow.cs`) по поясу стройки при заведении и при смене даты, смены или стройки. Пересчёт на
+чтении по нынешнему поясу сдвинул бы окна от исправления пояса задним числом (`WORK-52`). Стройка — в основе окна
+наравне с датой и сменой: перенос черновика на стройку в другом поясе со старым окном подал бы его по чужим суткам.
+Прежним отчётам окно посчитала миграция `SubmissionWindow` по поясу стройки из `constructions`, иначе компании из
+`app_settings`, иначе Москвы.
+
+**Правило закреплено общим файлом примеров** `Submission/SubmissionCases.json` (`MOB-18`). Его прогоняет
+`SubmissionCasesTests`, а в этапе 5 — приложение. Тест состава требует ночную смену, пояс стройки, отличный от пояса
+компании, «после полуночи в ночную смену» и `Europe/Berlin` (сутки в 23 и 25 часов).
+
+**Автоподача — задача такта `work-08`** (`AutoSubmitJob`, раз в пять минут, постоянная цель). Она выбирает все
+черновики с `window_ends_at <= now` и подаёт их моментом конца окна, а не временем прогона: после простоя задача
+догоняет пропущенное. Действует от имени системы (`ForSystem`). Чтение «все черновики» в файле чтения отказывает
+параметру человека. Подача — изменение отчёта: номер `report_seq`, запись протокола `submitted` (курсор отдаёт
+телефону статус) и запись журнала `auto-submitted` от «Система» — одним шагом `ReportSubmission`, общим с ручной
+подачей. Гонку решает замок отчётов сотрудника и версия строки. Ручная подача, которую обогнала автоподача, отвечает
+200 `alreadySubmitted`, второй прогон пропускает отчёт. Обязательных полей автоподача не ждёт: незаполненное ложится в
+`required_missing` и в журнал.
+
+**«Сейчас» — у порта часов** (`IModuleClock.UtcNow`): предлагаемая пара «дата · смена» в `/api/work/sites/mine`
+считается от того же мгновения, что `today`.
+
+---
+
 ## Смета: деньги и ключ строки — колонки, сметное наполнение — блок под правом
 
 Относится к change `plan-06-estimate-model` (этап 3, зонтик `plan-00-epic`, D3, D4, D12, D17), ТЗ
@@ -6445,14 +6475,21 @@ GET    /api/work/assignments/candidates?constructionId=&kind=&dateFrom=&dateTo=&
 POST   /api/work/assignments/bulk           { constructionId, kind, dateFrom, dateTo?, employeeIds }
                                     ≤ 200 — всё или ничего: 422 { error, refused: [{ employeeId,
                                     name, reason }] }, не заведено ни одного.
-GET    /api/work/sites/mine?date=           → { items: [{ id, name, kinds, today, timeZoneId }],
+GET    /api/work/sites/mine?date=           → { items: [{ id, name, kinds, today, timeZoneId,
+                                    suggested: { date, shift, label } }],
                                     boundary: { text: «ваши стройки (N)», count, reason: null |
                                     not-assigned | not-linked | directory-missing } } — только
                                     назначенные на дату; ворота модуля, без права назначать.
+                                    suggested — пара нового отчёта (MOB-35, work-15): «вчера · ночь»
+                                    при ночном отчёте за вчера, иначе «сегодня · день»; label —
+                                    подпись кнопки.
 GET    /api/work/reports?since=&limit=100   → { items: [отчёт], deleted: [{ id, seq }], cursor, more }
                                     — свои отчёты после номера since и удалённые черновики (MOB-16,
                                     work-13). Отчёт — { id, employeeId, constructionId, date, shift:
-                                    day|night, hours, status: draft, note, seq, version,
+                                    day|night, hours, status: draft|submitted|accepted|returned, note,
+                                    seq, version, autoSubmitAt (у черновика), submittedAt,
+                                    submittedBy: manual|auto, requiredMissing: [{ line, lineId,
+                                    field }] | null, alreadySubmitted,
                                     assignedOnDate, enteredBy: { userId, name } | null, createdAt,
                                     updatedAt, lines: [{ id, position, workTypeId, variantId, volume,
                                     unitId, sectionId, location, comment, isCrew, workPlanItemId,
@@ -6475,7 +6512,15 @@ POST   /api/work/entry/reports              { employeeId, ...как у свои�
                                     work.sites.all — все). Стройка вне своих — 404 «не найдена среди
                                     ваших строек»; enteredBy — автор ввода.
 GET    /api/work/entry/reports/{id}         PUT — + If-Match и changeId; отчёт чужой стройки — 404.
-GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted, changeId,
+POST   /api/work/reports/{id}/submit        { changeId?, deviceTime? } + If-Match → отчёт (work-15,
+                                    WORK-10). Момент — deviceTime, но не позже конца окна; уже
+                                    поданный — 200 alreadySubmitted: true без сверки версии; принятый
+                                    — 409; нет места или материалов у вида, который их требует, — 422
+                                    { error, requiredMissing: [{ line, lineId, field }] }.
+POST   /api/work/entry/reports/{id}/submit  то же для ввода за сотрудника: work.report.review,
+                                    стройки менеджера; чужая стройка — 404.
+GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted|submitted|
+                                    auto-submitted, changeId,
                                     author: { id, name }, executor: { employeeId, name }, enteredFor,
                                     deviceTime, serverTime, afterSubmission, changes: [{ line, field,
                                     before, after }] }] } — журнал отчёта (work-14), только чтение

@@ -15,6 +15,12 @@ public static class ReportJournalKinds
     public const string Updated = "updated";
 
     public const string Deleted = "deleted";
+
+    /// <summary>Подан человеком — сотрудником или менеджером за сотрудника (<c>work-15</c>).</summary>
+    public const string Submitted = "submitted";
+
+    /// <summary>Подан автоматически по концу окна, от имени системы (<c>work-15</c>, ТЗ WORK-41).</summary>
+    public const string AutoSubmitted = "auto-submitted";
 }
 
 /// <summary>
@@ -53,7 +59,7 @@ public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
     /// <summary>Вид действия — код из открытого каталога <see cref="ReportJournalKinds" />.</summary>
     public string Kind { get; private set; } = "";
 
-    /// <summary>Автор ввода — учётная запись запроса; <c>null</c> — действие системы.</summary>
+    /// <summary>Автор ввода — учётная запись запроса; <c>null</c> — действие системы (автоподача, имя «Система»).</summary>
     public Guid? AuthorId { get; private set; }
 
     /// <summary>Имя автора снимком: учётную запись могут переименовать или удалить (ТЗ WORK-11).</summary>
@@ -93,7 +99,9 @@ public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
     {
         Id = Guid.NewGuid(), ReportId = report.Id, ChangeId = changeId, Seq = seq, Kind = kind,
         AuthorId = author.UserId, AuthorName = author.Name, ExecutorEmployeeId = report.EmployeeId,
-        ExecutorName = executorName, EnteredFor = author.EmployeeId != report.EmployeeId,
+        ExecutorName = executorName,
+        // Система за сотрудника не вводит: автоподача — её действие, а не ввод (work-15).
+        EnteredFor = author.UserId is not null && author.EmployeeId != report.EmployeeId,
         // К UTC — как у протокола: колонка timestamptz принимает только нулевое смещение.
         DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
         AfterSubmission = afterSubmission, Changes = changes,
