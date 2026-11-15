@@ -26,7 +26,7 @@
   (`WORK-50`).
 - Позиция перечня находится или заводится сервером через порт этапа 3 по ключу «вид, стройка, раздел,
   единица», с безопасным повтором (`CORE-12`, `CORE-4`, `MOB-37`).
-- Типы `ОтчётМонтажника` (закрытый) и `СтрокаРаботы.Сведения` (расширяемый) — проекции системных полей.
+- Типы `ОтчётМонтажника` (закрытый) и `СтрокаРаботыСведения` (расширяемый) — проекции системных полей.
 - Свои отчёты под `work.report.own`: список с курсором `since`, чтение, черновик, правка, удаление
   черновика. Правка и удаление требуют `If-Match`, повтор правки по тому же `changeId` возвращает прежний
   ответ.
@@ -49,7 +49,8 @@
   - `Data/Report.cs`, `Data/ReportLine.cs`, `Data/ReportChange.cs`;
   - `WorkRecordTypes.cs`, `WorkReferences.cs`, адреса `Endpoints/ReportEndpoints.cs`;
   - миграции `Reports`.
-- **Зависимость от этапа 3:** порт «найди или создай» позицию перечня.
-- **Тесты:** `src/server/BHS.CRG.Tests/Work/*`, переписи `RecordWriteGuardCoverageTests` и
-  `ModuleReferenceInventoryTests`.
+- **Зависимость от этапа 3:** порт «найди или создай» позицию перечня — `IModulePlanItems` (`plan-04`, слит).
+- **Тесты:** `src/server/BHS.CRG.Tests/Work/*`, переписи `RecordWriteGuardCoverageTests`,
+  `ModuleReferenceInventoryTests`, `IsolatedReadInventoryTests` (первая изолированная запись и файл чтения
+  `Data/ReportReads.cs`) и `WorkOnlyHostTests` (права без двери).
 - **Документы:** `docs/DEV_NOTES.md` — протокол повтора и курсор (для этапа 5).

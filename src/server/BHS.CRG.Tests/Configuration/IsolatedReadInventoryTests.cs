@@ -44,10 +44,16 @@ public class IsolatedReadInventoryTests
 
     /// <summary>
     /// Файл чтения → причина. Здесь и только здесь изолированная запись читается напрямую: метод с
-    /// параметром доступа, вычисляющий охват. Пусто, пока изолированных записей нет — первую (отчёт о
-    /// работах) заводит <c>work-13</c>.
+    /// параметром доступа, вычисляющий охват. Первую изолированную запись — отчёт монтажника — завёл
+    /// <c>work-13</c>.
     /// </summary>
-    private static readonly Dictionary<string, string> ReadFiles = new();
+    private static readonly Dictionary<string, string> ReadFiles = new()
+    {
+        ["BHS.CRG.Modules.Work/Data/ReportReads.cs"] =
+            "файл чтения отчёта монтажника (work-13). В PR 1 — только вопросы пути записи «занято ли»: четвёрка " +
+            "ключа (ответ — идентификатор отчёта ТОГО ЖЕ сотрудника) и идентификаторы строк (ответ — только факт " +
+            "занятости), полей чужого отчёта не отдаёт; чтение с охватом (ModuleReader) приходит сюда же с адресами",
+    };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
     public sealed record Isolated(string Type, string? Schema, string? Table);
@@ -216,8 +222,25 @@ public class IsolatedReadInventoryTests
         Assert.True(missed.Count == 0,
             "Перепись не построила модели контекстов, объявленных модулями: " + string.Join(", ", missed) +
             ". Их изолированные записи ни одна проверка выше не видит.");
-        // Пустой модель быть может (у каркаса work сущностей пока нет), а «построена ли вообще» — выше.
+        // Пустой модель быть может (у модуля без таблиц), а «построена ли вообще» — выше.
         Assert.Contains(Models(), m => m.Model.GetEntityTypes().Any());
+    }
+
+    /// <summary>
+    /// Отчёт монтажника и все его части — изолированные записи (ТЗ WORK-39; <c>work-13</c>). Сторож пометки: без
+    /// неё перепись выше молчит — нет пометки, нет и нарушений, и <c>Set&lt;Report&gt;()</c> в любом файле читал бы
+    /// все отчёты всем. Строка отчёта несёт то же, что отчёт, и потому помечена вместе с ним; назначение — нет:
+    /// его видит каждый, кто назначает (охват — у адресов назначений).
+    /// </summary>
+    [Fact]
+    public void Отчёт_монтажника_и_его_части_изолированы()
+    {
+        var work = Models().Single(m => m.Context == typeof(BHS.CRG.Modules.Work.Data.WorkDbContext)).Model;
+
+        Assert.Equal(
+            ["Report", "ReportChange", "ReportLine", "ReportLineMaterial", "ReportLineParticipant"],
+            IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
+        Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }
 
     // ── Самопроверка на образцах исходника: каждое нарушение находится, файл чтения его разрешает ──

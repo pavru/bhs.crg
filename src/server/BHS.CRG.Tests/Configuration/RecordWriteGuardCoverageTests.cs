@@ -44,6 +44,9 @@ public class RecordWriteGuardCoverageTests
     {
         ["СчётНаОплату"] = @"\.ApplyRequisites\(",
         ["ПозицияСметы"] = @"\.CreateEstimateRow\(",
+        // Отчёт монтажника (work-13): шапка — колонки закрытого типа, сведения строки — JSON по схеме.
+        ["ОтчётМонтажника"] = @"\bReport\.Create\(|\.ChangeHeader\(",
+        ["СтрокаРаботыСведения"] = @"\bReportLine\.Create\(|\.ApplyLine\(",
     };
 
     /// <summary>Как данные попадают в объект: присвоение или конструктор с готовыми данными.</summary>
@@ -99,6 +102,16 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Modules.Plan/Data/EstimateRevisionWriter.cs|created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data[i]), draft));"] =
             (Guarded, "строка новой редакции сметы (plan-06): сметное наполнение по схеме «Позиция сметы» вносится " +
                       "впервые — редакция заводится целиком, лежащего нет; единственное место записи строк"),
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|if (was is null) report.Lines.Add(ReportLine.Create(report.Id, i, line, items[line.Id]));"] =
+            (Guarded, "новая строка отчёта монтажника (work-13): сведения по схеме «Строка работы: сведения» вносятся " +
+                      "впервые — охрана как создание"),
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|else was.ApplyLine(i, line, items[line.Id]);"] =
+            (Guarded, "правка строки отчёта монтажника: сведения сверяются с лежащими"),
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|Report.Create(id, employeeId, h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);"] =
+            (Free, "шапка отчёта — колонки закрытого типа «Отчёт монтажника»: данных по схеме у неё нет, охране сверять " +
+                   "нечего; новые ссылки на архив проверяет ReportReferenceCheck"),
+        ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|report.ChangeHeader(h.ConstructionId, h.Date, h.Shift, h.Hours, h.Note, seq, now);"] =
+            (Free, "правка шапки отчёта — те же колонки закрытого типа, данных по схеме нет"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
             (Free, "перенос ключа поля и починка аудита: их работа и есть трогать кривые данные; " +
                    "охрана сделала бы битую запись непочинимой, а правку схемы — обрывающейся на середине"),

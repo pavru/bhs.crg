@@ -23,6 +23,8 @@ namespace BHS.CRG.Modules.Work.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("report_seq", "work");
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Assignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -79,6 +81,312 @@ namespace BHS.CRG.Modules.Work.Migrations
 
                             t.HasCheckConstraint("ck_assignments_period", "date_to IS NULL OR date_to >= date_from");
                         });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Report", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<decimal?>("Hours")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("hours");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<long>("Seq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("seq");
+
+                    b.Property<string>("Shift")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("shift");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConstructionId", "Date")
+                        .HasDatabaseName("ix_reports_site");
+
+                    b.HasIndex("EmployeeId", "ConstructionId", "Date", "Shift")
+                        .IsUnique()
+                        .HasDatabaseName("ux_reports_key");
+
+                    b.ToTable("reports", "work", t =>
+                        {
+                            t.HasCheckConstraint("ck_reports_hours", "hours IS NULL OR (hours >= 0 AND hours <= 24)");
+
+                            t.HasCheckConstraint("ck_reports_shift", "shift IN ('day', 'night')");
+                        });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportChange", b =>
+                {
+                    b.Property<long>("Seq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("seq");
+
+                    b.Property<Guid>("ChangeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("change_id");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateTimeOffset?>("DeviceTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("device_time");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("report_id");
+
+                    b.Property<DateTimeOffset>("ServerTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("server_time");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Seq");
+
+                    b.HasIndex("ConstructionId", "Seq")
+                        .HasDatabaseName("ix_report_changes_site");
+
+                    b.HasIndex("EmployeeId", "Seq")
+                        .HasDatabaseName("ix_report_changes_employee");
+
+                    b.HasIndex("ReportId", "ChangeId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_report_changes_change");
+
+                    b.ToTable("report_changes", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text")
+                        .HasColumnName("comment");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
+
+                    b.Property<bool>("IsCrew")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_crew");
+
+                    b.Property<string>("Location")
+                        .HasColumnType("text")
+                        .HasColumnName("location");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("report_id");
+
+                    b.Property<Guid?>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("unit_id");
+
+                    b.Property<Guid?>("VariantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("variant_id");
+
+                    b.Property<decimal>("Volume")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("volume");
+
+                    b.Property<Guid>("WorkPlanItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_plan_item_id");
+
+                    b.Property<Guid>("WorkTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_type_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SectionId")
+                        .HasDatabaseName("ix_report_lines_section");
+
+                    b.HasIndex("UnitId")
+                        .HasDatabaseName("ix_report_lines_unit");
+
+                    b.HasIndex("VariantId")
+                        .HasDatabaseName("ix_report_lines_variant");
+
+                    b.HasIndex("WorkPlanItemId")
+                        .HasDatabaseName("ix_report_lines_plan_item");
+
+                    b.HasIndex("WorkTypeId")
+                        .HasDatabaseName("ix_report_lines_work_type");
+
+                    b.HasIndex("ReportId", "Position")
+                        .HasDatabaseName("ix_report_lines_report");
+
+                    b.ToTable("report_lines", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLineMaterial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.Property<Guid>("NomenclatureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("nomenclature_id");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NomenclatureId")
+                        .HasDatabaseName("ix_report_line_materials_nomenclature");
+
+                    b.HasIndex("LineId", "Position")
+                        .HasDatabaseName("ix_report_line_materials_line");
+
+                    b.ToTable("report_line_materials", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLineParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_report_line_participants_employee");
+
+                    b.HasIndex("LineId")
+                        .HasDatabaseName("ix_report_line_participants_line");
+
+                    b.ToTable("report_line_participants", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLineMaterial", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
+                        .WithMany("Materials")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLineParticipant", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
+                        .WithMany("Participants")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Report", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
+                {
+                    b.Navigation("Materials");
+
+                    b.Navigation("Participants");
                 });
 #pragma warning restore 612, 618
         }

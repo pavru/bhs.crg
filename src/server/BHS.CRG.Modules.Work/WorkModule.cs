@@ -140,9 +140,16 @@ public sealed class WorkModule : IAppModule
     public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
 
     /// <summary>
-    /// Колонки, держащие записи ядра (ТЗ CORE-34.1): назначение держит сотрудника и стройку.
+    /// Колонки, держащие записи ядра (ТЗ CORE-34.1): назначение держит сотрудника и стройку, отчёт и его строки —
+    /// сотрудника, стройку, раздел, вид работы с вариантом, единицу, позицию перечня и номенклатуру.
     /// </summary>
     public IReadOnlyList<ModuleReference> References => WorkReferences.All;
+
+    /// <summary>
+    /// Типы модуля (ТЗ CORE-19.2, CORE-20.2; <c>work-13</c>): закрытая шапка отчёта монтажника и расширяемые
+    /// сведения строки работы — колонки показаны в них системными полями.
+    /// </summary>
+    public IReadOnlyList<ModuleRecordType> RecordTypes => WorkRecordTypes.All;
 
     /// <summary>
     /// Свой контекст, действия журнала и ворота назначений. Строку подключения модуль берёт из настроек
@@ -161,6 +168,10 @@ public sealed class WorkModule : IAppModule
         services.AddSingleton<IModuleActivityActions, AssignmentActions>();
         services.AddScoped<ManagerSites>();
         services.AddScoped<AssignmentGate>();
+        services.AddScoped<WorkPlanItemLink>();
+        services.AddScoped<ReportReferenceCheck>();
+        services.AddScoped<ReportReads>();
+        services.AddScoped<ReportWriter>();
     }
 
     /// <summary>

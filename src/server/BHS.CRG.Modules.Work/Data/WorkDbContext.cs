@@ -10,7 +10,8 @@ namespace BHS.CRG.Modules.Work.Data;
 ///
 /// <para>Таблицы приезжают со своими адресами, а не раньше потребителя (таблица, заведённая раньше,
 /// проверяется только тем, что она создалась): назначения — <c>work-11</c>, отчёт и его строки —
-/// <c>work-13</c>.</para>
+/// <c>work-13</c> (его первый PR приносит таблицы вместе с путём записи <c>ReportWriter</c> и тестами на нём, адреса
+/// — второй).</para>
 ///
 /// <para>Начальная миграция при этом не пустая по смыслу: она создаёт саму схему и историю миграций
 /// модуля в ней — то, что включается на чистой и на рабочей базе и переживает выключение модуля.</para>
@@ -37,15 +38,26 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
     public DbSet<Assignment> Assignments => Set<Assignment>();
 
     /// <summary>
+    /// Серверная последовательность изменений отчётов (ТЗ MOB-16, change <c>work-13</c>): номер получает каждое
+    /// изменение любого отчёта, и курсор <c>since</c> отдаёт их по нему. Время устройства порядок не задаёт.
+    /// </summary>
+    public const string ReportSequence = "report_seq";
+
+    /// <summary>
     /// Версия строки назначения — поле <c>version</c> ответа и значение <c>If-Match</c>. ⚠️ Только у
     /// отслеживаемой строки: теневое свойство у прочитанной без отслеживания не заполняется — была бы «0».
     /// </summary>
-    public string VersionOf(Assignment assignment)
+    public string VersionOf(Assignment assignment) => TrackedVersion(assignment, "назначения");
+
+    /// <summary>Версия отчёта — то же правило, что у назначения: только у отслеживаемой строки.</summary>
+    public string VersionOf(Report report) => TrackedVersion(report, "отчёта");
+
+    private string TrackedVersion(object entity, string what)
     {
-        var entry = Entry(assignment);
+        var entry = Entry(entity);
         if (entry.State == EntityState.Detached)
             throw new InvalidOperationException(
-                "Версия назначения читается только у отслеживаемой строки: у прочитанной без отслеживания её нет.");
+                $"Версия {what} читается только у отслеживаемой строки: у прочитанной без отслеживания её нет.");
         return ((uint)entry.Property(RowVersion).CurrentValue!).ToString(CultureInfo.InvariantCulture);
     }
 
@@ -92,6 +104,8 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
         assignment.HasIndex(a => new { a.ConstructionId, a.Kind, a.DateFrom }).HasDatabaseName("ix_assignments_site");
         // Назначения сотрудника — «мои стройки», пересечения и вопрос ядра «кто держит сотрудника».
         assignment.HasIndex(a => new { a.EmployeeId, a.ConstructionId }).HasDatabaseName("ix_assignments_employee");
+
+        WorkReportModel.Configure(builder, RowVersion);
     }
 
     /// <summary>
