@@ -58,8 +58,9 @@ public sealed class ReportChange : IIsolatedRecord, IAppendOnly
     public DateTimeOffset ServerTime { get; private set; }
 
     /// <summary>
-    /// Версия отчёта после изменения — та, что ушла в ответе. Повтор применённой правки отвечает с ней, а не с
-    /// версией, которую мог сдвинуть кто-то после.
+    /// Версия отчёта после изменения — та, что ушла в ответе: свидетельство «какую версию получил клиент». Повтор
+    /// применённой правки отвечает ТЕКУЩЕЙ версией вместе с текущим телом — версия отсюда при более поздней правке
+    /// разошлась бы с телом (ревью PR #1976).
     /// </summary>
     public string? Version { get; private set; }
 
@@ -68,7 +69,10 @@ public sealed class ReportChange : IIsolatedRecord, IAppendOnly
         string? version) => new()
     {
         Seq = seq, ReportId = report.Id, EmployeeId = report.EmployeeId, ConstructionId = report.ConstructionId,
-        ChangeId = changeId, Kind = kind, DeviceTime = deviceTime, ServerTime = serverTime, Version = version,
+        // К UTC: телефон присылает время со своим поясом («+03:00»), а колонка timestamptz принимает только нулевое
+        // смещение — без приведения правка с местным временем отвергалась бы ошибкой сервера.
+        ChangeId = changeId, Kind = kind, DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
+        Version = version,
     };
 
     /// <summary>Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c>.</summary>

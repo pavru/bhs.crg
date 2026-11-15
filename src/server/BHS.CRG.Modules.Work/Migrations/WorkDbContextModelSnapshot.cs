@@ -105,6 +105,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
 
+                    b.Property<string>("EnteredByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("entered_by_name");
+
+                    b.Property<Guid?>("EnteredByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entered_by_user_id");
+
                     b.Property<decimal?>("Hours")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")

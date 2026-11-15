@@ -282,8 +282,9 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
 - **Пишущие адреса сущностей модулей и общих данных обязаны назвать версию заголовком `If-Match`** —
   значение приходит в ответе чтения полем `version`. Касается счетов (`/api/costs/invoices/{id}/…`),
   накладных (`/api/costs/waybills/{id}/…`), записей общих данных (`PUT /api/common-data/{id}`,
-  `PUT /api/employees/{id}`) и сохранённых представлений таблиц (`PUT` / `DELETE
-  /api/tables/{адрес}/views/{id}`). Без заголовка — 400, с устаревшим — 409. Названные исключения и
+  `PUT /api/employees/{id}`), сохранённых представлений таблиц (`PUT` / `DELETE
+  /api/tables/{адрес}/views/{id}`) и отчётов монтажника (`PUT` / `DELETE /api/work/reports/{id}`, `PUT
+  /api/work/entry/reports/{id}`; правка ещё и с `changeId` — протокол повтора, DEV_NOTES). Без заголовка — 400, с устаревшим — 409. Названные исключения и
   порядок отказов — в спецификациях `costs` и `core`.
 - **Подсказки поля** (`GET /api/field-suggestions?type=&field=&q=&scope=&scopeId=&limit=`, issue #1530)
   различают ответы нарочно: поле, которое не подсказывается, — **200 и пусто**; неизвестный тип или

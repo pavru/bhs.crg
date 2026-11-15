@@ -35,7 +35,7 @@ public sealed record MySitesBoundary(string Text, int Count, string? Reason);
 internal static class MySitesEndpoint
 {
     public const string NotAssigned = "not-assigned";
-    public const string NotLinked = "not-linked";
+    public const string NotLinked = WorkAccounts.NotLinked;
 
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/work/sites/mine", MineAsync).WithTags("Назначения");
@@ -44,12 +44,9 @@ internal static class MySitesEndpoint
         DateOnly? date, WorkDbContext db, IModuleUser user, IModuleEmployees employees,
         IModuleConstructions constructions, IModuleClock clock, CancellationToken ct)
     {
-        if (user.Id is not { } userId || await employees.OfAccountAsync(userId, ct) is not { } me)
-        {
-            // Справочника нет — нет и связи: различить их можно только вопросом о справочнике.
-            var reason = await employees.GetAsync([], ct) is null ? IModuleEmployees.NotSetUpCode : NotLinked;
+        var (found, reason) = await WorkAccounts.OfUserAsync(user, employees, ct);
+        if (found is not { } me)
             return Results.Ok(new { items = Array.Empty<MySiteDto>(), boundary = Boundary(0, reason) });
-        }
 
         var assignments = await db.Assignments.AsNoTracking().Where(a => a.EmployeeId == me.Id).ToListAsync(ct);
         var sites = (await constructions.ListAsync(ct)).ToDictionary(c => c.Id);

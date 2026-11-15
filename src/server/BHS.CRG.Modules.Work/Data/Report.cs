@@ -72,6 +72,16 @@ public sealed class Report : IIsolatedRecord
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    /// <summary>
+    /// Кто ввёл отчёт за сотрудника (ТЗ WORK-31, WORK-2): учётная запись менеджера; <c>null</c> — отчёт завёл сам
+    /// сотрудник. Ставится при заведении через адрес ввода и не меняется: автор ввода — факт заведения, а правки
+    /// пишет журнал (<c>work-14</c>).
+    /// </summary>
+    public Guid? EnteredByUserId { get; private set; }
+
+    /// <summary>Имя автора ввода снимком на момент заведения: учётную запись могут переименовать или удалить.</summary>
+    public string? EnteredByName { get; private set; }
+
     /// <summary>Строки работ в порядке ввода (<see cref="ReportLine.Position" />).</summary>
     public List<ReportLine> Lines { get; private set; } = [];
 
@@ -87,6 +97,13 @@ public sealed class Report : IIsolatedRecord
             Id = id, EmployeeId = employeeId, ConstructionId = constructionId, Date = date, Shift = shift,
             Hours = hours, Status = ReportStatus.Draft, Note = ReportRules.Text(note), Seq = seq, CreatedAt = now, UpdatedAt = now,
         };
+    }
+
+    /// <summary>Отметить, что отчёт ввёл за сотрудника другой пользователь (ТЗ WORK-31) — только при заведении.</summary>
+    public void EnteredBy(Guid userId, string name)
+    {
+        EnteredByUserId = userId;
+        EnteredByName = string.IsNullOrWhiteSpace(name) ? userId.ToString() : name.Trim();
     }
 
     /// <summary>Правка шапки: стройка, дата, смена, часы и примечание. Сотрудник не меняется — это другой отчёт.</summary>

@@ -44,7 +44,8 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         // И обратное направление к WorkOnlyHostTests (work-10): смета не опирается на учёт работ.
         Assert.Contains("work", registry.Disabled.Select(m => m.Code));
 
-        foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/work/assignments", "work") })
+        foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/work/assignments", "work"),
+                     ("/api/work/reports", "work"), ("/api/work/entry/reports", "work") })
         {
             var response = await client.GetAsync(path);
 

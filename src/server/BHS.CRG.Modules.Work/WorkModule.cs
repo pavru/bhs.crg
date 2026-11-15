@@ -73,8 +73,9 @@ public sealed class WorkModule : IAppModule
     /// Объявленное раньше, право было бы галкой, которая не делает ничего, — а «Инженер ИД» с одним
     /// <c>work.facts.read</c> до признака права контракта у него получил бы пустой модуль.</para>
     ///
-    /// <para>Дверь есть пока у одного: назначения (<c>work.assignment.edit</c>, <c>work-11</c>); отчёты придут с
-    /// <c>work-13</c>. Объявлены права в каркасе нарочно, как у <c>plan</c>: составы ролей проверяются на живых
+    /// <para>Двери есть у трёх: назначения (<c>work.assignment.edit</c>, <c>work-11</c>), свои отчёты
+    /// (<c>work.report.own</c>) и ввод за сотрудника (<c>work.report.review</c>, <c>work-13</c>); чтение всех отчётов
+    /// придёт с <c>work-16</c>. Объявлены права в каркасе нарочно, как у <c>plan</c>: составы ролей проверяются на живых
     /// правах сразу. Права без двери названы поимённо в <c>WorkOnlyHostTests</c>, и запись уходит оттуда, как
     /// только дверь появится.</para>
     ///
@@ -172,6 +173,8 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
         services.AddScoped<ReportWriter>();
+        services.AddScoped<ReportViews>();
+        services.AddScoped<ReportDesk>();
     }
 
     /// <summary>
@@ -184,12 +187,14 @@ public sealed class WorkModule : IAppModule
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
     /// самим фактом регистрации — права же на нём названы поимённо: доступ к модулю и право на назначения —
-    /// разные вещи. Первые адреса — назначения и «мои стройки» (<c>work-11</c>).
+    /// разные вещи. Назначения и «мои стройки» (<c>work-11</c>), свои отчёты и ввод за сотрудника (<c>work-13</c>).
     /// </summary>
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         AssignmentEndpoints.Map(endpoints);
         MySitesEndpoint.Map(endpoints);
+        ReportEndpoints.Map(endpoints);
+        EntryReportEndpoints.Map(endpoints);
     }
 
     /// <summary>

@@ -44,6 +44,28 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
     public const string ReportSequence = "report_seq";
 
     /// <summary>
+    /// Следующий номер серверной последовательности изменений отчётов сотрудника (ТЗ MOB-16) — под замком его отчётов
+    /// до конца транзакции. Часы устройства на порядок не влияют.
+    ///
+    /// <para><b>Зачем замок.</b> Номер выдаётся в начале транзакции, а курсор <c>since</c> видит только записанное. Две
+    /// записи одного сотрудника разом (телефон и ввод менеджера) без замка могли бы записаться в обратном порядке:
+    /// клиент получил бы номер 11, сдвинул курсор, и запись с номером 10, записанная позже, в курсор уже не попала бы.
+    /// Под замком номера одного сотрудника выдаются и записываются по очереди, а курсор — по сотруднику.</para>
+    /// </summary>
+    public async Task<long> NextReportSeqAsync(Guid employeeId, CancellationToken ct)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "Номер изменения отчёта выдаётся только внутри транзакции: вне её замок снимается тем же запросом.");
+        await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({ReportLockKey(employeeId)}, 0))", ct);
+        return await Database.SqlQueryRaw<long>("SELECT nextval('" + SchemaName + "." + ReportSequence + "') AS \"Value\"")
+            .SingleAsync(ct);
+    }
+
+    /// <summary>Ключ замка отчётов сотрудника — им же пользуется тест очерёдности.</summary>
+    public static string ReportLockKey(Guid employeeId) => $"work.reports:{employeeId}";
+
+    /// <summary>
     /// Версия строки назначения — поле <c>version</c> ответа и значение <c>If-Match</c>. ⚠️ Только у
     /// отслеживаемой строки: теневое свойство у прочитанной без отслеживания не заполняется — была бы «0».
     /// </summary>

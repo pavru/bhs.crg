@@ -126,9 +126,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     public void Module_permissions_open_a_door_or_are_named_as_doorless() =>
         ModuleOnlyChecks.DoorOrNamedDoorless(host, WorkModule.ModuleCode, new Dictionary<string, string>
         {
-            [WorkModule.ReportOwn] = "свои отчёты — work-13",
-            [WorkModule.ReportReview] = "отчёты своих строек и ввод за сотрудника — work-13",
-            [WorkModule.ReportRead] = "чтение всех отчётов — work-13",
+            [WorkModule.ReportRead] = "чтение всех отчётов — work-16",
             // Не дверь и не станет ею (ревью PR #1932): право снимает границу «свои стройки» ВНУТРИ адресов
             // назначений и приёмки — его спрашивает сам адрес (IModuleUser.HasAsync, design work-11), как
             // себестоимость сметы у plan. Запись постоянная.

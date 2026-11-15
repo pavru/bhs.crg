@@ -1,0 +1,61 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Work.Data;
+
+namespace BHS.CRG.Modules.Work.Endpoints;
+
+/// <summary>Материал строки в теле запроса: номенклатура и примечание (ТЗ WORK-50).</summary>
+public sealed record ReportMaterialRequest(Guid? NomenclatureId, string? Note);
+
+/// <summary>
+/// Строка работы в теле запроса. Поля, которых у строки нет, собираются в <see cref="Extra" />: иначе часы, положенные
+/// в строку, молча пропали бы при разборе тела, а правило WORK-7 требует отказа с названием поля.
+/// </summary>
+public sealed record ReportLineRequest(
+    Guid? Id, Guid? WorkTypeId, Guid? VariantId, decimal? Volume, Guid? UnitId, Guid? SectionId, string? Location,
+    string? Comment, bool? IsCrew, JsonElement? Details, IReadOnlyList<ReportMaterialRequest>? Materials,
+    IReadOnlyList<Guid>? Participants)
+{
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; init; }
+}
+
+/// <summary>
+/// Тело заведения и правки отчёта (ТЗ WORK-4, MOB-15, MOB-17).
+/// </summary>
+/// <param name="Id">Идентификатор отчёта от клиента — у заведения обязателен (MOB-15); у правки — только ради сверки.</param>
+/// <param name="EmployeeId">У своих отчётов — только ради отказа: сотрудника задаёт связь учётной записи. У ввода за
+/// сотрудника — за кого вводится отчёт.</param>
+/// <param name="ChangeId">Идентификатор изменения от клиента: у правки обязателен, повтор с ним не применяется второй
+/// раз (MOB-15).</param>
+/// <param name="DeviceTime">Время действия по часам устройства (MOB-17) — заявление; не названо — пишется пометкой.</param>
+public sealed record ReportRequest(
+    Guid? Id, Guid? EmployeeId, Guid? ConstructionId, DateOnly? Date, string? Shift, decimal? Hours, string? Note,
+    Guid? ChangeId, DateTimeOffset? DeviceTime, IReadOnlyList<ReportLineRequest>? Lines)
+{
+    /// <summary>Шапка отчёта: стройка и дата обязательны (ТЗ WORK-58), смена по умолчанию — дневная (ТЗ MOB-35).</summary>
+    public ReportHeaderValues Header() => new(
+        ConstructionId ?? throw new InvalidRequestException(ReportRules.NoSite),
+        Date ?? throw new InvalidRequestException("Не названа дата отчёта (date)."),
+        Report.ParseShift(Shift), Hours, Note);
+
+    /// <summary>Строки в порядке тела; часы в строке — отказ с номером строки и названием поля (ТЗ WORK-7).</summary>
+    public IReadOnlyList<ReportLineValues> LineValues() => [.. (Lines ?? []).Select(LineOf)];
+
+    private static ReportLineValues LineOf(ReportLineRequest line, int i)
+    {
+        ReportRules.EnsureNoLineHours(i, line.Extra?.Keys ?? Enumerable.Empty<string>());
+        var at = $"Строка {i + 1}: ";
+        return new ReportLineValues(
+            line.Id ?? throw new InvalidRequestException(at + "не назван идентификатор строки (id) — его создаёт клиент."),
+            line.WorkTypeId ?? throw new InvalidRequestException(at + "не назван вид работы (workTypeId)."),
+            line.VariantId,
+            line.Volume ?? 0m,
+            line.UnitId ?? throw new InvalidRequestException(at + "не названа единица измерения (unitId)."),
+            line.SectionId, line.Location, line.Comment, line.IsCrew ?? false,
+            line.Details is { ValueKind: not (JsonValueKind.Undefined or JsonValueKind.Null) } details ? details.GetRawText() : null,
+            [.. (line.Materials ?? []).Select(m => new ReportMaterialValues(m.NomenclatureId, m.Note))],
+            [.. line.Participants ?? []]);
+    }
+}
