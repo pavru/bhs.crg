@@ -58,10 +58,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
    */
   onClear?: () => void;
   /**
-   * Открыт ли список, открытый из шапки: Esc в нём вернёт к дням, а не закроет календарь. Слой поля
-   * слышит Esc раньше календаря — по этому знаку он не закрывается.
+   * Список, открытый из шапки: открыт — приходит его «назад» (к дням), закрыт — `null`. Esc в нём вернёт к
+   * дням, а не закроет календарь: слой поля слышит Esc раньше календаря и по этому знаку не закрывается.
+   * Тот же «назад» зовёт системная «Назад» на телефоне ([UI-54]) — она обязана делать то же, что Esc.
    */
-  onHeaderList?: (open: boolean) => void;
+  onHeaderList?: (back: (() => void) | null) => void;
   /** Самая ранняя и самая поздняя допустимые даты — полный ISO; нет — не ограничено. */
   min?: string;
   max?: string;
@@ -89,7 +90,6 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   /** Вид, к которому вернёт выбор или Esc в списке, открытом из шапки. */
   const back: View = view === 'years' && precision === 'month' ? 'months' : 'days';
   const fromHeader = view !== terminalView;
-  useLayoutEffect(() => { onHeaderList?.(fromHeader); }, [fromHeader, onHeaderList]);
   // Клавиатурный фокус (роллинг). d актуален в day-view; m — в day/month; y — везде.
   const [fy, setFy] = useState(clampYear(start.y));
   const [fm, setFm] = useState(start.m);
@@ -146,6 +146,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     const p = parseISO(iso)!;
     setFy(p.y); setFm(p.m); setFd(p.d);
   }
+
+  // «Назад» наружу — через ref: отданная однажды функция видит фокус и вид на момент вызова, а не открытия.
+  const goBackRef = useRef(goBack);
+  useLayoutEffect(() => { goBackRef.current = goBack; });
+  useLayoutEffect(() => { onHeaderList?.(fromHeader ? () => goBackRef.current() : null); }, [fromHeader, onHeaderList]);
 
   // ── day-view: перемещение фокуса по дням (через нативный Date — корректный роллинг) ──
   function shiftDay(delta: number) {
