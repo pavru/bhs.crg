@@ -57,16 +57,26 @@ public sealed record PlannedWorksQuery(
 /// всей стройке и без отбора — позиции у такой строки нет. Приходит всегда — число без денег и
 /// наименований.
 /// </param>
+/// <param name="Undecided">
+/// Строк (работ и материалов) без решения о разделе, которых отбор по разделу не взял: их объём, материалы и
+/// стоимость не лежат ни на одном разделе, и ответ раздела без них неполон (ТЗ PLAN-5.1). Без отбора по разделу —
+/// 0: такие строки — в «стройке в целом» (<see cref="PlannedItem.Undistributed" />). Если не пришла ни одна
+/// часть — тоже 0: неполным нечему быть.
+/// </param>
 public sealed record PlannedWorksAnswer(
     ContractAnswer<PlannedVolumes> Volumes,
     ContractAnswer<IReadOnlyList<PlannedCost>> Cost,
     ContractAnswer<PlannedMaterials> Materials,
     ContractAnswer<IReadOnlyList<PlannedLabor>> Labor,
     ContractAnswer<IReadOnlyList<PlannedHint>> Hint,
-    int Unmapped);
+    int Unmapped,
+    int Undecided);
 
 /// <summary>Объёмы позиций и то, по чему они посчитаны.</summary>
-/// <param name="Basis">Сметы стройки с действующей редакцией — «план по: смета „…“, ред. N».</param>
+/// <param name="Basis">
+/// Сметы стройки с действующей редакцией — «план по: смета „…“, ред. N». При отборе по разделу — без смет,
+/// составленных на другие разделы: в план этого раздела они не входят.
+/// </param>
 public sealed record PlannedVolumes(IReadOnlyList<PlannedItem> Items, IReadOnlyList<PlannedBasis> Basis);
 
 /// <summary>Позиция перечня в плане.</summary>
@@ -80,8 +90,13 @@ public sealed record PlannedVolumes(IReadOnlyList<PlannedItem> Items, IReadOnlyL
 /// Сколько из «стройки в целом» решения о разделе ещё не имеет (ТЗ PLAN-5.1). При отборе по разделу — 0:
 /// нераспределённое не лежит ни на одном разделе.
 /// </param>
+/// <param name="WithoutVolume">
+/// Строк позиции, у которых в смете нет объёма: в <see cref="Volume" /> они не вошли, и объём без них неполон.
+/// Неизвестное — не ноль: 0 здесь значит «все строки с объёмом».
+/// </param>
 public sealed record PlannedItem(
-    Guid PlanItemId, Guid UnitId, decimal Volume, IReadOnlyList<PlannedShare> Distribution, decimal Undistributed);
+    Guid PlanItemId, Guid UnitId, decimal Volume, IReadOnlyList<PlannedShare> Distribution, decimal Undistributed,
+    int WithoutVolume);
 
 /// <summary>Объём позиции на разделе стройки; <c>null</c> — «стройка в целом».</summary>
 public sealed record PlannedShare(Guid? SectionId, decimal Volume);

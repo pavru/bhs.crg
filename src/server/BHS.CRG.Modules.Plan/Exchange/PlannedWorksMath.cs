@@ -39,11 +39,21 @@ internal sealed record RowShare(IReadOnlyDictionary<Guid, decimal> Sections, boo
     /// Доли по действующему распределению строки — тем же правилом, что ответ распределения
     /// (<see cref="DistributionLines" />): части, иначе правило её раздела ЛСР, иначе «не распределено».
     /// </summary>
+    /// <remarks>
+    /// Доля части — её количество на объём строки, а если части больше объёма или объёма в смете нет — на сумму
+    /// частей: доли разделов вместе не больше единицы, и «стройка в целом» не уходит в минус. Пути записи
+    /// частей больше объёма не пускают; знаменатель держит ответ и без них.
+    /// </remarks>
     public static RowShare Of(LineState line, decimal? sourceVolume)
     {
-        if (line.Source == LineSource.Parts && sourceVolume is > 0m)
-            return new RowShare(line.Parts.GroupBy(p => p.SectionId)
-                .ToDictionary(g => g.Key, g => Math.Min(1m, g.Sum(p => p.Quantity) / sourceVolume.Value)), false);
+        if (line.Source == LineSource.Parts)
+        {
+            var whole = Math.Max(sourceVolume ?? 0m, line.Parts.Sum(p => p.Quantity));
+            if (whole > 0m)
+                return new RowShare(line.Parts.GroupBy(p => p.SectionId)
+                    .ToDictionary(g => g.Key, g => g.Sum(p => p.Quantity) / whole), false);
+            return NotDecided;
+        }
         if (line.Source == LineSource.Rule)
             return line.Targets is [var section] ? OnSection(section) : WholeConstruction;
         return NotDecided;
@@ -67,16 +77,13 @@ internal static class PlannedWorksMath
 
     public static IReadOnlyList<PlannedItem> Items(
         IReadOnlyList<PlannedRow> rows, IReadOnlyDictionary<Guid, RowShare> shares, Guid? section) =>
-        [
-            .. rows.Where(r => r.PlanItemId is not null).GroupBy(r => r.PlanItemId!.Value).OrderBy(g => g.Key)
-                .Select(g => section is { } s ? OnSection(g.Key, g, shares, s) : Whole(g.Key, g, shares)),
-        ];
+        [.. ByPlanItem(rows).Select(g => section is { } s ? OnSection(g.Key, g, shares, s) : Whole(g.Key, g, shares))];
 
     private static PlannedItem OnSection(Guid item, IEnumerable<PlannedRow> rows, IReadOnlyDictionary<Guid, RowShare> shares, Guid section)
     {
         var list = rows.ToList();
         var volume = list.Sum(r => Round(Volume(r) * shares[r.Id].Weight(section), Quantities));
-        return new PlannedItem(item, list[0].UnitId!.Value, volume, [new PlannedShare(section, volume)], 0m);
+        return new PlannedItem(item, list[0].UnitId!.Value, volume, [new PlannedShare(section, volume)], 0m, WithoutVolume(list));
     }
 
     private static PlannedItem Whole(Guid item, IEnumerable<PlannedRow> rows, IReadOnlyDictionary<Guid, RowShare> shares)
@@ -103,7 +110,7 @@ internal static class PlannedWorksMath
         List<PlannedShare> distribution =
             [.. bySection.Where(p => p.Value != 0m).OrderBy(p => p.Key).Select(p => new PlannedShare(p.Key, p.Value))];
         if (whole != 0m) distribution.Add(new PlannedShare(null, whole));
-        return new PlannedItem(item, list[0].UnitId!.Value, list.Sum(Volume), distribution, undistributed);
+        return new PlannedItem(item, list[0].UnitId!.Value, list.Sum(Volume), distribution, undistributed, WithoutVolume(list));
     }
 
     public static IReadOnlyList<PlannedCost> Cost(
@@ -155,8 +162,7 @@ internal static class PlannedWorksMath
         var hoursOf = labor.GroupBy(l => l.RowId).ToDictionary(g => g.Key, g => g.Sum(l => l.ManHours));
         return
         [
-            .. rows.Where(r => r.PlanItemId is not null).GroupBy(r => r.PlanItemId!.Value).OrderBy(g => g.Key)
-                .Select(g =>
+            .. ByPlanItem(rows).Select(g =>
                 {
                     var normed = g.Where(r => hoursOf.ContainsKey(r.Id) && Volume(r) > 0m)
                         .Select(r => (Hours: hoursOf[r.Id], Volume: Volume(r), Weight: shares[r.Id].Weight(section)))
@@ -183,7 +189,14 @@ internal static class PlannedWorksMath
     private static IEnumerable<IGrouping<Guid?, PlannedRow>> ByItem(IReadOnlyList<PlannedRow> rows) =>
         rows.GroupBy(r => r.PlanItemId).OrderBy(g => g.Key is null).ThenBy(g => g.Key);
 
+    /// <summary>Строки-работы по позиции перечня — тем же порядком, что <see cref="ByItem" />, без строк-материалов.</summary>
+    private static IEnumerable<IGrouping<Guid, PlannedRow>> ByPlanItem(IReadOnlyList<PlannedRow> rows) =>
+        rows.Where(r => r.PlanItemId is not null).GroupBy(r => r.PlanItemId!.Value).OrderBy(g => g.Key);
+
+    /// <summary>Объём строки для суммы; строки без объёма считает <see cref="WithoutVolume" />, а не прячет нулём.</summary>
     private static decimal Volume(PlannedRow row) => row.Volume ?? 0m;
+
+    private static int WithoutVolume(IEnumerable<PlannedRow> rows) => rows.Count(r => r.Volume is null);
 
     /// <summary>Доля числа: вся строка — число как есть, без округления.</summary>
     private static decimal Scale(decimal value, decimal weight, int decimals) =>

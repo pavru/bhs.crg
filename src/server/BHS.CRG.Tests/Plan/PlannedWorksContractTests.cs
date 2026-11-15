@@ -133,6 +133,77 @@ public class PlannedWorksContractTests(PlanOnlyHost host)
     }
 
     [Fact]
+    public async Task Строка_без_объёма_названа_числом_а_не_нулём()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
+        await EstimateSeed.RevisionAsync(host, estimate, await EstimateSeed.MatchedRowAsync(host, site, 100m),
+            (await EstimateSeed.MatchedRowAsync(host, site, 1m, "Кабель без количества")) with { Volume = null, SourceVolume = null });
+
+        var item = Assert.Single(Shown((await ReadAsync(new PlannedWorksQuery(site.Construction), Everything)).Volumes).Items);
+
+        Assert.Equal(100m, item.Volume);
+        Assert.Equal(1, item.WithoutVolume);
+    }
+
+    [Fact]
+    public async Task Отбор_по_разделу_называет_строки_без_решения_и_не_берёт_сметы_других_разделов()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var c = await EstimateSeed.ClassifierAsync(host);
+        var whole = await EstimateSeed.EstimateAsync(host, site.Construction);
+        // Строка-работа и строка-материал сметы на стройку без частей и без правила — решения о разделе нет.
+        await EstimateSeed.RevisionAsync(host, whole, await EstimateSeed.MatchedRowAsync(host, site, 100m),
+            new EstimateRowDraft("Кабель по КА", Kind: EstimateRowKind.Material, SourceVolume: 10m, SourceUnit: "м",
+                Materials: [new EstimateMaterialDraft("Кабель ВВГнг-LS 3х2,5", 10m, SourceUnit: "м", NomenclatureId: c.Nomenclature)]));
+        var onSection = await EstimateOnSectionAsync(site);
+        await EstimateSeed.RevisionAsync(host, onSection, await EstimateSeed.MatchedRowAsync(host, site, 80m));
+        var other = site with { Section = await DistributionFlow.SectionAsync(host, site.Construction, "ЭОМ-2") };
+        var elsewhere = await EstimateOnSectionAsync(other);
+        await EstimateSeed.RevisionAsync(host, elsewhere, await EstimateSeed.MatchedRowAsync(host, other, 40m));
+
+        var section = new PlannedWorksQuery(site.Construction, SectionId: site.Section);
+        var volumesOnly = await ReadAsync(section, [PlanModule.EstimateRead]);
+        var everything = await ReadAsync(section, Everything);
+
+        Assert.Equal(80m, Assert.Single(Shown(volumesOnly.Volumes).Items).Volume);
+        Assert.Equal([whole, onSection], Shown(volumesOnly.Volumes).Basis.Select(b => b.EstimateId));
+        // Число одно при любых правах: строки, а не то, что из них видно.
+        Assert.Equal(2, volumesOnly.Undecided);
+        Assert.Equal(2, everything.Undecided);
+        Assert.Empty(Shown(everything.Materials).Lines);
+        Assert.Equal(0, (await ReadAsync(new PlannedWorksQuery(site.Construction), Everything)).Undecided);
+    }
+
+    [Fact]
+    public async Task Части_больше_объёма_или_без_объёма_не_уводят_стройку_в_минус()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
+        var revision = await EstimateSeed.RevisionAsync(host, estimate, await EstimateSeed.MatchedRowAsync(host, site, 200m),
+            (await EstimateSeed.MatchedRowAsync(host, site, 1m, "Кабель без количества")) with
+            {
+                Volume = null, SourceVolume = null, Total = 100m,
+            });
+        var rows = await DistributionFlow.RowIdsAsync(host, revision.Id);
+        // Пути записи таких частей не пускают — ответ обязан выдержать их и без этого.
+        // Объём файла 2, частей 3 + 1: доли — на сумму частей (3/4 и 1/4), а не 1 и 1/2 с «−100» стройке в целом.
+        var second = await DistributionFlow.SectionAsync(host, site.Construction, "ЭОМ-2");
+        await PartAsync(revision.Id, rows[0], site.Section, 3m);
+        await PartAsync(revision.Id, rows[0], second, 1m);
+        await PartAsync(revision.Id, rows[1], site.Section, 1m);
+
+        var answer = await ReadAsync(new PlannedWorksQuery(site.Construction), Everything);
+        var bySection = await ReadAsync(new PlannedWorksQuery(site.Construction, SectionId: site.Section), Everything);
+
+        Assert.Equal([new PlannedShare(site.Section, 150m), new PlannedShare(second, 50m)],
+            Assert.Single(Shown(answer.Volumes).Items).Distribution.OrderByDescending(s => s.Volume));
+        // 3/4 от 2000 у первой строки и вся вторая (её часть — единственная) — 1500 + 100.
+        Assert.Equal(1600m, Assert.Single(Shown(bySection.Cost)).Total);
+        Assert.Equal(0, bySection.Undecided);
+    }
+
+    [Fact]
     public async Task Материал_строки_материала_без_позиции_и_несопоставленный_назван_числом()
     {
         var site = await EstimateSeed.SiteAsync(host);
@@ -273,6 +344,14 @@ public class PlannedWorksContractTests(PlanOnlyHost host)
         db.Estimates.Add(estimate);
         await db.SaveChangesAsync();
         return estimate.Id;
+    }
+
+    /// <summary>Часть распределения прямо в таблицу — мимо проверок записи, которые такую часть не пустили бы.</summary>
+    private async Task PartAsync(Guid revisionId, Guid rowId, Guid sectionId, decimal quantity)
+    {
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<PlanDbContext>().Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO plan.distribution_parts (id, revision_id, row_id, section_id, quantity) VALUES ({Guid.NewGuid()}, {revisionId}, {rowId}, {sectionId}, {quantity})");
     }
 
     private async Task MakeCurrentAsync(Guid estimateId, Guid revisionId)

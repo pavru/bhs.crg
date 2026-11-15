@@ -48,15 +48,23 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
         var needsWork = volumesRefusal is null || costRefusal is null || materialsRefusal is null
                         || laborRefusal is null || hintRefusal is null;
         // Строки-материалы позиции не имеют: в объёмы и нормы они не входят, а отбор по позициям их не берёт.
-        var needsMaterialRows = query.PlanItemIds is null
-                                && (costRefusal is null || materialsRefusal is null || hintRefusal is null);
+        // При отборе по разделу они нужны и для счёта «без решения» — тем же числом при любых правах.
+        var needsMaterialRows = needsWork && query.PlanItemIds is null
+                                && (costRefusal is null || materialsRefusal is null || hintRefusal is null
+                                    || query.SectionId is not null);
 
-        var estimates = needsWork ? await CurrentEstimatesAsync(construction, ct) : [];
-        var rows = needsWork ? await WorkRowsAsync(query, ct) : [];
-        if (needsMaterialRows) rows = [.. rows, .. await MaterialRowsAsync(construction, ct)];
+        var estimates = needsWork ? await CurrentEstimatesAsync(construction, query.SectionId, ct) : [];
+        var revisions = estimates.Select(e => e.RevisionId).ToArray();
+        var rows = needsWork ? await WorkRowsAsync(query, revisions, ct) : [];
+        if (needsMaterialRows) rows = [.. rows, .. await MaterialRowsAsync(query, revisions, ct)];
 
         var shares = await SharesAsync(rows, estimates, ct);
-        if (query.SectionId is { } section) rows = [.. rows.Where(r => shares[r.Id].Weight(section) > 0m)];
+        var undecided = 0;
+        if (query.SectionId is { } section)
+        {
+            undecided = rows.Count(r => shares[r.Id].Undistributed);
+            rows = [.. rows.Where(r => shares[r.Id].Weight(section) > 0m)];
+        }
 
         var rowIds = rows.Select(r => r.Id).ToArray();
         var materials = costRefusal is null || materialsRefusal is null || hintRefusal is null
@@ -72,23 +80,29 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
             materialsRefusal ?? ContractAnswer.Shown(PlannedWorksMath.Materials(rows, materials, shares, query.SectionId)),
             laborRefusal ?? ContractAnswer.Shown(PlannedWorksMath.Labor(workRows, labor, shares, query.SectionId)),
             hintRefusal ?? ContractAnswer.Shown(PlannedWorksMath.Hint(rows, materials)),
-            unmapped));
+            unmapped,
+            undecided));
     }
 
     /// <summary>Смета стройки с действующей редакцией — основание плана.</summary>
     private sealed record CurrentEstimate(Guid EstimateId, string Name, Guid? SectionId, Guid RevisionId, int Number);
 
-    private async Task<List<CurrentEstimate>> CurrentEstimatesAsync(Guid construction, CancellationToken ct) =>
+    /// <summary>
+    /// Сметы стройки с действующей редакцией; при отборе по разделу — без смет на другие разделы: в план раздела
+    /// они не входят, и их строки незачем читать.
+    /// </summary>
+    private async Task<List<CurrentEstimate>> CurrentEstimatesAsync(Guid construction, Guid? section, CancellationToken ct) =>
         await (from estimate in db.Estimates.AsNoTracking()
                join revision in db.EstimateRevisions.AsNoTracking() on estimate.CurrentRevisionId equals (Guid?)revision.Id
                where estimate.ConstructionId == construction
+                     && (section == null || estimate.SectionId == null || estimate.SectionId == section)
                orderby estimate.CreatedAt, estimate.Name
                select new CurrentEstimate(estimate.Id, estimate.Name, estimate.SectionId, revision.Id, revision.Number))
             .ToListAsync(ct);
 
-    private async Task<List<PlannedRow>> WorkRowsAsync(PlannedWorksQuery query, CancellationToken ct)
+    private async Task<List<PlannedRow>> WorkRowsAsync(PlannedWorksQuery query, Guid[] revisions, CancellationToken ct)
     {
-        var rows = PlanRows.Current(db, query.ConstructionId).AsNoTracking();
+        var rows = OfRevisions(PlanRows.Current(db, query.ConstructionId).AsNoTracking(), query, revisions);
         if (query.PlanItemIds is { } items)
         {
             var ids = items.Distinct().ToArray();
@@ -97,8 +111,13 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
         return await Project(rows).ToListAsync(ct);
     }
 
-    private async Task<List<PlannedRow>> MaterialRowsAsync(Guid construction, CancellationToken ct) =>
-        await Project(PlanRows.CurrentMaterialRows(db, construction).AsNoTracking()).ToListAsync(ct);
+    private async Task<List<PlannedRow>> MaterialRowsAsync(PlannedWorksQuery query, Guid[] revisions, CancellationToken ct) =>
+        await Project(OfRevisions(PlanRows.CurrentMaterialRows(db, query.ConstructionId).AsNoTracking(), query, revisions))
+            .ToListAsync(ct);
+
+    /// <summary>При отборе по разделу — только строки смет, которые в план раздела входят.</summary>
+    private static IQueryable<EstimateRow> OfRevisions(IQueryable<EstimateRow> rows, PlannedWorksQuery query, Guid[] revisions) =>
+        query.SectionId is null ? rows : rows.Where(r => revisions.Contains(r.RevisionId));
 
     private static IQueryable<PlannedRow> Project(IQueryable<EstimateRow> rows) =>
         rows.Select(r => new PlannedRow(r.Id, r.RevisionId, r.PlanItemId, r.UnitId, r.Volume, r.SourceVolume,
@@ -116,8 +135,11 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
 
         var onSection = estimates.Where(e => e.SectionId is not null).ToDictionary(e => e.RevisionId, e => e.SectionId!.Value);
         var distributed = estimates.Where(e => e.SectionId is null).Select(e => e.RevisionId).ToArray();
+        // Правил — по одному на раздел ЛСР, их немного; частей — по строке, и читаются только части загруженных строк.
+        var rowIds = rows.Where(r => !onSection.ContainsKey(r.RevisionId)).Select(r => r.Id).ToArray();
         var rules = await db.DistributionRules.AsNoTracking().Where(r => distributed.Contains(r.RevisionId)).ToListAsync(ct);
-        var parts = await db.DistributionParts.AsNoTracking().Where(p => distributed.Contains(p.RevisionId)).ToListAsync(ct);
+        List<DistributionPart> parts = rowIds.Length == 0 ? []
+            : await db.DistributionParts.AsNoTracking().Where(p => rowIds.Contains(p.RowId)).ToListAsync(ct);
 
         foreach (var revision in rows.GroupBy(r => r.RevisionId))
         {
@@ -140,7 +162,6 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
     private async Task<List<PlannedRowMaterial>> MaterialsAsync(Guid[] rowIds, CancellationToken ct) =>
         rowIds.Length == 0 ? []
         : await db.EstimateRowMaterials.AsNoTracking().Where(m => rowIds.Contains(m.RowId))
-            .OrderBy(m => m.RowId).ThenBy(m => m.Order)
             .Select(m => new PlannedRowMaterial(m.RowId, m.NomenclatureId, m.Quantity, m.SourceUnit, m.Amount))
             .ToListAsync(ct);
 
