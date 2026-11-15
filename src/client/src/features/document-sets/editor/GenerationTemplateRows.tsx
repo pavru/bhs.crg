@@ -1,4 +1,4 @@
-import type { Template } from '@/shared/api/types';
+import type { TemplateSummary } from '@/shared/api/types';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { ListItem } from '@/shared/ui/ListItem';
 
@@ -9,7 +9,7 @@ import { ListItem } from '@/shared/ui/ListItem';
  * меняет флажок — решение владельца 05.11.2026 вместо поведения #316 («щелчок по всей строке переключает участие»).
  */
 export function GenerationTemplateRows({ templates, participating, focusedId, disabled, onToggle, onFocus }: {
-  templates: Template[];
+  templates: TemplateSummary[];
   /** Шаблоны, отмеченные флажком. */
   participating: string[];
   /** Шаблон, параметры которого показаны. */

@@ -22,7 +22,8 @@ public class TemplateHandlers(
     IRequestHandler<DeleteTemplateCommand>,
     IRequestHandler<GetTemplatesUsageQuery, IReadOnlyDictionary<Guid, TemplateUsage>>,
     IRequestHandler<GetActiveTemplateQuery, Template?>,
-    IRequestHandler<ListTemplatesQuery, IReadOnlyList<Template>>,
+    IRequestHandler<ListTemplatesQuery, IReadOnlyList<TemplateSummary>>,
+    IRequestHandler<GetTemplateContentQuery, string?>,
     IRequestHandler<UpdateTemplateParametersCommand, Template>,
     IRequestHandler<SetTemplateDefaultCommand, TemplateMutationResult>
 {
@@ -279,10 +280,13 @@ public class TemplateHandlers(
         => Generation.TemplateChoice.FallbackAsync(q.DocumentTypeId, repo, names, ct);
 
     /// <summary>Шаблоны типа в порядке запасного выбора (D6, [ID-3]): тогда «первый действующий» формы
-    /// генерации на клиенте — тот же, что возьмёт сервер.</summary>
-    public async Task<IReadOnlyList<Template>> Handle(ListTemplatesQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.Order(
-            await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct), firstCreated: null);
+    /// генерации на клиенте — тот же, что возьмёт сервер. Без текстов (issue #1972): версий много, а
+    /// текст нужен одной — его отдаёт <see cref="GetTemplateContentQuery"/>.</summary>
+    public async Task<IReadOnlyList<TemplateSummary>> Handle(ListTemplatesQuery q, CancellationToken ct)
+        => Generation.TemplateChoice.Order(await names.SummariesAsync(q.DocumentTypeId, ct), firstCreated: null);
+
+    public Task<string?> Handle(GetTemplateContentQuery q, CancellationToken ct)
+        => names.ContentAsync(q.Id, ct);
 
     public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {

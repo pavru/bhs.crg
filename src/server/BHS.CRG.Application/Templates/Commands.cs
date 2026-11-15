@@ -30,7 +30,11 @@ public record GetTemplatesUsageQuery(Guid DocumentTypeId) : IRequest<IReadOnlyDi
 public record TemplateUsage(int Count, IReadOnlyList<string> Names);
 
 public record GetActiveTemplateQuery(Guid DocumentTypeId) : IRequest<Template?>;
-public record ListTemplatesQuery(Guid DocumentTypeId) : IRequest<IReadOnlyList<Template>>;
+/// <summary>Версии шаблонов типа без текстов, в порядке запасного выбора (issue #1972).</summary>
+public record ListTemplatesQuery(Guid DocumentTypeId) : IRequest<IReadOnlyList<TemplateSummary>>;
+
+/// <summary>Текст Typst одной версии (issue #1972); null — версии нет.</summary>
+public record GetTemplateContentQuery(Guid Id) : IRequest<string?>;
 
 public record SetTemplateDefaultCommand(Guid Id) : IRequest<TemplateMutationResult>;
 

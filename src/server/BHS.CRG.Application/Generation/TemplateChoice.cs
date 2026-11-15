@@ -162,8 +162,10 @@ public static class TemplateChoice
     /// <param name="firstCreated">Наименьший <c>CreatedAt</c> версий по названию шаблона (один тип) —
     /// из запроса без текстов (<c>ITemplateNames.FirstCreatedAsync</c>). Без него — по загруженным
     /// версиям, которых тогда должно хватать: загружены все.</param>
-    public static IReadOnlyList<Template> Order(
-        IEnumerable<Template> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
+    /// <typeparam name="T">Версия с текстом или без (сводка списка, issue #1972) — порядок один.</typeparam>
+    public static IReadOnlyList<T> Order<T>(
+        IEnumerable<T> templates, IReadOnlyDictionary<string, DateTimeOffset>? firstCreated)
+        where T : ITemplateVersionKey
         => templates
             .GroupBy(t => (t.DocumentTypeId, t.Name))
             .OrderBy(g => firstCreated is not null && firstCreated.TryGetValue(g.Key.Name, out var at)

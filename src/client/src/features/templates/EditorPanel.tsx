@@ -13,9 +13,10 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
-import type { Template, DocumentType } from '@/shared/api/types';
+import type { Template, TemplateSummary, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
-import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault } from '@/shared/api/templates';
+import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault, useTemplateContent } from '@/shared/api/templates';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
@@ -126,7 +127,7 @@ function NewVersionDialog({ plan, saving, error, onCancel, onConfirm }: {
 // ─── Editor panel ─────────────────────────────────────────────────────────────
 
 interface EditorPanelProps {
-  template: Template;
+  template: TemplateSummary;
   docType: DocumentType;
   allDocTypes: DocumentType[];
   onSaved: (updated: Template) => void;
@@ -138,11 +139,57 @@ interface EditorPanelProps {
   versionPlan: NewVersionPlan;
 }
 
-export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPlan }: EditorPanelProps) {
+/**
+ * Текст версии приходит своим запросом (issue #1972): список страницы отдаёт версии без текстов.
+ * Редактор открывается, когда текст получен, — иначе Monaco показал бы пустой шаблон, и Ctrl+S
+ * записал бы пустоту. Ответ сохранения кладёт текст в кэш, поэтому после записи загрузки нет и
+ * Monaco сохраняет курсор.
+ */
+/** Отказ чтения текста — словами: у 404 сервер тела не шлёт, и axios назвал бы лишь код ответа. */
+function contentLoadError(error: unknown): string {
+  if ((error as { response?: { status?: number } })?.response?.status === 404)
+    return 'Этой версии больше нет — её удалили. Выберите другую.';
+  const reason = (error as { response?: { data?: unknown } })?.response?.data ? apiError(error, '') : '';
+  return reason ? `Не удалось загрузить текст шаблона: ${reason}` : 'Не удалось загрузить текст шаблона.';
+}
+
+export function EditorPanel(props: EditorPanelProps) {
+  const { template, docType, onSaved } = props;
+  const { data: serverContent, isError, error } = useTemplateContent(template.id);
+  return (
+    <div className="flex flex-col h-full">
+      {serverContent === undefined ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center text-body-medium text-on-surface-variant">
+          {isError
+            ? <span className="text-error">{contentLoadError(error)}</span>
+            : <CircularProgress label="Загрузка текста шаблона" />}
+        </div>
+      ) : (
+        <TemplateEditor {...props} serverContent={serverContent} />
+      )}
+
+      {/* Параметры и ассеты тексту не нужны — они видны сразу, не дожидаясь его. */}
+      {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
+      <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
+      {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
+      <TemplateAssetsPanel
+        key={`assets-${template.id}`}
+        scope="Template" scopeId={template.id} title="Ассеты шаблона"
+        hintScopes={[
+          { scope: 'DocumentType', scopeId: docType.id, label: 'на уровне типа' },
+          { scope: 'System', scopeId: null, label: 'системных' },
+        ]}
+      />
+    </div>
+  );
+}
+
+function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved, versionPlan }:
+  EditorPanelProps & { serverContent: string }) {
   useUserLibCompletion();
   useAssetCompletion();
   const qc = useQueryClient();
-  const [content, setContent] = useState(template.content);
+  const [content, setContent] = useState(serverContent);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
@@ -160,13 +207,16 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       toast.info(`${ruCount(count, 'документ', 'документа', 'документов')} переведено в черновик — PDF устарел`);
   }
 
-  // Есть ли несохранённые правки (dirty). После сохранения onSaved() подставляет
-  // обновлённый шаблон с тем же content → снова false.
-  const dirty = content !== template.content;
+  // Есть ли несохранённые правки (dirty). После сохранения текст версии в кэше — сохранённый
+  // (ответ записи), и признак снова false.
+  const dirty = content !== serverContent;
 
-  // When true, the next template.id change came from our own save — skip content reset
-  // so Monaco keeps its cursor position and scroll offset.
-  const justSavedRef = useRef(false);
+  // Версия, к которой относится текст в редакторе, и её текст с сервера, который редактор взял.
+  const shownRef = useRef({ id: template.id, text: serverContent });
+  // Id версии, только что созданной отсюда: её текст и есть текст редактора — сбрасывать его не нужно,
+  // и Monaco сохраняет курсор. Именно id, а не флаг: флаг, не сброшенный сохранением на месте (id тот
+  // же — смены нет), подменил бы текст следующей открытой версии текстом этой.
+  const ownVersionRef = useRef<string | null>(null);
 
   // Re-entrancy guard: blocks a second save while one is in flight. State alone is
   // async, so a synchronous double-trigger (e.g. Ctrl+S) could fire two PUTs before
@@ -174,12 +224,21 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
   const savingRef = useRef(false);
 
   useEffect(() => {
-    if (justSavedRef.current) {
-      justSavedRef.current = false;
+    const shown = shownRef.current;
+    shownRef.current = { id: template.id, text: serverContent };
+    if (shown.id === template.id) {
+      // Та же версия, а текст с сервера другой: перечитан (правка соседа) или сохранён отсюда. Без
+      // своих правок редактор следует за ним — иначе показал бы прежний текст как «несохранённые
+      // правки», и Ctrl+S вернул бы его поверх соседского. Свои правки остаются.
+      if (shown.text !== serverContent) setContent(c => (c === shown.text ? serverContent : c));
       return;
     }
-    setContent(template.content);
-  }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (ownVersionRef.current === template.id) {
+      ownVersionRef.current = null;
+      return;
+    }
+    setContent(serverContent);
+  }, [template.id, serverContent]);
 
   // Простое сохранение (Ctrl+S) — правит текущую версию на месте. Историческую
   // (неактивную) версию так править нельзя — её можно только форкнуть.
@@ -199,7 +258,6 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       const res = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
-      justSavedRef.current = true; // prevent useEffect from resetting cursor
       onSaved(res.template);
       notifyReset(res.resetDocuments);
     } catch (err: unknown) {
@@ -236,7 +294,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
       });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
-      justSavedRef.current = true;
+      ownVersionRef.current = res.template.id;
       onSaved(res.template);
       notifyReset(res.resetDocuments);
       setNewVersionOpen(false);
@@ -310,7 +368,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap">
@@ -404,18 +462,6 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved, versionPl
           }}
         />
       </div>
-
-      {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
-      <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
-      {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
-      <TemplateAssetsPanel
-        key={`assets-${template.id}`}
-        scope="Template" scopeId={template.id} title="Ассеты шаблона"
-        hintScopes={[
-          { scope: 'DocumentType', scopeId: docType.id, label: 'на уровне типа' },
-          { scope: 'System', scopeId: null, label: 'системных' },
-        ]}
-      />
 
       {newVersionOpen && (
         <NewVersionDialog

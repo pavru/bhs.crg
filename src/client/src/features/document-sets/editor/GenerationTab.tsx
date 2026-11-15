@@ -7,7 +7,7 @@ import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
 import { useGenerateDocument, useSetDocumentTemplates, downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle, useResolutionDiagnostics, type ResolutionDiagnostic } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
-import type { DocumentInstance, Template } from '@/shared/api/types';
+import type { DocumentInstance, TemplateSummary } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from '../fields';
 import { InstanceAuditModal } from './InstanceAuditModal';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
@@ -85,7 +85,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   const mutation = useGenerateDocument();
   const setTemplatesMutation = useSetDocumentTemplates();
   const { data: templates = [], isLoading: templatesLoading, refetch: refetchTemplates } = useListTemplates(instance.documentTypeId);
-  const activeTemplates = templates.filter((t: Template) => t.isActive);
+  const activeTemplates = templates.filter((t: TemplateSummary) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
   /**
    * Выбор шаблонов — локальный ОВЕРРАЙД поверх серверного значения (issue #858), а не копия,
@@ -119,10 +119,10 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   // показываем эффективный. Это вычисление, а не состояние: список шаблонов приходит с сервера и
   // может смениться, и эффект-сторож просто повторял бы здесь ту же проверку — коммитом позже.
   const [chosenFocus, setChosenFocus] = useState<string | null>(null);
-  const focusedTemplateId = chosenFocus && activeTemplates.some((t: Template) => t.id === chosenFocus)
+  const focusedTemplateId = chosenFocus && activeTemplates.some((t: TemplateSummary) => t.id === chosenFocus)
     ? chosenFocus
     : (effectiveTemplate?.id ?? null);
-  const focusedTemplate = activeTemplates.find((t: Template) => t.id === focusedTemplateId) ?? effectiveTemplate;
+  const focusedTemplate = activeTemplates.find((t: TemplateSummary) => t.id === focusedTemplateId) ?? effectiveTemplate;
 
   async function handleGenerate() {
     setError('');
@@ -254,7 +254,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           </div>
           <div className="space-y-1.5">
             {pdfFiles.map(f => {
-              const tpl = templates.find((t: Template) => t.id === f.templateId);
+              const tpl = templates.find((t: TemplateSummary) => t.id === f.templateId);
               return (
                 <div key={f.id} className="flex items-center gap-2">
                   <Tooltip content={tpl?.name}><span className="text-body-small text-on-surface-variant flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>

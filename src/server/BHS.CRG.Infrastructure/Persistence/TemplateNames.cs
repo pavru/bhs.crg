@@ -29,4 +29,14 @@ public sealed class TemplateNames(AppDbContext db) : ITemplateNames
             .Where(t => t.DocumentTypeId == documentTypeId)
             .Select(t => t.Id)
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<TemplateSummary>> SummariesAsync(Guid documentTypeId, CancellationToken ct = default)
+        => await db.Templates
+            .Where(t => t.DocumentTypeId == documentTypeId)
+            .Select(t => new TemplateSummary(t.Id, t.DocumentTypeId, t.Name, t.Version, t.Parameters,
+                t.Comment, t.IsActive, t.IsDefault, t.CreatedAt, t.UpdatedAt))
+            .ToListAsync(ct);
+
+    public Task<string?> ContentAsync(Guid id, CancellationToken ct = default)
+        => db.Templates.Where(t => t.Id == id).Select(t => (string?)t.Content).FirstOrDefaultAsync(ct);
 }

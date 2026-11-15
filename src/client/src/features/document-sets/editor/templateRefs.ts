@@ -1,4 +1,4 @@
-import type { Template } from '@/shared/api/types';
+import type { TemplateSummary } from '@/shared/api/types';
 
 /**
  * Ссылки документа на шаблоны — выбор для генерации и ключи параметров (issue #1960).
@@ -10,7 +10,7 @@ import type { Template } from '@/shared/api/types';
  * стереть выбор человека, поэтому его пересылают как есть, а список перечитывают.
  */
 export function unknownTemplateRefs(
-  ids: readonly string[], paramKeys: readonly string[], templates: readonly Pick<Template, 'id'>[],
+  ids: readonly string[], paramKeys: readonly string[], templates: readonly Pick<TemplateSummary, 'id'>[],
 ): string[] {
   const known = new Set(templates.map(t => t.id));
   return [...new Set([...ids, ...paramKeys])].filter(id => !known.has(id)).sort();
@@ -37,8 +37,8 @@ export function paramTemplateIds(json: string | null | undefined): string[] {
  * поэтому первый действующий — тот, что сервер возьмёт без «по умолчанию».
  */
 export function effectiveTemplateOf(
-  selectedIds: readonly string[], templates: readonly Template[], pinnedId: string | null,
-): Template | undefined {
+  selectedIds: readonly string[], templates: readonly TemplateSummary[], pinnedId: string | null,
+): TemplateSummary | undefined {
   const active = templates.filter(t => t.isActive);
   if (selectedIds.length > 0) {
     for (const id of selectedIds) {

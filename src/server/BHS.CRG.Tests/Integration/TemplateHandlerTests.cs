@@ -64,7 +64,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         using var scope = fixture.Services.CreateScope();
         var all = await Mediator(scope).Send(new ListTemplatesQuery(dtId));
         var only = Assert.Single(all);
-        Assert.DoesNotContain("чужой", only.Content);
+        Assert.DoesNotContain("чужой", await Mediator(scope).Send(new GetTemplateContentQuery(only.Id)));
         Assert.True(only.IsActive);
     }
 
