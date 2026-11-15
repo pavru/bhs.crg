@@ -1,0 +1,108 @@
+using BHS.CRG.Modules.Data;
+
+namespace BHS.CRG.Modules.Work.Data;
+
+/// <summary>
+/// Виды записей журнала отчёта (change <c>work-14-report-journal</c>). Каталог ОТКРЫТ: приёмка, возврат и правка
+/// менеджером (<c>work-16</c>) допишут свои виды тем change, который их приносит. Коды заведения, правки и удаления —
+/// те же, что у вида протокола <see cref="ReportChangeKind" />: у записи журнала и записи протокола один номер, и вид
+/// у них один.
+/// </summary>
+public static class ReportJournalKinds
+{
+    public const string Created = "created";
+
+    public const string Updated = "updated";
+
+    public const string Deleted = "deleted";
+}
+
+/// <summary>
+/// Запись журнала отчёта (ТЗ WORK-11, WORK-12, WORK-31, WORK-51; change <c>work-14-report-journal</c>): что
+/// изменилось в отчёте — поле, прежнее и новое значение, — кто ввёл, за кого, когда по часам устройства и когда по
+/// часам сервера. Этим журналом менеджер и заказчик потом проверяют первичку.
+///
+/// <para><b>Только дописывается</b> (<see cref="IAppendOnly" />): правку и удаление загруженной записи отвергает
+/// контекст, запись мимо отслеживания (<c>ExecuteUpdate</c>, сырой SQL) — перепись <c>WorkJournalWritePathTests</c>,
+/// второе место записи — <c>WorkJournalInventoryTests</c>. Не правится никем, в том числе администратором.</para>
+///
+/// <para><b>Пишется одним сохранением с протоколом</b> (<see cref="ReportChange" />) и в одной транзакции с правкой
+/// отчёта: нет записи — нет и правки (ТЗ WORK-51). Журнал ядра для этого не годится — он пишется после действия, без
+/// общей транзакции.</para>
+///
+/// <para><b>Изолированная запись</b> (<see cref="IIsolatedRecord" />): журнал — часть отчёта, и читается он только
+/// файлом чтения отчёта с охватом читателя.</para>
+///
+/// <para><b>Ссылка на отчёт — без внешнего ключа</b>: удалённый черновик оставляет в журнале запись
+/// <see cref="ReportJournalKinds.Deleted" /> с тем, что было удалено.</para>
+/// </summary>
+public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
+{
+    private ReportJournalEntry() { }
+
+    public Guid Id { get; private set; }
+
+    public Guid ReportId { get; private set; }
+
+    /// <summary>Идентификатор изменения от клиента (ТЗ MOB-15) — тот же, что у записи протокола.</summary>
+    public Guid ChangeId { get; private set; }
+
+    /// <summary>Номер в серверной последовательности <c>work.report_seq</c> — тот же, что у записи протокола.</summary>
+    public long Seq { get; private set; }
+
+    /// <summary>Вид действия — код из открытого каталога <see cref="ReportJournalKinds" />.</summary>
+    public string Kind { get; private set; } = "";
+
+    /// <summary>Автор ввода — учётная запись запроса; <c>null</c> — действие системы.</summary>
+    public Guid? AuthorId { get; private set; }
+
+    /// <summary>Имя автора снимком: учётную запись могут переименовать или удалить (ТЗ WORK-11).</summary>
+    public string AuthorName { get; private set; } = "";
+
+    /// <summary>Исполнитель работ — сотрудник отчёта (ТЗ WORK-31).</summary>
+    public Guid ExecutorEmployeeId { get; private set; }
+
+    /// <summary>Имя исполнителя снимком.</summary>
+    public string ExecutorName { get; private set; } = "";
+
+    /// <summary>
+    /// Автор вводит за другого (ТЗ WORK-31): сотрудник учётной записи автора — не сотрудник отчёта. «Вводит Иванов
+    /// за Петрова».
+    /// </summary>
+    public bool EnteredFor { get; private set; }
+
+    /// <summary>Время действия по часам устройства (ТЗ MOB-17) — заявление; <c>null</c> — устройство не назвало.</summary>
+    public DateTimeOffset? DeviceTime { get; private set; }
+
+    /// <summary>Время доставки на сервер — факт.</summary>
+    public DateTimeOffset ServerTime { get; private set; }
+
+    /// <summary>Правка после подачи (ТЗ WORK-11): время действия позже момента подачи отчёта.</summary>
+    public bool AfterSubmission { get; private set; }
+
+    /// <summary>
+    /// Что изменилось — JSON-массив <c>[{ line, field, before, after }]</c>: только изменённые поля; <c>line</c> —
+    /// идентификатор строки, у шапки — <c>null</c>; сведения строки — по ключам (<c>details.&lt;ключ&gt;</c>).
+    /// </summary>
+    public string Changes { get; private set; } = "[]";
+
+    /// <summary>Собрать запись. Зовёт только место записи — <see cref="ReportJournal" /> (перепись).</summary>
+    internal static ReportJournalEntry Of(
+        Report report, string kind, Guid changeId, long seq, ReportJournalActor author, string executorName,
+        DateTimeOffset? deviceTime, DateTimeOffset serverTime, bool afterSubmission, string changes) => new()
+    {
+        Id = Guid.NewGuid(), ReportId = report.Id, ChangeId = changeId, Seq = seq, Kind = kind,
+        AuthorId = author.UserId, AuthorName = author.Name, ExecutorEmployeeId = report.EmployeeId,
+        ExecutorName = executorName, EnteredFor = author.EmployeeId != report.EmployeeId,
+        // К UTC — как у протокола: колонка timestamptz принимает только нулевое смещение.
+        DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
+        AfterSubmission = afterSubmission, Changes = changes,
+    };
+}
+
+/// <summary>
+/// Кто действует: учётная запись, её имя на момент действия и её сотрудник — по нему журнал отличает «вводит за
+/// сотрудника» от своей правки (ТЗ WORK-31). <c>EmployeeId</c> — <c>null</c>, если учётная запись с сотрудником не
+/// связана.
+/// </summary>
+public sealed record ReportJournalActor(Guid? UserId, string Name, Guid? EmployeeId);

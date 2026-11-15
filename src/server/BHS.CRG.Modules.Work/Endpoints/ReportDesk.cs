@@ -1,7 +1,10 @@
+using System.Globalization;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
@@ -22,11 +25,19 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// устройства и временем сервера; расхождение времён не отказ. Версия в протоколе — та, что ушла в ответе: поэтому
 /// отчёт сохраняется раньше записи протокола, обе — одной транзакцией.</para>
 ///
+/// <para><b>Журнал отчёта</b> (<see cref="ReportJournal" />, <c>work-14</c>) — тем же сохранением, что и запись
+/// протокола, в той же транзакции: нет записи журнала — нет и правки (ТЗ WORK-51). Удаление черновика и правка после
+/// подачи дублируются в журнал действий ядра ПОСЛЕ фиксации (<see cref="ReportActions" />): сбой там — предупреждение
+/// в журнал приложения, а не откат, — свидетельство уже лежит в журнале отчёта.</para>
+///
 /// <para><b>Порядок отказов правки:</b> запрос (400: версия, <c>changeId</c>, тело) → отчёт (404, чужой как
 /// несуществующий) → сотрудник в теле (400) → повтор (200) → версия (409) → стройка вне охвата (404) → правила
 /// записи (400/409).</para>
 /// </summary>
-public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time)
+public sealed class ReportDesk(
+    WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
+    IModuleUser user, IModuleEmployees employees, IModuleConstructions constructions, IModuleActivityLog log,
+    ILogger<ReportDesk> logger)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -57,6 +68,7 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         var lines = body.LineValues();
         if (await reads.HolderOfIdAsync(id, ct) is { } holder) return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, ct);
         await EnsureNotDeletedAsync(id, employeeId, ct);
+        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(employeeId, ct));
 
         try
         {
@@ -65,8 +77,9 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
             var report = await writer.CreateAsync(id, employeeId, header, lines, seq, now, ct);
             if (enteredBy is var (userId, name)) report.EnteredBy(userId, name);
             await db.SaveChangesAsync(ct);
-            db.Add(ReportChange.Of(seq, report, body.ChangeId ?? Guid.NewGuid(), ReportChangeKind.Created,
-                body.DeviceTime, now, db.VersionOf(report)));
+            var changeId = body.ChangeId ?? Guid.NewGuid();
+            db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Created, body.DeviceTime, now, db.VersionOf(report)));
+            journal.Append(ReportJournalKinds.Created, report, null, actor, executor, changeId, seq, body.DeviceTime, now);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.Created($"{path}/{id}", await views.OneAsync(report, ct: ct));
@@ -105,12 +118,19 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
 
+        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(report.EmployeeId, ct));
+        var before = ReportJournal.Capture(report);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         await writer.ChangeAsync(report, header, lines, seq, now, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
+        var entry = journal.Append(ReportJournalKinds.Updated, report, before, actor, executor, changeId, seq, body.DeviceTime, now);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+
+        if (entry.AfterSubmission)
+            await RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null,
+                after: "изменено: " + ReportJournal.FieldsOf(entry));
         return Results.Ok(await views.OneAsync(report, ct: ct));
     }
 
@@ -134,13 +154,52 @@ public sealed class ReportDesk(WorkDbContext db, ReportWriter writer, ReportRead
         if (report.Status != ReportStatus.Draft)
             throw new ConflictException("Удалить можно только черновик: поданный отчёт остаётся, его возвращают на правку.");
 
-        var seq = await db.NextReportSeqAsync(report.EmployeeId, ct);
-        db.Add(ReportChange.Of(seq, report, changeId ?? Guid.NewGuid(), ReportChangeKind.Deleted, deviceTime,
-            time.GetUtcNow(), null));
+        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(report.EmployeeId, ct));
+        var before = ReportJournal.Capture(report);
+        // Что удалено — до удаления: каскад снимает строки с отчёта при сохранении.
+        var removed = $"часы: {(report.Hours is { } h ? h.ToString("0.##", CultureInfo.InvariantCulture) : "—")}, строк: {report.Lines.Count}";
+        var (seq, now, change) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow(), changeId ?? Guid.NewGuid());
+        db.Add(ReportChange.Of(seq, report, change, ReportChangeKind.Deleted, deviceTime, now, null));
+        journal.Append(ReportJournalKinds.Deleted, report, before, actor, executor, change, seq, deviceTime, now);
         db.Remove(report);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+
+        await RecordAsync(ReportActions.Deleted, report, executor, before: removed, after: "удалён");
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Кто действует: учётная запись запроса и её сотрудник — у «своих» он известен охвату, у ввода за сотрудника
+    /// спрашивается по связи учётной записи (ТЗ WORK-31: «вводит Иванов за Петрова»).
+    /// </summary>
+    private async Task<ReportJournalActor> ActorAsync(ReportViewer viewer, CancellationToken ct)
+    {
+        var employee = viewer.EmployeeId ?? (user.Id is { } id ? (await employees.OfAccountAsync(id, ct))?.Id : null);
+        return new ReportJournalActor(user.Id, user.Name, employee);
+    }
+
+    /// <summary>Имя исполнителя снимком (через связь <c>work-01</c>); справочника нет — идентификатор.</summary>
+    private async Task<string> ExecutorAsync(Guid employeeId, CancellationToken ct) =>
+        (await employees.GetAsync([employeeId], ct))?.FirstOrDefault()?.FullName ?? employeeId.ToString();
+
+    /// <summary>
+    /// Дубль в журнал ядра — после фиксации, без токена отмены и без права на отказ: изменение состоялось, и
+    /// оборванный запрос или сбой журнала не вправе ответить «сбой» про него (как удаление счёта).
+    /// </summary>
+    private async Task RecordAsync(ModuleActivityAction action, Report report, string executor, string? before, string after)
+    {
+        try
+        {
+            var site = (await constructions.ListAsync(CancellationToken.None)).FirstOrDefault(c => c.Id == report.ConstructionId);
+            await log.RecordAsync(action, report.Id.ToString(), ReportActions.Label(executor, site?.Name ?? "стройка", report),
+                before, after, CancellationToken.None);
+        }
+        catch (Exception lost)
+        {
+            logger.LogWarning(lost, "Отчёт {ReportId}: действие {Action} записано в журнал отчёта, а в журнал действий не легло.",
+                report.Id, action.Code);
+        }
     }
 
     /// <summary>

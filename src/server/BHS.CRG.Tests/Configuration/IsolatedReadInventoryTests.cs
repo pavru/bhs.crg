@@ -52,7 +52,8 @@ public class IsolatedReadInventoryTests
         ["BHS.CRG.Modules.Work/Data/ReportReads.cs"] =
             "файл чтения отчёта монтажника (work-13): отчёт читается только с охватом (ReportViewer — «свои» по " +
             "сотруднику учётной записи или стройки менеджера), чужой и несуществующий — один null одним путём; " +
-            "вопросы пути записи «занято ли» и «чей идентификатор» полей чужого отчёта не отдают",
+            "вопросы пути записи «занято ли» и «чей идентификатор» полей чужого отчёта не отдают; журнал отчёта (work-14) — " +
+            "тем же охватом, черновик — только сотруднику и автору ввода",
     };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
@@ -229,7 +230,7 @@ public class IsolatedReadInventoryTests
     /// <summary>
     /// Отчёт монтажника и все его части — изолированные записи (ТЗ WORK-39; <c>work-13</c>). Сторож пометки: без
     /// неё перепись выше молчит — нет пометки, нет и нарушений, и <c>Set&lt;Report&gt;()</c> в любом файле читал бы
-    /// все отчёты всем. Строка отчёта несёт то же, что отчёт, и потому помечена вместе с ним; назначение — нет:
+    /// все отчёты всем. Строка отчёта и журнал (<c>work-14</c>) несут то же, что отчёт, и потому помечены вместе с ним; назначение — нет:
     /// его видит каждый, кто назначает (охват — у адресов назначений).
     /// </summary>
     [Fact]
@@ -238,7 +239,7 @@ public class IsolatedReadInventoryTests
         var work = Models().Single(m => m.Context == typeof(BHS.CRG.Modules.Work.Data.WorkDbContext)).Model;
 
         Assert.Equal(
-            ["Report", "ReportChange", "ReportLine", "ReportLineMaterial", "ReportLineParticipant"],
+            ["Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial", "ReportLineParticipant"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }

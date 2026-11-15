@@ -82,6 +82,13 @@ public sealed class Report : IIsolatedRecord
     /// <summary>Имя автора ввода снимком на момент заведения: учётную запись могут переименовать или удалить.</summary>
     public string? EnteredByName { get; private set; }
 
+    /// <summary>
+    /// Момент подачи отчёта (ТЗ WORK-11, WORK-54); <c>null</c> — отчёт не подавался, это черновик. Пишет подача
+    /// (<c>work-15</c>); журнал отчёта (<c>work-14</c>) сравнивает с ним время правки на устройстве — «правка после
+    /// подачи» — и прячет журнал черновика от всех, кроме сотрудника и автора ввода.
+    /// </summary>
+    public DateTimeOffset? SubmittedAt { get; private set; }
+
     /// <summary>Строки работ в порядке ввода (<see cref="ReportLine.Position" />).</summary>
     public List<ReportLine> Lines { get; private set; } = [];
 

@@ -145,6 +145,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("status");
 
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -220,6 +224,80 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasDatabaseName("ux_report_changes_change");
 
                     b.ToTable("report_changes", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportJournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AfterSubmission")
+                        .HasColumnType("boolean")
+                        .HasColumnName("after_submission");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("author_name");
+
+                    b.Property<Guid>("ChangeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("change_id");
+
+                    b.Property<string>("Changes")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<DateTimeOffset?>("DeviceTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("device_time");
+
+                    b.Property<bool>("EnteredFor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("entered_for");
+
+                    b.Property<Guid>("ExecutorEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("executor_employee_id");
+
+                    b.Property<string>("ExecutorName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("executor_name");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("report_id");
+
+                    b.Property<long>("Seq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("seq");
+
+                    b.Property<DateTimeOffset>("ServerTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("server_time");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportId", "Seq")
+                        .IsUnique()
+                        .HasDatabaseName("ux_report_journal_report_seq");
+
+                    b.ToTable("report_journal", "work");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
