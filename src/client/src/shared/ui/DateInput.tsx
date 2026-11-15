@@ -15,6 +15,7 @@ import { nextTabStop, tabStops } from './tabStops';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DATE_PICKER_SURFACE } from './menuClasses';
+import { useHistoryLayer } from './historyLayers';
 
 interface DateInputProps {
   /**
@@ -116,6 +117,10 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Список месяцев или лет открыт из шапки календаря: Esc вернёт его к дням, слою закрываться нельзя.
   const headerList = useRef(false);
   const onHeaderList = (open: boolean) => { headerList.current = open; };
+  // Календарь над окном — верхний слой ([UI-54], docs/UI.md «Назад на телефоне»): системная «Назад» на
+  // телефоне закрывает его, а окно и введённое в нём остаются. Закрытый выбором дня, Esc или щелчком мимо,
+  // он снимает свою запись сам; на рабочем столе записей нет.
+  useHistoryLayer(pickerOpen, () => { setPickerOpen(false); return true; });
   // Знаки поля формы (`DateField`) — «со скана» ([UI-88]) и ошибки ([UI-69]) — перед хвостом: крестиком и
   // календарём. Хвост живёт здесь, поэтому знаки оболочки встают тоже здесь, и знак ошибки у поля один; вне
   // оболочки их нет.

@@ -7,7 +7,8 @@
 //   1б. `payment-date-calendar-not-clipped` — календарь «Даты платежа» не срезан краем окна: последний
 //       день виден, щелчок по нему ставит дату в поле (issue #1521). `…-fits-phone` — то же на 375×812;
 //       сторожем обрезки он не служит: окно во весь экран не резало и раньше. `…-tab-goes-to-next-field`
-//       — Tab с края календаря ведёт к следующему полю окна, а не прочь со страницы.
+//       — Tab с края календаря ведёт к следующему полю окна, а не прочь со страницы. `…-back-closes-calendar`
+//       — на 390 px системная «Назад» закрывает календарь, окно «Оплата» остаётся ([UI-54], #1522).
 //       `payment-date-escape-reverts-and-keeps-dialog` — 31.02 помечено ошибкой, Esc возвращает дату,
 //       с которой вошли в поле, и окно не закрывает (issue #1460).
 //   2. `preview-matches-recorded` — стройка закрыта, платёж задним числом: диалог называет перенос и
@@ -272,6 +273,24 @@ await check('payment-date-calendar-month-list-keeps-header', async () => {
 await check('payment-date-calendar-fits-phone', async () => {
   await page.setViewportSize({ width: 375, height: 812 });
   try { await lastDayIsReachable(); } finally { await page.setViewportSize({ width: 1500, height: 1000 }); }
+});
+
+// Календарь над окном — верхний слой ([UI-54], #1522): системная «Назад» на телефоне закрывает его, а окно
+// «Оплата» и адрес страницы остаются. Без слоя у календаря «Назад» закрывала окно целиком — и набранное в нём.
+await check('payment-date-calendar-back-closes-calendar', async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  try {
+    const { dialog, grid } = await openPaymentCalendar();
+    const url = page.url();
+    await page.evaluate(() => window.history.back());
+    await grid.waitFor({ state: 'hidden', timeout: 3_000 })
+      .catch(() => { throw new Error('«Назад» не закрыла календарь'); });
+    // Шаг истории доходит не сразу: окно, закрытое «Назад», ушло бы чуть позже календаря.
+    await page.waitForTimeout(500);
+    if (!(await dialog.isVisible())) throw new Error('«Назад» закрыла окно «Оплата» вместе с календарём');
+    if (page.url() !== url) throw new Error(`«Назад» увела со страницы: ${url} → ${page.url()}`);
+    await leavePayment(dialog);
+  } finally { await page.setViewportSize({ width: 1500, height: 1000 }); }
 });
 
 // Календарь лежит в конце body, вне порядка Tab формы: без своей обработки Tab с его последней
