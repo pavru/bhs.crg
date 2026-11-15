@@ -38,8 +38,14 @@ export function menuLayerOwners(sources) {
  * Имя пакета в файле берётся из его импорта (`import * as P from '@radix-ui/react-popover'`), а не
  * угадывается: под другим именем слой иначе прошёл бы мимо. Классы читаются только из открывающего
  * тега `Content` — без этого проверка уходила бы к `className` следующего элемента.
+ *
+ * Поповеры экранов берут пакет через обёртку `shared/ui/Popover` ([UI-96]) — её импорт тоже слой: иначе
+ * после перевода проверка не видела бы ни одного поповера и оставалась зелёной, ничего не проверяя. Сама
+ * обёртка — владелец пакета, как `Menu` у меню: её `Content` передаёт классы экрана, литерала поверхности
+ * у неё нет и быть не должно.
  */
-const LAYER_PACKAGES = /import\s+\*\s+as\s+(\w+)\s+from\s+['"]@radix-ui\/react-(?:popover|select)['"]/g;
+const LAYER_PACKAGES = /import\s+\*\s+as\s+(\w+)\s+from\s+['"](?:@radix-ui\/react-(?:popover|select)|@\/shared\/ui\/Popover|\.\/Popover)['"]/g;
+const POPOVER_OWNER = 'shared/ui/Popover.tsx';
 // Календарь — единственное исключение ([UI-80], md3-16): токен docked date picker, уровнем выше слоя.
 const SHARED = ['${LAYER_SURFACE}', '${DATE_PICKER_SURFACE}'];
 const OWN_LOOK = /(?:^|[\s`"])(?:bg-surface[\w-]*|border(?:-[\w-]+)?|shadow-[\w-]+)(?=[\s`"]|$)/;
@@ -62,7 +68,7 @@ function openingTag(text, from) {
 
 /** Слои без общей поверхности или со своим видом: `файл: классы` (`файл: <без className>`). */
 export function strayLayers(sources) {
-  return sources.flatMap(({ path, text }) => [...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
+  return sources.filter(({ path }) => path !== POPOVER_OWNER).flatMap(({ path, text }) => [...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
     [...text.matchAll(new RegExp(String.raw`<${alias}\.Content\b`, 'g'))]
       .map(m => openingTag(text, m.index).match(CLASS_ATTR)?.[1] ?? '<без className>')
       .filter(cls => {
@@ -109,6 +115,19 @@ describe('слой меню — только у общего Menu', () => {
     ])).toEqual([
       'a.tsx: "border bg-surface"',
       'b.tsx: <без className>',
+    ]);
+  });
+
+  it('самопроверка слоя: импорт обёртки поповера — слой; сама обёртка — владелец пакета', () => {
+    expect(strayLayers([
+      { path: 'a.tsx', text: "import * as Popover from '@/shared/ui/Popover';\n<Popover.Content className=\"z-50 bg-surface p-3\">" },
+      { path: 'shared/ui/b.tsx', text: "import * as Popover from './Popover';\n<Popover.Content className={`p-3 border ${LAYER_SURFACE}`}>" },
+      { path: 'c.tsx', text: "import * as Popover from '@/shared/ui/Popover';\n<Popover.Content className={`p-3 ${LAYER_SURFACE}`}>" },
+      // Без пропуска владельца обёртка краснела бы «<без className>»: классы ей передаёт экран.
+      { path: POPOVER_OWNER, text: "import * as P from '@radix-ui/react-popover';\n<P.Content {...props} hideWhenDetached={close} />" },
+    ])).toEqual([
+      'a.tsx: "z-50 bg-surface p-3"',
+      'shared/ui/b.tsx: {`p-3 border ${LAYER_SURFACE}`}',
     ]);
   });
 

@@ -1,5 +1,5 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import { useContext, useMemo, useRef, useState } from 'react';
+import * as Popover from './Popover';
 import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
 import type { DatePrecision } from '@/shared/api/types';
@@ -15,8 +15,6 @@ import { nextTabStop, tabStops } from './tabStops';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DATE_PICKER_SURFACE } from './menuClasses';
-import { useHistoryLayer } from './historyLayers';
-import { WIDE } from '@/shared/hooks/useMedia';
 
 interface DateInputProps {
   /**
@@ -120,24 +118,14 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const headerList = useRef<(() => void) | null>(null);
   const onHeaderList = (back: (() => void) | null) => { headerList.current = back; };
   // Календарь над окном — верхний слой ([UI-54], docs/UI.md «Назад на телефоне»): системная «Назад» на
-  // телефоне закрывает его, а окно и введённое в нём остаются. Из списка месяцев или лет — к дням, как Esc.
-  // Закрытый выбором дня, Esc, щелчком мимо, Tab'ом с края или «Очистить», он снимает свою запись сам; на
-  // рабочем столе записей нет.
-  useHistoryLayer(pickerOpen, () => {
-    if (!headerList.current) { setPickerOpen(false); return true; }
+  // телефоне закрывает его, а окно и введённое в нём остаются. Слой истории — у поповера обёртки ([UI-96]);
+  // здесь только свой шаг назад: из списка месяцев или лет — к дням, как Esc. Закрытый выбором дня, Esc,
+  // щелчком мимо, Tab'ом с края или «Очистить», он снимает свою запись сам; на рабочем столе записей нет.
+  const backFromCalendar = () => {
+    if (!headerList.current) return true;
     headerList.current();
     return false;
-  });
-  // Поле прокрутили из видимой части — на телефоне календарь закрывается, а не прячется (`hideWhenDetached`
-  // ниже): спрятанный, он держал бы запись истории, и первая «Назад» ушла бы на невидимый слой. Касание,
-  // начавшее прокрутку, щелчком не стало — Radix календарь не закрыл. Смотрим значок: он внутри поля.
-  useEffect(() => {
-    const trigger = triggerRef.current;
-    if (!pickerOpen || !trigger || typeof IntersectionObserver !== 'function' || window.matchMedia?.(WIDE).matches) return;
-    const seen = new IntersectionObserver(([e]) => { if (e && !e.isIntersecting) setPickerOpen(false); });
-    seen.observe(trigger);
-    return () => seen.disconnect();
-  }, [pickerOpen]);
+  };
   // Знаки поля формы (`DateField`) — «со скана» ([UI-88]) и ошибки ([UI-69]) — перед хвостом: крестиком и
   // календарём. Хвост живёт здесь, поэтому знаки оболочки встают тоже здесь, и знак ошибки у поля один; вне
   // оболочки их нет.
@@ -288,14 +276,16 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // единственную копию сторожит `scripts/radix-single-copy.test.mjs`.
   //
   // `hideWhenDetached`: поле прокрутили из видимой части тела окна — календарь прячется. Внутри окна
-  // его прятал край окна; в body он висел бы над шапкой, указывая на невидимое поле.
+  // его прятал край окна; в body он висел бы над шапкой, указывая на невидимое поле. На телефоне обёртка
+  // закрывает его, а не прячет ([UI-96]): спрятанный, он держал бы запись истории, и первая «Назад» ушла бы
+  // на невидимый слой. Смотрит обёртка значок (`Trigger`): он внутри поля.
   //
   // Размер слоя — не больше места у поля ([UI-80]): месяц из шести недель — 440, а в окне на ноутбуке под
   // полем меньше. Не уместившееся прокручивается внутри, а не срезается краем экрана; ширина — до экрана
   // без `collisionPadding` по краям. Esc в списке месяцев или лет, открытом из шапки, возвращает к дням
   // (`onHeaderList` календаря) — слой Radix слышит Esc раньше календаря и закрылся бы.
   return (
-    <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+    <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen} onBack={backFromCalendar}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
       <Popover.Portal>
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached

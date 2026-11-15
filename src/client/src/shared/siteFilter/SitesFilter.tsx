@@ -1,4 +1,4 @@
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { Apartment, Check, Close, Star, Warning } from '@/shared/ui/icons';
 import { useId, useState } from 'react';

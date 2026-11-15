@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { BOTTOM_SHEET_SURFACE, DIALOG_SCRIM, SHEET_TITLE } from '@/shared/ui/dialogSurface';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { ListOption } from '@/shared/ui/ListOption';
 import { TextField } from '@/shared/ui/TextField';

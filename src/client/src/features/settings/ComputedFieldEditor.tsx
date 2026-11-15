@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import { useMemo, useRef, useState } from 'react';
+import * as Popover from '@/shared/ui/Popover';
 import type { SchemaField } from '@/shared/api/schema';
 import { nextTabStop, tabStops } from '@/shared/ui/tabStops';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
@@ -18,7 +18,7 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  /** Фокус уже перенесён (в формулу, Tab'ом дальше, на кнопку без прокрутки) — Radix его не возвращает. */
+  /** Фокус уже перенесён (в формулу, Tab'ом дальше) — Radix его не возвращает. */
   const focusMoved = useRef(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickFilter, setPickFilter] = useState('');
@@ -70,21 +70,6 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
     setPickOpen(false);
   }
 
-  // Кнопку прокрутили из видимой части тела окна — список закрывается. `hideWhenDetached` только прятал
-  // бы его: фокус и набор оставались бы в невидимом фильтре. Фокус — на кнопку, без прокрутки к ней.
-  useEffect(() => {
-    const trigger = triggerRef.current;
-    if (!pickOpen || !trigger || typeof IntersectionObserver === 'undefined') return;
-    const watch = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) return;
-      focusMoved.current = true;
-      trigger.focus({ preventScroll: true });
-      setPickOpen(false);
-    });
-    watch.observe(trigger);
-    return () => watch.disconnect();
-  }, [pickOpen]);
-
   // «Проверить на образце»: образцовые значения ссылок → результат/ошибка (число если парсится).
   const testRefs = referencedKeys(expr);
   const testResult = useMemo(() => {
@@ -118,7 +103,9 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
               </button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content align="end" sideOffset={4} collisionPadding={8} hideWhenDetached aria-label="Вставить поле"
+              {/* Кнопку прокрутили из видимой части тела окна — список закрывается (`closeWhenDetached`), а не
+                  прячется: фокус и набор оставались бы в невидимом фильтре. Фокус — на кнопку, без прокрутки. */}
+              <Popover.Content align="end" sideOffset={4} collisionPadding={8} closeWhenDetached aria-label="Вставить поле"
                 onKeyDown={onListTab}
                 onOpenAutoFocus={() => { focusMoved.current = false; }}
                 onCloseAutoFocus={e => { if (focusMoved.current) { focusMoved.current = false; e.preventDefault(); } }}

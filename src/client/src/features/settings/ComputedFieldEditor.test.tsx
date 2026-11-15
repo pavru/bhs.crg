@@ -113,4 +113,37 @@ describe('ComputedFieldEditor: «+ Вставить поле»', () => {
     await pause();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  /**
+   * Кнопку прокрутили из видимой части тела окна — список закрывается (`closeWhenDetached` обёртки,
+   * [UI-96]), а не прячется: фокус и набор остались бы в невидимом фильтре. Фокус — на кнопку без
+   * прокрутки: обычный `focus()` вернул бы тело окна к ней и отменил прокрутку человека.
+   */
+  it('кнопка ушла из видимой части — список закрыт, фокус на кнопке без прокрутки', async () => {
+    const watchers: Array<{ cb: (e: Array<{ isIntersecting: boolean }>) => void; target?: Element }> = [];
+    vi.stubGlobal('IntersectionObserver', class {
+      private own: (typeof watchers)[number];
+      constructor(cb: (typeof watchers)[number]['cb']) { this.own = { cb }; watchers.push(this.own); }
+      observe(target: Element) { this.own.target = target; }
+      unobserve() {} disconnect() {}
+    });
+    try {
+      const user = userEvent.setup();
+      const { trigger, layer, onOpenChange } = setup();
+      await user.click(trigger());
+      expect(layer()).not.toBeNull();
+      const watched = watchers.filter(w => w.target === trigger());
+      expect(watched).toHaveLength(1);
+      const focus = vi.spyOn(trigger(), 'focus');
+      act(() => watched[0].cb([{ isIntersecting: false }]));
+      await waitFor(() => expect(layer()).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(trigger()));
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(focus.mock.calls.every(([o]) => (o as FocusOptions | undefined)?.preventScroll)).toBe(true);
+      await pause();
+      expect(onOpenChange).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

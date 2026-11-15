@@ -8,6 +8,7 @@ import { OutlinedField } from './OutlinedField';
 import { fieldBox, fieldDescribedBy, FieldMarkContext, useFieldDensity, useFieldScan, type FieldDensity } from './fieldBox';
 import { LAYER_SURFACE } from './menuClasses';
 import { markLayerFocus } from './layerFocus';
+import { useHistoryLayer } from './historyLayers';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -163,6 +164,14 @@ export function Select({
   icon, iconTone, iconLabel, count, title, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
+  // Список — слой истории ([UI-96]): его открывают касанием, клавиатуры при нём нет, и на телефоне первая
+  // «Назад» без слоя закрыла бы окно под ним вместе с набранным. «Назад» закрывает список, значение
+  // прежнее — как по Esc; выбор пункта снимает запись. На рабочем столе записей нет.
+  useHistoryLayer(open, () => {
+    setOpen(false);
+    onOpenChange?.(false);
+    return true;
+  });
   // Ведущий знак чипа отбора: тон и имя — только при знаке, как у `Chip`.
   const lead: ChipLead = icon ? { icon, iconTone, iconLabel } : {};
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.

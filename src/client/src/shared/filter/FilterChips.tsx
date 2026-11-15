@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, SearchOff, Tune, Warning } from '@/shared/ui/icons';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';

@@ -1,4 +1,4 @@
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CloudOff, Download, Info, OpenInNew, RotateRight, ScanDelete, TableChart } from '@/shared/ui/icons';

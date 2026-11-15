@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { LinkOff, ViewColumn, VisibilityOff } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';

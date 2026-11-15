@@ -7,71 +7,71 @@
 
 ## 1. Механизм: адрес при закрытии слоя «Назад»
 
-- [ ] 1.1 `historyLayers.ts`: `here` помнит адрес записи; `layersAfter`, закрыв слой по «Назад», переносит
+- [x] 1.1 `historyLayers.ts`: `here` помнит адрес записи; `layersAfter`, закрыв слой по «Назад», переносит
   адрес и `usr` / `key` покинутой записи на запись страницы `replaceState`, как `carry` в `sync` (D8)
   [UI-96]. Проверка — `historyLayers.test.tsx`: на узком экране `replace` при открытом слое, затем
   «Назад» — слой закрыт, `location.href` с правкой; без правки адрес прежний; прежние тесты файла зелёные
 
 ## 2. Обёртка `shared/ui/Popover`
 
-- [ ] 2.1 `shared/ui/Popover.tsx`: именованный перечень частей без `export *` — свои `Root` (управляемый и
+- [x] 2.1 `shared/ui/Popover.tsx`: именованный перечень частей без `export *` — свои `Root` (управляемый и
   неуправляемый, зовёт `useHistoryLayer`, `onBack?`), `Trigger`, `Anchor`, `Content`; реэкспорт
   `Portal`, `Close`, `Arrow` (D2) [UI-96]. Проверка — новый `Popover.history.test.tsx`: на узком экране
   открытие кладёт запись, «Назад» закрывает поповер, окно остаётся; Esc и выбор снимают запись;
   неуправляемый поповер — тоже слой; `onBack` → `false` оставляет открытым; меню внутри поповера
   закрывается первым; на рабочем столе записи нет; перечень экспортов модуля равен названному
-- [ ] 2.2 Якорь ушёл из видимой части (D3) [UI-96]: наблюдается `Trigger`, `Anchor` — только без `Trigger`;
+- [x] 2.2 Якорь ушёл из видимой части (D3) [UI-96]: наблюдается `Trigger`, `Anchor` — только без `Trigger`;
   `hideWhenDetached` — на телефоне закрыть, на столе спрятать; `closeWhenDetached` — закрыть на любой
   ширине; закрыв, погасить возврат фокуса Radix после обработчика экрана и поставить фокус на якорь
   `focus({ preventScroll: true })`. Проверка — тесты обёртки: оба режима на обеих ширинах; при `Anchor` и
   `Trigger` разом наблюдается `Trigger`; после закрытия фокус на якоре, `focus` вызван с `preventScroll`,
   обработчик `onCloseAutoFocus` экрана вызван
-- [ ] 2.3 `scripts/menu-layer.test.mjs`: `LAYER_PACKAGES` узнаёт импорт `@/shared/ui/Popover` и `./Popover`;
+- [x] 2.3 `scripts/menu-layer.test.mjs`: `LAYER_PACKAGES` узнаёт импорт `@/shared/ui/Popover` и `./Popover`;
   саму обёртку `strayLayers` пропускает как владельца пакета (D5). Проверка — образцы в тестах файла:
   импорт обёртки со своим `bg-surface` у `Content` ловится, `shared/ui/Popover.tsx` с `{...props}` не
   ловится; `npm test` зелёный
 
 ## 3. Перевод слоёв
 
-- [ ] 3.1 Импорт обёртки в `FilterChips`, `ColumnsPanel`, `TableViewHeader`, `SitesFilter`,
+- [x] 3.1 Импорт обёртки в `FilterChips`, `ColumnsPanel`, `TableViewHeader`, `SitesFilter`,
   `LayoutChooser`, `InvoicePartyNote`, `LineMatchChip`, `InvoiceFileImage`, `InvoicePlaceField`,
   `NotificationList` (D1, D4) [UI-96]. Проверка — их тесты зелёные; тест `FilterChips` или `TablePage` на
   узком экране: «Назад» закрывает поповер условия, адрес страницы прежний
-- [ ] 3.2 `ComputedFieldEditor`: импорт обёртки, `closeWhenDetached` вместо своего `IntersectionObserver`
+- [x] 3.2 `ComputedFieldEditor`: импорт обёртки, `closeWhenDetached` вместо своего `IntersectionObserver`
   (D3) [UI-96]. Проверка — его тесты: кнопка ушла из видимой части — список закрыт, фокус на кнопке без
   прокрутки; Tab с края по-прежнему уводит дальше по форме
-- [ ] 3.3 `ActivityCenter`: свой `useHistoryLayer` убран, слой — от обёртки (D4) [UI-96]. Проверка — тест на
+- [x] 3.3 `ActivityCenter`: свой `useHistoryLayer` убран, слой — от обёртки (D4) [UI-96]. Проверка — тест на
   узком экране: одна «Назад» закрывает панель
-- [ ] 3.4 `DateInput`: импорт обёртки, `onBack` — возврат из списка месяцев; свои `useHistoryLayer` и
+- [x] 3.4 `DateInput`: импорт обёртки, `onBack` — возврат из списка месяцев; свои `useHistoryLayer` и
   наблюдатель значка убраны, `hideWhenDetached` остаётся (D6) [UI-54] [UI-96]. Проверка —
   `DateInput.history.test.tsx` без правок зелёный
-- [ ] 3.5 `TableViewHeader` и `ColumnsPanel`: переход по пункту и правка вида `replace` при открытом поповере
+- [x] 3.5 `TableViewHeader` и `ColumnsPanel`: переход по пункту и правка вида `replace` при открытом поповере
   (D8, сценарии «Переход по пункту поповера» и «Колонка снята при открытом поповере») [UI-96]. Проверка —
   тест на узком экране: после выбора представления «Назад» возвращает к прежнему одним шагом; снятая
   колонка после «Назад» остаётся снятой и в адресе
-- [ ] 3.6 `Select`: открытие управляется (`open` / `onOpenChange` у `RS.Root`), `useHistoryLayer` (D9)
+- [x] 3.6 `Select`: открытие управляется (`open` / `onOpenChange` у `RS.Root`), `useHistoryLayer` (D9)
   [UI-96]. Проверка — тест `Select` на узком экране: «Назад» закрывает список, значение прежнее, окно
   остаётся; выбор пункта снимает запись; на рабочем столе записи нет
 
 ## 4. Сторож и правила
 
-- [ ] 4.1 `windowsAreHistoryLayers.test.ts`: источники — `*.{ts,tsx}`; пакет `@radix-ui/react-popover`
+- [x] 4.1 `windowsAreHistoryLayers.test.ts`: источники — `*.{ts,tsx}`; пакет `@radix-ui/react-popover`
   (`from`, `export … from`, `import()`) — только `shared/ui/Popover.tsx` и `FIELD_PARTS` (`SuggestBox`) с
   причиной (D5) [UI-96]. Проверка — правило вынесено функцией; ловятся образцы: прямой импорт в `.tsx`,
   реэкспорт в `.ts`, `import()`; тест на дереве `src` зелёный
-- [ ] 4.2 `docs/UI.md`: порядок «Назад» (#1418) называет поповер и список выбора; пункт «Поповер — слой
+- [x] 4.2 `docs/UI.md`: порядок «Назад» (#1418) называет поповер и список выбора; пункт «Поповер — слой
   истории» (обёртка, D2); исключение «Список подсказки и выбор `Select`» и абзац под таблицей («как
   `Select`») — только `SuggestField` (D9); «Слои над окном» — `hideWhenDetached` на телефоне закрывает,
   `closeWhenDetached`, фокус без прокрутки (D3); «Кто сторожит» — правило 4.1 [UI-96]. Проверка — ревью PR
 
 ## 5. Живой прогон
 
-- [ ] 5.1 `table-chips-smoke` на 390 px: открыть поповер условия → «Назад» закрывает его, страница и адрес
+- [x] 5.1 `table-chips-smoke` на 390 px: открыть поповер условия → «Назад» закрывает его, страница и адрес
   остаются [UI-96]. Проверка — `npm run test:e2e:table-chips` зелёный
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 6.2 `cd src/client && npm test` — зелёный
-- [ ] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 6.1 `cd src/client && npx tsc -b` — без ошибок
+- [x] 6.2 `cd src/client && npm test` — зелёный
+- [x] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

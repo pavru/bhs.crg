@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ModalBanner } from '@/shared/ui/ModalBanner';

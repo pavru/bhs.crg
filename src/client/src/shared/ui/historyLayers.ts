@@ -45,11 +45,17 @@ let ownBacks = 0;
 let carry: { url: string; usr: unknown; key: unknown } | null = null;
 /** Где мы сейчас — последняя известная запись. Нужна, чтобы знать направление шага. */
 let here: Entry = {};
+/**
+ * Адрес записи `here`. Запись, которую сняла «Назад», уже не прочесть: её адрес помним сами — правка
+ * адреса `replace` при открытом слое лежит только в ней.
+ */
+let hereUrl = '';
 /** Записи слоёв, снятые «Назад»: «Вперёд» на такую запись — шаг в никуда, его отменяем. */
 const consumed = new Set<string>();
 /** Шаг, которым мы проходим мёртвую запись: пока он идёт, историю не выравниваем. */
 let skipping = false;
 let previous: Entry = {};
+let previousUrl = '';
 /** Уходим со страницы мимо слоёв — записи до прихода не трогаем. */
 let suspendedAt: unknown = undefined;
 let suspended = false;
@@ -59,13 +65,18 @@ const entry = (s: unknown): Entry => (s && typeof s === 'object' ? s : {}) as En
 const depthOf = (e: Entry) => (e.layer ? e.depth ?? 0 : 0);
 const idxOf = (e: Entry) => (typeof e.idx === 'number' ? e.idx : 0);
 const live = () => stack.filter(l => !l.closing && !l.held);
+/** Запомнить, где мы: текущая запись истории и её адрес. */
+function arrived() {
+  here = entry(window.history.state);
+  hereUrl = window.location.href;
+}
 
 function pushEntry(l: Layer) {
   const st = entry(window.history.state);
   const depth = depthOf(st) + 1;
   window.history.pushState({ ...st, layer: l.id, depth }, '');
   Object.assign(l, { idx: st.idx, depth, pushed: true });
-  here = entry(window.history.state);
+  arrived();
 }
 
 /**
@@ -104,7 +115,9 @@ function scheduleSync() {
  */
 export function layersFirst(e: PopStateEvent): boolean {
   previous = here;
+  previousUrl = hereUrl;
   here = entry(e.state);
+  hereUrl = window.location.href;
   skipping = false;
   if (suspended && here.idx !== suspendedAt) suspended = false;
   if (ownBacks === 0) return false;
@@ -113,7 +126,7 @@ export function layersFirst(e: PopStateEvent): boolean {
     const st = entry(window.history.state);
     if (carry && (carry.url !== window.location.href || carry.key !== st.key)) {
       window.history.replaceState({ ...st, usr: carry.usr, key: carry.key }, '', carry.url);
-      here = entry(window.history.state);
+      arrived();
     }
     carry = null;
     scheduleSync();
@@ -128,6 +141,14 @@ export function layersAfter(e: PopStateEvent) {
   const top = open.at(-1);
   if (top?.pushed && top.idx === to.idx && depthOf(to) < top.depth) {
     e.stopImmediatePropagation();
+    // Роутер шага не видит и показывает покинутую запись слоя. Её адрес мог смениться `replace` при
+    // открытом слое (правка вида таблицы) — он переезжает сюда, как `carry` у слоя, закрытого своими
+    // средствами, иначе адрес разошёлся бы с показанным и следующая правка считалась бы от старого.
+    const left = previous;
+    if (previousUrl && left.idx === to.idx && (previousUrl !== window.location.href || left.key !== to.key)) {
+      window.history.replaceState({ ...entry(window.history.state), usr: left.usr, key: left.key }, '', previousUrl);
+      arrived();
+    }
     for (const l of open) if (l.depth > depthOf(to)) l.pushed = false;
     if (top.back.current()) {
       top.closing = true;
@@ -212,7 +233,7 @@ export function HistoryLayersHost() {
     if (!st.layer && here.layer && st.idx === here.idx) {
       window.history.replaceState({ ...st, layer: here.layer, depth: here.depth }, '');
     }
-    here = entry(window.history.state);
+    arrived();
     scheduleSync();
   }, [key]);
   return null;
@@ -224,7 +245,9 @@ export function resetHistoryLayers() {
   ownBacks = 0;
   carry = null;
   here = {};
+  hereUrl = '';
   previous = {};
+  previousUrl = '';
   consumed.clear();
   suspended = false;
   skipping = false;

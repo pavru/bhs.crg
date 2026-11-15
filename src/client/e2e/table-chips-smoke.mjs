@@ -361,6 +361,26 @@ try {
     await dataRows().filter({ hasText: number }).first().waitFor({ timeout: 8000 })
       .catch(() => { throw new Error('отбор с «ИЛИ»: своего неоплаченного счёта в выдаче нет'); });
   });
+
+  // Поповер — слой истории на телефоне ([UI-96], docs/UI.md «Назад на телефоне»): системная «Назад»
+  // закрывает окошко условия, как Esc, а страница и её адрес остаются. Юнит-тесты держат механизм в
+  // jsdom; здесь — настоящая история браузера и роутер приложения. Последней: ширина меняется до конца.
+  await check('на телефоне «Назад» закрывает окошко условия, страница и адрес остаются', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/tables/costs.invoices`, { waitUntil: 'networkidle' });
+    await addChip.waitFor();
+    const address = page.url();
+    await addChip.click();
+    await editor.getByLabel('Колонка').waitFor();
+    // Системная «Назад» — шаг истории, а не клавиша: Esc закрыл бы окошко и без слоя.
+    await page.evaluate(() => window.history.back());
+    await editor.waitFor({ state: 'hidden', timeout: 5000 })
+      .catch(() => { throw new Error('«Назад» не закрыла окошко условия'); });
+    // Шаг истории доходит не сразу: даём ему время увести страницу, если слой его не поймал.
+    await page.waitForTimeout(500);
+    if (page.url() !== address) throw new Error(`«Назад» увела со страницы: ${page.url()}`);
+    if (!(await addChip.isVisible())) throw new Error('после «Назад» таблицы с чипами нет на экране');
+  });
 } finally {
   await browser.close();
 }

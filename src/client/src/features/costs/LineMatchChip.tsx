@@ -1,4 +1,4 @@
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { useState, type ReactNode } from 'react';
 import { Close } from '@/shared/ui/icons';
 import { formatDate } from '@/shared/format/format';
