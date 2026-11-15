@@ -155,8 +155,13 @@ describe('«Назад», закрывшая слой, сохраняет пра
     );
   }
 
+  // Адрес jsdom — общий на файл: правка `/t?cols=a` иначе досталась бы следующим тестам.
+  const ownUrl = window.location.href;
   beforeEach(() => {
     window.history.replaceState({ idx: 0, key: 'base', usr: null }, '', '/t');
+  });
+  afterEach(() => {
+    window.history.replaceState(null, '', ownUrl);
   });
 
   it('правка `replace` при открытом слое остаётся в адресе после «Назад»', async () => {

@@ -166,10 +166,14 @@ export function Select({
   const [open, setOpen] = useState(false);
   // Список — слой истории ([UI-96]): его открывают касанием, клавиатуры при нём нет, и на телефоне первая
   // «Назад» без слоя закрыла бы окно под ним вместе с набранным. «Назад» закрывает список, значение
-  // прежнее — как по Esc; выбор пункта снимает запись. На рабочем столе записей нет.
+  // прежнее — как по Esc; выбор пункта снимает запись. На рабочем столе записей нет. Путь закрытия один с
+  // Radix (`change`): добавленное к закрытию срабатывало бы на Esc и щелчок мимо, а на «Назад» — нет.
+  function change(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
   useHistoryLayer(open, () => {
-    setOpen(false);
-    onOpenChange?.(false);
+    change(false);
     return true;
   });
   // Ведущий знак чипа отбора: тон и имя — только при знаке, как у `Chip`.
@@ -206,8 +210,7 @@ export function Select({
       }}
       onOpenChange={next => {
         if (!next && staying.current) { staying.current = false; return; }
-        setOpen(next);
-        onOpenChange?.(next);
+        change(next);
       }}>
       {variant === 'chip' ? (
         // Чип отбора ([UI-69]): триггер Radix — сам чип, и роль `combobox`, клавиатура и typeahead остаются.

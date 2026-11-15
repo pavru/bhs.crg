@@ -274,6 +274,72 @@ describe('Popover: якорь ушёл из видимой части', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].target).toBe(screen.getByTestId('поле'));
   });
+
+  it('сменился узел кнопки при открытом слое — наблюдатель переезжает, снятый узел слой не закрывает', async () => {
+    function Swap({ which }: { which: 'a' | 'b' }) {
+      return (
+        <Popover.Root>
+          <Popover.Trigger asChild><button key={which} type="button">Якорь</button></Popover.Trigger>
+          <Popover.Portal><Popover.Content data-testid="слой" closeWhenDetached>x</Popover.Content></Popover.Portal>
+        </Popover.Root>
+      );
+    }
+    const view = render(<Swap which="a" />);
+    await open('Якорь');
+    view.rerender(<Swap which="b" />);
+    await settle();
+    expect(seen).toHaveLength(2);
+    expect(seen[1].target).toBe(button());
+    // Старый узел снят — «не виден» не потому, что его прокрутили.
+    act(() => seen[0].cb([{ isIntersecting: false }]));
+    await settle();
+    expect(layer()).not.toBeNull();
+    act(() => seen[1].cb([{ isIntersecting: false }]));
+    await settle();
+    expect(layer()).toBeNull();
+  });
+
+  it('экран сам перевёл фокус (`preventDefault`) — обёртка его не отменяет', async () => {
+    function Elsewhere() {
+      return (
+        <>
+          <Detachable mode="close" onCloseAutoFocus={e => {
+            e.preventDefault();
+            document.querySelector<HTMLElement>('[data-testid="дальше"]')!.focus();
+          }} />
+          <input data-testid="дальше" />
+        </>
+      );
+    }
+    render(<Elsewhere />);
+    await open('Якорь');
+    const focus = vi.spyOn(button(), 'focus');
+    await scrollAway();
+    expect(layer()).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByTestId('дальше'));
+  });
+});
+
+describe('Popover: ref частей', () => {
+  it('ref экрана у `Trigger` и `Anchor` не переподключается на каждой отрисовке', () => {
+    const trigger = vi.fn();
+    const anchor = vi.fn();
+    function Host({ n }: { n: number }) {
+      return (
+        <Popover.Root>
+          <Popover.Anchor ref={anchor}><Popover.Trigger ref={trigger}>Якорь {n}</Popover.Trigger></Popover.Anchor>
+        </Popover.Root>
+      );
+    }
+    const view = render(<Host n={1} />);
+    // На монтировании Radix раз перестраивает кнопку (появился свой якорь) — это его, не отрисовок.
+    const mounted = [trigger.mock.calls.length, anchor.mock.calls.length];
+    view.rerender(<Host n={2} />);
+    view.rerender(<Host n={3} />);
+    expect([trigger.mock.calls.length, anchor.mock.calls.length]).toEqual(mounted);
+    expect(trigger).toHaveBeenLastCalledWith(screen.getByRole('button'));
+  });
 });
 
 describe('Popover: перечень частей', () => {

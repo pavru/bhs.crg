@@ -196,7 +196,11 @@ export function holdNextLayer() {
   setTimeout(() => { hold = false; }, 1000);
 }
 
-const phone = () => typeof window.matchMedia === 'function' && !window.matchMedia(WIDE).matches;
+/**
+ * Телефон ли это — по тому же вопросу, по которому слои кладут записи. Один на всё: обёртка поповера
+ * закрывает слой при уходе якоря ровно там, где у него есть запись истории ([UI-96]).
+ */
+export const isPhone = () => typeof window.matchMedia === 'function' && !window.matchMedia(WIDE).matches;
 
 /**
  * Слой истории: пока `open` (и это телефон), системная «Назад» достаётся `onBack`, а не странице.
@@ -207,7 +211,7 @@ export function useHistoryLayer(open: boolean, onBack: () => boolean) {
   const back = useRef(onBack);
   useLayoutEffect(() => { back.current = onBack; });
   useLayoutEffect(() => {
-    if (!open || !phone()) return;
+    if (!open || !isPhone()) return;
     const layer: Layer = { id: `l${++seq}`, back, idx: undefined, depth: 0, pushed: false, closing: false, held: hold };
     // Удержание гаснет после этой отрисовки, а не на первом слое: StrictMode монтирует его дважды, и
     // второй экземпляр вопроса иначе положил бы запись.

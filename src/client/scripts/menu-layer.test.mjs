@@ -42,9 +42,14 @@ export function menuLayerOwners(sources) {
  * Поповеры экранов берут пакет через обёртку `shared/ui/Popover` ([UI-96]) — её импорт тоже слой: иначе
  * после перевода проверка не видела бы ни одного поповера и оставалась зелёной, ничего не проверяя. Сама
  * обёртка — владелец пакета, как `Menu` у меню: её `Content` передаёт классы экрана, литерала поверхности
- * у неё нет и быть не должно.
+ * у неё нет и быть не должно. Обёртка узнаётся по любому пути к ней (`@/shared/ui/Popover`, `./Popover`,
+ * `../ui/Popover`); брать её частями (`import { Content }`) нельзя: тег `<Content` без пространства имён
+ * проверка не узнала бы, и слой со своей рамкой прошёл бы зелёным.
  */
-const LAYER_PACKAGES = /import\s+\*\s+as\s+(\w+)\s+from\s+['"](?:@radix-ui\/react-(?:popover|select)|@\/shared\/ui\/Popover|\.\/Popover)['"]/g;
+const WRAPPER = String.raw`(?:@\/shared\/ui|\.\.?(?:\/[\w.-]+)*)\/Popover`;
+const LAYER_PACKAGES = new RegExp(String.raw`import\s+\*\s+as\s+(\w+)\s+from\s+['"](?:@radix-ui\/react-(?:popover|select)|${WRAPPER})['"]`, 'g');
+/** Импорт обёртки не пространством имён (типы не в счёт: слоя они не рисуют). */
+const WRAPPER_IN_PARTS = new RegExp(String.raw`import\s+(?!\*\s+as\b|type\b)[^;]*?from\s+['"]${WRAPPER}['"]`);
 const POPOVER_OWNER = 'shared/ui/Popover.tsx';
 // Календарь — единственное исключение ([UI-80], md3-16): токен docked date picker, уровнем выше слоя.
 const SHARED = ['${LAYER_SURFACE}', '${DATE_PICKER_SURFACE}'];
@@ -68,14 +73,17 @@ function openingTag(text, from) {
 
 /** Слои без общей поверхности или со своим видом: `файл: классы` (`файл: <без className>`). */
 export function strayLayers(sources) {
-  return sources.filter(({ path }) => path !== POPOVER_OWNER).flatMap(({ path, text }) => [...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
+  return sources.filter(({ path }) => path !== POPOVER_OWNER).flatMap(({ path, text }) => [
+    ...(WRAPPER_IN_PARTS.test(text) ? [`${path}: обёртка поповера не пространством имён`] : []),
+    ...[...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
     [...text.matchAll(new RegExp(String.raw`<${alias}\.Content\b`, 'g'))]
       .map(m => openingTag(text, m.index).match(CLASS_ATTR)?.[1] ?? '<без className>')
       .filter(cls => {
         const shared = SHARED.find(c => cls.includes(c));
         return !shared || OWN_LOOK.test(cls.replace(shared, ''));
       })
-      .map(cls => `${path}: ${cls}`)));
+      .map(cls => `${path}: ${cls}`)),
+  ]);
 }
 
 const POPOVER = "import * as Popover from '@radix-ui/react-popover';\n";
@@ -125,9 +133,16 @@ describe('слой меню — только у общего Menu', () => {
       { path: 'c.tsx', text: "import * as Popover from '@/shared/ui/Popover';\n<Popover.Content className={`p-3 ${LAYER_SURFACE}`}>" },
       // Без пропуска владельца обёртка краснела бы «<без className>»: классы ей передаёт экран.
       { path: POPOVER_OWNER, text: "import * as P from '@radix-ui/react-popover';\n<P.Content {...props} hideWhenDetached={close} />" },
+      // Другой относительный путь к обёртке — тоже слой.
+      { path: 'shared/filter/d.tsx', text: "import * as Pop from '../ui/Popover';\n<Pop.Content className=\"border bg-surface\">" },
+      // Частями — нельзя: тег без пространства имён проверка не узнала бы. Типы — можно.
+      { path: 'e.tsx', text: "import { Root, Content } from '@/shared/ui/Popover';\n<Content className=\"border\">" },
+      { path: 'f.tsx', text: "import type { ContentProps } from '@/shared/ui/Popover';" },
     ])).toEqual([
       'a.tsx: "z-50 bg-surface p-3"',
       'shared/ui/b.tsx: {`p-3 border ${LAYER_SURFACE}`}',
+      'shared/filter/d.tsx: "border bg-surface"',
+      'e.tsx: обёртка поповера не пространством имён',
     ]);
   });
 

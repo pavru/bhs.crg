@@ -1,8 +1,10 @@
 import * as P from '@radix-ui/react-popover';
 import { useComposedRefs } from '@radix-ui/react-compose-refs';
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
-import { WIDE } from '@/shared/hooks/useMedia';
-import { useHistoryLayer } from './historyLayers';
+import {
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type ReactNode, type Ref, type RefObject,
+} from 'react';
+import { isPhone, useHistoryLayer } from './historyLayers';
 
 /**
  * Поповер ([UI-96]): один на всё приложение — условие отбора, колонки, раскладка, пояснения, календарь
@@ -23,8 +25,14 @@ import { useHistoryLayer } from './historyLayers';
 interface PopoverState {
   open: boolean;
   setOpen: (open: boolean) => void;
-  triggerRef: RefObject<HTMLElement | null>;
-  anchorRef: RefObject<HTMLElement | null>;
+  /**
+   * Узлы кнопки и якоря — состоянием, а не ref: сменился узел при открытом слое (чип сменил тип, поле даты
+   * — ветку), и наблюдатель видимости переезжает на новый, а не смотрит на снятый.
+   */
+  trigger: HTMLElement | null;
+  anchor: HTMLElement | null;
+  setTrigger: (el: HTMLElement | null) => void;
+  setAnchor: (el: HTMLElement | null) => void;
   /** Слой закрыт уходом якоря — сюда фокус вернётся без прокрутки, вместо возврата Radix. */
   detachedRef: RefObject<HTMLElement | null>;
 }
@@ -36,8 +44,6 @@ function usePopover(part: string) {
   if (!state) throw new Error(`Popover.${part} — только внутри Popover.Root`);
   return state;
 }
-
-const phone = () => typeof window.matchMedia === 'function' && !window.matchMedia(WIDE).matches;
 
 export interface RootProps {
   open?: boolean;
@@ -56,20 +62,28 @@ export interface RootProps {
 export function Root({ open: openProp, defaultOpen = false, onOpenChange, modal, onBack, children }: RootProps) {
   const [own, setOwn] = useState(defaultOpen);
   const open = openProp ?? own;
-  const setOpen = (next: boolean) => {
-    if (openProp === undefined) setOwn(next);
-    onOpenChange?.(next);
-  };
+  // `setOpen` один на всю жизнь поповера, последние пропсы — в ref: иначе новое значение контекста на каждой
+  // отрисовке экрана перерисовывало бы все части каждого поповера, и при закрытом слое тоже.
+  const latestRef = useRef({ controlled: openProp !== undefined, onOpenChange });
+  useLayoutEffect(() => { latestRef.current = { controlled: openProp !== undefined, onOpenChange }; });
+  const setOpen = useCallback((next: boolean) => {
+    if (!latestRef.current.controlled) setOwn(next);
+    latestRef.current.onOpenChange?.(next);
+  }, []);
   useHistoryLayer(open, () => {
     if (onBack && !onBack()) return false;
     setOpen(false);
     return true;
   });
-  const triggerRef = useRef<HTMLElement | null>(null);
-  const anchorRef = useRef<HTMLElement | null>(null);
+  const [trigger, setTrigger] = useState<HTMLElement | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const detachedRef = useRef<HTMLElement | null>(null);
+  const state = useMemo(
+    () => ({ open, setOpen, trigger, anchor, setTrigger, setAnchor, detachedRef }),
+    [open, setOpen, trigger, anchor],
+  );
   return (
-    <PopoverContext.Provider value={{ open, setOpen, triggerRef, anchorRef, detachedRef }}>
+    <PopoverContext.Provider value={state}>
       <P.Root open={open} onOpenChange={setOpen} modal={modal}>{children}</P.Root>
     </PopoverContext.Provider>
   );
@@ -77,8 +91,9 @@ export function Root({ open: openProp, defaultOpen = false, onOpenChange, modal,
 
 /** Кнопка поповера. Её и смотрят, ушла ли она из видимой части (`Content`, `hideWhenDetached`). */
 export function Trigger({ ref, ...props }: P.PopoverTriggerProps & { ref?: Ref<HTMLButtonElement> }) {
-  const { triggerRef } = usePopover('Trigger');
-  return <P.Trigger {...props} ref={useComposedRefs(ref, (el: HTMLButtonElement | null) => { triggerRef.current = el; })} />;
+  const { setTrigger } = usePopover('Trigger');
+  // Сеттер состояния стабилен — составной ref не меняется от отрисовки к отрисовке и не переподключается.
+  return <P.Trigger {...props} ref={useComposedRefs(ref, setTrigger)} />;
 }
 
 /**
@@ -86,8 +101,8 @@ export function Trigger({ ref, ...props }: P.PopoverTriggerProps & { ref?: Ref<H
  * раньше родительского) выбор не решает — `Trigger` внутри якоря у поля даты смотрится он.
  */
 export function Anchor({ ref, ...props }: P.PopoverAnchorProps & { ref?: Ref<HTMLDivElement> }) {
-  const { anchorRef } = usePopover('Anchor');
-  return <P.Anchor {...props} ref={useComposedRefs(ref, (el: HTMLDivElement | null) => { anchorRef.current = el; })} />;
+  const { setAnchor } = usePopover('Anchor');
+  return <P.Anchor {...props} ref={useComposedRefs(ref, setAnchor)} />;
 }
 
 export interface ContentProps extends P.PopoverContentProps {
@@ -107,34 +122,34 @@ export interface ContentProps extends P.PopoverContentProps {
  * <p>Закрыв слой уходом якоря, обёртка гасит возврат фокуса Radix — после обработчика экрана — и ставит
  * фокус на якорь `focus({ preventScroll: true })`: обычный `focus()` Radix прокрутил бы тело окна обратно и
  * отменил прокрутку человека. Ставит при закрытии, а не раньше: ловушка фокуса модального поповера вернула
- * бы его внутрь слоя, и с уходом слоя он упал бы на body.</p>
+ * бы его внутрь слоя, и с уходом слоя он упал бы на body. Экран, сам решивший, куда фокус (`preventDefault`
+ * в своём `onCloseAutoFocus`: Tab к следующему полю, «Очистить»), решает и здесь — обёртка его не отменяет.</p>
  */
 export function Content({ closeWhenDetached = false, hideWhenDetached = false, onCloseAutoFocus, ...props }: ContentProps) {
-  const { open, setOpen, triggerRef, anchorRef, detachedRef } = usePopover('Content');
+  const { open, setOpen, trigger, anchor, detachedRef } = usePopover('Content');
   const close = closeWhenDetached || hideWhenDetached;
-  // Последний `setOpen` — в ref: наблюдатель живёт, пока слой открыт, и не пересоздаётся на каждой отрисовке.
-  const shut = useRef(setOpen);
-  useEffect(() => { shut.current = setOpen; });
+  const watched = trigger ?? anchor;
   useEffect(() => {
-    const watched = triggerRef.current ?? anchorRef.current;
     if (!open || !close || !watched || typeof IntersectionObserver !== 'function') return;
-    if (!closeWhenDetached && !phone()) return;
+    if (!closeWhenDetached && !isPhone()) return;
     detachedRef.current = null;
+    let live = true;
     const seen = new IntersectionObserver(([e]) => {
-      if (!e || e.isIntersecting) return;
+      // Снятый узел «не виден» не потому, что его прокрутили: на смену ему смотрит уже новый наблюдатель.
+      if (!live || !e || e.isIntersecting || !watched.isConnected) return;
       detachedRef.current = watched;
-      shut.current(false);
+      setOpen(false);
     });
     seen.observe(watched);
-    return () => seen.disconnect();
-  }, [open, close, closeWhenDetached, triggerRef, anchorRef, detachedRef]);
+    return () => { live = false; seen.disconnect(); };
+  }, [open, close, closeWhenDetached, watched, setOpen, detachedRef]);
   return (
     <P.Content {...props} hideWhenDetached={close}
       onCloseAutoFocus={e => {
         onCloseAutoFocus?.(e);
         const back = detachedRef.current;
-        if (!back) return;
         detachedRef.current = null;
+        if (!back || e.defaultPrevented) return;
         e.preventDefault();
         back.focus({ preventScroll: true });
       }} />
