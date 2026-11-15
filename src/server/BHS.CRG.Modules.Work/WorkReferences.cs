@@ -54,5 +54,8 @@ public static class WorkReferences
             "копия сотрудника отчёта для курсора «свои изменения»; держит сотрудника сам отчёт"),
         ModuleReference.Remembering("report_changes", "construction_id", ReferenceTarget.Construction,
             "копия стройки отчёта для курсора по стройкам; держит стройку сам отчёт"),
+        // Автор ввода за сотрудника (WORK-31): имя хранится снимком рядом, удаление учётной записи отчёта не касается.
+        ModuleReference.Remembering("reports", "entered_by_user_id", ReferenceTarget.User,
+            "кто ввёл отчёт за сотрудника — справочное поле с именем снимком; удаление учётной записи отчёта не касается"),
     ];
 }

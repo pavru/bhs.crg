@@ -46,43 +46,44 @@
 
 ## 2. PR 2: адреса и протокол
 
-- [ ] 2.1 `Endpoints/ReportEndpoints.cs` под `work.report.own` за воротами модуля; сотрудник из связи
+- [x] 2.1 `Endpoints/ReportEndpoints.cs` под `work.report.own` за воротами модуля; сотрудник из связи
   учётной записи [WORK-39] [AUTH-8] [AUTH-9]. Проверка — тесты: `work.report.read` без `own` — 403;
   хост без `work` — 501; учётная запись без сотрудника — 403 с причиной; сотрудник в теле — 400;
   `EndpointGateInventoryTests` зелёный
-- [ ] 2.2 `Data/ReportReads.cs` (заведён в PR 1, задача 1.9) — чтение через параметр доступа `work-07`
+- [x] 2.2 `Data/ReportReads.cs` (заведён в PR 1, задача 1.9) — чтение через параметр доступа `work-07`
   (`ModuleReader`, охват `ModuleReach`); чужой и несуществующий — один 404
   [WORK-39] [WORK-40]. Проверка — тест: `GET`, `PUT`, `DELETE` чужого отчёта — 404, отчёт Б не изменён;
   перепись `work-07` зелёная; `WorkOnlyHostTests` — `work.report.own` и `work.report.review` больше не
   «без двери»
-- [ ] 2.2a Справочник не заведён — 409 `{ code: "directory-missing", error }`: порт сотрудников или
+- [x] 2.2a Справочник не заведён — 409 `{ code: "directory-missing", error }`: порт сотрудников или
   видов работ ответил `null` [CORE-20.4]. Проверка — тесты: без классификатора видов работ заведение
   строки — 409 с `IModuleWorkTypes.NotSetUp`; без справочника сотрудников — 409, а учётная запись без
   связи — 403
-- [ ] 2.3 `POST /api/work/reports` с клиентским `id`: повтор — 200 `replayed: true`; чужой `id` — 409 без
+- [x] 2.3 `POST /api/work/reports` с клиентским `id`: повтор — 200 `replayed: true`; чужой `id` — 409 без
   полей [MOB-15]. Проверка — тесты повтора и чужого идентификатора
-- [ ] 2.4 `PUT /api/work/reports/{id}` с `If-Match` и `changeId`, `DELETE` только черновика [MOB-15]
+- [x] 2.4 `PUT /api/work/reports/{id}` с `If-Match` и `changeId`, `DELETE` только черновика [MOB-15]
   [AUTH-8]. Проверка — тесты: без `If-Match` — 400; устаревшая версия с новым `changeId` — 409; повтор
-  применённого `changeId` — 200 без второго применения; удаление не черновика — 409
-- [ ] 2.5 Серверная последовательность и `GET /api/work/reports?since=` с удалёнными и курсором [MOB-16].
+  применённого `changeId` — 200 без второго применения; удаление не черновика — 409 (⚠️ отказ в коде есть,
+  теста нет: состояний, кроме черновика, до `work-15` не бывает — проверка приходит с подачей)
+- [x] 2.5 Серверная последовательность и `GET /api/work/reports?since=` с удалёнными и курсором [MOB-16].
   Проверка — тест: правка с `deviceTime` в прошлом получает больший номер и приходит в `since`; удалённый
   черновик — в списке удалённых
-- [ ] 2.6 `deviceTime` и время сервера в `report_changes`, без отказа при расхождении [MOB-17]. Проверка —
+- [x] 2.6 `deviceTime` и время сервера в `report_changes`, без отказа при расхождении [MOB-17]. Проверка —
   тест: `deviceTime` на час вперёд принят, оба времени сохранены
-- [ ] 2.7 `assignedOnDate` в ответе чтения по назначениям `work-11` [MOB-21]. Проверка — тест: назначение
+- [x] 2.7 `assignedOnDate` в ответе чтения по назначениям `work-11` [MOB-21]. Проверка — тест: назначение
   кончилось вчера — отчёт сохранён, `assignedOnDate: false`
-- [ ] 2.8 `Endpoints/EntryReportEndpoints.cs`: `POST`, `GET`, `PUT /api/work/entry/reports` под
+- [x] 2.8 `Endpoints/EntryReportEndpoints.cs`: `POST`, `GET`, `PUT /api/work/entry/reports` под
   `work.report.review` с параметром доступа «стройки», сотрудник из тела, `enteredBy` в ответе, колонка
   `entered_by_user_id` [WORK-31] [WORK-2] [AUTH-8] [AUTH-9]. Проверка — тесты: отчёт принадлежит
   сотруднику, `enteredBy` — менеджер; чужая стройка на чтении, правке и заведении — 404; без `If-Match` —
   400; устаревшая версия — 409; `work.report.own` без `review` — 403; хост без `work` — 501;
   `EndpointGateInventoryTests` зелёный
-- [ ] 2.9 `docs/DEV_NOTES.md`: протокол повтора (`id`, `changeId`), курсор `since`, `deviceTime` — для
+- [x] 2.9 `docs/DEV_NOTES.md`: протокол повтора (`id`, `changeId`), курсор `since`, `deviceTime` — для
   этапа 5. Проверка — раздел есть, ссылки на `MOB-15`–`MOB-17`
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work|FullyQualifiedName~SchemaEditLevel|FullyQualifiedName~ModuleTypeProjection|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~RecordWriteGuardCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~WorkPlanItem"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work|FullyQualifiedName~SchemaEditLevel|FullyQualifiedName~ModuleTypeProjection|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~RecordWriteGuardCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~WorkPlanItem"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

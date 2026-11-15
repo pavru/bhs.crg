@@ -182,12 +182,7 @@ public static class AssignmentEndpoints
 
     private static void EnsureSeen(HttpRequest request, string current)
     {
-        if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
-        if (seen is null)
-            throw new InvalidRequestException(
-                $"Не названа версия назначения, по которой собрана правка (заголовок {SeenVersion.Header}) — она " +
-                "приходит в ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
-        if (seen != current)
+        if (SeenVersions.Required(request, "назначения") != current)
             throw new ConflictException(
                 "Назначение тем временем изменили, и это действие не выполнено. Перечитайте назначения стройки и " +
                 "повторите: вы видели прежнее состояние.");
