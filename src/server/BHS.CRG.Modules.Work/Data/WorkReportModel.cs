@@ -36,6 +36,8 @@ internal static class WorkReportModel
         report.Property(r => r.Seq).HasColumnName("seq");
         report.Property(r => r.CreatedAt).HasColumnName("created_at");
         report.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+        report.Property(r => r.EnteredByUserId).HasColumnName("entered_by_user_id");
+        report.Property(r => r.EnteredByName).HasColumnName("entered_by_name").HasMaxLength(256);
         report.Property<uint>(rowVersion).IsRowVersion();
         report.ToTable(t =>
         {

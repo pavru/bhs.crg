@@ -68,7 +68,10 @@ public sealed class ReportChange : IIsolatedRecord, IAppendOnly
         string? version) => new()
     {
         Seq = seq, ReportId = report.Id, EmployeeId = report.EmployeeId, ConstructionId = report.ConstructionId,
-        ChangeId = changeId, Kind = kind, DeviceTime = deviceTime, ServerTime = serverTime, Version = version,
+        // К UTC: телефон присылает время со своим поясом («+03:00»), а колонка timestamptz принимает только нулевое
+        // смещение — без приведения правка с местным временем отвергалась бы ошибкой сервера.
+        ChangeId = changeId, Kind = kind, DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
+        Version = version,
     };
 
     /// <summary>Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c>.</summary>

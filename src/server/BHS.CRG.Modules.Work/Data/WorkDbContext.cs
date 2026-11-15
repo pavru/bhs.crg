@@ -44,6 +44,13 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
     public const string ReportSequence = "report_seq";
 
     /// <summary>
+    /// Следующий номер серверной последовательности изменений отчётов (ТЗ MOB-16): его получает каждое изменение, и
+    /// часы устройства на порядок не влияют.
+    /// </summary>
+    public Task<long> NextReportSeqAsync(CancellationToken ct) =>
+        Database.SqlQueryRaw<long>("SELECT nextval('" + SchemaName + "." + ReportSequence + "') AS \"Value\"").SingleAsync(ct);
+
+    /// <summary>
     /// Версия строки назначения — поле <c>version</c> ответа и значение <c>If-Match</c>. ⚠️ Только у
     /// отслеживаемой строки: теневое свойство у прочитанной без отслеживания не заполняется — была бы «0».
     /// </summary>
