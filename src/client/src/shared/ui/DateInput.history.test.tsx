@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { DateInput } from './DateInput';
@@ -46,15 +46,38 @@ function Payment({ onClose }: { onClose: () => void }) {
  */
 const calendar = () => document.querySelector<HTMLElement>('[role="grid"][aria-label="Календарь"]');
 
+/** Наблюдатели видимости: тест сам говорит, что значок календаря ушёл из видимой части. */
+type Seen = (entries: Array<{ isIntersecting: boolean }>) => void;
+const seen: Array<{ cb: Seen; target?: Element }> = [];
+class FakeIntersectionObserver {
+  private own: { cb: Seen; target?: Element };
+  constructor(cb: Seen) { this.own = { cb }; seen.push(this.own); }
+  observe(target: Element) { this.own.target = target; }
+  unobserve() {} disconnect() {}
+}
+/** Наблюдатель значка календаря — их у окна бывает несколько, наш смотрит на значок. */
+const triggerSeen = () => seen.filter(o => o.target?.getAttribute('aria-label') === 'Открыть календарь');
+
+// Ширину и наблюдателя видимости тест подменяет — после файла возвращаем прежние.
+const ownMatchMedia = window.matchMedia;
+const ownIntersectionObserver = globalThis.IntersectionObserver;
+
 beforeAll(() => {
+  globalThis.IntersectionObserver = FakeIntersectionObserver as unknown as typeof IntersectionObserver;
   // Календарь — поповер Radix: jsdom не знает ни наблюдателя размеров, ни захвата указателя.
   globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
   Element.prototype.hasPointerCapture ??= () => false;
   Element.prototype.scrollIntoView ??= () => {};
 });
 
+afterAll(() => {
+  window.matchMedia = ownMatchMedia;
+  globalThis.IntersectionObserver = ownIntersectionObserver;
+});
+
 beforeEach(() => {
   resetHistoryLayers();
+  seen.length = 0;
   mockWidth(false);
   window.history.replaceState({ idx: 0, key: 'base' }, '');
   routerSaw.length = 0;
@@ -63,6 +86,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   window.removeEventListener('popstate', router);
 });
 
@@ -107,11 +131,68 @@ describe('DateInput: «Назад» на телефоне', () => {
     expect(routerSaw).toEqual([]);
   });
 
-  it('Esc закрывает календарь и снимает его запись', async () => {
+  // Каждый выход календаря своими средствами снимает его запись: иначе следующая «Назад» ушла бы на
+  // мёртвую запись и «ничего бы не сделала».
+  it.each<[string, () => void]>([
+    ['Esc', () => fireEvent.keyDown(calendar()!, { key: 'Escape' })],
+    // Radix закрывает поповер по щелчку мимо на `click`, а не на `pointerdown`.
+    ['щелчок мимо', () => {
+      const field = screen.getByRole('group', { name: 'Дата платежа' });
+      fireEvent.pointerDown(field);
+      fireEvent.click(field);
+    }],
+    ['Tab с края', () => {
+      const last = within(calendar()!.parentElement!).getByText('Сегодня');
+      // Остановки Tab — только видимые, а раскладки у jsdom нет: видимым объявляем всё.
+      vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+      last.focus();
+      fireEvent.keyDown(last, { key: 'Tab' });
+    }],
+    ['«Очистить»', () => fireEvent.click(within(calendar()!.parentElement!).getByText('Очистить'))],
+  ])('%s закрывает календарь и снимает его запись', async (_, close) => {
+    const onClose = vi.fn();
+    render(<Payment onClose={onClose} />);
+    await settle();
+    await openCalendar();
+    expect(state()?.depth).toBe(2);
+    act(close);
+    await settle();
+    expect(calendar()).toBeNull();
+    expect(state()?.depth).toBe(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('из списка месяцев «Назад» ведёт к дням, как Esc; следующая закрывает календарь', async () => {
+    const onClose = vi.fn();
+    render(<Payment onClose={onClose} />);
+    await settle();
+    await openCalendar();
+    fireEvent.click(within(calendar()!.parentElement!).getByText(/^Ноя/));
+    await settle();
+    expect(calendar()).toBeNull();
+    expect(document.querySelector('[role="listbox"][aria-label="Выбор месяца"]')).not.toBeNull();
+
+    window.history.back();
+    await settle();
+    expect(calendar()).not.toBeNull();
+    expect(state()?.depth).toBe(2);
+
+    window.history.back();
+    await settle();
+    expect(calendar()).toBeNull();
+    expect(state()?.depth).toBe(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('поле прокрутили из видимой части — календарь закрывается и снимает запись', async () => {
     render(<Payment onClose={() => {}} />);
     await settle();
     await openCalendar();
-    fireEvent.keyDown(calendar()!, { key: 'Escape' });
+    expect(triggerSeen()).toHaveLength(1);
+    const [{ cb }] = triggerSeen();
+    act(() => cb([{ isIntersecting: true }]));
+    expect(calendar()).not.toBeNull();
+    act(() => cb([{ isIntersecting: false }]));
     await settle();
     expect(calendar()).toBeNull();
     expect(state()?.depth).toBe(1);
@@ -124,5 +205,7 @@ describe('DateInput: «Назад» на рабочем столе', () => {
     render(<DateInput label="Дата платежа" value="2026-11-12" onChange={() => {}} />);
     await openCalendar();
     expect(state()).toEqual({ idx: 0, key: 'base' });
+    // Прокрученное поле здесь календарь только прячет, как прежде.
+    expect(triggerSeen()).toEqual([]);
   });
 });

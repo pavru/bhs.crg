@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
@@ -16,6 +16,7 @@ import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DATE_PICKER_SURFACE } from './menuClasses';
 import { useHistoryLayer } from './historyLayers';
+import { WIDE } from '@/shared/hooks/useMedia';
 
 interface DateInputProps {
   /**
@@ -114,13 +115,29 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
-  // Список месяцев или лет открыт из шапки календаря: Esc вернёт его к дням, слою закрываться нельзя.
-  const headerList = useRef(false);
-  const onHeaderList = (open: boolean) => { headerList.current = open; };
+  // Список месяцев или лет открыт из шапки календаря — здесь его «назад» к дням: Esc вернёт к ним, слою
+  // закрываться нельзя.
+  const headerList = useRef<(() => void) | null>(null);
+  const onHeaderList = (back: (() => void) | null) => { headerList.current = back; };
   // Календарь над окном — верхний слой ([UI-54], docs/UI.md «Назад на телефоне»): системная «Назад» на
-  // телефоне закрывает его, а окно и введённое в нём остаются. Закрытый выбором дня, Esc или щелчком мимо,
-  // он снимает свою запись сам; на рабочем столе записей нет.
-  useHistoryLayer(pickerOpen, () => { setPickerOpen(false); return true; });
+  // телефоне закрывает его, а окно и введённое в нём остаются. Из списка месяцев или лет — к дням, как Esc.
+  // Закрытый выбором дня, Esc, щелчком мимо, Tab'ом с края или «Очистить», он снимает свою запись сам; на
+  // рабочем столе записей нет.
+  useHistoryLayer(pickerOpen, () => {
+    if (!headerList.current) { setPickerOpen(false); return true; }
+    headerList.current();
+    return false;
+  });
+  // Поле прокрутили из видимой части — на телефоне календарь закрывается, а не прячется (`hideWhenDetached`
+  // ниже): спрятанный, он держал бы запись истории, и первая «Назад» ушла бы на невидимый слой. Касание,
+  // начавшее прокрутку, щелчком не стало — Radix календарь не закрыл. Смотрим значок: он внутри поля.
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!pickerOpen || !trigger || typeof IntersectionObserver !== 'function' || window.matchMedia?.(WIDE).matches) return;
+    const seen = new IntersectionObserver(([e]) => { if (e && !e.isIntersecting) setPickerOpen(false); });
+    seen.observe(trigger);
+    return () => seen.disconnect();
+  }, [pickerOpen]);
   // Знаки поля формы (`DateField`) — «со скана» ([UI-88]) и ошибки ([UI-69]) — перед хвостом: крестиком и
   // календарём. Хвост живёт здесь, поэтому знаки оболочки встают тоже здесь, и знак ошибки у поля один; вне
   // оболочки их нет.

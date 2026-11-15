@@ -285,8 +285,12 @@ await check('payment-date-calendar-back-closes-calendar', async () => {
     await page.evaluate(() => window.history.back());
     await grid.waitFor({ state: 'hidden', timeout: 3_000 })
       .catch(() => { throw new Error('«Назад» не закрыла календарь'); });
-    // Шаг истории доходит не сразу: окно, закрытое «Назад», ушло бы чуть позже календаря.
-    await page.waitForTimeout(500);
+    // Запись окна на месте — «Назад» досталась календарю, а не окну: у окна, ответившего «закрываюсь»,
+    // записи уже не было бы. Само окно уходит не сразу — слой, сказавший «закрываюсь», ждёт ухода до
+    // секунды (`historyLayers.ts`), поэтому смотрим на него дольше этого срока, а не наугад.
+    const depth = await page.evaluate(() => window.history.state?.depth ?? 0);
+    if (depth !== 1) throw new Error(`после «Назад» над страницей ${depth} записей слоёв, а не одна — окна`);
+    await page.waitForTimeout(1_500);
     if (!(await dialog.isVisible())) throw new Error('«Назад» закрыла окно «Оплата» вместе с календарём');
     if (page.url() !== url) throw new Error(`«Назад» увела со страницы: ${url} → ${page.url()}`);
     await leavePayment(dialog);

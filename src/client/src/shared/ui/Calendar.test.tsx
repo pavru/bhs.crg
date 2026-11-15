@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Calendar } from './Calendar';
 import { setCompanyTimeZone } from '@/shared/format/companyDay';
 
@@ -313,12 +313,22 @@ describe('Calendar: вид docked', () => {
   it('Esc в списке из шапки — к дням; поле узнаёт, что список открыт и закрыт', () => {
     const onHeaderList = vi.fn();
     render(<Calendar value="2026-11-12" onSelect={() => {}} onHeaderList={onHeaderList} />);
-    expect(onHeaderList).toHaveBeenLastCalledWith(false);
+    expect(onHeaderList).toHaveBeenLastCalledWith(null);
     fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
-    expect(onHeaderList).toHaveBeenLastCalledWith(true);
+    expect(onHeaderList).toHaveBeenLastCalledWith(expect.any(Function));
     fireEvent.keyDown(screen.getByRole('listbox', { name: 'Выбор месяца' }), { key: 'Escape' });
     expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
-    expect(onHeaderList).toHaveBeenLastCalledWith(false);
+    expect(onHeaderList).toHaveBeenLastCalledWith(null);
+  });
+
+  it('«назад», отданный полю, возвращает к дням — как Esc', () => {
+    let back: (() => void) | null = null;
+    render(<Calendar value="2026-11-12" onSelect={() => {}} onHeaderList={b => { back = b; }} />);
+    fireEvent.click(screen.getByRole('button', { name: /выбрать месяц$/ }));
+    expect(screen.getByRole('listbox', { name: 'Выбор месяца' })).toBeTruthy();
+    act(() => back!());
+    expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
+    expect(back).toBeNull();
   });
 
   // Год в списке листается без дня: назад — с фокусом в границах, иначе он встал бы на неактивный день.
