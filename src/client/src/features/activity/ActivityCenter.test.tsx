@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { ActiveJob } from '@/shared/api/jobs';
 import type { ComponentHealth, NotificationDto } from '@/shared/api/notifications';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
+import { resetHistoryLayers } from '@/shared/ui/historyLayers';
+// Слушатель `popstate` — общий с охраной шага: без него слои не слышат «Назад».
+import '@/shared/ui/NavigationGuard';
 import { ActivityCenter } from './ActivityCenter';
 
 /**
@@ -175,5 +178,28 @@ describe('кнопка активности', () => {
       component('mail', 'Почта', 'Flapping'), component('db', 'База данных', 'Up'),
     ];
     expect(within(await open()).getByRole('button', { name: /Состояние системы: не в норме: 2 из 4/ })).toBeTruthy();
+  });
+});
+
+describe('кнопка активности: «Назад» на телефоне', () => {
+  const ownMatchMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = ownMatchMedia; });
+
+  /** Слой истории у панели один — у поповера обёртки ([UI-96]): своего вызова у панели нет. */
+  it('одна «Назад» закрывает панель', async () => {
+    resetHistoryLayers();
+    // Узкий экран: «шире 768» — нет, «уже 768» — да.
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+      matches: !q.includes('min-width'), addEventListener() {}, removeEventListener() {},
+    })) as unknown as typeof window.matchMedia;
+    window.history.replaceState({ idx: 0, key: 'base' }, '');
+    await open();
+    await act(() => new Promise(r => setTimeout(r, 30)));
+    expect((window.history.state as { depth?: number }).depth).toBe(1);
+
+    window.history.back();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Активность' })).toBeNull());
+    await act(() => new Promise(r => setTimeout(r, 30)));
+    expect(window.history.state).toEqual({ idx: 0, key: 'base' });
   });
 });

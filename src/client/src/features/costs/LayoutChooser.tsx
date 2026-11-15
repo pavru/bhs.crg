@@ -1,4 +1,4 @@
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Close, Print } from '@/shared/ui/icons';
 import { useId, useState } from 'react';
 import { RadioGroup } from '@/shared/ui/RadioGroup';

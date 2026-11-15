@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StrictMode, useState } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
-import { resetHistoryLayers, useHistoryLayer } from './historyLayers';
+import { BrowserRouter, useLocation, useNavigate } from 'react-router';
+import { HistoryLayersHost, resetHistoryLayers, useHistoryLayer } from './historyLayers';
 import { Modal } from './Modal';
 import { WindowStep } from './WindowStep';
 // Слушатель `popstate` — общий с охраной шага: без него слои не слышат «Назад».
@@ -136,6 +137,60 @@ describe('слой истории на телефоне', () => {
     await settle();
     // Пришли на запись страницы, а не на мёртвую запись меню над ней.
     expect(state()).toEqual({ idx: 0, key: 'base' });
+  });
+});
+
+describe('«Назад», закрывшая слой, сохраняет правку адреса [UI-96]', () => {
+  /** Страница с правкой вида: `replace` меняет адрес без новой записи — как «Колонки» таблицы. */
+  function Page({ onBack }: { onBack: () => boolean }) {
+    const navigate = useNavigate();
+    const { search } = useLocation();
+    return (
+      <>
+        <HistoryLayersHost />
+        <Layer onBack={onBack} />
+        <button onClick={() => navigate('/t?cols=a', { replace: true })}>снять</button>
+        <output>{search}</output>
+      </>
+    );
+  }
+
+  // Адрес jsdom — общий на файл: правка `/t?cols=a` иначе досталась бы следующим тестам.
+  const ownUrl = window.location.href;
+  beforeEach(() => {
+    window.history.replaceState({ idx: 0, key: 'base', usr: null }, '', '/t');
+  });
+  afterEach(() => {
+    window.history.replaceState(null, '', ownUrl);
+  });
+
+  it('правка `replace` при открытом слое остаётся в адресе после «Назад»', async () => {
+    const onBack = vi.fn(() => true);
+    const view = render(<BrowserRouter><Page onBack={onBack} /></BrowserRouter>);
+    await settle();
+    expect(state()?.depth).toBe(1);
+    act(() => view.getByText('снять').click());
+    await settle();
+    expect(window.location.search).toBe('?cols=a');
+
+    window.history.back();
+    await settle();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(state()?.layer).toBeUndefined();
+    // Показанное и адрес не разошлись: запись страницы — с правкой.
+    expect(window.location.href).toMatch(/\/t\?cols=a$/);
+    expect(view.container.querySelector('output')?.textContent).toBe('?cols=a');
+    expect(routerSaw).toEqual([]);
+  });
+
+  it('без правки адрес прежний', async () => {
+    render(<BrowserRouter><Page onBack={() => true} /></BrowserRouter>);
+    await settle();
+    window.history.back();
+    await settle();
+    expect(state()?.layer).toBeUndefined();
+    expect(window.location.href).toMatch(/\/t$/);
+    expect(state()).toMatchObject({ idx: 0, key: 'base' });
   });
 });
 

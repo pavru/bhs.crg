@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Badge } from '@/shared/ui/Badge';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
@@ -8,7 +8,6 @@ import { useActiveJobs } from '@/shared/api/jobs';
 import { useNotifications } from '@/shared/api/notifications';
 import { JobRow } from '@/features/jobs/JobRow';
 import { NotificationList } from '@/features/notifications/NotificationList';
-import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ScanBatchActivity } from '@/features/costs/ScanBatchActivity';
@@ -57,9 +56,9 @@ export function ActivityCenter() {
     ? `${tasks === 1 ? `Выполняется: ${doing}` : doing}; ${news}`
     : `Уведомления — ${news}`;
 
-  // «Назад» на телефоне закрывает панель, а не страницу (issue #1418).
+  // «Назад» на телефоне закрывает панель, а не страницу (issue #1418): слой истории — у поповера обёртки
+  // ([UI-96]); своего здесь нет, иначе записей две, и первая «Назад» ничего бы не делала.
   const [open, setOpen] = useState(false);
-  useHistoryLayer(open, () => { setOpen(false); return true; });
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>

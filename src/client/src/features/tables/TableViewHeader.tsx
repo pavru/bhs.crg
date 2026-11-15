@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { Check, KeyboardArrowDown, Table } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';

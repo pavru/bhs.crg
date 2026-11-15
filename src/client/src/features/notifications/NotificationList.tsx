@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import * as Popover from '@/shared/ui/Popover';
 import { Icon } from '@/shared/ui/Icon';
 import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
