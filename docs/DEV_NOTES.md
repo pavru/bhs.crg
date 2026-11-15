@@ -6119,10 +6119,12 @@ GET    /api/document-types
 POST   /api/document-types          { name, code, schema: string(JSON) }
 PUT    /api/document-types/{id}/schema  { schema: string(JSON) }
 
-GET    /api/templates?documentTypeId=
+GET    /api/templates?documentTypeId=  — версии типа БЕЗ текстов (#1972)
+GET    /api/templates/{id}/content  → { content } — текст Typst одной версии; 404 — версии нет
 POST   /api/templates               { documentTypeId, name, content }      — content = Typst
-PUT    /api/templates/{id}          { content }  — создаёт новую версию
-                                    (запись типов/полей/шаблонов/настроек — только роль Admin)
+PUT    /api/templates/{id}/content  { content }  — правка действующей версии на месте (историческая — 409)
+POST   /api/templates/{id}/versions { content, comment? }  — новая версия от этой
+                                    (запись шаблонов — право id.config.edit, чтение — id.document.read)
 
 PUT    /api/constructions/{id}/timezone     { timeZoneId }   — null = «как у компании» (#960)
 PUT    /api/constructions/{id}/external-id  { system, code } — только парой

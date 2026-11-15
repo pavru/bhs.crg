@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useEffect, useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { DocumentType, Template } from '@/shared/api/types';
+import type { DocumentType, TemplateSummary } from '@/shared/api/types';
 import type { NewVersionPlan } from './groupTemplates';
 
 /**
@@ -11,7 +11,13 @@ import type { NewVersionPlan } from './groupTemplates';
  */
 
 const saveContent = vi.fn();
+// Текст версии — своим запросом (issue #1972): по id из «кэша» contents; contentState — когда
+// нужен сам ответ запроса (загрузка, отказ).
+const DEFAULT_CONTENTS = { t1: '= АОСР' };
+let contents: Record<string, string> = { ...DEFAULT_CONTENTS };
+let contentState: { data?: string; isError?: boolean; error?: unknown } | null = null;
 vi.mock('@/shared/api/templates', () => ({
+  useTemplateContent: (id: string) => contentState ?? { data: contents[id] },
   useSaveTemplateContent: () => ({ mutateAsync: saveContent, isPending: false }),
   useCreateTemplateVersion: () => ({ mutateAsync: (...args: unknown[]) => createVersion(...args), isPending: false }),
   useSetTemplateDefault: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -24,7 +30,8 @@ vi.mock('@tanstack/react-query', async (orig) => ({
 }));
 const executeEdits = vi.fn();
 vi.mock('@/shared/ui/CodeEditor', () => ({
-  default: function FakeEditor({ onMount }: { onMount: (editor: unknown) => void }) {
+  default: function FakeEditor({ onMount, value, onChange }:
+    { onMount: (editor: unknown) => void; value: string; onChange: (v: string | undefined) => void }) {
     const area = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
       onMount({
@@ -36,21 +43,21 @@ vi.mock('@/shared/ui/CodeEditor', () => ({
         hasTextFocus: () => document.activeElement === area.current,
       });
     }, [onMount]);
-    return <textarea data-testid="editor" ref={area} />;
+    return <textarea data-testid="editor" ref={area} value={value} onChange={e => onChange(e.target.value)} />;
   },
 }));
 vi.mock('@/shared/ui/typstUserLibCompletion', () => ({ useUserLibCompletion: () => {} }));
 vi.mock('@/shared/ui/typstAssetCompletion', () => ({ useAssetCompletion: () => {} }));
 vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info: vi.fn(), success: vi.fn(), error: vi.fn() }) }));
-vi.mock('./TemplateParamsPanel', () => ({ TemplateParamsPanel: () => null }));
+vi.mock('./TemplateParamsPanel', () => ({ TemplateParamsPanel: () => <div>Параметры шаблона</div> }));
 vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 
 const { EditorPanel } = await import('./EditorPanel');
 
-afterEach(() => { cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); createVersion.mockReset(); });
+afterEach(() => { contentState = null; contents = { ...DEFAULT_CONTENTS }; cleanup(); saveContent.mockReset(); executeEdits.mockReset(); invalidateQueries.mockReset(); createVersion.mockReset(); });
 
-const template = (isActive: boolean): Template => ({
-  id: 't1', documentTypeId: 'd1', name: 'АОСР', content: '= АОСР', parameters: null, comment: null,
+const template = (isActive: boolean): TemplateSummary => ({
+  id: 't1', documentTypeId: 'd1', name: 'АОСР', parameters: null, comment: null,
   version: 2, isActive, isDefault: true, createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
 });
 const docType = { id: 'd1', name: 'АОСР', schema: '{"fields":[]}' } as unknown as DocumentType;
@@ -216,5 +223,79 @@ describe('окно новой версии от исторической (issue 
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить как новую/ })); });
     expect(screen.getByText(/Текущая версия сохранится в истории/).textContent)
       .toContain('1 документ перейдёт на новую версию и вернётся в черновик');
+  });
+});
+
+describe('EditorPanel: текст версии своим запросом (issue #1972)', () => {
+  it('пока текст не получен — редактора нет: Ctrl+S не записал бы пустой шаблон', () => {
+    contentState = {};
+    renderPanel(true);
+    expect(screen.queryByTestId('editor')).toBeNull();
+    expect(screen.getByRole('progressbar', { name: 'Загрузка текста шаблона' })).toBeTruthy();
+    // Параметрам текст не нужен — они видны, не дожидаясь его (живой прогон types ищет их сразу).
+    expect(screen.getByText('Параметры шаблона')).toBeTruthy();
+  });
+
+  it('версии нет (404) — отказ назван словами, а не кодом ответа; редактора нет', () => {
+    contentState = { isError: true, error: Object.assign(new Error('Request failed with status code 404'), { response: { status: 404, data: '' } }) };
+    renderPanel(true);
+    expect(screen.queryByTestId('editor')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByText('Этой версии больше нет — её удалили. Выберите другую.')).toBeTruthy();
+  });
+
+  it('иной отказ — причина сервера после общего «не удалось»', () => {
+    contentState = { isError: true, error: Object.assign(new Error('Request failed'), { response: { status: 500, data: { error: 'База недоступна' } } }) };
+    renderPanel(true);
+    expect(screen.getByText('Не удалось загрузить текст шаблона: База недоступна')).toBeTruthy();
+  });
+
+  it('текст получен — редактор открыт, правок нет', () => {
+    renderPanel(true);
+    expect(screen.getByTestId('editor')).toBeTruthy();
+    expect(screen.queryByText('Есть несохранённые правки')).toBeNull();
+  });
+
+  const editor = () => screen.getByTestId('editor') as HTMLTextAreaElement;
+  const props = { docType, allDocTypes: [docType], onSaved: vi.fn(), versionPlan: NO_RETIRE };
+  const dirtyMark = () => screen.queryByLabelText('есть правки');
+
+  it('после Ctrl+S на месте другая версия из кэша показывает СВОЙ текст (ревью #1973)', async () => {
+    contents = { t1: 'A', t2: 'B' };
+    const a = template(true);
+    const b = { ...template(true), id: 't2', name: 'Другой' };
+    const { rerender } = render(<EditorPanel template={a} {...props} />);
+    fireEvent.change(editor(), { target: { value: 'A2' } });
+    saveContent.mockImplementationOnce(async () => {
+      contents = { ...contents, t1: 'A2' };   // ответ записи кладёт текст в кэш
+      return { template: { ...a, content: 'A2' }, resetDocuments: 0 };
+    });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Сохранить' })); });
+    rerender(<EditorPanel template={a} {...props} />);
+    expect(editor().value).toBe('A2');
+    expect(dirtyMark()).toBeNull();
+
+    rerender(<EditorPanel template={b} {...props} />);
+    expect(editor().value).toBe('B');
+    expect(dirtyMark()).toBeNull();
+  });
+
+  it('текст перечитан с сервера, своих правок нет — редактор следует за ним, а не «правки»', () => {
+    contents = { t1: 'старый' };
+    const { rerender } = render(<EditorPanel template={template(true)} {...props} />);
+    contents = { t1: 'новый от соседа' };
+    rerender(<EditorPanel template={template(true)} {...props} />);
+    expect(editor().value).toBe('новый от соседа');
+    expect(dirtyMark()).toBeNull();
+  });
+
+  it('текст перечитан, а свои правки есть — правки остаются', () => {
+    contents = { t1: 'старый' };
+    const { rerender } = render(<EditorPanel template={template(true)} {...props} />);
+    fireEvent.change(editor(), { target: { value: 'моя правка' } });
+    contents = { t1: 'новый от соседа' };
+    rerender(<EditorPanel template={template(true)} {...props} />);
+    expect(editor().value).toBe('моя правка');
+    expect(dirtyMark()).toBeTruthy();
   });
 });

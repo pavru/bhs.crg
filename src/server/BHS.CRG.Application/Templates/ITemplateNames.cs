@@ -1,8 +1,8 @@
 namespace BHS.CRG.Application.Templates;
 
 /// <summary>
-/// Занятые названия шаблонов типа — одним запросом названий, без строк шаблонов: общий репозиторий
-/// тянул бы ради проверки весь Typst-текст каждой версии, а копия без названия — по разу на кандидата.
+/// Сведения о шаблонах типа без строк шаблонов — названия, возраст, версии: общий репозиторий тянул
+/// бы ради них весь Typst-текст каждой версии, а копия без названия — по разу на кандидата.
 /// </summary>
 public interface ITemplateNames
 {
@@ -21,4 +21,10 @@ public interface ITemplateNames
 
     /// <summary>Id всех версий шаблонов типа — без строк шаблонов (сводка закреплений, issue #1969).</summary>
     Task<IReadOnlyList<Guid>> VersionIdsAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>Все версии шаблонов типа без текстов (список страницы шаблонов, issue #1972).</summary>
+    Task<IReadOnlyList<TemplateSummary>> SummariesAsync(Guid documentTypeId, CancellationToken ct = default);
+
+    /// <summary>Текст Typst одной версии — одна колонка, без строки шаблона (issue #1972); null — версии нет.</summary>
+    Task<string?> ContentAsync(Guid id, CancellationToken ct = default);
 }

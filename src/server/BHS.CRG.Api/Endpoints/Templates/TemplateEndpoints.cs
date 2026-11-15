@@ -22,8 +22,14 @@ public static class TemplateEndpoints
         var g = app.MapGroup("/api/templates").RequireAuthorization(AppPolicies.Permission("id.document.read"));
         var admin = app.MapGroup("/api/templates").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
 
+        // Список — версии без текстов (issue #1972): текст одной версии — адресом ниже.
         g.MapGet("/", async (Guid documentTypeId, IMediator m)
             => Results.Ok(await m.Send(new ListTemplatesQuery(documentTypeId))));
+
+        g.MapGet("/{id:guid}/content", async (Guid id, IMediator m)
+            => await m.Send(new GetTemplateContentQuery(id)) is { } content
+                ? Results.Ok(new { content })
+                : Results.NotFound());
 
         // Системная Typst-библиотека (issue #344) — хардкод, только чтение (просмотр на странице шаблонов).
         g.MapGet("/systemlib", () => Results.Ok(new { content = SystemTypstLib.Content }));

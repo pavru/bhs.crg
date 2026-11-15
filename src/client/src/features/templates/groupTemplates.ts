@@ -1,15 +1,15 @@
-import type { Template } from '@/shared/api/types';
+import type { TemplateSummary } from '@/shared/api/types';
 
 // Отдельным файлом от компонента (issue #858): модуль, экспортирующий и компонент, и
 // функцию, не может быть границей горячей подмены — правка поднимается вверх по импортам.
 
 export interface TemplateGroup {
   name: string;
-  versions: Template[];
+  versions: TemplateSummary[];
 }
 
-export function groupTemplates(templates: Template[]): TemplateGroup[] {
-  const map = new Map<string, Template[]>();
+export function groupTemplates(templates: TemplateSummary[]): TemplateGroup[] {
+  const map = new Map<string, TemplateSummary[]>();
   for (const t of templates) {
     const arr = map.get(t.name) ?? [];
     arr.push(t);
@@ -25,7 +25,7 @@ export function groupTemplates(templates: Template[]): TemplateGroup[] {
  * Номер следующей версии шаблона — наибольший среди его версий плюс один (issue #1920), как его
  * считает сервер. Версии шаблона — с тем же названием в списке одного типа документа.
  */
-export function nextVersionOf(templates: Template[], template: Template): number {
+export function nextVersionOf(templates: TemplateSummary[], template: TemplateSummary): number {
   return Math.max(template.version,
     ...templates.filter(t => t.name === template.name).map(t => t.version)) + 1;
 }
@@ -38,7 +38,7 @@ export function nextVersionOf(templates: Template[], template: Template): number
 export interface NewVersionPlan {
   next: number;
   /** Действующие версии шаблона, кроме открытой, — сервер их погасит. */
-  retires: Template[];
+  retires: TemplateSummary[];
   /** Перейдёт ли к новой версии «по умолчанию» с другой версии шаблона. */
   takesDefault: boolean;
   /**
@@ -54,7 +54,7 @@ export interface NewVersionPlan {
 }
 
 export function newVersionPlan(
-  templates: Template[], template: Template, usage: Record<string, { count: number }> = {},
+  templates: TemplateSummary[], template: TemplateSummary, usage: Record<string, { count: number }> = {},
 ): NewVersionPlan {
   const siblings = templates.filter(t => t.name === template.name && t.id !== template.id);
   const retires = siblings.filter(t => t.isActive);

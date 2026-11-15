@@ -80,7 +80,7 @@ public class TemplateVersionRaceTests(IntegrationTestFixture fixture) : IAsyncLi
         => (await SendAsync(new CreateDocumentTypeCommand(code, code, DocumentTypeKind.Document, null,
             JsonDocument.Parse("""{"fields":[]}""")))).Id;
 
-    private async Task<List<Template>> TemplatesAsync(Guid type)
+    private async Task<List<TemplateSummary>> TemplatesAsync(Guid type)
         => [.. await SendAsync(new ListTemplatesQuery(type))];
 
     private static async Task<string?> ErrorAsync(HttpResponseMessage r)

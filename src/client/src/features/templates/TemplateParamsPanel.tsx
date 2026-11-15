@@ -4,7 +4,7 @@ import { Add, Delete, DragIndicator, KeyboardArrowDown, KeyboardArrowUp, Tune } 
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
-import type { Template, TemplateParam } from '@/shared/api/types';
+import type { Template, TemplateSummary, TemplateParam } from '@/shared/api/types';
 import { newLocalId } from '@/shared/utils/localId';
 import { parseTemplateParams } from './templateParams';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -25,7 +25,7 @@ const DRAG_MIME = 'application/x-crg-template-param';
  * умолчанию можно переопределить на конкретном документе. Сохраняется по каждому изменению
  * (как «Настройки страницы»). Родитель монтирует с key={template.id} — стейт инициализируется из шаблона.
  */
-export function TemplateParamsPanel({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
+export function TemplateParamsPanel({ template, onSaved }: { template: TemplateSummary; onSaved: (t: Template) => void }) {
   const [open, setOpen] = useState(false);
   // Строка — это {id, параметр}. Идентификатор нужен КЛЮЧОМ списка: по индексу React оставляет узел
   // на месте и подменяет в нём данные, поэтому фокус остаётся привязан к ПОЗИЦИИ, а не к строке.

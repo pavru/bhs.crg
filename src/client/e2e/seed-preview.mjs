@@ -48,7 +48,8 @@ export async function ensurePreviewTemplate({ api, typeId }) {
   if (!existing) {
     await api('POST', '/templates', { documentTypeId: typeId, name: PREVIEW_TEMPLATE, content: CONTENT });
     console.log(`  + шаблон «${PREVIEW_TEMPLATE}»`);
-  } else if (!existing.content.includes(BROKEN_MESSAGE)) {
+  } else if (!(await api('GET', `/templates/${existing.id}/content`)).content.includes(BROKEN_MESSAGE)) {
+    // Текст — своим адресом: список отдаёт версии без текстов (issue #1972).
     // Стенд, засеянный прежним посевом: шаблон без проверочного отказа, и проверка ждала бы его зря. Узнаётся
     // по отказу, а не равенством текста: при создании сервер дописывает в шаблон системные импорты
     // (`EnsureImports`), и равенство не сошлось бы никогда — посев переписывал бы шаблон каждым запуском.
