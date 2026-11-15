@@ -24,6 +24,7 @@ public class WorkJournalInventoryTests
         [$"{Module}/Data/ReportJournal.cs"] =
             "единственное место записи: сравнение до и после, автор и исполнитель снимком, правка после подачи",
         [$"{Module}/Data/WorkReportModel.cs"] = "отображение записи на таблицу: запросов нет",
+        [$"{Module}/WorkReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
         [$"{Module}/Data/ReportReads.cs"] =
             "файл чтения отчёта (IIsolatedRecord): журнал читается только с охватом читателя, без отслеживания",
     };
