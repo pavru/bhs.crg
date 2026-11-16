@@ -146,7 +146,8 @@ internal static class DomainRegistration
     // MCP-инструментам домена нужен ClaimsPrincipal (act-as-user): агент работает от имени пользователя.
     builder.Services.AddHttpContextAccessor();
     // MCP-сервер: ВТОРОЙ тонкий адаптер над тем же ядром, in-process с API — переиспользует ту же
-    // аутентификацию, DI и scoping DbContext. Только чтение: инструментов записи в этом срезе нет.
+    // аутентификацию, DI и scoping DbContext. Меняющие инструменты есть — их перечень и пометки
+    // (ReadOnly, Destructive) ведёт McpToolContractTests, а классы ниже сторожа берут из этой регистрации.
     builder.Services
         .AddMcpServer(o =>
         {
