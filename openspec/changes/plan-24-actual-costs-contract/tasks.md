@@ -3,12 +3,14 @@
 ## 1. Интерфейс и поставщик
 
 - [ ] 1.1 `BHS.CRG.Modules/Exchange/ActualCosts.cs`: `[ModuleContract("costs", "Фактические затраты")]`,
-  `IActualCosts.ReadAsync(ModuleReader, constructionId, sectionId?, ct)`, `Totals` с `linkedToWorks:
-  not-tracked` [CORE-34] [PLAN-21.1]. Проверка — `ModuleBoundaryTests` зелёный
-- [ ] 1.2 `Modules.Costs/Exchange/ActualCostsProvider.cs` тем же путём `CostViews`, что `SiteCosts`; без
-  черновиков и отклонённых [COST-21] [COST-20]. Проверка — `ActualCostsContractTests`: два счёта, один
-  оплачен — `allocated` и `paid`; `paid` равен «Затратам» отчёта на том же посеве; черновик не входит;
-  отбор по разделу
+  `IActualCosts.ReadAsync(ModuleReader, constructionId, sectionId?, ct)` → `ContractAnswer<ActualCostsTotals>`,
+  `linkedToWorks: not-tracked`, `AnswerPermissions`; валюты в ответе нет [CORE-34] [PLAN-21.1]. Проверка —
+  `ModuleBoundaryTests` зелёный
+- [ ] 1.2 `Modules.Costs/Exchange/ActualCostsProvider.cs` тем же путём `CostViews`, что `SiteCosts`:
+  «оплачено» — «Затраты» за всё время, «разнесено» — они же и «К оплате»; отклонённые — вне итогов,
+  черновик — как в отчёте [COST-21] [COST-20]. Проверка — `ActualCostsContractTests`: два счёта, один
+  оплачен — `allocated` и `paid`; оба равны отчёту на том же посеве; оплаченный черновик входит,
+  отклонённый — нет; отбор по разделу
 - [ ] 1.3 Регистрация в `CostsModule.RegisterServices` [CORE-34]. Проверка — хост `plan` без `costs`
   получает `NotConnected`; `CostsOnlyHostTests` зелёный
 
@@ -17,11 +19,13 @@
 - [ ] 2.1 `CostsModule.Permissions`: `costs.totals.read` с признаком контракта и `ReadAllMark.Out`;
   ответ по `costs.totals.read` или `costs.report.read`, иначе `Hidden` (решение В-3); оба кода поставщик
   называет явно — из них `plan-25` соберёт ворота «Хода работ» [COST-28] [AUTH-8.1]. Проверка — тот же
-  тест: только `costs.totals.read` — итоги; без прав — `Hidden`; система — отказ; поставщик называет оба
-  кода
+  тест: только `costs.totals.read` — итоги; только `costs.report.read` — итоги; без прав — `Hidden`;
+  система — отказ; поставщик называет оба кода. В `CostsOnlyHostTests` право названо в списке «без двери»
+  как право контракта
 - [ ] 2.2 `SystemRoles.cs`: «Менеджеру проекта» — `costs.totals.read` (решение В-3) [PLAN-21.1].
-  Проверка — тест состава `/api/account/access` по системным ролям; `CostsOnlyHostTests` — число прав
-  `costs.` и объяснение обновлены
+  Проверка — тест состава `/api/account/access` по системным ролям: «Менеджер проекта» — ровно
+  `costs.totals.read`, модуль закрыт, `/api/costs/site-costs` — 403; «Руководитель» — без него;
+  `CostsOnlyHostTests` — число прав `costs.` и объяснение обновлены
 - [ ] 2.3 `docs/ADMIN_GUIDE.md`: право `costs.totals.read`; `cd docs/tools && npm run toc` [COST-28].
   Проверка — проверка содержания в «Frontend» зелёная
 
