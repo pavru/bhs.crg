@@ -141,8 +141,8 @@ public sealed class ReportReads(WorkDbContext db)
     /// Журнал отчёта (ТЗ WORK-11, WORK-12, WORK-39, WORK-54; change <c>work-14-report-journal</c>), если отчёт виден
     /// читателю, по номеру; невидимый и несуществующий — одинаково <c>null</c>. Черновик — отчёт без момента подачи —
     /// виден только сотруднику отчёта и автору его ввода <paramref name="userId" />: содержимое черновика менеджер видит
-    /// после подачи. Статус здесь не годится: до <c>work-15</c> он у всех «черновик», и поданный отчёт им не назвать;
-    /// подача ставит статус и момент одной записью (<c>work-15</c>), и условия совпадают.
+    /// после подачи. Судит момент, а не статус: подача ставит их одной записью (<c>work-15</c>), а возвращённый на правку
+    /// отчёт (<c>work-16</c>) момент сохраняет — его содержимое уже видели.
     ///
     /// <para><b>Удалённый черновик</b> журнал оставляет записью «удалён» (WORK-12), и прочесть её можно: удаляется только
     /// черновик, поэтому и правило у него черновика — сотрудник отчёта и автор ввода, в охвате стройки и сотрудника из
@@ -182,6 +182,62 @@ public sealed class ReportReads(WorkDbContext db)
         if (userId is null) return false;
         return await db.Set<ReportJournalEntry>().AsNoTracking()
             .AnyAsync(e => e.ReportId == id && e.Kind == ReportJournalKinds.Created && e.EnteredFor && e.AuthorId == userId, ct);
+    }
+
+    /// <summary>
+    /// Ночные отчёты читателя с даты <paramref name="from" /> — стройка и дата (ТЗ MOB-35, <c>work-15</c>): по ним «мои
+    /// стройки» предлагают продолжить вчерашнюю ночь. Охват — читателя («свои»).
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid Site, DateOnly Date)>> NightReportsAsync(
+        ReportViewer viewer, DateOnly from, CancellationToken ct)
+    {
+        var found = await Visible(viewer).AsNoTracking()
+            .Where(r => r.Shift == ReportShift.Night && r.Date >= from)
+            .Select(r => new { r.ConstructionId, r.Date }).ToListAsync(ct);
+        return [.. found.Select(f => (f.ConstructionId, f.Date))];
+    }
+
+    /// <summary>
+    /// Черновики с истёкшим окном подачи (ТЗ WORK-10, <c>work-15</c>) — по порядку окна, не больше
+    /// <paramref name="limit" />, кроме <paramref name="except" /> (пропущенных этим прогоном). Читает только автоподача
+    /// — от имени системы с причиной (<see cref="ModuleReader.OfSystem" />): охват у неё «все», и человеку этот метод не
+    /// годится. Возвращённые не выбираются: автоподача их не трогает. Сотрудник — чтобы имена исполнителей порции
+    /// прочесть одним вызовом порта.
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid Id, Guid EmployeeId)>> ExpiredDraftsAsync(
+        ModuleReader system, DateTimeOffset now, IReadOnlyCollection<Guid> except, int limit, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var skipped = except.ToArray();
+        var found = await Expired(now).AsNoTracking().Where(r => !skipped.Contains(r.Id))
+            .OrderBy(r => r.WindowEndsAt).ThenBy(r => r.Id).Take(limit)
+            .Select(r => new { r.Id, r.EmployeeId }).ToListAsync(ct);
+        return [.. found.Select(f => (f.Id, f.EmployeeId))];
+    }
+
+    /// <summary>
+    /// Черновик с истёкшим окном — с отслеживанием и со строками, для подачи; уже не черновик или окно не истекло —
+    /// <c>null</c> (его успел подать или поправить другой). Тот же параметр системы, что у
+    /// <see cref="ExpiredDraftsAsync" />.
+    /// </summary>
+    public Task<Report?> ExpiredDraftAsync(ModuleReader system, Guid id, DateTimeOffset now, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        return Full(Expired(now)).FirstOrDefaultAsync(r => r.Id == id, ct);
+    }
+
+    private IQueryable<Report> Expired(DateTimeOffset now)
+    {
+        var at = now.ToUniversalTime();
+        return db.Set<Report>().Where(r => r.Status == ReportStatus.Draft && r.WindowEndsAt <= at);
+    }
+
+    /// <summary>Чтение «все отчёты» — только у системы с причиной: человек с ним прочёл бы чужое без охвата.</summary>
+    private static void EnsureSystem(ModuleReader reader)
+    {
+        if (!reader.IsSystem || string.IsNullOrWhiteSpace(reader.SystemReason))
+            throw new InvalidOperationException(
+                "Черновики с истёкшим окном читает только автоподача — от имени системы с причиной: у человека охват свой.");
     }
 
     private IQueryable<Report> Visible(ReportViewer viewer)

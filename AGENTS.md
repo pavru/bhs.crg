@@ -284,8 +284,9 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   накладных (`/api/costs/waybills/{id}/…`), записей общих данных (`PUT /api/common-data/{id}`,
   `PUT /api/employees/{id}`), сохранённых представлений таблиц (`PUT` / `DELETE
   /api/tables/{адрес}/views/{id}`) и отчётов монтажника (`PUT` / `DELETE /api/work/reports/{id}`, `PUT
-  /api/work/entry/reports/{id}`; правка ещё и с `changeId` — протокол повтора, DEV_NOTES). Без заголовка — 400, с устаревшим — 409. Названные исключения и
-  порядок отказов — в спецификациях `costs` и `core`.
+  /api/work/entry/reports/{id}`, подача `POST …/{id}/submit` у обоих; правка ещё и с `changeId` — протокол
+  повтора, DEV_NOTES). Без заголовка — 400, с устаревшим — 409. Названные исключения (уже поданный отчёт — 200
+  `alreadySubmitted` без сверки) и порядок отказов — в спецификациях `costs`, `core` и `work`.
 - **Подсказки поля** (`GET /api/field-suggestions?type=&field=&q=&scope=&scopeId=&limit=`, issue #1530)
   различают ответы нарочно: поле, которое не подсказывается, — **200 и пусто**; неизвестный тип или
   поле — 400; таймаут (~300 мс) — **503, а не пусто**; нет прав ни на один источник — 403. `type` —

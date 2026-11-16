@@ -3,6 +3,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -177,7 +178,16 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportViews>();
         services.AddScoped<ReportJournal>();
         services.AddScoped<ReportDesk>();
+        services.AddScoped<RequiredFields>();
+        services.AddScoped<ReportSubmission>();
+        services.AddScoped<IModuleJobHandler, AutoSubmitJob>();
     }
+
+    /// <summary>
+    /// Такт автоподачи (ТЗ WORK-10, WORK-41; <c>work-15</c>): ядро ставит задачу <see cref="AutoSubmitJob" /> раз в пять
+    /// минут с постоянной целью, а задача выбирает все черновики с истёкшим окном — догон после простоя.
+    /// </summary>
+    public IReadOnlyList<ModuleTick> Ticks => [AutoSubmitJob.Tick];
 
     /// <summary>
     /// Путь модуля. Объявлен ДО первого адреса: по нему ядро отвечает отказом «модуль не подключён» на

@@ -49,6 +49,10 @@ public sealed class ReportJournal(WorkDbContext db)
             [(null, "shift")] = Report.ShiftCode(report.Shift),
             [(null, "hours")] = Number(report.Hours),
             [(null, "note")] = report.Note,
+            // Подача (work-15): статус, момент и незаполненное к автоподаче — запись о подаче называет их.
+            [(null, "status")] = Report.StatusCode(report.Status),
+            [(null, "submittedAt")] = report.SubmittedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            [(null, "requiredMissing")] = report.RequiredMissing is { } missing ? JsonNode.Parse(missing) : null,
         };
         var lines = report.Lines.OrderBy(l => l.Position).ToList();
         foreach (var line in lines)
@@ -89,7 +93,10 @@ public sealed class ReportJournal(WorkDbContext db)
         var after = kind == ReportJournalKinds.Deleted ? null : Capture(report);
         var actedAt = deviceTime ?? serverTime;
         var entry = ReportJournalEntry.Of(report, kind, changeId, seq, author, executorName, deviceTime, serverTime,
-            afterSubmission: report.SubmittedAt is { } submitted && actedAt > submitted,
+            // Сама подача правкой после подачи не бывает: у автоподачи время прогона позже конца окна, у ручной — время
+            // устройства позже предела окна (work-15).
+            afterSubmission: kind is not (ReportJournalKinds.Submitted or ReportJournalKinds.AutoSubmitted)
+                             && report.SubmittedAt is { } submitted && actedAt > submitted,
             changes: Diff(before, after).ToJsonString());
         db.Add(entry);
         return entry;

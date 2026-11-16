@@ -129,7 +129,7 @@ public class ReportRulesTests
     public void Стройка_обязательна_смена_по_умолчанию_дневная()
     {
         var text = Refusal(() => Report.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, new DateOnly(2026, 11, 16),
-            ReportShift.Day, 8, null, 1, DateTimeOffset.UtcNow));
+            ReportShift.Day, 8, null, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
 
         Assert.Contains("constructionId", text);
         Assert.Equal(ReportShift.Day, Report.ParseShift(null));

@@ -123,6 +123,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<string>("RequiredMissing")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("required_missing");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -149,14 +153,26 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("submitted_at");
 
+                    b.Property<string>("SubmittedBy")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("submitted_by");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<DateTimeOffset>("WindowEndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("window_ends_at");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ConstructionId", "Date")
                         .HasDatabaseName("ix_reports_site");
+
+                    b.HasIndex("Status", "WindowEndsAt")
+                        .HasDatabaseName("ix_reports_window");
 
                     b.HasIndex("EmployeeId", "ConstructionId", "Date", "Shift")
                         .IsUnique()

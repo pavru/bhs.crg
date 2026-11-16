@@ -22,10 +22,20 @@ public sealed record ReportEnteredByDto(Guid UserId, string Name);
 /// <param name="AssignedOnDate">Назначен ли сотрудник на стройку на дату отчёта (MOB-21) — пометка, не отказ.</param>
 /// <param name="EnteredBy">Автор ввода за сотрудника; <c>null</c> — отчёт завёл сам сотрудник.</param>
 /// <param name="Replayed">Ответ — повтор уже применённого запроса (MOB-15): ничего не записано второй раз.</param>
+/// <param name="AutoSubmitAt">Конец окна подачи у черновика (WORK-10, WORK-54) — когда отчёт подастся сам; у
+/// остальных статусов <c>null</c>: возвращённый автоподача не трогает. Клиент момента не вычисляет.</param>
+/// <param name="SubmittedAt">Момент подачи; <c>null</c> — отчёт не подавался.</param>
+/// <param name="SubmittedBy"><c>manual</c> | <c>auto</c>; <c>null</c> — не подавался.</param>
+/// <param name="RequiredMissing">Что не заполнено к автоподаче (WORK-6): <c>[{ line, lineId, field }]</c>;
+/// <c>null</c> — всё заполнено или подал человек.</param>
+/// <param name="AlreadySubmitted">Ответ подачи — отчёт уже был подан (автоподача обогнала запрос): второй подачи
+/// нет.</param>
 public sealed record ReportDto(
     Guid Id, Guid EmployeeId, Guid ConstructionId, DateOnly Date, string Shift, decimal? Hours, string Status,
     string? Note, long Seq, string Version, bool AssignedOnDate, ReportEnteredByDto? EnteredBy,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
+    DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
+    bool AlreadySubmitted);
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается здесь, на чтении, по назначениям <c>work-11</c> и не
@@ -35,8 +45,9 @@ public sealed record ReportDto(
 public sealed class ReportViews(WorkDbContext db)
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
-    public async Task<ReportDto> OneAsync(Report report, bool replayed = false, CancellationToken ct = default) =>
-        (await ManyAsync([report], ct, replayed))[0];
+    public async Task<ReportDto> OneAsync(
+        Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default) =>
+        (await ManyAsync([report], ct, replayed))[0] with { AlreadySubmitted = alreadySubmitted };
 
     /// <param name="versions">Версии отчётов, прочитанных без отслеживания (выдача курсора); не названы — версия
     /// отслеживаемой строки.</param>
@@ -65,7 +76,18 @@ public sealed class ReportViews(WorkDbContext db)
         r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
         r.CreatedAt, r.UpdatedAt,
         [.. r.Lines.OrderBy(l => l.Position).Select(Line)],
-        replayed);
+        replayed,
+        r.Status == ReportStatus.Draft ? r.WindowEndsAt : null,
+        r.SubmittedAt,
+        r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
+        r.RequiredMissing is { } missing ? Parsed(missing) : null,
+        AlreadySubmitted: false);
+
+    private static JsonElement Parsed(string json)
+    {
+        using var parsed = JsonDocument.Parse(json);
+        return parsed.RootElement.Clone();
+    }
 
     private static ReportLineDto Line(ReportLine l)
     {

@@ -1,0 +1,110 @@
+{
+  "about": "Общий файл примеров окна подачи (ТЗ MOB-18, WORK-8, WORK-10, WORK-52, MOB-35; change work-15-submission). Читают тесты сервера (SubmissionCasesTests) и в этапе 5 — тесты приложения. Пояс стройки — действующий (свой или компании); пояс компании — для чтения примера. Мгновения ожиданий сравниваются как мгновения, смещение записи не важно.",
+  "cases": [
+    {
+      "name": "Дневная смена, Москва: подача вечером",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Europe/Moscow",
+      "date": "2026-11-16",
+      "shift": "day",
+      "now": "2026-11-16T18:00:00+03:00",
+      "hasNightYesterday": false,
+      "deviceTime": "2026-11-16T18:00:00+03:00",
+      "expect": {
+        "windowEndsAt": "2026-11-17T00:00:00+03:00",
+        "momentOfManual": "2026-11-16T18:00:00+03:00",
+        "suggested": { "date": "2026-11-16", "shift": "day", "label": "Отчёт 16.11" }
+      }
+    },
+    {
+      "name": "Ночная смена во Владивостоке, компания в Москве: после полуночи в ночную смену",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Asia/Vladivostok",
+      "date": "2026-11-16",
+      "shift": "night",
+      "now": "2026-11-17T02:00:00+10:00",
+      "hasNightYesterday": true,
+      "deviceTime": "2026-11-17T06:00:00+10:00",
+      "expect": {
+        "windowEndsAt": "2026-11-18T00:00:00+10:00",
+        "momentOfManual": "2026-11-17T06:00:00+10:00",
+        "suggested": { "date": "2026-11-16", "shift": "night", "label": "Ночная смена 16.11" }
+      }
+    },
+    {
+      "name": "Ручная подача после конца окна: момент — конец окна",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Europe/Moscow",
+      "date": "2026-11-16",
+      "shift": "day",
+      "now": "2026-11-17T09:00:00+03:00",
+      "hasNightYesterday": false,
+      "deviceTime": "2026-11-17T09:00:00+03:00",
+      "expect": {
+        "windowEndsAt": "2026-11-17T00:00:00+03:00",
+        "momentOfManual": "2026-11-17T00:00:00+03:00",
+        "suggested": { "date": "2026-11-17", "shift": "day", "label": "Отчёт 17.11" }
+      }
+    },
+    {
+      "name": "Обычное утро без ночного отчёта за вчера",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Europe/Moscow",
+      "date": "2026-11-17",
+      "shift": "day",
+      "now": "2026-11-17T08:00:00+03:00",
+      "hasNightYesterday": false,
+      "deviceTime": "2026-11-17T08:00:00+03:00",
+      "expect": {
+        "windowEndsAt": "2026-11-18T00:00:00+03:00",
+        "momentOfManual": "2026-11-17T08:00:00+03:00",
+        "suggested": { "date": "2026-11-17", "shift": "day", "label": "Отчёт 17.11" }
+      }
+    },
+    {
+      "name": "Ночная смена в Екатеринбурге после полуночи, ночного отчёта за вчера нет",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Asia/Yekaterinburg",
+      "date": "2026-11-16",
+      "shift": "night",
+      "now": "2026-11-17T02:00:00+05:00",
+      "hasNightYesterday": false,
+      "deviceTime": "2026-11-17T01:30:00+05:00",
+      "expect": {
+        "windowEndsAt": "2026-11-18T00:00:00+05:00",
+        "momentOfManual": "2026-11-17T01:30:00+05:00",
+        "suggested": { "date": "2026-11-17", "shift": "day", "label": "Отчёт 17.11" }
+      }
+    },
+    {
+      "name": "Берлин, ночь на переход к зимнему времени: сутки в 25 часов",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Europe/Berlin",
+      "date": "2026-10-24",
+      "shift": "night",
+      "now": "2026-10-25T01:30:00+02:00",
+      "hasNightYesterday": true,
+      "deviceTime": "2026-10-25T22:00:00+01:00",
+      "expect": {
+        "windowEndsAt": "2026-10-26T00:00:00+01:00",
+        "momentOfManual": "2026-10-25T22:00:00+01:00",
+        "suggested": { "date": "2026-10-24", "shift": "night", "label": "Ночная смена 24.10" }
+      }
+    },
+    {
+      "name": "Берлин, день перехода к летнему времени: сутки в 23 часа",
+      "companyZone": "Europe/Moscow",
+      "siteZone": "Europe/Berlin",
+      "date": "2026-03-29",
+      "shift": "day",
+      "now": "2026-03-29T12:00:00+02:00",
+      "hasNightYesterday": false,
+      "deviceTime": "2026-03-29T23:30:00+02:00",
+      "expect": {
+        "windowEndsAt": "2026-03-30T00:00:00+02:00",
+        "momentOfManual": "2026-03-29T23:30:00+02:00",
+        "suggested": { "date": "2026-03-29", "shift": "day", "label": "Отчёт 29.03" }
+      }
+    }
+  ]
+}

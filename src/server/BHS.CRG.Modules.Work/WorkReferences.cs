@@ -58,6 +58,10 @@ public static class WorkReferences
         ModuleReference.Remembering("reports", "entered_by_user_id", ReferenceTarget.User,
             "кто ввёл отчёт за сотрудника — справочное поле с именем снимком; удаление учётной записи отчёта не касается"),
 
+        // Незаполненное к автоподаче (work-15): номер и идентификатор строки этого же отчёта и код поля, а не ссылки.
+        ModuleReference.Remembering("reports", "required_missing", target: null,
+            "что не заполнено к автоподаче — строки этого же отчёта и коды полей, а не ссылки на записи"),
+
         // Журнал отчёта (work-14) — свидетельство, а не держатель: только дописывается, имена — снимком, и после
         // удаления черновика или записи ядра запись остаётся такой, какой была (WORK-12). Держит записи сам отчёт.
         ModuleReference.Remembering("report_journal", "report_id", target: null,

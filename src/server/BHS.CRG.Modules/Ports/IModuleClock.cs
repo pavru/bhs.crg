@@ -35,4 +35,11 @@ public interface IModuleClock
     /// отметки времени (подача отчёта, <c>work-15</c>). <c>null</c> — стройки нет.
     /// </summary>
     Task<DateOnly?> SiteDateOfAsync(Guid constructionId, DateTimeOffset instant, CancellationToken ct = default);
+
+    /// <summary>
+    /// Мгновение «сейчас» — по тем же часам, что «сегодня» (change <c>work-15-submission</c>): предлагаемая пара «дата ·
+    /// смена» считается от мгновения рядом с <see cref="TodayOnSiteAsync" />, и часы у них обязаны быть одни — иначе
+    /// <c>today</c> и <c>suggested</c> одного ответа разошлись бы.
+    /// </summary>
+    DateTimeOffset UtcNow();
 }

@@ -43,6 +43,9 @@ public sealed class InvoiceClockHost : InvoiceLineHost
 
         public Task<DateOnly?> SiteDateOfAsync(Guid constructionId, DateTimeOffset instant, CancellationToken ct = default) =>
             Task.FromResult<DateOnly?>(Today);
+
+        // Полдень того же дня по UTC: мгновение счёту не нужно, двойник держит порт целиком (work-15).
+        public DateTimeOffset UtcNow() => new(Today.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
     }
 }
 
