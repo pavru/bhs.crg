@@ -50,26 +50,40 @@
 
 ## 4. Машина (основная сессия, после слияния, в паузе)
 
-- [ ] 4.1 Пауза: нет сессий посреди change (`list_sessions`), идущие доведены до остановки. Проверка:
+- [x] 4.1 Пауза: нет сессий посреди change (`list_sessions`), идущие доведены до остановки. Проверка:
   список связанных сессий без работающих над change.
-- [ ] 4.2 Копия `E:\Development\Office\BHS.CRG\.agents\skills` в сторону (scratchpad); `npm install -g
+  Итог (16.11.2026): `list_sessions` — ни одной работающей сессии.
+- [x] 4.2 Копия `E:\Development\Office\BHS.CRG\.agents\skills` в сторону (scratchpad); `npm install -g
   @fission-ai/openspec@2.0.0`. Проверка: `openspec --version` = 2.0.0.
-- [ ] 4.3 В основной копии `openspec update --dry-run --json`: в списке только пути под `.agents/` и
+  Итог: копии `.agents/skills` и `.claude/commands/opsx` — в scratchpad основной сессии; версия 2.0.0.
+- [x] 4.3 В основной копии `openspec update --dry-run --json`: в списке только пути под `.agents/` и
   `.claude/`, `failures` пуст — иначе стоп до разбора (design, «Risks»). Затем `openspec update`.
   Проверка: нет `.claude/commands/opsx/`; `cmd /c dir /AL .claude\skills` — шесть `<SYMLINKD>` на
   `..\..\.agents\skills\openspec-*`; второй `openspec update` ничего не меняет; `git status` основной
   копии чистый (не чистый — `git restore` тронутого и стоп).
-- [ ] 4.4 Плагин `~/.claude/local-plugins/openspec-band`: `hooks/register.tsx` — вызов навыка
+  Итог: `--dry-run` — 19 путей, только `.agents/` и `.claude/`, `failures` пуст; `update` удалил шесть
+  команд, `.claude/commands/` нет; шесть `<SYMLINKD>` на `..\..\.agents\skills\openspec-*`; повторный
+  `--dry-run` — «No changes: skills are up to date»; `git status` чистый; строгая проверка — 45/45.
+- [x] 4.4 Плагин `~/.claude/local-plugins/openspec-band`: `hooks/register.tsx` — вызов навыка
   принимается и с префиксом `opsx:`, и с `openspec-` (D8), комментарий у `FLAG`; `hooks/band.test.tsx` —
   случай с `skill: 'openspec-apply-change'`. Проверка: тесты плагина зелёные, оба случая.
-- [ ] 4.5 Новая сессия в своём рабочем дереве: в списке навыков есть `openspec-propose` и
+  Итог: тест — `opsx:apply`, `openspec-apply-change` и чужой навык (не выбирается); `claude plugin
+  test` — 5/5, `validate` прошёл.
+- [x] 4.5 Новая сессия в своём рабочем дереве: в списке навыков есть `openspec-propose` и
   `openspec-apply-change`, вызов `/openspec-explore` (без записи) отрабатывает, полоса показывает change
   после вызова навыка с именем. Если навыков нет — посмотреть, что оказалось в `.claude/skills/` и
   `.agents/skills/` дерева (ссылки, копии, пусто), и разобрать до возобновления потоков. Проверка:
   снимок списка навыков и содержимого обоих каталогов дерева в отчёте.
-- [ ] 4.6 Память агента: в файлах памяти `/opsx:*` → навыки 2.0 (сейчас 14 файлов, `grep -rl opsx` по
+  Итог: сессия видит все шесть `openspec-*`, `opsx:*` нет; `/openspec-explore` отработал на CLI 2.0.0.
+  ⚠️ Но не так, как ждал D5: `.claude/skills/` в дереве не появился вовсе (ссылки на каталоги
+  `.worktreeinclude` не копирует), `.agents/skills/` приехал настоящими копиями, а навык взят из
+  ОСНОВНОЙ копии (`E:\Development\Office\BHS.CRG\.claude\skills\…`). Дерево не самодостаточно —
+  приложение читает навыки проекта из основной копии. Строка `.claude/skills/` из `.worktreeinclude`
+  убрана, комментарий и DEV_NOTES поправлены — тем же PR, что архив.
+- [x] 4.6 Память агента: в файлах памяти `/opsx:*` → навыки 2.0 (сейчас 14 файлов, `grep -rl opsx` по
   каталогу памяти), запись «OpenSpec 2.0» в указателе. Проверка: `grep -rn "opsx:"` по каталогу
   памяти — только упоминания, прямо названные прежними именами.
+  Итог: инструкции памяти переведены на новые имена, запись `reference_openspec_2.md` в указателе.
 
 ## 5. Верификация
 
@@ -80,8 +94,9 @@
   попадают). Остальные backend-тесты не нужны — сервер не тронут.
 - [x] 5.3 `cd src/client && npx tsc -b` и `cd src/client && npm run ui:ratchet` — зелёные. Клиент не
   тронут; шаг — по тому же правилу проекта, полный CI PR прогоняет их и сам.
-- [ ] 5.4 PR: CI зелёный — три обязательные работы, «OpenSpec (строгая проверка)» на 2.0.0, живые
+- [x] 5.4 PR: CI зелёный — три обязательные работы, «OpenSpec (строгая проверка)» на 2.0.0, живые
   прогоны.
+  Итог: PR #1990 — всё зелёное, журнал шага установки — `2.0.0`, строгая проверка 45/45.
 
 ## Workflow follow-up
 
