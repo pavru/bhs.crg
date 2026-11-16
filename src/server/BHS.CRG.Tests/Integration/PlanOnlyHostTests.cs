@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Support;
@@ -53,6 +54,24 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal(module, body.GetProperty("module").GetString());
         }
+    }
+
+    /// <summary>
+    /// Контракт «Фактические затраты» на экземпляре без счетов — «не подключено» с названием поставщика (change
+    /// <c>plan-24-actual-costs-contract</c>, ТЗ CORE-34, OVW-9): «Ход работ» обязан сказать, чего не хватает, а не
+    /// показать нулевые затраты.
+    /// </summary>
+    [Fact]
+    public void Фактические_затраты_без_счетов_не_подключены()
+    {
+        _ = host.CreateClient();
+        using var scope = host.Services.CreateScope();
+
+        var answer = Assert.IsType<ModuleContractAnswer<IActualCosts>.NotConnected>(
+            scope.ServiceProvider.GetRequiredService<IModuleContracts>().Get<IActualCosts>());
+
+        Assert.Equal("costs", answer.Provider);
+        Assert.Equal("не подключено: модуль «Счета и накладные»", answer.Text);
     }
 
     /// <summary>

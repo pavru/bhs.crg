@@ -112,11 +112,13 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         // costs.invoice.correct (E2, issue #1100): исправление счёта закрытого периода, решение владельца
         // 15.10.2026. Одиннадцатое — costs.waybill.correct (issue #1340): исправление накладной закрытого
         // периода, своё право, а не costs.invoice.correct, — то открыло бы кладовщику счета (COST-29).
+        // Двенадцатое — costs.totals.read (plan-24): право контракта «Фактические затраты», итоги стройки для
+        // «Хода работ» «Менеджеру проекта» (решение В-3).
         // Остальных восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
         // costs.materials.read (контракт «Материалы на объекте», G6) вынесены — см. причины в
         // CostsModule. Число названо здесь нарочно: право, добавленное без причины, обязано
         // столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(11, costs.Count);
+        Assert.Equal(12, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
 
@@ -174,6 +176,9 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
             // Так же устроено исправление накладной: ворота — правка накладных, право спрашивает
             // WaybillDesk.CorrectAsync после «исправление не нужно». Что право работает — WaybillTests.Исправление_отказывает_в_названном_порядке.
             ["costs.waybill.correct"] = "issue #1340: спрашивает связка исправления накладной, а не ворота",
+            // Право контракта двери не открывает по построению (AUTH-8.1): его «дверь» — ответ контракта
+            // «Фактические затраты» в модуле-потребителе (plan-24). Что оно работает — ActualCostsContractTests.
+            ["costs.totals.read"] = "право контракта: итоги «Фактических затрат» для «Хода работ» (plan-24)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -234,6 +239,35 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
 
         if (role == "Supplier")
             Assert.DoesNotContain("costs.invoice.pay", granted);
+    }
+
+    /// <summary>
+    /// Права <c>costs</c> системных ролей, у которых их нет в списке выше, — ТОЧНО (change
+    /// <c>plan-24-actual-costs-contract</c>, решение В-3, ТЗ AUTH-8.1):
+    /// <list type="bullet">
+    ///   <item>«Менеджер проекта» — ровно право контракта <c>costs.totals.read</c>, и модуль ему закрыт:
+    ///   <c>costs.request.*</c> в его составе объявит <c>plan-26</c>, а до тех пор открыть модуль нечем.</item>
+    ///   <item>«Руководитель» — чтение через «читать всё», БЕЗ права контракта (<c>ReadAllMark.Out</c>): итоги
+    ///   ему отдаёт <c>costs.report.read</c>.</item>
+    /// </list>
+    /// </summary>
+    [Theory]
+    [InlineData("ProjectManager", false, "costs.totals.read")]
+    [InlineData("Executive", true, "costs.invoice.read", "costs.report.read", "costs.waybill.read")]
+    public async Task System_roles_get_exactly_their_costs_permissions(string role, bool opens, params string[] expected) =>
+        await ModuleOnlyChecks.RoleGetsExactlyAsync(host, new BHS.CRG.Modules.Costs.CostsModule(), role, opens, expected);
+
+    /// <summary>
+    /// Право контракта модуль не открывает и на воротах (AUTH-8.1): «Менеджер проекта» с <c>costs.totals.read</c>
+    /// получает 403 на адресе модуля — и на отчёте по затратам тоже, хотя итоги той же стройки ему отдаёт контракт.
+    /// </summary>
+    [Fact]
+    public async Task Contract_right_alone_does_not_open_the_module_addresses()
+    {
+        var client = await AccessProbe.SignInAsync(host, "ProjectManager", "costs");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/site-costs")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/invoices")).StatusCode);
     }
 }
 
