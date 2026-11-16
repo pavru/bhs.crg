@@ -98,7 +98,7 @@
   [OVW-12]. Проверка — change заархивирован (слит #1858, e4ba80b8; архив `2026-11-10-plan-22-module-exchange`)
 - [x] 5.3 `plan-23-planned-works-contract` (1) — «Плановые работы» и права контракта [PLAN-9.1]
   [PLAN-23] [WORK-57] [WORK-59]. Проверка — change заархивирован
-- [ ] 5.4 `plan-24-actual-costs-contract` (1) — «Фактические затраты» у `costs` [PLAN-21.1] [COST-21].
+- [x] 5.4 `plan-24-actual-costs-contract` (1) — «Фактические затраты» у `costs` [PLAN-21.1] [COST-21].
   Проверка — change заархивирован
 - [ ] 5.5 Макеты П5 («Ход работ») — выбор владельца. Проверка — ссылка в `design.md` change `plan-25`
 - [ ] 5.6 `plan-25-progress` (3) — «Ход работ», интерфейс «Фактических работ», факт графика [PLAN-21]
