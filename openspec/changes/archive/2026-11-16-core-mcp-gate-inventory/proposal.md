@@ -7,7 +7,8 @@ Issue #1337 (найдено Архитектором 15.10.2026; решение 
 (`ToolTypes`, `ResourceTypes`, `PromptTypes`). Новый класс, не вписанный в список, выпадает из проверки
 «у каждого примитива объявлено право» молча — сторож остаётся зелёным. Особенно вероятно это для
 инструментов модуля: их класс будет жить в другой сборке. Сверка нашла тот же список классов ещё в
-двух сторожах — `McpToolContractTests` и `McpToolGateTests` — и он нужен `core-activity-channel`.
+трёх сторожах — `McpToolContractTests`, `McpToolGateTests` и `McpResourceContractTests` (последний — при
+реализации) — и он нужен `core-activity-channel`.
 
 ## What Changes
 
@@ -16,13 +17,13 @@ Issue #1337 (найдено Архитектором 15.10.2026; решение 
   сборках решения (`BHS.CRG.*`, включая модули).
   - Зарегистрирован, но метод не найден — отказ: сторож ослеп.
   - Метод есть, но не зарегистрирован — тоже отказ: класс забыли подключить.
-- `McpGateInventoryTests`, `McpToolContractTests` и `McpToolGateTests` берут классы из описи, а не из
+- `McpGateInventoryTests`, `McpToolContractTests`, `McpToolGateTests` и `McpResourceContractTests` берут классы из описи, а не из
   своих списков. Список `WriteTools` в `McpToolContractTests` остаётся руками нарочно: «агенту дали
   писать» должно быть видно в дифе. Сверяется он теперь с полной описью.
 - **Сторож проверен нарушением:** класс инструмента без ворот, объявленный в тестовой сборке и нигде
   не вписанный, валит проверку описи.
 - **Устаревшие комментарии говорят правду:**
-  - `ServiceRegistration.Domain.cs:138` — «Только чтение: инструментов записи в этом срезе нет»; на
+  - `ServiceRegistration.Domain.cs:149` — «Только чтение: инструментов записи в этом срезе нет»; на
     деле меняющих инструментов семь, а не шесть, как в issue: добавились `assemble_document_set`,
     `recognize_dataset`, `recognize_source`;
   - `Api/Mcp/McpGates.cs:10` — «двадцать семь»; инструментов 26. Число из комментария убирается
@@ -41,7 +42,8 @@ Issue #1337 (найдено Архитектором 15.10.2026; решение 
 - **Тесты:**
   - новый общий помощник описи (`Tests/Mcp/McpInventory.cs`);
   - `Tests/Integration/McpGateInventoryTests.cs`, `Tests/Mcp/McpToolContractTests.cs`,
-    `Tests/Integration/McpToolGateTests.cs`.
+    `Tests/Integration/McpToolGateTests.cs`, `Tests/Mcp/McpResourceContractTests.cs`;
+  - нарочное нарушение для проверки сторожа (`Tests/Mcp/UnlistedMcpTools.cs`).
 - **Сервер:** только два комментария (`Api/Configuration/ServiceRegistration.Domain.cs`,
   `Api/Mcp/McpGates.cs`). Поведение не меняется.
 - **Чем ломается:** ничем вне тестов.
