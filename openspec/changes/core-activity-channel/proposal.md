@@ -28,8 +28,11 @@ Issue #1336 (найдено Архитектором 15.10.2026; решение 
 - **Действие агента видно в журнале** — вариант А (решение владельца 22.10.2026): одна
   запись на каждый удавшийся вызов меняющего инструмента MCP пишется одним фильтром вызовов
   MCP-сервера, с названием инструмента и целью.
-- **Отбор журнала по каналу:** `GET /api/activity?channel=…`. На экране `/activity` — второй отбор
-  рядом с отбором по действию и пометка «через агента (MCP)» у записи.
+- **Отбор журнала по каналу:** `GET /api/activity?channel=…` отбирает ряды серий (журнал читается
+  рядами с `core-journal-series`). На экране `/activity` — второй отбор рядом с отбором по действию и
+  пометка «через агента (MCP)» у ряда.
+- **Канал рвёт сессию правки:** запись другого канала продолжать сессию не может, поэтому у серии канал
+  один, и отбор по нему не прячет записи внутри чужого ряда.
 - **Старые записи** получают канал миграцией по автору: без автора — `system`, с автором — `ui`. Это
   не догадка: до этого change ни один путь MCP журнал не писал (сверено по коду).
 - **Копия переносит канал.** Запись копии старой версии без канала читается тем же правилом, что и
@@ -49,14 +52,19 @@ Issue #1336 (найдено Архитектором 15.10.2026; решение 
   - `Domain/Activity/ActivityRecord.cs` — колонка `Channel`;
   - `Application/Activity/IActivityActor.cs` — `ActivityActor` с каналом;
   - `Api/Activity/HttpContextActivityActor.cs`;
-  - `Api/Configuration/EndpointMap.cs:55` — метаданные канала на `MapMcp`;
-  - `Infrastructure/Activity/ActivityLog.cs` — запись, отбор, импорт;
+  - `Api/Configuration/EndpointMap.cs:56` — метаданные канала на `MapMcp`;
+  - `Infrastructure/Activity/ActivityLog.cs` — запись, отбор рядов, импорт;
+  - `Application/Activity/ActivitySession.cs` и `ActivityRow.cs` — канал рвёт сессию правки, ряд несёт
+    канал (серии журнала, `core-journal-series`);
   - `Api/Endpoints/Activity/ActivityEndpoints.cs`;
   - `Domain/Jobs/Job.cs` и `Infrastructure/Jobs/JobService.cs`, `JobBackgroundService.cs` — канал и
-    автор задачи;
-  - при варианте А — фильтр вызовов в регистрации MCP (`ServiceRegistration.Domain.cs`) и действие
+    автор задачи; окружение автора — тем же приёмом, что `Api/Activity/SystemActivityScope.cs` (work-08);
+  - фильтр вызовов (`WithRequestFilters` → `AddCallToolFilter`) в регистрации MCP
+    (`ServiceRegistration.Domain.cs`, рядом с `AddAuthorizationFilters()`) и действие
     `core.mcp.tool.called` в `ActivityActions`.
 - **Миграции ядра (`AppDbContext`):** `activity_log."Channel"` с заполнением по автору; `jobs."Channel"`.
 - **Копия:** `BackupActivityRecord` получает `Channel`, сторож — `BackupManifestCoverageTests`.
-- **Клиент:** `features/settings/ActivityPage.tsx`, `shared/api` (тип записи, параметр отбора).
-- **Зависит от** `core-mcp-gate-inventory`: сторож перечисляет меняющие инструменты его описью.
+- **Клиент:** `features/settings/ActivityPage.tsx`, `shared/api/activity.ts` (тип ряда и записи, параметр
+  отбора).
+- **Опирается на** `core-mcp-gate-inventory` (закрыт: #1992, архив #1995): сторож перечисляет меняющие
+  инструменты его описью — `McpInventory.FromHost` в `BHS.CRG.Tests/Mcp/McpInventory.cs`.
