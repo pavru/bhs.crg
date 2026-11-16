@@ -1,7 +1,5 @@
-﻿using System.Reflection;
-using BHS.CRG.Api.Mcp;
+﻿using BHS.CRG.Api.Mcp;
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Tests.Mcp;
 
@@ -13,40 +11,32 @@ namespace BHS.CRG.Tests.Mcp;
 /// </summary>
 public class McpResourceContractTests
 {
-    /// <summary>Классы ресурсов — из общей описи (<see cref="McpInventory" />, issue #1337), а не
-    /// списком: класс, не вписанный в список, не проверялся бы вовсе.</summary>
-    public static TheoryData<Type> ResourceTypes =>
-        new(McpInventory.Declared()
-            .Where(p => p.Kind == McpKind.Resource)
-            .Select(p => p.Method.DeclaringType!)
-            .Distinct()
-            .OrderBy(t => t.FullName, StringComparer.Ordinal));
+    /// <summary>Ресурсы — из общей описи (<see cref="McpInventory" />, issue #1337), а не списком
+    /// классов: ресурс невписанного класса не проверялся бы вовсе. По имени ресурса, а не по классу:
+    /// так проверяется ровно тот метод, который нашла опись, — какой бы он ни был видимости.</summary>
+    public static TheoryData<string> ResourceNames =>
+        new(McpInventory.Declared().Where(p => p.Kind == McpKind.Resource).Select(p => p.Name));
+
+    [Fact]
+    public void Resources_AreFound() => Assert.NotEmpty(ResourceNames);
 
     [Theory]
-    [MemberData(nameof(ResourceTypes))]
-    public void ResourceMethods_ReturnSupportedType(Type resourceType)
+    [MemberData(nameof(ResourceNames))]
+    public void ResourceMethod_ReturnsSupportedType(string name)
     {
-        var methods = resourceType
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(m => m.GetCustomAttribute<McpServerResourceAttribute>() is not null)
-            .ToList();
+        var m = McpInventory.Declared().Single(p => p.Kind == McpKind.Resource && p.Name == name).Method;
 
-        Assert.NotEmpty(methods);
+        var returned = m.ReturnType;
+        // Разворачиваем Task<T>/ValueTask<T> — SDK смотрит на результат, а не на обёртку.
+        if (returned.IsGenericType &&
+            (returned.GetGenericTypeDefinition() == typeof(Task<>) ||
+             returned.GetGenericTypeDefinition() == typeof(ValueTask<>)))
+            returned = returned.GetGenericArguments()[0];
 
-        foreach (var m in methods)
-        {
-            var returned = m.ReturnType;
-            // Разворачиваем Task<T>/ValueTask<T> — SDK смотрит на результат, а не на обёртку.
-            if (returned.IsGenericType &&
-                (returned.GetGenericTypeDefinition() == typeof(Task<>) ||
-                 returned.GetGenericTypeDefinition() == typeof(ValueTask<>)))
-                returned = returned.GetGenericArguments()[0];
-
-            Assert.True(
-                typeof(ResourceContents).IsAssignableFrom(returned) || returned == typeof(string),
-                $"{resourceType.Name}.{m.Name} возвращает {returned.Name}: SDK примет только " +
-                $"ResourceContents или string — заверните через McpJsonResource.Json.");
-        }
+        Assert.True(
+            typeof(ResourceContents).IsAssignableFrom(returned) || returned == typeof(string),
+            $"{m.DeclaringType?.Name}.{m.Name} возвращает {returned.Name}: SDK примет только " +
+            $"ResourceContents или string — заверните через McpJsonResource.Json.");
     }
 
     /// <summary>Отсутствующий объект обязан быть ошибкой: пустой JSON выглядел бы как успешное чтение.</summary>

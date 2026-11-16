@@ -161,10 +161,16 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
     /// <summary>Все зарегистрированные инструменты — из общей описи, сверенной с регистрацией сервера
     /// (<see cref="McpInventory" />, issue #1337), а не из списка классов, набранного здесь.</summary>
-    private IEnumerable<string> AllDeclaredTools() =>
-        McpInventory.FromHost(fixture.Services)
-            .Where(p => p.Kind == McpKind.Tool)
+    private IEnumerable<string> AllDeclaredTools()
+    {
+        // Сверенные с описью — но только зарегистрированные на ЭТОМ хосте: инструмент модуля,
+        // выключенного здесь, в описи есть, а в tools/list его быть не должно.
+        var registered = McpInventory.Registered(fixture.Services)
+            .Where(r => r.Kind == McpKind.Tool).Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
+        return McpInventory.FromHost(fixture.Services)
+            .Where(p => p.Kind == McpKind.Tool && registered.Contains(p.Name))
             .Select(p => p.Name);
+    }
 
     private async Task<(Guid ConstructionId, Guid SetId)> SeedAsync()
     {

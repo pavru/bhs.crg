@@ -27,8 +27,6 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class McpGateInventoryTests(IntegrationTestFixture fixture)
 {
-    private IReadOnlyList<McpPrimitive>? _primitives;
-
     /// <summary>
     /// Примитивы без права: отвечают данными САМОГО спрашивающего, разграничивать нечего. Та же
     /// корзина, что «личные адреса» у адресной инвентаризации, и граница у неё такая же жёсткая:
@@ -47,15 +45,25 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     [Fact]
     public void Опись_совпадает_с_регистрацией()
-    {
-        var registered = McpInventory.Registered(Services());
-        var mismatch = McpInventory.Mismatch(registered, McpInventory.Declared());
+        // Сверку и текст отказа держит сама опись: соседние тесты получают её тем же вызовом.
+        => Assert.Contains(McpInventory.FromHost(fixture.Services), p => p.Kind == McpKind.Tool);
 
-        Assert.True(mismatch.Count == 0,
-            "Опись MCP разошлась с регистрацией сервера (WithTools/WithResources/WithPrompts):\n  "
-            + string.Join("\n  ", mismatch));
-        Assert.Contains(registered, r => r.Kind == McpKind.Tool);
-    }
+    /// <summary>
+    /// Обработчики сервера отвечают агенту мимо коллекций — то есть мимо описи и всех сторожей,
+    /// которые на ней стоят (issue #1337). Поэтому каждый из них перечислен здесь вместе с тем, что
+    /// охраняет его права; новый обработчик без строки — отказ, как и строка без обработчика.
+    /// </summary>
+    private static readonly Dictionary<string, string> HandlersOutsideInventory = new()
+    {
+        ["ListResourcesHandler"] = "McpResourceCatalog.ListAsync — витрина объектов для прикрепления; "
+            + "права разбирает сам по granted, проверка — McpToolGateTests (resources/list по правам)",
+    };
+
+    [Fact]
+    public void Обработчики_мимо_описи_перечислены()
+        => Assert.Equal(
+            HandlersOutsideInventory.Keys.Order(StringComparer.Ordinal),
+            McpInventory.Handlers(fixture.Services));
 
     /// <summary>
     /// Сторож проверен нарушением (issue #1337): класс инструментов без ворот, нигде не вписанный и не
@@ -70,7 +78,7 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
 
         var declared = McpInventory.Declared(
             [.. McpInventory.SolutionAssemblies(), typeof(UnlistedMcpTools).Assembly]);
-        var mismatch = McpInventory.Mismatch(McpInventory.Registered(Services()), declared);
+        var mismatch = McpInventory.Mismatch(McpInventory.Registered(fixture.Services), declared);
 
         Assert.Contains(mismatch, line => line.Contains(UnlistedMcpTools.Name, StringComparison.Ordinal));
         Assert.Contains(Homeless(declared, Personal), line => line.StartsWith(UnlistedMcpTools.Name + " ", StringComparison.Ordinal));
@@ -121,8 +129,8 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Ворота_ссылаются_только_на_объявленные_права_и_включённые_модули()
     {
-        var catalog = Services().GetRequiredService<PermissionCatalog>();
-        var modules = Services().GetRequiredService<ModuleRegistry>();
+        var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
+        var modules = fixture.Services.GetRequiredService<ModuleRegistry>();
 
         var unknownPermissions = Primitives()
             .Select(p => (p.Name, Attr: p.Method.GetCustomAttribute<McpPermissionAttribute>(false)))
@@ -219,13 +227,7 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
         (AuthorizeAttribute?)method.GetCustomAttribute<McpPermissionAttribute>(false)
         ?? method.GetCustomAttribute<McpModuleAttribute>(false);
 
-    /// <summary>Сверенная опись собранного хоста; расхождение с регистрацией — отказ здесь же.</summary>
-    private IReadOnlyList<McpPrimitive> Primitives() => _primitives ??= McpInventory.FromHost(Services());
-
-    /// <summary>Контейнер хоста собирается при первом клиенте — до него <c>Services</c> пуст.</summary>
-    private IServiceProvider Services()
-    {
-        _ = fixture.CreateClient();
-        return fixture.Services;
-    }
+    /// <summary>Сверенная опись собранного хоста; расхождение с регистрацией — отказ здесь же. Скан
+    /// сборок опись держит одним на процесс, здесь остаётся только дешёвая сверка с регистрацией.</summary>
+    private IReadOnlyList<McpPrimitive> Primitives() => McpInventory.FromHost(fixture.Services);
 }

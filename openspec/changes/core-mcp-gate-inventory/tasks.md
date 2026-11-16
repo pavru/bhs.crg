@@ -34,7 +34,7 @@ PR без изменения поведения продукта — без ме
 
 ## 4. Верификация
 
-- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~McpGateInventory|FullyQualifiedName~McpToolContract|FullyQualifiedName~McpToolGate|FullyQualifiedName~McpInventory|FullyQualifiedName~McpResourceContract"` — зелёный
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~McpGateInventory|FullyQualifiedName~McpToolContract|FullyQualifiedName~McpToolGate|FullyQualifiedName~McpResourceContract"` — зелёный
 - [x] 4.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся)
 - [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
