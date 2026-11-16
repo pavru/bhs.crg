@@ -1,5 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Work.Review;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -267,6 +268,71 @@ public sealed class ReportReads(WorkDbContext db)
                 : (row, Guid.Empty, false)),
         ];
     }
+
+    /// <summary>
+    /// Очередь приёмки (ТЗ WORK-28, WORK-39; <c>work-16</c>): поданные отчёты охвата читателя по отбору, страница по
+    /// моменту подачи — дольше всех ждущий первым. Счётчики — по всему отбору БЕЗ отбора по пометке: так счётчик пометки
+    /// не обнуляется, когда выбрана другая, и говорит, сколько даст выбор. <c>AnyPending</c> — есть ли ждущие в охвате
+    /// вовсе: им пустая очередь отличает «ждущих нет» от «отбор исключил все».
+    /// </summary>
+    public async Task<ReviewQueueRead> QueueAsync(
+        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct)
+    {
+        var sources = Sources(userId);
+        var pending = Visible(viewer).AsNoTracking().Where(r => r.Status == ReportStatus.Submitted);
+        var chosen = pending;
+        if (filter.ConstructionId is { } site) chosen = chosen.Where(r => r.ConstructionId == site);
+        if (filter.EmployeeId is { } employee) chosen = chosen.Where(r => r.EmployeeId == employee);
+        if (filter.From is { } from) chosen = chosen.Where(r => r.Date >= from);
+        if (filter.To is { } to) chosen = chosen.Where(r => r.Date <= to);
+
+        var counts = new Dictionary<string, int>();
+        foreach (var mark in ReviewMarks.All)
+            counts[mark.Code] = mark.Has is { } has ? await chosen.CountAsync(has(sources), ct) : 0;
+
+        var selected = filter.Mark switch
+        {
+            null => chosen,
+            { Has: { } has } => chosen.Where(has(sources)),
+            _ => chosen.Where(_ => false),
+        };
+        var total = await selected.CountAsync(ct);
+        var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
+            .Select(r => new { Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count })
+            .ToListAsync(ct);
+        var marks = await MarksAsync([.. page.Select(p => p.Report.Id)], userId, ct);
+        var anyPending = total > 0 || await pending.AnyAsync(ct);
+        return new ReviewQueueRead(
+            [
+                .. page.Select(p => new ReviewQueueItem(
+                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id])),
+            ],
+            total, counts, anyPending);
+    }
+
+    /// <summary>
+    /// Пометки отчётов (ТЗ WORK-28): коды каталога по порядку, у каждого отчёта — список, пустой тоже. Отчёты — уже
+    /// прочитанные с охватом (ответ чтения, страница очереди): наружу уходят только коды тех же отчётов.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> MarksAsync(
+        IReadOnlyCollection<Guid> ids, Guid? userId, CancellationToken ct)
+    {
+        var found = ids.Distinct().ToDictionary(id => id, _ => new List<string>());
+        if (found.Count == 0) return found.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value);
+        var sources = Sources(userId);
+        var wanted = found.Keys.ToArray();
+        foreach (var mark in ReviewMarks.All)
+        {
+            if (mark.Has is not { } has) continue;
+            var marked = await db.Set<Report>().AsNoTracking().Where(r => wanted.Contains(r.Id)).Where(has(sources))
+                .Select(r => r.Id).ToListAsync(ct);
+            foreach (var id in marked) found[id].Add(mark.Code);
+        }
+        return found.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value);
+    }
+
+    private ReviewMarkSources Sources(Guid? userId) =>
+        new(db.Set<ReportJournalEntry>().AsNoTracking(), db.Assignments.AsNoTracking(), userId);
 
     private IQueryable<Report> Expired(DateTimeOffset now)
     {

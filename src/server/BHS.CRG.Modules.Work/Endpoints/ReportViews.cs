@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Review;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
@@ -33,19 +34,20 @@ public sealed record ReportEnteredByDto(Guid UserId, string Name);
 /// нет.</param>
 /// <param name="AcceptWouldMark">Отчёт подан, и ввёл его тот, кто сейчас смотрит (WORK-31.1, <c>work-16</c>): его
 /// приёмка пометит отчёт «ввёл и принял один человек». Считает сервер — клиент о пометке не догадывается.</param>
+/// <param name="Marks">Пометки отчёта из каталога очереди (WORK-28, <c>work-16</c>) — те же, что у строки очереди.</param>
 public sealed record ReportDto(
     Guid Id, Guid EmployeeId, Guid ConstructionId, DateOnly Date, string Shift, decimal? Hours, string Status,
     string? Note, long Seq, string Version, bool AssignedOnDate, ReportEnteredByDto? EnteredBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
     DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
-    bool AlreadySubmitted, bool AcceptWouldMark);
+    bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks);
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается здесь, на чтении, по назначениям <c>work-11</c> и не
 /// хранится: назначение могут поправить задним числом, и пометка обязана это увидеть (design <c>work-13</c>).
 /// Назначение любого вида — монтажник или менеджер, — как у <c>/api/work/sites/mine</c>.
 /// </summary>
-public sealed class ReportViews(WorkDbContext db, IModuleUser user)
+public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads reads)
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
@@ -65,22 +67,25 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user)
             ? []
             : await db.Assignments.AsNoTracking()
                 .Where(a => employees.Contains(a.EmployeeId) && sites.Contains(a.ConstructionId)).ToListAsync(ct);
+        var marks = await reads.MarksAsync([.. reports.Select(r => r.Id)], user.Id, ct);
         return
         [
             .. reports.Select(r => Dto(r,
                 assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId && a.Covers(r.Date)),
-                replayed, versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id))),
+                replayed, versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), marks[r.Id])),
         ];
     }
 
     /// <summary>
     /// «Ввёл и принял один человек» — одно место расчёта (ТЗ WORK-31.1): поданный отчёт, автор ввода которого — учётная
-    /// запись читающего.
+    /// запись читающего. Пометка <c>same-person</c> каталога (<see cref="ReviewMarks" />) у поданного — это же правило
+    /// запросом: правите здесь — правьте и там.
     /// </summary>
     public static bool AcceptWouldMark(Report r, Guid? viewer) =>
         r.Status == ReportStatus.Submitted && viewer is { } me && r.EnteredByUserId == me;
 
-    private static ReportDto Dto(Report r, bool assigned, bool replayed, string version, bool acceptWouldMark) => new(
+    private static ReportDto Dto(
+        Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks) => new(
         r.Id, r.EmployeeId, r.ConstructionId, r.Date, Report.ShiftCode(r.Shift), r.Hours, Report.StatusCode(r.Status),
         r.Note, r.Seq, version, assigned,
         r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
@@ -91,7 +96,8 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user)
         r.SubmittedAt,
         r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
         r.RequiredMissing is { } missing ? Parsed(missing) : null,
-        AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark);
+        AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark,
+        Marks: [.. ReviewMarks.All.Where(m => marks.Contains(m.Code)).Select(m => m.Dto)]);
 
     private static JsonElement Parsed(string json)
     {
