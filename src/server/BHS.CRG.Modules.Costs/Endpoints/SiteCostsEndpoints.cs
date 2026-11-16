@@ -129,9 +129,7 @@ public static class SiteCostsEndpoints
             throw new NotFoundException("Такой стройки нет: её удалили либо ссылка устарела.");
 
         var paid = Paid(db, first, through, site);
-        var unpaid = db.Invoices.AsNoTracking().Where(i =>
-            i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
-            && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
+        var unpaid = Unpaid(db, site);
 
         // Названия объектов и разделов — те же, какими реестр сверяет отбор (InvoiceShares): ссылка
         // строки несёт название, и назови отчёт объект по-своему, реестр под ней не нашёл бы ничего.
@@ -233,6 +231,15 @@ public static class SiteCostsEndpoints
             && (db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.AccountingOn >= first && a.AccountingOn <= through
                                                && (site == null || a.ConstructionId == site))
                 || (site == null && i.RemainderAccountingOn >= first && i.RemainderAccountingOn <= through)));
+
+    /// <summary>
+    /// Счета «К оплате»: неоплаченные неотклонённые, у стройки — с долей на неё; от периода не зависят (ТЗ COST-16).
+    /// Те же слова берёт и контракт «Фактические затраты» (<c>plan-24</c>): разойдись отбор — разошлись бы числа.
+    /// </summary>
+    internal static IQueryable<Invoice> Unpaid(CostsDbContext db, Guid? site) =>
+        db.Invoices.AsNoTracking().Where(i =>
+            i.Payment != InvoicePaymentState.Paid && i.State != InvoiceState.Rejected
+            && (site == null || db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site)));
 
     /// <summary>Счета отчёта с их деньгами — тем же читателем, что у реестра, — и НДС их строк.</summary>
     internal static async Task<(IReadOnlyList<CostInvoice>, IReadOnlyDictionary<Guid, LineVat>)> InvoicesAsync(
