@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Search;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Costs.Exchange;
 using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Costs.Search;
 using BHS.CRG.Modules.Data;
@@ -72,6 +73,17 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public const string WaybillCorrect = "costs.waybill.correct";
 
+    /// <summary>Отчёты по затратам — суммы по всем стройкам. Открывает и итоги «Фактических затрат».</summary>
+    public const string ReportRead = "costs.report.read";
+
+    /// <summary>
+    /// Право КОНТРАКТА (ТЗ AUTH-8.1, change <c>plan-24-actual-costs-contract</c>, решение В-3): два итога затрат
+    /// стройки — «разнесено» и «оплачено» — для полосы «Хода работ», без счетов, поставщиков и отчётов. Выдаётся
+    /// «Менеджеру проекта», которому модуль не нужен: модуль оно не открывает (<c>plan-21</c>), и в «читать всё»
+    /// не входит — «Руководитель» видит те же итоги правом <see cref="ReportRead" />.
+    /// </summary>
+    public const string TotalsRead = "costs.totals.read";
+
     public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
@@ -80,9 +92,10 @@ public sealed class CostsModule : IAppModule
     /// Права модуля (ТЗ COST-28) — каждое с объяснением, потому что галку в редакторе ролей ставит
     /// человек, а код <c>costs.invoice.pay</c> сам по себе не даёт ему оснований решить.
     ///
-    /// <para>⚠️ Здесь их одиннадцать, как и в перечне ТЗ, но состав другой: добавлены исправление счёта
-    /// закрытого периода (E2) и накладной (issue #1340) и заведение организации из скана (issue #1077), а
-    /// три выписаны с причиной, а не забыты:</para>
+    /// <para>⚠️ Здесь их двенадцать, и состав не тот, что в перечне ТЗ: добавлены исправление счёта закрытого
+    /// периода (E2) и накладной (issue #1340) и заведение организации из скана (issue #1077); право контракта
+    /// <see cref="TotalsRead" /> пришло с первым потребителем, контрактом «Фактические затраты» (<c>plan-24</c>);
+    /// а три выписаны с причиной, а не забыты:</para>
     /// <list type="bullet">
     ///   <item><c>costs.invoice.approve</c> — согласование счёта вынесено из этапа (задача C6,
     ///   решение владельца 28.09.2026): оно выключено по умолчанию, то есть его можно не делать
@@ -187,7 +200,7 @@ public sealed class CostsModule : IAppModule
             ["costs.invoice.read"],
             ReadAllMark.Out("меняет разноску затрат: «edit» в коде — запись, хотя суффикса «.edit» у объекта нет")),
 
-        new("costs.report.read",
+        new(ReportRead,
             "отчёты по затратам и реестр счетов, включая выгрузку в XLSX",
             "суммы по стройкам, контрагентам, разделам и периодам — по всем стройкам экземпляра, " +
             "вместе с тем, что в них не сопоставлено",
@@ -202,6 +215,13 @@ public sealed class CostsModule : IAppModule
             "убранная из справочника, меняет то, куда попадут новые",
             ["costs.report.read"],
             ReadAllMark.Out("правит справочник статей; читают его правом на счета")),
+
+        new(TotalsRead,
+            "получать итоги затрат стройки — «разнесено» и «оплачено» — для «Хода работ», без счетов и поставщиков",
+            "две суммы по стройке или её разделу — контрактом «Фактические затраты» в модуле, который их " +
+            "спрашивает; модуль «Счета и накладные», счета, поставщиков и отчёты не открывает",
+            [],
+            ReadAllMark.Out("выдача другим модулям: модуль «Счета и накладные» не открывает"), Contract: true),
     ];
 
     /// <summary>
@@ -345,6 +365,10 @@ public sealed class CostsModule : IAppModule
         // Группа «Счета» поиска записей (shell-05, CORE-34): вклад в контракт со многими поставщиками.
         // Выключенный модуль его не регистрирует — и группы счетов в поиске нет, остальные отвечают.
         services.AddModuleContract<IRecordSearch, CostsRecordSearch>(ModuleCode);
+
+        // Итоги затрат стройки для «Хода работ» (plan-24, CORE-34): выключенный модуль их не регистрирует, и
+        // потребитель получает «не подключено: модуль „Счета и накладные“», а не нули.
+        services.AddModuleContract<IActualCosts, ActualCostsProvider>(ModuleCode);
 
         // Смена допуска расхождения пишет книгу запертым счетам (E2, issue #1100, spec v3.3 п. 1.9). Зовёт
         // ядро — из адреса настроек, двумя фиксациями, и при старте: выровнять то, что сорвалось между ними.

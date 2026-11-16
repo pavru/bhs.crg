@@ -80,6 +80,11 @@ public static class SystemRoles
                 .. ReferenceReads,
                 "work.report.review", "work.assignment.edit", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
+                // Право контракта (PLAN-21.1, решение В-3, plan-24): итоги затрат стройки — «разнесено» и
+                // «оплачено» — для полосы «Хода работ». Любой стройки: привязки данных к пользователю нет
+                // (CatalogScope, issue #675), и назначения менеджера контракт не спрашивает. Счета, поставщики и
+                // отчёты — не его дело: модуль «Счета и накладные» оно не открывает (AUTH-8.1).
+                "costs.totals.read",
                 // Планирование (PLAN-23): КП, прайс-лист и графики — его дело, а не сметчика. Сметы он
                 // ЧИТАЕТ — КП и график строятся из редакции сметы (решение В-1, PLAN-Q9, 22.10.2026), — но
                 // без plan.estimate.cost: себестоимость видит сметчик (PLAN-2). plan.labor.read — право
