@@ -289,6 +289,47 @@ checks» → «Handling skipped but required checks»). Поэтому перв�
 прибавляются правила, и плавающая версия краснела бы без единой правки в репозитории. Телеметрия и
 проверка обновлений CLI выключены переменными окружения.
 
+**OpenSpec 2.0** (решение владельца 16.11.2026, change `infra-openspec-2`). В 2.0 команд `/opsx:*` нет
+— их заменили навыки `openspec-*`, работу они делают ту же, подкоманды CLI (`new change`, `status`,
+`instructions`, `validate`, `archive`) прежние. Соответствие (руководство openspec.dev/docs/upgrade-to-2;
+профиль `core`, который у нас стоит, ставит первые шесть):
+
+| 1.x | 2.0 |
+|---|---|
+| `/opsx:propose` | `/openspec-propose` |
+| `/opsx:explore` | `/openspec-explore` |
+| `/opsx:apply` | `/openspec-apply-change` |
+| `/opsx:update` | `/openspec-update-change` |
+| `/opsx:sync` | `/openspec-sync-specs` |
+| `/opsx:archive` | `/openspec-archive-change` |
+| `/opsx:new` | `/openspec-new-change` |
+| `/opsx:continue` | `/openspec-continue-change` |
+| `/opsx:ff` | `/openspec-ff-change` |
+| `/opsx:verify` | `/openspec-verify-change` |
+| `/opsx:bulk-archive` | `/openspec-bulk-archive-change` |
+| `/opsx:onboard` | `/openspec-onboard` |
+
+Навыки ставит `openspec update` одной копией в `.agents/skills/`, а Claude Code получает их через
+`.claude/skills/openspec-*` — каталожные символьные ссылки с ОТНОСИТЕЛЬНОЙ целью
+`../../.agents/skills/<навык>` (на Windows их создаёт режим разработчика; без него — копии, которые
+обновляет тот же `openspec update`). Оба каталога в `.gitignore`: в репозитории навыков нет, у каждой
+копии — свои. Править навыки руками бесполезно — `update` перезаписывает их без резервной копии.
+
+Отсюда строки `.agents/skills/` и `.claude/skills/` в `.worktreeinclude`: ссылка в рабочем дереве ведёт
+в `.agents/skills/` ЭТОГО дерева, а приложение `.agents/` само не копирует — без строки навыки
+пропадают молча, сессия их просто не видит. Копирует ли приложение `.claude/skills/` (как
+`.claude/commands/`), неизвестно, — отсюда вторая строка; лишняя безвредна.
+
+Записи в `openspec/changes/**` — и архив, и активные change — остались с `/opsx:*`: это записи своего
+времени, а правка чужого активного change из посторонней ветки — конфликт с его сессией. Встретив
+старое имя, ищите его в таблице выше.
+
+Откат (основная копия): `npm install -g @fission-ai/openspec@1.14.3`; в `%APPDATA%\openspec\config.json`
+— `delivery: commands` (2.0 её не читает и не переписывает, но без неё 1.x поставит навыки, а не
+команды); удалить ссылки `.claude/skills/openspec-*`, иначе сессии видят и старое, и новое; вернуть
+`.agents/skills/` из копии, снятой перед переходом; `openspec update` вернёт `.claude/commands/opsx/`.
+В репозитории — PR с прежней `OPENSPEC_VERSION` и текстами; строки `.worktreeinclude` можно оставить.
+
 ### Тесты backend: два потока, очистка тронутого, сервер без fsync
 
 Интеграционные тесты — одна коллекция xUnit без параллельности: 130 классов из 298, но 235 секунд

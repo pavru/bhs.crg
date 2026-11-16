@@ -116,7 +116,7 @@ jobs:
       # Версия CLI прибита точно: проверка, приезжающая новой версией сама, проверяет не то, что
       # вчера (у валидатора от версии к версии растёт число правил). Та же версия — у разработчика
       # (CLAUDE.md, раздел «CI»); поднимается правкой этой строки — PR с ней прогонит проверку новой.
-      OPENSPEC_VERSION: 1.14.3
+      OPENSPEC_VERSION: 2.0.0
       # Без сети, кроме установки: телеметрия и проверка обновлений CLI выключены.
       DO_NOT_TRACK: '1'
       OPENSPEC_TELEMETRY: '0'
@@ -129,8 +129,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # `openspec --version` в конце — чтобы журнал называл версию, которой шла проверка: ни
+      # `npm install`, ни `validate` её не печатают.
       - name: Установка openspec
-        run: npm install --global --no-audit --no-fund "@fission-ai/openspec@$OPENSPEC_VERSION"
+        run: |
+          npm install --global --no-audit --no-fund "@fission-ai/openspec@$OPENSPEC_VERSION"
+          openspec --version
 
       # `--all` — и спеки, и активные change. `--strict` делает отказом и предупреждения: длинное
       # требование, заглушка вместо `## Purpose` у новой спеки (её пишет первый архив домена).
