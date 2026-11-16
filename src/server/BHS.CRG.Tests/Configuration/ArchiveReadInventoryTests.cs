@@ -273,7 +273,8 @@ public partial class ArchiveReadInventoryTests
                 typeof(NomenclatureIntakeTests), typeof(FieldSuggestionTests),
                 typeof(WorkTypeEndpointsTests), typeof(WorkVariantEndpointsTests), typeof(ModuleWorkTypesPortTests),
                 typeof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests), typeof(BHS.CRG.Tests.Plan.ResourceMatchingTests),
-                typeof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests), typeof(OrganizationShortNamePortTests),
+                typeof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests), typeof(BHS.CRG.Tests.Plan.OfferEndpointsTests),
+                typeof(OrganizationShortNamePortTests),
                 typeof(EmployeeAccountLinkTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())

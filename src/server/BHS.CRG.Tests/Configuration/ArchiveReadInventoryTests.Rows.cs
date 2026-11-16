@@ -407,6 +407,11 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Plan/Matching/ResourceMatching.cs|var position = (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [nomenclatureId], ct)"] =
             Choice("новая позиция материала сметы и перенацеливание запомненного ресурса (plan-08): архивная отвергается",
                 nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Архивная_позиция_материалу_не_ставится)),
+        ["BHS.CRG.Modules.Plan/Offers/OfferDesk.cs|var refs = await catalog.RefsAsync(FunctionalTag.RoleOrganization, [id], ct)"] =
+            Choice("новый заказчик КП (plan-13): архивная организация отвергается; прежний, оставленный как был, не проверяется",
+                nameof(BHS.CRG.Tests.Plan.OfferEndpointsTests.Архивный_заказчик_не_выбирается)),
+        ["BHS.CRG.Modules.Plan/Offers/OfferDesk.cs|var refs = await catalog.RefsAsync(FunctionalTag.RoleOrganization, wanted, ct);"] =
+            Shown("названия уже стоящих заказчиков КП и списка КП (plan-13): признак в ответе — customer.archived"),
         ["BHS.CRG.Modules.Plan/Matching/RememberedRowMatcher.cs|var found = await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct);"] =
             Choice("подстановка запомненного ресурса при импорте (plan-08): архивная позиция не подставляется, материал ждёт выбора",
                 nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Знакомый_ресурс_подставлен_с_пометкой_архивная_позиция_нет)),

@@ -120,15 +120,16 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Fact]
     public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database() =>
-        // Шесть из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
+        // Восемь из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
         // вместе с первым адресом или контрактом, который оно открывает; сметы — первая дверь модуля,
-        // себестоимость закрывает модель сметы (06), права контракта — части «Плановых работ» (23). Остальные
-        // приходят своими change (offer — 13, pricelist — 14, календарь и графики — 18). Список назван здесь
+        // себестоимость закрывает модель сметы (06), права контракта — части «Плановых работ» (23), чтение и правка КП —
+        // адреса КП (13, PR 1). Остальные приходят своими change (offer.send — 13, PR 2; pricelist — 14; календарь и
+        // графики — 18). Список назван здесь
         // нарочно: право, добавленное без своего change, обязано столкнуться с этой строкой и с объяснением
         // рядом с ней.
         await ModuleOnlyChecks.DeclaredAndStoredAsync(host, PlanModule.ModuleCode,
             [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint, PlanModule.EstimateMaterials,
-             PlanModule.EstimateRead, PlanModule.LaborRead], "id", "costs", "work");
+             PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead], "id", "costs", "work");
 
     /// <summary>
     /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
@@ -166,8 +167,9 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     ///   <item>«Сметчик» — сметы с себестоимостью (<c>plan.estimate.cost</c>, <c>plan-06</c>); ни одного
     ///   <c>plan.offer.*</c>: без права на КП он не видит цен продажи (PLAN-2).</item>
     ///   <item>«Менеджер проекта» — чтение смет, БЕЗ себестоимости (решение В-1, PLAN-Q9), и право контракта
-    ///   <c>plan.labor.read</c> (<c>plan-23</c>, WORK-57); КП, прайс-лист и графики объявят свои change.</item>
-    ///   <item>«Руководитель» — чтение смет с деньгами через «читать всё» (D12 зонтика); правка и права
+    ///   <c>plan.labor.read</c> (<c>plan-23</c>, WORK-57), чтение и правка КП (<c>plan-13</c>); отправку КП,
+    ///   прайс-лист и графики объявят свои change.</item>
+    ///   <item>«Руководитель» — чтение смет с деньгами и КП через «читать всё» (D12 зонтика); правка и права
     ///   контракта (<c>ReadAllMark.Out</c>) в него не входят.</item>
     ///   <item>«Инженер ИД», «Бухгалтер» — модуля и прав нет.</item>
     ///   <item>«Монтажник» и «Снабженец» — модуля нет, а права контракта есть: <c>plan.estimate.hint</c> и
@@ -180,10 +182,10 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Theory]
     [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint,
-        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead)]
+        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead)]
     [InlineData("Estimator", true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
-    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead)]
-    [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead)]
+    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead)]
+    [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead, PlanModule.OfferRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("Accountant", false)]
     [InlineData("Installer", false, PlanModule.EstimateHint)]
