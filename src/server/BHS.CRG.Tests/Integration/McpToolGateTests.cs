@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
@@ -8,10 +7,10 @@ using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Tests.Mcp;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -160,18 +159,12 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
             .GetProperty("resources").EnumerateArray()
             .Select(r => r.GetProperty("uri").GetString()!)];
 
-    /// <summary>Все объявленные инструменты — тем же перечислением, каким их видит SDK.</summary>
-    private static IEnumerable<string> AllDeclaredTools() =>
-        new[]
-        {
-            typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
-            typeof(ObservationTools), typeof(ReconciliationTools), typeof(JobTools),
-            typeof(OperationTools),
-        }
-        .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-        .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
-        .Where(a => a is not null)
-        .Select(a => a!.Name!);
+    /// <summary>Все зарегистрированные инструменты — из общей описи, сверенной с регистрацией сервера
+    /// (<see cref="McpInventory" />, issue #1337), а не из списка классов, набранного здесь.</summary>
+    private IEnumerable<string> AllDeclaredTools() =>
+        McpInventory.FromHost(fixture.Services)
+            .Where(p => p.Kind == McpKind.Tool)
+            .Select(p => p.Name);
 
     private async Task<(Guid ConstructionId, Guid SetId)> SeedAsync()
     {

@@ -13,14 +13,14 @@ namespace BHS.CRG.Tests.Mcp;
 ///
 /// Список намеренно ведётся руками: добавление права записи агенту — решение, а не побочный эффект
 /// правки, и оно обязано быть заметно в дифе.
+///
+/// <para>Руками ведутся только списки-решения (<see cref="WriteTools" />, <see cref="DestructiveTools" />,
+/// <see cref="PagedTools" />, <see cref="AllToolNames" />). С чем их сверять, берётся из общей описи
+/// (<see cref="McpInventory" />, issue #1337): список КЛАССОВ, набранный здесь руками, пропустил бы
+/// новый класс молча — и вместе с ним его записывающий инструмент.</para>
 /// </summary>
 public class McpToolContractTests
 {
-    private static readonly Type[] ToolTypes =
-    [
-        typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
-        typeof(ObservationTools), typeof(ReconciliationTools), typeof(JobTools), typeof(OperationTools),
-    ];
 
     /// <summary>
     /// Инструменты, которым позволено менять состояние системы. <c>generate_document</c> выпускает PDF
@@ -69,12 +69,10 @@ public class McpToolContractTests
          "list_constructions", "list_datasets", "list_material_quality_links", "list_observations",
          "list_quality_documents", "list_reconciliations"];
 
+    private static IEnumerable<McpPrimitive> Tools() => McpInventory.Declared().Where(p => p.Kind == McpKind.Tool);
+
     private static IEnumerable<(string Name, MethodInfo Method)> AllToolMethods() =>
-        ToolTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-            .Select(m => (Method: m, Attr: m.GetCustomAttribute<McpServerToolAttribute>()))
-            .Where(x => x.Attr is not null)
-            .Select(x => (x.Attr!.Name ?? x.Method.Name, x.Method));
+        Tools().Select(p => (p.Name, p.Method));
 
     /// <summary>Страница узнаётся по типу результата: <c>Task&lt;SnapshotPage&lt;T&gt;&gt;</c> либо
     /// <c>Task&lt;RowsPage?&gt;</c> — строки источников получили страничность раньше (#415).</summary>
@@ -134,11 +132,7 @@ public class McpToolContractTests
     }
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>
-        ToolTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-            .Select(m => (Method: m, Attr: m.GetCustomAttribute<McpServerToolAttribute>()))
-            .Where(x => x.Attr is not null)
-            .Select(x => (x.Attr!.Name ?? x.Method.Name, x.Attr!));
+        Tools().Select(p => (p.Name, p.Tool));
 
     [Fact]
     public void OnlyDeclaredTools_AreWritable()

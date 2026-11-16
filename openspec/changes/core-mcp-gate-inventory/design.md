@@ -2,15 +2,19 @@
 
 ## Context
 
-- Регистрация MCP-сервера — `Api/Configuration/ServiceRegistration.Domain.cs:139–172`:
+- Регистрация MCP-сервера — `Api/Configuration/ServiceRegistration.Domain.cs:151–189` (сверено 16.11.2026,
+  v2.128.2; модули поставки — `id`, `costs`, `plan`, `work`):
   - семь `WithTools<T>`: `DataSnapshotTools`, `DomainSnapshotTools`, `DocumentActionTools`,
     `ObservationTools`, `ReconciliationTools`, `JobTools`, `OperationTools`;
   - два `WithResources<T>`, один `WithPrompts<T>`.
-- Списки тех же классов вписаны руками в три теста:
+- Списки тех же классов вписаны руками в четыре теста:
   - `McpGateInventoryTests.cs:27–35` — `ToolTypes`, `ResourceTypes`, `PromptTypes`;
   - `McpToolContractTests.cs:19–23` — `ToolTypes`;
-  - `McpToolGateTests.cs:164–170` — `AllDeclaredTools`.
-- Модули MCP пока не используют: в `BHS.CRG.Modules*` нет ни одного `[McpServerToolType]`.
+  - `McpToolGateTests.cs:164–170` — `AllDeclaredTools`;
+  - `McpResourceContractTests.cs:16–17` — `ResourceTypes` (найден при реализации 16.11.2026: сверка
+    22.10 его пропустила).
+- Модули MCP пока не используют: в `BHS.CRG.Modules*` нет ни одного `[McpServerToolType]` (на
+  16.11.2026 — и в `plan`, и в `work`).
 
 ### Что выяснилось сверкой (master 2.17.11)
 
@@ -39,13 +43,18 @@
 - **D1. Источник — регистрация, сверенная со сборками.** Помощник `Tests/Mcp/McpInventory.cs`:
   - (а) берёт имена примитивов из контейнера собранного тестового хоста — то, что положили
     `WithTools<T>` / `WithResources<T>` / `WithPrompts<T>`;
-  - (б) находит методы с `[McpServerTool]` / `[McpServerResource]` / `[McpServerPrompt]` в классах с
-    атрибутами типа во всех загруженных сборках `BHS.CRG.*`, кроме тестовой;
-  - (в) сопоставляет их по имени.
+  - (б) находит методы с `[McpServerTool]` / `[McpServerResource]` / `[McpServerPrompt]` во всех типах
+    сборок `BHS.CRG.*`, кроме тестовой. Атрибут типа (`[McpServerToolType]`) не требуется:
+    `WithTools<T>` его не смотрит, и класс без него регистрируется так же;
+  - (в) сопоставляет их по виду и имени.
   Метод нужен потому, что ворота стоят атрибутом на методе: сторож проверяет, что атрибут на методе, а
   не на классе. Точный способ (а) зависит от SDK `ModelContextProtocol.AspNetCore` 1.4.1:
-  `IEnumerable<McpServerTool>` из контейнера или коллекции `McpServerOptions`. Выбранный способ
-  записывается в доккомментарий помощника.
+  `IEnumerable<McpServerTool>` из контейнера или коллекции `McpServerOptions`. **Выбрано:** коллекции
+  `IOptions<McpServerOptions>` (`ToolCollection`, `ResourceCollection`, `PromptCollection`) — по ним
+  сервер и отвечает на `tools/list`, включая примитивы, положенные в коллекцию мимо `With…`. Записано в
+  доккомментарий помощника.
+  - Тестам без хоста (модульные `McpToolContractTests`, `McpResourceContractTests`) доступна половина
+    (б); её совпадение с регистрацией держит тест описи.
 - **D2. Расхождение — отказ в обе стороны.**
   - Зарегистрирован, но метода нет: опись ослепла (сменилось имя, SDK положил примитив иначе).
   - Метод есть, но не зарегистрирован: класс забыли подключить к серверу. Это не дыра в правах, но
@@ -57,12 +66,12 @@
   без ворот. Основная опись тестовую сборку не сканирует, и класс нигде не вписан. Отдельный тест
   подаёт помощнику (б) с тестовой сборкой и ждёт отказа, называющего этот инструмент. Так проверяется
   ровно то, о чём issue: новый невписанный класс не проходит молча.
-- **D5. Три теста — на одной описи.** `McpGateInventoryTests` (ворота, личные, «читать всё»),
-  `McpToolContractTests` (ReadOnly, Destructive, страничная выдача) и `McpToolGateTests`
-  (`AllDeclaredTools`). `WriteTools` сверяется с описью в обе стороны — это уже так, меняется только
+- **D5. Четыре теста — на одной описи.** `McpGateInventoryTests` (ворота, личные, «читать всё»),
+  `McpToolContractTests` (ReadOnly, Destructive, страничная выдача), `McpToolGateTests`
+  (`AllDeclaredTools`) и `McpResourceContractTests` (тип результата ресурса). `WriteTools` сверяется с описью в обе стороны — это уже так, меняется только
   источник классов.
 - **D6. Комментарии.**
-  - `ServiceRegistration.Domain.cs:138`: «Только чтение…» заменить на «меняющие инструменты есть, их
+  - `ServiceRegistration.Domain.cs:149`: «Только чтение…» заменить на «меняющие инструменты есть, их
     перечень и пометки — `McpToolContractTests`».
   - `McpGates.cs:10`: «инструментов двадцать семь» → «инструментов десятки». Число в прозе устаревает
     молча, а счёт ведёт опись.

@@ -13,8 +13,14 @@ namespace BHS.CRG.Tests.Mcp;
 /// </summary>
 public class McpResourceContractTests
 {
+    /// <summary>Классы ресурсов — из общей описи (<see cref="McpInventory" />, issue #1337), а не
+    /// списком: класс, не вписанный в список, не проверялся бы вовсе.</summary>
     public static TheoryData<Type> ResourceTypes =>
-        new(typeof(DataSnapshotResources), typeof(DomainSnapshotResources));
+        new(McpInventory.Declared()
+            .Where(p => p.Kind == McpKind.Resource)
+            .Select(p => p.Method.DeclaringType!)
+            .Distinct()
+            .OrderBy(t => t.FullName, StringComparer.Ordinal));
 
     [Theory]
     [MemberData(nameof(ResourceTypes))]

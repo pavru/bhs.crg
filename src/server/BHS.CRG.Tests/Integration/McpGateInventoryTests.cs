@@ -1,9 +1,9 @@
 using System.Reflection;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Modules;
+using BHS.CRG.Tests.Mcp;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -19,20 +19,15 @@ namespace BHS.CRG.Tests.Integration;
 /// ⚠️ Список <see cref="Personal" /> — ратчет, а не механизм: в работе приложения его не читает
 /// никто. Поэтому запись, потерявшая свой инструмент, — тоже отказ: список, разошедшийся с кодом,
 /// перестаёт что-либо утверждать, продолжая выглядеть утверждением.
+///
+/// <para>Перечень примитивов — из регистрации сервера, сверенной с методами в сборках решения
+/// (<see cref="McpInventory" />, issue #1337), а не из списка классов: класс, не вписанный в такой
+/// список, — в том числе класс модуля в своей сборке, — выпадал из проверки молча.</para>
 /// </summary>
 [Collection("Integration")]
 public class McpGateInventoryTests(IntegrationTestFixture fixture)
 {
-    private static readonly Type[] ToolTypes =
-    [
-        typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
-        typeof(ObservationTools), typeof(ReconciliationTools), typeof(JobTools), typeof(OperationTools),
-    ];
-
-    private static readonly Type[] ResourceTypes =
-        [typeof(DataSnapshotResources), typeof(DomainSnapshotResources)];
-
-    private static readonly Type[] PromptTypes = [typeof(ReconciliationPrompts)];
+    private IReadOnlyList<McpPrimitive>? _primitives;
 
     /// <summary>
     /// Примитивы без права: отвечают данными САМОГО спрашивающего, разграничивать нечего. Та же
@@ -45,10 +40,46 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
             + "сверяет владельца, как и на /api/jobs",
     };
 
+    /// <summary>
+    /// Опись = регистрация, в обе стороны (issue #1337): зарегистрированный примитив без найденного
+    /// метода значит, что опись ослепла, а метод без регистрации — что класс забыли подключить к
+    /// серверу. Пустая регистрация — тоже отказ: сверка «пусто с пустым» прошла бы зелёной.
+    /// </summary>
+    [Fact]
+    public void Опись_совпадает_с_регистрацией()
+    {
+        var registered = McpInventory.Registered(Services());
+        var mismatch = McpInventory.Mismatch(registered, McpInventory.Declared());
+
+        Assert.True(mismatch.Count == 0,
+            "Опись MCP разошлась с регистрацией сервера (WithTools/WithResources/WithPrompts):\n  "
+            + string.Join("\n  ", mismatch));
+        Assert.Contains(registered, r => r.Kind == McpKind.Tool);
+    }
+
+    /// <summary>
+    /// Сторож проверен нарушением (issue #1337): класс инструментов без ворот, нигде не вписанный и не
+    /// зарегистрированный (<see cref="UnlistedMcpTools" />), не проходит молча — опись называет его
+    /// инструмент и как незарегистрированный, и как бездомный. Основная опись тестовую сборку не
+    /// видит, поэтому сам класс остальным сторожам не мешает.
+    /// </summary>
+    [Fact]
+    public void Невписанный_класс_не_проходит_молча()
+    {
+        Assert.DoesNotContain(McpInventory.Declared(), p => p.Name == UnlistedMcpTools.Name);
+
+        var declared = McpInventory.Declared(
+            [.. McpInventory.SolutionAssemblies(), typeof(UnlistedMcpTools).Assembly]);
+        var mismatch = McpInventory.Mismatch(McpInventory.Registered(Services()), declared);
+
+        Assert.Contains(mismatch, line => line.Contains(UnlistedMcpTools.Name, StringComparison.Ordinal));
+        Assert.Contains(Homeless(declared, Personal), line => line.StartsWith(UnlistedMcpTools.Name + " ", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Каждый_инструмент_объявляет_право_модуль_или_записан_как_личный()
     {
-        var homeless = Homeless(Personal);
+        var homeless = Homeless(Primitives(), Personal);
 
         Assert.True(homeless.Count == 0,
             "Примитивы MCP без ворот. Каждому нужен [McpPermission] либо [McpModule] НА МЕТОДЕ — или "
@@ -75,7 +106,7 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Сторож_говорит_когда_ворот_нет()
     {
-        var withoutPersonal = Homeless([]);
+        var withoutPersonal = Homeless(Primitives(), []);
 
         Assert.NotEmpty(withoutPersonal);
         Assert.All(withoutPersonal, line => Assert.Contains("(", line));
@@ -90,9 +121,8 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Ворота_ссылаются_только_на_объявленные_права_и_включённые_модули()
     {
-        _ = fixture.CreateClient();
-        var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
-        var modules = fixture.Services.GetRequiredService<ModuleRegistry>();
+        var catalog = Services().GetRequiredService<PermissionCatalog>();
+        var modules = Services().GetRequiredService<ModuleRegistry>();
 
         var unknownPermissions = Primitives()
             .Select(p => (p.Name, Attr: p.Method.GetCustomAttribute<McpPermissionAttribute>(false)))
@@ -154,18 +184,18 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
         var granted = catalog.Expand([PermissionCatalog.ReadAllCode]);
         Assert.True(granted.Count > 1, "В «читать всё» не входит ни одно право: проверять нечем.");
 
-        var writers = Declared<McpServerToolAttribute>(ToolTypes).Where(x => !x.Attr.ReadOnly).ToList();
+        var writers = Primitives().Where(p => p.Kind == McpKind.Tool && !p.Tool.ReadOnly).ToList();
         // Изменяющие инструменты есть — иначе признак ReadOnly читался бы не так, и сторож молчал бы.
         Assert.NotEmpty(writers);
 
         var open = writers
-            .Where(x => Gate(x.Method) switch
+            .Where(w => Gate(w.Method) switch
             {
                 McpPermissionAttribute p => p.Codes.Any(granted.Contains),
                 McpModuleAttribute m => ModuleAccess.IsOpen(m.Code, granted, catalog),
                 _ => false,   // без ворот — «личный» инструмент, у него свой сторож выше
             })
-            .Select(x => x.Attr.Name ?? x.Method.Name)
+            .Select(w => w.Name)
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -176,10 +206,11 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
             + "ReadAllMark.In приходит раскрытием. Поставьте инструменту право на правку.");
     }
 
-    private static List<string> Homeless(Dictionary<string, string> personal) =>
-        [.. Primitives()
+    private static List<string> Homeless(
+        IEnumerable<McpPrimitive> primitives, Dictionary<string, string> personal) =>
+        [.. primitives
             .Where(p => Gate(p.Method) is null && !personal.ContainsKey(p.Name))
-            .Select(p => $"{p.Name} ({p.Kind})")
+            .Select(p => $"{p.Name} ({p.KindTitle})")
             .Order(StringComparer.Ordinal)];
 
     /// <summary>Ворота НА САМОМ МЕТОДЕ: атрибут класса SDK учёл бы, но тогда новый инструмент
@@ -188,21 +219,13 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
         (AuthorizeAttribute?)method.GetCustomAttribute<McpPermissionAttribute>(false)
         ?? method.GetCustomAttribute<McpModuleAttribute>(false);
 
-    private static IEnumerable<(string Name, string Kind, MethodInfo Method)> Primitives()
-    {
-        foreach (var x in Declared<McpServerToolAttribute>(ToolTypes))
-            yield return (x.Attr.Name ?? x.Method.Name, "инструмент", x.Method);
-        foreach (var x in Declared<McpServerResourceAttribute>(ResourceTypes))
-            yield return (x.Attr.Name ?? x.Method.Name, "ресурс", x.Method);
-        foreach (var x in Declared<McpServerPromptAttribute>(PromptTypes))
-            yield return (x.Attr.Name ?? x.Method.Name, "промпт", x.Method);
-    }
+    /// <summary>Сверенная опись собранного хоста; расхождение с регистрацией — отказ здесь же.</summary>
+    private IReadOnlyList<McpPrimitive> Primitives() => _primitives ??= McpInventory.FromHost(Services());
 
-    private static IEnumerable<(MethodInfo Method, TAttr Attr)> Declared<TAttr>(Type[] types)
-        where TAttr : Attribute
-        => types
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-            .Select(m => (Method: m, Attr: m.GetCustomAttribute<TAttr>()))
-            .Where(x => x.Attr is not null)
-            .Select(x => (x.Method, x.Attr!));
+    /// <summary>Контейнер хоста собирается при первом клиенте — до него <c>Services</c> пуст.</summary>
+    private IServiceProvider Services()
+    {
+        _ = fixture.CreateClient();
+        return fixture.Services;
+    }
 }
