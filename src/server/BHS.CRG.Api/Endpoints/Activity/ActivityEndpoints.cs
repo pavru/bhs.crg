@@ -84,6 +84,12 @@ public static class ActivityEndpoints
             ActivityActionCatalog actions, CancellationToken ct) => Results.Ok(
             actions.Shown(actions.VisibleTo(await permissions.ForAsync(principal, ct)))
                 .Select(a => new ActivityActionDto(a.Code, a.Title))));
+
+        // Каналы для отбора и их названия (issue #1336) — отсюда, а не перечнем в клиенте: новый канал
+        // (ассистент приложения) иначе не попал бы в отбор, пока кто-то не вспомнит про второй список
+        // (ревью PR #1997). Порядок — порядок меню.
+        g.MapGet("/channels", () => Results.Ok(
+            ActivityChannel.All.Select(c => new ActivityChannelDto(c.Code, c.Title))));
     }
 
     private record ActivityPageDto(int Total, ActivityRowDto[] Items);
@@ -102,4 +108,6 @@ public static class ActivityEndpoints
         Guid? ActorId, string ActorName, string? Target, string? Before, string? After, string Channel);
 
     private record ActivityActionDto(string Code, string Title);
+
+    private record ActivityChannelDto(string Code, string Title);
 }

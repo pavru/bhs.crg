@@ -85,6 +85,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasDatabaseName("IX_activity_log_series_heads")
                         .HasFilter("\"SeriesHead\"");
 
+                    b.HasIndex("Channel", "OccurredAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("IX_activity_log_channel_series_heads")
+                        .HasFilter("\"SeriesHead\"");
+
                     b.HasIndex("TargetId", "OccurredAt", "Id")
                         .IsDescending(false, true, true);
 

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Activity;
@@ -160,6 +161,85 @@ public class McpToolJournalTests(IntegrationTestFixture fixture) : IAsyncLifetim
         });
 
         Assert.Empty(await RowsAsync("report_observation"));
+    }
+
+    [Fact]
+    public void Цель_записи_только_из_объявленных_аргументов_и_не_длиннее_колонки()
+    {
+        var tool = Registered("report_observation");
+        var setId = Guid.NewGuid().ToString();
+
+        // Лишний аргумент первым в JSON: инструмент его пропускает, и цель он подменять не вправе (ревью PR #1997).
+        var (id, label) = McpToolJournal.Target(tool.ProtocolTool.InputSchema, new Dictionary<string, JsonElement>
+        {
+            ["requestId"] = JsonSerializer.SerializeToElement(new string('x', 200)),
+            ["setId"] = JsonSerializer.SerializeToElement(setId),
+        });
+        Assert.Equal(setId, id);
+        Assert.Equal($"setId: {setId}", label);
+
+        // Объявленный, но длиннее колонки — не идентификатор: иначе отказ 22001 после совершённого действия.
+        Assert.Equal((null, null), McpToolJournal.Target(tool.ProtocolTool.InputSchema, new Dictionary<string, JsonElement>
+        {
+            ["setId"] = JsonSerializer.SerializeToElement(new string('x', ActivityRecord.TargetIdMax + 1)),
+        }));
+    }
+
+    [Fact]
+    public async Task Сбой_записи_журнала_не_выдаёт_удавшийся_вызов_за_отказ()
+    {
+        var tool = Registered("report_observation");
+        var services = new ServiceCollection().AddSingleton<IActivityLog, FailingJournal>().AddLogging()
+            .BuildServiceProvider();
+        await using var server = McpServer.Create(
+            new StreamServerTransport(Stream.Null, Stream.Null), new McpServerOptions());
+        var done = new CallToolResult();
+        var handler = McpToolJournal.Filter((_, _) => ValueTask.FromResult(done));
+
+        // Действие уже совершено; ошибка, ушедшая агенту, сказала бы «не вышло» — и он повторил бы вызов.
+        var result = await handler(new RequestContext<CallToolRequestParams>(server, new JsonRpcRequest { Method = "tools/call" })
+        {
+            Params = new CallToolRequestParams { Name = tool.ProtocolTool.Name },
+            MatchedPrimitive = tool,
+            Services = services,
+        }, new CancellationToken(canceled: true));
+
+        Assert.Same(done, result);
+        Assert.True(services.GetRequiredService<IActivityLog>() is FailingJournal { Tried: true },
+            "Фильтр не дошёл до записи журнала — проверка сбоя ничего не проверила.");
+    }
+
+    private McpServerTool Registered(string name) =>
+        Assert.Single(fixture.Services.GetRequiredService<IOptions<McpServerOptions>>().Value.ToolCollection ?? [],
+            t => t.ProtocolTool.Name == name);
+
+    /// <summary>Журнал, отказывающий на записи, — как отказ базы после совершённого действия.</summary>
+    private sealed class FailingJournal : IActivityLog
+    {
+        public bool Tried { get; private set; }
+
+        public Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
+            string? before = null, string? after = null, CancellationToken ct = default)
+        {
+            Tried = true;
+            // Отменённый токен сюда не доезжает: запись после совершённого действия отмену запроса не слушает.
+            Assert.False(ct.IsCancellationRequested);
+            throw new InvalidOperationException("База отказала");
+        }
+
+        public Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
+            string? action = null, ActivityChannel? channel = null, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+        public Task<int> CountAsync(ActivityVisibility visible, string? action = null, ActivityChannel? channel = null,
+            CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action,
+            ActivityVisibility visible, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+        public Task<IReadOnlyList<ActivityRecord>> ExportAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException();
+        public Task<int> ImportAsync(IReadOnlyList<ActivityRecord> records, CancellationToken ct = default) =>
+            throw new NotSupportedException();
     }
 
     private static DefaultHttpContext McpRequest(Guid userId)

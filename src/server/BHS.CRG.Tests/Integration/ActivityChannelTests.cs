@@ -96,6 +96,19 @@ public class ActivityChannelTests(IntegrationTestFixture fixture) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Перечень_каналов_с_названиями_отдаёт_сервер()
+    {
+        // Отбор на экране строится по этому ответу, а не по списку в клиенте (ревью PR #1997).
+        var (admin, _) = await SignInAsync(SystemRoles.Admin);
+
+        var channels = await admin.GetFromJsonAsync<JsonElement>("/api/activity/channels");
+
+        Assert.Equal(ActivityChannel.All.Select(c => (c.Code, c.Title)).ToArray(),
+            channels.EnumerateArray()
+                .Select(c => (c.GetProperty("code").GetString()!, c.GetProperty("title").GetString()!)).ToArray());
+    }
+
+    [Fact]
     public async Task Без_права_на_журнал_отбор_по_каналу_403()
     {
         var (engineer, _) = await SignInAsync(SystemRoles.IdEngineer);

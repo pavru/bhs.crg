@@ -21,6 +21,16 @@ public sealed record ActivityActor(Guid? Id, string Name, ActivityChannel Channe
     public static string NameOf(Guid? id, string? displayName, string? email) =>
         Nonblank(displayName) ?? Nonblank(email) ?? id?.ToString() ?? System.Name;
 
+    /// <summary>
+    /// Автор записей фоновой задачи (issue #1336, design D3): заказчик, канал поставившего запроса — и имя с
+    /// пометкой задачи, как «Система — такт» у <c>SystemActivityScope</c>. Пометка не украшение: по ней
+    /// читающий журнал отличает сделанное задачей от сделанного руками, и по ней же сессия правки их не
+    /// склеивает (<see cref="ActivitySession" />) — автор у сессии один, и это снимок «кто и как подписан».
+    /// </summary>
+    public static ActivityActor ForJob(Guid userId, string? displayName, string? email, string jobTitle,
+        ActivityChannel channel) =>
+        new(userId, $"{NameOf(userId, displayName, email)} — задача «{jobTitle}»", channel);
+
     private static string? Nonblank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 }
 
@@ -30,9 +40,9 @@ public sealed record ActivityActor(Guid? Id, string Name, ActivityChannel Channe
 /// (тот же приём, что у <c>INotificationAudience</c>, issue #949).
 ///
 /// ⚠️ Вне запроса — старт приложения, фоновая задача без заказчика, тест — отвечает
-/// <see cref="ActivityActor.System" /> (у задачи с заказчиком — её автор, <see cref="ActivityActorScope" />),
-/// а не отказывает: запись без автора всё равно полезна, а
-/// отказ на старте остановил бы приложение из-за журнала.
+/// <see cref="ActivityActor.System" />, а не отказывает: запись без автора всё равно полезна, а
+/// отказ на старте остановил бы приложение из-за журнала. Задача с заказчиком подписывает записи журнала
+/// им (<see cref="JobActivityScope" />) — но только журнала: здесь вне запроса по-прежнему «Система».
 /// </summary>
 public interface IActivityActor
 {

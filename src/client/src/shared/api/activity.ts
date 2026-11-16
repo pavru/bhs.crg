@@ -11,17 +11,18 @@ import { apiClient } from './client';
  */
 
 /**
- * Канал действия (ТЗ CORE-28.1, issue #1336): интерфейс и API, агент через MCP или сам экземпляр. Его
- * определяет сервер по контексту действия, а не писатель записи.
+ * Код канала действия (ТЗ CORE-28.1, issue #1336): `ui` — интерфейс и API, `mcp` — агент через MCP,
+ * `system` — сам экземпляр. Его определяет сервер по контексту действия, а не писатель записи.
+ *
+ * Строкой, а не перечнем: каналы и их названия знает сервер (`useActivityChannels`), и новый канал не
+ * обязан ждать правки клиента, чтобы попасть в отбор.
  */
-export type ActivityChannel = 'ui' | 'mcp' | 'system';
+export type ActivityChannel = string;
 
-/** Каналы для отбора — в порядке меню. Тот же перечень сервер называет, отказывая на неизвестном. */
-export const ACTIVITY_CHANNELS: { code: ActivityChannel; title: string }[] = [
-  { code: 'ui', title: 'Интерфейс' },
-  { code: 'mcp', title: 'Агент (MCP)' },
-  { code: 'system', title: 'Система' },
-];
+export interface ActivityChannelOption {
+  code: ActivityChannel;
+  title: string;
+}
 
 export interface ActivityRecord {
   id: string;
@@ -121,6 +122,15 @@ export function useActivityActions() {
   return useQuery({
     queryKey: ['activity', 'actions'],
     queryFn: () => apiClient.get<ActivityActionOption[]>('/activity/actions').then(r => r.data),
+    staleTime: Infinity,
+  });
+}
+
+/** Каналы для отбора — с сервера, в порядке меню (ревью PR #1997: второй перечень в клиенте отставал бы). */
+export function useActivityChannels() {
+  return useQuery({
+    queryKey: ['activity', 'channels'],
+    queryFn: () => apiClient.get<ActivityChannelOption[]>('/activity/channels').then(r => r.data),
     staleTime: Infinity,
   });
 }

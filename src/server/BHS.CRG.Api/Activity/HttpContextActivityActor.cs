@@ -17,9 +17,10 @@ namespace BHS.CRG.Api.Activity;
 /// разбором пути строкой: адрес переименуют, и канал молча стал бы <c>ui</c>.</para>
 ///
 /// ⚠️ Вне запроса (старт приложения, фоновая задача, тест) <c>HttpContext</c> отсутствует. Тогда автор —
-/// по порядку: заказчик фоновой задачи (<see cref="ActivityActorScope" />), система, названная своей
-/// работой (<see cref="SystemActivityScope" />), просто система. Это не запасной вариант на случай сбоя:
-/// состав модулей и правда меняет не человек.
+/// система, названная своей работой (<see cref="SystemActivityScope" />), или просто система. Это не
+/// запасной вариант на случай сбоя: состав модулей и правда меняет не человек. Заказчика фоновой задачи
+/// здесь нет нарочно — он подписывает только журнал (<see cref="JobActivityScope" />), а этот автор ещё и
+/// «кто действует» для портов модулей, чей договор вне запроса — «никого».
 /// </summary>
 public sealed class HttpContextActivityActor(IHttpContextAccessor http) : IActivityActor
 {
@@ -30,7 +31,7 @@ public sealed class HttpContextActivityActor(IHttpContextAccessor http) : IActiv
             var context = http.HttpContext;
             var user = context?.User;
             if (user?.Identity?.IsAuthenticated != true)
-                return ActivityActorScope.Current ?? SystemActivityScope.Actor ?? ActivityActor.System;
+                return SystemActivityScope.Actor ?? ActivityActor.System;
 
             var id = Guid.TryParse(
                 user.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? user.FindFirstValue(ClaimTypes.NameIdentifier),

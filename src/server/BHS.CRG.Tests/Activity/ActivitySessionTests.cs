@@ -14,6 +14,7 @@ public class ActivitySessionTests
     private const string Edit = "costs.invoice.edit";
     private const string Ui = "ui";
     private static readonly Guid Ivan = Guid.NewGuid();
+    private const string IvanName = "Иван Петров";
     private static readonly DateTimeOffset Noon = new(2026, 10, 28, 9, 0, 0, TimeSpan.Zero);
 
     // Пояс, отличный от UTC: полночь по нему и по UTC — разные моменты, и путать их правилу нельзя.
@@ -21,26 +22,26 @@ public class ActivitySessionTests
         "test+03", TimeSpan.FromHours(3), "UTC+3", "UTC+3");
 
     private static ActivitySessionTail Previous(DateTimeOffset at, DateTimeOffset? started = null,
-        Guid? actor = null, string? group = Edit, string channel = Ui) =>
-        new(actor ?? Ivan, channel, group, at, started ?? at);
+        Guid? actor = null, string? group = Edit, string channel = Ui, string name = IvanName) =>
+        new(actor ?? Ivan, name, channel, group, at, started ?? at);
 
     [Fact]
     public void Подряд_тот_же_автор_и_группа_продолжают_сессию() =>
-        Assert.True(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(3), Previous(Noon), Moscow));
+        Assert.True(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(3), Previous(Noon), Moscow));
 
     [Fact]
     public void Пауза_ровно_десять_минут_ещё_продолжает_а_дольше_рвёт()
     {
-        Assert.True(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(10), Previous(Noon), Moscow));
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(10).AddTicks(10), Previous(Noon), Moscow));
+        Assert.True(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(10), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(10).AddTicks(10), Previous(Noon), Moscow));
     }
 
     [Fact]
     public void Сессия_ровно_в_час_ещё_продолжается_а_дольше_рвётся()
     {
         var started = Noon.AddMinutes(-55);
-        Assert.True(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(5), Previous(Noon, started), Moscow));
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(5).AddTicks(10), Previous(Noon, started), Moscow));
+        Assert.True(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(5), Previous(Noon, started), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(5).AddTicks(10), Previous(Noon, started), Moscow));
     }
 
     [Fact]
@@ -48,37 +49,37 @@ public class ActivitySessionTests
     {
         // 20:58 и 21:02 UTC — по поясу +3 это 23:58 и 00:02 следующего дня.
         var beforeMidnight = new DateTimeOffset(2026, 10, 28, 20, 58, 0, TimeSpan.Zero);
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, beforeMidnight.AddMinutes(4), Previous(beforeMidnight), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, beforeMidnight.AddMinutes(4), Previous(beforeMidnight), Moscow));
 
         // 23:58 и 00:02 UTC — по поясу +3 оба в одних сутках, 02:58 и 03:02.
         var utcMidnight = new DateTimeOffset(2026, 10, 28, 23, 58, 0, TimeSpan.Zero);
-        Assert.True(ActivitySession.Continues(Ivan, Ui, Edit, utcMidnight.AddMinutes(4), Previous(utcMidnight), Moscow));
+        Assert.True(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, utcMidnight.AddMinutes(4), Previous(utcMidnight), Moscow));
     }
 
     [Fact]
     public void Другой_автор_рвёт_сессию() =>
-        Assert.False(ActivitySession.Continues(Guid.NewGuid(), Ui, Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Guid.NewGuid(), IvanName, Ui, Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
 
     [Fact]
     public void Запись_без_автора_сессию_не_продолжает() =>
-        Assert.False(ActivitySession.Continues(null, Ui, Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(null, "Система", Ui, Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
 
     [Fact]
     public void Предыдущая_запись_без_автора_сессию_не_начинает() =>
-        Assert.False(ActivitySession.Continues(null, Ui, Edit, Noon.AddMinutes(1),
-            new ActivitySessionTail(null, Ui, Edit, Noon, Noon), Moscow));
+        Assert.False(ActivitySession.Continues(null, "Система", Ui, Edit, Noon.AddMinutes(1),
+            new ActivitySessionTail(null, "Система", Ui, Edit, Noon, Noon), Moscow));
 
     [Fact]
     public void Другая_группа_или_вид_без_свёртки_рвут_сессию()
     {
-        Assert.False(ActivitySession.Continues(Ivan, Ui, "costs.waybill.edit", Noon.AddMinutes(1), Previous(Noon), Moscow));
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, group: null), Moscow));
-        Assert.False(ActivitySession.Continues(Ivan, Ui, null, Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, "costs.waybill.edit", Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, group: null), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, null, Noon.AddMinutes(1), Previous(Noon), Moscow));
     }
 
     [Fact]
     public void Без_предыдущей_записи_сессия_новая() =>
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, Noon, null, Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon, null, Moscow));
 
     /// <summary>«Было» и «стало» ряда (ТЗ CORE-28.3): первое и последнее непустое либо объединение перечней.</summary>
     [Fact]
@@ -106,7 +107,19 @@ public class ActivitySessionTests
     {
         // Тот же автор, та же цель и группа, без паузы — но предыдущая запись сделана в интерфейсе, а новая
         // через MCP (issue #1336, design D9): у серии канал один.
-        Assert.False(ActivitySession.Continues(Ivan, "mcp", Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
-        Assert.False(ActivitySession.Continues(Ivan, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, channel: "mcp"), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, "mcp", Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, channel: "mcp"), Moscow));
+    }
+
+    [Fact]
+    public void Запись_задачи_и_ручная_правка_того_же_человека_сессию_друг_другу_не_продолжают()
+    {
+        // Задача, поставленная Иваном, пишет от его идентификатора и через тот же канал, но под именем с
+        // пометкой задачи (ActivityActor.ForJob): автоматическое не прячется в ряд ручной правки, и наоборот
+        // (ревью PR #1997).
+        var job = ActivityActor.ForJob(Ivan, IvanName, null, "Распознавание счёта", BHS.CRG.Domain.Activity.ActivityChannel.Ui).Name;
+        Assert.False(ActivitySession.Continues(Ivan, job, Ui, Edit, Noon.AddMinutes(1), Previous(Noon), Moscow));
+        Assert.False(ActivitySession.Continues(Ivan, IvanName, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, name: job), Moscow));
+        Assert.True(ActivitySession.Continues(Ivan, job, Ui, Edit, Noon.AddMinutes(1), Previous(Noon, name: job), Moscow));
     }
 }

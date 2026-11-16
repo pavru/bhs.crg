@@ -22,9 +22,11 @@
   запроса — `system` (и у автора `SystemActivityScope`); метка `ActivityChannel.Mcp` на `MapMcp` (D1, D2)
   [CORE-28.1]. Проверка — тест: смена роли из интерфейса — `ui`; запись при старте — `system`
 - [x] 1.3 `Job.Channel` (миграция той же командой, имя `JobChannel`); `JobService.EnqueueAsync`
-  заполняет его; `JobBackgroundService` открывает окружающий источник автора задачи (`AsyncLocal`
-  приёмом `SystemActivityScope`, `using` на задачу) (D3) [CORE-28.1]. Проверка — тест: задача, поставленная через `/mcp`, несёт `mcp`,
-  в её области `IActivityActor.Current` — заказчик с `mcp`; после задачи вне запроса — снова `System`
+  заполняет его; `JobBackgroundService` открывает окружающий источник автора задачи `JobActivityScope`
+  (`AsyncLocal` приёмом `SystemActivityScope`, `using` на задачу), который читает только журнал (D3)
+  [CORE-28.1]. Проверка — тест: задача, поставленная через `/mcp`, несёт `mcp`, её запись журнала —
+  заказчик с пометкой задачи и `mcp`, а `IActivityActor.Current` и `IModuleUser.Id` в её области — система;
+  следующая задача без заказчика пишет от `System`
 - [x] 1.4 Копия: `BackupActivityRecord.Channel` (необязательное, как `SessionId`); импорт без поля —
   правило D5 (D6) [CORE-28] [CORE-26]. Проверка — `BackupManifestCoverageTests` зелёный; тест: копия со
   старой записью без канала восстанавливается с выведенным каналом

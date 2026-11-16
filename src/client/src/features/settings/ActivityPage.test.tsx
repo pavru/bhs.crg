@@ -33,10 +33,19 @@ const RECORDS: ActivityRecord[] = [
   { ...SERIES, id: 'e3', occurredAt: '2026-10-28T11:19:00Z', before: '5 строк', after: '7 строк' },
 ];
 
+// Перечень каналов — с сервера (ревью PR #1997): «Ассистент» клиент не знает, и в отборе он есть только поэтому.
+const CHANNELS = [
+  { code: 'ui', title: 'Интерфейс' },
+  { code: 'mcp', title: 'Агент (MCP)' },
+  { code: 'system', title: 'Система' },
+  { code: 'assistant', title: 'Ассистент' },
+];
+
 function serve(series: ActivityRow, records: ActivityRecord[]) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => Promise.resolve({
     data: url === '/activity' ? { total: 2, items: [series, SINGLE] }
       : url === '/activity/actions' ? []
+      : url === '/activity/channels' ? CHANNELS
       : url === '/activity/series/s1' ? records
       : undefined,
   }) as never);
@@ -115,6 +124,7 @@ describe('журнал действий по каналу', () => {
     await screen.findByRole('button', { name: /показать записи/ });
 
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Отбор по каналу' }), { key: 'Enter' });
+    expect(screen.getByRole('option', { name: 'Ассистент' })).toBeTruthy();
     fireEvent.click(screen.getByRole('option', { name: 'Агент (MCP)' }));
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/activity',

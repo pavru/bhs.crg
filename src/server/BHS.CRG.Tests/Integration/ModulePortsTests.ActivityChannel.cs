@@ -44,10 +44,16 @@ public partial class ModulePortsTests
             }
 
             await WaitForAsync(jobs, viaMcp, ModuleJobStatus.Succeeded);
-            var author = probe.Authors[viaMcp];
-            Assert.Equal(user.Id, author.Id);
-            Assert.Equal("Агент Иванова", author.Name);
-            Assert.Same(ActivityChannel.Mcp, author.Channel);
+            var record = Assert.Single(await RecordsAsync(viaMcp));
+            Assert.Equal(user.Id, record.ActorId);
+            Assert.Equal("Агент Иванова — задача «Проба через MCP»", record.ActorName);
+            Assert.Equal("mcp", record.Channel);
+
+            // Заказчик подписывает ТОЛЬКО журнал (ревью PR #1997): «кто действует» для портов модуля вне
+            // запроса — по-прежнему никто, иначе работа сочла бы себя запросом без прав, а её дочерняя задача
+            // ушла бы в личный колокольчик вместо общесистемного уведомления.
+            Assert.Equal(ActivityActor.System, probe.Authors[viaMcp]);
+            Assert.Null(probe.ModuleUsers[viaMcp]);
 
             using (var check = host.Services.CreateScope())
             {
@@ -59,12 +65,22 @@ public partial class ModulePortsTests
             // плановая работа подписалась бы чужим человеком и каналом агента.
             var after = await jobs.EnqueueAsync(ProbeModuleWork.Code, Guid.NewGuid(), "Проба вне запроса");
             await WaitForAsync(jobs, after, ModuleJobStatus.Succeeded);
-            Assert.Equal(ActivityActor.System, probe.Authors[after]);
+            var system = Assert.Single(await RecordsAsync(after));
+            Assert.Null(system.ActorId);
+            Assert.Equal(ActivityActor.System.Name, system.ActorName);
+            Assert.Equal("system", system.Channel);
         }
         finally
         {
             await DeleteUserAsync(user);
         }
+    }
+
+    private async Task<List<ActivityRecord>> RecordsAsync(Guid jobId)
+    {
+        using var scope = host.Services.CreateScope();
+        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
+        return [.. (await journal.ExportAsync()).Where(r => r.TargetId == jobId.ToString())];
     }
 
     /// <summary>Запрос через адрес MCP: вошедший пользователь и метка канала в метаданных адреса.</summary>

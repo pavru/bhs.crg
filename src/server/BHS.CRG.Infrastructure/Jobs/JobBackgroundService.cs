@@ -59,10 +59,11 @@ public class JobBackgroundService(
             await db.SaveChangesAsync(ct);
         }
 
-        // Автор журнала на время задачи (issue #1336, design D3): заказчик и канал поставившего запроса.
+        // Автор журнала на время задачи (issue #1336, design D3): заказчик и канал поставившего запроса — и
+        // только журнала (JobActivityScope): «кто действует» для портов модулей вне запроса остаётся «никто».
         // Без заказчика окружение не открывается — автор «Система», а такт модуля подписывает себя сам
         // (SystemActivityScope). Закрывается вместе с задачей: соседняя его не наследует.
-        using var _ = author is null ? null : ActivityActorScope.Begin(author);
+        using var _ = author is null ? null : JobActivityScope.Begin(author);
 
         try
         {
@@ -177,7 +178,7 @@ public class JobBackgroundService(
         if (job.UserId == Guid.Empty) return null;
         var user = await db.Users.AsNoTracking().Where(u => u.Id == job.UserId)
             .Select(u => new { u.DisplayName, u.Email }).FirstOrDefaultAsync(ct);
-        return new ActivityActor(job.UserId, ActivityActor.NameOf(job.UserId, user?.DisplayName, user?.Email),
+        return ActivityActor.ForJob(job.UserId, user?.DisplayName, user?.Email, job.Title,
             ActivityChannel.Find(job.Channel) ?? ActivityChannel.Ui);
     }
 

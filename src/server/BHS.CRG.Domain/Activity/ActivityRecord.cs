@@ -28,6 +28,13 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
     /// <inheritdoc cref="ActorNameMax" />
     public const int TargetLabelMax = 512;
 
+    /// <summary>
+    /// Ширина идентификатора цели. Его не обрезают — обрезанный идентификатор указывал бы не туда, — поэтому
+    /// тот, кто берёт его не из своей сущности, а из чужого ввода (аргументы вызова MCP), обязан отбросить
+    /// длинное сам (<c>McpToolJournal.Target</c>).
+    /// </summary>
+    public const int TargetIdMax = 128;
+
     // ReSharper disable once UnusedMember.Local — конструктор для EF.
     private ActivityRecord() { }
 
@@ -122,7 +129,7 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
             OccurredAt = occurredAt ?? DateTimeOffset.UtcNow,
             Action = action,
             ActorId = actorId,
-            ActorName = Fit(actorName, ActorNameMax) ?? "",
+            ActorName = FitActorName(actorName),
             TargetId = targetId,
             TargetLabel = Fit(targetLabel, TargetLabelMax),
             Before = before,
@@ -130,6 +137,13 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
             Channel = (channel ?? ActivityChannel.ForLegacy(actorId)).Code,
         };
     }
+
+    /// <summary>
+    /// Имя автора таким, каким оно ляжет в запись. Отдельно — для сессии правки (ТЗ CORE-28.2): она
+    /// сравнивает автора новой записи с ЗАПИСАННЫМ автором предыдущей, и длинное имя без той же обрезки
+    /// не совпало бы с собой.
+    /// </summary>
+    public static string FitActorName(string actorName) => Fit(actorName, ActorNameMax) ?? "";
 
     /// <summary>
     /// Укоротить до ширины колонки, пометив обрез многоточием: строка «Иван Иванов…» читается как

@@ -7,8 +7,8 @@ import { Chip } from '@/shared/ui/Chip';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { StatusText } from '@/shared/ui/StatusText';
 import {
-  ACTIVITY_CHANNELS, isSeries, seriesLabel, useActivity, useActivityActions, useActivitySeries,
-  type ActivityChannel, type ActivityRecord, type ActivityRow,
+  isSeries, seriesLabel, useActivity, useActivityActions, useActivityChannels, useActivitySeries,
+  type ActivityRecord, type ActivityRow,
 } from '@/shared/api/activity';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -122,10 +122,11 @@ export function ActivityPage() {
   // «Все» — пустая строка: пункт «Все действия» — `emptyItem` чипа, его выбор отдаёт ''. Своё непустое значение
   // пункту, которого требует Radix, `Select` подставляет сам.
   const [action, setAction] = useState('');
-  const [channel, setChannel] = useState<ActivityChannel | ''>('');
+  const [channel, setChannel] = useState('');
   const [page, setPage] = useState(0);
   const { data, isLoading } = useActivity(page * PAGE, PAGE, action || null, channel || null);
   const { data: actions = [] } = useActivityActions();
+  const { data: channels = [] } = useActivityChannels();
 
   const records = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -141,9 +142,9 @@ export function ActivityPage() {
             {actions.map(a => <SelectItem key={a.code} value={a.code}>{a.title}</SelectItem>)}
           </Select>
           {/* Канал (issue #1336): что сделал агент через MCP, а что — человек или сам экземпляр. */}
-          <Select variant="chip" value={channel} onValueChange={v => { setChannel(v as ActivityChannel | ''); setPage(0); }}
+          <Select variant="chip" value={channel} onValueChange={v => { setChannel(v); setPage(0); }}
             aria-label="Отбор по каналу" emptyItem="Все каналы">
-            {ACTIVITY_CHANNELS.map(c => <SelectItem key={c.code} value={c.code}>{c.title}</SelectItem>)}
+            {channels.map(c => <SelectItem key={c.code} value={c.code}>{c.title}</SelectItem>)}
           </Select>
         </div>
       } />

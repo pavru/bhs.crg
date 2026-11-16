@@ -66,7 +66,10 @@ public sealed class ProbeModuleActivity : IModuleActivityActions
     public static readonly ModuleActivityAction InvoicePaid =
         new("costs.probe.marked", "Счёт отмечен оплаченным");
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [InvoicePaid];
+    /// <summary>Запись пробной фоновой работы — своим действием, чтобы не трогать счёт записей соседних тестов.</summary>
+    public static readonly ModuleActivityAction WorkRan = new("costs.probe.ran", "Пробная работа выполнена");
+
+    public IReadOnlyList<ModuleActivityAction> Actions => [InvoicePaid, WorkRan];
 }
 
 /// <summary>
@@ -75,13 +78,17 @@ public sealed class ProbeModuleActivity : IModuleActivityActions
 /// Одиночка, потому что тест обязан дождаться её ВНЕ области запроса: работа выполняется в своей
 /// области служб, созданной фоновым циклом, и до неё у теста доступа нет.
 /// </summary>
-public sealed class ProbeModuleWork(IActivityActor actor) : IModuleJobHandler
+public sealed class ProbeModuleWork(IActivityActor actor, IServiceScopeFactory scopes) : IModuleJobHandler
 {
     /// <summary>
-    /// Автор журнала, каким его видела работа, — по задаче (issue #1336): канал и заказчик обязаны доехать
-    /// до работы, идущей вне запроса. По задаче, а не одним значением: работа одиночна и переживает тесты.
+    /// Автор действия, каким его видела работа, — по задаче (issue #1336). Вне запроса это система, даже у
+    /// задачи с заказчиком: заказчик подписывает только журнал, а этот автор — ещё и «кто действует» для
+    /// портов модуля (ревью PR #1997). По задаче, а не одним значением: работа одиночна и переживает тесты.
     /// </summary>
     public ConcurrentDictionary<Guid, ActivityActor> Authors { get; } = new();
+
+    /// <summary>Пользователь модуля (<see cref="IModuleUser.Id" />), каким его видела работа, — по задаче.</summary>
+    public ConcurrentDictionary<Guid, Guid?> ModuleUsers { get; } = new();
 
     /// <summary>Код операции. С префиксом модуля — так его напишет и настоящий модуль.</summary>
     public const string Code = "costs.проба";
@@ -96,6 +103,13 @@ public sealed class ProbeModuleWork(IActivityActor actor) : IModuleJobHandler
         // Доклад с последним шагом ядро пишет всегда (прореживание по времени пропускает только
         // промежуточные), поэтому итоговый ход задачи предсказуем.
         Authors[run.JobId] = actor.Current;
+        using (var scope = scopes.CreateScope())
+        {
+            ModuleUsers[run.JobId] = scope.ServiceProvider.GetRequiredService<IModuleUser>().Id;
+            // Запись журнала изнутри работы — целью служит сама задача, чтобы тест нашёл именно её.
+            await scope.ServiceProvider.GetRequiredService<IModuleActivityLog>()
+                .RecordAsync(ProbeModuleActivity.WorkRan, run.JobId.ToString(), ct: ct);
+        }
         await run.Report("строк", 3, 3);
         _ran.TrySetResult(run);
     }

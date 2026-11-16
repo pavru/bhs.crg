@@ -1,5 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Domain.Activity;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -22,6 +24,12 @@ namespace BHS.CRG.Api.Mcp;
 /// <para>⚠️ Запись — ПОСЛЕ удавшегося вызова, по общему правилу журнала. Отказ прав, исключение и ответ
 /// <c>isError</c> записи не оставляют: журнал свидетельствует о том, что произошло.</para>
 ///
+/// <para>⚠️ <b>Сбой самой записи вызов НЕ роняет</b> (ревью PR #1997). Действие инструмента к этому моменту
+/// уже совершено: счёт заведён, задача поставлена. Ошибка, ушедшая агенту, сказала бы «не вышло» о том, что
+/// вышло, — и агент повторил бы неидемпотентный вызов. Поэтому сбой записи — в лог сервера, а не в ответ: та
+/// же плата, что названа у журнала (<c>IActivityLog</c>), — тихая потеря следа лучше ложного отказа. По той же
+/// причине запись не слушает отмену запроса: клиент, оборвавший соединение, не отменяет сделанного.</para>
+///
 /// <para>Автор и канал записи — от автора журнала (<c>HttpContextActivityActor</c>): вызов идёт внутри
 /// запроса к адресу <c>/mcp</c>, помеченному <c>ActivityChannel.Mcp</c>. Сам фильтр их не называет.</para>
 /// </summary>
@@ -37,27 +45,45 @@ public static class McpToolJournal
             && tool.ProtocolTool.Annotations?.ReadOnlyHint != true
             && context.Services?.GetService(typeof(IActivityLog)) is IActivityLog journal)
         {
-            var (targetId, targetLabel) = Target(context.Params?.Arguments);
-            await journal.RecordAsync(ActivityActions.McpToolCalled, targetId, targetLabel,
-                after: tool.ProtocolTool.Name, ct: ct);
+            var (targetId, targetLabel) = Target(tool.ProtocolTool.InputSchema, context.Params?.Arguments);
+            try
+            {
+                await journal.RecordAsync(ActivityActions.McpToolCalled, targetId, targetLabel,
+                    after: tool.ProtocolTool.Name, ct: CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                (context.Services.GetService(typeof(ILoggerFactory)) as ILoggerFactory)
+                    ?.CreateLogger(typeof(McpToolJournal).FullName!)
+                    .LogError(ex, "Вызов инструмента MCP «{Tool}» удался, но запись журнала не сделана",
+                        tool.ProtocolTool.Name);
+            }
         }
 
         return result;
     };
 
     /// <summary>
-    /// Цель — первый аргумент-идентификатор (<c>setId</c>, <c>documentId</c>, <c>datasetId</c>…) в порядке
-    /// объявления параметров. Метка — имя аргумента со значением: название объекта знает его служба, и
-    /// читать его ради журнала значило бы второй запрос на каждый вызов. Нет идентификатора
+    /// Цель — первый ОБЪЯВЛЕННЫЙ инструментом аргумент-идентификатор (<c>setId</c>, <c>documentId</c>,
+    /// <c>datasetId</c>…) в порядке параметров его схемы, а не в порядке, в котором клиент сложил JSON:
+    /// лишний аргумент, который инструмент молча пропускает (<c>requestId</c>), цель записи подменять не вправе
+    /// (ревью PR #1997). Значение длиннее колонки — не идентификатор, и в цель не идёт: иначе отказ базы 22001
+    /// пришёл бы уже после совершённого действия. Метка — имя аргумента со значением: название объекта знает
+    /// его служба, и читать его ради журнала значило бы второй запрос на каждый вызов. Нет идентификатора
     /// (<c>propose_alias</c>) — запись без цели.
     /// </summary>
-    internal static (string? Id, string? Label) Target(IDictionary<string, JsonElement>? arguments)
+    public static (string? Id, string? Label) Target(JsonElement schema, IDictionary<string, JsonElement>? arguments)
     {
-        if (arguments is null) return (null, null);
-        foreach (var (name, value) in arguments)
+        if (arguments is null || schema.ValueKind != JsonValueKind.Object
+            || !schema.TryGetProperty("properties", out var declared) || declared.ValueKind != JsonValueKind.Object)
+            return (null, null);
+
+        foreach (var parameter in declared.EnumerateObject())
         {
-            if (!name.EndsWith("Id", StringComparison.Ordinal) || value.ValueKind != JsonValueKind.String) continue;
-            if (value.GetString() is { Length: > 0 } id) return (id, $"{name}: {id}");
+            var name = parameter.Name;
+            if (!name.EndsWith("Id", StringComparison.Ordinal)
+                || !arguments.TryGetValue(name, out var value) || value.ValueKind != JsonValueKind.String) continue;
+            if (value.GetString() is { Length: > 0 and <= ActivityRecord.TargetIdMax } id) return (id, $"{name}: {id}");
         }
         return (null, null);
     }

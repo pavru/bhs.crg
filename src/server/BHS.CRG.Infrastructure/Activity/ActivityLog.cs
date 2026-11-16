@@ -49,11 +49,16 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     ///
     /// ⚠️ Сворачиваемый вид в транзакции со снимком (RepeatableRead, Serializable) — отказ: снимок взят
     /// до замка, и «предыдущая» запись читалась бы из прошлого, без той, ради которой замок ждали.
+    ///
+    /// Автор — заказчик фоновой задачи, если запись сделана внутри неё (<see cref="JobActivityScope" />),
+    /// иначе автор действия. Внутри запроса окружение задачи не открывается, так что вошедшего оно не
+    /// перекрывает; а у <see cref="IActivityActor" /> вне запроса автор — система, и заказчик задачи туда
+    /// нарочно не попадает (договор портов модулей, ревью PR #1997).
     /// </summary>
     public async Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null, CancellationToken ct = default)
     {
-        var who = actor.Current;
+        var who = JobActivityScope.Author ?? actor.Current;
         var caller = db.Database.CurrentTransaction;
         if (targetId is null || (caller is not null && action.Fold is null))
         {
@@ -81,7 +86,7 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             // Время — ПОСЛЕ замка: запись, ждавшая его, иначе оказалась бы раньше той, что его держала.
             var at = time.GetUtcNow();
             var (sessionId, head) = action.Fold is { } fold && who.Id is not null
-                ? await SessionAsync(targetId, who.Id, who.Channel, fold, action.Code, at, ct)
+                ? await SessionAsync(targetId, who, fold, action.Code, at, ct)
                 : (null, true);
 
             db.ActivityRecords.Add(ActivityRecord.Create(
@@ -101,15 +106,15 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     /// Продолжает ли запись сессию предыдущей записи цели, и если да — первая ли она своего вида в
     /// ней. <c>(null, true)</c> — новая сессия. Правило границы — <see cref="ActivitySession" />.
     /// </summary>
-    private async Task<(Guid? SessionId, bool Head)> SessionAsync(string targetId, Guid? actorId,
-        ActivityChannel channel, ActivityFold fold, string code, DateTimeOffset at, CancellationToken ct)
+    private async Task<(Guid? SessionId, bool Head)> SessionAsync(string targetId, ActivityActor who,
+        ActivityFold fold, string code, DateTimeOffset at, CancellationToken ct)
     {
         var previous = await db.ActivityRecords
             .Where(r => r.TargetId == targetId)
             .OrderByDescending(r => r.OccurredAt).ThenByDescending(r => r.Id)
             .Select(r => new
             {
-                r.Action, r.ActorId, r.Channel, r.OccurredAt, r.SessionId,
+                r.Action, r.ActorId, r.ActorName, r.Channel, r.OccurredAt, r.SessionId,
                 // Головы может не оказаться (журнал правили руками, копия пришла неполной) — тогда
                 // сессия просто начинается заново, а не роняет запись действия.
                 Started = db.ActivityRecords.Where(s => s.Id == r.SessionId)
@@ -118,10 +123,12 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             .FirstOrDefaultAsync(ct);
         if (previous?.Started is not { } started) return (null, true);
 
-        var tail = new ActivitySessionTail(previous.ActorId, previous.Channel,
+        var tail = new ActivitySessionTail(previous.ActorId, previous.ActorName, previous.Channel,
             actions.Find(previous.Action)?.Fold?.Group, previous.OccurredAt, started);
         _companyZone ??= await settings.GetCompanyTimeZoneAsync(ct);
-        if (!ActivitySession.Continues(actorId, channel.Code, fold.Group, at, tail, _companyZone)) return (null, true);
+        if (!ActivitySession.Continues(who.Id, ActivityRecord.FitActorName(who.Name), who.Channel.Code, fold.Group,
+                at, tail, _companyZone))
+            return (null, true);
 
         // Подряд того же вида — почти каждая запись автосохранения: тогда вид в сессии уже есть, и
         // спрашивать базу незачем.
