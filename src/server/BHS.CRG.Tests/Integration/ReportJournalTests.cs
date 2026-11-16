@@ -187,7 +187,8 @@ public class ReportJournalTests(AssignmentHost host) : IAsyncLifetime
 
         using (var scope = host.Services.CreateScope())
         {
-            var desk = ActivatorUtilities.CreateInstance<ReportDesk>(scope.ServiceProvider, new BrokenLog());
+            var activity = ActivatorUtilities.CreateInstance<ReportActivity>(scope.ServiceProvider, new BrokenLog());
+            var desk = ActivatorUtilities.CreateInstance<ReportDesk>(scope.ServiceProvider, activity);
             var http = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
             http.Request.Headers.IfMatch = version;
             var result = await desk.RemoveDraftAsync(ReportViewer.Own(employee), id, null, null, http.Request, default);

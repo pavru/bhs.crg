@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,19 +31,21 @@ public sealed record ReportEnteredByDto(Guid UserId, string Name);
 /// <c>null</c> — всё заполнено или подал человек.</param>
 /// <param name="AlreadySubmitted">Ответ подачи — отчёт уже был подан (автоподача обогнала запрос): второй подачи
 /// нет.</param>
+/// <param name="AcceptWouldMark">Отчёт подан, и ввёл его тот, кто сейчас смотрит (WORK-31.1, <c>work-16</c>): его
+/// приёмка пометит отчёт «ввёл и принял один человек». Считает сервер — клиент о пометке не догадывается.</param>
 public sealed record ReportDto(
     Guid Id, Guid EmployeeId, Guid ConstructionId, DateOnly Date, string Shift, decimal? Hours, string Status,
     string? Note, long Seq, string Version, bool AssignedOnDate, ReportEnteredByDto? EnteredBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
     DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
-    bool AlreadySubmitted);
+    bool AlreadySubmitted, bool AcceptWouldMark);
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается здесь, на чтении, по назначениям <c>work-11</c> и не
 /// хранится: назначение могут поправить задним числом, и пометка обязана это увидеть (design <c>work-13</c>).
 /// Назначение любого вида — монтажник или менеджер, — как у <c>/api/work/sites/mine</c>.
 /// </summary>
-public sealed class ReportViews(WorkDbContext db)
+public sealed class ReportViews(WorkDbContext db, IModuleUser user)
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
@@ -66,11 +69,18 @@ public sealed class ReportViews(WorkDbContext db)
         [
             .. reports.Select(r => Dto(r,
                 assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId && a.Covers(r.Date)),
-                replayed, versions is null ? db.VersionOf(r) : versions[r.Id])),
+                replayed, versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id))),
         ];
     }
 
-    private static ReportDto Dto(Report r, bool assigned, bool replayed, string version) => new(
+    /// <summary>
+    /// «Ввёл и принял один человек» — одно место расчёта (ТЗ WORK-31.1): поданный отчёт, автор ввода которого — учётная
+    /// запись читающего.
+    /// </summary>
+    public static bool AcceptWouldMark(Report r, Guid? viewer) =>
+        r.Status == ReportStatus.Submitted && viewer is { } me && r.EnteredByUserId == me;
+
+    private static ReportDto Dto(Report r, bool assigned, bool replayed, string version, bool acceptWouldMark) => new(
         r.Id, r.EmployeeId, r.ConstructionId, r.Date, Report.ShiftCode(r.Shift), r.Hours, Report.StatusCode(r.Status),
         r.Note, r.Seq, version, assigned,
         r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
@@ -81,7 +91,7 @@ public sealed class ReportViews(WorkDbContext db)
         r.SubmittedAt,
         r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
         r.RequiredMissing is { } missing ? Parsed(missing) : null,
-        AlreadySubmitted: false);
+        AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark);
 
     private static JsonElement Parsed(string json)
     {

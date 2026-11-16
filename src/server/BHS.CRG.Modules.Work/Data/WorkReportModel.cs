@@ -6,7 +6,7 @@ namespace BHS.CRG.Modules.Work.Data;
 /// Таблицы отчёта монтажника в модели <see cref="WorkDbContext" /> (change <c>work-13-report-model</c>): отчёт,
 /// строки, материалы, участники и протокол изменений. Отдельным файлом — чтобы контекст не рос с каждой записью.
 ///
-/// <para>⚠️ <b>Наборов (<c>DbSet</c>) у этих записей нет</b>: все пять изолированные (<c>IIsolatedRecord</c>), и
+/// <para>⚠️ <b>Наборов (<c>DbSet</c>) у этих записей нет</b>: все изолированные (<c>IIsolatedRecord</c>), и
 /// читаются только в файле чтения с параметром доступа. Навигации — только между ними самими: от отчёта к строкам и
 /// от строки к материалам и участникам. Навигация от общей сущности к отчёту читала бы его без охвата
 /// (сторож — <c>IsolatedReadInventoryTests</c>).</para>
@@ -143,7 +143,29 @@ internal static class WorkReportModel
         journal.Property(e => e.ServerTime).HasColumnName("server_time");
         journal.Property(e => e.AfterSubmission).HasColumnName("after_submission");
         journal.Property(e => e.Changes).HasColumnName("changes").HasColumnType("jsonb");
+        journal.Property(e => e.Comment).HasColumnName("comment").HasMaxLength(ReportRules.CommentMax);
         // Журнал одного отчёта по номеру — адрес чтения; одна запись на номер — как у протокола.
         journal.HasIndex(e => new { e.ReportId, e.Seq }).IsUnique().HasDatabaseName("ux_report_journal_report_seq");
+
+        // Отметка сводки о поданных (work-16): отдельной таблицей, а не колонкой отчёта — запись колонки сдвинула бы
+        // версию строки отчёта (xmin), и правка по только что прочитанной версии получила бы 409 без видимой правки.
+        var digest = builder.Entity<ReviewDigestMark>();
+        digest.ToTable("review_digests");
+        digest.HasKey(d => new { d.ReportId, d.SubmittedAt });
+        digest.Property(d => d.ReportId).HasColumnName("report_id");
+        digest.Property(d => d.SubmittedAt).HasColumnName("submitted_at");
+        digest.Property(d => d.DigestedAt).HasColumnName("digested_at");
+        // Удаляется только черновик, а в сводку входит поданный; каскад — на случай удаления мимо пути записи.
+        digest.HasOne<Report>().WithMany().HasForeignKey(d => d.ReportId).OnDelete(DeleteBehavior.Cascade);
+
+        // Недоставленная сводка менеджеру — повтор следующим тактом ему одному (work-16).
+        var retry = builder.Entity<ReviewDigestRetry>();
+        retry.ToTable("review_digest_retries");
+        retry.HasKey(r => new { r.UserId, r.ReportId, r.SubmittedAt });
+        retry.Property(r => r.UserId).HasColumnName("user_id");
+        retry.Property(r => r.ReportId).HasColumnName("report_id");
+        retry.Property(r => r.SubmittedAt).HasColumnName("submitted_at");
+        retry.HasIndex(r => r.ReportId).HasDatabaseName("ix_review_digest_retries_report");
+        retry.HasOne<Report>().WithMany().HasForeignKey(r => r.ReportId).OnDelete(DeleteBehavior.Cascade);
     }
 }

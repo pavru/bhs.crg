@@ -2,6 +2,7 @@ using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Review;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -37,10 +38,13 @@ namespace BHS.CRG.Modules.Work.Submission;
 /// <see cref="ReportJournalKinds.AutoSubmitted" />. Опубликованных наборов задача не читает. В журнал действий ядра —
 /// одна запись на прогон с числом поданных, и только если подано что-то: пустой прогон каждые пять минут был бы
 /// шумом.</para>
+///
+/// <para><b>Второй шаг — сводка о поданных</b> менеджерам строек (<see cref="SubmittedDigest" />, <c>work-16</c>): после
+/// подачи, чтобы автоподанные этим прогоном вошли в одну сводку с поданными вручную.</para>
 /// </summary>
 public sealed class AutoSubmitJob(
     WorkDbContext db, ReportReads reads, ReportSubmission submission, RequiredFields required, IModuleReaders readers,
-    IModuleEmployees employees, IModuleActivityLog log, TimeProvider time, ILogger<AutoSubmitJob> logger)
+    IModuleEmployees employees, IModuleActivityLog log, SubmittedDigest digest, TimeProvider time, ILogger<AutoSubmitJob> logger)
     : IModuleJobHandler
 {
     public const string Code = "work.autosubmit";
@@ -88,7 +92,29 @@ public sealed class AutoSubmitJob(
             await run.Report("отчётов", done, done + skipped.Count);
         }
 
-        if (done == 0) return;
+        if (done > 0) await RecordRunAsync(done, unchecked_);
+        await DigestAsync(reader, now, ct);
+    }
+
+    /// <summary>
+    /// Второй шаг — сводка о поданных менеджерам строек (<c>work-16</c>): после подачи, чтобы автоподанные этим прогоном
+    /// вошли в ту же сводку, что и поданные вручную. Её сбой подач не отменяет и прогон не роняет — повтор следующим тактом.
+    /// </summary>
+    private async Task DigestAsync(ModuleReader reader, DateTimeOffset now, CancellationToken ct)
+    {
+        try
+        {
+            await digest.RunAsync(reader, now, ct);
+        }
+        catch (Exception failed) when (failed is not OperationCanceledException)
+        {
+            logger.LogError(failed, "Сводка о поданных не разослана — повтор следующим тактом.");
+        }
+    }
+
+    /// <summary>Одна запись журнала ядра на прогон с числом поданных.</summary>
+    private async Task RecordRunAsync(int done, int unchecked_)
+    {
         var after = $"подано отчётов: {done}";
         if (unchecked_ > 0) after += $"; обязательные поля не проверены у {unchecked_}: справочник видов работ не заведён";
         try

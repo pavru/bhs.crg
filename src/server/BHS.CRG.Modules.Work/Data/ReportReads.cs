@@ -226,6 +226,48 @@ public sealed class ReportReads(WorkDbContext db)
         return Full(Expired(now)).FirstOrDefaultAsync(r => r.Id == id, ct);
     }
 
+    /// <summary>
+    /// Поданные отчёты, ждущие сводки менеджерам (ТЗ WORK-56, <c>work-16</c>): окно подачи закрылось, а этот момент подачи
+    /// в сводку ещё не входил (<see cref="ReviewDigestMark" />). Читает только задача такта — от имени системы с
+    /// причиной, как <see cref="ExpiredDraftsAsync" />.
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid Id, Guid ConstructionId, DateTimeOffset SubmittedAt)>> DigestPendingAsync(
+        ModuleReader system, DateTimeOffset now, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var at = now.ToUniversalTime();
+        var marks = db.Set<ReviewDigestMark>();
+        var found = await db.Set<Report>().AsNoTracking()
+            .Where(r => r.Status == ReportStatus.Submitted && r.WindowEndsAt <= at && r.SubmittedAt != null
+                        && !marks.Any(m => m.ReportId == r.Id && m.SubmittedAt == r.SubmittedAt))
+            .OrderBy(r => r.ConstructionId).ThenBy(r => r.Id)
+            .Select(r => new { r.Id, r.ConstructionId, SubmittedAt = r.SubmittedAt!.Value })
+            .ToListAsync(ct);
+        return [.. found.Select(f => (f.Id, f.ConstructionId, f.SubmittedAt))];
+    }
+
+    /// <summary>
+    /// Недоставленные сводки (<see cref="ReviewDigestRetry" />) — с отслеживанием: доставленные и устаревшие задача такта
+    /// удаляет. <c>Live</c> — отчёт всё ещё подан тем же моментом: решённый или поданный заново повтора не ждёт.
+    /// </summary>
+    public async Task<IReadOnlyList<(ReviewDigestRetry Row, Guid ConstructionId, bool Live)>> DigestRetriesAsync(
+        ModuleReader system, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var rows = await db.Set<ReviewDigestRetry>().ToListAsync(ct);
+        if (rows.Count == 0) return [];
+        var ids = rows.Select(r => r.ReportId).Distinct().ToArray();
+        var reports = await db.Set<Report>().AsNoTracking().Where(r => ids.Contains(r.Id))
+            .Select(r => new { r.Id, r.ConstructionId, r.Status, r.SubmittedAt })
+            .ToDictionaryAsync(r => r.Id, ct);
+        return
+        [
+            .. rows.Select(row => reports.TryGetValue(row.ReportId, out var r)
+                ? (row, r.ConstructionId, r.Status == ReportStatus.Submitted && r.SubmittedAt == row.SubmittedAt)
+                : (row, Guid.Empty, false)),
+        ];
+    }
+
     private IQueryable<Report> Expired(DateTimeOffset now)
     {
         var at = now.ToUniversalTime();
@@ -237,7 +279,8 @@ public sealed class ReportReads(WorkDbContext db)
     {
         if (!reader.IsSystem || string.IsNullOrWhiteSpace(reader.SystemReason))
             throw new InvalidOperationException(
-                "Черновики с истёкшим окном читает только автоподача — от имени системы с причиной: у человека охват свой.");
+                "Черновики с истёкшим окном и отчёты к сводке читает только такт автоподачи — от имени системы с причиной: у " +
+                "человека охват свой.");
     }
 
     private IQueryable<Report> Visible(ReportViewer viewer)

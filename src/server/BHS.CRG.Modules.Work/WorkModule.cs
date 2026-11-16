@@ -3,6 +3,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Review;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -177,7 +178,12 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportWriter>();
         services.AddScoped<ReportViews>();
         services.AddScoped<ReportJournal>();
+        services.AddScoped<ReportPeople>();
+        services.AddScoped<ReportActivity>();
         services.AddScoped<ReportDesk>();
+        services.AddScoped<ReturnNotice>();
+        services.AddScoped<ReportReview>();
+        services.AddScoped<SubmittedDigest>();
         services.AddScoped<RequiredFields>();
         services.AddScoped<ReportSubmission>();
         services.AddScoped<IModuleJobHandler, AutoSubmitJob>();
@@ -200,7 +206,7 @@ public sealed class WorkModule : IAppModule
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
     /// самим фактом регистрации — права же на нём названы поимённо: доступ к модулю и право на назначения —
     /// разные вещи. Назначения и «мои стройки» (<c>work-11</c>), свои отчёты и ввод за сотрудника (<c>work-13</c>),
-    /// журнал отчёта (<c>work-14</c>).
+    /// журнал отчёта (<c>work-14</c>), приёмка и возврат (<c>work-16</c>).
     /// </summary>
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -209,6 +215,7 @@ public sealed class WorkModule : IAppModule
         ReportEndpoints.Map(endpoints);
         EntryReportEndpoints.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);
+        ReportReviewEndpoints.Map(endpoints);
     }
 
     /// <summary>

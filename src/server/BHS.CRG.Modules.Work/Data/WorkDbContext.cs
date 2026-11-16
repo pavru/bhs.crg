@@ -84,6 +84,20 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
     }
 
     /// <summary>
+    /// Взять замок шага сводки о поданных до конца транзакции (<c>work-16</c>), не дожидаясь: <c>false</c> — шаг уже идёт в
+    /// другом прогоне, и второй уходит ни с чем, а не шлёт вторую сводку. Вне транзакции — отказ, как у прочих замков.
+    /// </summary>
+    public async Task<bool> TryLockReviewDigestAsync(CancellationToken ct)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "Замок сводки о поданных берётся только внутри транзакции: вне её он снимается тем же запросом.");
+        return await Database.SqlQueryRaw<bool>(
+                "SELECT pg_try_advisory_xact_lock(hashtextextended('work.review-digest', 0)) AS \"Value\"")
+            .SingleAsync(ct);
+    }
+
+    /// <summary>
     /// Запереть назначения стройки до конца транзакции (design <c>work-11</c>): проверка пересечений и
     /// «последнего менеджера» читает назначения стройки, а замок строк не удержал бы вставку, когда строк
     /// ещё нет. Вне транзакции — отказ: замок снялся бы тем же запросом и выглядел бы защитой.

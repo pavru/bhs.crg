@@ -79,6 +79,6 @@ public static class EntryReportEndpoints
         await desk.ChangeAsync(await ViewerAsync(readers, sites, ct), id, body, request, ct));
 
     /// <summary>Охват менеджера: стройки его действующих назначений «менеджер» или все — с <c>work.sites.all</c>.</summary>
-    private static async Task<ReportViewer> ViewerAsync(IModuleReaders readers, ManagerSites sites, CancellationToken ct) =>
+    internal static async Task<ReportViewer> ViewerAsync(IModuleReaders readers, ManagerSites sites, CancellationToken ct) =>
         ReportViewer.Of(await sites.ReachAsync(await readers.ForRequestAsync(ct), ct));
 }
