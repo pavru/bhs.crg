@@ -122,9 +122,11 @@ public class ActivityFoldCatalogTests(ModulePortsHost host) : IClassFixture<Modu
         }
 
         public Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
-            string? action = null, CancellationToken ct = default) => throw new NotSupportedException();
+            string? action = null, ActivityChannel? channel = null, CancellationToken ct = default) =>
+            throw new NotSupportedException();
 
-        public Task<int> CountAsync(ActivityVisibility visible, string? action = null, CancellationToken ct = default) =>
+        public Task<int> CountAsync(ActivityVisibility visible, string? action = null, ActivityChannel? channel = null,
+            CancellationToken ct = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action,

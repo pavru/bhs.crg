@@ -82,6 +82,13 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
     public bool SeriesHead { get; private set; }
 
     /// <summary>
+    /// Каким путём сделано действие (ТЗ CORE-28.1, issue #1336): код <see cref="ActivityChannel" /> —
+    /// <c>ui</c>, <c>mcp</c>, <c>system</c>. Его даёт контекст действия (<c>IActivityActor</c>), а не
+    /// писатель журнала: новый писатель забыть канал не может.
+    /// </summary>
+    public string Channel { get; private set; } = ActivityChannel.Ui.Code;
+
+    /// <summary>
     /// Собирает запись. <paramref name="occurredAt" /> задаётся только при восстановлении копии:
     /// приехавшая запись сохраняет своё время, иначе восстановление выдало бы чужие действия за
     /// сегодняшние.
@@ -95,13 +102,16 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
     ///
     /// Сессия не названа (<paramref name="sessionId" /> = <c>null</c>) — запись одиночна: начинает свою
     /// сессию и сама её голова. Так ложатся и записи копии старого формата, где сессий не было.
+    ///
+    /// Канал не назван (<paramref name="channel" /> = <c>null</c>) — только у записи копии старого формата:
+    /// он выводится по автору (<see cref="ActivityChannel.ForLegacy" />), тем же правилом, что у миграции.
     /// </summary>
     public static ActivityRecord Create(
         string action, Guid? actorId, string actorName,
         string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null,
         Guid? id = null, DateTimeOffset? occurredAt = null,
-        Guid? sessionId = null, bool seriesHead = true)
+        Guid? sessionId = null, bool seriesHead = true, ActivityChannel? channel = null)
     {
         var recordId = id ?? Guid.NewGuid();
         return new()
@@ -117,6 +127,7 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
             TargetLabel = Fit(targetLabel, TargetLabelMax),
             Before = before,
             After = after,
+            Channel = (channel ?? ActivityChannel.ForLegacy(actorId)).Code,
         };
     }
 

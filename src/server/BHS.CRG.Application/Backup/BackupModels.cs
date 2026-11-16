@@ -171,7 +171,7 @@ public record BackupActivityRecord(
     Guid Id, DateTimeOffset OccurredAt, string Action,
     Guid? ActorId, string ActorName,
     string? TargetId, string? TargetLabel, string? Before, string? After,
-    Guid? SessionId = null, bool? SeriesHead = null);
+    Guid? SessionId = null, bool? SeriesHead = null, string? Channel = null);
 
 /// <summary>
 /// Запись о закрытии периода или об отмене закрытия (ТЗ CORE-35). Едет только в ПОЛНОЙ копии.

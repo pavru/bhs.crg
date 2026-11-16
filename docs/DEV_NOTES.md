@@ -4760,6 +4760,20 @@ Change `core-journal-series` (ТЗ CORE-28.2, CORE-28.3). Автосохране
 одиночной. Миграция `ActivitySeries` ставит прежним строкам `SessionId = Id`, `SeriesHead = true` — это
 шаг схемы, а не правка свидетельства. Свёртки задним числом нет.
 
+**Канал** (`core-activity-channel`, issue #1336). `ActivityActor(Id, Name, Channel)`: канал — часть
+автора, писатель журнала его не передаёт. `HttpContextActivityActor` читает метку адреса
+(`MapMcp(...).WithMetadata(ActivityChannel.Mcp)`), иначе `ui`; вне запроса — автор фоновой задачи
+(`ActivityActorScope`, окружение `AsyncLocal` на задачу, открывает `JobBackgroundService` по
+`Job.UserId` и `Job.Channel`), затем `SystemActivityScope`, затем «Система». Канал задаче ставит
+`JobService.EnqueueAsync` из автора в момент постановки. Другой канал рвёт сессию
+(`ActivitySession.Continues`): серия одноканальна, и отбор `GET /api/activity?channel=` по головам не
+прячет записи внутри чужого ряда; неизвестный канал — 400 с перечнем. Действия агента пишет фильтр
+вызовов `McpToolJournal` (`WithRequestFilters` → `AddCallToolFilter`) — одна запись
+`core.mcp.tool.called` на удавшийся вызов инструмента без `ReadOnly = true`; сторож
+`McpToolJournalTests` прогоняет зарегистрированные фильтры на описи `McpInventory`. Миграции
+`ActivityChannel` и `JobChannel` заполняют прежние строки по автору (без автора — `system`) и снимают
+умолчание колонки; копия старого формата выводит канал тем же правилом (`ActivityChannel.ForLegacy`).
+
 ## Закрытие периода: префикс, замок и две формулы
 
 Служба ядра (`IPeriodClosures`, ТЗ `CORE-35`, issue #1081): закрывает учётный период компании или

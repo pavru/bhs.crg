@@ -172,6 +172,10 @@ internal static class DomainRegistration
         // работать целиком, а не открывается всем. Из двух исходов этот несравнимо лучше — потому и
         // записан: следующий, кто увидит здесь лишний вызов, не станет его убирать «на пробу».
         .AddAuthorizationFilters()
+        // Журнал действий агента (issue #1336, ТЗ CORE-23, CORE-28): удавшийся вызов меняющего инструмента
+        // пишет одну запись с каналом mcp. Фильтром — одно место на все инструменты; новый инструмент
+        // журнал не «забудет», и сторож McpToolJournalTests берёт перечень из регистрации.
+        .WithRequestFilters(f => f.AddCallToolFilter(BHS.CRG.Api.Mcp.McpToolJournal.Filter))
         // Кодировщик передаётся каждой регистрации: домен русскоязычный, а по умолчанию System.Text.Json
         // раздувает кириллицу в \uXXXX вчетверо и упирает ответы в лимит клиента (#576, McpSerialization).
         .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)

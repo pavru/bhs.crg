@@ -10,6 +10,19 @@ import { apiClient } from './client';
  * что угодно от чьего угодно имени.
  */
 
+/**
+ * Канал действия (ТЗ CORE-28.1, issue #1336): интерфейс и API, агент через MCP или сам экземпляр. Его
+ * определяет сервер по контексту действия, а не писатель записи.
+ */
+export type ActivityChannel = 'ui' | 'mcp' | 'system';
+
+/** Каналы для отбора — в порядке меню. Тот же перечень сервер называет, отказывая на неизвестном. */
+export const ACTIVITY_CHANNELS: { code: ActivityChannel; title: string }[] = [
+  { code: 'ui', title: 'Интерфейс' },
+  { code: 'mcp', title: 'Агент (MCP)' },
+  { code: 'system', title: 'Система' },
+];
+
 export interface ActivityRecord {
   id: string;
   occurredAt: string;
@@ -23,6 +36,8 @@ export interface ActivityRecord {
   target: string | null;
   before: string | null;
   after: string | null;
+  /** Каким путём сделано. У ряда — канал всей серии: другой канал рвёт сессию правки. */
+  channel: ActivityChannel;
 }
 
 /**
@@ -70,11 +85,14 @@ export interface ActivityActionOption {
   title: string;
 }
 
-export function useActivity(skip: number, take: number, action: string | null) {
+/** Страница журнала. `action` и `channel` — отборы; `null` — без отбора. */
+export function useActivity(skip: number, take: number, action: string | null, channel: ActivityChannel | null = null) {
   return useQuery({
-    queryKey: ['activity', skip, take, action],
+    queryKey: ['activity', skip, take, action, channel],
     queryFn: () => apiClient
-      .get<ActivityPage>('/activity', { params: { skip, take, action: action || undefined } })
+      .get<ActivityPage>('/activity', {
+        params: { skip, take, action: action || undefined, channel: channel || undefined },
+      })
       .then(r => r.data),
   });
 }

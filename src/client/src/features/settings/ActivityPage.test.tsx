@@ -19,7 +19,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const SERIES: ActivityRow = {
   id: 'h1', occurredAt: '2026-10-28T11:02:00Z', action: 'costs.invoice.lines', actionTitle: 'Строки счёта изменены',
   actorId: 'a1', actorName: 'Иван', target: 'Счёт № 41', before: '3 строки', after: '7 строк',
-  count: 3, lastAt: '2026-10-28T11:19:00Z', firstTarget: 'Счёт № 14', sessionId: 's1',
+  count: 3, lastAt: '2026-10-28T11:19:00Z', firstTarget: 'Счёт № 14', sessionId: 's1', channel: 'ui',
 };
 
 const SINGLE: ActivityRow = {
@@ -98,5 +98,26 @@ describe('журнал действий рядами', () => {
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Записи ряда' }))
       .getAllByRole('listitem')).toHaveLength(4));
     expect(screen.queryByText(/Показаны первые/)).toBeNull();
+  });
+});
+
+/** Канал действия (issue #1336): действие агента помечено, и по каналу журнал отбирается. */
+describe('журнал действий по каналу', () => {
+  it('ряд агента помечен «через агента (MCP)», ряд интерфейса — нет', async () => {
+    open({ ...SERIES, channel: 'mcp' });
+
+    expect(await screen.findByText('через агента (MCP)')).toBeTruthy();
+    expect(screen.getAllByText('через агента (MCP)')).toHaveLength(1);
+  });
+
+  it('отбор по каналу уходит параметром запроса и возвращает на первую страницу', async () => {
+    open();
+    await screen.findByRole('button', { name: /показать записи/ });
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Отбор по каналу' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Агент (MCP)' }));
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/activity',
+      { params: { skip: 0, take: 50, action: undefined, channel: 'mcp' } }));
   });
 });

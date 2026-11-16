@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.Jobs;
@@ -63,6 +64,13 @@ public class Job : Entity
     /// <summary>Кто запустил (владелец) — по нему индикатор показывает «мои» задачи.</summary>
     public Guid UserId { get; private set; }
 
+    /// <summary>
+    /// Канал запроса, который поставил задачу (<see cref="ActivityChannel.Code" />, issue #1336): журнал,
+    /// записанный внутри задачи, подписан заказчиком и этим каналом — задача, поставленная агентом через
+    /// MCP, остаётся действием агента. Без заказчика (<see cref="Guid.Empty" />) — всегда <c>system</c>.
+    /// </summary>
+    public string Channel { get; private set; } = ActivityChannel.Ui.Code;
+
     /// <summary>Цель операции — обобщённая (DataSetSource и т.п.), чтобы точечные операции (P6)
     /// ложились той же задачей с другой целью, без переделки job-системы.</summary>
     public Guid TargetId { get; private set; }
@@ -85,10 +93,15 @@ public class Job : Entity
     /// <param name="createdAt">Момент постановки по часам ПОСТАВИВШЕГО (<c>TimeProvider</c>); <c>null</c> —
     /// часы машины. Нужен такту модульных заданий (work-08): срок он считает от постановки, и момент
     /// постановки обязан идти по тем же часам, что и «сейчас» такта.</param>
+    /// <param name="channel">Канал поставившего запроса; <c>null</c> — по заказчику: есть — <c>ui</c>, нет —
+    /// <c>system</c>. Служба постановки называет его всегда, из автора журнала.</param>
     public static Job Create(JobKind kind, Guid userId, Guid targetId, string title, string? payload = null,
-        DateTimeOffset? createdAt = null)
+        DateTimeOffset? createdAt = null, ActivityChannel? channel = null)
         => new()
         {
+            Channel = (userId == Guid.Empty
+                ? ActivityChannel.System
+                : channel ?? ActivityChannel.Ui).Code,
             CreatedAt = createdAt ?? DateTimeOffset.UtcNow,
             Kind = kind,
             Status = JobStatus.Queued,

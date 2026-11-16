@@ -1,4 +1,6 @@
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Activity;
 using System.Text.Json;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Notifications;
@@ -44,6 +46,7 @@ public class JobBackgroundService(
         Guid targetId, userId;
         string? payload;
         string title;
+        ActivityActor? author = null;
         // Читаем и помечаем Running в собственном контексте.
         using (var scope = scopeFactory.CreateScope())
         {
@@ -51,9 +54,15 @@ public class JobBackgroundService(
             var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId, ct);
             if (job is null || job.Status != JobStatus.Queued) return; // уже обработана/потеряна
             kind = job.Kind; targetId = job.TargetId; payload = job.Payload; userId = job.UserId; title = job.Title;
+            author = await AuthorAsync(db, job, ct);
             job.Start();
             await db.SaveChangesAsync(ct);
         }
+
+        // Автор журнала на время задачи (issue #1336, design D3): заказчик и канал поставившего запроса.
+        // Без заказчика окружение не открывается — автор «Система», а такт модуля подписывает себя сам
+        // (SystemActivityScope). Закрывается вместе с задачей: соседняя его не наследует.
+        using var _ = author is null ? null : ActivityActorScope.Begin(author);
 
         try
         {
@@ -156,6 +165,20 @@ public class JobBackgroundService(
             // Единая точка публикации ошибки задачи в колокольчик (handoff: задача ушла из индикатора → всплыла ошибкой).
             await PublishFailureAsync(userId, title, text);
         }
+    }
+
+    /// <summary>
+    /// Автор журнала задачи: заказчик — одним чтением учётной записи на задачу, по тому же правилу имени,
+    /// что у автора запроса (<see cref="ActivityActor.NameOf" />). Учётную запись могли удалить, пока задача
+    /// стояла в очереди: тогда имя — идентификатор, а не «Система» — действие всё равно его.
+    /// </summary>
+    private static async Task<ActivityActor?> AuthorAsync(AppDbContext db, Job job, CancellationToken ct)
+    {
+        if (job.UserId == Guid.Empty) return null;
+        var user = await db.Users.AsNoTracking().Where(u => u.Id == job.UserId)
+            .Select(u => new { u.DisplayName, u.Email }).FirstOrDefaultAsync(ct);
+        return new ActivityActor(job.UserId, ActivityActor.NameOf(job.UserId, user?.DisplayName, user?.Email),
+            ActivityChannel.Find(job.Channel) ?? ActivityChannel.Ui);
     }
 
     private async Task PublishFailureAsync(Guid userId, string title, string error)

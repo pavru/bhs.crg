@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Domain.Activity;
 
 namespace BHS.CRG.Api.Activity;
 
@@ -27,7 +28,7 @@ public static class SystemActivityScope
 
     /// <summary>Автор, назначенный окружением; <c>null</c> — не назначен.</summary>
     internal static ActivityActor? Actor =>
-        Current.Value is { } what ? new ActivityActor(null, $"{ActivityActor.System.Name} — {what}") : null;
+        Current.Value is { } what ? new ActivityActor(null, $"{ActivityActor.System.Name} — {what}", ActivityChannel.System) : null;
 
     /// <summary>Подписать всё, что сделано до <c>Dispose</c>, как «Система — <paramref name="what" />».</summary>
     public static IDisposable Begin(string what)

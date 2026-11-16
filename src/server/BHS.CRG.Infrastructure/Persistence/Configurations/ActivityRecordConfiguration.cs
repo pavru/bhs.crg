@@ -26,6 +26,10 @@ public class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityReco
         // Прежнее и новое значение длины не ограничены: у смены роли это два слова, у правки схемы —
         // перечень полей. Обрезать перечень значило бы записать «изменено 7 полей: …» и потерять
         // ровно тот хвост, ради которого в журнал и заглядывают.
+        // Канал (issue #1336): код ActivityChannel. Без умолчания в базе нарочно — канал даёт контекст
+        // действия, а умолчание колонки молча записало бы «ui» мимо него. Заполнение старых строк — в миграции.
+        b.Property(e => e.Channel).IsRequired().HasMaxLength(ActivityChannel.CodeMax);
+
         b.Property(e => e.Before);
         b.Property(e => e.After);
 

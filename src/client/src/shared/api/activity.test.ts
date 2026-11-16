@@ -7,7 +7,7 @@ import { isSeries, seriesLabel, type ActivityRow } from './activity';
 const ROW: ActivityRow = {
   id: 'r1', occurredAt: '2026-10-28T11:02:00Z', action: 'costs.invoice.changed', actionTitle: 'Счёт изменён',
   actorId: 'a1', actorName: 'Иван', target: 'Счёт № 41', before: null, after: 'номер, дата',
-  count: 1, lastAt: '2026-10-28T11:02:00Z', firstTarget: null, sessionId: null,
+  count: 1, lastAt: '2026-10-28T11:02:00Z', firstTarget: null, sessionId: null, channel: 'ui',
 };
 
 describe('ряд журнала', () => {

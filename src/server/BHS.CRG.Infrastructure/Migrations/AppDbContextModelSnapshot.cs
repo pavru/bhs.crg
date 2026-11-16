@@ -50,6 +50,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<string>("Before")
                         .HasColumnType("text");
 
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1102,6 +1107,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

@@ -16,6 +16,8 @@ public class JobConfiguration : IEntityTypeConfiguration<Job>
         b.Property(e => e.Payload);
         b.Property(e => e.Progress);
         b.Property(e => e.Error);
+        // Канал поставившего запроса (issue #1336) — код ActivityChannel, та же ширина, что в журнале.
+        b.Property(e => e.Channel).IsRequired().HasMaxLength(BHS.CRG.Domain.Activity.ActivityChannel.CodeMax);
         // Индикатор запрашивает «мои активные» — индекс по владельцу и статусу.
         b.HasIndex(e => new { e.UserId, e.Status });
         // Такт модульных заданий (work-08) раз в минуту спрашивает «последняя задача по цели» — в ЛЮБОМ

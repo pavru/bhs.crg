@@ -5,9 +5,10 @@ import { ArrowForward, ChevronLeft, ChevronRight, HistoryIcon, KeyboardArrowDown
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { StatusText } from '@/shared/ui/StatusText';
 import {
-  isSeries, seriesLabel, useActivity, useActivityActions, useActivitySeries,
-  type ActivityRecord, type ActivityRow,
+  ACTIVITY_CHANNELS, isSeries, seriesLabel, useActivity, useActivityActions, useActivitySeries,
+  type ActivityChannel, type ActivityRecord, type ActivityRow,
 } from '@/shared/api/activity';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -32,11 +33,23 @@ const PAGE = 50;
 const COLUMNS: DataGridColumn<ActivityRow>[] = [
   { key: 'occurredAt', label: 'Когда', width: 'w-36',
     cell: r => <span className="text-on-surface-variant tabular-nums">{formatDateTime(r.occurredAt)}</span> },
-  { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true,
-    cell: r => <span className="text-on-surface-variant break-all">{r.actorName}</span> },
+  { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true, cell: r => <Who row={r} /> },
   { key: 'actionTitle', label: 'Что', wrap: true, cell: r => <What row={r} /> },
   { key: 'change', label: 'Было → стало', wrap: true, cell: r => <Change record={r} /> },
 ];
+
+/**
+ * Кто — и, если не сам, то через кого: действие агента по токену сотрудника подписано его именем, и без
+ * пометки его было бы не отличить от сделанного руками (issue #1336).
+ */
+function Who({ row }: { row: ActivityRow }) {
+  return (
+    <>
+      <span className="text-on-surface-variant break-all">{row.actorName}</span>
+      {row.channel === 'mcp' && <div><StatusText tone="primary">через агента (MCP)</StatusText></div>}
+    </>
+  );
+}
 
 /**
  * Что сделано и над чем. У серии — подпись «×N · с–по», раскрывающая её записи прямо под собой: кто и
@@ -109,8 +122,9 @@ export function ActivityPage() {
   // «Все» — пустая строка: пункт «Все действия» — `emptyItem` чипа, его выбор отдаёт ''. Своё непустое значение
   // пункту, которого требует Radix, `Select` подставляет сам.
   const [action, setAction] = useState('');
+  const [channel, setChannel] = useState<ActivityChannel | ''>('');
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useActivity(page * PAGE, PAGE, action || null);
+  const { data, isLoading } = useActivity(page * PAGE, PAGE, action || null, channel || null);
   const { data: actions = [] } = useActivityActions();
 
   const records = data?.items ?? [];
@@ -119,12 +133,17 @@ export function ActivityPage() {
   return (
     <div className="px-6 py-4 max-w-5xl">
       <PageHeader icon={<Icon icon={HistoryIcon} size={18} aria-hidden />} title="Журнал действий" className="mb-4" actions={
-        <div>
+        <div className="flex flex-wrap gap-2">
           {/* Отбор — чип с меню ([UI-69]): «Все действия» возвращает его в покой. aria-label обязателен:
               видимой подписи у отбора нет — её заменяет заголовок рядом, а тот читалке отбор не называет. */}
           <Select variant="chip" value={action} onValueChange={v => { setAction(v); setPage(0); }}
             aria-label="Отбор по действию" emptyItem="Все действия">
             {actions.map(a => <SelectItem key={a.code} value={a.code}>{a.title}</SelectItem>)}
+          </Select>
+          {/* Канал (issue #1336): что сделал агент через MCP, а что — человек или сам экземпляр. */}
+          <Select variant="chip" value={channel} onValueChange={v => { setChannel(v as ActivityChannel | ''); setPage(0); }}
+            aria-label="Отбор по каналу" emptyItem="Все каналы">
+            {ACTIVITY_CHANNELS.map(c => <SelectItem key={c.code} value={c.code}>{c.title}</SelectItem>)}
           </Select>
         </div>
       } />
