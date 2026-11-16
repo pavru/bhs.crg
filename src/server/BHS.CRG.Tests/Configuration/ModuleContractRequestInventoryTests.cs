@@ -75,8 +75,8 @@ public class ModuleContractRequestInventoryTests
     [Fact]
     public void Образец_прямого_запроса_находится()
     {
-        // Сторож сегодня смотрит на пустой список контрактов — настоящие приносят plan-23…plan-25, — и без
-        // этой проверки он был бы зелёным просто потому, что искать нечего.
+        // Настоящих контрактов пока мало (первый — «Плановые работы», plan-23), и без этой проверки сторож был бы
+        // зелёным просто потому, что их никто ещё не попросил мимо порта.
         const string sample = """
             var a = sp.GetRequiredKeyedService<IProbePlan>("supplier");
             var b = sp.GetService<IProbePlan>();

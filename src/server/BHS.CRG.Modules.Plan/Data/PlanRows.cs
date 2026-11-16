@@ -26,4 +26,27 @@ public static class PlanRows
         where estimate.ConstructionId == constructionId
               && row.Kind == EstimateRowKind.Work && row.WorkTypeId != null && row.PlanItemId != null
         select row;
+
+    /// <summary>
+    /// Несопоставленные строки-работы действующих редакций всех смет стройки — то, что в план НЕ вошло
+    /// (ТЗ PLAN-4). Их число отдают «Плановые работы» (<c>plan-23</c>), чтобы план без них не читался как
+    /// полный. Правило несопоставленной — одно, <see cref="EstimateRowCounts.Unmatched" />.
+    /// </summary>
+    public static IQueryable<EstimateRow> Unmatched(PlanDbContext db, Guid constructionId) =>
+        from row in db.EstimateRows.Where(EstimateRowCounts.Unmatched)
+        join estimate in db.Estimates on (Guid?)row.RevisionId equals estimate.CurrentRevisionId
+        where estimate.ConstructionId == constructionId
+        select row;
+
+    /// <summary>
+    /// Строки-материалы действующих редакций всех смет стройки (D2 <c>plan-31</c>): в план объёмов они не входят
+    /// и позиции перечня не имеют, но их материалы и стоимость — часть сметы стройки. Их отдают «Плановые
+    /// работы» (<c>plan-23</c>) без позиции перечня: без них заявка «из сметы» теряла бы большую часть
+    /// материалов.
+    /// </summary>
+    public static IQueryable<EstimateRow> CurrentMaterialRows(PlanDbContext db, Guid constructionId) =>
+        from row in db.EstimateRows
+        join estimate in db.Estimates on (Guid?)row.RevisionId equals estimate.CurrentRevisionId
+        where estimate.ConstructionId == constructionId && row.Kind == EstimateRowKind.Material
+        select row;
 }

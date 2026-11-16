@@ -7,8 +7,9 @@ namespace BHS.CRG.Tests.Configuration;
 /// <summary>
 /// Межмодульный контракт: проверка при старте и ответ порта потребителю (ТЗ CORE-34, OVW-12; plan-22).
 ///
-/// <para>На пробных модулях: настоящих контрактов в поставке пока нет, а сторож, который проверяется
-/// только на настоящих, впервые сработал бы на первом из них — в чужом change.</para>
+/// <para>На пробных модулях: сторож, который проверяется только на настоящих контрактах, срабатывал бы лишь на
+/// том, что поставка случайно несёт. Настоящий первый — «Плановые работы» (<c>plan-23</c>): его объявление
+/// сверено ниже, а ответ порта — на живых хостах (<c>PlannedWorksContractTests</c>, <c>CostsOnlyHostTests</c>).</para>
 /// </summary>
 public class ModuleContractCatalogTests
 {
@@ -243,5 +244,19 @@ public class ModuleContractCatalogTests
             Assert.NotNull(seal);
             Assert.True(seal!.IsAbstract && seal.IsFamilyAndAssembly, $"{root.Name}: замок не private protected abstract");
         }
+    }
+
+    [Fact]
+    public void Плановые_работы_объявлены_в_контрактах_ядра_с_поставщиком_plan()
+    {
+        // Каталог по умолчанию берёт объявления из сборки контрактов ядра — там интерфейс и обязан лежать.
+        Assert.Same(typeof(ModuleContractAttribute).Assembly, typeof(IPlannedWorks).Assembly);
+        var declaration = Assert.Single(typeof(IPlannedWorks).GetCustomAttributes(typeof(ModuleContractAttribute), false)
+            .Cast<ModuleContractAttribute>());
+
+        Assert.Null(declaration.Problem());
+        Assert.Equal("plan", declaration.Provider);
+        Assert.Equal("Плановые работы", declaration.Title);
+        Assert.False(declaration.Many);
     }
 }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,24 @@ namespace BHS.CRG.Tests.Integration;
 [Collection(CostsOnlyCollection.Name)]
 public class CostsOnlyHostTests(CostsOnlyHost host)
 {
+    /// <summary>
+    /// Контракт «Плановые работы» на экземпляре без планирования — «не подключено» с названием поставщика
+    /// (change <c>plan-23-planned-works-contract</c>, ТЗ CORE-34, OVW-9): заявка и «план против факта»
+    /// <c>costs</c> обязаны сказать, чего не хватает, а не показать пустой план.
+    /// </summary>
+    [Fact]
+    public void Плановые_работы_без_планирования_не_подключены()
+    {
+        _ = host.CreateClient();
+        using var scope = host.Services.CreateScope();
+
+        var answer = Assert.IsType<ModuleContractAnswer<IPlannedWorks>.NotConnected>(
+            scope.ServiceProvider.GetRequiredService<IModuleContracts>().Get<IPlannedWorks>());
+
+        Assert.Equal("plan", answer.Provider);
+        Assert.Equal("не подключено: модуль «Планирование»", answer.Text);
+    }
+
     /// <summary>
     /// Приложение поднимается без <c>id</c>, а его адреса отвечают отказом, который называет причину
     /// и модуль (501, ТЗ OVW-10, AUTH-15, AUTH-19).

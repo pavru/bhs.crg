@@ -1,7 +1,9 @@
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Distribution;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Plan.Endpoints;
+using BHS.CRG.Modules.Plan.Exchange;
 using BHS.CRG.Modules.Plan.Import;
 using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Ports;
@@ -46,6 +48,24 @@ public sealed class PlanModule : IAppModule
     /// </summary>
     public const string EstimateCostGives = "видеть себестоимость сметы: стоимость строк, итоги, расценки";
 
+    /// <summary>
+    /// Право контракта (ТЗ PLAN-23, решение В-2): материалы позиций сметы с количеством, без цен, — заявкам на
+    /// закупку <c>costs</c>. Модуль «Планирование» не открывает (AUTH-8.1).
+    /// </summary>
+    public const string EstimateMaterials = "plan.estimate.materials";
+
+    /// <summary>Право контракта (ТЗ PLAN-23, WORK-57): нормы чел.-ч позиций сметы без денег — «по смете — фактически».</summary>
+    public const string LaborRead = "plan.labor.read";
+
+    /// <summary>
+    /// Право контракта (ТЗ PLAN-23, WORK-59): позиции номенклатуры материалов сметы стройки без количеств и
+    /// цен — ярус «смета» подсказки монтажнику.
+    /// </summary>
+    public const string EstimateHint = "plan.estimate.hint";
+
+    /// <summary>Почему права контракта не входят в «читать всё»: это выдача другим модулям (D12 зонтика).</summary>
+    private static readonly ReadAllMark ContractOut = ReadAllMark.Out("выдача другим модулям: модуль «Планирование» не открывает");
+
     public string Code => ModuleCode;
 
     public string Title => "Планирование";
@@ -53,12 +73,16 @@ public sealed class PlanModule : IAppModule
     /// <summary>
     /// Права модуля (ТЗ PLAN-23) — каждое с объяснением: галку в редакторе ролей ставит человек.
     ///
-    /// <para>⚠️ Здесь три права из двенадцати по перечню ТЗ, и это правило этапа, а не недоделка
-    /// (D12 зонтика <c>plan-00-epic</c>): право объявляется вместе с первым адресом, который оно
-    /// открывает. Объявленное раньше, оно было бы галкой, которая не делает ничего, — а составы
+    /// <para>⚠️ Здесь шесть прав из двенадцати по перечню ТЗ, и это правило этапа, а не недоделка
+    /// (D12 зонтика <c>plan-00-epic</c>): право объявляется вместе с первым адресом или контрактом, который
+    /// оно открывает. Объявленное раньше, оно было бы галкой, которая не делает ничего, — а составы
     /// системных ролей наполнились бы им сразу. Остальные приходят своими change: <c>plan.offer.*</c> —
-    /// 13, <c>plan.pricelist.edit</c> — 14, календарь и графики — 18, права контракта
-    /// (<c>plan.estimate.materials</c>, <c>plan.labor.read</c>, <c>plan.estimate.hint</c>) — 23.</para>
+    /// 13, <c>plan.pricelist.edit</c> — 14, календарь и графики — 18.</para>
+    ///
+    /// <para><b>Права контракта</b> (<see cref="EstimateMaterials" />, <see cref="LaborRead" />,
+    /// <see cref="EstimateHint" />, <c>plan-23</c>) открывают по одной части «Плановых работ» тем, кому
+    /// сметы не нужны, — «Снабженцу», «Менеджеру проекта», «Монтажнику». Модуль они не открывают
+    /// (AUTH-8.1, <c>plan-21</c>): иначе у монтажника появилось бы пустое «Планирование».</para>
     ///
     /// <para>Чтение и правка объявлены ещё в каркасе, раньше двери, — чтобы составы ролей по
     /// <c>PLAN-23</c> проверялись на живых правах уже тогда; двери им дала модель сметы (<c>plan-06</c>).</para>
@@ -92,6 +116,29 @@ public sealed class PlanModule : IAppModule
             "без денег",
             [EstimateRead],
             ReadAllMark.In),
+
+        new(EstimateMaterials,
+            "получать материалы позиций сметы стройки с количествами, без цен, — для заявок на закупку",
+            "материалы действующих редакций смет стройки и их количество на объём позиции — контрактом " +
+            "«Плановые работы» в модуле, который их спрашивает; модуль «Планирование» и сами сметы не открывает",
+            // Обычно — с правкой заявок costs (costs.request.edit); подсказку впишет plan-26, объявив то право:
+            // ссылка на необъявленный код показала бы в редакторе ролей галку, которой нет.
+            [],
+            ContractOut, Contract: true),
+
+        new(LaborRead,
+            "получать нормы чел.-ч позиций сметы стройки, без денег, — для сравнения «по смете — фактически»",
+            "нормы трудозатрат действующих редакций смет стройки на единицу позиции перечня — контрактом " +
+            "«Плановые работы» в модуле, который их спрашивает; модуль «Планирование» и сами сметы не открывает",
+            ["work.report.review"],
+            ContractOut, Contract: true),
+
+        new(EstimateHint,
+            "получать наименования материалов позиций сметы стройки, без цен и количеств, — подсказка монтажнику",
+            "позиции номенклатуры материалов действующих редакций смет стройки — контрактом «Плановые работы» " +
+            "в модуле, который их спрашивает; модуль «Планирование», сметы, количества и цены не открывает",
+            ["work.report.own"],
+            ContractOut, Contract: true),
     ];
 
     /// <summary>
@@ -158,6 +205,8 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<DistributionCarryOver>();
         services.AddScoped<DistributionReader>();
         services.AddScoped<DistributionWriter>();
+        // Контракт «Плановые работы» (plan-23): потребители берут его портом IModuleContracts.
+        services.AddModuleContract<IPlannedWorks, PlannedWorksProvider>(ModuleCode);
     }
 
     /// <summary>
