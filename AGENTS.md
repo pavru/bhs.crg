@@ -182,7 +182,7 @@ merge», которое на имя не указывает ничем (наст
 `ci.yml` (`OPENSPEC_VERSION`); локально — та же:
 
 ```bash
-npm install -g @fission-ai/openspec@1.14.3
+npm install -g @fission-ai/openspec@2.0.0
 openspec validate --all --strict --no-interactive
 ```
 
@@ -307,7 +307,7 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   [`costs`](openspec/specs/costs/spec.md), [`id`](openspec/specs/id/spec.md),
   [`types-and-tags`](openspec/specs/types-and-tags/spec.md); остальные — `openspec/specs/`. Метки
   требований (`[CORE-*]`, `[AUTH-*]`, `[COST-*]`…) сохранены из ТЗ.
-- **ТЗ будущих этапов** — вход для `/opsx:propose`; индекс и порядок этапов —
+- **ТЗ будущих этапов** — вход для `/openspec-propose`; индекс и порядок этапов —
   [`docs/tz/README.md`](docs/tz/README.md), [`90-этапы.md`](docs/tz/90-этапы.md).
 - **Нарезанные этапы** — зонтик `<модуль>-00-epic` (общая архитектура в `design.md`, перечень дочерних
   change и PR в `tasks.md`) и дочерние `<модуль>-NN-*`: этап 3 —
@@ -316,7 +316,7 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   (контракт, право контракта, позиции перечня, навигация) — таблица «что взял» в D2 и D18 зонтиков.
 - ⚠️ **Одна сессия — один change.** Если оказалось, что сначала нужен другой change, в этой сессии его
   не делают. Свою работу останавливают (несохранённое — WIP-коммитом в свою ветку), а тот change
-  реализуют `/opsx:apply <change>` в чистой дочерней сессии со своим worktree. Текущая сессия ждёт, пока
+  реализуют `/openspec-apply-change <change>` в чистой дочерней сессии со своим worktree. Текущая сессия ждёт, пока
   код того change и его архив не будут слиты (вместе с отметкой в зонтике), затем обновляет свою ветку
   от master и продолжает. Наступали в #1340: две ветки в одной копии, конфликты после squash-слияния и
   забытый архив.

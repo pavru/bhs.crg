@@ -6,13 +6,13 @@
 
 ## 1. CI на 2.0.0
 
-- [ ] 1.1 `.github/workflows/ci.yml`, работа `openspec`: `OPENSPEC_VERSION: 2.0.0`; шаг установки
+- [x] 1.1 `.github/workflows/ci.yml`, работа `openspec`: `OPENSPEC_VERSION: 2.0.0`; шаг установки
   заканчивается `openspec --version` (ни `npm install`, ни `validate` версию не печатают); имя работы
   («OpenSpec (строгая проверка)») не меняется — договор с правилом слияния по имени работы, а не шага;
   комментарий у версии — без названия прежней версии (D1). Проверка: локально `npx -y
   @fission-ai/openspec@2.0.0 validate --all --strict --no-interactive` зелёный (все элементы); в PR
   работа зелёная, в журнале шага установки — `2.0.0`.
-- [ ] 1.2 Пробный архив всех активных change разом — по одной временной копии ветки (не в самой ветке)
+- [x] 1.2 Пробный архив всех активных change разом — по одной временной копии ветки (не в самой ветке)
   на 1.14.3 и на 2.0.0: в каждой `openspec archive <change> --yes` по всем активным change в одном
   порядке (по имени) с записью кода выхода и сообщения каждого, затем `validate --all --strict`.
   Проверка: журналы двух версий совпадают по кодам выхода, итоговые `openspec/specs/**` двух копий —
@@ -22,7 +22,7 @@
 
 ## 2. Навыки до рабочего дерева
 
-- [ ] 2.1 `.worktreeinclude`: строки `.agents/skills/` и `.claude/skills/` с комментарием — ссылки
+- [x] 2.1 `.worktreeinclude`: строки `.agents/skills/` и `.claude/skills/` с комментарием — ссылки
   `.claude/skills/openspec-*` относительные и ведут в `.agents/skills/` своего дерева; копирует ли
   приложение `.claude/skills/` само, неизвестно; лишняя строка безвредна, недостающая — навыки
   пропадают молча (D5). Проверка: `git check-ignore -v` для `.agents/skills/openspec-propose/SKILL.md` и
@@ -32,16 +32,16 @@
 
 ## 3. Правила и документация
 
-- [ ] 3.1 CLAUDE.md и AGENTS.md **одним коммитом**: команда установки — `@fission-ai/openspec@2.0.0`;
+- [x] 3.1 CLAUDE.md и AGENTS.md **одним коммитом**: команда установки — `@fission-ai/openspec@2.0.0`;
   «вход для `/opsx:propose`» → `/openspec-propose`; «реализуют `/opsx:apply <change>`» →
   `/openspec-apply-change <change>` (D2). Проверка: `git grep -n "opsx" -- CLAUDE.md AGENTS.md` пусто;
   `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter AgentRulesCopyTests` зелёный.
-- [ ] 3.2 `docs/tz/README.md`, `docs/tz/90-этапы.md`, `openspec/specs/id/spec.md` (раздел «Ожидает
+- [x] 3.2 `docs/tz/README.md`, `docs/tz/90-этапы.md`, `openspec/specs/id/spec.md` (раздел «Ожидает
   будущих этапов», вне требований — D3): `/opsx:propose` → `/openspec-propose`. Проверка:
   `git grep -n "opsx" -- ':!openspec/changes' ':!docs/DEV_NOTES.md'` пусто (в DEV_NOTES старые имена
   остаются нарочно — таблица соответствий задачи 3.3); строгая проверка 2.0.0 зелёная (спека `id` не
   потеряла ни требования, ни `## Purpose`).
-- [ ] 3.3 `docs/DEV_NOTES.md`, рядом с абзацем о строгой проверке OpenSpec: абзац «OpenSpec 2.0» —
+- [x] 3.3 `docs/DEV_NOTES.md`, рядом с абзацем о строгой проверке OpenSpec: абзац «OpenSpec 2.0» —
   таблица «команда 1.x → навык 2.0» (12 строк по руководству openspec.dev/docs/upgrade-to-2; профиль
   `core` ставит шесть), где лежат навыки и что такое ссылки `.claude/skills/`, зачем строка в
   `.worktreeinclude` (D5), почему записи в `openspec/changes/**` остались с `/opsx:*` (D4), откат.
@@ -73,12 +73,12 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `npx -y @fission-ai/openspec@2.0.0 validate --all --strict --no-interactive` — все зелёные.
-- [ ] 5.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
+- [x] 5.1 `npx -y @fission-ai/openspec@2.0.0 validate --all --strict --no-interactive` — все зелёные.
+- [x] 5.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
   "AgentRulesCopyTests|FileSizeRatchet"` — зелёный. Смысл несёт `AgentRulesCopyTests`;
   `FileSizeRatchet` — по правилу верификации `openspec/config.yaml` (тронутые файлы под него не
   попадают). Остальные backend-тесты не нужны — сервер не тронут.
-- [ ] 5.3 `cd src/client && npx tsc -b` и `cd src/client && npm run ui:ratchet` — зелёные. Клиент не
+- [x] 5.3 `cd src/client && npx tsc -b` и `cd src/client && npm run ui:ratchet` — зелёные. Клиент не
   тронут; шаг — по тому же правилу проекта, полный CI PR прогоняет их и сам.
 - [ ] 5.4 PR: CI зелёный — три обязательные работы, «OpenSpec (строгая проверка)» на 2.0.0, живые
   прогоны.
