@@ -271,6 +271,11 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("changes");
 
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comment");
+
                     b.Property<DateTimeOffset?>("DeviceTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("device_time");
@@ -453,6 +458,25 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("report_line_participants", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestMark", b =>
+                {
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("report_id");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTimeOffset>("DigestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("digested_at");
+
+                    b.HasKey("ReportId", "SubmittedAt");
+
+                    b.ToTable("review_digests", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
@@ -476,6 +500,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
                         .WithMany("Participants")
                         .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestMark", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

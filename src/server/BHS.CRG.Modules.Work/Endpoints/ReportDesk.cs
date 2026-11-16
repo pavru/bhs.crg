@@ -1,11 +1,11 @@
 using System.Globalization;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
@@ -42,8 +42,7 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// </summary>
 public sealed class ReportDesk(
     WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
-    IModuleUser user, IModuleEmployees employees, IModuleConstructions constructions, IModuleActivityLog log,
-    ReportSubmission submission, RequiredFields required, ILogger<ReportDesk> logger)
+    ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -74,7 +73,7 @@ public sealed class ReportDesk(
         var lines = body.LineValues();
         if (await reads.HolderOfIdAsync(id, ct) is { } holder) return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, ct);
         await EnsureNotDeletedAsync(id, employeeId, ct);
-        var (actor, executor) = (await ActorAsync(viewer, ct), await ExecutorAsync(employeeId, ct));
+        var (actor, executor) = (await people.ActorAsync(viewer, ct), await people.ExecutorAsync(employeeId, ct));
 
         try
         {
@@ -114,7 +113,7 @@ public sealed class ReportDesk(
         var header = body.Header();
         var lines = body.LineValues();
         // Автор — до транзакции: запрос к ядру не держит её открытой.
-        var actor = await ActorAsync(viewer, ct);
+        var actor = await people.ActorAsync(viewer, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
@@ -126,19 +125,22 @@ public sealed class ReportDesk(
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
 
-        var executor = await ExecutorAsync(report.EmployeeId, ct);
+        var executor = await people.ExecutorAsync(report.EmployeeId, ct);
+        var kind = ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
         var before = ReportJournal.Capture(report);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         await writer.ChangeAsync(report, header, lines, seq, now, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
-        var entry = journal.Append(ReportJournalKinds.Updated, report, before, actor, executor, changeId, seq, body.DeviceTime, now);
+        var entry = journal.Append(kind, report, before, actor, executor, changeId, seq, body.DeviceTime, now);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        if (entry.AfterSubmission)
-            await RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null,
-                after: "изменено: " + ReportJournal.FieldsOf(entry));
+        var changed = "изменено: " + ReportJournal.FieldsOf(entry);
+        if (kind == ReportJournalKinds.ManagerEdited)
+            await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: changed);
+        else if (entry.AfterSubmission)
+            await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: changed);
         return Results.Ok(await views.OneAsync(report, ct: ct));
     }
 
@@ -151,7 +153,7 @@ public sealed class ReportDesk(
         ReportViewer viewer, Guid id, SubmitRequest? body, HttpRequest request, CancellationToken ct)
     {
         var seen = SeenVersions.Required(request, "отчёта");
-        var actor = await ActorAsync(viewer, ct);
+        var actor = await people.ActorAsync(viewer, ct);
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -163,7 +165,7 @@ public sealed class ReportDesk(
             var missing = await required.OfAsync(report, ct) ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
             if (missing.Count > 0) throw new RequiredMissingException(missing);
 
-            var executor = await ExecutorAsync(report.EmployeeId, ct);
+            var executor = await people.ExecutorAsync(report.EmployeeId, ct);
             var now = time.GetUtcNow();
             // Верх момента — конец окна у черновика и часы сервера у возвращённого: телефон, ушедший вперёд, дал бы
             // подачу «из будущего», и правки до неё журнал не назвал бы правками после подачи. Раньше — можно: подача
@@ -195,7 +197,7 @@ public sealed class ReportDesk(
         ReportViewer viewer, Guid id, Guid? changeId, DateTimeOffset? deviceTime, HttpRequest request, CancellationToken ct)
     {
         var seen = SeenVersions.Required(request, "отчёта");
-        var actor = await ActorAsync(viewer, ct);
+        var actor = await people.ActorAsync(viewer, ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         if (await reads.FindAsync(viewer, id, ct) is not { } report)
         {
@@ -208,7 +210,7 @@ public sealed class ReportDesk(
         if (report.Status != ReportStatus.Draft)
             throw new ConflictException("Удалить можно только черновик: поданный отчёт остаётся, его возвращают на правку.");
 
-        var executor = await ExecutorAsync(report.EmployeeId, ct);
+        var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var before = ReportJournal.Capture(report);
         // Что удалено — до удаления: каскад снимает строки с отчёта при сохранении.
         var removed = $"часы: {(report.Hours is { } h ? h.ToString("0.##", CultureInfo.InvariantCulture) : "—")}, строк: {report.Lines.Count}";
@@ -219,42 +221,18 @@ public sealed class ReportDesk(
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        await RecordAsync(ReportActions.Deleted, report, executor, before: removed, after: "удалён");
+        await activity.RecordAsync(ReportActions.Deleted, report, executor, before: removed, after: "удалён");
         return Results.NoContent();
     }
 
     /// <summary>
-    /// Кто действует: учётная запись запроса и её сотрудник — у «своих» он известен охвату, у ввода за сотрудника
-    /// спрашивается по связи учётной записи (ТЗ WORK-31: «вводит Иванов за Петрова»).
+    /// Правка менеджером (ТЗ WORK-14, <c>work-16</c>) — запасной ход: поданный отчёт правит адрес ввода за сотрудника
+    /// (охват стройки, а не «свои»), и действует не сотрудник отчёта. Черновик, введённый за сотрудника, правится как
+    /// обычно: до подачи содержимое ещё не предъявлено.
     /// </summary>
-    private async Task<ReportJournalActor> ActorAsync(ReportViewer viewer, CancellationToken ct)
-    {
-        var employee = viewer.EmployeeId ?? (user.Id is { } id ? (await employees.OfAccountAsync(id, ct))?.Id : null);
-        return new ReportJournalActor(user.Id, user.Name, employee);
-    }
-
-    /// <summary>Имя исполнителя снимком (через связь <c>work-01</c>); справочника нет — идентификатор.</summary>
-    private async Task<string> ExecutorAsync(Guid employeeId, CancellationToken ct) =>
-        (await employees.GetAsync([employeeId], ct))?.FirstOrDefault()?.FullName ?? employeeId.ToString();
-
-    /// <summary>
-    /// Дубль в журнал ядра — после фиксации, без токена отмены и без права на отказ: изменение состоялось, и
-    /// оборванный запрос или сбой журнала не вправе ответить «сбой» про него (как удаление счёта).
-    /// </summary>
-    private async Task RecordAsync(ModuleActivityAction action, Report report, string executor, string? before, string after)
-    {
-        try
-        {
-            var site = (await constructions.ListAsync(CancellationToken.None)).FirstOrDefault(c => c.Id == report.ConstructionId);
-            await log.RecordAsync(action, report.Id.ToString(), ReportActions.Label(executor, site?.Name ?? "стройка", report),
-                before, after, CancellationToken.None);
-        }
-        catch (Exception lost)
-        {
-            logger.LogWarning(lost, "Отчёт {ReportId}: действие {Action} записано в журнал отчёта, а в журнал действий не легло.",
-                report.Id, action.Code);
-        }
-    }
+    private static bool ManagerEdits(ReportViewer viewer, Report report, ReportJournalActor actor) =>
+        viewer.Reach.Kind != ModuleReachKind.Own && report.Status == ReportStatus.Submitted
+                                                 && actor.EmployeeId != report.EmployeeId;
 
     /// <summary>
     /// Повтор заведения — тот же сотрудник, и отчёт виден читателю; иначе идентификатор занят. Ответ «занят» не
@@ -281,7 +259,8 @@ public sealed class ReportDesk(
 /// <summary>
 /// Отказы пути записи, у которых в ответе есть поля сверх текста: занятый ключ отчёта — с идентификатором
 /// существующего (клиент открывает его, а не заводит второй), справочник не заведён — с кодом (ТЗ CORE-20.4),
-/// подача без обязательных полей — 422 с перечнем строк и полей (ТЗ WORK-6).
+/// подача без обязательных полей — 422 с перечнем строк и полей (ТЗ WORK-6), решение не по статусу — 409 с кодом и
+/// статусом (ТЗ WORK-13, <c>work-16</c>).
 /// </summary>
 internal static class ReportRefusals
 {
@@ -298,6 +277,14 @@ internal static class ReportRefusals
         catch (WorkDirectoryMissingException missing)
         {
             return Results.Conflict(new { code = missing.Code, error = missing.Message });
+        }
+        catch (ReportStatusException refused)
+        {
+            // Статус, а не версия (work-16): кодом причины отказ отличается от «отчёт тем временем изменили».
+            return Results.Conflict(new
+            {
+                code = ReportStatusException.ReasonCode, status = Report.StatusCode(refused.Status), error = refused.Message,
+            });
         }
         catch (RequiredMissingException missing)
         {

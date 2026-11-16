@@ -50,6 +50,38 @@ public sealed class ManagerSites(WorkDbContext db, IModuleClock clock, IModuleEm
     }
 
     /// <summary>
+    /// Учётные записи менеджеров каждой стройки (ТЗ WORK-56, <c>work-16</c>) — кому слать сводку о поданных: сотрудники с
+    /// назначением «менеджер», действующим сегодня по поясу стройки, работающие и не в архиве, со связанной учётной
+    /// записью. Стройка, которой больше нет, и стройка без такого менеджера в ответ не входят. Держатели
+    /// <c>work.sites.all</c> без назначения — тоже: право не делает стройку своей.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> ManagerAccountsAsync(
+        IReadOnlyCollection<Guid> siteIds, CancellationToken ct = default)
+    {
+        var result = new Dictionary<Guid, IReadOnlyList<Guid>>();
+        if (siteIds.Count == 0) return result;
+        var wanted = siteIds.ToArray();
+        var managed = await db.Assignments.AsNoTracking()
+            .Where(a => wanted.Contains(a.ConstructionId) && a.Kind == AssignmentKind.Manager)
+            .ToListAsync(ct);
+        if (managed.Count == 0) return result;
+        var people = (await employees.GetAsync([.. managed.Select(a => a.EmployeeId).Distinct()], ct) ?? [])
+            .DistinctBy(e => e.Id).ToDictionary(e => e.Id);
+        foreach (var site in managed.GroupBy(a => a.ConstructionId))
+        {
+            if (await clock.TodayOnSiteAsync(site.Key, ct) is not { } today) continue;
+            var accounts = site
+                .Where(a => a.Covers(today))
+                .Select(a => people.GetValueOrDefault(a.EmployeeId))
+                .Where(e => e is { Archived: false, Account: { IsLinked: true, UserId: not null } } && e.NotWorkingOn(today) is null)
+                .Select(e => e!.Account.UserId!.Value)
+                .Distinct().ToList();
+            if (accounts.Count > 0) result[site.Key] = accounts;
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Охват читателя как менеджера: право «на любых стройках» — все; иначе стройки его действующих
     /// назначений «менеджер». Система и учётная запись без сотрудника — «ничего»: своих строек у них нет,
     /// а угадывать за них — значит открыть лишнее.

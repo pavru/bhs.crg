@@ -226,6 +226,26 @@ public sealed class ReportReads(WorkDbContext db)
         return Full(Expired(now)).FirstOrDefaultAsync(r => r.Id == id, ct);
     }
 
+    /// <summary>
+    /// Поданные отчёты, ждущие сводки менеджерам (ТЗ WORK-56, <c>work-16</c>): окно подачи закрылось, а этот момент подачи
+    /// в сводку ещё не входил (<see cref="ReviewDigestMark" />). Читает только задача такта — от имени системы с
+    /// причиной, как <see cref="ExpiredDraftsAsync" />.
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid Id, Guid ConstructionId, DateTimeOffset SubmittedAt)>> DigestPendingAsync(
+        ModuleReader system, DateTimeOffset now, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var at = now.ToUniversalTime();
+        var marks = db.Set<ReviewDigestMark>();
+        var found = await db.Set<Report>().AsNoTracking()
+            .Where(r => r.Status == ReportStatus.Submitted && r.WindowEndsAt <= at && r.SubmittedAt != null
+                        && !marks.Any(m => m.ReportId == r.Id && m.SubmittedAt == r.SubmittedAt))
+            .OrderBy(r => r.ConstructionId).ThenBy(r => r.Id)
+            .Select(r => new { r.Id, r.ConstructionId, SubmittedAt = r.SubmittedAt!.Value })
+            .ToListAsync(ct);
+        return [.. found.Select(f => (f.Id, f.ConstructionId, f.SubmittedAt))];
+    }
+
     private IQueryable<Report> Expired(DateTimeOffset now)
     {
         var at = now.ToUniversalTime();
@@ -237,7 +257,8 @@ public sealed class ReportReads(WorkDbContext db)
     {
         if (!reader.IsSystem || string.IsNullOrWhiteSpace(reader.SystemReason))
             throw new InvalidOperationException(
-                "Черновики с истёкшим окном читает только автоподача — от имени системы с причиной: у человека охват свой.");
+                "Черновики с истёкшим окном и отчёты к сводке читает только такт автоподачи — от имени системы с причиной: у " +
+                "человека охват свой.");
     }
 
     private IQueryable<Report> Visible(ReportViewer viewer)

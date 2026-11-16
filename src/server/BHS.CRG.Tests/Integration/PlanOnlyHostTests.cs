@@ -53,6 +53,11 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal(module, body.GetProperty("module").GetString());
         }
+
+        // Пишущий адрес приёмки (work-16) — тот же отказ, а не 404: модуль назван, и человек знает, что включать.
+        var accept = await client.PostAsync($"/api/work/reports/{Guid.NewGuid()}/accept", null);
+        Assert.Equal(HttpStatusCode.NotImplemented, accept.StatusCode);
+        Assert.Equal("work", (await accept.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("module").GetString());
     }
 
     /// <summary>
