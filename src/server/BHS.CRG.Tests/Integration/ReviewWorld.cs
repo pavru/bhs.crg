@@ -58,6 +58,10 @@ internal sealed class ReviewWorld(AssignmentHost host)
         client.SendAsync(AssignmentWorld.Versioned(HttpMethod.Post, $"{ReportEndpoints.Path}/{id}/accept", version,
             new { changeId = Guid.NewGuid() }));
 
+    /// <summary>Решение адресом <c>…/accept</c> или <c>…/return</c> с телом как есть — для повтора по <c>changeId</c>.</summary>
+    public static Task<HttpResponseMessage> DecideAsync(HttpClient client, Guid id, string action, string? version, object body) =>
+        client.SendAsync(AssignmentWorld.Versioned(HttpMethod.Post, $"{ReportEndpoints.Path}/{id}/{action}", version, body));
+
     public static Task<HttpResponseMessage> ReturnAsync(HttpClient client, Guid id, string? version, string? comment) =>
         client.SendAsync(AssignmentWorld.Versioned(HttpMethod.Post, $"{ReportEndpoints.Path}/{id}/return", version,
             new { comment, changeId = Guid.NewGuid() }));
@@ -100,12 +104,34 @@ internal sealed class ReviewWorld(AssignmentHost host)
             CancellationToken.None);
     }
 
+    /// <summary>
+    /// Шаг сводки на часах <paramref name="now" />, где публикация учётной записи, для которой <paramref name="fails" />
+    /// отвечает «да», падает.
+    /// </summary>
+    public async Task DigestAsync(DateTimeOffset now, Func<Guid?, bool> fails)
+    {
+        using var scope = host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var notifications = new Failing(services.GetRequiredService<IModuleNotifications>(), fails);
+        var digest = ActivatorUtilities.CreateInstance<SubmittedDigest>(services, (IModuleNotifications)notifications);
+        await digest.RunAsync(services.GetRequiredService<IModuleReaders>().ForSystem("тест сводки"), now, CancellationToken.None);
+    }
+
     /// <summary>Отметки сводки отчёта.</summary>
     public async Task<int> DigestMarksAsync(Guid id)
     {
         using var scope = host.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<WorkDbContext>().Set<ReviewDigestMark>()
             .CountAsync(m => m.ReportId == id);
+    }
+
+    private sealed class Failing(IModuleNotifications inner, Func<Guid?, bool> fails) : IModuleNotifications
+    {
+        public Task<Guid> PublishAsync(ModuleNotificationLevel level, string title, string message, string? audience = null,
+            Guid? userId = null, string? linkUrl = null, string? linkLabel = null, CancellationToken ct = default) =>
+            fails(userId)
+                ? throw new InvalidOperationException("колокольчик недоступен")
+                : inner.PublishAsync(level, title, message, audience, userId, linkUrl, linkLabel, ct);
     }
 
     private sealed class Fixed(DateTimeOffset now) : TimeProvider

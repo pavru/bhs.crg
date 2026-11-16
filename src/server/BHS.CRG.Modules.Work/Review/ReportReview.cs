@@ -20,7 +20,8 @@ public sealed record ReturnRequest(string? Comment, Guid? ChangeId, DateTimeOffs
 /// отменяет.
 ///
 /// <para><b>Порядок отказов:</b> версия не названа (400) → комментарий пуст (400, у возврата) → отчёт (404: чужая стройка
-/// неотличима от несуществующего) → повтор того же <c>changeId</c> (200) → статус (409 <c>report-status</c>) → версия
+/// неотличима от несуществующего) → повтор того же <c>changeId</c> (200, если им применено то же решение; иначе 409
+/// <see cref="ChangeTaken" />) → статус (409 <c>report-status</c>) → версия
 /// (409). Статус раньше версии: принятый другим менеджером отчёт отвечает «уже принят», а не «обновите страницу».</para>
 ///
 /// <para><b>«Ввёл и принял один человек»</b> (WORK-31.1) — приёмка проходит, а журнал получает отдельную запись
@@ -33,6 +34,13 @@ public sealed class ReportReview(
     WorkDbContext db, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal, ReportPeople people,
     ReportActivity activity, ReturnNotice notice)
 {
+    /// <summary>
+    /// Отказ повтора: этим <c>changeId</c> к отчёту применено другое изменение (правка, подача или другое решение). Ответ
+    /// «повтор» здесь был бы неправдой — решение не принято; записать его с занятым идентификатором нельзя.
+    /// </summary>
+    public const string ChangeTaken =
+        "Идентификатор изменения (changeId) уже занят другим изменением этого отчёта — у нового решения новый changeId.";
+
     public async Task<IResult> AcceptAsync(
         ReportViewer viewer, Guid id, AcceptRequest? body, HttpRequest request, CancellationToken ct)
     {
@@ -54,6 +62,7 @@ public sealed class ReportReview(
         CancellationToken ct)
     {
         var accept = comment is null;
+        var kind = accept ? ReportChangeKind.Accepted : ReportChangeKind.Returned;
         // Автор — до транзакции: запрос к ядру не держит её открытой.
         var actor = await people.ActorAsync(viewer, ct);
         var change = changeId ?? Guid.NewGuid();
@@ -64,8 +73,10 @@ public sealed class ReportReview(
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
-            if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is not null)
-                return Results.Ok(await views.OneAsync(report, replayed: true, ct: ct));
+            if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is { } applied)
+                return applied.Kind == kind
+                    ? Results.Ok(await views.OneAsync(report, replayed: true, ct: ct))
+                    : throw new ConflictException(ChangeTaken);
             report.EnsureReviewable();
             if (seen != db.VersionOf(report)) throw new ConflictException(ReportDesk.Stale);
 
@@ -79,8 +90,7 @@ public sealed class ReportReview(
             if (accept) report.Accept(seq, now);
             else report.Return(seq, now);
             await db.SaveChangesAsync(ct);
-            db.Add(ReportChange.Of(seq, report, change, accept ? ReportChangeKind.Accepted : ReportChangeKind.Returned,
-                deviceTime, now, db.VersionOf(report)));
+            db.Add(ReportChange.Of(seq, report, change, kind, deviceTime, now, db.VersionOf(report)));
             journal.Append(accept ? ReportJournalKinds.Accepted : ReportJournalKinds.Returned, report, before, actor,
                 executor, change, seq, deviceTime, now, comment);
 
@@ -103,12 +113,14 @@ public sealed class ReportReview(
             throw new ConflictException(ReportDesk.Stale);
         }
 
+        // Имя стройки — одно на журнал ядра и уведомление.
+        var site = await activity.SiteNameAsync(report.ConstructionId);
         if (accept)
-            await activity.RecordAsync(ReportActions.Accepted, report, executor, before: "подан", after: "принят");
+            await activity.RecordAsync(ReportActions.Accepted, report, executor, before: "подан", after: "принят", site);
         else
         {
-            await activity.RecordAsync(ReportActions.Returned, report, executor, before: "подан", after: comment!);
-            if (recipient is { } userId) await notice.PublishAsync(userId, report, comment!, actor.Name);
+            await activity.RecordAsync(ReportActions.Returned, report, executor, before: "подан", after: comment!, site);
+            if (recipient is { } userId) await notice.PublishAsync(userId, report, site, comment!, actor.Name);
         }
         return Results.Ok(await views.OneAsync(report, ct: ct));
     }

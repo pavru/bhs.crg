@@ -226,12 +226,12 @@ public sealed class ReportDesk(
     }
 
     /// <summary>
-    /// Правка менеджером (ТЗ WORK-14, <c>work-16</c>) — запасной ход: поданный отчёт правит адрес ввода за сотрудника
-    /// (охват стройки, а не «свои»), и действует не сотрудник отчёта. Черновик, введённый за сотрудника, правится как
-    /// обычно: до подачи содержимое ещё не предъявлено.
+    /// Правка менеджером (ТЗ WORK-14, <c>work-16</c>) — запасной ход: поданный или принятый отчёт правит адрес ввода за
+    /// сотрудника (охват стройки, а не «свои»), и действует не сотрудник отчёта. Черновик, введённый за сотрудника, и
+    /// возвращённый правятся как обычно: содержимое ещё не предъявлено или исправляется по просьбе менеджера.
     /// </summary>
     private static bool ManagerEdits(ReportViewer viewer, Report report, ReportJournalActor actor) =>
-        viewer.Reach.Kind != ModuleReachKind.Own && report.Status == ReportStatus.Submitted
+        viewer.Reach.Kind != ModuleReachKind.Own && report.Status is ReportStatus.Submitted or ReportStatus.Accepted
                                                  && actor.EmployeeId != report.EmployeeId;
 
     /// <summary>

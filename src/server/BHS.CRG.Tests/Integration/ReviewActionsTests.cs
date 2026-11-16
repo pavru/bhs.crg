@@ -213,6 +213,55 @@ public class ReviewActionsTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(ReportJournalKinds.Updated, (await world.EntriesAsync(draftId)).Last().Kind);
     }
 
+    /// <summary>Правка принятого отчёта менеджером — тоже правка менеджером, а не обычная правка после подачи.</summary>
+    [Fact]
+    public async Task Правка_принятого_менеджером()
+    {
+        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (_, manager) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
+        var (id, line) = (Guid.NewGuid(), Guid.NewGuid());
+        var submitted = await world.SubmittedAsync(petrov, id, world.SiteA, lineId: line);
+        var accepted = await ReportWorld.JsonAsync(await ReviewWorld.AcceptAsync(manager, id, ReviewWorld.Version(submitted)));
+
+        var edited = await ReportWorld.PutAsync(manager, $"{EntryReportEndpoints.Path}/{id}", ReviewWorld.Version(accepted),
+            world.Reports.Draft(id, world.SiteA, lineId: line, volume: 90m, changeId: Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        Assert.Equal(ReportJournalKinds.ManagerEdited, (await world.EntriesAsync(id)).Last().Kind);
+        Assert.Single(await world.CoreRecordsAsync(ReportActions.ManagerEdited.Code, id));
+    }
+
+    /// <summary>
+    /// Повтор решения тем же <c>changeId</c> (ТЗ MOB-15) — 200 «повтор» без второй записи. Тот же <c>changeId</c> под
+    /// другим решением — 409: возврат не выполнен, и ответ «повтор» был бы неправдой.
+    /// </summary>
+    [Fact]
+    public async Task Повтор_решения_по_changeId()
+    {
+        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (_, manager) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
+        var id = Guid.NewGuid();
+        var version = ReviewWorld.Version(await world.SubmittedAsync(petrov, id, world.SiteA));
+        var change = Guid.NewGuid();
+
+        var first = await ReviewWorld.DecideAsync(manager, id, "accept", version, new { changeId = change });
+        var again = await ReviewWorld.DecideAsync(manager, id, "accept", version, new { changeId = change });
+        var other = await ReviewWorld.DecideAsync(manager, id, "return",
+            ReviewWorld.Version(await ReportWorld.JsonAsync(first)), new { comment = "Объём", changeId = change });
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        var replayed = await ReportWorld.JsonAsync(again);
+        Assert.True(replayed.GetProperty("replayed").GetBoolean());
+        Assert.Equal("accepted", replayed.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, other.StatusCode);
+        Assert.Contains("changeId", (await ReportWorld.JsonAsync(other)).GetProperty("error").GetString());
+        var entries = await world.EntriesAsync(id);
+        Assert.Single(entries, e => e.Kind == ReportJournalKinds.Accepted);
+        Assert.DoesNotContain(entries, e => e.Kind == ReportJournalKinds.Returned);
+        Assert.Single(await world.CoreRecordsAsync(ReportActions.Accepted.Code, id));
+    }
+
     /// <summary>
     /// «Ввёл и принял один человек» (ТЗ WORK-31.1): ввёл менеджер А — у А <c>acceptWouldMark: true</c>, у Б — <c>false</c>;
     /// приёмка А проходит, и журнал получает отдельную запись.

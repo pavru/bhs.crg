@@ -13,8 +13,6 @@ public sealed class ReportPeople(IModuleUser user, IModuleEmployees employees)
     /// <summary>Учётная запись запроса — для «ввёл и принял один человек» и уведомлений.</summary>
     public Guid? UserId => user.Id;
 
-    public string UserName => user.Name;
-
     /// <summary>
     /// Кто действует: учётная запись запроса и её сотрудник — у «своих» он известен охвату, у ввода за сотрудника
     /// спрашивается по связи учётной записи (ТЗ WORK-31: «вводит Иванов за Петрова»).
@@ -40,11 +38,13 @@ public sealed class ReportPeople(IModuleUser user, IModuleEmployees employees)
 /// </summary>
 public sealed class ReportActivity(IModuleConstructions constructions, IModuleActivityLog log, ILogger<ReportActivity> logger)
 {
-    public async Task RecordAsync(ModuleActivityAction action, Report report, string executor, string? before, string after)
+    /// <param name="site">Имя стройки, если вызывающий его уже знает; иначе — читается здесь.</param>
+    public async Task RecordAsync(
+        ModuleActivityAction action, Report report, string executor, string? before, string after, string? site = null)
     {
         try
         {
-            var site = await SiteNameAsync(report.ConstructionId);
+            site ??= await SiteNameAsync(report.ConstructionId);
             await log.RecordAsync(action, report.Id.ToString(), ReportActions.Label(executor, site, report),
                 before, after, CancellationToken.None);
         }
@@ -56,6 +56,17 @@ public sealed class ReportActivity(IModuleConstructions constructions, IModuleAc
     }
 
     /// <summary>Имя стройки для подписи; стройки больше нет — «стройка».</summary>
-    public async Task<string> SiteNameAsync(Guid siteId) =>
-        (await constructions.ListAsync(CancellationToken.None)).FirstOrDefault(c => c.Id == siteId)?.Name ?? "стройка";
+    /// <remarks>Сбой справочника строек — тоже «стройка»: подпись не вправе уронить состоявшееся действие.</remarks>
+    public async Task<string> SiteNameAsync(Guid siteId)
+    {
+        try
+        {
+            return (await constructions.ListAsync(CancellationToken.None)).FirstOrDefault(c => c.Id == siteId)?.Name ?? "стройка";
+        }
+        catch (Exception lost)
+        {
+            logger.LogWarning(lost, "Имя стройки {SiteId} не прочитано — в подписи «стройка».", siteId);
+            return "стройка";
+        }
+    }
 }

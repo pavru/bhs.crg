@@ -477,6 +477,28 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("review_digests", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestRetry", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("report_id");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.HasKey("UserId", "ReportId", "SubmittedAt");
+
+                    b.HasIndex("ReportId")
+                        .HasDatabaseName("ix_review_digest_retries_report");
+
+                    b.ToTable("review_digest_retries", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
@@ -505,6 +527,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestMark", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestRetry", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
                         .WithMany()

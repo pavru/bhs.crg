@@ -241,7 +241,7 @@ public class IsolatedReadInventoryTests
 
         Assert.Equal(
             ["Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial", "ReportLineParticipant",
-                "ReviewDigestMark"],
+                "ReviewDigestMark", "ReviewDigestRetry"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }

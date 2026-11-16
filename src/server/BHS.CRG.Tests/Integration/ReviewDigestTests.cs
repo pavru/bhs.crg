@@ -114,6 +114,37 @@ public class ReviewDigestTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(2, await world.DigestMarksAsync(id));
     }
 
+    /// <summary>
+    /// Сводка одному из двух менеджеров стройки не ушла: второй получает её один раз, а первый — следующим тактом, тоже
+    /// один раз. Отметка подачи — сразу.
+    /// </summary>
+    [Fact]
+    public async Task Сбой_одному_менеджеру_повтор_только_ему()
+    {
+        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (_, ivanova) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
+        var smirnova = await world.Reports.EmployeeAsync("Смирнова Светлана Сергеевна");
+        var (smirnovaUser, smirnovaClient) = await world.Reports.Assignments.UserAsync("Смирнова Светлана Сергеевна",
+            WorkModule.ReportReview);
+        await world.Reports.Assignments.LinkAsync(smirnova, smirnovaUser);
+        await world.Reports.Assignments.AssignedAsync(smirnova, world.SiteA, AssignmentKind.Manager, "2026-10-01", null);
+        var id = Guid.NewGuid();
+        await world.SubmittedAsync(petrov, id, world.SiteA);
+
+        await world.DigestAsync(ReviewWorld.Up19, fails: user => user == smirnovaUser);
+
+        Assert.Single(await ReviewWorld.BellAsync(ivanova));
+        Assert.Empty(await ReviewWorld.BellAsync(smirnovaClient));
+        Assert.Equal(1, await world.DigestMarksAsync(id));
+
+        await world.TickAsync(ReviewWorld.Up19.AddMinutes(5));
+        await world.TickAsync(ReviewWorld.Up19.AddMinutes(10));
+
+        Assert.Single(await ReviewWorld.BellAsync(ivanova));
+        Assert.Equal($"{Digest}: 1", Assert.Single(await ReviewWorld.BellAsync(smirnovaClient)).Title);
+        Assert.Equal(1, await world.DigestMarksAsync(id));
+    }
+
     private async Task<HttpClient> AdminAsync()
     {
         var employee = await world.Reports.EmployeeAsync("Орлова Ольга Олеговна");

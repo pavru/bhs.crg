@@ -1,6 +1,5 @@
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
-using BHS.CRG.Modules.Work.Endpoints;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Work.Review;
@@ -16,13 +15,12 @@ namespace BHS.CRG.Modules.Work.Review;
 /// <para>Публикуется после фиксации возврата, без токена отмены: возврат состоялся, и сбой колокольчика его не
 /// отменяет — он пишется в журнал приложения.</para>
 /// </summary>
-public sealed class ReturnNotice(IModuleNotifications notifications, ReportActivity activity, ILogger<ReturnNotice> logger)
+public sealed class ReturnNotice(IModuleNotifications notifications, ILogger<ReturnNotice> logger)
 {
-    public async Task PublishAsync(Guid userId, Report report, string comment, string manager)
+    public async Task PublishAsync(Guid userId, Report report, string site, string comment, string manager)
     {
         try
         {
-            var site = await activity.SiteNameAsync(report.ConstructionId);
             var shift = report.Shift == ReportShift.Night ? "ночь" : "день";
             await notifications.PublishAsync(ModuleNotificationLevel.Warning,
                 $"Отчёт за {report.Date:dd.MM} возвращён",

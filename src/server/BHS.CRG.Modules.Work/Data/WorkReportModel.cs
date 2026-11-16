@@ -157,5 +157,15 @@ internal static class WorkReportModel
         digest.Property(d => d.DigestedAt).HasColumnName("digested_at");
         // Удаляется только черновик, а в сводку входит поданный; каскад — на случай удаления мимо пути записи.
         digest.HasOne<Report>().WithMany().HasForeignKey(d => d.ReportId).OnDelete(DeleteBehavior.Cascade);
+
+        // Недоставленная сводка менеджеру — повтор следующим тактом ему одному (work-16).
+        var retry = builder.Entity<ReviewDigestRetry>();
+        retry.ToTable("review_digest_retries");
+        retry.HasKey(r => new { r.UserId, r.ReportId, r.SubmittedAt });
+        retry.Property(r => r.UserId).HasColumnName("user_id");
+        retry.Property(r => r.ReportId).HasColumnName("report_id");
+        retry.Property(r => r.SubmittedAt).HasColumnName("submitted_at");
+        retry.HasIndex(r => r.ReportId).HasDatabaseName("ix_review_digest_retries_report");
+        retry.HasOne<Report>().WithMany().HasForeignKey(r => r.ReportId).OnDelete(DeleteBehavior.Cascade);
     }
 }

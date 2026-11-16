@@ -20,6 +20,27 @@ namespace BHS.CRG.Modules.Work.Migrations
                 nullable: true);
 
             migrationBuilder.CreateTable(
+                name: "review_digest_retries",
+                schema: "work",
+                columns: table => new
+                {
+                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    report_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    submitted_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_review_digest_retries", x => new { x.user_id, x.report_id, x.submitted_at });
+                    table.ForeignKey(
+                        name: "FK_review_digest_retries_reports_report_id",
+                        column: x => x.report_id,
+                        principalSchema: "work",
+                        principalTable: "reports",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "review_digests",
                 schema: "work",
                 columns: table => new
@@ -39,11 +60,21 @@ namespace BHS.CRG.Modules.Work.Migrations
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_review_digest_retries_report",
+                schema: "work",
+                table: "review_digest_retries",
+                column: "report_id");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "review_digest_retries",
+                schema: "work");
+
             migrationBuilder.DropTable(
                 name: "review_digests",
                 schema: "work");

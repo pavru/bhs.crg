@@ -246,6 +246,28 @@ public sealed class ReportReads(WorkDbContext db)
         return [.. found.Select(f => (f.Id, f.ConstructionId, f.SubmittedAt))];
     }
 
+    /// <summary>
+    /// Недоставленные сводки (<see cref="ReviewDigestRetry" />) — с отслеживанием: доставленные и устаревшие задача такта
+    /// удаляет. <c>Live</c> — отчёт всё ещё подан тем же моментом: решённый или поданный заново повтора не ждёт.
+    /// </summary>
+    public async Task<IReadOnlyList<(ReviewDigestRetry Row, Guid ConstructionId, bool Live)>> DigestRetriesAsync(
+        ModuleReader system, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var rows = await db.Set<ReviewDigestRetry>().ToListAsync(ct);
+        if (rows.Count == 0) return [];
+        var ids = rows.Select(r => r.ReportId).Distinct().ToArray();
+        var reports = await db.Set<Report>().AsNoTracking().Where(r => ids.Contains(r.Id))
+            .Select(r => new { r.Id, r.ConstructionId, r.Status, r.SubmittedAt })
+            .ToDictionaryAsync(r => r.Id, ct);
+        return
+        [
+            .. rows.Select(row => reports.TryGetValue(row.ReportId, out var r)
+                ? (row, r.ConstructionId, r.Status == ReportStatus.Submitted && r.SubmittedAt == row.SubmittedAt)
+                : (row, Guid.Empty, false)),
+        ];
+    }
+
     private IQueryable<Report> Expired(DateTimeOffset now)
     {
         var at = now.ToUniversalTime();
