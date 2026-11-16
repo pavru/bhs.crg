@@ -25,6 +25,9 @@ namespace BHS.CRG.Tests.Costs;
 [Collection("Integration")]
 public class ActualCostsContractTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
+    /// <summary>Первый день календаря отчёта (<c>InvoicePeriods.First</c>, он внутренний): январь 2020-го.</summary>
+    private static readonly DateOnly CalendarStart = new(2020, 1, 1);
+
     [Fact]
     public async Task Разнесено_и_оплачено_равны_отчёту_по_стройке_черновик_входит_отклонённый_нет()
     {
@@ -43,6 +46,28 @@ public class ActualCostsContractTests(InvoiceLineHost host) : InvoiceLineTestBas
 
         Assert.Equal(100_000m, totals.Allocated);
         Assert.Equal(40_000m, totals.Paid);
+        var report = await ReportAsync(admin, site);
+        Assert.Equal(report.Spent, totals.Paid);
+        Assert.Equal(report.Spent + report.Payable, totals.Allocated);
+    }
+
+    /// <summary>
+    /// «За всё время» — календарь отчёта (ревью PR #1993): дата оплаты снизу не ограничена, и счёт, оплаченный
+    /// до первого месяца календаря, не показывает ни один отчёт — его нет и в итогах контракта.
+    /// </summary>
+    [Fact]
+    public async Task Оплата_до_календаря_отчёта_не_входит_как_и_в_отчёт()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var (site, sections) = await SiteAsync("Календарь", "1 эт.");
+        var early = await InvoiceAsync(admin, site, sections[0], cable, 10, 500);
+        await PayAsync(admin, early, CalendarStart.AddDays(-17));
+        var current = await InvoiceAsync(admin, site, sections[0], cable, 10, 400);
+        await PayAsync(admin, current);
+
+        var totals = await ReadAsync(site, null, CostsModule.TotalsRead);
+
+        Assert.Equal((4_000m, 4_000m), (totals.Allocated, totals.Paid));
         var report = await ReportAsync(admin, site);
         Assert.Equal(report.Spent, totals.Paid);
         Assert.Equal(report.Spent + report.Payable, totals.Allocated);
@@ -136,12 +161,13 @@ public class ActualCostsContractTests(InvoiceLineHost host) : InvoiceLineTestBas
         return invoice;
     }
 
-    /// <summary>Оплата сегодняшним днём — через предпросмотр, как её вносит экран.</summary>
-    private async Task PayAsync(HttpClient client, Guid invoice)
+    /// <summary>Оплата — сегодняшним днём или названным — через предпросмотр, как её вносит экран.</summary>
+    private async Task PayAsync(HttpClient client, Guid invoice, DateOnly? paidOn = null)
     {
-        string today;
+        DateOnly day;
         using (var scope = host.Services.CreateScope())
-            today = (await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().TodayAsync()).ToString("yyyy-MM-dd");
+            day = paidOn ?? await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().TodayAsync();
+        var today = day.ToString("yyyy-MM-dd");
 
         var preview = await client.PostAsJsonAsync($"/api/costs/invoices/{invoice}/paid/preview", new { paidOn = today });
         await OkAsync(preview);
@@ -149,14 +175,14 @@ public class ActualCostsContractTests(InvoiceLineHost host) : InvoiceLineTestBas
         await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{invoice}/paid", new { paidOn = today, document = (string?)null, seen }));
     }
 
-    /// <summary>«Затраты» и «К оплате» отчёта по стройке — за весь его календарь, с 2020 года по текущий месяц.</summary>
+    /// <summary>«Затраты» и «К оплате» отчёта по стройке — за весь его календарь, с первого месяца по текущий.</summary>
     private async Task<(decimal Spent, decimal Payable)> ReportAsync(HttpClient client, Guid site)
     {
         DateOnly today;
         using (var scope = host.Services.CreateScope())
             today = await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().TodayAsync();
 
-        var report = await client.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?site={site}&from=2020-01&to={today:yyyy-MM}");
+        var report = await client.GetFromJsonAsync<JsonElement>($"/api/costs/site-costs?site={site}&from={CalendarStart:yyyy-MM}&to={today:yyyy-MM}");
         return (report.GetProperty("total").GetProperty("amount").GetDecimal(),
             report.GetProperty("payable").GetProperty("amount").GetDecimal());
     }

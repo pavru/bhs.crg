@@ -2,6 +2,7 @@ using System.Data;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
+using BHS.CRG.Modules.Costs.Tables;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +24,15 @@ namespace BHS.CRG.Modules.Costs.Exchange;
 /// в «Затраты»: исключи его здесь — «оплачено» стало бы меньше отчёта на каждый счёт, оплаченный до разбора.
 /// Вне итогов — только отклонённые.</para>
 ///
+/// <para><b>«За всё время» — календарь отчёта</b> (<see cref="InvoicePeriods" />): с его первого месяца по
+/// последний. Самый широкий отчёт не показывает денег вне календаря — не показывает их и контракт: иначе счёт,
+/// оплаченный датой до календаря, был бы в «оплачено» и не был бы ни в одном отчёте (ревью PR #1993).
+/// Отбор счетов — те же <see cref="SiteCostsEndpoints.Paid" /> и <see cref="SiteCostsEndpoints.Unpaid" />.</para>
+///
 /// <para><b>Раздел</b> — тем же зерном: деньги доли с разделом отбора, остальное отбрасывается до арифметики
 /// отчёта.</para>
 /// </summary>
-internal sealed class ActualCostsProvider(CostsDbContext db, IModuleSettings settings) : IActualCosts
+internal sealed class ActualCostsProvider(CostsDbContext db, IModuleSettings settings, IModuleClock clock) : IActualCosts
 {
     /// <summary>Итоги отдаются праву контракта и праву отчётов — тому, кто их видит и так.</summary>
     public IReadOnlyList<string> AnswerPermissions { get; } = [CostsModule.TotalsRead, CostsModule.ReportRead];
@@ -39,11 +45,13 @@ internal sealed class ActualCostsProvider(CostsDbContext db, IModuleSettings set
         if (ContractAnswer.Refusal<ActualCostsTotals>(reader, [.. AnswerPermissions]) is { } refusal) return refusal;
 
         var tolerance = await settings.GetAsync(CostsSettings.AllocationTolerance, ct);
+        var today = await clock.TodayAsync(ct);
+        var (from, through) = (InvoicePeriods.First, InvoicePeriods.Last(today).AddMonths(1).AddDays(-1));
         var site = constructionId;
-        var invoices = db.Invoices.AsNoTracking().Where(i =>
-            i.State != InvoiceState.Rejected
-            && db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site
-                                              && (sectionId == null || a.SectionId == sectionId)));
+        // Раздел сужает отбор до счетов с долей на него — деньги доли отберёт зерно ниже.
+        IQueryable<Invoice> InSection(IQueryable<Invoice> invoices) => sectionId is null
+            ? invoices
+            : invoices.Where(i => db.InvoiceAllocations.Any(a => a.InvoiceId == i.Id && a.ConstructionId == site && a.SectionId == sectionId));
 
         // Один снимок на оба чтения, как у отчёта: оплата, внесённая между ними, дала бы счёт дважды — в
         // «оплачено» и в «к оплате».
@@ -51,14 +59,14 @@ internal sealed class ActualCostsProvider(CostsDbContext db, IModuleSettings set
             ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
             : null;
         var (paid, paidLines) = await SiteCostsEndpoints.InvoicesAsync(
-            db, invoices.Where(i => i.Payment == InvoicePaymentState.Paid), tolerance, ct);
+            db, InSection(SiteCostsEndpoints.Paid(db, from, through, site)), tolerance, ct);
         var (unpaid, unpaidLines) = await SiteCostsEndpoints.InvoicesAsync(
-            db, invoices.Where(i => i.Payment != InvoicePaymentState.Paid), tolerance, ct);
+            db, InSection(SiteCostsEndpoints.Unpaid(db, site)), tolerance, ct);
 
         var money = SiteCosts.Corrected(paid, paidLines)
             .Where(m => sectionId is null || m.Grain.Cell.Target?.SectionId == sectionId)
             .ToList();
-        var spent = SiteCosts.Of(money, DateOnly.MinValue, DateOnly.MaxValue, site, withVat: true).Total.Amount;
+        var spent = SiteCosts.Of(money, from, through, site, withVat: true).Total.Amount;
 
         IReadOnlyList<CostInvoice> waiting = sectionId is null
             ? unpaid
