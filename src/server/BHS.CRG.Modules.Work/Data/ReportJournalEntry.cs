@@ -21,6 +21,33 @@ public static class ReportJournalKinds
 
     /// <summary>Подан автоматически по концу окна, от имени системы (<c>work-15</c>, ТЗ WORK-41).</summary>
     public const string AutoSubmitted = "auto-submitted";
+
+    /// <summary>Принят менеджером (<c>work-16</c>, ТЗ WORK-13).</summary>
+    public const string Accepted = "accepted";
+
+    /// <summary>Возвращён на правку; что исправить — в <see cref="ReportJournalEntry.Comment" /> (<c>work-16</c>).</summary>
+    public const string Returned = "returned";
+
+    /// <summary>
+    /// Правка менеджером поданного отчёта адресом ввода за сотрудника (<c>work-16</c>, ТЗ WORK-14) — запасной ход:
+    /// протокол пишет её обычной правкой, а журнал называет отдельно, и по этой записи отчёт несёт пометку.
+    /// </summary>
+    public const string ManagerEdited = "manager-edited";
+
+    /// <summary>
+    /// «Ввёл и принял один человек» (<c>work-16</c>, ТЗ WORK-31.1) — отдельная запись рядом с приёмкой: отчёт она не
+    /// меняет, записи протокола у неё нет.
+    /// </summary>
+    public const string SamePerson = "same-person";
+
+    /// <summary>
+    /// Уведомить о возврате некого: у сотрудника нет учётной записи (<c>work-16</c>, ТЗ WORK-56). Журнал говорит это, а
+    /// не молчит; записи протокола нет.
+    /// </summary>
+    public const string NotifyNone = "notify-none";
+
+    /// <summary>Виды, которые бывают «правкой после подачи» (ТЗ WORK-11): правки содержимого, а не переходы статуса.</summary>
+    public static bool IsEdit(string kind) => kind is Updated or ManagerEdited;
 }
 
 /// <summary>
@@ -92,10 +119,16 @@ public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
     /// </summary>
     public string Changes { get; private set; } = "[]";
 
+    /// <summary>
+    /// Слова человека к действию (<c>work-16</c>): у возврата — что исправить, у «уведомить некого» — почему. Хранится
+    /// в журнале, а не в отчёте: следующий возврат затёр бы поле отчёта, а свидетельство обязано остаться.
+    /// </summary>
+    public string? Comment { get; private set; }
+
     /// <summary>Собрать запись. Зовёт только место записи — <see cref="ReportJournal" /> (перепись).</summary>
     internal static ReportJournalEntry Of(
         Report report, string kind, Guid changeId, long seq, ReportJournalActor author, string executorName,
-        DateTimeOffset? deviceTime, DateTimeOffset serverTime, bool afterSubmission, string changes) => new()
+        DateTimeOffset? deviceTime, DateTimeOffset serverTime, bool afterSubmission, string changes, string? comment) => new()
     {
         Id = Guid.NewGuid(), ReportId = report.Id, ChangeId = changeId, Seq = seq, Kind = kind,
         AuthorId = author.UserId, AuthorName = author.Name, ExecutorEmployeeId = report.EmployeeId,
@@ -104,7 +137,7 @@ public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
         EnteredFor = author.UserId is not null && author.EmployeeId != report.EmployeeId,
         // К UTC — как у протокола: колонка timestamptz принимает только нулевое смещение.
         DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
-        AfterSubmission = afterSubmission, Changes = changes,
+        AfterSubmission = afterSubmission, Changes = changes, Comment = comment,
     };
 }
 

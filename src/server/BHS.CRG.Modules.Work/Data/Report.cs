@@ -207,6 +207,43 @@ public sealed class Report : IIsolatedRecord
         Touch(seq, now);
     }
 
+    /// <summary>
+    /// Отказ приёмки и возврата (ТЗ WORK-9, WORK-13; <c>work-16</c>): решать можно только поданный отчёт. Отказ называет
+    /// текущий статус — обновление страницы его не изменит, и «отчёт тем временем изменили» здесь было бы неправдой.
+    /// </summary>
+    public void EnsureReviewable()
+    {
+        if (Status != ReportStatus.Submitted) throw new ReportStatusException(Status);
+    }
+
+    /// <summary>Принять поданный отчёт целиком (ТЗ WORK-13). Момент подачи остаётся: принята именно эта подача.</summary>
+    public void Accept(long seq, DateTimeOffset now)
+    {
+        EnsureReviewable();
+        Status = ReportStatus.Accepted;
+        Touch(seq, now);
+    }
+
+    /// <summary>
+    /// Вернуть поданный отчёт на правку (ТЗ WORK-13). Момент подачи НЕ стирается: содержимое уже видели, и журнал
+    /// (<c>work-14</c>) судит черновик по нему. Повторная подача запишет новый момент.
+    /// </summary>
+    public void Return(long seq, DateTimeOffset now)
+    {
+        EnsureReviewable();
+        Status = ReportStatus.Returned;
+        Touch(seq, now);
+    }
+
+    /// <summary>Статус словами для отказа и уведомления: «черновик», «подан», «принят», «возвращён».</summary>
+    public static string StatusName(ReportStatus status) => status switch
+    {
+        ReportStatus.Draft => "черновик",
+        ReportStatus.Submitted => "подан",
+        ReportStatus.Accepted => "принят",
+        _ => "возвращён",
+    };
+
     /// <summary>Отметить изменение: новый номер последовательности и время.</summary>
     public void Touch(long seq, DateTimeOffset now)
     {

@@ -369,7 +369,7 @@ public class SubmissionTests(AssignmentHost host) : IAsyncLifetime
     private static async Task<string?> VersionAsync(HttpClient client, Guid id) =>
         Version(await ReportWorld.JsonAsync(await client.GetAsync($"{Url}/{id}")));
 
-    /// <summary>Статус мимо адресов: приёмки и возврата (<c>work-16</c>) ещё нет.</summary>
+    /// <summary>Статус мимо адресов — подготовка: приёмку и возврат адресами проверяет <c>ReviewActionsTests</c>.</summary>
     private async Task StatusAsync(Guid id, string status)
     {
         using var scope = host.Services.CreateScope();

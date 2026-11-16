@@ -230,7 +230,8 @@ public class IsolatedReadInventoryTests
     /// <summary>
     /// Отчёт монтажника и все его части — изолированные записи (ТЗ WORK-39; <c>work-13</c>). Сторож пометки: без
     /// неё перепись выше молчит — нет пометки, нет и нарушений, и <c>Set&lt;Report&gt;()</c> в любом файле читал бы
-    /// все отчёты всем. Строка отчёта и журнал (<c>work-14</c>) несут то же, что отчёт, и потому помечены вместе с ним; назначение — нет:
+    /// все отчёты всем. Строка отчёта, журнал (<c>work-14</c>) и отметка сводки (<c>work-16</c>) несут то же, что отчёт, или
+    /// называют его, и потому помечены вместе с ним; назначение — нет:
     /// его видит каждый, кто назначает (охват — у адресов назначений).
     /// </summary>
     [Fact]
@@ -239,7 +240,8 @@ public class IsolatedReadInventoryTests
         var work = Models().Single(m => m.Context == typeof(BHS.CRG.Modules.Work.Data.WorkDbContext)).Model;
 
         Assert.Equal(
-            ["Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial", "ReportLineParticipant"],
+            ["Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial", "ReportLineParticipant",
+                "ReviewDigestMark", "ReviewDigestRetry"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }
