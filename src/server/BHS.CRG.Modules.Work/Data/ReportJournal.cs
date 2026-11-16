@@ -32,7 +32,9 @@ public sealed class ReportSnapshot
 /// строки — по ключам, без копии всего JSON. Заведение кладёт названные поля с <c>before: null</c>, удаление — все поля
 /// с <c>after: null</c>: свидетельство того, что было удалено.</para>
 ///
-/// <para><b>Правка после подачи</b> (ТЗ WORK-11) — время действия позже момента подачи. Время действия — время
+/// <para><b>Правка после подачи</b> (ТЗ WORK-11) — правка содержимого поданного или принятого отчёта со временем
+/// действия позже момента подачи. У возвращённого (<c>work-16</c>) — нет: исправление по просьбе менеджера не
+/// подозрительно, а момент подачи у него прежний. Время действия — время
 /// устройства (заявление, MOB-17), а не названо — время сервера: правка с экрана без времени устройства после подачи
 /// тоже правка после подачи. На этой пометке держится только пометка, а не отказ; расхождение времён показывает очередь
 /// приёмки (<c>work-16</c>).</para>
@@ -88,16 +90,17 @@ public sealed class ReportJournal(WorkDbContext db)
     /// </summary>
     public ReportJournalEntry Append(
         string kind, Report report, ReportSnapshot? before, ReportJournalActor author, string executorName, Guid changeId,
-        long seq, DateTimeOffset? deviceTime, DateTimeOffset serverTime)
+        long seq, DateTimeOffset? deviceTime, DateTimeOffset serverTime, string? comment = null)
     {
         var after = kind == ReportJournalKinds.Deleted ? null : Capture(report);
         var actedAt = deviceTime ?? serverTime;
         var entry = ReportJournalEntry.Of(report, kind, changeId, seq, author, executorName, deviceTime, serverTime,
-            // Сама подача правкой после подачи не бывает: у автоподачи время прогона позже конца окна, у ручной — время
-            // устройства позже предела окна (work-15).
-            afterSubmission: kind is not (ReportJournalKinds.Submitted or ReportJournalKinds.AutoSubmitted)
+            // Правкой после подачи бывает только правка содержимого: подача, приёмка и возврат — переходы статуса. У
+            // возвращённого — нет (work-16): его исправляют по просьбе менеджера, а момент подачи у него прежний.
+            afterSubmission: ReportJournalKinds.IsEdit(kind)
+                             && report.Status is ReportStatus.Submitted or ReportStatus.Accepted
                              && report.SubmittedAt is { } submitted && actedAt > submitted,
-            changes: Diff(before, after).ToJsonString());
+            changes: Diff(before, after).ToJsonString(), comment: comment);
         db.Add(entry);
         return entry;
     }
@@ -152,7 +155,7 @@ public static class ReportJournalView
             author = new { id = e.AuthorId, name = e.AuthorName },
             executor = new { employeeId = e.ExecutorEmployeeId, name = e.ExecutorName },
             enteredFor = e.EnteredFor, deviceTime = e.DeviceTime, serverTime = e.ServerTime,
-            afterSubmission = e.AfterSubmission, changes = changes.RootElement.Clone(),
+            afterSubmission = e.AfterSubmission, changes = changes.RootElement.Clone(), comment = e.Comment,
         };
     }
 }

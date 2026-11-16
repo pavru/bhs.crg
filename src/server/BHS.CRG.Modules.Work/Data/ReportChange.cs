@@ -11,6 +11,12 @@ public enum ReportChangeKind
 
     /// <summary>Подан — человеком или автоподачей (<c>work-15</c>): курсор отдаёт телефону новый статус.</summary>
     Submitted,
+
+    /// <summary>Принят менеджером (<c>work-16</c>).</summary>
+    Accepted,
+
+    /// <summary>Возвращён на правку с комментарием (<c>work-16</c>): телефон узнаёт о возврате курсором.</summary>
+    Returned,
 }
 
 /// <summary>
@@ -78,6 +84,9 @@ public sealed class ReportChange : IIsolatedRecord, IAppendOnly
         Version = version,
     };
 
-    /// <summary>Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c> | <c>submitted</c>.</summary>
+    /// <summary>
+    /// Вид кодом колонки и ответа: <c>created</c> | <c>updated</c> | <c>deleted</c> | <c>submitted</c> | <c>accepted</c> |
+    /// <c>returned</c>.
+    /// </summary>
     public static string KindCode(ReportChangeKind kind) => kind.ToString().ToLowerInvariant();
 }

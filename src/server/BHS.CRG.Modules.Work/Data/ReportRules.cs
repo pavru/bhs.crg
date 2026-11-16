@@ -63,6 +63,22 @@ public static class ReportRules
     /// <summary>Текст поля как он ляжет в колонку: пустой и из пробелов — <c>null</c>, иначе без краевых пробелов.</summary>
     public static string? Text(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
+    /// <summary>Предел комментария возврата (<c>work-16</c>): что исправить — абзац, а не документ.</summary>
+    public const int CommentMax = 2000;
+
+    /// <summary>
+    /// Комментарий возврата (ТЗ WORK-13): обязателен — без него монтажнику не понять, что исправить, — и не длиннее
+    /// <see cref="CommentMax" />.
+    /// </summary>
+    public static string ReturnComment(string? comment)
+    {
+        var text = Text(comment) ?? throw new InvalidRequestException(
+            "Укажите, что исправить (comment): без комментария монтажник не поймёт, зачем отчёт возвращён.");
+        return text.Length <= CommentMax
+            ? text
+            : throw new InvalidRequestException($"Комментарий возврата (comment) длиннее {CommentMax} знаков.");
+    }
+
     /// <summary>
     /// Строка не несёт часов (ТЗ WORK-7): поле молча отброшенным не будет — человек решил бы, что часы по строкам
     /// сохранены. <paramref name="lineKeys" /> — имена полей строки: путь записи спрашивает о ключах сведений
