@@ -180,6 +180,42 @@ public class AutoSubmitTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal("auto", body.GetProperty("submittedBy").GetString());
     }
 
+    /// <summary>
+    /// Подача одного отчёта падает (здесь — порт видов работ на его виде) — прочие поданы, сбойный остаётся черновиком
+    /// до следующего такта: порядок выборки постоянный, и иначе он первым ронял бы каждый прогон.
+    /// </summary>
+    [Fact]
+    public async Task Сбой_одного_отчёта_не_останавливает_прогон()
+    {
+        var (_, client) = await world.InstallerAsync("Петров Пётр Петрович");
+        var broken = Guid.NewGuid();
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync(Url, world.Draft(broken, world.SiteA,
+            date: "2026-11-15", workType: world.WorkTypeNeedsPlace, location: "Ось 1"))).StatusCode);
+        var fine = await CreateAsync(client, "2026-11-16", "day");
+
+        await RunAsync(Up19, types => new FailingOn(types, world.WorkTypeNeedsPlace));
+
+        Assert.Equal(ReportStatus.Draft, (await world.ReportAsync(broken))!.Status);
+        Assert.Equal((Midnight(17), ReportSubmitter.Auto), await SubmittedAsync(fine));
+        Assert.Equal("подано отчётов: 1", Assert.Single(await CoreRecordsAsync()).After);
+    }
+
+    /// <summary>
+    /// Справочник видов работ не заведён — отчёт подан концом окна, но «не проверено» не выдано за «всё заполнено»:
+    /// запись журнала ядра это называет.
+    /// </summary>
+    [Fact]
+    public async Task Без_справочника_проверка_названа()
+    {
+        var (_, client) = await world.InstallerAsync("Петров Пётр Петрович");
+        var id = await CreateAsync(client, "2026-11-16", "day");
+
+        await RunAsync(Up19, _ => new NoDirectory());
+
+        Assert.Equal((Midnight(17), ReportSubmitter.Auto), await SubmittedAsync(id));
+        Assert.Contains("обязательные поля не проверены у 1", Assert.Single(await CoreRecordsAsync()).After);
+    }
+
     private async Task<Guid> CreateAsync(HttpClient client, string date, string shift)
     {
         var id = Guid.NewGuid();
@@ -188,11 +224,17 @@ public class AutoSubmitTests(AssignmentHost host) : IAsyncLifetime
         return id;
     }
 
-    /// <summary>Прогон задачи автоподачи в своей области служб на часах <paramref name="now" />.</summary>
-    private async Task RunAsync(DateTimeOffset now)
+    /// <summary>
+    /// Прогон задачи автоподачи в своей области служб на часах <paramref name="now" />; <paramref name="workTypes" /> —
+    /// подмена порта видов работ для проверки обязательных полей.
+    /// </summary>
+    private async Task RunAsync(DateTimeOffset now, Func<IModuleWorkTypes, IModuleWorkTypes>? workTypes = null)
     {
         using var scope = host.Services.CreateScope();
-        var job = ActivatorUtilities.CreateInstance<AutoSubmitJob>(scope.ServiceProvider, (TimeProvider)new Fixed(now));
+        var sp = scope.ServiceProvider;
+        var extra = new List<object> { (TimeProvider)new Fixed(now) };
+        if (workTypes is not null) extra.Add(new RequiredFields(workTypes(sp.GetRequiredService<IModuleWorkTypes>())));
+        var job = ActivatorUtilities.CreateInstance<AutoSubmitJob>(sp, [.. extra]);
         await job.RunAsync(new ModuleJobRun(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, null, (_, _, _) => Task.CompletedTask),
             CancellationToken.None);
     }
@@ -221,5 +263,31 @@ public class AutoSubmitTests(AssignmentHost host) : IAsyncLifetime
     private sealed class Fixed(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now.ToUniversalTime();
+    }
+
+    /// <summary>Порт видов работ, который падает на названном виде, — сбой подачи одного отчёта.</summary>
+    private sealed class FailingOn(IModuleWorkTypes inner, Guid failing) : IModuleWorkTypes
+    {
+        public Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            ids.Contains(failing) ? throw new InvalidOperationException("Порт видов работ упал.") : inner.GetAsync(ids, ct);
+
+        public Task<ModuleChoice<ModuleWorkType>?> SearchAsync(string? query, int limit, CancellationToken ct = default) =>
+            inner.SearchAsync(query, limit, ct);
+
+        public Task<IReadOnlyList<ModuleWorkVariant>?> GetVariantsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            inner.GetVariantsAsync(ids, ct);
+    }
+
+    /// <summary>Справочник видов работ не заведён.</summary>
+    private sealed class NoDirectory : IModuleWorkTypes
+    {
+        public Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ModuleWorkType>?>(null);
+
+        public Task<ModuleChoice<ModuleWorkType>?> SearchAsync(string? query, int limit, CancellationToken ct = default) =>
+            Task.FromResult<ModuleChoice<ModuleWorkType>?>(null);
+
+        public Task<IReadOnlyList<ModuleWorkVariant>?> GetVariantsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ModuleWorkVariant>?>(null);
     }
 }

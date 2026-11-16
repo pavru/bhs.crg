@@ -22,6 +22,7 @@ public class SubmissionWindowMigrationTests : IAsyncLifetime
     private static readonly Guid Moscow = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly Guid Vladivostok = Guid.Parse("00000000-0000-0000-0000-000000000002");
     private static readonly Guid WindowsZone = Guid.Parse("00000000-0000-0000-0000-000000000003");
+    private static readonly Guid UnknownZone = Guid.Parse("00000000-0000-0000-0000-000000000004");
 
     public async Task InitializeAsync()
     {
@@ -44,7 +45,8 @@ public class SubmissionWindowMigrationTests : IAsyncLifetime
             """);
         await SqlAsync($"""
             INSERT INTO public.constructions VALUES
-                ('{Moscow}', 'Europe/Moscow'), ('{Vladivostok}', 'Asia/Vladivostok'), ('{WindowsZone}', 'Russian Standard Time');
+                ('{Moscow}', 'Europe/Moscow'), ('{Vladivostok}', 'Asia/Vladivostok'), ('{WindowsZone}', 'Russian Standard Time'),
+                ('{UnknownZone}', 'Nowhere/Zone');
             """);
         await using (var db = Context())
         {
@@ -53,17 +55,20 @@ public class SubmissionWindowMigrationTests : IAsyncLifetime
         }
         var day = Report(Moscow, "day");
         var night = Report(Vladivostok, "night");
-        var inherited = Report(WindowsZone, "day");
+        var windows = Report(WindowsZone, "day");
+        var inherited = Report(UnknownZone, "day");
         await SqlAsync($"""
             INSERT INTO work.reports (id, employee_id, construction_id, date, shift, status, seq, created_at, updated_at)
-            VALUES {day.Values}, {night.Values}, {inherited.Values};
+            VALUES {day.Values}, {night.Values}, {windows.Values}, {inherited.Values};
             """);
 
         await using (var db = Context()) await db.Database.MigrateAsync();
 
         Assert.Equal(new DateTimeOffset(2026, 11, 17, 0, 0, 0, TimeSpan.FromHours(3)), await WindowAsync(day.Id));
         Assert.Equal(new DateTimeOffset(2026, 11, 18, 0, 0, 0, TimeSpan.FromHours(10)), await WindowAsync(night.Id));
-        // Имени Windows PostgreSQL не знает — пояс компании.
+        // Имя Windows — пояс самой стройки, как у порта строек (SiteZones), а не пояс компании.
+        Assert.Equal(new DateTimeOffset(2026, 11, 17, 0, 0, 0, TimeSpan.FromHours(3)), await WindowAsync(windows.Id));
+        // Пояса не знает никто — пояс компании.
         Assert.Equal(new DateTimeOffset(2026, 11, 17, 0, 0, 0, TimeSpan.FromHours(5)), await WindowAsync(inherited.Id));
     }
 

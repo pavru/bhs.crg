@@ -145,7 +145,7 @@ public sealed class ReportDesk(
     /// <summary>
     /// Подать отчёт, видимый читателю (ТЗ WORK-9, WORK-10, WORK-6, WORK-31). Момент первой подачи — время действия, но
     /// не позже конца окна (<see cref="SubmissionWindow.MomentOfManual" />); у повторной подачи возвращённого — время
-    /// действия: окно к возврату уже прошло.
+    /// действия, но не позже часов сервера: окно к возврату уже прошло.
     /// </summary>
     public async Task<IResult> SubmitAsync(
         ReportViewer viewer, Guid id, SubmitRequest? body, HttpRequest request, CancellationToken ct)
@@ -165,8 +165,13 @@ public sealed class ReportDesk(
 
             var executor = await ExecutorAsync(report.EmployeeId, ct);
             var now = time.GetUtcNow();
+            // Верх момента — конец окна у черновика и часы сервера у возвращённого: телефон, ушедший вперёд, дал бы
+            // подачу «из будущего», и правки до неё журнал не назвал бы правками после подачи. Раньше — можно: подача
+            // без сети приходит позже.
             var acted = body?.DeviceTime ?? now;
-            var at = report.Status == ReportStatus.Draft ? SubmissionWindow.MomentOfManual(acted, report.WindowEndsAt) : acted;
+            var at = report.Status == ReportStatus.Draft
+                ? SubmissionWindow.MomentOfManual(acted, report.WindowEndsAt)
+                : acted < now ? acted : now;
             await submission.ApplyAsync(report, at, ReportSubmitter.Manual, missing: null, actor, executor,
                 body?.ChangeId ?? Guid.NewGuid(), body?.DeviceTime, now, ct);
             await tx.CommitAsync(ct);

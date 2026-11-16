@@ -21,7 +21,12 @@ namespace BHS.CRG.Modules.Work.Submission;
 ///
 /// <para><b>Обязательные поля не ждутся</b> (ТЗ WORK-6, WORK-10): черновик без места подаётся, а незаполненное ложится
 /// в <c>requiredMissing</c> и в запись журнала — иначе отчёт остался бы черновиком навсегда, и момент подачи, который
-/// ТЗ задаёт временем, сдвинулся бы.</para>
+/// ТЗ задаёт временем, сдвинулся бы. Справочник видов работ не заведён — требований узнать не у кого: отчёт подаётся
+/// без перечня, и это названо в записи журнала ядра, а не выдано за «всё заполнено».</para>
+///
+/// <para><b>Сбой одного отчёта — не сбой прогона.</b> Порядок выборки постоянный (по окну), и отчёт, на котором
+/// подача падает, иначе первым ронял бы каждый следующий такт — автоподача встала бы у всех. Сбойный отчёт пишется в
+/// журнал приложения ошибкой и пропускается до следующего такта; остальные подаются.</para>
 ///
 /// <para><b>Гонка.</b> Монтажник, правящий отчёт в ту же секунду, выигрывает: конфликт версии строки — пропуск до
 /// следующего такта с тем же моментом. Два прогона разом (второй экземпляр) дают одну подачу и одну запись журнала:
@@ -56,29 +61,39 @@ public sealed class AutoSubmitJob(
 
     public string Operation => Code;
 
+    /// <summary>Итог подачи одного отчёта.</summary>
+    private enum Outcome { Submitted, SubmittedUnchecked, Skipped }
+
     public async Task RunAsync(ModuleJobRun run, CancellationToken ct)
     {
         // Автоподача — всегда действие системы, кто бы ни поставил задачу: охват «все» человеку не положен.
         var reader = readers.ForSystem(Title);
         var now = time.GetUtcNow();
         var skipped = new List<Guid>();
-        var done = 0;
+        var (done, unchecked_) = (0, 0);
         while (true)
         {
             var batch = await reads.ExpiredDraftsAsync(reader, now, skipped, Batch, ct);
             if (batch.Count == 0) break;
-            foreach (var id in batch)
+            var names = await NamesAsync(batch, ct);
+            foreach (var (id, employeeId) in batch)
             {
-                if (await SubmitOneAsync(reader, id, now, ct)) done++;
-                else skipped.Add(id);
-                await run.Report("отчётов", done, done + skipped.Count);
+                var outcome = names is null
+                    ? Outcome.Skipped
+                    : await SubmitOneAsync(reader, id, names.GetValueOrDefault(employeeId) ?? employeeId.ToString(), now, ct);
+                if (outcome == Outcome.Skipped) skipped.Add(id);
+                else done++;
+                if (outcome == Outcome.SubmittedUnchecked) unchecked_++;
             }
+            await run.Report("отчётов", done, done + skipped.Count);
         }
 
         if (done == 0) return;
+        var after = $"подано отчётов: {done}";
+        if (unchecked_ > 0) after += $"; обязательные поля не проверены у {unchecked_}: справочник видов работ не заведён";
         try
         {
-            await log.RecordAsync(ReportActions.AutoSubmitted, after: $"подано отчётов: {done}", ct: CancellationToken.None);
+            await log.RecordAsync(ReportActions.AutoSubmitted, after: after, ct: CancellationToken.None);
         }
         catch (Exception lost)
         {
@@ -87,26 +102,51 @@ public sealed class AutoSubmitJob(
         }
     }
 
-    /// <summary>Подать один черновик; <c>false</c> — пропущен (его подали или поправили между чтениями).</summary>
-    private async Task<bool> SubmitOneAsync(ModuleReader reader, Guid id, DateTimeOffset now, CancellationToken ct)
+    /// <summary>
+    /// Имена исполнителей порции — одним вызовом порта. Сотрудник, которого порт не знает, назван идентификатором, как
+    /// и раньше. Сбой порта — <c>null</c>: порция пропускается до следующего такта, а не пишется в журнал без имён.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>?> NamesAsync(
+        IReadOnlyList<(Guid Id, Guid EmployeeId)> batch, CancellationToken ct)
+    {
+        try
+        {
+            var found = await employees.GetAsync([.. batch.Select(b => b.EmployeeId).Distinct()], ct);
+            return (found ?? []).DistinctBy(e => e.Id).ToDictionary(e => e.Id, e => e.FullName);
+        }
+        catch (Exception failed) when (failed is not OperationCanceledException)
+        {
+            logger.LogError(failed, "Автоподача: сотрудники порции не прочитаны — {Count} отчётов подаются следующим тактом.",
+                batch.Count);
+            return null;
+        }
+    }
+
+    /// <summary>Подать один черновик. Пропуск — его подали или поправили между чтениями либо подача упала.</summary>
+    private async Task<Outcome> SubmitOneAsync(
+        ModuleReader reader, Guid id, string executor, DateTimeOffset now, CancellationToken ct)
     {
         db.ChangeTracker.Clear();
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            if (await reads.ExpiredDraftAsync(reader, id, now, ct) is not { } report) return false;
-            var missing = RequiredFields.Json(await required.OfAsync(report, ct));
-            var executor = (await employees.GetAsync([report.EmployeeId], ct))?.FirstOrDefault()?.FullName
-                           ?? report.EmployeeId.ToString();
-            await submission.ApplyAsync(report, report.WindowEndsAt, ReportSubmitter.Auto, missing,
+            if (await reads.ExpiredDraftAsync(reader, id, now, ct) is not { } report) return Outcome.Skipped;
+            var found = await required.OfAsync(report, ct);
+            await submission.ApplyAsync(report, report.WindowEndsAt, ReportSubmitter.Auto, RequiredFields.Json(found),
                 new ReportJournalActor(null, SystemAuthor, null), executor, Guid.NewGuid(), deviceTime: null, now, ct);
             await tx.CommitAsync(ct);
-            return true;
+            return found is null ? Outcome.SubmittedUnchecked : Outcome.Submitted;
         }
         catch (DbUpdateConcurrencyException)
         {
             logger.LogDebug("Автоподача: отчёт {ReportId} изменили между чтениями — подаётся следующим тактом.", id);
-            return false;
+            return Outcome.Skipped;
+        }
+        catch (Exception failed) when (failed is not OperationCanceledException)
+        {
+            // Транзакция откачена (и замок сотрудника с ней): прочие отчёты прогона подаются.
+            logger.LogError(failed, "Автоподача: отчёт {ReportId} не подан — повтор следующим тактом.", id);
+            return Outcome.Skipped;
         }
     }
 }

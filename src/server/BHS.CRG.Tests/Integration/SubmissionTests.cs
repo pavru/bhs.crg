@@ -138,7 +138,10 @@ public class SubmissionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Contains("принят", await AssignmentWorld.ErrorAsync(response));
     }
 
-    /// <summary>Возвращённый подаётся снова: момент повторной подачи записан, окном не ограничен.</summary>
+    /// <summary>
+    /// Возвращённый подаётся снова: момент повторной подачи записан и окном не ограничен — позже конца окна 17.11. Часы
+    /// приложения в тестах настоящие, поэтому момент берётся от них.
+    /// </summary>
     [Fact]
     public async Task Повторная_подача_после_возврата()
     {
@@ -146,13 +149,33 @@ public class SubmissionTests(AssignmentHost host) : IAsyncLifetime
         var id = Guid.NewGuid();
         await CreateAsync(client, world.Draft(id, world.SiteA));
         await StatusAsync(id, "returned");
-        var again = new DateTimeOffset(2026, 11, 18, 10, 0, 0, TimeSpan.FromHours(3));
+        var again = Seconds(DateTimeOffset.UtcNow.AddMinutes(-1));
 
         var body = await ReportWorld.JsonAsync(await SubmitAsync(client, $"{Url}/{id}", await VersionAsync(client, id), again));
 
         Assert.Equal("submitted", body.GetProperty("status").GetString());
         Assert.Equal(again, body.GetProperty("submittedAt").GetDateTimeOffset());
     }
+
+    /// <summary>Телефон ушёл вперёд на сутки: возвращённый подан моментом часов сервера, а не «из будущего».</summary>
+    [Fact]
+    public async Task Повторная_подача_с_часами_впереди()
+    {
+        var (_, client) = await world.InstallerAsync("Петров Пётр Петрович");
+        var id = Guid.NewGuid();
+        await CreateAsync(client, world.Draft(id, world.SiteA));
+        await StatusAsync(id, "returned");
+        var before = DateTimeOffset.UtcNow;
+
+        var body = await ReportWorld.JsonAsync(await SubmitAsync(client, $"{Url}/{id}", await VersionAsync(client, id),
+            before.AddDays(1)));
+
+        var at = body.GetProperty("submittedAt").GetDateTimeOffset();
+        Assert.InRange(at, before.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+    }
+
+    private static DateTimeOffset Seconds(DateTimeOffset at) =>
+        new(at.Year, at.Month, at.Day, at.Hour, at.Minute, at.Second, at.Offset);
 
     /// <summary>Смена поданного меняется только возвратом (ТЗ MOB-35): 409, отчёт прежний.</summary>
     [Fact]

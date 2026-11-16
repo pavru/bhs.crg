@@ -201,16 +201,18 @@ public sealed class ReportReads(WorkDbContext db)
     /// Черновики с истёкшим окном подачи (ТЗ WORK-10, <c>work-15</c>) — по порядку окна, не больше
     /// <paramref name="limit" />, кроме <paramref name="except" /> (пропущенных этим прогоном). Читает только автоподача
     /// — от имени системы с причиной (<see cref="ModuleReader.OfSystem" />): охват у неё «все», и человеку этот метод не
-    /// годится. Возвращённые не выбираются: автоподача их не трогает.
+    /// годится. Возвращённые не выбираются: автоподача их не трогает. Сотрудник — чтобы имена исполнителей порции
+    /// прочесть одним вызовом порта.
     /// </summary>
-    public async Task<IReadOnlyList<Guid>> ExpiredDraftsAsync(
+    public async Task<IReadOnlyList<(Guid Id, Guid EmployeeId)>> ExpiredDraftsAsync(
         ModuleReader system, DateTimeOffset now, IReadOnlyCollection<Guid> except, int limit, CancellationToken ct)
     {
         EnsureSystem(system);
         var skipped = except.ToArray();
-        return await Expired(now).AsNoTracking().Where(r => !skipped.Contains(r.Id))
+        var found = await Expired(now).AsNoTracking().Where(r => !skipped.Contains(r.Id))
             .OrderBy(r => r.WindowEndsAt).ThenBy(r => r.Id).Take(limit)
-            .Select(r => r.Id).ToListAsync(ct);
+            .Select(r => new { r.Id, r.EmployeeId }).ToListAsync(ct);
+        return [.. found.Select(f => (f.Id, f.EmployeeId))];
     }
 
     /// <summary>
