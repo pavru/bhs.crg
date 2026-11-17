@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using BHS.CRG.Modules.Work.Review;
+using BHS.CRG.Modules.Work.Data;
 
 namespace BHS.CRG.Tests.Work;
 
@@ -44,6 +44,14 @@ public class ReviewMarkCatalogTests
     public void Коды_сервера_равны_кодам_клиента() =>
         Assert.Empty(Mismatches(ReviewMarks.All.Select(m => m.Code).ToList(), ClientCodes()));
 
+    /// <summary>
+    /// Порядок — тоже договор: пометки строки приходят в порядке каталога сервера, а отбор клиента строится по
+    /// <c>WORK_MARK_CODES</c>; переставленный с одной стороны код развёл бы их молча.
+    /// </summary>
+    [Fact]
+    public void Сверка_ловит_другой_порядок() =>
+        Assert.Contains(Mismatches(["a", "b"], ["b", "a"]), p => p.Contains("порядок"));
+
     [Fact]
     public void Сверка_ловит_лишний_код_с_любой_стороны_и_пустой_список()
     {
@@ -57,11 +65,14 @@ public class ReviewMarkCatalogTests
     private static List<string> Mismatches(IReadOnlyList<string> server, IReadOnlyList<string> client)
     {
         if (client.Count == 0) return [$"В {ClientFile} не прочитан ни один код WORK_MARK_CODES — сверять нечего."];
-        return
+        List<string> problems =
         [
             .. server.Except(client).Select(c => $"Код «{c}» есть на сервере, а у клиента ({ClientFile}) — нет."),
             .. client.Except(server).Select(c => $"Код «{c}» есть у клиента, а в каталоге сервера (ReviewMarks) — нет."),
         ];
+        if (problems.Count == 0 && !server.SequenceEqual(client))
+            problems.Add($"Коды те же, но порядок другой: сервер — {string.Join(", ", server)}; клиент — {string.Join(", ", client)}.");
+        return problems;
     }
 
     private static List<string> ClientCodes()

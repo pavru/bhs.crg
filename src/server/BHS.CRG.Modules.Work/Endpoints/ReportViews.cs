@@ -1,8 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
-using BHS.CRG.Modules.Work.Review;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
 
@@ -43,46 +41,42 @@ public sealed record ReportDto(
     bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks);
 
 /// <summary>
-/// Отчёты в ответах адресов. <c>assignedOnDate</c> считается здесь, на чтении, по назначениям <c>work-11</c> и не
-/// хранится: назначение могут поправить задним числом, и пометка обязана это увидеть (design <c>work-13</c>).
-/// Назначение любого вида — монтажник или менеджер, — как у <c>/api/work/sites/mine</c>.
+/// Отчёты в ответах адресов. <c>assignedOnDate</c> считается на чтении, по назначениям <c>work-11</c>, и не хранится:
+/// назначение могут поправить задним числом, и пометка обязана это увидеть (design <c>work-13</c>). Назначение любого
+/// вида — монтажник или менеджер, — как у <c>/api/work/sites/mine</c>. Это та же пометка
+/// <see cref="ReviewMarks.SiteNotAssigned" /> каталога (<c>work-16</c>), а не второй расчёт: поле и пометка не
+/// расходятся.
 /// </summary>
 public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads reads)
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
-        Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default) =>
-        (await ManyAsync([report], ct, replayed))[0] with { AlreadySubmitted = alreadySubmitted };
+        ReportViewer viewer, Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default) =>
+        (await ManyAsync(viewer, [report], ct, replayed))[0] with { AlreadySubmitted = alreadySubmitted };
 
     /// <param name="versions">Версии отчётов, прочитанных без отслеживания (выдача курсора); не названы — версия
     /// отслеживаемой строки.</param>
     public async Task<IReadOnlyList<ReportDto>> ManyAsync(
-        IReadOnlyList<Report> reports, CancellationToken ct, bool replayed = false,
+        ReportViewer viewer, IReadOnlyList<Report> reports, CancellationToken ct, bool replayed = false,
         IReadOnlyDictionary<Guid, string>? versions = null)
     {
-        // Только пары «сотрудник, стройка» выдачи, а не вся история назначений сотрудников.
-        var employees = reports.Select(r => r.EmployeeId).Distinct().ToList();
-        var sites = reports.Select(r => r.ConstructionId).Distinct().ToList();
-        var assignments = employees.Count == 0
-            ? []
-            : await db.Assignments.AsNoTracking()
-                .Where(a => employees.Contains(a.EmployeeId) && sites.Contains(a.ConstructionId)).ToListAsync(ct);
-        var marks = await reads.MarksAsync([.. reports.Select(r => r.Id)], user.Id, ct);
+        var marks = await reads.MarksAsync(viewer, [.. reports.Select(r => r.Id)], user.Id, ct);
         return
         [
-            .. reports.Select(r => Dto(r,
-                assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId && a.Covers(r.Date)),
-                replayed, versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), marks[r.Id])),
+            .. reports.Select(r =>
+            {
+                var codes = marks.GetValueOrDefault(r.Id) ?? [];
+                return Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
+                    versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes);
+            }),
         ];
     }
 
     /// <summary>
-    /// «Ввёл и принял один человек» — одно место расчёта (ТЗ WORK-31.1): поданный отчёт, автор ввода которого — учётная
-    /// запись читающего. Пометка <c>same-person</c> каталога (<see cref="ReviewMarks" />) у поданного — это же правило
-    /// запросом: правите здесь — правьте и там.
+    /// «Ввёл и принял один человек» (ТЗ WORK-31.1) — правило <see cref="ReviewMarks.AcceptWouldMarkRule" />: им же
+    /// считается пометка <c>same-person</c> у поданного.
     /// </summary>
-    public static bool AcceptWouldMark(Report r, Guid? viewer) =>
-        r.Status == ReportStatus.Submitted && viewer is { } me && r.EnteredByUserId == me;
+    public static bool AcceptWouldMark(Report r, Guid? viewer) => ReviewMarks.AcceptWouldMark(r, viewer);
 
     private static ReportDto Dto(
         Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks) => new(

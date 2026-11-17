@@ -6652,12 +6652,13 @@ GET    /api/work/review/queue?constructionId=&employeeId=&from=&to=&mark=&offset
                                     lines, marks: [{ code, text }], actions: [accept|return|edit],
                                     acceptWouldMark }], total, offset, limit, counts: { код: число },
                                     boundary: { code: sites|all, text, sites }, reason:
-                                    not-assigned|nothing-pending|filtered-out|null } — очередь
+                                    not-linked|directory-missing|not-assigned|nothing-pending|
+                                    filtered-out|null } — очередь
                                     приёмки (work-16, WORK-28): поданные отчёты, дольше ждущий
                                     первым. Любое из work.report.review | read; read и
                                     work.sites.all — все стройки, иначе стройки назначений
                                     «менеджер». actions — только по праву приёмки. counts — все
-                                    коды каталога (Review/ReviewMarks.cs), нулевые тоже, по всему
+                                    коды каталога (Data/ReviewMarks.cs), нулевые тоже, по всему
                                     отбору без отбора по пометке. Неизвестный mark, from > to,
                                     limit вне 1…200 — 400.
 GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted|submitted|

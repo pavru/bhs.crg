@@ -38,8 +38,8 @@
 
 ## Impact
 
-- **Сервер:** `src/server/BHS.CRG.Modules.Work/Review/*` (действия, очередь, каталог пометок,
-  сводка уведомлений), обработчик задачи сводки в такте автоподачи (`work-15`). Миграция схемы `work`:
+- **Сервер:** `src/server/BHS.CRG.Modules.Work/Review/*` (действия, очередь, сводка уведомлений),
+  `Data/ReviewMarks.cs` и `Data/ReviewQueueRead.cs` (каталог пометок и модели чтения), обработчик задачи сводки в такте автоподачи (`work-15`). Миграция схемы `work`:
   виды протокола, колонка комментария журнала, таблица отметок сводки. Тесты —
   `src/server/BHS.CRG.Tests/Integration/Review*`, сверка каталога — `src/server/BHS.CRG.Tests/Work/`.
 - **Клиент:** только типы и каталог кодов в новом `src/client/src/shared/api/work.ts`. Экраны — `work-21`.

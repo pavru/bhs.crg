@@ -7,7 +7,7 @@
  */
 
 /**
- * Коды каталога пометок сервера (`Review/ReviewMarks.cs`) — в его порядке. Сверяет `ReviewMarkCatalogTests`:
+ * Коды каталога пометок сервера (`Data/ReviewMarks.cs`) — в его порядке. Сверяет `ReviewMarkCatalogTests`:
  * лишний код с любой стороны — красный тест сервера.
  */
 export const WORK_MARK_CODES = [
@@ -40,8 +40,13 @@ export interface ReviewBoundary {
   sites: number | null;
 }
 
-/** Почему очередь пуста: своих строек нет, ждущих нет, или отбор исключил все. */
-export type ReviewEmptyReason = 'not-assigned' | 'nothing-pending' | 'filtered-out';
+/** Почему очередь пуста: нет связи, справочника, назначений, ждущих отчётов или отбор исключил все. */
+export type ReviewEmptyReason =
+  | 'not-linked'
+  | 'directory-missing'
+  | 'not-assigned'
+  | 'nothing-pending'
+  | 'filtered-out';
 
 /** Строка очереди приёмки — поданный отчёт. */
 export interface ReviewQueueRow {

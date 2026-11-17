@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
@@ -178,13 +179,20 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
         }
     }
 
-    /// <summary>Пустая очередь называет причину: своих строек нет, ждущих нет, отбор исключил все.</summary>
+    /// <summary>
+    /// Пустая очередь называет причину: своих строек нет (назначений нет — или нет связи с сотрудником), ждущих нет,
+    /// отбор исключил все.
+    /// </summary>
     [Fact]
     public async Task Причина_пустой_очереди()
     {
-        var (_, nobody) = await world.Reports.Assignments.UserAsync("Белова Вера Викторовна", WorkModule.ReportReview);
+        var (_, unlinked) = await world.Reports.Assignments.UserAsync("Белова Вера Викторовна", WorkModule.ReportReview);
+        var orlova = await world.Reports.EmployeeAsync("Орлова Ольга Олеговна");
+        var (orlovaUser, nobody) = await world.Reports.Assignments.UserAsync("Орлова Ольга Олеговна", WorkModule.ReportReview);
+        await world.Reports.Assignments.LinkAsync(orlova, orlovaUser);
         var (_, manager) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
 
+        var notLinked = await QueueAsync(unlinked, "");
         var notAssigned = await QueueAsync(nobody, "");
         var nothing = await QueueAsync(manager, $"?employeeId={Guid.NewGuid()}");
         var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
@@ -192,12 +200,28 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
         var filtered = await QueueAsync(manager, $"?employeeId={Guid.NewGuid()}");
         var full = await QueueAsync(manager, "");
 
+        Assert.Equal(ReviewQueue.NotLinked, notLinked.GetProperty("reason").GetString());
         Assert.Equal(ReviewQueue.NotAssigned, notAssigned.GetProperty("reason").GetString());
         Assert.Equal("отчёты ваших строек (0)", notAssigned.GetProperty("boundary").GetProperty("text").GetString());
         Assert.Equal(0, notAssigned.GetProperty("counts").GetProperty(ReviewMarks.LateDelivery).GetInt32());
         Assert.Equal(ReviewQueue.NothingPending, nothing.GetProperty("reason").GetString());
         Assert.Equal(ReviewQueue.FilteredOut, filtered.GetProperty("reason").GetString());
         Assert.Equal(JsonValueKind.Null, full.GetProperty("reason").ValueKind);
+    }
+
+    /// <summary>Нет справочника — причина о справочнике, а не об отсутствии назначения или связи.</summary>
+    [Fact]
+    public async Task Без_справочника_очередь_называет_причину()
+    {
+        await world.Reports.SeedAsync(classifier: false, directory: false);
+        var (_, manager) = await world.Reports.Assignments.UserAsync("Менеджер", WorkModule.ReportReview);
+
+        var page = await QueueAsync(manager, "");
+
+        Assert.Empty(page.GetProperty("items").EnumerateArray());
+        Assert.Equal(IModuleEmployees.NotSetUpCode, page.GetProperty("reason").GetString());
+        Assert.Equal("sites", page.GetProperty("boundary").GetProperty("code").GetString());
+        Assert.Equal(0, page.GetProperty("boundary").GetProperty("sites").GetInt32());
     }
 
     /// <summary>
@@ -223,6 +247,7 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal([ReviewMarks.SamePerson, ReviewMarks.SiteNotAssigned], Codes(mine));
         Assert.Equal("стройка не назначена на дату", mine.GetProperty("marks")[1].GetProperty("text").GetString());
         Assert.Equal(Codes(mine), Codes(submitted));
+        Assert.False(submitted.GetProperty("assignedOnDate").GetBoolean());
         Assert.False(theirs.GetProperty("acceptWouldMark").GetBoolean());
         Assert.Equal([ReviewMarks.SiteNotAssigned], Codes(theirs));
 

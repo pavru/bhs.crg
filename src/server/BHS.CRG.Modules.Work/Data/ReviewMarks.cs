@@ -1,7 +1,6 @@
 using System.Linq.Expressions;
-using BHS.CRG.Modules.Work.Data;
 
-namespace BHS.CRG.Modules.Work.Review;
+namespace BHS.CRG.Modules.Work.Data;
 
 /// <summary>
 /// Из чего считается пометка: журнал отчёта, назначения и учётная запись читающего. Наборы даёт файл чтения
@@ -64,16 +63,16 @@ public static class ReviewMarks
                                          && !s.Journal.Any(x => x.ReportId == r.Id && x.Seq > e.Seq
                                                                 && (x.Kind == ReportJournalKinds.Submitted
                                                                     || x.Kind == ReportJournalKinds.AutoSubmitted)))),
-        // «Ввёл и принял один человек» (WORK-31.1): у поданного — то же правило, что ReportViews.AcceptWouldMark (ввёл
-        // читающий), у принятого — запись журнала, сделанная приёмкой.
+        // «Ввёл и принял один человек» (WORK-31.1): у поданного — правило AcceptWouldMarkRule (ввёл читающий), у
+        // принятого — запись журнала, сделанная приёмкой.
         new(SamePerson, "ввёл и принял один человек",
             "автор ввода отчёта (work-13) и журнал отчёта: запись «ввёл и принял один человек»",
-            s => r => (r.Status == ReportStatus.Submitted && s.Viewer != null && r.EnteredByUserId == s.Viewer)
-                      || s.Journal.Any(e => e.ReportId == r.Id && e.Kind == ReportJournalKinds.SamePerson)),
+            s => Either(WouldMark(s), r => s.Journal.Any(e => e.ReportId == r.Id && e.Kind == ReportJournalKinds.SamePerson))),
         new(ManagerEdit, "правка менеджером",
             "журнал отчёта: правка строк менеджером (work-16)",
             s => r => s.Journal.Any(e => e.ReportId == r.Id && e.Kind == ReportJournalKinds.ManagerEdited)),
-        // То же правило, что assignedOnDate ответа отчёта (ReportViews): назначение любого вида на дату отчёта.
+        // Назначение любого вида на дату отчёта (Assignment.Covers). assignedOnDate ответа отчёта — эта же пометка, а не
+        // второй расчёт (ReportViews).
         new(SiteNotAssigned, "стройка не назначена на дату",
             "назначения (work-11): у сотрудника нет назначения на стройку отчёта на его дату",
             s => r => !s.Assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId
@@ -84,6 +83,88 @@ public static class ReviewMarks
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
     ];
 
+    /// <summary>Пометки, у которых есть данные, — по порядку каталога.</summary>
+    public static IReadOnlyList<ReviewMark> Counted { get; } = [.. All.Where(m => m.Has is not null)];
+
+    /// <summary>
+    /// «Ввёл и принял один человек» у поданного (WORK-31.1) — ОДНО правило: им считаются и <c>acceptWouldMark</c> ответа,
+    /// и пометка <see cref="SamePerson" /> запросом. Поданный отчёт, автор ввода которого — учётная запись читающего.
+    /// </summary>
+    public static readonly Expression<Func<Report, Guid?, bool>> AcceptWouldMarkRule =
+        (r, viewer) => r.Status == ReportStatus.Submitted && viewer != null && r.EnteredByUserId == viewer;
+
+    private static readonly Func<Report, Guid?, bool> AcceptWouldMarkCompiled = AcceptWouldMarkRule.Compile();
+
+    /// <summary><see cref="AcceptWouldMarkRule" /> над отчётом в памяти.</summary>
+    public static bool AcceptWouldMark(Report report, Guid? viewer) => AcceptWouldMarkCompiled(report, viewer);
+
     /// <summary>Пометка по коду; неизвестный код — <c>null</c>.</summary>
     public static ReviewMark? Of(string code) => All.FirstOrDefault(m => m.Code == code);
+
+    /// <summary>
+    /// Все пометки отчёта одной проекцией: <c>Flags[i]</c> — есть ли у отчёта <see cref="Counted" />[i]. Один запрос на
+    /// любую выдачу отчётов, а не по запросу на пометку.
+    /// </summary>
+    public static Expression<Func<Report, ReviewMarkFlags>> Flags(ReviewMarkSources sources)
+    {
+        var r = Expression.Parameter(typeof(Report), "r");
+        var flags = Expression.NewArrayInit(typeof(bool), Counted.Select(m => Inline(m.Has!(sources), r)));
+        return Expression.Lambda<Func<Report, ReviewMarkFlags>>(
+            Expression.MemberInit(Expression.New(typeof(ReviewMarkFlags)),
+                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Id))!,
+                    Expression.Property(r, nameof(Report.Id))),
+                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Marks))!, flags)),
+            r);
+    }
+
+    /// <summary>
+    /// Счётчики всех пометок по отбору одной агрегацией: <c>[i]</c> — число отчётов с <see cref="Counted" />[i].
+    /// </summary>
+    public static Expression<Func<IGrouping<int, Report>, int[]>> Counts(ReviewMarkSources sources)
+    {
+        var g = Expression.Parameter(typeof(IGrouping<int, Report>), "g");
+        var counts = Counted.Select(m => (Expression)Expression.Call(
+            typeof(Enumerable), nameof(Enumerable.Count), [typeof(Report)], g, m.Has!(sources)));
+        return Expression.Lambda<Func<IGrouping<int, Report>, int[]>>(Expression.NewArrayInit(typeof(int), counts), g);
+    }
+
+    /// <summary><see cref="AcceptWouldMarkRule" /> с учётной записью из <paramref name="sources" /> — параметром запроса.</summary>
+    private static Expression<Func<Report, bool>> WouldMark(ReviewMarkSources sources)
+    {
+        var r = Expression.Parameter(typeof(Report), "r");
+        var viewer = Expression.Property(Expression.Constant(sources), nameof(ReviewMarkSources.Viewer));
+        var body = new Swap(new Dictionary<ParameterExpression, Expression>
+        {
+            [AcceptWouldMarkRule.Parameters[0]] = r, [AcceptWouldMarkRule.Parameters[1]] = viewer,
+        }).Visit(AcceptWouldMarkRule.Body);
+        return Expression.Lambda<Func<Report, bool>>(body, r);
+    }
+
+    private static Expression<Func<Report, bool>> Either(Expression<Func<Report, bool>> a, Expression<Func<Report, bool>> b)
+    {
+        var r = Expression.Parameter(typeof(Report), "r");
+        return Expression.Lambda<Func<Report, bool>>(Expression.OrElse(Inline(a, r), Inline(b, r)), r);
+    }
+
+    /// <summary>Тело предиката над другим параметром отчёта.</summary>
+    private static Expression Inline(Expression<Func<Report, bool>> predicate, ParameterExpression r) =>
+        new Swap(new Dictionary<ParameterExpression, Expression> { [predicate.Parameters[0]] = r }).Visit(predicate.Body);
+
+    private sealed class Swap(IReadOnlyDictionary<ParameterExpression, Expression> map) : ExpressionVisitor
+    {
+        protected override Expression VisitParameter(ParameterExpression node) =>
+            map.TryGetValue(node, out var to) ? to : base.VisitParameter(node);
+    }
+}
+
+/// <summary>Пометки одного отчёта из проекции <see cref="ReviewMarks.Flags" />.</summary>
+public sealed class ReviewMarkFlags
+{
+    public Guid Id { get; init; }
+
+    /// <summary>По порядку <see cref="ReviewMarks.Counted" />.</summary>
+    public bool[] Marks { get; init; } = [];
+
+    /// <summary>Коды пометок отчёта по порядку каталога.</summary>
+    public IReadOnlyList<string> Codes() => [.. ReviewMarks.Counted.Where((_, i) => Marks[i]).Select(m => m.Code)];
 }

@@ -1,6 +1,7 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Tables;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
@@ -9,22 +10,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
 namespace BHS.CRG.Modules.Work.Review;
-
-/// <summary>Отбор очереди приёмки; не названное — не отбирает.</summary>
-public sealed record ReviewQueueFilter(
-    Guid? ConstructionId, Guid? EmployeeId, DateOnly? From, DateOnly? To, ReviewMark? Mark)
-{
-    /// <summary>Отбор назван хоть чем-то — пустота тогда «отбор исключил всё», а не «ждущих нет».</summary>
-    public bool Any => ConstructionId is not null || EmployeeId is not null || From is not null || To is not null
-                       || Mark is not null;
-}
-
-/// <summary>Отчёт страницы очереди, как его прочёл файл чтения: версия строки, число строк, коды пометок.</summary>
-public sealed record ReviewQueueItem(Report Report, string Version, int Lines, IReadOnlyList<string> Marks);
-
-/// <summary>Страница очереди из файла чтения.</summary>
-public sealed record ReviewQueueRead(
-    IReadOnlyList<ReviewQueueItem> Items, int Total, IReadOnlyDictionary<string, int> Counts, bool AnyPending);
 
 /// <summary>Граница выдачи очереди (ТЗ CORE-24.3) — вид таблиц модуля (<c>work-07</c>): код охвата и строка.</summary>
 /// <param name="Code"><c>sites</c> — стройки назначений «менеджер»; <c>all</c> — все стройки.</param>
@@ -53,6 +38,8 @@ public sealed record ReviewQueueRowDto(
 /// <c>work.report.read</c> открывает чтение, а не решение.</para>
 ///
 /// <para><b>Пустая очередь называет причину</b> (<c>reason</c>): <c>not-assigned</c> — своих строек нет;
+/// <c>not-linked</c> — учётная запись не связана с сотрудником, и назначений у неё быть не может; <c>directory-missing</c>
+/// — справочника сотрудников нет;
 /// <c>nothing-pending</c> — ждущих решения нет; <c>filtered-out</c> — ждущие есть, но отбор исключил все. Граница
 /// (<c>boundary</c>) от отбора не зависит: «отчёты ваших строек (4)» и при отборе по одной стройке.</para>
 /// </summary>
@@ -66,6 +53,8 @@ public static class ReviewQueue
 
     public const string NotAssigned = "not-assigned";
 
+    public const string NotLinked = WorkAccounts.NotLinked;
+
     public const string NothingPending = "nothing-pending";
 
     public const string FilteredOut = "filtered-out";
@@ -78,13 +67,21 @@ public static class ReviewQueue
 
     private static readonly IReadOnlyList<string> Decisions = [Accept, Return, Edit];
 
+    /// <summary>Строки границы по исходу охвата — вид таблиц модуля (<see cref="ModuleTableBoundary" />, <c>work-07</c>).</summary>
+    private static readonly IReadOnlyList<ModuleTableBoundary> Boundaries =
+    [
+        new("sites", $"отчёты ваших строек ({ModuleTableBoundary.SitesPlace})"),
+        new(ModuleTableBoundary.OnlyCode, "все стройки"),
+    ];
+
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet(Path, GetAsync).WithTags("Отчёты")
             .RequireAuthorization(AppPolicies.AnyPermission(WorkModule.ReportReview, WorkModule.ReportRead));
 
     private static Task<IResult> GetAsync(
         Guid? constructionId, Guid? employeeId, DateOnly? from, DateOnly? to, string? mark, int? offset, int? limit,
-        IModuleUser user, IModuleReaders readers, ManagerSites sites, ReportReads reads, CancellationToken ct) =>
+        IModuleUser user, IModuleReaders readers, ManagerSites sites, IModuleEmployees employees, ReportReads reads,
+        CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
             var skip = offset ?? 0;
@@ -105,7 +102,11 @@ public static class ReviewQueue
             var reach = reader.Allows(WorkModule.ReportRead) ? ModuleReach.All : decides!;
             var boundary = Boundary(reach);
             if (reach is { Kind: ModuleReachKind.Sites, Sites.Count: 0 })
-                return Results.Ok(Page([], 0, Empty(), boundary, NotAssigned, skip, take));
+            {
+                // Своих строек нет: назначений нет — или их и быть не может, потому что нет связи или справочника.
+                var (_, missing) = await WorkAccounts.OfUserAsync(user, employees, ct);
+                return Results.Ok(Page([], 0, Empty(), boundary, missing ?? NotAssigned, skip, take));
+            }
 
             var read = await reads.QueueAsync(ReportViewer.Of(reach), filter, user.Id, skip, take, ct);
             string? reason = read.Total > 0 ? null : read.AnyPending && filter.Any ? FilteredOut : NothingPending;
@@ -120,9 +121,11 @@ public static class ReviewQueue
 
     private static Dictionary<string, int> Empty() => ReviewMarks.All.ToDictionary(m => m.Code, _ => 0);
 
-    private static ReviewBoundaryDto Boundary(ModuleReach reach) => reach.Kind == ModuleReachKind.Sites
-        ? new(reach.Code, $"отчёты ваших строек ({reach.Sites.Count})", reach.Sites.Count)
-        : new(reach.Code, "все стройки", null);
+    private static ReviewBoundaryDto Boundary(ModuleReach reach)
+    {
+        var outcome = ModuleTableOutcome.Of(reach);
+        return new(outcome.Code, Boundaries.Single(b => b.Code == outcome.Code).Render(outcome.Sites), outcome.Sites);
+    }
 
     private static ReviewQueueRowDto Row(ReviewQueueItem item, Guid? viewer, ModuleReach? decides)
     {
@@ -135,6 +138,6 @@ public static class ReviewQueue
             item.Lines,
             [.. ReviewMarks.All.Where(m => codes.Contains(m.Code)).Select(m => m.Dto)],
             decides?.Covers(r.ConstructionId, own: false) == true ? Decisions : [],
-            ReportViews.AcceptWouldMark(r, viewer));
+            ReviewMarks.AcceptWouldMark(r, viewer));
     }
 }

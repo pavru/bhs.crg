@@ -87,7 +87,7 @@ public sealed class ReportDesk(
             journal.Append(ReportJournalKinds.Created, report, null, actor, executor, changeId, seq, body.DeviceTime, now);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return Results.Created($"{path}/{id}", await views.OneAsync(report, ct: ct));
+            return Results.Created($"{path}/{id}", await views.OneAsync(viewer, report, ct: ct));
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
@@ -121,7 +121,7 @@ public sealed class ReportDesk(
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
         if (await reads.AppliedAsync(id, changeId, ct) is not null)
-            return Results.Ok(await views.OneAsync(report, replayed: true, ct: ct));
+            return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
 
@@ -141,7 +141,7 @@ public sealed class ReportDesk(
             await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: changed);
         else if (entry.AfterSubmission)
             await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: changed);
-        return Results.Ok(await views.OneAsync(report, ct: ct));
+        return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
     }
 
     /// <summary>
@@ -159,7 +159,7 @@ public sealed class ReportDesk(
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
             if (report.Status == ReportStatus.Submitted)
-                return Results.Ok(await views.OneAsync(report, alreadySubmitted: true, ct: ct));
+                return Results.Ok(await views.OneAsync(viewer, report, alreadySubmitted: true, ct: ct));
             if (report.SubmitRefusal() is { } refusal) throw new ConflictException(refusal);
             if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
             var missing = await required.OfAsync(report, ct) ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
@@ -177,14 +177,14 @@ public sealed class ReportDesk(
             await submission.ApplyAsync(report, at, ReportSubmitter.Manual, missing: null, actor, executor,
                 body?.ChangeId ?? Guid.NewGuid(), body?.DeviceTime, now, ct);
             await tx.CommitAsync(ct);
-            return Results.Ok(await views.OneAsync(report, ct: ct));
+            return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
         }
         catch (DbUpdateConcurrencyException)
         {
             // Автоподача (или вторая подача) успела между чтением и записью: поданный отчёт — повтор, иное — версия.
             db.ChangeTracker.Clear();
             if (await reads.FindAsync(viewer, id, ct) is { Status: ReportStatus.Submitted } won)
-                return Results.Ok(await views.OneAsync(won, alreadySubmitted: true, ct: ct));
+                return Results.Ok(await views.OneAsync(viewer, won, alreadySubmitted: true, ct: ct));
             throw new ConflictException(Stale);
         }
     }
@@ -244,7 +244,7 @@ public sealed class ReportDesk(
     {
         if (holder.EmployeeId == employeeId && viewer.Covers(holder.ConstructionId, employeeId)
             && await reads.FindAsync(viewer, id, ct) is { } report)
-            return Results.Ok(await views.OneAsync(report, replayed: true, ct: ct));
+            return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
         throw new ConflictException(IdTaken);
     }
 

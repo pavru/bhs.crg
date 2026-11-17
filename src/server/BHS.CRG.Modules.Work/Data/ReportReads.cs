@@ -1,6 +1,5 @@
 using System.Globalization;
 using BHS.CRG.Modules.Access;
-using BHS.CRG.Modules.Work.Review;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -286,9 +285,10 @@ public sealed class ReportReads(WorkDbContext db)
         if (filter.From is { } from) chosen = chosen.Where(r => r.Date >= from);
         if (filter.To is { } to) chosen = chosen.Where(r => r.Date <= to);
 
-        var counts = new Dictionary<string, int>();
-        foreach (var mark in ReviewMarks.All)
-            counts[mark.Code] = mark.Has is { } has ? await chosen.CountAsync(has(sources), ct) : 0;
+        // Все счётчики — одной агрегацией по отбору; пустой отбор строки группы не даёт — тогда нули.
+        var counted = await chosen.GroupBy(_ => 1).Select(ReviewMarks.Counts(sources)).FirstOrDefaultAsync(ct);
+        var counts = ReviewMarks.All.ToDictionary(m => m.Code, _ => 0);
+        for (var i = 0; i < ReviewMarks.Counted.Count; i++) counts[ReviewMarks.Counted[i].Code] = counted?[i] ?? 0;
 
         var selected = filter.Mark switch
         {
@@ -300,7 +300,7 @@ public sealed class ReportReads(WorkDbContext db)
         var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
             .Select(r => new { Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count })
             .ToListAsync(ct);
-        var marks = await MarksAsync([.. page.Select(p => p.Report.Id)], userId, ct);
+        var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
         var anyPending = total > 0 || await pending.AnyAsync(ct);
         return new ReviewQueueRead(
             [
@@ -311,24 +311,19 @@ public sealed class ReportReads(WorkDbContext db)
     }
 
     /// <summary>
-    /// Пометки отчётов (ТЗ WORK-28): коды каталога по порядку, у каждого отчёта — список, пустой тоже. Отчёты — уже
-    /// прочитанные с охватом (ответ чтения, страница очереди): наружу уходят только коды тех же отчётов.
+    /// Пометки отчётов (ТЗ WORK-28) одним запросом: коды каталога по порядку, у каждого отчёта — список, пустой тоже.
+    ///
+    /// <para>Тот же охват, что у чтения отчёта: чужие и несуществующие идентификаторы в ответ не входят.
+    /// Получить объект отчёта недостаточно для доказательства охвата — запрос проверяет его сам.</para>
     /// </summary>
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> MarksAsync(
-        IReadOnlyCollection<Guid> ids, Guid? userId, CancellationToken ct)
+        ReportViewer viewer, IReadOnlyCollection<Guid> ids, Guid? userId, CancellationToken ct)
     {
-        var found = ids.Distinct().ToDictionary(id => id, _ => new List<string>());
-        if (found.Count == 0) return found.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value);
-        var sources = Sources(userId);
-        var wanted = found.Keys.ToArray();
-        foreach (var mark in ReviewMarks.All)
-        {
-            if (mark.Has is not { } has) continue;
-            var marked = await db.Set<Report>().AsNoTracking().Where(r => wanted.Contains(r.Id)).Where(has(sources))
-                .Select(r => r.Id).ToListAsync(ct);
-            foreach (var id in marked) found[id].Add(mark.Code);
-        }
-        return found.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value);
+        var wanted = ids.Distinct().ToArray();
+        if (wanted.Length == 0) return new Dictionary<Guid, IReadOnlyList<string>>();
+        var flags = await Visible(viewer).AsNoTracking().Where(r => wanted.Contains(r.Id))
+            .Select(ReviewMarks.Flags(Sources(userId))).ToListAsync(ct);
+        return flags.ToDictionary(f => f.Id, f => f.Codes());
     }
 
     private ReviewMarkSources Sources(Guid? userId) =>
