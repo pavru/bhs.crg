@@ -6609,7 +6609,9 @@ GET    /api/work/reports?since=&limit=100   → { items: [отчёт], deleted: 
                                     updatedAt, lines: [{ id, position, workTypeId, variantId, volume,
                                     unitId, sectionId, location, comment, isCrew, workPlanItemId,
                                     details, materials: [{ nomenclatureId, note }], participants }],
-                                    replayed }. Все адреса — work.report.own; сотрудник — из связи
+                                    replayed, acceptWouldMark, marks: [{ code, text }] } — marks и
+                                    acceptWouldMark (work-16) считает сервер. Все адреса —
+                                    work.report.own; сотрудник — из связи
                                     учётной записи: нет связи — 403, нет справочника — 409
                                     { code: directory-missing, error }.
 POST   /api/work/reports                    { id, constructionId, date, shift?, hours?, note?,
@@ -6634,8 +6636,34 @@ POST   /api/work/reports/{id}/submit        { changeId?, deviceTime? } + If-Matc
                                     { error, requiredMissing: [{ line, lineId, field }] }.
 POST   /api/work/entry/reports/{id}/submit  то же для ввода за сотрудника: work.report.review,
                                     стройки менеджера; чужая стройка — 404.
+POST   /api/work/reports/{id}/accept        { changeId?, deviceTime? } + If-Match → отчёт (work-16,
+                                    WORK-13): work.report.review, стройки менеджера (с
+                                    work.sites.all — все); чужая стройка — 404. Не поданный — 409
+                                    { code: report-status, status, error }; повтор changeId тем же
+                                    решением — 200 replayed, другим — 409. Ввёл и принял один
+                                    человек — запись журнала same-person.
+POST   /api/work/reports/{id}/return        { comment, changeId?, deviceTime? } + If-Match → отчёт;
+                                    пустой comment — 400; остальное — как у accept. Личное
+                                    уведомление монтажнику; нет учётной записи — запись журнала
+                                    notify-none.
+GET    /api/work/review/queue?constructionId=&employeeId=&from=&to=&mark=&offset=0&limit=50
+                                    → { items: [{ id, employeeId, constructionId, date, shift,
+                                    hours, status, version, submittedAt, submittedBy, enteredBy,
+                                    lines, marks: [{ code, text }], actions: [accept|return|edit],
+                                    acceptWouldMark }], total, offset, limit, counts: { код: число },
+                                    boundary: { code: sites|all, text, sites }, reason:
+                                    not-linked|directory-missing|not-assigned|nothing-pending|
+                                    filtered-out|null } — очередь
+                                    приёмки (work-16, WORK-28): поданные отчёты, дольше ждущий
+                                    первым. Любое из work.report.review | read; read и
+                                    work.sites.all — все стройки, иначе стройки назначений
+                                    «менеджер». actions — только по праву приёмки. counts — все
+                                    коды каталога (Data/ReviewMarks.cs), нулевые тоже, по всему
+                                    отбору без отбора по пометке. Неизвестный mark, from > to,
+                                    limit вне 1…200 — 400.
 GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted|submitted|
-                                    auto-submitted, changeId,
+                                    auto-submitted|accepted|returned|manager-edited|same-person|
+                                    notify-none, changeId, comment,
                                     author: { id, name }, executor: { employeeId, name }, enteredFor,
                                     deviceTime, serverTime, afterSubmission, changes: [{ line, field,
                                     before, after }] }] } — журнал отчёта (work-14), только чтение

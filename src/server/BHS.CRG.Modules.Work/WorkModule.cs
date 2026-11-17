@@ -216,6 +216,7 @@ public sealed class WorkModule : IAppModule
         EntryReportEndpoints.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
+        ReviewQueue.Map(endpoints);
     }
 
     /// <summary>
