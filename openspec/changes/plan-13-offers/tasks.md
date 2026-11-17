@@ -2,25 +2,25 @@
 
 ## 1. PR 1: модель и наценки
 
-- [ ] 1.1 `Data/Offer.cs`, `Data/OfferLine.cs`, `OfferSectionMarkup`, миграция `Offers`
+- [x] 1.1 `Data/Offer.cs`, `Data/OfferLine.cs`, `OfferSectionMarkup`, миграция `Offers`
   (`--context PlanDbContext`); номер «КП-<год>-<NNN>»; заказчик — роль `role.organization` в `Needs`
   [PLAN-10] [PLAN-Q8]. Проверка — на пересозданной базе старт применяет миграцию; себестоимости в таблицах
   КП нет (тест по модели)
-- [ ] 1.2 `Offers/OfferPricing.cs`: наценка строка → раздел → предложение, база по В-8 (решение В-8),
+- [x] 1.2 `Offers/OfferPricing.cs`: наценка строка → раздел → предложение, база по В-8 (решение В-8),
   округление, НДС «в том числе / сверху / без НДС» (решение В-9) [PLAN-11]. Проверка —
   `OfferPricingTests`: 20 % / 15 % / 10 % дают цену по самому частному уровню; итог = сумма строк
-- [ ] 1.3 «Сделать КП из редакции» — одно действие, фиксирует редакцию (`plan-06`) [PLAN-10] [PLAN-5].
+- [x] 1.3 «Сделать КП из редакции» — одно действие, фиксирует редакцию (`plan-06`) [PLAN-10] [PLAN-5].
   Проверка — тест: после создания редакция зафиксирована этим КП; несопоставленные строки перенесены
-- [ ] 1.4 Тип `КоммерческоеПредложение` (`PlanRecordTypes.cs`), тэг `offer.markup` в `PlanModule.Tags`,
-  «Наценка» и «Итого» — `Locked` [TYPE-17] [CORE-20.2]. Проверка — `RecordWriteGuardCoverageTests` зелёный;
+- [x] 1.4 Тип `КоммерческоеПредложение` (`PlanRecordTypes.cs`), тэг `offer.markup` в `PlanModule.Tags`,
+  «Наценка» и «Итого» — `Locked`, уровень расширяемый (на открытом замков нет) [TYPE-17] [CORE-20.2]. Проверка — `RecordWriteGuardCoverageTests` зелёный;
   запись итога в обход — поле не меняется; `PlanOnlyHostTests` стартует с тэгом
-- [ ] 1.5 Деньги по правам: цены — `plan.offer.read`; себестоимость из сметы — только с
+- [x] 1.5 Деньги по правам: цены — `plan.offer.read`; себестоимость из сметы — только с
   `plan.estimate.cost`, иначе `hidden: ["cost"]` [PLAN-11] [PLAN-2]. Проверка — тест: без
   `plan.estimate.cost` в ответе нет ни одного поля себестоимости
-- [ ] 1.6 Права `plan.offer.read`, `plan.offer.edit` с объяснениями и `ReadAllMark`; КП в
+- [x] 1.6 Права `plan.offer.read`, `plan.offer.edit` с объяснениями и `ReadAllMark`; КП в
   `AccountingDocuments` [PLAN-23] [CORE-20.1]. Проверка — тест состава `/api/account/access` по ролям;
   смена валюты при существующем КП — 409 «коммерческих предложений: 1»
-- [ ] 1.7 Адреса `GET/POST /api/plan/offers`, `GET/PUT/DELETE /api/plan/offers/{id}`, `PUT …/markups` с
+- [x] 1.7 Адреса `GET/POST /api/plan/offers`, `GET/PUT/DELETE /api/plan/offers/{id}`, `PUT …/markups` с
   `If-Match` (кроме создания) [AUTH-8] [AUTH-9]. Проверка — тесты отказов: без `If-Match` — 400,
   устаревший — 409, «Сметчик» — 403, модуль выключен — 501; `EndpointGateInventoryTests` зелёный
 

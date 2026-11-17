@@ -30,8 +30,26 @@ public static class PlanReferences
     private static ReferenceDocument Distribution() =>
         new("revision_distributions", "label", "revision_id", "сметы и редакции", PlanModule.EstimateRead, Key: "revision_id");
 
+    /// <summary>Чем назвать КП-держатель: его номером, под правом чтения КП (<c>plan-13</c>).</summary>
+    private static ReferenceDocument Offer(string via) =>
+        new("offers", "number", via, "коммерческие предложения", PlanModule.OfferRead);
+
     public static IReadOnlyList<ModuleReference> All =>
     [
+        // КП (plan-13) держит стройку, заказчика и свой тип; строки — вид работы, как был у строки сметы.
+        ModuleReference.Holding("offers", "construction_id", ReferenceTarget.Construction,
+            "коммерческие предложения этой стройки", Offer("id")),
+        ModuleReference.Holding("offers", "customer_id", ReferenceTarget.Record,
+            "коммерческие предложения этому заказчику", Offer("id")),
+        ModuleReference.Holding("offers", "document_type_id", ReferenceTarget.DocumentType,
+            "коммерческие предложения этого типа", Offer("id")),
+        // Поля заказчика: тип КП расширяется схемой, и поле-ссылку в него дописать можно (ТЗ TYPE-17).
+        ModuleReference.Holding("offers", "data", target: null,
+            "коммерческие предложения, где запись выбрана в поле заказчика"),
+        ModuleReference.Remembering("offers", "created_by", ReferenceTarget.User,
+            "кто сделал КП — справочное поле; удаление учётной записи КП не касается"),
+        ModuleReference.Holding("offer_lines", "work_type_id", ReferenceTarget.Record,
+            "строки коммерческих предложений с этим видом работы", Offer("offer_id")),
         ModuleReference.Holding("estimates", "construction_id", ReferenceTarget.Construction,
             "сметы этой стройки", Estimate("id")),
         ModuleReference.Holding("estimates", "section_id", ReferenceTarget.Section,

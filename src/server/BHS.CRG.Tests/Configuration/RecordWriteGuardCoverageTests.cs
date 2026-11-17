@@ -44,6 +44,8 @@ public class RecordWriteGuardCoverageTests
     {
         ["СчётНаОплату"] = @"\.ApplyRequisites\(",
         ["ПозицияСметы"] = @"\.CreateEstimateRow\(",
+        // Коммерческое предложение (plan-13): поля заказчика по схеме; системные поля — колонки, их кладёт расчёт.
+        ["КоммерческоеПредложение"] = @"\.ApplyCustomerData\(",
         // Отчёт монтажника (work-13): шапка — колонки закрытого типа, сведения строки — JSON по схеме.
         ["ОтчётМонтажника"] = @"\bReport\.Create\(|\.ChangeHeader\(",
         ["СтрокаРаботыСведения"] = @"\bReportLine\.Create\(|\.ApplyLine\(",
@@ -65,7 +67,7 @@ public class RecordWriteGuardCoverageTests
     /// поле уходит в предложение, остальное ложится, — и зовёт её в условии записи.
     /// </summary>
     private static readonly Regex GuardCall = new(
-        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.(Creation)?RefusalsAsync\(|\bawait\s+GuardedAsync\(",
+        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.|OfferRequisites\.)?EnsureAllowedAsync\(|\.(Creation)?RefusalsAsync\(|\bawait\s+GuardedAsync\(",
         RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
@@ -102,6 +104,9 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Modules.Plan/Data/EstimateRevisionWriter.cs|created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data[i]), draft));"] =
             (Guarded, "строка новой редакции сметы (plan-06): сметное наполнение по схеме «Позиция сметы» вносится " +
                       "впервые — редакция заводится целиком, лежащего нет; единственное место записи строк"),
+        ["BHS.CRG.Modules.Plan/Endpoints/OfferEndpoints.cs|offer.ApplyCustomerData(customer, now);"] =
+            (Guarded, "поля заказчика КП (plan-13): у создания — впервые, у правки — против лежащего с проекцией " +
+                      "системных полей «Наценка» и «Итого»; охрана стоит перед записью в обоих адресах"),
         ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|if (was is null) report.Lines.Add(ReportLine.Create(report.Id, i, line, items[line.Id]));"] =
             (Guarded, "новая строка отчёта монтажника (work-13): сведения по схеме «Строка работы: сведения» вносятся " +
                       "впервые — охрана как создание"),

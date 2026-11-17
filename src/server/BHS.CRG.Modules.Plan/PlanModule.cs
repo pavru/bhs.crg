@@ -63,6 +63,12 @@ public sealed class PlanModule : IAppModule
     /// </summary>
     public const string EstimateHint = "plan.estimate.hint";
 
+    /// <summary>Чтение КП — цены продажи, наценки и итоги (ТЗ PLAN-11, PLAN-23); объявлено с адресами КП (<c>plan-13</c>).</summary>
+    public const string OfferRead = "plan.offer.read";
+
+    /// <summary>Правка КП: сделать из редакции, шапка, наценки, удаление (<c>plan-13</c>).</summary>
+    public const string OfferEdit = "plan.offer.edit";
+
     /// <summary>Почему права контракта не входят в «читать всё»: это выдача другим модулям (D12 зонтика).</summary>
     private static readonly ReadAllMark ContractOut = ReadAllMark.Out("выдача другим модулям: модуль «Планирование» не открывает");
 
@@ -139,6 +145,23 @@ public sealed class PlanModule : IAppModule
             "в модуле, который их спрашивает; модуль «Планирование», сметы, количества и цены не открывает",
             ["work.report.own"],
             ContractOut, Contract: true),
+
+        // КП (plan-13): цены продажи — своим правом, а не правом смет: «Сметчик» видит себестоимость и не видит
+        // цен продажи (PLAN-2), «Менеджер проекта» — наоборот (PLAN-11). Себестоимость в ответе КП — по-прежнему
+        // под plan.estimate.cost.
+        new(OfferRead,
+            "видеть коммерческие предложения: цены продажи, наценки и итоги",
+            "КП всех строек экземпляра — строки, цены продажи, наценки, НДС и итоги; себестоимость и маржу строк " +
+            "открывает право на себестоимость сметы",
+            [EstimateRead],
+            ReadAllMark.In),
+
+        new(OfferEdit,
+            "делать КП из редакции сметы, править шапку и наценки, удалять черновики",
+            "то же, что чтение КП, плюс изменение; КП, сделанное из редакции, фиксирует её — редакцию больше не " +
+            "правят и не удаляют",
+            [OfferRead, EstimateRead],
+            ReadAllMark.Out("делает и правит коммерческие предложения, фиксирует редакции смет")),
     ];
 
     /// <summary>
@@ -151,6 +174,15 @@ public sealed class PlanModule : IAppModule
     /// <summary>Тип сметного наполнения строки — <see cref="PlanRecordTypes" /> (ТЗ TYPE-16).</summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => PlanRecordTypes.All;
 
+    /// <summary>Тэг наценки КП (ТЗ TYPE-17): объявлен модулем, на экземпляре без планирования его нет.</summary>
+    public IReadOnlyList<ModuleTag> Tags => PlanRecordTypes.Tags;
+
+    /// <summary>
+    /// КП — документ с суммами в валюте учёта (ТЗ CORE-20.1, D19 зонтика): пока есть хоть одно, валюту учёта не
+    /// сменить — суммы не пересчитываются. Строки и наценки без КП не живут, поэтому названа одна таблица.
+    /// </summary>
+    public IReadOnlyList<ModuleAccountingDocument> AccountingDocuments => [new("offers", "коммерческих предложений")];
+
     /// <summary>
     /// Справочник номенклатуры — по роли, как у счетов (ТЗ TYPE-23, PLAN-9.1): на позицию ссылается
     /// материал строки сметы. Порт справочников отвечает только на объявленные роли.
@@ -161,6 +193,9 @@ public sealed class PlanModule : IAppModule
             "Позиция материала в строке сметы",
             "Материалы строк сметы не сослаться на номенклатуру: редакция, где у материала выбрана позиция, " +
             "не записывается; материалы без позиции записываются и ждут сопоставления."),
+        new(BHS.CRG.Domain.Schema.FunctionalTag.RoleOrganization,
+            "Заказчик коммерческого предложения",
+            "Заказчика КП не выбрать: КП делается и правится без заказчика."),
     ];
 
     public IReadOnlyList<ModuleReference> References => PlanReferences.All;
@@ -194,6 +229,8 @@ public sealed class PlanModule : IAppModule
         services.AddDbContext<PlanDbContext>(options =>
             PlanDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
+        services.AddSingleton<IModuleActivityActions, OfferActions>();
+        services.AddScoped<Offers.OfferDesk>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();
         // Подстановка запомненного при импорте (plan-08) — в точку расширения, оставленную plan-07.
@@ -235,6 +272,7 @@ public sealed class PlanModule : IAppModule
         NomenclatureSearchEndpoints.Map(endpoints);
         DistributionEndpoints.Map(endpoints);
         ConjunctureEndpoints.Map(endpoints);
+        OfferEndpoints.Map(endpoints);
     }
 
     /// <summary>
