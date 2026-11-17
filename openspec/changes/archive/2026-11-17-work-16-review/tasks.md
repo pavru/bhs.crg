@@ -30,25 +30,27 @@
 
 ## 2. PR 2: очередь приёмки и каталог пометок
 
-- [ ] 2.1 Каталог пометок `Review/ReviewMarks.cs` с кодами `edited-after-submit`, `same-person`,
+- [x] 2.1 Каталог пометок `Data/ReviewMarks.cs` с кодами `edited-after-submit`, `same-person`,
   `manager-edit`, `site-not-assigned`, `photos-pending`, `late-delivery` и источником каждого [WORK-28]
   [MOB-21] [WORK-34]. Проверка — юнит-тест: у каждого кода текст и источник
-- [ ] 2.2 `GET /api/work/review/queue`: отбор по стройке, датам, сотруднику и коду; `marks` и `actions`
+- [x] 2.2 `GET /api/work/review/queue`: отбор по стройке, датам, сотруднику и коду; `marks` и `actions`
   у строки, `marks` и в ответе чтения отчёта; `counts` по всем кодам по всему отбору [WORK-28] [WORK-39].
-  Проверка — `Integration/ReviewQueueTests`: счётчик 70 при странице 50, руководитель без `actions`,
-  монтажник 403, отчёт чужой стройки отсутствует
-- [ ] 2.3 Граница выдачи `boundary` в ответе очереди (вид `work-07`) и пустая очередь с `reason`:
-  `not-assigned`, `nothing-pending`, `filtered-out` [WORK-28] [WORK-46] [CORE-24.3]. Проверка — тест на
-  каждую причину; «отчёты ваших строек (4)» не меняется от отбора по стройке, у руководителя — «все стройки»
-- [ ] 2.4 Типы ответа и `WORK_MARK_CODES` в `src/client/src/shared/api/work.ts`; серверная сверка
+  Проверка — `Integration/ReviewQueueTests`: счётчик 3 при странице 2 — на обеих страницах (правило то же, что «70 при 50»), руководитель без `actions`,
+  монтажник 403, отчёт чужой стройки отсутствует; `Integration/ReviewReadsTests`: `MarksAsync` с охватом
+  не выдаёт пометки чужих ID, пометки — одним запросом, счётчики — одной агрегацией
+- [x] 2.3 Граница выдачи `boundary` в ответе очереди (вид `work-07`) и пустая очередь с `reason`:
+  `not-linked`, `directory-missing`, `not-assigned`, `nothing-pending`, `filtered-out` [WORK-28] [WORK-46]
+  [CORE-24.3]. Проверка — тест на каждую причину; «отчёты ваших строек (4)» не меняется от отбора по
+  стройке, у руководителя — «все стройки»
+- [x] 2.4 Типы ответа и `WORK_MARK_CODES` в `src/client/src/shared/api/work.ts`; серверная сверка
   каталогов [WORK-28]. Проверка — `Work/ReviewMarkCatalogTests` падает на лишнем коде с любой стороны и
-  на пустом списке клиента
-- [ ] 2.5 Описать адреса очереди и приёмки в листинге REST API `docs/DEV_NOTES.md`. Проверка —
+  на пустом списке клиента и на другом порядке
+- [x] 2.5 Описать адреса очереди и приёмки в листинге REST API `docs/DEV_NOTES.md`. Проверка —
   маршруты в листинге совпадают с `Endpoints` модуля
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~.Review|FullyQualifiedName~NotificationAudience|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~.Review|FullyQualifiedName~NotificationAudience|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

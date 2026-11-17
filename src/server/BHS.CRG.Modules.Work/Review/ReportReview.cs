@@ -75,7 +75,7 @@ public sealed class ReportReview(
             report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
             if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is { } applied)
                 return applied.Kind == kind
-                    ? Results.Ok(await views.OneAsync(report, replayed: true, ct: ct))
+                    ? Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct))
                     : throw new ConflictException(ChangeTaken);
             report.EnsureReviewable();
             if (seen != db.VersionOf(report)) throw new ConflictException(ReportDesk.Stale);
@@ -122,7 +122,7 @@ public sealed class ReportReview(
             await activity.RecordAsync(ReportActions.Returned, report, executor, before: "подан", after: comment!, site);
             if (recipient is { } userId) await notice.PublishAsync(userId, report, site, comment!, actor.Name);
         }
-        return Results.Ok(await views.OneAsync(report, ct: ct));
+        return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
     }
 
     /// <summary>Отдельная запись журнала рядом с решением — своим номером, без записи протокола.</summary>
