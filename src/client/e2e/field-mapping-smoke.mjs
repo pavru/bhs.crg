@@ -55,7 +55,11 @@ const original = start.row.fields.find(f => f.key === start.row.key);
 const other = original && start.row.fields.find(f =>
   f.fits && !f.tagged && f.declaredIn.id === original.declaredIn.id);
 
-const tableRow = page.locator(`[data-role="${ORG}"] [data-tag="${TAX_ID}"]`);
+// Одну роль могут читать несколько модулей (например, организации нужны и costs, и plan).
+// Этот прогон меняет и перечитывает группы costs — контекст совпадает с taxIdRow и orgGroups.
+const costsSection = page.locator('[data-module="costs"]');
+const orgGroup = costsSection.locator(`[data-role="${ORG}"]`);
+const tableRow = orgGroup.locator(`[data-tag="${TAX_ID}"]`);
 const select = tableRow.getByRole('combobox');
 
 async function pick(field) {
@@ -65,7 +69,7 @@ async function pick(field) {
 }
 
 async function save() {
-  await page.locator(`[data-role="${ORG}"]`).getByRole('button', { name: 'Сохранить' }).click();
+  await orgGroup.getByRole('button', { name: 'Сохранить' }).click();
   await settled(page);
 }
 
@@ -187,7 +191,7 @@ const TWIN = 'role.e2e-twin';
 const twin = group => ({ ...unassigned(group), role: TWIN, label: 'Двойник для прогона' });
 
 async function rereadByTwin() {
-  const twinGroup = page.locator(`[data-role="${TWIN}"]`);
+  const twinGroup = costsSection.locator(`[data-role="${TWIN}"]`);
   await twinGroup.locator(`[data-tag="${TAX_ID}"]`).getByRole('combobox').click();
   await page.getByRole('option').filter({ hasText: original.title }).first().click();
   // Вместе, а не «сначала подписаться, потом нажать»: не нажмись кнопка, оставшееся без присмотра
@@ -211,7 +215,6 @@ async function withoutWrites(run) {
   if (wrote.length) throw new Error(`проверка обещала не писать, а в схему ушло: ${wrote.join(', ')}`);
 }
 
-const orgGroup = page.locator(`[data-role="${ORG}"]`);
 const shown = async () => (await select.innerText()).trim();
 const offersSave = async () => (await orgGroup.getByRole('button', { name: 'Сохранить' }).count()) > 0;
 
