@@ -52,10 +52,13 @@ internal static class OfferViews
     public static async Task<OfferDto> OneAsync(
         PlanDbContext db, OfferDesk desk, IModuleUser user, Guid id, CancellationToken ct)
     {
-        var offer = await db.Offers.AsNoTracking().Include(o => o.Lines).Include(o => o.SectionMarkups)
-            .FirstOrDefaultAsync(o => o.Id == id, ct) ?? throw NotFound();
-        var version = await db.Offers.Where(o => o.Id == id)
-            .Select(o => EF.Property<uint>(o, PlanDbContext.RowVersion)).FirstAsync(ct);
+        // Данные и версия — один снимок: новая версия рядом со старой шапкой пропустила бы чужую правку.
+        var snapshot = await db.Offers.AsNoTracking().AsSingleQuery().Include(o => o.Lines).Include(o => o.SectionMarkups)
+            .Where(o => o.Id == id)
+            .Select(o => new { Offer = o, Version = EF.Property<uint>(o, PlanDbContext.RowVersion) })
+            .FirstOrDefaultAsync(ct) ?? throw NotFound();
+        var offer = snapshot.Offer;
+        var version = snapshot.Version;
 
         var cost = await user.HasAsync(PlanModule.EstimateCost, ct);
         var bases = cost && offer.RevisionId is { } revision ? await desk.BaseTotalsAsync(revision, ct) : null;

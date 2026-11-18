@@ -47,7 +47,7 @@ internal static class OfferModel
 
         // Номер сквозной по году: два КП, заведённые разом, получили бы один номер — второй проигрывает здесь.
         offer.HasIndex(o => new { o.Year, o.Sequence }).IsUnique().HasDatabaseName(PlanDbContext.OfferNumberKey);
-        offer.HasIndex(o => o.Number).IsUnique().HasDatabaseName("ux_offers_number");
+        offer.HasIndex(o => o.Number).IsUnique().HasDatabaseName(PlanDbContext.OfferFormattedNumberKey);
         offer.HasIndex(o => o.ConstructionId).HasDatabaseName("ix_offers_construction_id");
         offer.HasIndex(o => o.CustomerId).HasDatabaseName("ix_offers_customer_id").HasFilter("customer_id IS NOT NULL");
         offer.HasIndex(o => o.DocumentTypeId).HasDatabaseName("ix_offers_document_type_id");
