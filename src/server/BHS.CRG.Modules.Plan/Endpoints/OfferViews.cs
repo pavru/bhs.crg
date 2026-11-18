@@ -22,6 +22,10 @@ internal static class OfferViews
     private static readonly IReadOnlyDictionary<OfferStatus, string> StatusCodes = new Dictionary<OfferStatus, string>
     {
         [OfferStatus.Draft] = "draft",
+        [OfferStatus.Sent] = "sent",
+        [OfferStatus.Accepted] = "accepted",
+        [OfferStatus.Rejected] = "rejected",
+        [OfferStatus.NoAnswer] = "no-answer",
     };
 
     public static string StatusCode(OfferStatus status) => StatusCodes[status];
@@ -94,7 +98,7 @@ internal static class OfferViews
         }
 
         return new OfferDto(
-            offer.Id, offer.Number, offer.Date, StatusCode(offer.Status), offer.CurrentVersion, Text(version),
+            offer.Id, offer.Number, offer.Date, StatusCode(offer.Status), offer.CurrentVersion, offer.SentOn, Text(version),
             offer.ConstructionId, Customer(offer.CustomerId, customers), offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
             new OfferVatDto(VatCode(offer.VatMode), offer.VatRate), offer.Markup, sections,
             new OfferMoneyDto(offer.LinesTotal, offer.VatAmount, offer.Total), lines, OfferRequisites.Customer(offer),
@@ -130,7 +134,7 @@ internal static class OfferViews
         var customers = await desk.CustomersAsync(page.Select(p => p.Offer.CustomerId), ct);
         var revisions = await RevisionsAsync(db, page.Select(p => p.Offer.RevisionId), ct);
         var items = page.Select(p => new OfferListItemDto(
-            p.Offer.Id, p.Offer.Number, p.Offer.Date, StatusCode(p.Offer.Status), p.Offer.CurrentVersion, Text(p.Version),
+            p.Offer.Id, p.Offer.Number, p.Offer.Date, StatusCode(p.Offer.Status), p.Offer.CurrentVersion, p.Offer.SentOn, Text(p.Version),
             p.Offer.ConstructionId, Customer(p.Offer.CustomerId, customers),
             p.Offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
             new OfferVatDto(VatCode(p.Offer.VatMode), p.Offer.VatRate),
@@ -144,6 +148,17 @@ internal static class OfferViews
 
     public const int DefaultPage = 50;
     public const int MaxPage = 200;
+
+    /// <summary>Производные у редакций сметы, без денег и без чтения истории. Зовущий проверяет чтение КП.</summary>
+    internal static async Task<ILookup<Guid, OfferSummaryDto>> ForRevisionsAsync(
+        PlanDbContext db, IReadOnlyList<Guid> revisions, CancellationToken ct)
+    {
+        var offers = await db.Offers.AsNoTracking().Where(o => o.RevisionId != null && revisions.Contains(o.RevisionId.Value))
+            .OrderByDescending(o => o.Date).ThenByDescending(o => o.Year).ThenByDescending(o => o.Sequence)
+            .Select(o => new { o.RevisionId, o.Id, o.Number, o.CurrentVersion, o.Status, o.SentOn }).ToListAsync(ct);
+        return offers.ToLookup(o => o.RevisionId!.Value,
+            o => new OfferSummaryDto(o.Id, o.Number, o.CurrentVersion, StatusCode(o.Status), o.SentOn));
+    }
 
     private static (DateOnly Date, int Year, int Sequence) Cursor(string cursor)
     {

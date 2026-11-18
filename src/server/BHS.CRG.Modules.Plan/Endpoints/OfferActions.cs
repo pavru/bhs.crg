@@ -22,5 +22,14 @@ public sealed class OfferActions : IModuleActivityActions
     public static readonly ModuleActivityAction Deleted =
         new("plan.offer.deleted", "КП удалено", PlanModule.OfferRead);
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Markups, Deleted];
+    public static readonly ModuleActivityAction Sent =
+        new("plan.offer.sent", "Отправка КП отмечена", PlanModule.OfferRead);
+
+    public static readonly ModuleActivityAction Outcome =
+        new("plan.offer.outcome", "Итог КП отмечен", PlanModule.OfferRead);
+
+    public static readonly ModuleActivityAction NewVersion =
+        new("plan.offer.version", "Новая версия КП создана", PlanModule.OfferRead);
+
+    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Markups, Deleted, Sent, Outcome, NewVersion];
 }

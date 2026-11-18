@@ -69,6 +69,8 @@ public sealed class PlanModule : IAppModule
     /// <summary>Правка КП: сделать из редакции, шапка, наценки, удаление (<c>plan-13</c>).</summary>
     public const string OfferEdit = "plan.offer.edit";
 
+    public const string OfferSend = "plan.offer.send";
+
     /// <summary>Почему права контракта не входят в «читать всё»: это выдача другим модулям (D12 зонтика).</summary>
     private static readonly ReadAllMark ContractOut = ReadAllMark.Out("выдача другим модулям: модуль «Планирование» не открывает");
 
@@ -162,6 +164,12 @@ public sealed class PlanModule : IAppModule
             "правят и не удаляют",
             [OfferRead, EstimateRead],
             ReadAllMark.Out("делает и правит коммерческие предложения, фиксирует редакции смет")),
+        new(OfferSend,
+            "отмечать отправку и итог коммерческого предложения",
+            "ручная отметка отправки КП с датой, затем результата: принято, отклонено или без ответа; " +
+            "отправленная версия не правится",
+            [OfferRead],
+            ReadAllMark.Out("отмечает отправку и итог коммерческого предложения")),
     ];
 
     /// <summary>
@@ -231,6 +239,7 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddSingleton<IModuleActivityActions, OfferActions>();
         services.AddScoped<Offers.OfferDesk>();
+        services.AddScoped<Offers.OfferLifecycle>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();
         // Подстановка запомненного при импорте (plan-08) — в точку расширения, оставленную plan-07.

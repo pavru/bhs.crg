@@ -1047,6 +1047,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<DateOnly?>("SentOn")
+                        .HasColumnType("date")
+                        .HasColumnName("sent_on");
+
                     b.Property<int>("Sequence")
                         .HasColumnType("integer")
                         .HasColumnName("sequence");
@@ -1214,6 +1218,48 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.HasKey("OfferId", "SectionCode");
 
                     b.ToTable("offer_section_markups", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.OfferVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("record_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_offer_versions_number");
+
+                    b.ToTable("offer_versions", "plan");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RateMatch", b =>
@@ -1738,6 +1784,15 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_offer_section_markups_offer");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.OfferVersion", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.Offer", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RevisionDistribution", b =>

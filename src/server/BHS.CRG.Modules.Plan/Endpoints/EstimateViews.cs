@@ -24,7 +24,7 @@ internal static class EstimateViews
     public static string KindCode(EstimateKind kind) => kind == EstimateKind.Additional ? "additional" : "main";
 
     public static async Task<List<EstimateDto>> ListAsync(
-        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct)
+        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct, bool showOffers = false)
     {
         var heads = await estimates.AsNoTracking()
             // Основные — первыми: план стройки читают от основной сметы к дополнительным.
@@ -39,6 +39,7 @@ internal static class EstimateViews
             .Select(r => new { Revision = r, Version = EF.Property<uint>(r, PlanDbContext.RowVersion) })
             .ToListAsync(ct);
         var revisionIds = revisions.Select(r => r.Revision.Id).ToList();
+        var offers = showOffers ? await OfferViews.ForRevisionsAsync(db, revisionIds, ct) : null;
 
         // Итог редакции — только тому, кто его увидит: без права сумма по строкам не считается вовсе.
         var rows = db.EstimateRows.AsNoTracking().Where(row => revisionIds.Contains(row.RevisionId));
@@ -79,6 +80,7 @@ internal static class EstimateViews
                     r.Revision.SchemaVersion, s?.Rows ?? 0, s?.Unmatched ?? 0,
                     materials.GetValueOrDefault(r.Revision.Id), unitChanged.GetValueOrDefault(r.Revision.Id),
                     import?.Id, partial, frozen, Distribution(distribution[r.Revision.Id]), Text(r.Version),
+                    offers?[r.Revision.Id].ToList(),
                     cost ? new RevisionCostDto(s?.Total ?? 0m) : null);
             }).ToList();
 
@@ -94,7 +96,7 @@ internal static class EstimateViews
     /// сметы страницы. Не смещение: смета, заведённая между страницами, не сдвинет следующую и не повторится.
     /// </summary>
     public static async Task<(List<EstimateDto> Page, string? Next)> PageAsync(
-        PlanDbContext db, string? cursor, int? limit, bool cost, CancellationToken ct)
+        PlanDbContext db, string? cursor, int? limit, bool cost, CancellationToken ct, bool showOffers = false)
     {
         var take = limit is { } l ? Math.Clamp(l, 1, MaxPage) : DefaultPage;
         var query = db.Estimates.AsNoTracking();
@@ -111,7 +113,7 @@ internal static class EstimateViews
         var ids = keys.Select(k => k.Id).ToList();
         // Порядок страницы — порядок курсора, а не «основные первыми» сметы одной стройки.
         var place = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
-        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct);
+        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct, showOffers);
         return ([.. page.OrderBy(e => place[e.Id])], more
             ? $"{keys[^1].CreatedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}_{keys[^1].Id:N}"
             : null);
@@ -136,7 +138,8 @@ internal static class EstimateViews
     public static async Task<EstimateDto> OneAsync(PlanDbContext db, IModuleUser user, Guid id, CancellationToken ct)
     {
         var hidden = await HiddenAsync(user, ct);
-        var found = await ListAsync(db, db.Estimates.Where(e => e.Id == id), hidden is null, ct);
+        var found = await ListAsync(db, db.Estimates.Where(e => e.Id == id), hidden is null, ct,
+            await user.HasAsync(PlanModule.OfferRead, ct));
         return found.Count == 1 ? found[0] with { Hidden = hidden } : throw NotFound();
     }
 

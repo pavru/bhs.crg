@@ -16,6 +16,15 @@ public sealed record OfferCreateRequest(
 public sealed record OfferUpdateRequest(
     DateOnly? Date, Guid? CustomerId, string? VatMode, decimal? VatRate, JsonElement? Data);
 
+public sealed record OfferSendRequest(DateOnly? SentOn);
+
+public sealed record OfferOutcomeRequest(string? Status);
+
+public sealed record OfferVersionDto(
+    int Number, string Status, DateOnly? SentOn, decimal Total, DateTimeOffset At, Guid? AuthorId, JsonElement Content);
+
+public sealed record OfferSummaryDto(Guid Id, string Number, int CurrentVersion, string Status, DateOnly? SentOn);
+
 /// <summary>Наценка раздела ЛСР.</summary>
 public sealed record OfferSectionMarkupRequest(string Code, decimal Markup);
 
@@ -71,7 +80,7 @@ public sealed record OfferLineDto(
 /// <param name="Status"><c>draft</c> — черновик.</param>
 /// <param name="Hidden">Что скрыто правами (себестоимость и маржа); <c>null</c> — ничего.</param>
 public sealed record OfferDto(
-    Guid Id, string Number, DateOnly Date, string Status, int CurrentVersion, string Version, Guid ConstructionId,
+    Guid Id, string Number, DateOnly Date, string Status, int CurrentVersion, DateOnly? SentOn, string Version, Guid ConstructionId,
     OfferCustomerDto? Customer, OfferRevisionDto? Revision, OfferVatDto Vat, decimal Markup,
     IReadOnlyList<OfferSectionDto> Sections, OfferMoneyDto Money, IReadOnlyList<OfferLineDto> Lines, JsonElement Data,
     DateTimeOffset CreatedAt, string? CreatedBy, DateTimeOffset ChangedAt,
@@ -80,7 +89,7 @@ public sealed record OfferDto(
 
 /// <summary>КП в списке: шапка и суммы, без строк.</summary>
 public sealed record OfferListItemDto(
-    Guid Id, string Number, DateOnly Date, string Status, int CurrentVersion, string Version, Guid ConstructionId,
+    Guid Id, string Number, DateOnly Date, string Status, int CurrentVersion, DateOnly? SentOn, string Version, Guid ConstructionId,
     OfferCustomerDto? Customer, OfferRevisionDto? Revision, OfferVatDto Vat, OfferMoneyDto Money, DateTimeOffset ChangedAt);
 
 /// <param name="Next">Курсор следующей страницы; <c>null</c> — КП больше нет.</param>

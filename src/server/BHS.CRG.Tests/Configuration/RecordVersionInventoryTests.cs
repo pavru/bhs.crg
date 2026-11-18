@@ -27,6 +27,22 @@ public class RecordVersionInventoryTests
     /// </summary>
     private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> MayTouch = new()
     {
+        ["OfferVersion"] = new Dictionary<string, string>
+        {
+            ["BHS.CRG.Modules.Plan/Data/PlanDbContext.cs"] = "объявление набора и отображение на таблицу",
+            ["BHS.CRG.Modules.Plan/Offers/OfferLifecycle.cs"] =
+                "единственное место записи: снимок отправленной версии и следующий черновик одной фиксацией под xmin КП",
+            ["BHS.CRG.Modules.Plan/Endpoints/OfferHistory.cs"] =
+                "только чтение истории по plan.offer.read; итоги действующего КП историю не читают",
+        },
+        ["OfferVersion"] = new Dictionary<string, string>
+        {
+            ["BHS.CRG.Modules.Plan/Data/PlanDbContext.cs"] = "объявление набора и отображения",
+            ["BHS.CRG.Modules.Plan/Offers/OfferLifecycle.cs"] =
+                "единственная запись истории вместе с открытием следующего черновика; версия родителя защищена xmin (plan-13)",
+            ["BHS.CRG.Modules.Plan/Endpoints/OfferHistory.cs"] =
+                "адрес чтения истории: снимки отправленных версий под правом чтения КП, не источник итогов (plan-13)",
+        },
         ["WaybillVersion"] = new Dictionary<string, string>
         {
             ["BHS.CRG.Modules.Costs/Data/CostsDbContext.cs"] = "объявление набора",
@@ -65,6 +81,10 @@ public class RecordVersionInventoryTests
     /// </summary>
     private static readonly Dictionary<string, string> TableNames = new()
     {
+        ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =
+            "справочные ссылки исторического снимка и автора: историю удаление записи ядра не меняет",
+        ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =
+            "объявления справочных ссылок снимка и автора; историю не меняют и не используют для сумм",
         ["BHS.CRG.Modules.Costs/CostsReferences.cs"] =
             "объявление колонок с идентификаторами записей ядра (ModuleReference): удаление записи ядра " +
             "называет их словами, поиск потерянных ссылок их читает — историю он не меняет",
@@ -77,6 +97,16 @@ public class RecordVersionInventoryTests
         [.. SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure")
             .SelectMany(SourceTree.Files)
             .Select(full => Source.Read(full, SourceTree.Relative(full)))];
+
+    [Fact]
+    public void История_КП_видна_сторожу_и_массовая_правка_запрещена()
+    {
+        var files = SolutionSources();
+        Assert.Contains(Heirs(files), heir => heir.Type == "OfferVersion");
+        var probe = new Source("BHS.CRG.Modules.Plan/Offers/Probe.cs",
+            "db.Set<OfferVersion>().ExecuteUpdate(setters => setters);");
+        Assert.Contains(Scan([.. files, probe], Solution), v => v.Type == "OfferVersion" && v.Code == Bypass);
+    }
 
     [Fact]
     public void К_истории_версий_обращаются_только_названные_файлы()

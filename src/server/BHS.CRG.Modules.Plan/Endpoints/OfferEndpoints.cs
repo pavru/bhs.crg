@@ -30,6 +30,7 @@ public static class OfferEndpoints
         var offers = endpoints.MapGroup("/api/plan/offers").WithTags("Коммерческие предложения");
         var read = AppPolicies.Permission(PlanModule.OfferRead);
         var edit = AppPolicies.Permission(PlanModule.OfferEdit);
+        var send = AppPolicies.Permission(PlanModule.OfferSend);
 
         offers.MapGet("/", ListAsync).RequireAuthorization(read);
         offers.MapGet("/{id:guid}", GetAsync).RequireAuthorization(read);
@@ -37,6 +38,10 @@ public static class OfferEndpoints
         offers.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(edit);
         offers.MapPut("/{id:guid}/markups", MarkupsAsync).RequireAuthorization(edit);
         offers.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);
+        offers.MapPost("/{id:guid}/send", SendAsync).RequireAuthorization(send);
+        offers.MapPost("/{id:guid}/outcome", OutcomeAsync).RequireAuthorization(send);
+        offers.MapPost("/{id:guid}/versions", NextVersionAsync).RequireAuthorization(edit);
+        offers.MapGet("/{id:guid}/versions", OfferHistory.ReadAsync).RequireAuthorization(read);
     }
 
     private static async Task<IResult> ListAsync(
@@ -106,6 +111,7 @@ public static class OfferEndpoints
     {
         var offer = await LoadAsync(db, id, ct);
         EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        offer.EnsureDraft();
 
         var date = body.Date ?? throw new InvalidRequestException("Не названа дата КП — шапка присылается целиком.");
         if (string.IsNullOrWhiteSpace(body.VatMode))
@@ -138,6 +144,7 @@ public static class OfferEndpoints
     {
         var offer = await LoadAsync(db, id, ct);
         EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        offer.EnsureDraft();
 
         var markup = OfferPricing.CheckedMarkup(body.Markup, "предложения");
         var sections = SectionMarkups(offer, body.Sections ?? []);
@@ -174,11 +181,57 @@ public static class OfferEndpoints
     {
         var offer = await db.Offers.FirstOrDefaultAsync(o => o.Id == id, ct) ?? throw OfferViews.NotFound();
         EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        offer.EnsureDeletable();
 
         db.Offers.Remove(offer);
         await db.SaveChangesAsync(ct);
         await log.RecordAsync(OfferActions.Deleted, id.ToString(), offer.Label, before: $"итого {Money(offer.Total)}", ct: ct);
         return Results.NoContent();
+    }
+
+    private static async Task<IResult> SendAsync(
+        Guid id, OfferSendRequest body, HttpRequest request, PlanDbContext db, OfferLifecycle lifecycle,
+        OfferDesk desk, IModuleUser user, IModuleActivityLog log, CancellationToken ct)
+    {
+        var offer = await LoadAsync(db, id, ct);
+        EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        var date = body.SentOn ?? throw new InvalidRequestException("Назовите дату отправки КП («sentOn»).");
+        await lifecycle.SendAsync(offer, date, ct);
+        await log.RecordAsync(OfferActions.Sent, id.ToString(), offer.Label,
+            after: $"версия {offer.CurrentVersion}, отправлено {date:dd.MM.yyyy}", ct: ct);
+        return Results.Ok(await OfferViews.OneAsync(db, desk, user, id, ct));
+    }
+
+    private static async Task<IResult> OutcomeAsync(
+        Guid id, OfferOutcomeRequest body, HttpRequest request, PlanDbContext db, OfferLifecycle lifecycle,
+        OfferDesk desk, IModuleUser user, IModuleActivityLog log, CancellationToken ct)
+    {
+        var offer = await LoadAsync(db, id, ct);
+        EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        var status = body.Status switch
+        {
+            "accepted" => OfferStatus.Accepted,
+            "rejected" => OfferStatus.Rejected,
+            "no-answer" => OfferStatus.NoAnswer,
+            _ => throw new InvalidRequestException("Итог КП («status») — accepted, rejected или no-answer."),
+        };
+        await lifecycle.OutcomeAsync(offer, status, ct);
+        var label = status switch { OfferStatus.Accepted => "принято", OfferStatus.Rejected => "отклонено", _ => "без ответа" };
+        await log.RecordAsync(OfferActions.Outcome, id.ToString(), offer.Label,
+            after: $"версия {offer.CurrentVersion}, {label}", ct: ct);
+        return Results.Ok(await OfferViews.OneAsync(db, desk, user, id, ct));
+    }
+
+    private static async Task<IResult> NextVersionAsync(
+        Guid id, HttpRequest request, PlanDbContext db, OfferLifecycle lifecycle,
+        OfferDesk desk, IModuleUser user, IModuleActivityLog log, CancellationToken ct)
+    {
+        var offer = await LoadAsync(db, id, ct);
+        EstimateEndpoints.EnsureSeen(request, db.VersionOf(offer), "КП", "КП");
+        await lifecycle.NewVersionAsync(offer, ct);
+        await log.RecordAsync(OfferActions.NewVersion, id.ToString(), offer.Label,
+            after: $"черновик версии {offer.CurrentVersion}", ct: ct);
+        return Results.Ok(await OfferViews.OneAsync(db, desk, user, id, ct));
     }
 
     private static async Task<Offer> LoadAsync(PlanDbContext db, Guid id, CancellationToken ct) =>

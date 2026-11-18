@@ -128,6 +128,8 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
 
     public DbSet<OfferSectionMarkup> OfferSectionMarkups => Set<OfferSectionMarkup>();
 
+    public DbSet<OfferVersion> OfferVersions => Set<OfferVersion>();
+
     /// <summary>Версия КП — её называет каждая правка (<c>If-Match</c>).</summary>
     public string VersionOf(Offer offer) => Version(offer);
 
@@ -219,6 +221,8 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "КП тем временем изменили или удалили в другой вкладке, и эта правка не записана — целиком, ни одной " +
                 "частью. Перечитайте КП и повторите.", e);
+        if (e.InnerException is PostgresException { ConstraintName: "ux_offer_versions_number" })
+            return new ConflictException("Новую версию КП уже создали в другой вкладке. Перечитайте КП и повторите.", e);
         if (e.InnerException is PostgresException { ConstraintName: OfferNumberKey or OfferFormattedNumberKey })
             return new ConflictException(
                 "Одновременно заводилось другое КП, и номер достался ему — это КП не заведено. Повторите: оно получит " +
@@ -265,5 +269,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         DistributionModel.Configure(builder);
         AttachmentModel.Configure(builder);
         OfferModel.Configure(builder);
+        OfferVersion.Map(builder);
     }
 }
