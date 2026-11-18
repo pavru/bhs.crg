@@ -56,6 +56,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Единственность номера КП в году (<c>plan-13</c>): проигравшее одновременное заведение повторяет.</summary>
     internal const string OfferNumberKey = "ux_offers_year_sequence";
 
+    /// <summary>Единственность того же номера строкой: база может назвать любой из двух индексов.</summary>
+    internal const string OfferFormattedNumberKey = "ux_offers_number";
+
     /// <summary>Внешний ключ «КП → редакция-источник» (<c>plan-13</c>).</summary>
     internal const string OfferRevisionKey = "fk_offers_revision";
 
@@ -216,7 +219,7 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "КП тем временем изменили или удалили в другой вкладке, и эта правка не записана — целиком, ни одной " +
                 "частью. Перечитайте КП и повторите.", e);
-        if (e.InnerException is PostgresException { ConstraintName: OfferNumberKey })
+        if (e.InnerException is PostgresException { ConstraintName: OfferNumberKey or OfferFormattedNumberKey })
             return new ConflictException(
                 "Одновременно заводилось другое КП, и номер достался ему — это КП не заведено. Повторите: оно получит " +
                 "следующий номер.", e);
