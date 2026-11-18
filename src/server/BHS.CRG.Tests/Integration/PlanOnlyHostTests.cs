@@ -125,16 +125,16 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Fact]
     public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database() =>
-        // Восемь из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
+        // Девять из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
         // вместе с первым адресом или контрактом, который оно открывает; сметы — первая дверь модуля,
         // себестоимость закрывает модель сметы (06), права контракта — части «Плановых работ» (23), чтение и правка КП —
-        // адреса КП (13, PR 1). Остальные приходят своими change (offer.send — 13, PR 2; pricelist — 14; календарь и
+        // адреса и отправка КП (13). Остальные приходят своими change (pricelist — 14; календарь и
         // графики — 18). Список назван здесь
         // нарочно: право, добавленное без своего change, обязано столкнуться с этой строкой и с объяснением
         // рядом с ней.
         await ModuleOnlyChecks.DeclaredAndStoredAsync(host, PlanModule.ModuleCode,
             [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint, PlanModule.EstimateMaterials,
-             PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead], "id", "costs", "work");
+             PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend], "id", "costs", "work");
 
     /// <summary>
     /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
@@ -187,9 +187,9 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Theory]
     [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint,
-        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead)]
+        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend)]
     [InlineData("Estimator", true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
-    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead)]
+    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend)]
     [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead, PlanModule.OfferRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("Accountant", false)]

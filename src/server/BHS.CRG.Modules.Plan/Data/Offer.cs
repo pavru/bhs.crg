@@ -7,6 +7,10 @@ namespace BHS.CRG.Modules.Plan.Data;
 public enum OfferStatus
 {
     Draft,
+    Sent,
+    Accepted,
+    Rejected,
+    NoAnswer,
 }
 
 /// <summary>
@@ -73,6 +77,9 @@ public sealed class Offer
     /// <summary>Номер действующей версии (ТЗ PLAN-12); прежние — историей <c>OfferVersion</c> (PR 2).</summary>
     public int CurrentVersion { get; private set; }
 
+    /// <summary>Ручная дата отправки текущей версии; у нового черновика её нет.</summary>
+    public DateOnly? SentOn { get; private set; }
+
     public OfferVatMode VatMode { get; private set; }
 
     /// <summary>Ставка НДС в процентах; <c>null</c> — режим «без НДС».</summary>
@@ -137,6 +144,7 @@ public sealed class Offer
     /// <summary>Шапка: дата, заказчик, режим и ставка НДС. Суммы после неё пересчитывает <see cref="Reprice" />.</summary>
     internal void ReplaceHeader(DateOnly date, Guid? customerId, OfferVatMode vatMode, decimal? vatRate, DateTimeOffset now)
     {
+        EnsureDraft();
         Date = date;
         CustomerId = customerId;
         VatMode = vatMode;
@@ -150,6 +158,7 @@ public sealed class Offer
     /// </summary>
     internal void ApplyCustomerData(JsonElement data, DateTimeOffset now)
     {
+        EnsureDraft();
         if (data.ValueKind != JsonValueKind.Object)
             throw new InvalidRequestException("Поля заказчика КП — не JSON-объект.");
         Data = data.GetRawText();
@@ -159,6 +168,7 @@ public sealed class Offer
     /// <summary>Наценка предложения — уровень по умолчанию для всех строк.</summary>
     internal void ChangeMarkup(decimal markup, DateTimeOffset now)
     {
+        EnsureDraft();
         Markup = markup;
         ChangedAt = now;
     }
@@ -169,5 +179,50 @@ public sealed class Offer
         LinesTotal = linesTotal;
         VatAmount = vatAmount;
         Total = total;
+    }
+
+    internal void EnsureDraft()
+    {
+        if (Status != OfferStatus.Draft)
+            throw new ConflictException("КП отправлено: правка — новой версией. Создайте новую версию КП.");
+    }
+
+    internal void Send(DateOnly date, DateTimeOffset now)
+    {
+        EnsureDraft();
+        Status = OfferStatus.Sent;
+        SentOn = date;
+        ChangedAt = now;
+    }
+
+    internal void SetOutcome(OfferStatus status, DateTimeOffset now)
+    {
+        if (Status != OfferStatus.Sent)
+            throw new ConflictException("Итог отмечается у отправленного КП. Перечитайте его состояние.");
+        if (status is not (OfferStatus.Accepted or OfferStatus.Rejected or OfferStatus.NoAnswer))
+            throw new InvalidRequestException("Итог КП — принято, отклонено или без ответа.");
+        Status = status;
+        ChangedAt = now;
+    }
+
+    internal void EnsureSent()
+    {
+        if (Status == OfferStatus.Draft)
+            throw new ConflictException("КП ещё не отправлено — правьте этот черновик. Новая версия нужна после отправки.");
+    }
+
+    internal void BeginNextVersion(DateTimeOffset now)
+    {
+        EnsureSent();
+        CurrentVersion++;
+        Status = OfferStatus.Draft;
+        SentOn = null;
+        ChangedAt = now;
+    }
+
+    internal void EnsureDeletable()
+    {
+        if (Status != OfferStatus.Draft || CurrentVersion != 1 || SentOn is not null)
+            throw new ConflictException("КП уже отправлялось — удалять его нельзя. Удаляется только черновик первой версии без отправок.");
     }
 }

@@ -26,24 +26,25 @@
 
 ## 2. PR 2: статусы и версии
 
-- [ ] 2.1 Условие: `plan-12` слит (`ModuleRecordVersion`) [CORE-36]. Проверка — тип есть в master
-- [ ] 2.2 `Data/OfferVersion.cs : ModuleRecordVersion`, миграция `OfferVersions`; разрешение в
+- [x] 2.1 Условие: `plan-12` слит (`ModuleRecordVersion`) [CORE-36]. Проверка — тип есть в master
+- [x] 2.2 `Data/OfferVersion.cs : ModuleRecordVersion`, миграция `OfferVersions`; разрешение в
   `RecordVersionInventoryTests` с причиной [CORE-36] [PLAN-12]. Проверка — перепись зелёная и видит
   наследника; `ExecuteUpdate` по таблице в пробе — красный
-- [ ] 2.3 `Offers/OfferLifecycle.cs`: `send` (дата), `outcome` (принято / отклонено / без ответа), правка в
+- [x] 2.3 `Offers/OfferLifecycle.cs`: `send` (дата), `outcome` (принято / отклонено / без ответа), правка в
   `sent` — 409, `POST …/versions` — снимок в историю и черновик N+1 [PLAN-12]. Проверка —
   `OfferLifecycleTests`: правка отправленного — 409; новая версия — версия 1 в истории со статусом и датой
-- [ ] 2.4 `GET …/versions` — номер, статус, дата отправки, итог по `plan.offer.read` [PLAN-12] [PLAN-22].
-  Проверка — тест списка версий
-- [ ] 2.5 Удаление — только черновик версии 1 без отправок, иначе 409 [PLAN-12]. Проверка — тест на обе ветки
-- [ ] 2.6 Право `plan.offer.send` с объяснением; `send` и `outcome` под ним, с `If-Match` [PLAN-23] [AUTH-8]
+- [x] 2.4 `GET …/versions` — номер, статус, дата отправки, итог по `plan.offer.read` [PLAN-12] [PLAN-22].
+  У редакции в ответе сметы — сводка её КП без сумм, только с `plan.offer.read`.
+  Проверка — тест списка версий и сводки у сметы, включая отказ правами
+- [x] 2.5 Удаление — только черновик версии 1 без отправок, иначе 409 [PLAN-12]. Проверка — тест на обе ветки
+- [x] 2.6 Право `plan.offer.send` с объяснением; `send` и `outcome` под ним, с `If-Match` [PLAN-23] [AUTH-8]
   [AUTH-9]. Проверка — тест: `plan.offer.edit` без `plan.offer.send` — 403; тест состава доступа по ролям
-- [ ] 2.7 `docs/ADMIN_GUIDE.md` (права `plan.offer.*`) и `docs/USER_GUIDE.md` (КП, наценки, версии);
+- [x] 2.7 `docs/ADMIN_GUIDE.md` (права `plan.offer.*`) и `docs/USER_GUIDE.md` (КП, наценки, версии);
   `npm run toc` в `docs/tools`. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Offer|FullyQualifiedName~RecordVersionInventory|FullyQualifiedName~RecordWriteGuardCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~AccountAccess|FullyQualifiedName~PlanOnlyHost"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Offer|FullyQualifiedName~RecordVersionInventory|FullyQualifiedName~RecordWriteGuardCoverage|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~AccountAccess|FullyQualifiedName~PlanOnlyHost"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

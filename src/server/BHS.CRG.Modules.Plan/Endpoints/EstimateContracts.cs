@@ -45,6 +45,7 @@ public sealed record EstimateRevisionDto(
     Guid Id, int Number, bool Current, DateTimeOffset ImportedAt, string? ImportedBy, string? SourceFileName,
     string? SchemaVersion, int Rows, int Unmatched, int MaterialsUnmatched, int UnitChanged, Guid? ImportId,
     RevisionPartialDto? Partial, EstimateFrozenDto? Frozen, RevisionDistributionDto Distribution, string Version,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<OfferSummaryDto>? Offers,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RevisionCostDto? Cost);
 
 /// <param name="Kind"><c>main</c> — основная, <c>additional</c> — дополнительная.</param>

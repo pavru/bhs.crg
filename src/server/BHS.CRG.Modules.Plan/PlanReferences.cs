@@ -36,6 +36,10 @@ public static class PlanReferences
 
     public static IReadOnlyList<ModuleReference> All =>
     [
+        ModuleReference.Remembering("offer_versions", "content", target: null,
+            "история КП помнит ссылки отправленной версии; их держит действующее КП, а не история"),
+        ModuleReference.Remembering("offer_versions", "author_id", ReferenceTarget.User,
+            "кто создал новую версию КП — справочное поле; удаление учётной записи истории не касается"),
         // КП (plan-13) держит стройку, заказчика и свой тип; строки — вид работы, как был у строки сметы.
         ModuleReference.Holding("offers", "construction_id", ReferenceTarget.Construction,
             "коммерческие предложения этой стройки", Offer("id")),

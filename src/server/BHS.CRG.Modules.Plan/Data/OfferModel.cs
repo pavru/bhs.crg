@@ -31,6 +31,7 @@ internal static class OfferModel
         offer.Property(o => o.RevisionId).HasColumnName("revision_id");
         offer.Property(o => o.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16);
         offer.Property(o => o.CurrentVersion).HasColumnName("current_version");
+        offer.Property(o => o.SentOn).HasColumnName("sent_on");
         offer.Property(o => o.VatMode).HasColumnName("vat_mode").HasConversion<string>().HasMaxLength(16);
         offer.Property(o => o.VatRate).HasColumnName("vat_rate").HasPrecision(7, 2);
         offer.Property(o => o.Markup).HasColumnName("markup").HasPrecision(7, 2);

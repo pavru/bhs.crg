@@ -352,6 +352,9 @@ public class OfferEndpointsTests(PlanOnlyHost host)
         yield return With(HttpMethod.Put, $"/api/plan/offers/{offer}", new { date = "2026-11-16", vatMode = "none" });
         yield return With(HttpMethod.Put, $"/api/plan/offers/{offer}/markups", new { markup = 1m });
         yield return With(HttpMethod.Delete, $"/api/plan/offers/{offer}");
+        yield return With(HttpMethod.Post, $"/api/plan/offers/{offer}/send", new { sentOn = "2026-11-18" });
+        yield return With(HttpMethod.Post, $"/api/plan/offers/{offer}/outcome", new { status = "accepted" });
+        yield return With(HttpMethod.Post, $"/api/plan/offers/{offer}/versions");
     }
 
     /// <summary>Справочник организаций на хосте «только планирование» — живая и архивная записи.</summary>
