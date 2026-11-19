@@ -26,9 +26,9 @@ public partial class BackupService
                 // Копия старого формата сессии не несёт — запись ложится одиночной (ТЗ CORE-28.2).
                 id: i.Id, occurredAt: i.OccurredAt, sessionId: i.SessionId, seriesHead: i.SeriesHead ?? true,
                 // Копия до канала (issue #1336) его не несёт — канал выводится по автору, тем же правилом,
-                // что у миграции (ActivityChannel.ForLegacy). Неизвестный код (копия более новой версии) —
-                // по тому же правилу: записать то, чего эта версия не умеет показать, значит сломать отбор.
-                channel: ActivityChannel.Find(i.Channel)))],
+                // что у миграции (ActivityChannel.ForLegacy). Незнакомый код (копия более новой версии)
+                // ложится как есть: подмена известным записала бы ложь в журнал, который не правится.
+                channel: ActivityChannel.FromStored(i.Channel)))],
             ct);
 
         db.ChangeTracker.Clear();

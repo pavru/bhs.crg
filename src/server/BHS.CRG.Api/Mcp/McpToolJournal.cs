@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Domain.Activity;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -32,6 +33,9 @@ namespace BHS.CRG.Api.Mcp;
 ///
 /// <para>Автор и канал записи — от автора журнала (<c>HttpContextActivityActor</c>): вызов идёт внутри
 /// запроса к адресу <c>/mcp</c>, помеченному <c>ActivityChannel.Mcp</c>. Сам фильтр их не называет.</para>
+///
+/// <para>⚠️ Журнал пишется в <b>своей области служб</b>, а не в области вызова: контекст базы у инструмента
+/// и журнала разный, и запись журнала не сохраняет того, что инструмент сохранять не стал.</para>
 /// </summary>
 public static class McpToolJournal
 {
@@ -43,13 +47,19 @@ public static class McpToolJournal
         if (result.IsError != true
             && context.MatchedPrimitive is McpServerTool tool
             && tool.ProtocolTool.Annotations?.ReadOnlyHint != true
-            && context.Services?.GetService(typeof(IActivityLog)) is IActivityLog journal)
+            && context.Services?.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopes)
         {
             var (targetId, targetLabel) = Target(tool.ProtocolTool.InputSchema, context.Params?.Arguments);
             try
             {
-                await journal.RecordAsync(ActivityActions.McpToolCalled, targetId, targetLabel,
-                    after: tool.ProtocolTool.Name, ct: CancellationToken.None);
+                // Своя область служб, а не область вызова: журнал сохраняет СВОЙ контекст базы. В общем он
+                // сохранил бы и то, что инструмент оставил в трекере несохранённым, а неудавшаяся запись
+                // осталась бы там Added и упала бы снова на следующем SaveChanges области (ревью PR #1997).
+                // Автор и канал от этого не меняются: их даёт запрос (HttpContextAccessor), а не область.
+                await using var scope = scopes.CreateAsyncScope();
+                if (scope.ServiceProvider.GetService(typeof(IActivityLog)) is IActivityLog journal)
+                    await journal.RecordAsync(ActivityActions.McpToolCalled, targetId, targetLabel,
+                        after: tool.ProtocolTool.Name, ct: CancellationToken.None);
             }
             catch (Exception ex)
             {

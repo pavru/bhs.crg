@@ -32,7 +32,11 @@ public class JobService(AppDbContext db, JobQueue queue, TimeProvider? time = nu
         // Канал — того, кто ставит, в момент постановки, то есть в запросе (issue #1336, design D3): задача
         // выполняется вне запроса, и узнать канал там уже не у кого. Тестам, создающим службу руками, автор
         // не нужен — тогда канал по заказчику (Job.Create).
-        var job = Job.Create(kind, userId, targetId, title, payload, _time.GetUtcNow(), actor?.Current.Channel);
+        //
+        // Внутри задачи с заказчиком канал — её (JobActivityScope), а не «системы» автора действия: дочерняя
+        // задача, поставленная работой агента, остаётся работой агента (ревью PR #1997).
+        var channel = JobActivityScope.Author?.Channel ?? actor?.Current.Channel;
+        var job = Job.Create(kind, userId, targetId, title, payload, _time.GetUtcNow(), channel);
         db.Jobs.Add(job);
         try
         {

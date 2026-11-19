@@ -209,6 +209,34 @@ public class McpToolJournalTests(IntegrationTestFixture fixture) : IAsyncLifetim
             "Фильтр не дошёл до записи журнала — проверка сбоя ничего не проверила.");
     }
 
+    [Fact]
+    public async Task Запись_журнала_не_сохраняет_то_что_инструмент_оставил_несохранённым()
+    {
+        var tool = Registered("report_observation");
+        using var call = fixture.Services.CreateScope();
+        var constructionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        // Инструмент поправил отслеживаемое и вернул успех, не сохранив, — например, ради предпросмотра.
+        call.ServiceProvider.GetRequiredService<AppDbContext>().Constructions.Add(
+            Construction.Restore(constructionId, "Брошенная инструментом", Guid.NewGuid(), null, now, now));
+        await using var server = McpServer.Create(
+            new StreamServerTransport(Stream.Null, Stream.Null), new McpServerOptions());
+        var handler = McpToolJournal.Filter((_, _) => ValueTask.FromResult(new CallToolResult()));
+
+        await handler(new RequestContext<CallToolRequestParams>(server, new JsonRpcRequest { Method = "tools/call" })
+        {
+            Params = new CallToolRequestParams { Name = tool.ProtocolTool.Name },
+            MatchedPrimitive = tool,
+            Services = call.ServiceProvider,
+        }, CancellationToken.None);
+
+        Assert.Single(await RowsAsync(tool.ProtocolTool.Name));
+        using var check = fixture.Services.CreateScope();
+        Assert.False(
+            await check.ServiceProvider.GetRequiredService<AppDbContext>().Constructions.AnyAsync(c => c.Id == constructionId),
+            "Запись журнала сохранила изменение, которое инструмент сохранять не стал: у них общий контекст базы.");
+    }
+
     private McpServerTool Registered(string name) =>
         Assert.Single(fixture.Services.GetRequiredService<IOptions<McpServerOptions>>().Value.ToolCollection ?? [],
             t => t.ProtocolTool.Name == name);

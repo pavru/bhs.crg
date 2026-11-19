@@ -16,7 +16,8 @@ public partial class BackupServiceTests
     [Fact]
     public async Task Канал_журнала_переживает_копию_а_старая_копия_получает_его_по_автору()
     {
-        Guid agent = Guid.NewGuid(), legacyPerson = Guid.NewGuid(), legacySystem = Guid.NewGuid();
+        Guid agent = Guid.NewGuid(), legacyPerson = Guid.NewGuid(), legacySystem = Guid.NewGuid(),
+            newer = Guid.NewGuid();
         var at = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
         var code = ActivityActions.UserRoleChanged.Code;
 
@@ -33,17 +34,21 @@ public partial class BackupServiceTests
                 new BackupActivityRecord(legacyPerson, at, code, Guid.NewGuid(), "Пётр", "u2", "u2@test", null, "руками"),
                 new BackupActivityRecord(legacySystem, at, ActivityActions.ModulesChanged.Code, null, "Система",
                     null, null, null, "id"),
+                // Копия более новой версии: канала, которого эта не знает, не подменяем «интерфейсом».
+                new BackupActivityRecord(newer, at, code, Guid.NewGuid(), "Анна", "u3", "u3@test", null, "ассистентом",
+                    newer, true, Channel: "assistant"),
             ]));
         Assert.True(report.Success);
 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var channels = await db.ActivityRecords.AsNoTracking()
-            .Where(r => r.Id == agent || r.Id == legacyPerson || r.Id == legacySystem)
+            .Where(r => r.Id == agent || r.Id == legacyPerson || r.Id == legacySystem || r.Id == newer)
             .ToDictionaryAsync(r => r.Id, r => r.Channel);
 
         Assert.Equal("mcp", channels[agent]);
         Assert.Equal("ui", channels[legacyPerson]);
         Assert.Equal("system", channels[legacySystem]);
+        Assert.Equal("assistant", channels[newer]);
     }
 }

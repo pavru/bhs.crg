@@ -179,7 +179,7 @@ public class JobBackgroundService(
         var user = await db.Users.AsNoTracking().Where(u => u.Id == job.UserId)
             .Select(u => new { u.DisplayName, u.Email }).FirstOrDefaultAsync(ct);
         return ActivityActor.ForJob(job.UserId, user?.DisplayName, user?.Email, job.Title,
-            ActivityChannel.Find(job.Channel) ?? ActivityChannel.Ui);
+            ActivityChannel.FromStored(job.Channel) ?? ActivityChannel.ForLegacy(job.UserId));
     }
 
     private async Task PublishFailureAsync(Guid userId, string title, string error)
