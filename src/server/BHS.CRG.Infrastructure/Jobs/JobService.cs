@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Jobs;
@@ -11,7 +12,8 @@ namespace BHS.CRG.Infrastructure.Jobs;
 /// Постановка задач в фон и запрос активных. Создаёт запись Job(Queued) в БД (источник истины) и толкает
 /// id в <see cref="JobQueue"/>; выполнение — в <see cref="JobBackgroundService"/> вне HTTP-реквеста.
 /// </summary>
-public class JobService(AppDbContext db, JobQueue queue, TimeProvider? time = null) : IJobService
+public class JobService(AppDbContext db, JobQueue queue, TimeProvider? time = null, IActivityActor? actor = null)
+    : IJobService
 {
     /// <summary>
     /// Часы постановки — те же, что у служб по расписанию (такт модулей считает срок от <c>CreatedAt</c>,
@@ -27,7 +29,14 @@ public class JobService(AppDbContext db, JobQueue queue, TimeProvider? time = nu
 
     public async Task<Guid> EnqueueAsync(JobKind kind, Guid userId, Guid targetId, string title, string? payload, CancellationToken ct)
     {
-        var job = Job.Create(kind, userId, targetId, title, payload, _time.GetUtcNow());
+        // Канал — того, кто ставит, в момент постановки, то есть в запросе (issue #1336, design D3): задача
+        // выполняется вне запроса, и узнать канал там уже не у кого. Тестам, создающим службу руками, автор
+        // не нужен — тогда канал по заказчику (Job.Create).
+        //
+        // Внутри задачи с заказчиком канал — её (JobActivityScope), а не «системы» автора действия: дочерняя
+        // задача, поставленная работой агента, остаётся работой агента (ревью PR #1997).
+        var channel = JobActivityScope.Author?.Channel ?? actor?.Current.Channel;
+        var job = Job.Create(kind, userId, targetId, title, payload, _time.GetUtcNow(), channel);
         db.Jobs.Add(job);
         try
         {

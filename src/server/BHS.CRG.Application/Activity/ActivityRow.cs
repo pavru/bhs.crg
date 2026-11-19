@@ -17,8 +17,9 @@ namespace BHS.CRG.Application.Activity;
 /// <param name="LastAt">Время последней записи; у одиночной совпадает с <paramref name="OccurredAt" />.</param>
 /// <param name="FirstTargetLabel">Метка цели первой записи — только если она отличается от последней.</param>
 /// <param name="SessionId">Сессия — ключ раскрытия ряда в записи.</param>
+/// <param name="Channel">Канал серии (<c>ActivityChannel.Code</c>): у всех её записей один, его рвёт сессия.</param>
 public sealed record ActivityRow(
     Guid Id, DateTimeOffset OccurredAt, string Action,
     Guid? ActorId, string ActorName,
     string? TargetId, string? TargetLabel, string? Before, string? After,
-    int Count, DateTimeOffset LastAt, string? FirstTargetLabel, Guid SessionId);
+    int Count, DateTimeOffset LastAt, string? FirstTargetLabel, Guid SessionId, string Channel);

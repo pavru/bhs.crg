@@ -35,8 +35,8 @@ public class ActivitySeriesTests(IntegrationTestFixture fixture, ITestOutputHelp
 
     private static readonly ActivityAction Marked = new("core.probe.marked", "Отмечен разобранным");
 
-    private static readonly ActivityActor Ivan = new(Guid.NewGuid(), "Иван");
-    private static readonly ActivityActor Petr = new(Guid.NewGuid(), "Пётр");
+    private static readonly ActivityActor Ivan = new(Guid.NewGuid(), "Иван", ActivityChannel.Ui);
+    private static readonly ActivityActor Petr = new(Guid.NewGuid(), "Пётр", ActivityChannel.Ui);
 
     // Полдень по UTC: и в поясе сервера, и в поясе компании до полуночи далеко — полночь проверяет
     // модульный тест правила, здесь она только мешала бы.

@@ -315,15 +315,16 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
                 : inner.RecordAsync(action, targetId, targetLabel, before, after, ct);
 
         public Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
-            string? action = null, CancellationToken ct = default) =>
-            inner.ReadAsync(skip, take, visible, action, ct);
+            string? action = null, ActivityChannel? channel = null, CancellationToken ct = default) =>
+            inner.ReadAsync(skip, take, visible, action, channel, ct);
 
         public Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action,
             ActivityVisibility visible, CancellationToken ct = default) =>
             inner.SeriesAsync(sessionId, action, visible, ct);
 
         public Task<int> CountAsync(ActivityVisibility visible, string? action = null,
-            CancellationToken ct = default) => inner.CountAsync(visible, action, ct);
+            ActivityChannel? channel = null, CancellationToken ct = default) =>
+            inner.CountAsync(visible, action, channel, ct);
 
         public Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default) =>
             inner.LastAsync(action, ct);

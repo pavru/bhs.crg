@@ -160,12 +160,22 @@ public static class ActivityActions
     public static readonly ActivityAction EmployeeAccountUnlinked =
         new("core.employee.account.unlinked", "Сотрудник отвязан от учётной записи");
 
+    /// <summary>
+    /// Агент вызвал меняющий инструмент MCP (ТЗ CORE-23, CORE-28, issue #1336, design D4). Одна запись на
+    /// удавшийся вызов; пишет её один фильтр вызовов MCP-сервера (<c>McpToolJournal</c>), а не код
+    /// инструмента — новый инструмент не может «забыть журнал». «Стало» — название инструмента, цель —
+    /// первый идентификатор из аргументов. Аргументы целиком не пишутся: в них бывают данные модулей, а
+    /// журнал читают по праву ядра. Не сворачивается: каждый вызов агента — отдельное действие.
+    /// </summary>
+    public static readonly ActivityAction McpToolCalled =
+        new("core.mcp.tool.called", "Агент вызвал инструмент MCP");
+
     public static IReadOnlyList<ActivityAction> All =>
         [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted, PeriodClosed, PeriodReopened,
          RecordArchived, RecordUnarchived, RecordPurged, ScopePurged, ModuleSettingChanged, NomenclatureCreated,
          AccountingCurrencyChanged, TableViewShared, TableViewChanged, TableViewUnshared, TableViewDeleted,
-         TableExported, EmployeeAccountLinked, EmployeeAccountUnlinked];
+         TableExported, EmployeeAccountLinked, EmployeeAccountUnlinked, McpToolCalled];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

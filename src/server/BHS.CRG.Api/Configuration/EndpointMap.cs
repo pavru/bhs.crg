@@ -53,7 +53,11 @@ internal static class EndpointMap
 
     // MCP-эндпоинт (issue #415) — под той же аутентификацией, что и REST: агент действует ОТ ИМЕНИ
     // пользователя своим JWT, поэтому отдельной модели доступа не заводим.
-    app.MapMcp("/mcp").RequireAuthorization();
+    //
+    // Метка канала (issue #1336): всё, что сделано через этот адрес, журнал подписывает каналом `mcp` —
+    // автор журнала читает её из метаданных адреса, а не из пути (HttpContextActivityActor).
+    app.MapMcp("/mcp").RequireAuthorization()
+        .WithMetadata(BHS.CRG.Domain.Activity.ActivityChannel.Mcp);
     app.MapDocumentTypeEndpoints();
     app.MapCommonDataEndpoints();
     app.MapNomenclatureIntakeEndpoints();

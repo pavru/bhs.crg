@@ -1,7 +1,10 @@
+using BHS.CRG.Application.Activity;
+using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Tests.Integration;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Jobs;
@@ -33,6 +36,26 @@ public class JobServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         // Чужие задачи не видны.
         Assert.Empty(await svc.GetActiveForUserAsync(Guid.NewGuid(), default));
+    }
+
+    [Fact]
+    public async Task Задача_поставленная_внутри_задачи_агента_остаётся_каналом_агента()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Автор действия — настоящий: вне запроса он «Система» с каналом system. Канал обязана дать задача.
+        var svc = new JobService(db, new JobQueue(), actor: scope.ServiceProvider.GetRequiredService<IActivityActor>());
+        var userId = Guid.NewGuid();
+
+        Guid child;
+        using (JobActivityScope.Begin(ActivityActor.ForJob(userId, "Иван", null, "Сборка", ActivityChannel.Mcp)))
+            child = await svc.EnqueueAsync(JobKind.RecognizeGostSet, userId, Guid.NewGuid(), "Дочерняя", null, default);
+        var outside = await svc.EnqueueAsync(JobKind.RecognizeGostSet, userId, Guid.NewGuid(), "Вне задачи", null, default);
+
+        var channels = await db.Jobs.Where(j => j.Id == child || j.Id == outside)
+            .ToDictionaryAsync(j => j.Id, j => j.Channel);
+        Assert.Equal("mcp", channels[child]);
+        Assert.Equal("system", channels[outside]);
     }
 
     [Fact]

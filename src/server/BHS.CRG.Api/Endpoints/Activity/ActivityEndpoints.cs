@@ -2,6 +2,7 @@ using System.Security.Claims;
 using BHS.CRG.Api.Activity;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Domain.Activity;
 using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Endpoints.Activity;
@@ -26,19 +27,30 @@ public static class ActivityEndpoints
         var g = app.MapGroup("/api/activity")
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.AuditRead));
 
-        g.MapGet("/", async (int? skip, int? take, string? action, ClaimsPrincipal principal,
+        // ⚠️ Неизвестный канал — 400 с перечнем, а не пустая страница: пустой ответ на опечатку читался бы
+        // как «агент ничего не делал» — отказ, переодетый в результат (issue #1336, design D7).
+        g.MapGet("/", async (int? skip, int? take, string? action, string? channel, ClaimsPrincipal principal,
             IUserPermissions permissions, IActivityLog log, ActivityActionCatalog actions, CancellationToken ct) =>
         {
+            ActivityChannel? only = null;
+            if (!string.IsNullOrWhiteSpace(channel) && (only = ActivityChannel.Find(channel)) is null)
+                return Results.BadRequest(new
+                {
+                    error = $"Канала «{channel}» нет. Допустимые: "
+                        + string.Join(", ", ActivityChannel.All.Select(c => c.Code)) + ".",
+                    channels = ActivityChannel.All.Select(c => c.Code),
+                });
+
             var visible = actions.VisibleTo(await permissions.ForAsync(principal, ct));
-            var rows = await log.ReadAsync(skip ?? 0, take ?? 50, visible, action, ct);
+            var rows = await log.ReadAsync(skip ?? 0, take ?? 50, visible, action, only, ct);
             return Results.Ok(new ActivityPageDto(
-                await log.CountAsync(visible, action, ct),
+                await log.CountAsync(visible, action, only, ct),
                 [.. rows.Select(r => new ActivityRowDto(
                     r.Id, r.OccurredAt, r.Action, actions.Title(r.Action),
                     r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After,
                     r.Count, r.LastAt, r.FirstTargetLabel,
                     // Ключ раскрытия — только у ряда, которому есть что раскрывать.
-                    r.Count > 1 ? r.SessionId : null))]));
+                    r.Count > 1 ? r.SessionId : null, r.Channel))]));
         });
 
         // Записи одного ряда (ТЗ CORE-28.2). Только чтение, поэтому ни If-Match, ни ворот модуля:
@@ -58,7 +70,7 @@ public static class ActivityEndpoints
                 ? Results.NotFound()
                 : Results.Ok(records.Select(r => new ActivityRecordDto(
                     r.Id, r.OccurredAt, r.Action, actions.Title(r.Action),
-                    r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After)));
+                    r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After, r.Channel)));
         });
 
         // Список действий для отбора на экране. Строится из каталога, а не из того, что уже
@@ -72,6 +84,12 @@ public static class ActivityEndpoints
             ActivityActionCatalog actions, CancellationToken ct) => Results.Ok(
             actions.Shown(actions.VisibleTo(await permissions.ForAsync(principal, ct)))
                 .Select(a => new ActivityActionDto(a.Code, a.Title))));
+
+        // Каналы для отбора и их названия (issue #1336) — отсюда, а не перечнем в клиенте: новый канал
+        // (ассистент приложения) иначе не попал бы в отбор, пока кто-то не вспомнит про второй список
+        // (ревью PR #1997). Порядок — порядок меню.
+        g.MapGet("/channels", () => Results.Ok(
+            ActivityChannel.All.Select(c => new ActivityChannelDto(c.Code, c.Title))));
     }
 
     private record ActivityPageDto(int Total, ActivityRowDto[] Items);
@@ -83,11 +101,13 @@ public static class ActivityEndpoints
     private record ActivityRowDto(
         Guid Id, DateTimeOffset OccurredAt, string Action, string ActionTitle,
         Guid? ActorId, string ActorName, string? Target, string? Before, string? After,
-        int Count, DateTimeOffset LastAt, string? FirstTarget, Guid? SessionId);
+        int Count, DateTimeOffset LastAt, string? FirstTarget, Guid? SessionId, string Channel);
 
     private record ActivityRecordDto(
         Guid Id, DateTimeOffset OccurredAt, string Action, string ActionTitle,
-        Guid? ActorId, string ActorName, string? Target, string? Before, string? After);
+        Guid? ActorId, string ActorName, string? Target, string? Before, string? After, string Channel);
 
     private record ActivityActionDto(string Code, string Title);
+
+    private record ActivityChannelDto(string Code, string Title);
 }

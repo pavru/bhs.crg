@@ -50,6 +50,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<string>("Before")
                         .HasColumnType("text");
 
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -78,6 +83,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasIndex("OccurredAt", "Id")
                         .IsDescending()
                         .HasDatabaseName("IX_activity_log_series_heads")
+                        .HasFilter("\"SeriesHead\"");
+
+                    b.HasIndex("Channel", "OccurredAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("IX_activity_log_channel_series_heads")
                         .HasFilter("\"SeriesHead\"");
 
                     b.HasIndex("TargetId", "OccurredAt", "Id")
@@ -1102,6 +1112,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

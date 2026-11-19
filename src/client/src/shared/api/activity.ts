@@ -10,6 +10,20 @@ import { apiClient } from './client';
  * что угодно от чьего угодно имени.
  */
 
+/**
+ * Код канала действия (ТЗ CORE-28.1, issue #1336): `ui` — интерфейс и API, `mcp` — агент через MCP,
+ * `system` — сам экземпляр. Его определяет сервер по контексту действия, а не писатель записи.
+ *
+ * Строкой, а не перечнем: каналы и их названия знает сервер (`useActivityChannels`), и новый канал не
+ * обязан ждать правки клиента, чтобы попасть в отбор.
+ */
+export type ActivityChannel = string;
+
+export interface ActivityChannelOption {
+  code: ActivityChannel;
+  title: string;
+}
+
 export interface ActivityRecord {
   id: string;
   occurredAt: string;
@@ -23,6 +37,8 @@ export interface ActivityRecord {
   target: string | null;
   before: string | null;
   after: string | null;
+  /** Каким путём сделано. У ряда — канал всей серии: другой канал рвёт сессию правки. */
+  channel: ActivityChannel;
 }
 
 /**
@@ -70,11 +86,14 @@ export interface ActivityActionOption {
   title: string;
 }
 
-export function useActivity(skip: number, take: number, action: string | null) {
+/** Страница журнала. `action` и `channel` — отборы; `null` — без отбора. */
+export function useActivity(skip: number, take: number, action: string | null, channel: ActivityChannel | null = null) {
   return useQuery({
-    queryKey: ['activity', skip, take, action],
+    queryKey: ['activity', skip, take, action, channel],
     queryFn: () => apiClient
-      .get<ActivityPage>('/activity', { params: { skip, take, action: action || undefined } })
+      .get<ActivityPage>('/activity', {
+        params: { skip, take, action: action || undefined, channel: channel || undefined },
+      })
       .then(r => r.data),
   });
 }
@@ -103,6 +122,15 @@ export function useActivityActions() {
   return useQuery({
     queryKey: ['activity', 'actions'],
     queryFn: () => apiClient.get<ActivityActionOption[]>('/activity/actions').then(r => r.data),
+    staleTime: Infinity,
+  });
+}
+
+/** Каналы для отбора — с сервера, в порядке меню (ревью PR #1997: второй перечень в клиенте отставал бы). */
+export function useActivityChannels() {
+  return useQuery({
+    queryKey: ['activity', 'channels'],
+    queryFn: () => apiClient.get<ActivityChannelOption[]>('/activity/channels').then(r => r.data),
     staleTime: Infinity,
   });
 }

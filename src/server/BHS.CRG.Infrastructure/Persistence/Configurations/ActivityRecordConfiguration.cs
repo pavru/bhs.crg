@@ -20,8 +20,12 @@ public class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityReco
         // же (ActivityRecord.Create), и разъехавшись с колонкой она дала бы отказ 22001 уже после
         // совершённого действия — issue #980.
         b.Property(e => e.ActorName).IsRequired().HasMaxLength(ActivityRecord.ActorNameMax);
-        b.Property(e => e.TargetId).HasMaxLength(128);
+        b.Property(e => e.TargetId).HasMaxLength(ActivityRecord.TargetIdMax);
         b.Property(e => e.TargetLabel).HasMaxLength(ActivityRecord.TargetLabelMax);
+
+        // Канал (issue #1336): код ActivityChannel. Без умолчания в базе нарочно — канал даёт контекст
+        // действия, а умолчание колонки молча записало бы «ui» мимо него. Заполнение старых строк — в миграции.
+        b.Property(e => e.Channel).IsRequired().HasMaxLength(ActivityChannel.CodeMax);
 
         // Прежнее и новое значение длины не ограничены: у смены роли это два слова, у правки схемы —
         // перечень полей. Обрезать перечень значило бы записать «изменено 7 полей: …» и потерять
@@ -42,5 +46,13 @@ public class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityReco
             .IsDescending(true, true)
             .HasFilter("\"SeriesHead\"")
             .HasDatabaseName("IX_activity_log_series_heads");
+
+        // Отбор по каналу (issue #1336) — тот же обход голов, но только своего канала. Без своего индекса
+        // редкий канал (mcp) читался бы обходом всех голов до полусотни подходящих, а число страницы —
+        // подсчётом по всем головам журнала, на каждой странице (ревью PR #1997).
+        b.HasIndex(e => new { e.Channel, e.OccurredAt, e.Id })
+            .IsDescending(false, true, true)
+            .HasFilter("\"SeriesHead\"")
+            .HasDatabaseName("IX_activity_log_channel_series_heads");
     }
 }

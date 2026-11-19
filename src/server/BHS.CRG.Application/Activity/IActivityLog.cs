@@ -40,14 +40,16 @@ public interface IActivityLog
 
     /// <summary>
     /// Страница журнала РЯДАМИ серий (ТЗ CORE-28.2), новые первыми — по времени первой записи ряда.
-    /// <paramref name="action" /> — фильтр по коду действия.
+    /// <paramref name="action" /> — фильтр по коду действия, <paramref name="channel" /> — по каналу
+    /// (issue #1336): у серии канал один, другой канал рвёт сессию.
     /// </summary>
     Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
-        string? action = null,
+        string? action = null, ActivityChannel? channel = null,
         CancellationToken ct = default);
 
     /// <summary>Сколько РЯДОВ отвечает фильтру: экран показывает «ещё N» и не врёт о конце списка.</summary>
-    Task<int> CountAsync(ActivityVisibility visible, string? action = null, CancellationToken ct = default);
+    Task<int> CountAsync(ActivityVisibility visible, string? action = null, ActivityChannel? channel = null,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Записи одного ряда — серии вида <paramref name="action" /> в сессии <paramref name="sessionId" />,

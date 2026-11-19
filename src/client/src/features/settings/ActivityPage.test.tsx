@@ -19,7 +19,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const SERIES: ActivityRow = {
   id: 'h1', occurredAt: '2026-10-28T11:02:00Z', action: 'costs.invoice.lines', actionTitle: 'Строки счёта изменены',
   actorId: 'a1', actorName: 'Иван', target: 'Счёт № 41', before: '3 строки', after: '7 строк',
-  count: 3, lastAt: '2026-10-28T11:19:00Z', firstTarget: 'Счёт № 14', sessionId: 's1',
+  count: 3, lastAt: '2026-10-28T11:19:00Z', firstTarget: 'Счёт № 14', sessionId: 's1', channel: 'ui',
 };
 
 const SINGLE: ActivityRow = {
@@ -33,10 +33,19 @@ const RECORDS: ActivityRecord[] = [
   { ...SERIES, id: 'e3', occurredAt: '2026-10-28T11:19:00Z', before: '5 строк', after: '7 строк' },
 ];
 
+// Перечень каналов — с сервера (ревью PR #1997): «Ассистент» клиент не знает, и в отборе он есть только поэтому.
+const CHANNELS = [
+  { code: 'ui', title: 'Интерфейс' },
+  { code: 'mcp', title: 'Агент (MCP)' },
+  { code: 'system', title: 'Система' },
+  { code: 'assistant', title: 'Ассистент' },
+];
+
 function serve(series: ActivityRow, records: ActivityRecord[]) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => Promise.resolve({
     data: url === '/activity' ? { total: 2, items: [series, SINGLE] }
       : url === '/activity/actions' ? []
+      : url === '/activity/channels' ? CHANNELS
       : url === '/activity/series/s1' ? records
       : undefined,
   }) as never);
@@ -98,5 +107,27 @@ describe('журнал действий рядами', () => {
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Записи ряда' }))
       .getAllByRole('listitem')).toHaveLength(4));
     expect(screen.queryByText(/Показаны первые/)).toBeNull();
+  });
+});
+
+/** Канал действия (issue #1336): действие агента помечено, и по каналу журнал отбирается. */
+describe('журнал действий по каналу', () => {
+  it('ряд агента помечен «через агента (MCP)», ряд интерфейса — нет', async () => {
+    open({ ...SERIES, channel: 'mcp' });
+
+    expect(await screen.findByText('через агента (MCP)')).toBeTruthy();
+    expect(screen.getAllByText('через агента (MCP)')).toHaveLength(1);
+  });
+
+  it('отбор по каналу уходит параметром запроса и возвращает на первую страницу', async () => {
+    open();
+    await screen.findByRole('button', { name: /показать записи/ });
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Отбор по каналу' }), { key: 'Enter' });
+    expect(screen.getByRole('option', { name: 'Ассистент' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('option', { name: 'Агент (MCP)' }));
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/activity',
+      { params: { skip: 0, take: 50, action: undefined, channel: 'mcp' } }));
   });
 });

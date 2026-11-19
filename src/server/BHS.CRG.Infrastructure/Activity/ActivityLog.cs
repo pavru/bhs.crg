@@ -49,16 +49,22 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     ///
     /// ⚠️ Сворачиваемый вид в транзакции со снимком (RepeatableRead, Serializable) — отказ: снимок взят
     /// до замка, и «предыдущая» запись читалась бы из прошлого, без той, ради которой замок ждали.
+    ///
+    /// Автор — заказчик фоновой задачи, если запись сделана внутри неё (<see cref="JobActivityScope" />),
+    /// иначе автор действия. Внутри запроса окружение задачи не открывается, так что вошедшего оно не
+    /// перекрывает; а у <see cref="IActivityActor" /> вне запроса автор — система, и заказчик задачи туда
+    /// нарочно не попадает (договор портов модулей, ревью PR #1997).
     /// </summary>
     public async Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null, CancellationToken ct = default)
     {
-        var who = actor.Current;
+        var who = JobActivityScope.Author ?? actor.Current;
         var caller = db.Database.CurrentTransaction;
         if (targetId is null || (caller is not null && action.Fold is null))
         {
             db.ActivityRecords.Add(ActivityRecord.Create(
-                action.Code, who.Id, who.Name, targetId, targetLabel, before, after, occurredAt: time.GetUtcNow()));
+                action.Code, who.Id, who.Name, targetId, targetLabel, before, after, occurredAt: time.GetUtcNow(),
+                channel: who.Channel));
             await db.SaveChangesAsync(ct);
             return;
         }
@@ -80,12 +86,12 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             // Время — ПОСЛЕ замка: запись, ждавшая его, иначе оказалась бы раньше той, что его держала.
             var at = time.GetUtcNow();
             var (sessionId, head) = action.Fold is { } fold && who.Id is not null
-                ? await SessionAsync(targetId, who.Id, fold, action.Code, at, ct)
+                ? await SessionAsync(targetId, who, fold, action.Code, at, ct)
                 : (null, true);
 
             db.ActivityRecords.Add(ActivityRecord.Create(
                 action.Code, who.Id, who.Name, targetId, targetLabel, before, after,
-                occurredAt: at, sessionId: sessionId, seriesHead: head));
+                occurredAt: at, sessionId: sessionId, seriesHead: head, channel: who.Channel));
             await db.SaveChangesAsync(ct);
 
             if (own is not null) await own.CommitAsync(ct);
@@ -100,7 +106,7 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     /// Продолжает ли запись сессию предыдущей записи цели, и если да — первая ли она своего вида в
     /// ней. <c>(null, true)</c> — новая сессия. Правило границы — <see cref="ActivitySession" />.
     /// </summary>
-    private async Task<(Guid? SessionId, bool Head)> SessionAsync(string targetId, Guid? actorId,
+    private async Task<(Guid? SessionId, bool Head)> SessionAsync(string targetId, ActivityActor who,
         ActivityFold fold, string code, DateTimeOffset at, CancellationToken ct)
     {
         var previous = await db.ActivityRecords
@@ -108,7 +114,7 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             .OrderByDescending(r => r.OccurredAt).ThenByDescending(r => r.Id)
             .Select(r => new
             {
-                r.Action, r.ActorId, r.OccurredAt, r.SessionId,
+                r.Action, r.ActorId, r.ActorName, r.Channel, r.OccurredAt, r.SessionId,
                 // Головы может не оказаться (журнал правили руками, копия пришла неполной) — тогда
                 // сессия просто начинается заново, а не роняет запись действия.
                 Started = db.ActivityRecords.Where(s => s.Id == r.SessionId)
@@ -117,10 +123,12 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             .FirstOrDefaultAsync(ct);
         if (previous?.Started is not { } started) return (null, true);
 
-        var tail = new ActivitySessionTail(previous.ActorId, actions.Find(previous.Action)?.Fold?.Group,
-            previous.OccurredAt, started);
+        var tail = new ActivitySessionTail(previous.ActorId, previous.ActorName, previous.Channel,
+            actions.Find(previous.Action)?.Fold?.Group, previous.OccurredAt, started);
         _companyZone ??= await settings.GetCompanyTimeZoneAsync(ct);
-        if (!ActivitySession.Continues(actorId, fold.Group, at, tail, _companyZone)) return (null, true);
+        if (!ActivitySession.Continues(who.Id, ActivityRecord.FitActorName(who.Name), who.Channel.Code, fold.Group,
+                at, tail, _companyZone))
+            return (null, true);
 
         // Подряд того же вида — почти каждая запись автосохранения: тогда вид в сессии уже есть, и
         // спрашивать базу незачем.
@@ -144,11 +152,13 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     ///
     /// Видимость и отбор по действию верны и для хвостов: серия — записи одного вида, видимость
     /// задаётся видом, а сессия по построению не содержит записей другого автора или чужой группы.
+    /// Отбор по каналу верен по той же причине: другой канал рвёт сессию (<see cref="ActivitySession" />),
+    /// и канал головы — канал всей серии.
     /// </summary>
     public async Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
-        string? action = null, CancellationToken ct = default)
+        string? action = null, ActivityChannel? channel = null, CancellationToken ct = default)
     {
-        var heads = await Filtered(visible, action)
+        var heads = await Filtered(visible, action, channel)
             .Where(r => r.SeriesHead)
             .OrderByDescending(r => r.OccurredAt)
             .ThenByDescending(r => r.Id)
@@ -183,12 +193,12 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             last.TargetId, last.TargetLabel, before, after,
             series.Count, last.OccurredAt,
             head.TargetLabel != last.TargetLabel ? head.TargetLabel : null,
-            head.SessionId);
+            head.SessionId, head.Channel);
     }
 
-    public Task<int> CountAsync(ActivityVisibility visible, string? action = null,
+    public Task<int> CountAsync(ActivityVisibility visible, string? action = null, ActivityChannel? channel = null,
         CancellationToken ct = default) =>
-        Filtered(visible, action).Where(r => r.SeriesHead).CountAsync(ct);
+        Filtered(visible, action, channel).Where(r => r.SeriesHead).CountAsync(ct);
 
     // Видимость — та же, что у страницы: ряд, скрытый от читающего, не раскрывается и по прямому адресу.
     // Потолок — тот же смысл, что у MaxTake: раскрытие ряда не должно становиться способом выгрузить
@@ -236,9 +246,16 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
 
     // Видимость — в самом запросе, а не поверх страницы: отбор после Skip/Take дал бы страницы
     // разной длины и общее число, выдающее, сколько записей от читающего скрыто.
-    private IQueryable<ActivityRecord> Filtered(ActivityVisibility visible, string? action)
+    private IQueryable<ActivityRecord> Filtered(ActivityVisibility visible, string? action,
+        ActivityChannel? channel = null)
     {
         var records = visible.Filter() is { } filter ? db.ActivityRecords.Where(filter) : db.ActivityRecords;
-        return string.IsNullOrWhiteSpace(action) ? records : records.Where(r => r.Action == action);
+        if (!string.IsNullOrWhiteSpace(action)) records = records.Where(r => r.Action == action);
+        if (channel is not null)
+        {
+            var code = channel.Code;
+            records = records.Where(r => r.Channel == code);
+        }
+        return records;
     }
 }
