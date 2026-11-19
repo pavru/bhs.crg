@@ -53,6 +53,15 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Единственность ключа запомненного ресурса (<c>plan-08</c>) — тем же правилом.</summary>
     internal const string ResourceMatchKey = "ux_resource_matches_key";
 
+    /// <summary>Единственность номера КП в году (<c>plan-13</c>): проигравшее одновременное заведение повторяет.</summary>
+    internal const string OfferNumberKey = "ux_offers_year_sequence";
+
+    /// <summary>Единственность того же номера строкой: база может назвать любой из двух индексов.</summary>
+    internal const string OfferFormattedNumberKey = "ux_offers_number";
+
+    /// <summary>Внешний ключ «КП → редакция-источник» (<c>plan-13</c>).</summary>
+    internal const string OfferRevisionKey = "fk_offers_revision";
+
     protected override string Schema => SchemaName;
 
     public DbSet<Estimate> Estimates => Set<Estimate>();
@@ -111,6 +120,18 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     public DbSet<VolumeStatement> VolumeStatements => Set<VolumeStatement>();
 
     public DbSet<VolumeStatementLine> VolumeStatementLines => Set<VolumeStatementLine>();
+
+    /// <summary>Коммерческие предложения (<c>plan-13</c>): шапка, строки, наценки разделов ЛСР.</summary>
+    public DbSet<Offer> Offers => Set<Offer>();
+
+    public DbSet<OfferLine> OfferLines => Set<OfferLine>();
+
+    public DbSet<OfferSectionMarkup> OfferSectionMarkups => Set<OfferSectionMarkup>();
+
+    public DbSet<OfferVersion> OfferVersions => Set<OfferVersion>();
+
+    /// <summary>Версия КП — её называет каждая правка (<c>If-Match</c>).</summary>
+    public string VersionOf(Offer offer) => Version(offer);
 
     /// <summary>Версия приложения к смете — её называет удаление.</summary>
     public string VersionOf(EstimateAttachment attachment) => Version(attachment);
@@ -196,6 +217,16 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "Запомненное сопоставление тем временем изменили или забыли, и это действие не выполнено. Перечитайте " +
                 "список запомненного и повторите.", e);
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is Offer or OfferLine or OfferSectionMarkup))
+            return new ConflictException(
+                "КП тем временем изменили или удалили в другой вкладке, и эта правка не записана — целиком, ни одной " +
+                "частью. Перечитайте КП и повторите.", e);
+        if (e.InnerException is PostgresException { ConstraintName: "ux_offer_versions_number" })
+            return new ConflictException("Новую версию КП уже создали в другой вкладке. Перечитайте КП и повторите.", e);
+        if (e.InnerException is PostgresException { ConstraintName: OfferNumberKey or OfferFormattedNumberKey })
+            return new ConflictException(
+                "Одновременно заводилось другое КП, и номер достался ему — это КП не заведено. Повторите: оно получит " +
+                "следующий номер.", e);
         if (e is DbUpdateConcurrencyException)
             return new ConflictException(
                 "Смету тем временем изменили, и эта правка не записана — целиком, ни одной частью. Перечитайте " +
@@ -218,6 +249,12 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             RevisionImportKey => new ConflictException(
                 "Из этого импорта редакция уже создана — в другой вкладке или повторным нажатием. Перечитайте отчёт " +
                 "импорта: в нём она названа.", e),
+            OfferRevisionKey when Deleting<EstimateRevision>() => new ConflictException(
+                "Редакцию нельзя удалить: из неё сделано коммерческое предложение — оно читает редакцию такой, какой " +
+                "его сделали.", e),
+            OfferRevisionKey => new ConflictException(
+                "Редакцию тем временем удалили, и КП из неё не заведено. Перечитайте смету и выберите редакцию из " +
+                "оставшихся.", e),
             RevisionNumberKey => new ConflictException(
                 "В смету одновременно записывалась другая редакция, и эта не записана. Повторите — она получит " +
                 "следующий номер.", e),
@@ -231,5 +268,7 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         EstimateModel.Configure(builder);
         DistributionModel.Configure(builder);
         AttachmentModel.Configure(builder);
+        OfferModel.Configure(builder);
+        OfferVersion.Map(builder);
     }
 }

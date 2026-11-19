@@ -63,10 +63,11 @@ public static class ReportEndpoints
         if (take is < 1 or > MaxLimit)
             throw new InvalidRequestException($"Предел выдачи (limit) — от 1 до {MaxLimit}.");
 
-        var feed = await reads.SinceAsync(await MeAsync(user, employees, ct), after, take, ct);
+        var me = await MeAsync(user, employees, ct);
+        var feed = await reads.SinceAsync(me, after, take, ct);
         return Results.Ok(new
         {
-            items = await views.ManyAsync(feed.Items, ct, versions: feed.Versions),
+            items = await views.ManyAsync(ReportViewer.Own(me), feed.Items, ct, versions: feed.Versions),
             deleted = feed.Deleted,
             cursor = feed.Cursor,
             more = feed.More,
@@ -89,9 +90,10 @@ public static class ReportEndpoints
         Guid id, IModuleUser user, IModuleEmployees employees, ReportReads reads, ReportViews views, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
-            var report = await reads.FindAsync(ReportViewer.Own(await MeAsync(user, employees, ct)), id, ct)
+            var viewer = ReportViewer.Own(await MeAsync(user, employees, ct));
+            var report = await reads.FindAsync(viewer, id, ct)
                          ?? throw new NotFoundException(ReportDesk.NotFoundText);
-            return Results.Ok(await views.OneAsync(report, ct: ct));
+            return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
         });
 
     private static Task<IResult> ChangeAsync(

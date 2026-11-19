@@ -52,6 +52,7 @@ public static class EstimateEndpoints
         Guid? constructionId, string? cursor, int? limit, PlanDbContext db, IModuleUser user, CancellationToken ct)
     {
         var hidden = await EstimateViews.HiddenAsync(user, ct);
+        var showOffers = await user.HasAsync(PlanModule.OfferRead, ct);
         if (constructionId is { } site)
         {
             // Молча отдать всё на «limit=20» — отказ, переодетый в результат: клиент счёл бы ответ одной страницей.
@@ -59,11 +60,11 @@ public static class EstimateEndpoints
                 throw new InvalidRequestException(
                     "Сметы стройки приходят целиком: курсор («cursor») и размер страницы («limit») — только у общего " +
                     "списка, без «constructionId».");
-            var items = await EstimateViews.ListAsync(db, db.Estimates.Where(e => e.ConstructionId == site), hidden is null, ct);
+            var items = await EstimateViews.ListAsync(db, db.Estimates.Where(e => e.ConstructionId == site), hidden is null, ct, showOffers);
             return Results.Ok(new EstimateListDto(items, null, hidden));
         }
 
-        var (page, next) = await EstimateViews.PageAsync(db, cursor, limit, hidden is null, ct);
+        var (page, next) = await EstimateViews.PageAsync(db, cursor, limit, hidden is null, ct, showOffers);
         return Results.Ok(new EstimateListDto(page, next, hidden));
     }
 

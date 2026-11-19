@@ -118,6 +118,11 @@ public class RefusalTextTests
             "наш же RecordHeldException становится ScopeHeldException с тем же текстом — чужому "
             + "сообщению взяться неоткуда, catch назван поимённо",
         ["""
+         "КП не сохранено — охрана записи: " + string.Join(" ", refusals.Select( r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message))
+         """] =
+            "то же, что у счёта (plan-13): Message — поле находки охраны записи (ModuleWriteRefusal), слова ядра для " +
+            "человека, а не сообщение исключения",
+        ["""
          "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select( r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message))
          """] =
             "Message здесь — поле находки охраны записи (ModuleWriteRefusal), а не сообщение исключения: "

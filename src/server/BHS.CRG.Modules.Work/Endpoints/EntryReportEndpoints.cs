@@ -68,9 +68,10 @@ public static class EntryReportEndpoints
         Guid id, IModuleReaders readers, ManagerSites sites, ReportReads reads, ReportViews views, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
-            var report = await reads.FindAsync(await ViewerAsync(readers, sites, ct), id, ct)
+            var viewer = await ViewerAsync(readers, sites, ct);
+            var report = await reads.FindAsync(viewer, id, ct)
                          ?? throw new NotFoundException(ReportDesk.NotFoundText);
-            return Results.Ok(await views.OneAsync(report, ct: ct));
+            return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
         });
 
     private static Task<IResult> ChangeAsync(
