@@ -160,6 +160,25 @@ internal sealed class AssignmentWorld(AssignmentHost host)
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Учётная запись без ролей и без входа — только чтобы было с чем связать сотрудника.</summary>
+    public async Task<Guid> AccountAsync(string displayName)
+    {
+        using var scope = host.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var email = $"assign_{Guid.NewGuid():N}@test.local";
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = displayName, EmailConfirmed = true };
+        Assert.True((await users.CreateAsync(user, Password)).Succeeded);
+        return user.Id;
+    }
+
+    /// <summary>Удалить учётную запись: связь сотрудника остаётся, состояние — «удалена» (<c>work-01</c>).</summary>
+    public async Task DeleteUserAsync(Guid userId)
+    {
+        using var scope = host.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.True((await users.DeleteAsync((await users.FindByIdAsync(userId.ToString()))!)).Succeeded);
+    }
+
     /// <summary>Назначение мимо адресов — для подготовки.</summary>
     public async Task<Guid> AssignedAsync(Guid employeeId, Guid siteId, AssignmentKind kind, string from, string? to)
     {
