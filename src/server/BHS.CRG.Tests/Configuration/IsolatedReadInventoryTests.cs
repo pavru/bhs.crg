@@ -53,7 +53,8 @@ public class IsolatedReadInventoryTests
             "файл чтения отчёта монтажника (work-13): отчёт читается только с охватом (ReportViewer — «свои» по " +
             "сотруднику учётной записи или стройки менеджера), чужой и несуществующий — один null одним путём; " +
             "вопросы пути записи «занято ли» и «чей идентификатор» полей чужого отчёта не отдают; журнал отчёта (work-14) — " +
-            "тем же охватом, черновик — только сотруднику и автору ввода",
+            "тем же охватом, черновик — только сотруднику и автору ввода; фото строки (work-17) — тем же охватом и " +
+            "правилом черновика, «чья строка у идентификатора фото» — только для сравнения",
     };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
@@ -231,7 +232,8 @@ public class IsolatedReadInventoryTests
     /// Отчёт монтажника и все его части — изолированные записи (ТЗ WORK-39; <c>work-13</c>). Сторож пометки: без
     /// неё перепись выше молчит — нет пометки, нет и нарушений, и <c>Set&lt;Report&gt;()</c> в любом файле читал бы
     /// все отчёты всем. Строка отчёта, журнал (<c>work-14</c>) и отметка сводки (<c>work-16</c>) несут то же, что отчёт, или
-    /// называют его, и потому помечены вместе с ним; назначение — нет:
+    /// называют его, и потому помечены вместе с ним; фото строки (<c>work-17</c>) — тоже: на нём лицо, место и геометка;
+    /// назначение — нет:
     /// его видит каждый, кто назначает (охват — у адресов назначений).
     /// </summary>
     [Fact]
@@ -240,8 +242,8 @@ public class IsolatedReadInventoryTests
         var work = Models().Single(m => m.Context == typeof(BHS.CRG.Modules.Work.Data.WorkDbContext)).Model;
 
         Assert.Equal(
-            ["Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial", "ReportLineParticipant",
-                "ReviewDigestMark", "ReviewDigestRetry"],
+            ["LinePhoto", "Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial",
+                "ReportLineParticipant", "ReviewDigestMark", "ReviewDigestRetry"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }

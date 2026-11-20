@@ -298,14 +298,18 @@ public sealed class ReportReads(WorkDbContext db)
         };
         var total = await selected.CountAsync(ct);
         var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
-            .Select(r => new { Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count })
+            .Select(r => new
+            {
+                Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count,
+                Pending = r.Lines.SelectMany(l => l.Photos).Count(p => p.State == LinePhotoState.Pending),
+            })
             .ToListAsync(ct);
         var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
         var anyPending = total > 0 || await pending.AnyAsync(ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
-                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id])),
+                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
             ],
             total, counts, anyPending);
     }
@@ -364,7 +368,53 @@ public sealed class ReportReads(WorkDbContext db)
     private static IQueryable<Report> Full(IQueryable<Report> reports) =>
         reports.Include(r => r.Lines).ThenInclude(l => l.Materials)
             .Include(r => r.Lines).ThenInclude(l => l.Participants)
+            .Include(r => r.Lines).ThenInclude(l => l.Photos)
             .AsSplitQuery();
+
+    /// <summary>
+    /// Видно ли читателю СОДЕРЖИМОЕ отчёта (ТЗ WORK-54): поданный — всем, кому виден отчёт; черновик — только сотруднику
+    /// отчёта и автору его ввода <paramref name="userId" />. То же правило, что у журнала (<see cref="JournalAsync" />), —
+    /// им судят фото (<c>work-17</c>).
+    /// </summary>
+    public static bool ContentVisible(Report report, ReportViewer viewer, Guid? userId) =>
+        report.SubmittedAt != null || report.EmployeeId == viewer.EmployeeId
+                                   || (userId != null && report.EnteredByUserId == userId);
+
+    /// <summary>
+    /// Фото по идентификатору, если читателю видно содержимое его отчёта (ТЗ WORK-39, WORK-54; <c>work-17</c>), — без
+    /// отслеживания. Фото чужого отчёта, фото черновика неавтору и несуществующее — одинаково <c>null</c>.
+    /// </summary>
+    public Task<LinePhoto?> PhotoAsync(ReportViewer viewer, Guid? userId, Guid photoId, CancellationToken ct)
+    {
+        var me = viewer.EmployeeId;
+        var readable = Visible(viewer).Where(r =>
+            r.SubmittedAt != null || r.EmployeeId == me || (userId != null && r.EnteredByUserId == userId));
+        return db.Set<LinePhoto>().AsNoTracking()
+            .Where(p => p.Id == photoId && readable.Any(r => r.Lines.Any(l => l.Id == p.LineId)))
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Строка, которой принадлежит фото с этим идентификатором, или <c>null</c>. Только для сравнения при загрузке (ТЗ
+    /// MOB-15): «та же строка — повтор, другая — идентификатор занят»; наружу не уходит.
+    /// </summary>
+    public Task<Guid?> PhotoLineAsync(Guid photoId, CancellationToken ct) =>
+        db.Set<LinePhoto>().AsNoTracking().Where(p => p.Id == photoId).Select(p => (Guid?)p.LineId).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Идентификаторы фото, которые уже принадлежат ДРУГИМ строкам: идентификатор от клиента и ключ таблицы, и без
+    /// вопроса отказ пришёл бы нарушением ключа при сохранении.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> PhotosOfOtherLinesAsync(
+        IReadOnlyCollection<(Guid Photo, Guid Line)> named, CancellationToken ct)
+    {
+        if (named.Count == 0) return [];
+        var ids = named.Select(n => n.Photo).Distinct().ToArray();
+        var held = await db.Set<LinePhoto>().AsNoTracking().Where(p => ids.Contains(p.Id))
+            .Select(p => new { p.Id, p.LineId }).ToListAsync(ct);
+        var lineOf = named.ToDictionary(n => n.Photo, n => n.Line);
+        return [.. held.Where(h => lineOf[h.Id] != h.LineId).Select(h => h.Id)];
+    }
 
     /// <summary>
     /// Отчёт сотрудника с той же четвёркой «стройка, дата, смена» (ТЗ WORK-4, MOB-35), кроме

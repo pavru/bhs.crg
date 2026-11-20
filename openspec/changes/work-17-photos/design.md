@@ -26,14 +26,20 @@
 **Non-Goals:**
 - галерея и просмотр — `work-22`, `work-21` (согласовать с просмотрщиком #1489);
 - очередь догрузки на телефоне — этап 5;
-- показ координат геометки отдельным полем — не решено, вне этапа. Геометка живёт в файле.
+- показ координат геометки отдельным полем — не решено, вне этапа. Геометка хранится колонками фото
+  (`geo_lat`, `geo_lon`, `geo_alt`, `taken_at`): порт фото `work-05` перекодирует снимок всегда и метаданных в
+  файл не переносит, а координаты отдаёт полями (решение `work-05`, «Геометка — данными»).
 
 ## Decisions
 
 ### Хранение
 - Таблица `work.line_photos`: `id` (клиентский), `line_id`, `state`, `blob_path`, `preview_blob_path`,
-  `size`, `declared_at`, `stored_at`. Объявляется в `WorkModule.Files` двумя строками с
-  `Carried: true`.
+  `size`, `width`, `height`, `geo_lat`, `geo_lon`, `geo_alt`, `taken_at`, `declared_at`, `stored_at`.
+  Объявляется в `WorkModule.Files` двумя строками с `Carried: true`.
+- Лимиты — настройки модуля `work.photos.max-size` (15 МБ) и `work.photos.per-line` (10); длинная сторона
+  снимка 2400 и превью 480 — постоянные, не настройка.
+- Перечень `photos` в строке — целиком: не названное снимается (файлы — после фиксации), не присланный
+  перечень фото не трогает: правка без знания о фото их не теряет.
 - Превью едет в копию тоже: перестраивать превью после восстановления пришлось бы отдельным путём,
   которого нет, а весит оно мало.
 - Таблица изолирована по D4: `DbSet` не выставлен, чтение — методом с параметром доступа. Перепись
@@ -75,7 +81,8 @@
 - `Photos/PhotoEndpoints.cs`, `Photos/LinePhotos.cs`, миграция схемы `work`.
 - `WorkModule.Files`; `WorkDbContext` вписан в `ModuleFileInventoryTests.Modules()`.
 - Тесты `Work/PhotoAccessTests`, `Work/PhotoUploadTests`, `Work/PhotoBackupRoundTripTests` — образец
-  `InvoiceBackupRoundTripTests`.
+  `InvoiceBackupRoundTripTests`; `Work/PhotoDeliveryTests` (носители и WORK-11) и перепись пишущих адресов
+  отчёта `Work/ReportVersionCensusTests` — там загрузка фото названа исключением без версии.
 - `docs/ADMIN_GUIDE.md`: лимиты, место; что фото несут координаты и работодатель уведомляет
   сотрудников (`WORK-55`).
 

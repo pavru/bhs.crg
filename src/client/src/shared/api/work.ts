@@ -6,7 +6,7 @@
  * в `counts`. Здесь только коды, по которым отбирают и читают счётчик.
  *
  * Здесь же — общие типы назначений: кандидат `GET /api/work/assignments/candidates` (`work-11`; поле `account` —
- * `work-29`).
+ * `work-29`) — и фото строки отчёта (`work-17`). Галерея и загрузка с экрана — `work-21`, `work-22`.
  */
 
 import type { EmployeeAccount } from './employees';
@@ -73,6 +73,8 @@ export interface ReviewQueueRow {
   actions: ReviewAction[];
   /** Приёмка пометит отчёт «ввёл и принял один человек». */
   acceptWouldMark: boolean;
+  /** Сколько фото строк объявлено и ещё не дошло — его же называет пометка `photos-pending`. */
+  photosPending: number;
 }
 
 /** Ответ `GET /api/work/review/queue`. */
@@ -115,4 +117,41 @@ export interface AssignmentCandidatesPage {
   inArchive: number;
   limit: number;
   more: boolean;
+}
+
+/**
+ * Фото строки отчёта (change `work-17-photos`, ТЗ WORK-33, WORK-34): `pending` — строка назвала фото, файл ещё не
+ * дошёл; `stored` — файл и превью лежат в хранилище. Отчёт фото не ждёт: подать и принять его можно и с `pending`.
+ */
+export type WorkPhotoState = 'pending' | 'stored';
+
+/** Фото в строке ответа отчёта (`lines[].photos`); у отчёта рядом — число недогруженных `photosPending`. */
+export interface WorkLinePhoto {
+  id: string;
+  state: WorkPhotoState;
+}
+
+/**
+ * Фото в теле сохранения строки (`lines[].photos`): идентификатор создаёт клиент (ТЗ MOB-15). Перечень целиком —
+ * не названное снимается; не присланный перечень фото не трогает.
+ */
+export interface WorkLinePhotoRef {
+  id: string;
+}
+
+/**
+ * Ответ загрузки `PUT /api/work/reports/{id}/lines/{lineId}/photos/{photoId}` (тело запроса — сам файл, без
+ * `If-Match`). Повтор той же загрузки отвечает тем же. Файл — `GET /api/work/photos/{photoId}`, превью —
+ * `GET /api/work/photos/{photoId}/preview`; чужое фото и фото чужого черновика — 404.
+ */
+export interface WorkPhotoUpload {
+  id: string;
+  reportId: string;
+  lineId: string;
+  state: 'stored';
+  /** Байты сжатого снимка, без превью. */
+  size: number | null;
+  width: number | null;
+  height: number | null;
+  storedAt: string | null;
 }

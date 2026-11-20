@@ -77,8 +77,11 @@ public static class ReviewMarks
             "назначения (work-11): у сотрудника нет назначения на стройку отчёта на его дату",
             s => r => !s.Assignments.Any(a => a.EmployeeId == r.EmployeeId && a.ConstructionId == r.ConstructionId
                                               && a.DateFrom <= r.Date && (a.DateTo == null || r.Date <= a.DateTo))),
-        new(PhotosPending, "фото ещё догружаются",
-            "фото отчёта — work-17; до него фото нет вовсе, и догружать нечего", null),
+        // Отчёт уходит, не дожидаясь фото (WORK-34): строка объявила фото, файл ещё не дошёл. Ответы называют число —
+        // «фото не загружены: 2» (Dtos).
+        new(PhotosPending, "фото не загружены",
+            "фото строк отчёта (work-17): объявлены строкой, файл ещё не дошёл",
+            _ => r => r.Lines.Any(l => l.Photos.Any(p => p.State == LinePhotoState.Pending))),
         new(LateDelivery, "поздняя доставка",
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
     ];
@@ -97,6 +100,16 @@ public static class ReviewMarks
 
     /// <summary><see cref="AcceptWouldMarkRule" /> над отчётом в памяти.</summary>
     public static bool AcceptWouldMark(Report report, Guid? viewer) => AcceptWouldMarkCompiled(report, viewer);
+
+    /// <summary>
+    /// Пометки отчёта для ответа — по порядку каталога. У <see cref="PhotosPending" /> текст с числом: «фото не загружены:
+    /// 2» — сколько ждут, а не только что ждут.
+    /// </summary>
+    public static IReadOnlyList<ReviewMarkDto> Dtos(IReadOnlyCollection<string> codes, int photosPending) =>
+    [
+        .. All.Where(m => codes.Contains(m.Code))
+            .Select(m => m.Code == PhotosPending ? new ReviewMarkDto(m.Code, $"{m.Text}: {photosPending}") : m.Dto),
+    ];
 
     /// <summary>Пометка по коду; неизвестный код — <c>null</c>.</summary>
     public static ReviewMark? Of(string code) => All.FirstOrDefault(m => m.Code == code);

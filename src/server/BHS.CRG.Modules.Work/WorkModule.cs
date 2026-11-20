@@ -3,6 +3,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Review;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Routing;
@@ -155,6 +156,19 @@ public sealed class WorkModule : IAppModule
     public IReadOnlyList<ModuleRecordType> RecordTypes => WorkRecordTypes.All;
 
     /// <summary>
+    /// Файлы модуля (ТЗ WORK-35, CORE-26; <c>work-17</c>): снимок и превью фото строки — оба едут в копию. Превью
+    /// перестраивать после восстановления пришлось бы отдельным путём, которого нет, а весит оно мало.
+    /// </summary>
+    public IReadOnlyList<ModuleFile> Files =>
+    [
+        ModuleFile.Holding("line_photos", "blob_path", "фото строк отчётов"),
+        ModuleFile.Holding("line_photos", "preview_blob_path", "превью фото строк отчётов"),
+    ];
+
+    /// <summary>Лимиты фото строки (ТЗ WORK-33, <c>work-17</c>).</summary>
+    public IReadOnlyList<BHS.CRG.Modules.Settings.ModuleSetting> Settings => WorkSettings.All;
+
+    /// <summary>
     /// Свой контекст, действия журнала и ворота назначений. Строку подключения модуль берёт из настроек
     /// приложения; что она задана, проверяет ядро при старте, раньше модулей. Регистрирует контекст
     /// модуль, а мигрирует ядро: выключенный модуль не регистрирует ничего (AUTH-19), и его схема
@@ -186,6 +200,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<SubmittedDigest>();
         services.AddScoped<RequiredFields>();
         services.AddScoped<ReportSubmission>();
+        services.AddScoped<LinePhotos>();
         services.AddScoped<IModuleJobHandler, AutoSubmitJob>();
     }
 
@@ -206,7 +221,7 @@ public sealed class WorkModule : IAppModule
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
     /// самим фактом регистрации — права же на нём названы поимённо: доступ к модулю и право на назначения —
     /// разные вещи. Назначения и «мои стройки» (<c>work-11</c>), свои отчёты и ввод за сотрудника (<c>work-13</c>),
-    /// журнал отчёта (<c>work-14</c>), приёмка и возврат (<c>work-16</c>).
+    /// журнал отчёта (<c>work-14</c>), приёмка и возврат (<c>work-16</c>), фото строки (<c>work-17</c>).
     /// </summary>
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -217,6 +232,7 @@ public sealed class WorkModule : IAppModule
         ReportJournalEndpoint.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
         ReviewQueue.Map(endpoints);
+        PhotoEndpoints.Map(endpoints);
     }
 
     /// <summary>

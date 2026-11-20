@@ -3,6 +3,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -42,7 +43,7 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// </summary>
 public sealed class ReportDesk(
     WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
-    ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required)
+    ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required, LinePhotos photos)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -129,12 +130,14 @@ public sealed class ReportDesk(
         var kind = ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
         var before = ReportJournal.Capture(report);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
-        await writer.ChangeAsync(report, header, lines, seq, now, ct);
+        var dropped = await writer.ChangeAsync(report, header, lines, seq, now, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
         var entry = journal.Append(kind, report, before, actor, executor, changeId, seq, body.DeviceTime, now);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        // Файлы снятых фото — после фиксации: ссылка ушла первой (work-17).
+        await photos.DropAsync(dropped);
 
         var changed = "изменено: " + ReportJournal.FieldsOf(entry);
         if (kind == ReportJournalKinds.ManagerEdited)
@@ -214,12 +217,14 @@ public sealed class ReportDesk(
         var before = ReportJournal.Capture(report);
         // Что удалено — до удаления: каскад снимает строки с отчёта при сохранении.
         var removed = $"часы: {(report.Hours is { } h ? h.ToString("0.##", CultureInfo.InvariantCulture) : "—")}, строк: {report.Lines.Count}";
+        var files = report.Lines.SelectMany(l => l.Photos).SelectMany(p => p.Paths()).ToList();
         var (seq, now, change) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow(), changeId ?? Guid.NewGuid());
         db.Add(ReportChange.Of(seq, report, change, ReportChangeKind.Deleted, deviceTime, now, null));
         journal.Append(ReportJournalKinds.Deleted, report, before, actor, executor, change, seq, deviceTime, now);
         db.Remove(report);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        await photos.DropAsync(files);
 
         await activity.RecordAsync(ReportActions.Deleted, report, executor, before: removed, after: "удалён");
         return Results.NoContent();
@@ -230,7 +235,7 @@ public sealed class ReportDesk(
     /// сотрудника (охват стройки, а не «свои»), и действует не сотрудник отчёта. Черновик, введённый за сотрудника, и
     /// возвращённый правятся как обычно: содержимое ещё не предъявлено или исправляется по просьбе менеджера.
     /// </summary>
-    private static bool ManagerEdits(ReportViewer viewer, Report report, ReportJournalActor actor) =>
+    internal static bool ManagerEdits(ReportViewer viewer, Report report, ReportJournalActor actor) =>
         viewer.Reach.Kind != ModuleReachKind.Own && report.Status is ReportStatus.Submitted or ReportStatus.Accepted
                                                  && actor.EmployeeId != report.EmployeeId;
 

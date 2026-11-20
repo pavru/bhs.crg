@@ -44,7 +44,7 @@ public static class ReportJournalEndpoint
     /// Охват читателя журнала. Только свои отчёты — сотрудник обязателен: без связи 403 с причиной, как у своих
     /// отчётов. С правами шире — сотрудник по связи, если она есть: его отчёты видны и вне охвата строек.
     /// </summary>
-    private static async Task<ReportViewer> ViewerAsync(
+    internal static async Task<ReportViewer> ViewerAsync(
         IModuleUser user, IModuleReaders readers, ManagerSites sites, IModuleEmployees employees, CancellationToken ct)
     {
         var reader = await readers.ForRequestAsync(ct);

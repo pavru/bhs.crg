@@ -6,10 +6,16 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 
 public sealed record ReportMaterialDto(Guid NomenclatureId, string? Note);
 
+/// <summary>
+/// Фото строки в ответе отчёта (ТЗ WORK-34, <c>work-17</c>): <c>state</c> — <c>pending</c> (объявлено, файла нет) |
+/// <c>stored</c>. Файл — адресами <c>/api/work/photos/{id}</c> и <c>…/preview</c>.
+/// </summary>
+public sealed record ReportPhotoDto(Guid Id, string State);
+
 public sealed record ReportLineDto(
     Guid Id, int Position, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, Guid WorkPlanItemId, JsonElement Details,
-    IReadOnlyList<ReportMaterialDto> Materials, IReadOnlyList<Guid> Participants);
+    IReadOnlyList<ReportMaterialDto> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<ReportPhotoDto> Photos);
 
 /// <summary>Кто ввёл отчёт за сотрудника (ТЗ WORK-31): учётная запись и имя снимком на момент заведения.</summary>
 public sealed record ReportEnteredByDto(Guid UserId, string Name);
@@ -33,12 +39,14 @@ public sealed record ReportEnteredByDto(Guid UserId, string Name);
 /// <param name="AcceptWouldMark">Отчёт подан, и ввёл его тот, кто сейчас смотрит (WORK-31.1, <c>work-16</c>): его
 /// приёмка пометит отчёт «ввёл и принял один человек». Считает сервер — клиент о пометке не догадывается.</param>
 /// <param name="Marks">Пометки отчёта из каталога очереди (WORK-28, <c>work-16</c>) — те же, что у строки очереди.</param>
+/// <param name="PhotosPending">Сколько фото строк объявлено и ещё не дошло (WORK-34, <c>work-17</c>): отчёт их не ждёт,
+/// подать и принять его можно.</param>
 public sealed record ReportDto(
     Guid Id, Guid EmployeeId, Guid ConstructionId, DateOnly Date, string Shift, decimal? Hours, string Status,
     string? Note, long Seq, string Version, bool AssignedOnDate, ReportEnteredByDto? EnteredBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
     DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
-    bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks);
+    bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks, int PhotosPending);
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается на чтении, по назначениям <c>work-11</c>, и не хранится:
@@ -79,19 +87,27 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
     public static bool AcceptWouldMark(Report r, Guid? viewer) => ReviewMarks.AcceptWouldMark(r, viewer);
 
     private static ReportDto Dto(
-        Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks) => new(
-        r.Id, r.EmployeeId, r.ConstructionId, r.Date, Report.ShiftCode(r.Shift), r.Hours, Report.StatusCode(r.Status),
-        r.Note, r.Seq, version, assigned,
-        r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
-        r.CreatedAt, r.UpdatedAt,
-        [.. r.Lines.OrderBy(l => l.Position).Select(Line)],
-        replayed,
-        r.Status == ReportStatus.Draft ? r.WindowEndsAt : null,
-        r.SubmittedAt,
-        r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
-        r.RequiredMissing is { } missing ? Parsed(missing) : null,
-        AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark,
-        Marks: [.. ReviewMarks.All.Where(m => marks.Contains(m.Code)).Select(m => m.Dto)]);
+        Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks)
+    {
+        var pending = PhotosPendingOf(r);
+        return new ReportDto(
+            r.Id, r.EmployeeId, r.ConstructionId, r.Date, Report.ShiftCode(r.Shift), r.Hours,
+            Report.StatusCode(r.Status), r.Note, r.Seq, version, assigned,
+            r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
+            r.CreatedAt, r.UpdatedAt,
+            [.. r.Lines.OrderBy(l => l.Position).Select(Line)],
+            replayed,
+            r.Status == ReportStatus.Draft ? r.WindowEndsAt : null,
+            r.SubmittedAt,
+            r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
+            r.RequiredMissing is { } missing ? Parsed(missing) : null,
+            AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark,
+            Marks: ReviewMarks.Dtos(marks, pending), PhotosPending: pending);
+    }
+
+    /// <summary>Недогруженные фото отчёта — строки обязаны быть загружены вместе с фото.</summary>
+    public static int PhotosPendingOf(Report r) =>
+        r.Lines.Sum(l => l.Photos.Count(p => p.State == LinePhotoState.Pending));
 
     private static JsonElement Parsed(string json)
     {
@@ -106,6 +122,7 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
             l.Id, l.Position, l.WorkTypeId, l.VariantId, l.Volume, l.UnitId, l.SectionId, l.Location, l.Comment,
             l.IsCrew, l.WorkPlanItemId, details.RootElement.Clone(),
             [.. l.Materials.OrderBy(m => m.Position).Select(m => new ReportMaterialDto(m.NomenclatureId, m.Note))],
-            [.. l.Participants.Select(p => p.EmployeeId)]);
+            [.. l.Participants.Select(p => p.EmployeeId)],
+            [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State)))]);
     }
 }
