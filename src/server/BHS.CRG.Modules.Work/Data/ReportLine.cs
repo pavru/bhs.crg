@@ -62,8 +62,27 @@ public sealed class ReportLine : IIsolatedRecord
 
     public List<ReportLineParticipant> Participants { get; private set; } = [];
 
+    /// <summary>Фото строки (<c>work-17</c>): объявленные и пришедшие.</summary>
+    public List<LinePhoto> Photos { get; private set; } = [];
+
     /// <summary>Ключ позиции перечня этой строки на стройке отчёта.</summary>
     public PlanItemKey KeyOn(Guid constructionId) => new(WorkTypeId, constructionId, SectionId, UnitId);
+
+    /// <summary>
+    /// Принять перечень фото строки (ТЗ WORK-34, <c>work-17</c>): новое — ждёт файла, не названное — снимается.
+    /// <c>null</c> — перечень не прислан, фото не трогаются: правка без знания о фото их не теряет. Возвращает снятые —
+    /// их файлы удаляются после фиксации, ссылка уходит первой.
+    /// </summary>
+    public IReadOnlyList<LinePhoto> ApplyPhotos(IReadOnlyList<Guid>? named, DateTimeOffset now)
+    {
+        if (named is null) return [];
+        var keep = named.ToHashSet();
+        var removed = Photos.Where(p => !keep.Contains(p.Id)).ToList();
+        Photos.RemoveAll(p => !keep.Contains(p.Id));
+        var have = Photos.Select(p => p.Id).ToHashSet();
+        Photos.AddRange(named.Distinct().Where(id => !have.Contains(id)).Select(id => LinePhoto.Declared(id, Id, now)));
+        return removed;
+    }
 
     /// <summary>
     /// Новая строка. Звать — только из пути записи (<see cref="ReportWriter" />): проверки и охрана сведений там, а
@@ -120,7 +139,7 @@ public sealed record ReportMaterialValues(Guid? NomenclatureId, string? Note);
 public sealed record ReportLineValues(
     Guid Id, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, string? Details,
-    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants)
+    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<Guid>? Photos = null)
 {
     /// <summary>Ключ позиции перечня строки на стройке.</summary>
     public PlanItemKey KeyOn(Guid constructionId) => new(WorkTypeId, constructionId, SectionId, UnitId);

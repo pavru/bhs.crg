@@ -4,7 +4,7 @@ namespace BHS.CRG.Modules.Work.Data;
 
 /// <summary>
 /// Таблицы отчёта монтажника в модели <see cref="WorkDbContext" /> (change <c>work-13-report-model</c>): отчёт,
-/// строки, материалы, участники и протокол изменений. Отдельным файлом — чтобы контекст не рос с каждой записью.
+/// строки, материалы, участники, фото (<c>work-17</c>) и протокол изменений. Отдельным файлом — чтобы контекст не рос с каждой записью.
 ///
 /// <para>⚠️ <b>Наборов (<c>DbSet</c>) у этих записей нет</b>: все изолированные (<c>IIsolatedRecord</c>), и
 /// читаются только в файле чтения с параметром доступа. Навигации — только между ними самими: от отчёта к строкам и
@@ -78,6 +78,7 @@ internal static class WorkReportModel
         line.Property(l => l.Details).HasColumnName("details").HasColumnType("jsonb");
         line.HasMany(l => l.Materials).WithOne().HasForeignKey(m => m.LineId).OnDelete(DeleteBehavior.Cascade);
         line.HasMany(l => l.Participants).WithOne().HasForeignKey(p => p.LineId).OnDelete(DeleteBehavior.Cascade);
+        line.HasMany(l => l.Photos).WithOne().HasForeignKey(p => p.LineId).OnDelete(DeleteBehavior.Cascade);
         line.HasIndex(l => new { l.ReportId, l.Position }).HasDatabaseName("ix_report_lines_report");
         line.HasIndex(l => l.WorkTypeId).HasDatabaseName("ix_report_lines_work_type");
         line.HasIndex(l => l.VariantId).HasDatabaseName("ix_report_lines_variant");
@@ -104,6 +105,48 @@ internal static class WorkReportModel
         participant.Property(p => p.EmployeeId).HasColumnName("employee_id");
         participant.HasIndex(p => p.LineId).HasDatabaseName("ix_report_line_participants_line");
         participant.HasIndex(p => p.EmployeeId).HasDatabaseName("ix_report_line_participants_employee");
+
+        // Фото строки (work-17): путь файла — колонкой, её объявляет WorkModule.Files (копия и вес копии).
+        var photo = builder.Entity<LinePhoto>();
+        photo.ToTable("line_photos");
+        photo.HasKey(p => p.Id);
+        photo.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        photo.Property(p => p.LineId).HasColumnName("line_id");
+        photo.Property(p => p.State).HasColumnName("state").HasMaxLength(8)
+            .HasConversion(v => LinePhoto.StateCode(v), v => Enum.Parse<LinePhotoState>(v, true));
+        photo.Property(p => p.BlobPath).HasColumnName("blob_path");
+        photo.Property(p => p.PreviewBlobPath).HasColumnName("preview_blob_path");
+        photo.Property(p => p.Size).HasColumnName("size");
+        photo.Property(p => p.Width).HasColumnName("width");
+        photo.Property(p => p.Height).HasColumnName("height");
+        photo.Property(p => p.GeoLat).HasColumnName("geo_lat");
+        photo.Property(p => p.GeoLon).HasColumnName("geo_lon");
+        photo.Property(p => p.GeoAlt).HasColumnName("geo_alt");
+        photo.Property(p => p.TakenAt).HasColumnName("taken_at");
+        photo.Property(p => p.DeclaredAt).HasColumnName("declared_at");
+        photo.Property(p => p.StoredAt).HasColumnName("stored_at");
+        photo.Property(p => p.StoredSeq).HasColumnName("stored_seq");
+        // Версия строки фото: правка, прочитавшая фото ждущим, не снимет его после доставки по устаревшему виду —
+        // иначе пути файлов, пришедших тем временем, ушли бы вместе со строкой, а файлы остались бы без ссылки.
+        photo.Property<uint>(rowVersion).IsRowVersion();
+        // Хранимое фото без файла обещало бы снимок, которого не открыть.
+        photo.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_line_photos_state", "state IN ('pending', 'stored')");
+            t.HasCheckConstraint("ck_line_photos_stored",
+                "state = 'pending' OR (blob_path IS NOT NULL AND preview_blob_path IS NOT NULL)");
+        });
+        photo.HasIndex(p => p.LineId).HasDatabaseName("ix_line_photos_line");
+
+        // След снятого фото (work-17): живёт со строкой.
+        var removal = builder.Entity<LinePhotoRemoval>();
+        removal.ToTable("line_photo_removals");
+        removal.HasKey(r => r.PhotoId);
+        removal.Property(r => r.PhotoId).HasColumnName("photo_id").ValueGeneratedNever();
+        removal.Property(r => r.LineId).HasColumnName("line_id");
+        removal.Property(r => r.RemovedAt).HasColumnName("removed_at");
+        removal.HasOne<ReportLine>().WithMany().HasForeignKey(r => r.LineId).OnDelete(DeleteBehavior.Cascade);
+        removal.HasIndex(r => r.LineId).HasDatabaseName("ix_line_photo_removals_line");
 
         var change = builder.Entity<ReportChange>();
         change.ToTable("report_changes");

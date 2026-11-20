@@ -9,8 +9,11 @@ public sealed record ReviewQueueFilter(
                        || Mark is not null;
 }
 
-/// <summary>Отчёт страницы очереди, как его прочёл файл чтения: версия строки, число строк, коды пометок.</summary>
-public sealed record ReviewQueueItem(Report Report, string Version, int Lines, IReadOnlyList<string> Marks);
+/// <summary>
+/// Отчёт страницы очереди, как его прочёл файл чтения: версия строки, число строк, коды пометок и число недогруженных
+/// фото (<c>work-17</c>) — им пометка <c>photos-pending</c> называет, сколько ждут.
+/// </summary>
+public sealed record ReviewQueueItem(Report Report, string Version, int Lines, IReadOnlyList<string> Marks, int PhotosPending);
 
 /// <summary>Страница очереди из файла чтения.</summary>
 public sealed record ReviewQueueRead(

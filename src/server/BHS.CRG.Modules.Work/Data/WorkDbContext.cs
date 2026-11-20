@@ -62,6 +62,19 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
             .SingleAsync(ct);
     }
 
+    /// <summary>
+    /// Запереть отчёты сотрудника до конца транзакции, не беря номера (<c>work-17</c>): доставка файла объявленного фото
+    /// отчёт не меняет, но обязана не разминуться с параллельной загрузкой того же фото и с правкой строки. Замок тот же,
+    /// что у <see cref="NextReportSeqAsync" />, и повторный его захват в той же транзакции не ждёт.
+    /// </summary>
+    public async Task LockReportsAsync(Guid employeeId, CancellationToken ct)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "Отчёты сотрудника запираются только внутри транзакции: вне её замок снимается тем же запросом.");
+        await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({ReportLockKey(employeeId)}, 0))", ct);
+    }
+
     /// <summary>Ключ замка отчётов сотрудника — им же пользуется тест очерёдности.</summary>
     public static string ReportLockKey(Guid employeeId) => $"work.reports:{employeeId}";
 

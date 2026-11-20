@@ -83,6 +83,111 @@ namespace BHS.CRG.Modules.Work.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlobPath")
+                        .HasColumnType("text")
+                        .HasColumnName("blob_path");
+
+                    b.Property<DateTimeOffset>("DeclaredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("declared_at");
+
+                    b.Property<double?>("GeoAlt")
+                        .HasColumnType("double precision")
+                        .HasColumnName("geo_alt");
+
+                    b.Property<double?>("GeoLat")
+                        .HasColumnType("double precision")
+                        .HasColumnName("geo_lat");
+
+                    b.Property<double?>("GeoLon")
+                        .HasColumnType("double precision")
+                        .HasColumnName("geo_lon");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.Property<string>("PreviewBlobPath")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_blob_path");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<long?>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset?>("StoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("stored_at");
+
+                    b.Property<long?>("StoredSeq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("stored_seq");
+
+                    b.Property<DateTimeOffset?>("TakenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("taken_at");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId")
+                        .HasDatabaseName("ix_line_photos_line");
+
+                    b.ToTable("line_photos", "work", t =>
+                        {
+                            t.HasCheckConstraint("ck_line_photos_state", "state IN ('pending', 'stored')");
+
+                            t.HasCheckConstraint("ck_line_photos_stored", "state = 'pending' OR (blob_path IS NOT NULL AND preview_blob_path IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhotoRemoval", b =>
+                {
+                    b.Property<Guid>("PhotoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("photo_id");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.Property<DateTimeOffset>("RemovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("removed_at");
+
+                    b.HasKey("PhotoId");
+
+                    b.HasIndex("LineId")
+                        .HasDatabaseName("ix_line_photo_removals_line");
+
+                    b.ToTable("line_photo_removals", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Report", b =>
                 {
                     b.Property<Guid>("Id")
@@ -499,6 +604,24 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("review_digest_retries", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhoto", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
+                        .WithMany("Photos")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhotoRemoval", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
+                        .WithMany()
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLine", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
@@ -554,6 +677,8 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.Navigation("Materials");
 
                     b.Navigation("Participants");
+
+                    b.Navigation("Photos");
                 });
 #pragma warning restore 612, 618
         }

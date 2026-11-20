@@ -76,6 +76,10 @@ public sealed class ReportJournal(WorkDbContext db)
             values[(id, "participants")] = new JsonArray([
                 .. line.Participants.Select(p => p.EmployeeId).Order().Select(e => (JsonNode)e.ToString()),
             ]);
+            // Фото (work-17) — перечнем идентификаторов и только у строки с фото: досылка файла объявленного фото перечня
+            // не меняет и правкой не пишется (WORK-11), а новое и снятое фото — пишется.
+            if (line.Photos.Count > 0)
+                values[(id, "photos")] = new JsonArray([.. line.Photos.Select(photo => photo.Id).Order().Select(id => (JsonNode)id.ToString())]);
             if (JsonNode.Parse(line.Details) is JsonObject details)
                 foreach (var (key, value) in details)
                     values[(id, "details." + key)] = value?.DeepClone();

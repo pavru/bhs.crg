@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Submission;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -44,10 +45,15 @@ public sealed class ReportKeyTakenException(Guid existingId) : ConflictException
 /// охрану записи (<see cref="IModuleWriteGuard" />): новые строки одним пакетом, правленые — сверкой с лежащим, и
 /// только когда сведения изменились. Перепись <c>RecordWriteGuardCoverageTests</c> находит это место по именам
 /// <c>ReportLine.Create</c> и <c>ApplyLine</c>.</para>
+///
+/// <para><b>Фото строки</b> (<c>work-17</c>, ТЗ WORK-34): строка называет идентификаторы своих фото, новое ждёт файла,
+/// не названное снимается. Пути снятых файлов правка возвращает: удаляет их вызывающий ПОСЛЕ фиксации — ссылка уходит
+/// первой, и сбой оставляет осиротевший файл, а не фото, которое не открывается.</para>
 /// </summary>
 public sealed class ReportWriter(
     WorkDbContext db, IModuleConstructions constructions, IModuleWorkTypes workTypes, IModuleTypes types,
-    IModuleWriteGuard guard, ReportReferenceCheck references, WorkPlanItemLink planItems, ReportReads reads)
+    IModuleWriteGuard guard, ReportReferenceCheck references, WorkPlanItemLink planItems, ReportReads reads,
+    IModuleSettings settings)
 {
     /// <summary>Завести отчёт со строками в контекст модуля (без сохранения).</summary>
     public async Task<Report> CreateAsync(
@@ -60,16 +66,17 @@ public sealed class ReportWriter(
         await EnsureFreeAsync(reportId, employeeId, header, lines, ct);
 
         var report = NewReport(reportId, employeeId, header, seq, now, site);
-        await PlaceLinesAsync(report, site, storedSite: site.Id, lines, ct);
+        await PlaceLinesAsync(report, site, storedSite: site.Id, lines, now, ct);
         db.Add(report);
         return report;
     }
 
     /// <summary>
     /// Править отчёт: шапку и строки целиком — строки, которых нет в запросе, удаляются. <paramref name="report" />
-    /// обязан быть прочитан с отслеживанием и со строками, материалами и участниками.
+    /// обязан быть прочитан с отслеживанием и со строками, материалами, участниками и фото. Возвращает пути файлов
+    /// снятых фото — их удаляют после фиксации.
     /// </summary>
-    public async Task ChangeAsync(
+    public async Task<IReadOnlyList<string>> ChangeAsync(
         Report report, ReportHeaderValues header, IReadOnlyList<ReportLineValues> lines, long seq, DateTimeOffset now,
         CancellationToken ct)
     {
@@ -84,8 +91,9 @@ public sealed class ReportWriter(
 
         // Ключи лежащих строк — на ПРЕЖНЕЙ стройке: отчёт, перенесённый на другую, меняет ключ каждой строки.
         var storedSite = report.ConstructionId;
-        await PlaceLinesAsync(report, site, storedSite, lines, ct);
+        var dropped = await PlaceLinesAsync(report, site, storedSite, lines, now, ct);
         ChangeHeader(report, header, seq, now, site);
+        return dropped;
     }
 
     // Шапка — колонки закрытого типа: данных по схеме у неё нет, охране сверять нечего (перепись: Free). Конец окна
@@ -113,7 +121,10 @@ public sealed class ReportWriter(
 
         if (lines.GroupBy(l => l.Id).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new InvalidRequestException($"Строка {twice.Key} названа в отчёте дважды: идентификатор строки — один на строку.");
+        if (lines.SelectMany(l => l.Photos ?? []).GroupBy(id => id).FirstOrDefault(g => g.Count() > 1) is { } repeatedPhoto)
+            throw new InvalidRequestException($"Одно фото ({repeatedPhoto.Key}) может быть названо только в одной строке отчёта.");
         if (lines.Count == 0) return site;
+        await EnsurePhotoCountAsync(lines, ct);
 
         var known = await workTypes.GetAsync([.. lines.Select(l => l.WorkTypeId).Distinct()], ct)
                     ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
@@ -138,11 +149,32 @@ public sealed class ReportWriter(
                 throw new ConflictException(
                     $"Строка {i + 1}: идентификатор строки (id) уже занят строкой другого отчёта — у новой строки " +
                     "идентификатор новый.");
+
+        // Идентификатор фото — ключ таблицы: фото другой строки (и того же отчёта тоже) не переносится, а заводится новым.
+        var named = lines.SelectMany(l => (l.Photos ?? []).Select(p => (Photo: p, Line: l.Id))).ToList();
+        var busy = (await reads.PhotosOfOtherLinesAsync(named, ct)).ToHashSet();
+        for (var i = 0; i < lines.Count; i++)
+            if ((lines[i].Photos ?? []).Any(busy.Contains))
+                throw new ConflictException($"Строка {i + 1}: {LinePhotos.IdTaken}");
     }
 
-    /// <summary>Охрана сведений, затем позиции перечня, затем строки; строки, не названные в правке, удаляются.</summary>
-    private async Task PlaceLinesAsync(
-        Report report, ModuleConstruction site, Guid storedSite, IReadOnlyList<ReportLineValues> lines, CancellationToken ct)
+    /// <summary>Фото на строку — не больше настройки модуля (ТЗ WORK-33): объявленные считаются вместе с пришедшими.</summary>
+    private async Task EnsurePhotoCountAsync(IReadOnlyList<ReportLineValues> lines, CancellationToken ct)
+    {
+        if (lines.All(l => l.Photos is not { Count: > 0 })) return;
+        var max = await LinePhotos.PerLineAsync(settings, ct);
+        for (var i = 0; i < lines.Count; i++)
+            if (lines[i].Photos is { } photos && photos.Count > max)
+                throw new InvalidRequestException($"Строка {i + 1}: {LinePhotos.TooMany(max)}");
+    }
+
+    /// <summary>
+    /// Охрана сведений, затем позиции перечня, затем строки и их фото; строки, не названные в правке, удаляются. Пути
+    /// файлов снятых фото — снятых строкой и ушедших вместе с удалённой строкой — в ответе.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> PlaceLinesAsync(
+        Report report, ModuleConstruction site, Guid storedSite, IReadOnlyList<ReportLineValues> lines, DateTimeOffset now,
+        CancellationToken ct)
     {
         var stored = report.Lines.ToDictionary(l => l.Id);
         await EnsureAllowedAsync(lines, stored, ct);
@@ -159,8 +191,22 @@ public sealed class ReportWriter(
             else was.ApplyLine(i, line, items[line.Id]);
         }
 
+        // Фото, снятые строкой, оставляют след: их поздний файл не вернёт фото (LinePhotoRemoval). Снова названное — след
+        // снимает: фото объявлено заново и ждёт файла.
+        var named = lines.SelectMany(l => l.Photos ?? []).ToHashSet();
+        foreach (var removal in await reads.RemovalsAsync(named, ct)) db.Remove(removal);
+        var dropped = new List<string>();
+        foreach (var line in lines)
+            foreach (var photo in report.Lines.First(l => l.Id == line.Id).ApplyPhotos(line.Photos, now))
+            {
+                db.Add(LinePhotoRemoval.Of(photo, now));
+                dropped.AddRange(photo.Paths());
+            }
+
         var kept = lines.Select(l => l.Id).ToHashSet();
+        dropped.AddRange(report.Lines.Where(l => !kept.Contains(l.Id)).SelectMany(l => l.Photos).SelectMany(p => p.Paths()));
         report.Lines.RemoveAll(l => !kept.Contains(l.Id));
+        return dropped;
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Minio.Exceptions;
 
 namespace BHS.CRG.Infrastructure.Storage;
 
@@ -92,7 +93,16 @@ public class RegisteredBlobStorage(
             throw new NotFoundException("Файл не найден.");
         }
 
-        return await inner.DownloadAsync(blobPath, ct);
+        try
+        {
+            return await inner.DownloadAsync(blobPath, ct);
+        }
+        catch (ObjectNotFoundException) when (owner != BlobOwner.Core && owner != BlobOwner.Any)
+        {
+            // У модуля пропавший объект — тот же отказ, что незнакомый путь. Остальные ошибки хранилища
+            // сохраняют свой смысл; ядро и копия сами обрабатывают потерю файла, как и прежде.
+            throw new NotFoundException("Файл не найден.");
+        }
     }
 
     /// <summary>

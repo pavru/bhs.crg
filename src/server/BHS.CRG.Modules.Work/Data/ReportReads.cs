@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using BHS.CRG.Modules.Access;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,10 +111,18 @@ public sealed class ReportReads(WorkDbContext db)
     /// </summary>
     public async Task<ReportFeed> SinceAsync(Guid employeeId, long since, int limit, CancellationToken ct)
     {
+        // Номер отчёта в выдаче — больший из его номера и номеров доставки фото (work-17): доставка объявленного фото
+        // отчёт не трогает, а клиент с курсором обязан узнать, что файл дошёл.
         var heads = await db.Set<Report>().AsNoTracking()
-            .Where(r => r.EmployeeId == employeeId && r.Seq > since)
-            .OrderBy(r => r.Seq).Take(limit + 1)
-            .Select(r => new { r.Id, r.Seq, Version = EF.Property<uint>(r, WorkDbContext.RowVersion) })
+            .Where(r => r.EmployeeId == employeeId
+                        && (r.Seq > since || r.Lines.Any(l => l.Photos.Any(p => p.StoredSeq > since))))
+            .Select(r => new
+            {
+                r.Id,
+                Seq = Math.Max(r.Seq, r.Lines.SelectMany(l => l.Photos).Max(p => p.StoredSeq) ?? 0L),
+                Version = EF.Property<uint>(r, WorkDbContext.RowVersion),
+            })
+            .OrderBy(h => h.Seq).Take(limit + 1)
             .ToListAsync(ct);
         var deleted = await db.Set<ReportChange>().AsNoTracking()
             .Where(c => c.EmployeeId == employeeId && c.Seq > since && c.Kind == ReportChangeKind.Deleted)
@@ -151,12 +160,9 @@ public sealed class ReportReads(WorkDbContext db)
     public async Task<IReadOnlyList<ReportJournalEntry>?> JournalAsync(
         ReportViewer viewer, Guid? userId, Guid id, CancellationToken ct)
     {
-        var me = viewer.EmployeeId;
-        var live = await Visible(viewer).AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.SubmittedAt, r.EmployeeId, r.EnteredByUserId })
-            .FirstOrDefaultAsync(ct);
-        var readable = live is not null
-            ? live.SubmittedAt != null || live.EmployeeId == me || (userId != null && live.EnteredByUserId == userId)
+        var live = Visible(viewer).AsNoTracking().Where(r => r.Id == id);
+        var readable = await live.AnyAsync(ct)
+            ? await live.AnyAsync(ContentReadable(viewer.EmployeeId, userId), ct)
             : await DeletedDraftReadableAsync(viewer, userId, id, ct);
         if (!readable) return null;
         return await db.Set<ReportJournalEntry>().AsNoTracking()
@@ -298,14 +304,18 @@ public sealed class ReportReads(WorkDbContext db)
         };
         var total = await selected.CountAsync(ct);
         var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
-            .Select(r => new { Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count })
+            .Select(r => new
+            {
+                Report = r, Version = EF.Property<uint>(r, WorkDbContext.RowVersion), Lines = r.Lines.Count,
+                Pending = r.Lines.SelectMany(l => l.Photos).Count(p => p.State == LinePhotoState.Pending),
+            })
             .ToListAsync(ct);
         var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
         var anyPending = total > 0 || await pending.AnyAsync(ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
-                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id])),
+                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
             ],
             total, counts, anyPending);
     }
@@ -364,7 +374,68 @@ public sealed class ReportReads(WorkDbContext db)
     private static IQueryable<Report> Full(IQueryable<Report> reports) =>
         reports.Include(r => r.Lines).ThenInclude(l => l.Materials)
             .Include(r => r.Lines).ThenInclude(l => l.Participants)
+            .Include(r => r.Lines).ThenInclude(l => l.Photos)
             .AsSplitQuery();
+
+    /// <summary>
+    /// Видно ли читателю СОДЕРЖИМОЕ отчёта (ТЗ WORK-54): поданный — всем, кому виден отчёт; черновик — только сотруднику
+    /// отчёта и автору его ввода <paramref name="userId" />. То же правило, что у журнала (<see cref="JournalAsync" />), —
+    /// им судят фото (<c>work-17</c>).
+    /// </summary>
+    public static bool ContentVisible(Report report, ReportViewer viewer, Guid? userId) =>
+        ContentReadable(viewer.EmployeeId, userId).Compile()(report);
+
+    /// <summary>
+    /// Правило <see cref="ContentVisible" /> выражением — одно на запрос к базе и на отчёт в памяти: поданный — всем, кому
+    /// виден отчёт; черновик — сотруднику отчёта <paramref name="me" /> и автору ввода <paramref name="userId" />.
+    /// </summary>
+    private static Expression<Func<Report, bool>> ContentReadable(Guid? me, Guid? userId) =>
+        r => r.SubmittedAt != null || r.EmployeeId == me || (userId != null && r.EnteredByUserId == userId);
+
+    /// <summary>
+    /// Фото по идентификатору, если читателю видно содержимое его отчёта (ТЗ WORK-39, WORK-54; <c>work-17</c>), — без
+    /// отслеживания. Фото чужого отчёта, фото черновика неавтору и несуществующее — одинаково <c>null</c>.
+    /// </summary>
+    public Task<LinePhoto?> PhotoAsync(ReportViewer viewer, Guid? userId, Guid photoId, CancellationToken ct)
+    {
+        var readable = Visible(viewer).Where(ContentReadable(viewer.EmployeeId, userId));
+        return db.Set<LinePhoto>().AsNoTracking()
+            .Where(p => p.Id == photoId && readable.Any(r => r.Lines.Any(l => l.Id == p.LineId)))
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Строка, которой принадлежит фото с этим идентификатором, или <c>null</c>. Только для сравнения при загрузке (ТЗ
+    /// MOB-15): «та же строка — повтор, другая — идентификатор занят»; наружу не уходит.
+    /// </summary>
+    public Task<Guid?> PhotoLineAsync(Guid photoId, CancellationToken ct) =>
+        db.Set<LinePhoto>().AsNoTracking().Where(p => p.Id == photoId).Select(p => (Guid?)p.LineId).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Снято ли фото с этим идентификатором со строки (<see cref="LinePhotoRemoval" />): поздний файл снятого фото не
+    /// возвращает его в строку (ТЗ MOB-15).
+    /// </summary>
+    public Task<bool> PhotoRemovedAsync(Guid photoId, CancellationToken ct) =>
+        db.Set<LinePhotoRemoval>().AnyAsync(r => r.PhotoId == photoId, ct);
+
+    /// <summary>Следы снятия у фото, которые строки называют снова, — с отслеживанием: правка их снимает.</summary>
+    public async Task<IReadOnlyList<LinePhotoRemoval>> RemovalsAsync(IReadOnlyCollection<Guid> photoIds, CancellationToken ct) =>
+        photoIds.Count == 0 ? [] : await db.Set<LinePhotoRemoval>().Where(r => photoIds.Contains(r.PhotoId)).ToListAsync(ct);
+
+    /// <summary>
+    /// Идентификаторы фото, которые уже принадлежат ДРУГИМ строкам: идентификатор от клиента и ключ таблицы, и без
+    /// вопроса отказ пришёл бы нарушением ключа при сохранении.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> PhotosOfOtherLinesAsync(
+        IReadOnlyCollection<(Guid Photo, Guid Line)> named, CancellationToken ct)
+    {
+        if (named.Count == 0) return [];
+        var ids = named.Select(n => n.Photo).Distinct().ToArray();
+        var held = await db.Set<LinePhoto>().AsNoTracking().Where(p => ids.Contains(p.Id))
+            .Select(p => new { p.Id, p.LineId }).ToListAsync(ct);
+        var lineOf = named.ToDictionary(n => n.Photo, n => n.Line);
+        return [.. held.Where(h => lineOf[h.Id] != h.LineId).Select(h => h.Id)];
+    }
 
     /// <summary>
     /// Отчёт сотрудника с той же четвёркой «стройка, дата, смена» (ТЗ WORK-4, MOB-35), кроме

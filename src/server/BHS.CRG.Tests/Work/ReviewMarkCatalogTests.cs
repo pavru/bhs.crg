@@ -35,8 +35,8 @@ public class ReviewMarkCatalogTests
             ReviewMarks.PhotosPending, ReviewMarks.LateDelivery,
         ];
         Assert.All(codes, code => Assert.NotNull(ReviewMarks.Of(code)));
-        // Данных нет до work-17 и этапа 5 — ноль честен, но и запроса за ним нет.
-        Assert.Null(ReviewMarks.Of(ReviewMarks.PhotosPending)!.Has);
+        // Фото недогружены — данные с work-17; доставки с телефона до этапа 5 нет — ноль честен, но и запроса за ним нет.
+        Assert.NotNull(ReviewMarks.Of(ReviewMarks.PhotosPending)!.Has);
         Assert.Null(ReviewMarks.Of(ReviewMarks.LateDelivery)!.Has);
     }
 

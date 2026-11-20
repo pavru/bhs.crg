@@ -22,10 +22,11 @@ public sealed record ReviewBoundaryDto(string Code, string Text, int? Sites);
 /// <param name="Actions">Что читающий может сделать с отчётом: <c>accept</c>, <c>return</c>, <c>edit</c> (правка строк
 /// адресом ввода); у читающего без <c>work.report.review</c> — пусто.</param>
 /// <param name="AcceptWouldMark">Приёмка пометит отчёт «ввёл и принял один человек» (WORK-31.1).</param>
+/// <param name="PhotosPending">Сколько фото объявлено строками и ещё не дошло (WORK-34, <c>work-17</c>).</param>
 public sealed record ReviewQueueRowDto(
     Guid Id, Guid EmployeeId, Guid ConstructionId, DateOnly Date, string Shift, decimal? Hours, string Status,
     string Version, DateTimeOffset? SubmittedAt, string? SubmittedBy, ReportEnteredByDto? EnteredBy, int Lines,
-    IReadOnlyList<ReviewMarkDto> Marks, IReadOnlyList<string> Actions, bool AcceptWouldMark);
+    IReadOnlyList<ReviewMarkDto> Marks, IReadOnlyList<string> Actions, bool AcceptWouldMark, int PhotosPending);
 
 /// <summary>
 /// Очередь приёмки (ТЗ WORK-28, WORK-39, WORK-46, CORE-24.3, AUTH-8, AUTH-9; change <c>work-16-review</c>):
@@ -130,14 +131,13 @@ public static class ReviewQueue
     private static ReviewQueueRowDto Row(ReviewQueueItem item, Guid? viewer, ModuleReach? decides)
     {
         var r = item.Report;
-        var codes = item.Marks.ToHashSet();
         return new ReviewQueueRowDto(
             r.Id, r.EmployeeId, r.ConstructionId, r.Date, Report.ShiftCode(r.Shift), r.Hours, Report.StatusCode(r.Status),
             item.Version, r.SubmittedAt, r.SubmittedBy is { } by ? Report.SubmitterCode(by) : null,
             r.EnteredByUserId is { } author ? new ReportEnteredByDto(author, r.EnteredByName ?? author.ToString()) : null,
             item.Lines,
-            [.. ReviewMarks.All.Where(m => codes.Contains(m.Code)).Select(m => m.Dto)],
+            ReviewMarks.Dtos(item.Marks, item.PhotosPending),
             decides?.Covers(r.ConstructionId, own: false) == true ? Decisions : [],
-            ReviewMarks.AcceptWouldMark(r, viewer));
+            ReviewMarks.AcceptWouldMark(r, viewer), item.PhotosPending);
     }
 }

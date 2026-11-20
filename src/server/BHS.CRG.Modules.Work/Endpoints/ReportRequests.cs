@@ -8,6 +8,9 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// <summary>Материал строки в теле запроса: номенклатура и примечание (ТЗ WORK-50).</summary>
 public sealed record ReportMaterialRequest(Guid? NomenclatureId, string? Note);
 
+/// <summary>Фото строки в теле запроса: идентификатор от клиента (ТЗ MOB-15, <c>work-17</c>); файл догоняет отдельно.</summary>
+public sealed record ReportPhotoRequest(Guid? Id);
+
 /// <summary>
 /// Строка работы в теле запроса. Поля, которых у строки нет, собираются в <see cref="Extra" />: иначе часы, положенные
 /// в строку, молча пропали бы при разборе тела, а правило WORK-7 требует отказа с названием поля.
@@ -15,7 +18,7 @@ public sealed record ReportMaterialRequest(Guid? NomenclatureId, string? Note);
 public sealed record ReportLineRequest(
     Guid? Id, Guid? WorkTypeId, Guid? VariantId, decimal? Volume, Guid? UnitId, Guid? SectionId, string? Location,
     string? Comment, bool? IsCrew, JsonElement? Details, IReadOnlyList<ReportMaterialRequest>? Materials,
-    IReadOnlyList<Guid>? Participants)
+    IReadOnlyList<Guid>? Participants, IReadOnlyList<ReportPhotoRequest>? Photos = null)
 {
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
@@ -63,6 +66,22 @@ public sealed record ReportRequest(
             line.SectionId, line.Location, line.Comment, line.IsCrew ?? false,
             line.Details is { ValueKind: not (JsonValueKind.Undefined or JsonValueKind.Null) } details ? details.GetRawText() : null,
             [.. (line.Materials ?? []).Select(m => new ReportMaterialValues(m.NomenclatureId, m.Note))],
-            [.. line.Participants ?? []]);
+            [.. line.Participants ?? []],
+            PhotosOf(at, line.Photos));
+    }
+
+    /// <summary>
+    /// Перечень фото строки: не прислан — <c>null</c>, фото не трогаются (правка без знания о фото их не теряет).
+    /// Идентификатор обязателен и один на фото.
+    /// </summary>
+    private static IReadOnlyList<Guid>? PhotosOf(string at, IReadOnlyList<ReportPhotoRequest>? photos)
+    {
+        if (photos is null) return null;
+        var ids = photos.Select(p => p.Id is { } id && id != Guid.Empty
+            ? id
+            : throw new InvalidRequestException(at + "у фото не назван идентификатор (photos[].id) — его создаёт клиент.")).ToList();
+        if (ids.GroupBy(id => id).FirstOrDefault(g => g.Count() > 1) is { } twice)
+            throw new InvalidRequestException(at + $"фото {twice.Key} названо дважды.");
+        return ids;
     }
 }
