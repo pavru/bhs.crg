@@ -1,7 +1,5 @@
 using BHS.CRG.Application.Common;
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
-using Minio.Exceptions;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -23,19 +21,8 @@ public sealed class ModuleBlobsPort(IBlobStorage blobs, string module) : IModule
     public Task<string> PutAsync(string fileName, Stream content, string contentType, CancellationToken ct = default) =>
         blobs.UploadAsync(fileName, content, contentType, module, ct);
 
-    public async Task<Stream> OpenAsync(string path, CancellationToken ct = default)
-    {
-        try
-        {
-            return await blobs.DownloadAsync(path, module, ct);
-        }
-        catch (ObjectNotFoundException)
-        {
-            // Реестр ещё знает путь, а объект потерян. Модуль не зависит от SDK хранилища; остальные отказы
-            // (нет бакета, прав, связи) остаются отказами и не выглядят отсутствующим файлом.
-            throw new NotFoundException("Файл не найден.");
-        }
-    }
+    public Task<Stream> OpenAsync(string path, CancellationToken ct = default) =>
+        blobs.DownloadAsync(path, module, ct);
 
     public Task DeleteAsync(string path, CancellationToken ct = default) =>
         blobs.DeleteAsync(path, module, ct);

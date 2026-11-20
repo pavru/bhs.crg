@@ -62,3 +62,5 @@
 - [x] 6.2 `cd src/client && npx tsc -b` — без ошибок
 - [x] 6.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 6.5 Перевод пропавшего объекта находится в слое хранения, а не API; `DomainExceptionPolicyTests`
+  и тесты фото, порта, файлов ядра и копии проходят. Проверка — 106 зелёных тестов с архитектурным сторожем.
