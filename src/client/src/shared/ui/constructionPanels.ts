@@ -1,4 +1,4 @@
-import { Database, Group, Table, TableChart, type IconDef } from './icons';
+import { Database, Engineering, Group, Table, TableChart, type IconDef } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { allowed } from './navAccess';
 import { pageOwners, railSections, workNav, type NavItem, type PageOwner, type RailId } from './navConfig';
@@ -55,6 +55,11 @@ export const constructionPanels: ConstructionPanel[] = [
   // пункта нет, как и в главном меню; открытая по ссылке панель получает плашку.
   { id: 'datasets', label: 'Наборы данных', icon: Table, block: 'own', levels: BOTH, section: 'datasets' },
   { id: 'subscribers', label: 'Подписчики', icon: Group, block: 'own', levels: BOTH },
+  // Назначения стройки (work-12, ТЗ WORK-21, WORK-46; макет Р2, выбор владельца 20.11.2026) — в «Эта стройка», рядом
+  // с «Подписчиками»: назначения — состав стройки, а не работа над ней. Только на уровне стройки: назначают на
+  // стройку, не на раздел. «Любое из»: назначать или видеть все стройки.
+  { id: 'assignments', label: 'Назначения', icon: Engineering, block: 'own', levels: ['construction'], module: 'work',
+    permission: ['work.assignment.edit', 'work.sites.all'] },
 ];
 
 /** Адреса, занятые соседними маршрутами карточки стройки: панель с таким `id` их бы перекрыла. */

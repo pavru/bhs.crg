@@ -10,6 +10,7 @@ import { NoAccessPage } from '@/shared/ui/NoAccessPage';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { EstimatesPanel } from '@/features/planning/estimates/EstimatesPanel';
+import { AssignmentsPanel } from '@/features/work/assignments/AssignmentsPanel';
 import { CatalogPanel } from './CatalogPanel';
 import { SubscribersResource } from './SubscribersResource';
 
@@ -30,6 +31,7 @@ export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
   datasets: ({ constructionId, sectionId }) => sectionId
     ? <DataSetsResource scope="Section" scopeId={sectionId} />
     : <DataSetsResource scope="Construction" scopeId={constructionId} />,
+  assignments: ({ constructionId }) => <AssignmentsPanel constructionId={constructionId} />,
   subscribers: ({ constructionId, sectionId }) => (
     <div className="mx-auto max-w-5xl">
       {sectionId
