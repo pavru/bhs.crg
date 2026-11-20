@@ -2,46 +2,47 @@
 
 ## 1. Макеты
 
-- [ ] 1.1 Раунд Р2: три варианта панели «Назначения» и массового окна в Claude (артефакты типа «Design»), выбор владельца;
+- [x] 1.1 Раунд Р2: три варианта панели «Назначения» и массового окна в Claude (артефакты типа «Design»), выбор владельца;
   ссылку вписать в `design.md` [WORK-21]. Проверка — ссылка на выбранный вариант в `design.md`
-- [ ] 1.2 Сверить с ответом `work-11`, что каждый носитель панели — поле сервера (`eligible`, `reason`,
+- [x] 1.2 Сверить с ответом `work-11`, что каждый носитель панели — поле сервера (`eligible`, `reason`,
   пересечения, отказ пачки, «не останется менеджера»); недостающий признак «может назначать на этой
   стройке» дописать в `work-11` [WORK-21] [WORK-46]. Проверка — поле в спецификации `work-11` и
-  перечень в `design.md`
+  перечень в `design.md`. Признак «может назначать» уже был (`construction.canAssign`); недоставало
+  `account.state` у кандидата — дописан отдельным change `work-29-candidate-account` (#2014, архив #2016)
 
 ## 2. Выбор сотрудника и запросы
 
-- [ ] 2.1 `src/client/src/shared/api/workAssignments.ts`: чтение назначений и кандидатов, правка и снятие с
+- [x] 2.1 `src/client/src/shared/api/workAssignments.ts`: чтение назначений и кандидатов, правка и снятие с
   заголовком `If-Match`, разбор 400/403/409/422 [WORK-21]. Проверка — vitest на разбор отказов
-- [ ] 2.2 `src/client/src/shared/ui/EmployeePicker.tsx`: кандидаты и причины от сервера, пометка «нет
+- [x] 2.2 `src/client/src/shared/ui/EmployeePicker.tsx`: кандидаты и причины от сервера, пометка «нет
   учётной записи», причина «справочник не заведён» словами [WORK-21] [WORK-47]. Проверка — vitest:
   исключённый кандидат неактивен с причиной; `account.state = none` даёт пометку
 
 ## 3. Панель и окна
 
-- [ ] 3.1 `features/work/assignments/AssignmentsPanel.tsx` на `DataGrid`, регистрация механизмом панелей
+- [x] 3.1 `features/work/assignments/AssignmentsPanel.tsx` на `DataGrid`, регистрация механизмом панелей
   `work-03`; пустое состояние с причиной [WORK-21] [WORK-46]. Проверка — vitest: без разрешения
   правки кнопок нет в разметке
-- [ ] 3.2 `AssignmentDialog.tsx` (`Modal` 512 px, `DateRange`, открытый конец у менеджера); 409 —
+- [x] 3.2 `AssignmentDialog.tsx` (`Modal` 512 px, `DateRange`, открытый конец у менеджера); 409 —
   «перечитайте» с сохранением набранного [WORK-21]. Проверка — vitest на 409 и на пересечение из
   ответа
-- [ ] 3.3 `BulkAssignDialog.tsx` (`Modal wide`): кандидаты под период, перечитывание при смене периода;
+- [x] 3.3 `BulkAssignDialog.tsx` (`Modal wide`): кандидаты под период, перечитывание при смене периода;
   отказ 422 пачки — причина у названного, отметки целы [WORK-21]. Проверка — vitest на 422 с одним
   отказавшим
-- [ ] 3.4 Снятие назначения — `ConfirmDialog`; 409 «на стройке не останется менеджера» — словами
+- [x] 3.4 Снятие назначения — `ConfirmDialog`; 409 «на стройке не останется менеджера» — словами
   [WORK-46]. Проверка — vitest на 409
-- [ ] 3.5 Живой прогон `src/client/e2e/work-assignments-smoke.mjs` и посев назначения «менеджер» в
+- [x] 3.5 Живой прогон `src/client/e2e/work-assignments-smoke.mjs` и посев назначения «менеджер» в
   `e2e/seed.mjs`; вписать в `test:e2e:ci` и `e2e/README.md` [WORK-21]. Проверка — прогон зелёный на
   стенде
-- [ ] 3.6 `docs/USER_GUIDE.md`: раздел «Назначения» (кто назначает, «без срока» у менеджера, причины
+- [x] 3.6 `docs/USER_GUIDE.md`: раздел «Назначения» (кто назначает, «без срока» у менеджера, причины
   исключения); `npm run toc` в `docs/tools` [WORK-21]. Проверка — проверка содержания в «Frontend»
   зелёная
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkAssignment"` — зелёный (сервер `work-11` не сломан)
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 4.5 Живой прогон под ролями модуля: `node e2e/work-assignments-smoke.mjs` — «Менеджер проекта»
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkAssignment"` — зелёный (сервер `work-11` не сломан)
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.5 Живой прогон под ролями модуля: `node e2e/work-assignments-smoke.mjs` — «Менеджер проекта»
   своей стройки назначает, менеджер чужой стройки кнопок не видит, «Монтажник» — пункта «Назначения»

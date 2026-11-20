@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Timeline, barPlace, timelineWindow } from './Timeline';
+import { Timeline } from './Timeline';
+import { barPlace, timelineWindow } from './timelineWindow';
 
 /** Лента периодов (change `work-12-assignments-ui`): окно по неделям, обрезка полос с краёв, строка вне окна. */
 

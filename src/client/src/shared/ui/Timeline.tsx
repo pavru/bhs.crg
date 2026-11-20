@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { firstDayOfWeek } from '@/shared/format/dateMask';
-import { formatDate, formatLocale } from '@/shared/format/format';
+import { formatDate, formatDayMonth, formatLocale } from '@/shared/format/format';
 import { Button, IconButton } from './Button';
 import { Icon } from './Icon';
 import { ChevronLeft, ChevronRight } from './icons';
 import { Tooltip } from './Tooltip';
+import { barPlace, isoOf, timelineWindow } from './timelineWindow';
 
 /**
  * Лента периодов (change `work-12-assignments-ui`, макет Р2, вариант А+): строка — подпись, полоса — период по
@@ -41,41 +42,12 @@ export interface TimelineRow {
   actions?: ReactNode;
 }
 
-const DAY = 86_400_000;
-
-/** День от эпохи — по UTC, чтобы пояс браузера не сдвигал дату. */
-const dayOf = (iso: string) => Math.floor(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY);
-const isoOf = (day: number) => new Date(day * DAY).toISOString().slice(0, 10);
-
-/** Первый день недели, в которую попадает день, — по языку пользователя. */
-function weekStart(day: number, firstDay: number): number {
-  const weekday = new Date(day * DAY).getUTCDay(); // 0 — воскресенье
-  return day - ((weekday - (firstDay % 7) + 7) % 7);
-}
-
 const TONE: Record<TimelineTone, string> = {
   primary: 'bg-primary-container text-on-primary-container',
   secondary: 'bg-secondary-container text-on-secondary-container',
   outline: 'border border-outline text-on-surface-variant bg-surface',
   muted: 'bg-surface-container-highest text-on-surface-variant',
 };
-
-/** Числа окна: первая неделя, дни, положение «сегодня» — отдельно от отрисовки, для теста. */
-export function timelineWindow(today: string, offsetWeeks: number, weeks: number, firstDay = 1) {
-  const start = weekStart(dayOf(today), firstDay) + (offsetWeeks - 2) * 7;
-  const days = weeks * 7;
-  return { start, days, end: start + days - 1, todayAt: dayOf(today) - start };
-}
-
-/** Где лежит полоса в окне: доли от его ширины и обрезка с краёв; `null` — целиком вне окна. */
-export function barPlace(from: string, to: string | null, start: number, days: number) {
-  const a = dayOf(from) - start;
-  const b = to === null ? Infinity : dayOf(to) - start;
-  if (b < 0 || a > days - 1) return null;
-  const left = Math.max(0, a);
-  const right = Math.min(days - 1, b);
-  return { left: left / days, width: (right - left + 1) / days, cutStart: a < 0, cutEnd: b > days - 1, open: to === null };
-}
 
 export function Timeline({ rows, today, weeks = 8, nameLabel, 'aria-label': ariaLabel }: {
   rows: TimelineRow[];
@@ -89,7 +61,6 @@ export function Timeline({ rows, today, weeks = 8, nameLabel, 'aria-label': aria
   const [offset, setOffset] = useState(0);
   const firstDay = firstDayOfWeek(formatLocale());
   const { start, days, end, todayAt } = timelineWindow(today, offset, weeks, firstDay);
-  const week = new Intl.DateTimeFormat(formatLocale(), { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
   const todayShown = todayAt >= 0 && todayAt < days;
 
   return (
@@ -108,7 +79,7 @@ export function Timeline({ rows, today, weeks = 8, nameLabel, 'aria-label': aria
           <span className="flex min-w-0 flex-1">
             {Array.from({ length: weeks }, (_, i) => (
               <span key={i} className="flex-1 border-l border-outline-variant px-2 tabular-nums">
-                {week.format(new Date((start + i * 7) * DAY))}
+                {formatDayMonth(isoOf(start + i * 7))}
               </span>
             ))}
           </span>

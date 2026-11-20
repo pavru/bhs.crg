@@ -262,6 +262,7 @@ type DateLike = Date | string | number;
 const DAY: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
 const DAY_UTC: Intl.DateTimeFormatOptions = { ...DAY, timeZone: 'UTC' };
 const MONTH_UTC: Intl.DateTimeFormatOptions = { month: '2-digit', year: 'numeric', timeZone: 'UTC' };
+const DAY_MONTH_UTC: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', timeZone: 'UTC' };
 const MINUTE: Intl.DateTimeFormatOptions = { ...DAY, hour: '2-digit', minute: '2-digit' };
 const DAY_TIME: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
 const TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
@@ -311,6 +312,15 @@ export function formatDate(value: DateLike): string {
 export function formatDay(value: string): string {
   const day = calendarDay(value.slice(0, 10));
   return day ? dateFormat('day:utc', DAY_UTC).format(day) : value;
+}
+
+/**
+ * День и месяц календарного дня без года: «02.11» — шкала недель ленты, где год сказан над ней. Неполное и
+ * нечитаемое — как есть.
+ */
+export function formatDayMonth(value: string): string {
+  const day = calendarDay(value.slice(0, 10));
+  return day ? dateFormat('daymonth:utc', DAY_MONTH_UTC).format(day) : value;
 }
 
 /**

@@ -92,7 +92,7 @@ export function AssignmentsPanel({ constructionId }: { constructionId: string })
           </>
         )}
         {site.canAssign && items.length > 0 && (
-          <Button variant="filled" icon={<Icon icon={Add} size={18} aria-hidden />} onClick={() => setBulk(true)}>
+          <Button variant="tonal" icon={<Icon icon={Add} size={18} aria-hidden />} onClick={() => setBulk(true)}>
             Назначить на период
           </Button>
         )}
@@ -108,7 +108,7 @@ export function AssignmentsPanel({ constructionId }: { constructionId: string })
             ? 'Назначьте менеджера и монтажников на период.'
             : undefined}
           action={site.canAssign ? (
-            <Button variant="filled" icon={<Icon icon={Add} size={18} aria-hidden />} onClick={() => setBulk(true)}>
+            <Button variant="tonal" icon={<Icon icon={Add} size={18} aria-hidden />} onClick={() => setBulk(true)}>
               Назначить на период
             </Button>
           ) : undefined} />
