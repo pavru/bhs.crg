@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { WIDE } from '@/shared/hooks/useMedia';
+import { pageTimers } from '@/shared/utils/pageTimers';
 
 /**
  * Системная «Назад» на телефоне закрывает верхний слой, а не страницу под ним (issue #1418): меню,
@@ -60,6 +61,8 @@ let previousUrl = '';
 let suspendedAt: unknown = undefined;
 let suspended = false;
 let hold = false;
+/** Ожидания шагов истории — уровня страницы: слой мог уже закрыться, а шаг ещё идёт. Сброс снимает их. */
+const timers = pageTimers();
 
 const entry = (s: unknown): Entry => (s && typeof s === 'object' ? s : {}) as Entry;
 const depthOf = (e: Entry) => (e.layer ? e.depth ?? 0 : 0);
@@ -154,7 +157,7 @@ export function layersAfter(e: PopStateEvent) {
       top.closing = true;
       consumed.add(top.id);
       // Слой сказал «закрываюсь», но не ушёл (родитель не закрыл окно) — вернуть ему запись.
-      setTimeout(() => { if (stack.includes(top) && top.closing) { top.closing = false; sync(); } }, 1000);
+      timers.set(() => { if (stack.includes(top) && top.closing) { top.closing = false; sync(); } }, 1000);
     }
     scheduleSync();
     return;
@@ -167,7 +170,7 @@ export function layersAfter(e: PopStateEvent) {
     if (forward && consumed.has(to.layer)) { ownBacks++; window.history.back(); return; }
     // Шаг «Вперёд» за последнюю запись не придёт вовсе — ждём его не дольше, чем он идёт.
     skipping = true;
-    setTimeout(() => { if (skipping) { skipping = false; scheduleSync(); } }, 300);
+    timers.set(() => { if (skipping) { skipping = false; scheduleSync(); } }, 300);
     if (forward) window.history.forward();
     else window.history.back();
   }
@@ -182,7 +185,7 @@ export function goPastLayers(delta: number) {
   const st = entry(window.history.state);
   suspended = true;
   suspendedAt = st.idx;
-  setTimeout(() => { suspended = false; scheduleSync(); }, 1000);
+  timers.set(() => { suspended = false; scheduleSync(); }, 1000);
   window.history.go(delta < 0 ? delta - depthOf(st) : delta);
 }
 
@@ -193,7 +196,7 @@ export function goPastLayers(delta: number) {
  */
 export function holdNextLayer() {
   hold = true;
-  setTimeout(() => { hold = false; }, 1000);
+  timers.set(() => { hold = false; }, 1000);
 }
 
 /**
@@ -256,4 +259,5 @@ export function resetHistoryLayers() {
   suspended = false;
   skipping = false;
   hold = false;
+  timers.clearAll();
 }

@@ -8,6 +8,7 @@
  * Правило вынесено из компонента, чтобы таблица из задачи была одной таблицей в коде: её читают
  * `Modal` и тест, а не шесть условий, разбросанных по обработчикам Radix.
  */
+import { pageTimers } from '@/shared/utils/pageTimers';
 
 /** Состояния по убыванию силы: первое подошедшее и есть состояние диалога. */
 export type ModalState = 'busy' | 'result' | 'dirty' | 'touched' | 'light' | 'plain';
@@ -97,6 +98,8 @@ export function refusedByDialog(): boolean {
 export const paletteShown = () => document.querySelector('[data-modal-state="transient"]') !== null;
 
 const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+/** Кольцо гаснет само, даже если окно уже закрыто, — таймер уровня страницы. */
+const ringTimers = pageTimers();
 
 /**
  * Показать выход окна — кнопку, помеченную `data-modal-exit`: «Отмена» или «Закрыть» подвала, крестика у
@@ -120,8 +123,8 @@ export function pointAtExit(root: HTMLElement | null | undefined, focus: boolean
   if (focus) exit.focus();
   // Кольцо снимается со ВСЕХ кнопок окна, а не с этой: выход между двумя промахами мог смениться
   // («Отмена» стала недоступна — осталась другая), а таймер на окно один.
-  clearTimeout(rings.get(root));
+  ringTimers.clear(rings.get(root));
   root.querySelectorAll('[data-modal-hint]').forEach(old => old.removeAttribute('data-modal-hint'));
   exit.setAttribute('data-modal-hint', '');
-  rings.set(root, setTimeout(() => exit.removeAttribute('data-modal-hint'), HINT_MS));
+  rings.set(root, ringTimers.set(() => exit.removeAttribute('data-modal-hint'), HINT_MS));
 }

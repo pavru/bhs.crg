@@ -23,7 +23,7 @@ export default defineConfig({
   // Флаг — только там, где хранилище есть: Node до 25 его не знает, и воркер не стартовал бы
   // с «bad option», ничем не указывающим на версию Node.
   test: {
-    setupFiles: ['./src/shared/testing/formatLocale.ts', './src/shared/testing/matchMedia.ts', './src/shared/testing/intersectionObserver.ts'],
+    setupFiles: ['./src/shared/testing/formatLocale.ts', './src/shared/testing/matchMedia.ts', './src/shared/testing/intersectionObserver.ts', './src/shared/testing/timerLeaks.ts'],
     execArgv: 'localStorage' in globalThis ? ['--no-webstorage'] : [],
   },
   // Адрес API — из окружения: в CI живые прогоны поднимают свою копию на другом порту, и
