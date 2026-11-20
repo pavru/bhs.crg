@@ -6608,8 +6608,10 @@ PUT    /api/work/assignments/{id}           { dateFrom, dateTo } + If-Match. С�
 DELETE /api/work/assignments/{id}           + If-Match → 204. Последний действующий менеджер — 409.
                                     Журнал — work.assignment.created|changed|removed.
 GET    /api/work/assignments/candidates?constructionId=&kind=&dateFrom=&dateTo=&q= → { items: [{
-                                    employeeId, name, personnelNumber, eligible, reason, assigned }],
-                                    inArchive, limit, more } — причины исключения считает сервер; more — выдача обрезана, сузьте q.
+                                    employeeId, name, personnelNumber, eligible, reason, assigned,
+                                    account: { state: linked | none | deleted } }], inArchive, limit, more }
+                                    — причины исключения считает сервер; more — выдача обрезана, сузьте q;
+                                    account — пометка «нет учётной записи» (work-29), годность не меняет.
 POST   /api/work/assignments/bulk           { constructionId, kind, dateFrom, dateTo?, employeeIds }
                                     ≤ 200 — всё или ничего: 422 { error, refused: [{ employeeId,
                                     name, reason }] }, не заведено ни одного.

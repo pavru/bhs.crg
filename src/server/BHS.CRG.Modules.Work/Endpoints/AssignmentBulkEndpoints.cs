@@ -15,8 +15,28 @@ public sealed record AssignmentBulkRequest(
 
 /// <summary>Кандидат массового назначения: годен ли, а если нет — почему, словами (D15 зонтика).</summary>
 /// <param name="Assigned">Пересекающееся назначение того же вида на этой стройке, если уже есть.</param>
+/// <param name="Account">Связь с учётной записью (ТЗ WORK-47; change <c>work-29-candidate-account</c>) — пометка
+/// «нет учётной записи» у выбора; годность она не меняет.</param>
 public sealed record AssignmentCandidateDto(
-    Guid EmployeeId, string Name, string? PersonnelNumber, bool Eligible, string? Reason, AssignedPeriod? Assigned);
+    Guid EmployeeId, string Name, string? PersonnelNumber, bool Eligible, string? Reason, AssignedPeriod? Assigned,
+    CandidateAccount Account);
+
+/// <summary>
+/// Состояние связи кандидата с учётной записью: <c>linked</c>, <c>none</c> или <c>deleted</c> — теми же строками,
+/// что у связи на карточке сотрудника ядра. <c>deleted</c> — не <c>none</c>: удалённую учётную запись никто не
+/// отвязывал, и экран, получивший «нет связи», предложил бы связать заново.
+/// </summary>
+public sealed record CandidateAccount(string State)
+{
+    public static CandidateAccount Of(ModuleEmployeeAccount account) => new(account.State switch
+    {
+        ModuleAccountState.Linked => "linked",
+        ModuleAccountState.Deleted => "deleted",
+        ModuleAccountState.None => "none",
+        // Новое состояние порта молча стало бы «нет связи» — то самое «не знаем», выданное за «пусто».
+        _ => throw new ArgumentOutOfRangeException(nameof(account), account.State, "Неизвестное состояние связи."),
+    });
+}
 
 /// <summary>Период уже заведённого назначения у кандидата.</summary>
 public sealed record AssignedPeriod(Guid Id, DateOnly DateFrom, DateOnly? DateTo);
@@ -59,7 +79,8 @@ internal static class AssignmentBulkEndpoints
             var reason = AssignmentRules.Unfit(e, parsed, from, to)
                 ?? (existing is null ? null : AssignmentRules.AlreadyAssigned(existing));
             return new AssignmentCandidateDto(e.Id, e.FullName, e.PersonnelNumber, reason is null, reason,
-                existing is null ? null : new AssignedPeriod(existing.Id, existing.DateFrom, existing.DateTo));
+                existing is null ? null : new AssignedPeriod(existing.Id, existing.DateFrom, existing.DateTo),
+                CandidateAccount.Of(e.Account));
         }).ToList();
         return Results.Ok(new { items, inArchive = found.InArchive, limit = Max, more });
     }

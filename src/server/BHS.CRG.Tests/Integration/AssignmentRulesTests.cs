@@ -136,6 +136,33 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
         Assert.False(body.GetProperty("more").GetBoolean());
     }
 
+    /// <summary>
+    /// Кандидат несёт состояние связи с учётной записью (ТЗ WORK-47; change <c>work-29-candidate-account</c>):
+    /// удалённая учётная запись — <c>deleted</c>, а не <c>none</c>; монтажнику без связи пометка годность не меняет.
+    /// </summary>
+    [Fact]
+    public async Task Кандидат_несёт_состояние_учётной_записи()
+    {
+        var linked = await world.EmployeeAsync(_type, "Григорьев Семён");
+        var none = await world.EmployeeAsync(_type, "Дмитриев Юрий");
+        var deleted = await world.EmployeeAsync(_type, "Ершова Нина");
+        var (linkedUser, _) = await world.UserAsync("Григорьев С.");
+        await world.LinkAsync(linked, linkedUser);
+        var (deletedUser, _) = await world.UserAsync("Ершова Н.");
+        await world.LinkAsync(deleted, deletedUser);
+        await world.DeleteUserAsync(deletedUser);
+
+        var body = await JsonAsync(await _client.GetAsync(
+            $"/api/work/assignments/candidates?constructionId={_siteA}&kind=installer&dateFrom=2026-11-01&dateTo=2026-11-30"));
+
+        var items = body.GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("employeeId").GetGuid());
+        string State(Guid id) => items[id].GetProperty("account").GetProperty("state").GetString()!;
+        Assert.Equal("linked", State(linked));
+        Assert.Equal("none", State(none));
+        Assert.True(items[none].GetProperty("eligible").GetBoolean());
+        Assert.Equal("deleted", State(deleted));
+    }
+
     /// <summary>Кандидатов больше предела — выдача обрезана и говорит об этом (<c>more</c>), а не выглядит всем штатом.</summary>
     [Fact]
     public async Task Кандидатов_больше_предела_more()

@@ -160,6 +160,14 @@ internal sealed class AssignmentWorld(AssignmentHost host)
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Удалить учётную запись: связь сотрудника остаётся, состояние — «удалена» (<c>work-01</c>).</summary>
+    public async Task DeleteUserAsync(Guid userId)
+    {
+        using var scope = host.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.True((await users.DeleteAsync((await users.FindByIdAsync(userId.ToString()))!)).Succeeded);
+    }
+
     /// <summary>Назначение мимо адресов — для подготовки.</summary>
     public async Task<Guid> AssignedAsync(Guid employeeId, Guid siteId, AssignmentKind kind, string from, string? to)
     {

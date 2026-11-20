@@ -4,7 +4,11 @@
  *
  * Пометки считает СЕРВЕР: клиент их не вычисляет и текстов не знает — текст приходит в `marks`, число —
  * в `counts`. Здесь только коды, по которым отбирают и читают счётчик.
+ *
+ * Здесь же — общие типы назначений: кандидат `GET /api/work/assignments/candidates` (`work-29`).
  */
+
+import type { EmployeeAccount } from './employees';
 
 /**
  * Коды каталога пометок сервера (`Data/ReviewMarks.cs`) — в его порядке. Сверяет `ReviewMarkCatalogTests`:
@@ -82,4 +86,32 @@ export interface ReviewQueuePage {
   boundary: ReviewBoundary;
   /** Причина пустой очереди; `null` — отчёты есть. */
   reason: ReviewEmptyReason | null;
+}
+
+/**
+ * Кандидат назначения — элемент `GET /api/work/assignments/candidates` (change `work-11-assignments`, ТЗ WORK-21).
+ * Годность и причину исключения считает сервер теми же правилами, что и заведение.
+ */
+export interface AssignmentCandidate {
+  employeeId: string;
+  name: string;
+  personnelNumber: string | null;
+  eligible: boolean;
+  /** Почему кандидат не годен, словами; `null` — годен. */
+  reason: string | null;
+  /** Пересекающееся назначение того же вида на этой стройке. */
+  assigned: { id: string; dateFrom: string; dateTo: string | null } | null;
+  /**
+   * Связь с учётной записью (ТЗ WORK-47; change `work-29-candidate-account`) — пометка «нет учётной записи» у
+   * выбора; годность она не меняет. `deleted` — не `none`: удалённую учётную запись никто не отвязывал.
+   */
+  account: { state: EmployeeAccount['state'] };
+}
+
+/** Ответ кандидатов: `more` — выдача обрезана пределом `limit`, сузьте строкой поиска. */
+export interface AssignmentCandidatesPage {
+  items: AssignmentCandidate[];
+  inArchive: number;
+  limit: number;
+  more: boolean;
 }
