@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
+import { useTimeouts } from '@/shared/hooks/useTimeouts';
 
 /**
  * Движок поля из сегментов — дата (ДД.ММ.ГГГГ) и время (ЧЧ:ММ) на одном (issue #1468). Вынесен из
@@ -112,6 +113,8 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
    */
   const refFns = useRef<Partial<Record<K, (el: HTMLInputElement | null) => void>>>({});
   const refOf = (part: K) => (refFns.current[part] ??= el => { inputs.current[part] = el; });
+  /** Таймеры поля снимаются при размонтировании: сработав позже, они трогали бы то, чего уже нет. */
+  const timers = useTimeouts();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /**
    * Значение, с которым человек вошёл в поле, — к нему возвращает Esc. Не текущее: сегменты отдают
@@ -140,12 +143,12 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
   const withinField = (to: EventTarget | null) => to instanceof Node
     && (!!groupRef.current?.contains(to) || !!contentRef.current?.contains(to));
   function onFieldFocus() {
-    clearTimeout(commitTimer.current);
+    timers.clear(commitTimer.current);
     if (!inside.current) { inside.current = true; entered.current = value ?? ''; }
   }
   /** Зафиксировать значение на сейчас, если оно отличается от того, с которым вошли или фиксировали. */
   function commit() {
-    clearTimeout(commitTimer.current);
+    timers.clear(commitTimer.current);
     if (latest.current === entered.current) return;
     entered.current = latest.current;
     onCommit?.(latest.current);
@@ -158,9 +161,8 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     // погасило бы вовсе (issue #1465). Куда — неизвестно (щелчок мимо, окно браузера) — таймером:
     // фокус может вернуться в поле, и тогда ухода не было.
     if (e.relatedTarget) leave();
-    else commitTimer.current = setTimeout(leave, 120);
+    else commitTimer.current = timers.set(leave, 120);
   }
-  useEffect(() => () => clearTimeout(commitTimer.current), []);
 
   const fromValue = model.of(value);
   const draft = typed && typed.base === (value ?? '') ? typed : null;
@@ -193,14 +195,14 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
   const clearable = hasContent && !required && !readOnly && !disabled;
 
   function onFocus() {
-    clearTimeout(blurTimer.current);
+    timers.clear(blurTimer.current);
     if (!focused && !draft) startValue.current = value ?? '';
     setFocused(true);
   }
   function onBlur() {
     // Delay so focus transitions between segments don't flicker focused=false. Набранное, которое
     // дало значение или пустоту, уходит вместе с фокусом; недописанное и несуществующее — остаётся с ошибкой.
-    blurTimer.current = setTimeout(() => {
+    blurTimer.current = timers.set(() => {
       setFocused(false);
       setAllSelected(false);
       setTyped(prev => {
@@ -260,7 +262,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     el.focus();
     el.select();
     const was = el.value;
-    setTimeout(() => { if (document.activeElement === el && el.value === was) el.select(); }, 0);
+    timers.set(() => { if (document.activeElement === el && el.value === was) el.select(); }, 0);
   }
 
   /** Сосед сегмента в порядке показа: у en-US за месяцем идёт день, у ru-RU — год. */
@@ -297,7 +299,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     if (next === null) return;
     setSeg(part, next);
     emit({ ...shown, [part]: next });
-    setTimeout(() => { if (document.activeElement === input) input.select(); }, 0);
+    timers.set(() => { if (document.activeElement === input) input.select(); }, 0);
   }
 
   /** Первый видимый сегмент — с него начинают переписывать значение заново. */
@@ -371,7 +373,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     if (readOnly || disabled) return;
     setTyped({ ...model.empty, base: value ?? '' });
     // Сегментов ещё нет — они появятся этим же рендером; фокус ставится после него.
-    setTimeout(() => advance(first), 0);
+    timers.set(() => advance(first), 0);
   }
 
   /**
@@ -385,13 +387,13 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     if (!focused) startValue.current = value ?? '';
     const firstInput = inputs.current[first];
     firstInput?.focus();
-    clearTimeout(blurTimer.current);
+    timers.clear(blurTimer.current);
     setFocused(true);
     setAllSelected(false);
     setTyped({ ...model.empty, base: value ?? '' });
     if ((value ?? '') !== '') give('');
     // Чужое значение показано текстом: сегментов ещё нет — они появятся этим же рендером.
-    if (!firstInput) setTimeout(() => advance(first), 0);
+    if (!firstInput) timers.set(() => advance(first), 0);
   }
 
   /**
