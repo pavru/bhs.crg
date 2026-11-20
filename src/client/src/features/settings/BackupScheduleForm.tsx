@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Cancel, Warning } from '@/shared/ui/icons';
 import { useServerForm } from '@/shared/hooks/useServerForm';
+import { useTimeouts } from '@/shared/hooks/useTimeouts';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { TextField } from '@/shared/ui/TextField';
@@ -33,6 +34,7 @@ const asIs = <T,>(x: T): T => x;
 
 export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
   const save = useSaveBackupSchedule();
+  const timers = useTimeouts();
   /**
    * Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
    * оставшаяся на своём, показывала бы не то, чем система живёт. Правка живёт поверх ответа и
@@ -88,7 +90,7 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
       // выключить расписание должно быть можно всегда.
       await save.mutateAsync(form.timeOfDay ? form : { ...form, timeOfDay: status.timeOfDay });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      timers.set(() => setSaved(false), 2000);
     } catch (e) {
       setError(apiError(e, 'Не удалось сохранить расписание.'));
     }

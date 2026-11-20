@@ -24,14 +24,24 @@ internal static class AssignmentRules
         // «Уволен с» — первый день, когда сотрудник уже не работает: он входит в период, если не позже конца,
         // а бессрочному назначению мешает любая дата увольнения.
         if (employee.EmployedTo is { } gone && (to is not { } end || gone <= end)) return $"уволен с {Assignment.Day(gone)}";
-        // «Свои стройки» менеджера вычисляются через учётную запись: без неё назначение не дало бы ничего.
-        if (kind == AssignmentKind.Manager && !employee.Account.IsLinked) return NotLinked;
-        return null;
+        return NoManagerAccount(employee, kind);
     }
 
     private const string Archived = "в архиве";
 
-    private const string NotLinked = "сотрудник не связан с учётной записью";
+    /// <summary>
+    /// «Свои стройки» менеджера вычисляются через учётную запись: без неё назначение не дало бы ничего. Удалённая
+    /// учётная запись названа удалённой, а не «не связан» (<c>work-29</c>): связь никто не снимал, и совет
+    /// «свяжите» вёл бы не туда — у кандидата рядом стоит <c>account.state: deleted</c>.
+    /// </summary>
+    private static string? NoManagerAccount(ModuleEmployee employee, AssignmentKind kind) =>
+        kind != AssignmentKind.Manager ? null
+        : employee.Account.State switch
+        {
+            ModuleAccountState.Linked => null,
+            ModuleAccountState.Deleted => "учётная запись сотрудника удалена",
+            _ => "сотрудник не связан с учётной записью",
+        };
 
     /// <summary>
     /// Почему назначение нельзя изменить никаким периодом — признак <c>canChange</c> (D15 зонтика). Правка зовёт
@@ -43,8 +53,7 @@ internal static class AssignmentRules
     {
         var reason = employee is null ? "сотрудника больше нет в справочнике"
             : employee.Archived ? Archived
-            : kind == AssignmentKind.Manager && !employee.Account.IsLinked ? NotLinked
-            : null;
+            : NoManagerAccount(employee, kind);
         return reason is null ? null : $"Назначение не изменить: {reason}.";
     }
 

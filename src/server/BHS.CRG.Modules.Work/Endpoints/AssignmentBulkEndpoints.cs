@@ -15,8 +15,11 @@ public sealed record AssignmentBulkRequest(
 
 /// <summary>Кандидат массового назначения: годен ли, а если нет — почему, словами (D15 зонтика).</summary>
 /// <param name="Assigned">Пересекающееся назначение того же вида на этой стройке, если уже есть.</param>
+/// <param name="Account">Связь с учётной записью (ТЗ WORK-47; change <c>work-29-candidate-account</c>) — пометка
+/// «нет учётной записи» у выбора; годность она не меняет.</param>
 public sealed record AssignmentCandidateDto(
-    Guid EmployeeId, string Name, string? PersonnelNumber, bool Eligible, string? Reason, AssignedPeriod? Assigned);
+    Guid EmployeeId, string Name, string? PersonnelNumber, bool Eligible, string? Reason, AssignedPeriod? Assigned,
+    AccountStateDto Account);
 
 /// <summary>Период уже заведённого назначения у кандидата.</summary>
 public sealed record AssignedPeriod(Guid Id, DateOnly DateFrom, DateOnly? DateTo);
@@ -59,7 +62,8 @@ internal static class AssignmentBulkEndpoints
             var reason = AssignmentRules.Unfit(e, parsed, from, to)
                 ?? (existing is null ? null : AssignmentRules.AlreadyAssigned(existing));
             return new AssignmentCandidateDto(e.Id, e.FullName, e.PersonnelNumber, reason is null, reason,
-                existing is null ? null : new AssignedPeriod(existing.Id, existing.DateFrom, existing.DateTo));
+                existing is null ? null : new AssignedPeriod(existing.Id, existing.DateFrom, existing.DateTo),
+                AccountStateDto.Of(e.Account));
         }).ToList();
         return Results.Ok(new { items, inArchive = found.InArchive, limit = Max, more });
     }

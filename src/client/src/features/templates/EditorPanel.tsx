@@ -23,6 +23,7 @@ import { flattenFields } from './templateBlank';
 import type { NewVersionPlan } from './groupTemplates';
 import type * as monacoEditor from 'monaco-editor';
 import { apiError, isConflict } from '@/shared/utils/apiError';
+import { useTimeouts } from '@/shared/hooks/useTimeouts';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
 
@@ -192,6 +193,7 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
   const [content, setContent] = useState(serverContent);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+  const timers = useTimeouts();
   const [error, setError] = useState('');
   const [newVersionOpen, setNewVersionOpen] = useState(false);
   const [newVersionError, setNewVersionError] = useState('');
@@ -257,7 +259,7 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
     try {
       const res = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
-      setTimeout(() => setSavedMsg(false), 2000);
+      timers.set(() => setSavedMsg(false), 2000);
       onSaved(res.template);
       notifyReset(res.resetDocuments);
     } catch (err: unknown) {
@@ -293,7 +295,7 @@ function TemplateEditor({ template, serverContent, docType, allDocTypes, onSaved
         id: template.id, content: currentContent, comment: comment.trim() || null,
       });
       setSavedMsg(true);
-      setTimeout(() => setSavedMsg(false), 2000);
+      timers.set(() => setSavedMsg(false), 2000);
       ownVersionRef.current = res.template.id;
       onSaved(res.template);
       notifyReset(res.resetDocuments);

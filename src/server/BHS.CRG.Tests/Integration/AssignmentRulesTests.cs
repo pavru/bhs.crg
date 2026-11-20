@@ -136,6 +136,43 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
         Assert.False(body.GetProperty("more").GetBoolean());
     }
 
+    /// <summary>
+    /// Кандидат несёт состояние связи с учётной записью (ТЗ WORK-47; change <c>work-29-candidate-account</c>):
+    /// удалённая учётная запись — <c>deleted</c>, а не <c>none</c>; монтажнику без связи пометка годность не меняет, а
+    /// менеджеру с удалённой учётной записью причина называет её удалённой, а не «не связан».
+    /// </summary>
+    [Fact]
+    public async Task Кандидат_несёт_состояние_учётной_записи()
+    {
+        var linked = await world.EmployeeAsync(_type, "Григорьев Семён");
+        var none = await world.EmployeeAsync(_type, "Дмитриев Юрий");
+        var deleted = await world.EmployeeAsync(_type, "Ершова Нина");
+        await world.LinkAsync(linked, await world.AccountAsync("Григорьев С."));
+        var gone = await world.AccountAsync("Ершова Н.");
+        await world.LinkAsync(deleted, gone);
+        await world.DeleteUserAsync(gone);
+
+        async Task<Dictionary<Guid, JsonElement>> CandidatesAsync(string kind) =>
+            (await JsonAsync(await _client.GetAsync(
+                $"/api/work/assignments/candidates?constructionId={_siteA}&kind={kind}&dateFrom=2026-11-01&dateTo=2026-11-30")))
+            .GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("employeeId").GetGuid());
+        static string State(JsonElement item) => item.GetProperty("account").GetProperty("state").GetString()!;
+
+        var installers = await CandidatesAsync("installer");
+        Assert.Equal("linked", State(installers[linked]));
+        Assert.Equal("none", State(installers[none]));
+        Assert.True(installers[none].GetProperty("eligible").GetBoolean());
+        Assert.Equal("deleted", State(installers[deleted]));
+        Assert.True(installers[deleted].GetProperty("eligible").GetBoolean());
+
+        var managers = await CandidatesAsync("manager");
+        Assert.True(managers[linked].GetProperty("eligible").GetBoolean());
+        Assert.Equal("сотрудник не связан с учётной записью", managers[none].GetProperty("reason").GetString());
+        Assert.Equal("deleted", State(managers[deleted]));
+        Assert.False(managers[deleted].GetProperty("eligible").GetBoolean());
+        Assert.Equal("учётная запись сотрудника удалена", managers[deleted].GetProperty("reason").GetString());
+    }
+
     /// <summary>Кандидатов больше предела — выдача обрезана и говорит об этом (<c>more</c>), а не выглядит всем штатом.</summary>
     [Fact]
     public async Task Кандидатов_больше_предела_more()

@@ -53,9 +53,9 @@
 
   Макеты (0.2), 10.11.2026, на токенах «BHS.CRG UI»; в каждом — «сейчас», вариант светлый и тёмный,
   переключатель тона разобранного (`primary` / `warning`) в Tweaks:
-  - А — значок у каждой строки (★ Дизайнер): https://claude.ai/artifact/Tjc3qHyqHfFttcXeP4Dtv8
-  - Б — у черновика пусто, у черновика из файла — знак скана: https://claude.ai/artifact/QUGz3QnixgMx8fgkjug2fw
-  - В — как А плюс пометка «оплачен»: https://claude.ai/artifact/7xnX8fPNv6PT1TDtjaYEbL
+  - А — значок у каждой строки (★ Дизайнер): https://claude.ai/artifact/AQrV6MiBFxBhk2nHf3buxn
+  - Б — у черновика пусто, у черновика из файла — знак скана: https://claude.ai/artifact/5WNMJg9yGc1YVaqkV9ouqo
+  - В — как А плюс пометка «оплачен»: https://claude.ai/artifact/Axio1eaLbJPwi2Nv19sYNL
 
   **Выбор владельца 10.11.2026 — макет А, разобранный — `primary`.** `paidOn` не нужен, новых свойств `ListItem`
   нет; в манифест значков добавлен `draft`. Уточнение по ходу реализации (риск из разбора Дизайнера,

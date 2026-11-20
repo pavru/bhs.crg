@@ -72,7 +72,7 @@ MD3, а не наш выбор.
 ### Интервал — по роли везде, и в таблицах (В10)
 
 Владелец выбрал вариант «в» листа вариантов
-(https://claude.ai/artifact/FZhbVPczBaSTNkqZTNaxCQ): интервал роли MD3 одинаков в форме и
+(https://claude.ai/artifact/Kdbcm2BkT1L8hFL6zWk3AJ): интервал роли MD3 одинаков в форме и
 в клетке таблицы. Интервал роли — прямо значение `--md-sys-typescale-<роль>-tracking`, без множителя.
 `DataGrid` и `EditGrid` своего интервала не ставят.
 
