@@ -1,5 +1,7 @@
 // Посев сотрудников для живых прогонов (work-01): зовёт его `seed.mjs` своими помощниками запросов.
 
+import { seedAssignments } from './seed-assignments.mjs';
+
 /**
  * Сотрудники и их учётные записи (work-01, ТЗ WORK-47): справочник и двое с учётными записями того же
  * ФИО — предмет режима «Сопоставить» в `pages-smoke` и вида «только чтение» в `limited-smoke`.
@@ -13,7 +15,7 @@ export const EMPLOYEES = [
   { name: 'Прогонова Анна Сергеевна', number: 'E2E-02', email: 'progonova@bhs.local' },
 ];
 
-export async function ensureEmployees({ api, findType, ensureUser }) {
+export async function ensureEmployees({ api, findType, ensureUser, constructionId }) {
   if (!(await findType('Персона'))) {
     await api('POST', '/document-types', {
       name: 'Персона', code: 'Персона', kind: 'Composite', parentId: null, schema: JSON.stringify({ fields: [] }), module: 'core',
@@ -29,4 +31,6 @@ export async function ensureEmployees({ api, findType, ensureUser }) {
     await api('POST', '/employees', { displayName: e.name, data: JSON.stringify({ ТабельныйНомер: e.number }) });
     console.log(`  + сотрудник ${e.name}`);
   }
+  // Назначения (work-12) — на справочнике, который только что заведён: без него адрес назначений отвечает 409.
+  await seedAssignments({ api, ensureUser, constructionId });
 }

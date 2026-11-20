@@ -716,9 +716,9 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://localhost:5055
           # Модули прогона: `id` — умолчание, `costs` нужен форме счёта (issue #1076), `plan` — экранам
-          # смет (plan-09). Без модуля его экран закрыт воротами, и прогон отказывает с названной
-          # причиной — молча зелёным он не станет.
-          Modules__Enabled: id,costs,plan
+          # смет (plan-09), `work` — панели назначений (work-12). Без модуля его экран закрыт воротами, и
+          # прогон отказывает с названной причиной — молча зелёным он не станет.
+          Modules__Enabled: id,costs,plan,work
           # Предел входов — вдвое выше поставки: все наборы входят с одного адреса подряд, и тридцать
           # входов поставки за пять минут они израсходовали целиком (plan-09). Сколько входов в
           # прогоне и помещаются ли они, считает `e2e/suites.test.mjs` — по ЭТОМУ числу.
@@ -782,7 +782,7 @@ jobs:
           ASPNETCORE_URLS: http://localhost:5055
           ConnectionStrings__Postgres: Host=127.0.0.1;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
-          Modules__Enabled: id,costs,plan
+          Modules__Enabled: id,costs,plan,work
           # Тот же предел входов, что у первого запуска: наборы входят на ЭТОМ сервере.
           RateLimits__Login: 60
           BlobStorage__Endpoint: 127.0.0.1:3900

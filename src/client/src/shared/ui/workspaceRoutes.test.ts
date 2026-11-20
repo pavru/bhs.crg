@@ -23,8 +23,10 @@ function samples(path: string, set: boolean): { url: string; panel?: string }[] 
   const base = `/document-sets/${path.replace(/:constructionId/, 'c1').replace(/:sectionId/, 'r1').replace(/:setId/, 's1')}`
     .replace(/\/\*$/, '/x/y');
   if (!base.includes(':panel')) return [{ url: base }];
-  // Панели комплекта — свои (`SetDetail`), им образцом служат те же сегменты.
-  const panels = set ? ['catalog', 'datasets', 'subscribers'] : constructionPanels.map(p => p.id);
+  // Панели комплекта — свои (`SetDetail`), им образцом служат те же сегменты. Панель стройки — только на своих
+  // уровнях: «Назначения» (work-12) на странице раздела нет, и её адрес там — неизвестная панель, а не её.
+  const level = path.includes(':sectionId') ? 'section' : 'construction';
+  const panels = set ? ['catalog', 'datasets', 'subscribers'] : constructionPanels.filter(p => p.levels.includes(level)).map(p => p.id);
   return panels.map(panel => ({ url: base.replace(':panel', panel), panel }));
 }
 

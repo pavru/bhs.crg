@@ -915,8 +915,9 @@ async function main() {
   await ensureDataSetSource(invoiceFileId, 'Товары счёта');
   await ensureDataSetSource(invoiceFileId, 'Шапка счёта');
 
-  // Сотрудники и учётные записи того же ФИО (work-01) — свой файл: посев и так у порога размера.
-  await ensureEmployees({ api, findType, ensureUser });
+  // Сотрудники и учётные записи того же ФИО (work-01) и назначения стройки (work-12) — свои файлы: посев и так у
+  // порога размера.
+  await ensureEmployees({ api, findType, ensureUser, constructionId });
 
   console.log('\nПосев готов. Переменные прогонов:');
   console.log([`SMOKE_CONSTRUCTION_ID=${constructionId}`, `SMOKE_SET_ID=${setId}`, `SMOKE_INSTANCE_ID=${aosrInstanceId}`,
