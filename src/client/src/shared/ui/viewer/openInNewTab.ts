@@ -14,15 +14,18 @@
  * - **Вкладку не дали открыть — загрузчик не зовётся**: окно после `await` блокировщик срезал бы
  *   так же, и файл скачался бы впустую. Вызывающему уходит `TabBlocked` — сказать, кроме него, некому.
  */
+import { pageTimers } from '@/shared/utils/pageTimers';
 
 export type PdfBytes = Blob | Uint8Array;
 
 /** Сколько живёт ссылка на файл во вкладке или в загрузке: браузеру она нужна, пока он читает файл. */
 const REVOKE_AFTER_MS = 60_000;
+/** Отзыв переживает и просмотрщик, и окно, откуда открыли, — таймер уровня страницы. */
+const revokes = pageTimers();
 
 /** Отозвать объектную ссылку с отсрочкой — отозванная сразу не успела бы открыться или скачаться. */
 export function revokeLater(url: string): void {
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+  revokes.set(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }
 
 /**
