@@ -12,6 +12,27 @@ namespace BHS.CRG.Modules.Work.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "line_photo_removals",
+                schema: "work",
+                columns: table => new
+                {
+                    photo_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    line_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    removed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_line_photo_removals", x => x.photo_id);
+                    table.ForeignKey(
+                        name: "FK_line_photo_removals_report_lines_line_id",
+                        column: x => x.line_id,
+                        principalSchema: "work",
+                        principalTable: "report_lines",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "line_photos",
                 schema: "work",
                 columns: table => new
@@ -29,7 +50,9 @@ namespace BHS.CRG.Modules.Work.Migrations
                     geo_alt = table.Column<double>(type: "double precision", nullable: true),
                     taken_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     declared_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    stored_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                    stored_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    stored_seq = table.Column<long>(type: "bigint", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -46,6 +69,12 @@ namespace BHS.CRG.Modules.Work.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "ix_line_photo_removals_line",
+                schema: "work",
+                table: "line_photo_removals",
+                column: "line_id");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_line_photos_line",
                 schema: "work",
                 table: "line_photos",
@@ -55,6 +84,10 @@ namespace BHS.CRG.Modules.Work.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "line_photo_removals",
+                schema: "work");
+
             migrationBuilder.DropTable(
                 name: "line_photos",
                 schema: "work");

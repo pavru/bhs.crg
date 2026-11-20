@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Storage;
+using Minio.Exceptions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -78,7 +79,7 @@ public class FakeBlobStorage : OwnerBlindBlobStorage
         // Не доменный отказ намеренно (issue #691): отсутствующий файл — это битая ссылка, то есть
         // дефект, а не то, что пользователь может исправить. Настоящее хранилище тоже отвечает здесь
         // своим исключением, и подделка должна вести себя так же.
-        throw new KeyNotFoundException($"Blob not found: {blobPath}");
+        throw new ObjectNotFoundException($"Blob not found: {blobPath}");
     }
 
     public override Task DeleteAsync(string blobPath, CancellationToken ct = default)

@@ -43,9 +43,22 @@
   [WORK-55]; содержание — `cd docs/tools && npm run toc`. Проверка — проверка содержания в «Frontend»
   зелёная
 
-## 5. Верификация
+## 5. Правки ревью
 
-- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work.Photo|FullyQualifiedName~ModuleFileInventory|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory"` — зелёный
-- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 Повтор `photoId` между строками одного запроса — явный отказ 400 до записи [WORK-33] [MOB-15].
+  Проверка — заведение и правка с повтором, отчёт и фото не изменились.
+- [x] 5.2 Повтор удаления с применённым `changeId` возвращает текущее состояние и после повторного объявления
+  фото, без проверки прежней версии и без второго удаления [MOB-15]. Проверка — повтор с прежней и текущей версией.
+- [x] 5.3 Пропавший объект фото и превью — 404, отказ хранилища не маскируется под отсутствие [WORK-33].
+  Проверка — потеря файла при сохранённых записях фото и реестра; недоступное хранилище.
+- [x] 5.4 ETag меняется при повторном объявлении и загрузке фото с тем же идентификатором [WORK-33] [MOB-15].
+  Проверка — прежний If-None-Match получает новый файл, новая метка получает 304.
+- [x] 5.5 Проверены исправления доставки: снятое фото не возвращается поздней доставкой, сбой записи
+  превью убирает оригинал, доставка видна в since и не теряет файлы при одновременной правке [WORK-34] [MOB-16].
+
+## 6. Верификация
+
+- [x] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work.Photo|FullyQualifiedName~ModuleFileInventory|FullyQualifiedName~BackupManifestCoverage|FullyQualifiedName~EndpointGateInventory"` — зелёный; профильный прогон — 226 тестов, включая Up/Down миграции фото; ещё 200 — существующие отчёты, приёмка, подача, сканы счетов и порты
+- [x] 6.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 6.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

@@ -53,9 +53,9 @@ public static class PhotoEndpoints
         ReportRefusals.RunAsync(async () =>
         {
             // Версия — первой, до сотрудника и охвата: порядок отказов один у всех пишущих адресов отчёта.
-            SeenVersions.Required(request, "отчёта");
+            var seen = SeenVersions.Required(request, "отчёта");
             return await photos.RemoveAsync(await WriterAsync(user, readers, sites, employees, ct), id, lineId, photoId,
-                changeId, ReportEndpoints.DeviceTimeOf(deviceTime), request, ct);
+                changeId, ReportEndpoints.DeviceTimeOf(deviceTime), seen, ct);
         });
 
     private static Task<IResult> OriginalAsync(

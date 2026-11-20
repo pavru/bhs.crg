@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using BHS.CRG.Modules.Access;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,10 +111,18 @@ public sealed class ReportReads(WorkDbContext db)
     /// </summary>
     public async Task<ReportFeed> SinceAsync(Guid employeeId, long since, int limit, CancellationToken ct)
     {
+        // Номер отчёта в выдаче — больший из его номера и номеров доставки фото (work-17): доставка объявленного фото
+        // отчёт не трогает, а клиент с курсором обязан узнать, что файл дошёл.
         var heads = await db.Set<Report>().AsNoTracking()
-            .Where(r => r.EmployeeId == employeeId && r.Seq > since)
-            .OrderBy(r => r.Seq).Take(limit + 1)
-            .Select(r => new { r.Id, r.Seq, Version = EF.Property<uint>(r, WorkDbContext.RowVersion) })
+            .Where(r => r.EmployeeId == employeeId
+                        && (r.Seq > since || r.Lines.Any(l => l.Photos.Any(p => p.StoredSeq > since))))
+            .Select(r => new
+            {
+                r.Id,
+                Seq = Math.Max(r.Seq, r.Lines.SelectMany(l => l.Photos).Max(p => p.StoredSeq) ?? 0L),
+                Version = EF.Property<uint>(r, WorkDbContext.RowVersion),
+            })
+            .OrderBy(h => h.Seq).Take(limit + 1)
             .ToListAsync(ct);
         var deleted = await db.Set<ReportChange>().AsNoTracking()
             .Where(c => c.EmployeeId == employeeId && c.Seq > since && c.Kind == ReportChangeKind.Deleted)
@@ -151,12 +160,9 @@ public sealed class ReportReads(WorkDbContext db)
     public async Task<IReadOnlyList<ReportJournalEntry>?> JournalAsync(
         ReportViewer viewer, Guid? userId, Guid id, CancellationToken ct)
     {
-        var me = viewer.EmployeeId;
-        var live = await Visible(viewer).AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.SubmittedAt, r.EmployeeId, r.EnteredByUserId })
-            .FirstOrDefaultAsync(ct);
-        var readable = live is not null
-            ? live.SubmittedAt != null || live.EmployeeId == me || (userId != null && live.EnteredByUserId == userId)
+        var live = Visible(viewer).AsNoTracking().Where(r => r.Id == id);
+        var readable = await live.AnyAsync(ct)
+            ? await live.AnyAsync(ContentReadable(viewer.EmployeeId, userId), ct)
             : await DeletedDraftReadableAsync(viewer, userId, id, ct);
         if (!readable) return null;
         return await db.Set<ReportJournalEntry>().AsNoTracking()
@@ -377,8 +383,14 @@ public sealed class ReportReads(WorkDbContext db)
     /// им судят фото (<c>work-17</c>).
     /// </summary>
     public static bool ContentVisible(Report report, ReportViewer viewer, Guid? userId) =>
-        report.SubmittedAt != null || report.EmployeeId == viewer.EmployeeId
-                                   || (userId != null && report.EnteredByUserId == userId);
+        ContentReadable(viewer.EmployeeId, userId).Compile()(report);
+
+    /// <summary>
+    /// Правило <see cref="ContentVisible" /> выражением — одно на запрос к базе и на отчёт в памяти: поданный — всем, кому
+    /// виден отчёт; черновик — сотруднику отчёта <paramref name="me" /> и автору ввода <paramref name="userId" />.
+    /// </summary>
+    private static Expression<Func<Report, bool>> ContentReadable(Guid? me, Guid? userId) =>
+        r => r.SubmittedAt != null || r.EmployeeId == me || (userId != null && r.EnteredByUserId == userId);
 
     /// <summary>
     /// Фото по идентификатору, если читателю видно содержимое его отчёта (ТЗ WORK-39, WORK-54; <c>work-17</c>), — без
@@ -386,9 +398,7 @@ public sealed class ReportReads(WorkDbContext db)
     /// </summary>
     public Task<LinePhoto?> PhotoAsync(ReportViewer viewer, Guid? userId, Guid photoId, CancellationToken ct)
     {
-        var me = viewer.EmployeeId;
-        var readable = Visible(viewer).Where(r =>
-            r.SubmittedAt != null || r.EmployeeId == me || (userId != null && r.EnteredByUserId == userId));
+        var readable = Visible(viewer).Where(ContentReadable(viewer.EmployeeId, userId));
         return db.Set<LinePhoto>().AsNoTracking()
             .Where(p => p.Id == photoId && readable.Any(r => r.Lines.Any(l => l.Id == p.LineId)))
             .FirstOrDefaultAsync(ct);
@@ -400,6 +410,17 @@ public sealed class ReportReads(WorkDbContext db)
     /// </summary>
     public Task<Guid?> PhotoLineAsync(Guid photoId, CancellationToken ct) =>
         db.Set<LinePhoto>().AsNoTracking().Where(p => p.Id == photoId).Select(p => (Guid?)p.LineId).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Снято ли фото с этим идентификатором со строки (<see cref="LinePhotoRemoval" />): поздний файл снятого фото не
+    /// возвращает его в строку (ТЗ MOB-15).
+    /// </summary>
+    public Task<bool> PhotoRemovedAsync(Guid photoId, CancellationToken ct) =>
+        db.Set<LinePhotoRemoval>().AnyAsync(r => r.PhotoId == photoId, ct);
+
+    /// <summary>Следы снятия у фото, которые строки называют снова, — с отслеживанием: правка их снимает.</summary>
+    public async Task<IReadOnlyList<LinePhotoRemoval>> RemovalsAsync(IReadOnlyCollection<Guid> photoIds, CancellationToken ct) =>
+        photoIds.Count == 0 ? [] : await db.Set<LinePhotoRemoval>().Where(r => photoIds.Contains(r.PhotoId)).ToListAsync(ct);
 
     /// <summary>
     /// Идентификаторы фото, которые уже принадлежат ДРУГИМ строкам: идентификатор от клиента и ключ таблицы, и без

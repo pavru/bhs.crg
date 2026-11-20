@@ -68,20 +68,27 @@ public sealed class LinePhoto : IIsolatedRecord
     /// <summary>Когда файл лёг в хранилище.</summary>
     public DateTimeOffset? StoredAt { get; private set; }
 
+    /// <summary>
+    /// Номер изменения отчётов сотрудника, под которым пришёл файл (ТЗ MOB-16). Доставка объявленного фото отчёт не
+    /// трогает — ни номера, ни версии, — и лента <c>?since</c> (<see cref="ReportReads.SinceAsync" />) узнаёт о ней по
+    /// этому номеру.
+    /// </summary>
+    public long? StoredSeq { get; private set; }
+
     /// <summary>Фото, названное строкой при сохранении, — ждёт файла.</summary>
     public static LinePhoto Declared(Guid id, Guid lineId, DateTimeOffset now) =>
         new() { Id = id, LineId = lineId, State = LinePhotoState.Pending, DeclaredAt = Stamp(now) };
 
     /// <summary>Фото, файл которого пришёл, а строка его не называла (правка, ТЗ WORK-11).</summary>
-    public static LinePhoto Arrived(Guid id, Guid lineId, PhotoFiles files, DateTimeOffset now)
+    public static LinePhoto Arrived(Guid id, Guid lineId, PhotoFiles files, long seq, DateTimeOffset now)
     {
         var photo = Declared(id, lineId, now);
-        photo.Store(files, now);
+        photo.Store(files, seq, now);
         return photo;
     }
 
     /// <summary>Файл дошёл: пути, размеры и данные снимка. Пишет только путь загрузки (<c>LinePhotos</c>).</summary>
-    public void Store(PhotoFiles files, DateTimeOffset now)
+    public void Store(PhotoFiles files, long seq, DateTimeOffset now)
     {
         State = LinePhotoState.Stored;
         BlobPath = files.BlobPath;
@@ -95,13 +102,14 @@ public sealed class LinePhoto : IIsolatedRecord
         // Пояс съёмки — в колонке UTC: timestamptz пояса не хранит, а момент тот же.
         TakenAt = files.Prepared.TakenAt?.ToUniversalTime();
         StoredAt = Stamp(now);
+        StoredSeq = seq;
     }
 
     /// <summary>
     /// Момент с точностью базы — до микросекунды, в UTC: ответ первой загрузки и её повтора (прочитанный из базы) обязаны
     /// совпадать до знака (ТЗ MOB-15).
     /// </summary>
-    private static DateTimeOffset Stamp(DateTimeOffset at)
+    internal static DateTimeOffset Stamp(DateTimeOffset at)
     {
         var utc = at.ToUniversalTime();
         return utc.AddTicks(-(utc.Ticks % 10));
@@ -116,3 +124,25 @@ public sealed class LinePhoto : IIsolatedRecord
 
 /// <summary>Подготовленный снимок и пути, по которым он и превью легли в хранилище модуля.</summary>
 public sealed record PhotoFiles(PreparedPhoto Prepared, string BlobPath, string PreviewBlobPath);
+
+/// <summary>
+/// След снятого фото (<c>work-17</c>, ТЗ WORK-34, MOB-15): файл фото догоняет отчёт своей очередью и может прийти уже
+/// после того, как фото сняли со строки. Без следа такой файл выглядел бы новым фото и вернул бы снятое. По следу
+/// загрузка отвечает 410: фото снято, файл не нужен. Снова названное строкой фото след снимает.
+///
+/// <para>След живёт со строкой (каскад): строку удалили — загрузка отвечает 404 по самой строке.</para>
+/// </summary>
+public sealed class LinePhotoRemoval
+{
+    private LinePhotoRemoval() { }
+
+    /// <summary>Идентификатор снятого фото — ключ: идентификатор от клиента один на фото.</summary>
+    public Guid PhotoId { get; private set; }
+
+    public Guid LineId { get; private set; }
+
+    public DateTimeOffset RemovedAt { get; private set; }
+
+    public static LinePhotoRemoval Of(LinePhoto photo, DateTimeOffset now) =>
+        new() { PhotoId = photo.Id, LineId = photo.LineId, RemovedAt = LinePhoto.Stamp(now) };
+}

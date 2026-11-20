@@ -121,6 +121,8 @@ public sealed class ReportWriter(
 
         if (lines.GroupBy(l => l.Id).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new InvalidRequestException($"Строка {twice.Key} названа в отчёте дважды: идентификатор строки — один на строку.");
+        if (lines.SelectMany(l => l.Photos ?? []).GroupBy(id => id).FirstOrDefault(g => g.Count() > 1) is { } repeatedPhoto)
+            throw new InvalidRequestException($"Одно фото ({repeatedPhoto.Key}) может быть названо только в одной строке отчёта.");
         if (lines.Count == 0) return site;
         await EnsurePhotoCountAsync(lines, ct);
 
@@ -189,9 +191,17 @@ public sealed class ReportWriter(
             else was.ApplyLine(i, line, items[line.Id]);
         }
 
+        // Фото, снятые строкой, оставляют след: их поздний файл не вернёт фото (LinePhotoRemoval). Снова названное — след
+        // снимает: фото объявлено заново и ждёт файла.
+        var named = lines.SelectMany(l => l.Photos ?? []).ToHashSet();
+        foreach (var removal in await reads.RemovalsAsync(named, ct)) db.Remove(removal);
         var dropped = new List<string>();
         foreach (var line in lines)
-            dropped.AddRange(report.Lines.First(l => l.Id == line.Id).ApplyPhotos(line.Photos, now).SelectMany(p => p.Paths()));
+            foreach (var photo in report.Lines.First(l => l.Id == line.Id).ApplyPhotos(line.Photos, now))
+            {
+                db.Add(LinePhotoRemoval.Of(photo, now));
+                dropped.AddRange(photo.Paths());
+            }
 
         var kept = lines.Select(l => l.Id).ToHashSet();
         dropped.AddRange(report.Lines.Where(l => !kept.Contains(l.Id)).SelectMany(l => l.Photos).SelectMany(p => p.Paths()));

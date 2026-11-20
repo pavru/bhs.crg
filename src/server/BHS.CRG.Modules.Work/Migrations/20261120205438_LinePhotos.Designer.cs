@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Modules.Work.Migrations
 {
     [DbContext(typeof(WorkDbContext))]
-    [Migration("20261120202410_LinePhotos")]
+    [Migration("20261120205438_LinePhotos")]
     partial class LinePhotos
     {
         /// <inheritdoc />
@@ -124,6 +124,12 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("text")
                         .HasColumnName("preview_blob_path");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<long?>("Size")
                         .HasColumnType("bigint")
                         .HasColumnName("size");
@@ -137,6 +143,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.Property<DateTimeOffset?>("StoredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("stored_at");
+
+                    b.Property<long?>("StoredSeq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("stored_seq");
 
                     b.Property<DateTimeOffset?>("TakenAt")
                         .HasColumnType("timestamp with time zone")
@@ -157,6 +167,28 @@ namespace BHS.CRG.Modules.Work.Migrations
 
                             t.HasCheckConstraint("ck_line_photos_stored", "state = 'pending' OR (blob_path IS NOT NULL AND preview_blob_path IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhotoRemoval", b =>
+                {
+                    b.Property<Guid>("PhotoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("photo_id");
+
+                    b.Property<Guid>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.Property<DateTimeOffset>("RemovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("removed_at");
+
+                    b.HasKey("PhotoId");
+
+                    b.HasIndex("LineId")
+                        .HasDatabaseName("ix_line_photo_removals_line");
+
+                    b.ToTable("line_photo_removals", "work");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Report", b =>
@@ -579,6 +611,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
                         .WithMany("Photos")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhotoRemoval", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
+                        .WithMany()
                         .HasForeignKey("LineId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

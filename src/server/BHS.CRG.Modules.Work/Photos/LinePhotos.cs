@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
@@ -29,9 +32,14 @@ public sealed record LinePhotoDto(
 /// осиротевший файл, его находит поиск осиротевших; обратный порядок дал бы фото, которое не открывается. Удаление —
 /// наоборот: сначала ссылка, потом файл.</para>
 ///
-/// <para><b>Объявленное и новое фото</b> (WORK-11). Файл фото, которое строка уже назвала, — доставка: отчёт не
-/// меняется, журнал молчит. Фото, которого строка не называла, — правка: номер изменения, запись протокола и журнала;
-/// после подачи она «правка после подачи».</para>
+/// <para><b>Объявленное и новое фото</b> (WORK-11). Файл фото, которое строка уже назвала, — доставка: отчёт и его
+/// версия не меняются, журнал молчит; номер изменения доставка берёт себе (<see cref="LinePhoto.StoredSeq" />), по нему
+/// о ней узнаёт лента <c>?since</c>. Фото, которого строка не называла, — правка: номер изменения, запись протокола и
+/// журнала; после подачи она «правка после подачи».</para>
+///
+/// <para><b>Снятое фото не возвращается</b> (MOB-15): файл, пришедший после того, как фото сняли со строки, получает 410
+/// — по следу снятия (<see cref="LinePhotoRemoval" />) или по записи протокола, которой это фото когда-то добавили.
+/// Клиент убирает такой файл из очереди.</para>
 /// </summary>
 public sealed class LinePhotos(
     WorkDbContext db, ReportReads reads, ReportViews views, ReportJournal journal, ReportPeople people,
@@ -53,6 +61,8 @@ public sealed class LinePhotos(
 
     public const string LineNotFound = "Строка не найдена в отчёте: её удалили или идентификатор неверен.";
 
+    public const string Removed = "Фото снято со строки — его файл больше не нужен и не принимается.";
+
     /// <summary>Предел числа фото на строку из настройки модуля.</summary>
     public static async Task<int> PerLineAsync(IModuleSettings settings, CancellationToken ct) =>
         (int)await settings.GetAsync(WorkSettings.PhotosPerLine, ct);
@@ -68,12 +78,15 @@ public sealed class LinePhotos(
         // Дешёвое — до чтения тела: отказ и повтор не ждут, пока придут 15 МБ.
         var (report, line) = await TargetAsync(viewer, reportId, lineId, ct);
         if (await reads.PhotoLineAsync(photoId, ct) is { } holder && holder != lineId) throw new ConflictException(Capital(IdTaken));
-        if (line.Photos.FirstOrDefault(p => p.Id == photoId) is { State: LinePhotoState.Stored } done)
-            return Results.Ok(Dto(report.Id, done));
+        var declared = line.Photos.FirstOrDefault(p => p.Id == photoId);
+        if (declared is { State: LinePhotoState.Stored }) return Results.Ok(Dto(report.Id, declared));
+        if (declared is null && await reads.PhotoRemovedAsync(photoId, ct)) return Gone();
         var max = await PerLineAsync(settings, ct);
-        if (line.Photos.All(p => p.Id != photoId) && line.Photos.Count >= max) throw new InvalidRequestException(Capital(TooMany(max)));
-        var (employee, actor) = (report.EmployeeId, await people.ActorAsync(viewer, ct));
-        var executor = await people.ExecutorAsync(employee, ct);
+        if (declared is null && line.Photos.Count >= max) throw new InvalidRequestException(Capital(TooMany(max)));
+        var employee = report.EmployeeId;
+        // Автор и исполнитель нужны только правке (новое фото): доставке объявленного их не спрашиваем. Спрашиваем до
+        // транзакции — запрос к ядру не держит её открытой.
+        var who = declared is null ? await WhoAsync(viewer, employee, ct) : null;
         db.ChangeTracker.Clear();
 
         var megabytes = await settings.GetAsync(WorkSettings.PhotoMaxMegabytes, ct);
@@ -90,29 +103,32 @@ public sealed class LinePhotos(
         // Итогов у порта два (PhotoResult): не отказ — значит, подготовленное фото.
         var ready = (PreparedPhoto)prepared;
 
-        var files = new PhotoFiles(ready,
-            await blobs.PutAsync($"{photoId}.jpg", new MemoryStream(ready.Image), "image/jpeg", ct),
-            await blobs.PutAsync($"{photoId}-preview.jpg", new MemoryStream(ready.Preview), "image/jpeg", ct));
+        // Каждый положенный файл — в списке СРАЗУ: сбой на превью не оставляет снимок без ссылки.
+        var put = new List<string>();
         var used = false;
         try
         {
-            (var result, used) = await StoreAsync(viewer, reportId, lineId, photoId, files, employee, actor, executor, max, ct);
+            put.Add(await blobs.PutAsync($"{photoId}.jpg", new MemoryStream(ready.Image), FileKinds.Jpeg, ct));
+            put.Add(await blobs.PutAsync($"{photoId}-preview.jpg", new MemoryStream(ready.Preview), FileKinds.Jpeg, ct));
+            var files = new PhotoFiles(ready, put[0], put[1]);
+            (var result, used) = await StoreAsync(viewer, reportId, lineId, photoId, files, employee, who, max, ct);
             return result;
         }
         finally
         {
             // Повтор, обогнавший этот запрос, и отказ под замком файлов не берут: ссылки на них нет.
-            if (!used) await DropAsync([files.BlobPath, files.PreviewBlobPath]);
+            if (!used) await DropAsync(put);
         }
     }
 
     /// <summary>
     /// Ссылки на файл — под замком отчётов сотрудника и по отчёту, перечитанному под ним: параллельная загрузка того же
-    /// фото или правка строки успели бы иначе между проверкой и записью. <c>Used</c> — файлы взяты ссылкой.
+    /// фото успела бы иначе между проверкой и записью. Правку, прочитавшую фото ждущим до доставки, останавливает версия
+    /// строки фото. <c>Used</c> — файлы взяты ссылкой.
     /// </summary>
     private async Task<(IResult Result, bool Used)> StoreAsync(
-        ReportViewer viewer, Guid reportId, Guid lineId, Guid photoId, PhotoFiles files, Guid employee,
-        ReportJournalActor actor, string executor, int max, CancellationToken ct)
+        ReportViewer viewer, Guid reportId, Guid lineId, Guid photoId, PhotoFiles files, Guid employee, Who? who, int max,
+        CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.LockReportsAsync(employee, ct);
@@ -124,52 +140,62 @@ public sealed class LinePhotos(
         if (photo is { State: LinePhotoState.Stored }) return (Results.Ok(Dto(report.Id, photo)), false);
         if (photo is not null)
         {
-            // Объявленное фото — доставка (WORK-11): отчёт и его версия не меняются, журнал молчит.
-            photo.Store(files, now);
+            // Объявленное фото — доставка (WORK-11): отчёт и его версия не меняются, журнал молчит. Номер — фото, для ленты.
+            photo.Store(files, await db.NextReportSeqAsync(employee, ct), now);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return (Results.Ok(Dto(report.Id, photo)), true);
         }
 
+        // Снятое — не возвращается: по следу снятия или по записи протокола, которой фото добавили (ключ протокола —
+        // идентификатор фото, второй такой записи не будет).
+        if (await reads.PhotoRemovedAsync(photoId, ct) || await reads.AppliedAsync(reportId, photoId, ct) is not null)
+            return (Gone(), false);
         if (line.Photos.Count >= max) throw new InvalidRequestException(Capital(TooMany(max)));
-        var kind = ReportDesk.ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
+        // Объявленное фото сняли, пока шёл этот файл, и автора до транзакции не спросили — спрашиваем здесь.
+        who ??= await WhoAsync(viewer, employee, ct);
+        var kind = ReportDesk.ManagerEdits(viewer, report, who.Actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
         var before = ReportJournal.Capture(report);
         var seq = await db.NextReportSeqAsync(employee, ct);
-        photo = LinePhoto.Arrived(photoId, lineId, files, now);
+        photo = LinePhoto.Arrived(photoId, lineId, files, seq, now);
         line.Photos.Add(photo);
         report.Touch(seq, now);
         await db.SaveChangesAsync(ct);
         // Идентификатор изменения — идентификатор фото: его создал клиент, и второго применения ключ протокола не даст.
         db.Add(ReportChange.Of(seq, report, photoId, ReportChangeKind.Updated, null, now, db.VersionOf(report)));
-        var entry = journal.Append(kind, report, before, actor, executor, photoId, seq, null, now);
+        var entry = journal.Append(kind, report, before, who.Actor, who.Executor, photoId, seq, null, now);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        await RecordAsync(kind, entry, report, executor, "добавлено фото");
+        await RecordAsync(kind, entry, report, who.Executor, "добавлено фото");
         return (Results.Ok(Dto(report.Id, photo)), true);
     }
 
+    /// <summary>Автор правки и исполнитель отчёта — для журнала.</summary>
+    private sealed record Who(ReportJournalActor Actor, string Executor);
+
+    private async Task<Who> WhoAsync(ReportViewer viewer, Guid employee, CancellationToken ct) =>
+        new(await people.ActorAsync(viewer, ct), await people.ExecutorAsync(employee, ct));
+
     /// <summary>
-    /// Удалить фото строки (ТЗ WORK-33): <c>If-Match</c> с версией отчёта — первым, затем отчёт, строка и фото (404),
-    /// повтор с тем же <c>changeId</c> (200 по текущему состоянию), версия (409). Ссылка уходит первой, файл — после
-    /// фиксации.
+    /// Удалить фото строки (ТЗ WORK-33): версия отчёта <paramref name="seen" /> (<c>If-Match</c>, его адрес разбирает
+    /// первым), затем отчёт и строка (404), повтор с тем же <c>changeId</c> (200 по текущему состоянию), фото (404), версия
+    /// (409). Ссылка уходит первой и оставляет след снятия, файл — после фиксации.
     /// </summary>
     public async Task<IResult> RemoveAsync(
         ReportViewer viewer, Guid reportId, Guid lineId, Guid photoId, Guid? changeId, DateTimeOffset? deviceTime,
-        HttpRequest request, CancellationToken ct)
+        string seen, CancellationToken ct)
     {
-        var seen = SeenVersions.Required(request, "отчёта");
         var actor = await people.ActorAsync(viewer, ct);
 
+        var holder = await reads.HolderOfIdAsync(reportId, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.LockReportsAsync(holder.EmployeeId, ct);
         var (report, line) = await TargetAsync(viewer, reportId, lineId, ct);
         var change = changeId ?? Guid.NewGuid();
-        if (line.Photos.FirstOrDefault(p => p.Id == photoId) is not { } photo)
-        {
-            if (changeId is not null && await reads.AppliedAsync(reportId, change, ct) is not null)
-                return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
-            throw new NotFoundException(NotFoundText);
-        }
+        if (changeId is not null && await reads.AppliedAsync(reportId, change, ct) is not null)
+            return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
+        var photo = line.Photos.FirstOrDefault(p => p.Id == photoId) ?? throw new NotFoundException(NotFoundText);
         if (seen != db.VersionOf(report)) throw new ConflictException(ReportDesk.Stale);
 
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
@@ -178,6 +204,7 @@ public sealed class LinePhotos(
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         var paths = photo.Paths().ToList();
         line.Photos.Remove(photo);
+        db.Add(LinePhotoRemoval.Of(photo, now));
         report.Touch(seq, now);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, change, ReportChangeKind.Updated, deviceTime, now, db.VersionOf(report)));
@@ -192,8 +219,8 @@ public sealed class LinePhotos(
 
     /// <summary>
     /// Файл фото или превью (ТЗ WORK-39, WORK-54): сначала отчёт фото читается с охватом читателя — не виден или
-    /// черновик неавтору — 404, как несуществующее. Файла ещё нет — 404 с причиной. Содержимое по идентификатору не
-    /// меняется, поэтому повторный запрос с тем же <c>If-None-Match</c> получает 304 — но тоже после проверки доступа.
+    /// черновик неавтору — 404, как несуществующее. Файла ещё нет — 404 с причиной. Метка называет сохранённый файл:
+    /// повторное объявление фото с тем же идентификатором и новая загрузка дают другой путь и другую метку.
     /// </summary>
     public async Task<IResult> OpenAsync(
         ReportViewer viewer, Guid? userId, Guid photoId, bool preview, HttpContext http, CancellationToken ct)
@@ -201,12 +228,18 @@ public sealed class LinePhotos(
         var photo = await reads.PhotoAsync(viewer, userId, photoId, ct) ?? throw new NotFoundException(NotFoundText);
         if (photo.State != LinePhotoState.Stored) throw new NotFoundException(NotStored);
 
-        var tag = $"\"{photo.Id:N}{(preview ? "-p" : "")}\"";
+        var path = preview ? photo.PreviewBlobPath! : photo.BlobPath!;
+        var tag = $"\"{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path)))}\"";
         http.Response.Headers.CacheControl = "private, no-cache";
         http.Response.Headers.ETag = tag;
-        if (http.Request.Headers.IfNoneMatch.Contains(tag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        var content = await blobs.OpenAsync(preview ? photo.PreviewBlobPath! : photo.BlobPath!, ct);
-        return Results.Stream(content, "image/jpeg");
+        if (http.Request.Headers.IfNoneMatch.Contains(tag))
+        {
+            // Отсутствующий объект не подтверждает старую копию клиента: его GET тоже ответил бы 404.
+            if (await blobs.SizeAsync(path, ct) is null) throw new NotFoundException(NotFoundText);
+            return Results.StatusCode(StatusCodes.Status304NotModified);
+        }
+        var content = await blobs.OpenAsync(path, ct);
+        return Results.Stream(content, FileKinds.Jpeg);
     }
 
     /// <summary>
@@ -252,6 +285,9 @@ public sealed class LinePhotos(
         new(p.Id, reportId, p.LineId, LinePhoto.StateCode(p.State), p.Size, p.Width, p.Height, p.StoredAt);
 
     private static string Capital(string text) => char.ToUpperInvariant(text[0]) + text[1..];
+
+    /// <summary>410: фото сняли со строки, файл не нужен — клиент убирает его из очереди, а не повторяет.</summary>
+    private static IResult Gone() => Results.Json(new { error = Removed }, statusCode: StatusCodes.Status410Gone);
 
     private static IResult TooLarge(string error) =>
         Results.Json(new { error }, statusCode: StatusCodes.Status413PayloadTooLarge);

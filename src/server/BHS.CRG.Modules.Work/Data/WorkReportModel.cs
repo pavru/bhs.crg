@@ -125,6 +125,10 @@ internal static class WorkReportModel
         photo.Property(p => p.TakenAt).HasColumnName("taken_at");
         photo.Property(p => p.DeclaredAt).HasColumnName("declared_at");
         photo.Property(p => p.StoredAt).HasColumnName("stored_at");
+        photo.Property(p => p.StoredSeq).HasColumnName("stored_seq");
+        // Версия строки фото: правка, прочитавшая фото ждущим, не снимет его после доставки по устаревшему виду —
+        // иначе пути файлов, пришедших тем временем, ушли бы вместе со строкой, а файлы остались бы без ссылки.
+        photo.Property<uint>(rowVersion).IsRowVersion();
         // Хранимое фото без файла обещало бы снимок, которого не открыть.
         photo.ToTable(t =>
         {
@@ -133,6 +137,16 @@ internal static class WorkReportModel
                 "state = 'pending' OR (blob_path IS NOT NULL AND preview_blob_path IS NOT NULL)");
         });
         photo.HasIndex(p => p.LineId).HasDatabaseName("ix_line_photos_line");
+
+        // След снятого фото (work-17): живёт со строкой.
+        var removal = builder.Entity<LinePhotoRemoval>();
+        removal.ToTable("line_photo_removals");
+        removal.HasKey(r => r.PhotoId);
+        removal.Property(r => r.PhotoId).HasColumnName("photo_id").ValueGeneratedNever();
+        removal.Property(r => r.LineId).HasColumnName("line_id");
+        removal.Property(r => r.RemovedAt).HasColumnName("removed_at");
+        removal.HasOne<ReportLine>().WithMany().HasForeignKey(r => r.LineId).OnDelete(DeleteBehavior.Cascade);
+        removal.HasIndex(r => r.LineId).HasDatabaseName("ix_line_photo_removals_line");
 
         var change = builder.Entity<ReportChange>();
         change.ToTable("report_changes");
