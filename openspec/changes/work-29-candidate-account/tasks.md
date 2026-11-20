@@ -8,6 +8,11 @@
 - [x] 1.2 Тест кандидатов в `AssignmentRulesTests` на три состояния: связанный — `linked`, без связи — `none` и
   `eligible: true` у вида `installer`, связь с удалённой учётной записью — `deleted`. Проверка —
   `dotnet test --filter AssignmentRulesTests` зелёный.
+- [x] 1.3 Перевод состояния — один на модуль (`Endpoints/AccountStateDto.cs`); сверка его строк с `EmployeeAccountDto`
+  ядра и перевода каждого состояния порта — `Work/AccountStateDtoTests`. Проверка — тест зелёный.
+- [x] 1.4 Менеджеру с удалённой учётной записью причина — «учётная запись сотрудника удалена» (`AssignmentRules`:
+  `Unfit` и `Unchangeable`); тест кандидатов проверяет и вид `manager`. Проверка —
+  `dotnet test --filter AssignmentRulesTests` зелёный.
 
 ## 2. Клиент и документация
 

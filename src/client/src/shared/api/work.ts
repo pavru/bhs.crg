@@ -5,7 +5,8 @@
  * Пометки считает СЕРВЕР: клиент их не вычисляет и текстов не знает — текст приходит в `marks`, число —
  * в `counts`. Здесь только коды, по которым отбирают и читают счётчик.
  *
- * Здесь же — общие типы назначений: кандидат `GET /api/work/assignments/candidates` (`work-29`).
+ * Здесь же — общие типы назначений: кандидат `GET /api/work/assignments/candidates` (`work-11`; поле `account` —
+ * `work-29`).
  */
 
 import type { EmployeeAccount } from './employees';

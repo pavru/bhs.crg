@@ -138,7 +138,8 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
 
     /// <summary>
     /// Кандидат несёт состояние связи с учётной записью (ТЗ WORK-47; change <c>work-29-candidate-account</c>):
-    /// удалённая учётная запись — <c>deleted</c>, а не <c>none</c>; монтажнику без связи пометка годность не меняет.
+    /// удалённая учётная запись — <c>deleted</c>, а не <c>none</c>; монтажнику без связи пометка годность не меняет, а
+    /// менеджеру с удалённой учётной записью причина называет её удалённой, а не «не связан».
     /// </summary>
     [Fact]
     public async Task Кандидат_несёт_состояние_учётной_записи()
@@ -146,21 +147,30 @@ public class AssignmentRulesTests(AssignmentHost host) : IAsyncLifetime
         var linked = await world.EmployeeAsync(_type, "Григорьев Семён");
         var none = await world.EmployeeAsync(_type, "Дмитриев Юрий");
         var deleted = await world.EmployeeAsync(_type, "Ершова Нина");
-        var (linkedUser, _) = await world.UserAsync("Григорьев С.");
-        await world.LinkAsync(linked, linkedUser);
-        var (deletedUser, _) = await world.UserAsync("Ершова Н.");
-        await world.LinkAsync(deleted, deletedUser);
-        await world.DeleteUserAsync(deletedUser);
+        await world.LinkAsync(linked, await world.AccountAsync("Григорьев С."));
+        var gone = await world.AccountAsync("Ершова Н.");
+        await world.LinkAsync(deleted, gone);
+        await world.DeleteUserAsync(gone);
 
-        var body = await JsonAsync(await _client.GetAsync(
-            $"/api/work/assignments/candidates?constructionId={_siteA}&kind=installer&dateFrom=2026-11-01&dateTo=2026-11-30"));
+        async Task<Dictionary<Guid, JsonElement>> CandidatesAsync(string kind) =>
+            (await JsonAsync(await _client.GetAsync(
+                $"/api/work/assignments/candidates?constructionId={_siteA}&kind={kind}&dateFrom=2026-11-01&dateTo=2026-11-30")))
+            .GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("employeeId").GetGuid());
+        static string State(JsonElement item) => item.GetProperty("account").GetProperty("state").GetString()!;
 
-        var items = body.GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("employeeId").GetGuid());
-        string State(Guid id) => items[id].GetProperty("account").GetProperty("state").GetString()!;
-        Assert.Equal("linked", State(linked));
-        Assert.Equal("none", State(none));
-        Assert.True(items[none].GetProperty("eligible").GetBoolean());
-        Assert.Equal("deleted", State(deleted));
+        var installers = await CandidatesAsync("installer");
+        Assert.Equal("linked", State(installers[linked]));
+        Assert.Equal("none", State(installers[none]));
+        Assert.True(installers[none].GetProperty("eligible").GetBoolean());
+        Assert.Equal("deleted", State(installers[deleted]));
+        Assert.True(installers[deleted].GetProperty("eligible").GetBoolean());
+
+        var managers = await CandidatesAsync("manager");
+        Assert.True(managers[linked].GetProperty("eligible").GetBoolean());
+        Assert.Equal("сотрудник не связан с учётной записью", managers[none].GetProperty("reason").GetString());
+        Assert.Equal("deleted", State(managers[deleted]));
+        Assert.False(managers[deleted].GetProperty("eligible").GetBoolean());
+        Assert.Equal("учётная запись сотрудника удалена", managers[deleted].GetProperty("reason").GetString());
     }
 
     /// <summary>Кандидатов больше предела — выдача обрезана и говорит об этом (<c>more</c>), а не выглядит всем штатом.</summary>
