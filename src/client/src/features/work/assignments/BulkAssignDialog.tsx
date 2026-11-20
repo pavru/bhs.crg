@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { Check } from '@/shared/ui/icons';
 import { Icon } from '@/shared/ui/Icon';
 import { DateRange } from '@/shared/ui/DateRange';
@@ -36,12 +37,15 @@ export function BulkAssignDialog({ constructionId, siteName, today, onClose }: {
   const [refusal, setRefusal] = useState<AssignmentRefusal | null>(null);
   const assign = useBulkAssign();
 
-  const candidates = useAssignmentCandidates({ constructionId, kind, dateFrom: from, dateTo: to, q }, true);
+  // Поиск — с задержкой: каждый вызов читает справочник (до двухсот записей) и пересечения.
+  const search = useDebouncedValue(q, 300);
+  const candidates = useAssignmentCandidates({ constructionId, kind, dateFrom: from, dateTo: to, q: search }, true);
   const complete = periodComplete(kind, from, to);
   const page = complete ? candidates.data?.page : undefined;
 
   // Отмечены только годные в последней выдаче: ставшего негодным под новый период из пачки убираем — флажок у
-  // неактивной строки не ставится и не должен уйти на сервер. Не попавших в выдачу (сужен поиск) не трогаем.
+  // неактивной строки не ставится и не должен уйти на сервер. Смена вида или периода сбрасывает поиск
+  // (`changeKind`, `changePeriod`), поэтому прореживание видит всех отмеченных, а не только найденных.
   const items = page?.items;
   const unfit = items?.filter(c => !c.eligible && selected.has(c.employeeId)) ?? [];
   if (unfit.length > 0 && !candidates.isPlaceholderData) {
@@ -64,7 +68,8 @@ export function BulkAssignDialog({ constructionId, siteName, today, onClose }: {
     }
   };
 
-  const changePeriod = (f: string, t: string) => { setFrom(f); setTo(t); setRefusal(null); };
+  const changePeriod = (f: string, t: string) => { setFrom(f); setTo(t); setQ(''); setRefusal(null); };
+  const changeKind = (v: string) => { setKind(v as AssignmentKind); setQ(''); setRefusal(null); };
   const count = selected.size;
 
   return (
@@ -88,7 +93,7 @@ export function BulkAssignDialog({ constructionId, siteName, today, onClose }: {
             : ''}
         </p>
         <div className="flex flex-wrap items-end gap-3">
-          <Select label="Вид" value={kind} onValueChange={v => { setKind(v as AssignmentKind); setRefusal(null); }}
+          <Select label="Вид" value={kind} onValueChange={changeKind}
             containerClassName="w-48">
             <SelectItem value="installer">Монтажник</SelectItem>
             <SelectItem value="manager">Менеджер</SelectItem>
@@ -106,7 +111,8 @@ export function BulkAssignDialog({ constructionId, siteName, today, onClose }: {
           <EmployeePicker candidates={items} selected={selected} onChange={next => { setSelected(next); setRefusal(r => (r?.kind === 'refused' ? r : null)); }}
             search={q} onSearch={setQ} refused={refused} more={page?.more} limit={page?.limit}
             missing={complete ? candidates.data?.missing ?? null : null}
-            pending={complete && candidates.isFetching} disabled={assign.isPending} />
+            pending={complete && (candidates.isFetching || q !== search)} loading={complete && candidates.isPending}
+            disabled={assign.isPending} />
         )}
       </div>
     </Modal>

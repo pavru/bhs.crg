@@ -1,5 +1,5 @@
 import type { Assignment } from '@/shared/api/workAssignments';
-import { formatDate } from '@/shared/format/format';
+import { formatDate, formatDayMonth } from '@/shared/format/format';
 
 /**
  * Строки панели «Назначения» (change `work-12-assignments-ui`, макет Р2 А+): подпись периода, состояние и отбор.
@@ -21,10 +21,11 @@ export function periodLabel(a: Pick<Assignment, 'dateFrom' | 'dateTo'>): string 
   return a.dateTo === null ? `с ${formatDate(a.dateFrom)}, без срока` : `${formatDate(a.dateFrom)} — ${formatDate(a.dateTo)}`;
 }
 
-/** Подпись полосы ленты — короче: без года у закрытого периода. */
+/** Подпись полосы ленты — короче: без года у закрытого периода (год сказан над шкалой). */
 export function barLabel(a: Pick<Assignment, 'dateFrom' | 'dateTo'>): string {
-  const short = (iso: string) => formatDate(iso).slice(0, 5);
-  return a.dateTo === null ? `с ${formatDate(a.dateFrom)}, без срока` : `${short(a.dateFrom)} — ${short(a.dateTo)}`;
+  return a.dateTo === null
+    ? `с ${formatDate(a.dateFrom)}, без срока`
+    : `${formatDayMonth(a.dateFrom)} — ${formatDayMonth(a.dateTo)}`;
 }
 
 export function phaseLabel(a: Assignment, today: string | null): string {

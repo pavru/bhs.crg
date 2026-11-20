@@ -20,7 +20,7 @@ import { SearchInput } from './SearchInput';
  */
 export function EmployeePicker({
   candidates, selected, onChange, search, onSearch, refused = {}, more = false, limit, missing = null, pending = false,
-  disabled = false,
+  loading = false, disabled = false,
 }: {
   /** `undefined` — ещё не спрошены (период не задан). */
   candidates: AssignmentCandidate[] | undefined;
@@ -36,6 +36,8 @@ export function EmployeePicker({
   missing?: string | null;
   /** Идёт запрос под новый поиск или период: прежняя выдача на месте, но приглушена. */
   pending?: boolean;
+  /** Первый запрос кандидатов ещё в пути — выдачи нет, но период задан: не «задайте период». */
+  loading?: boolean;
   disabled?: boolean;
 }) {
   const eligible = (candidates ?? []).filter(c => c.eligible);
@@ -86,7 +88,9 @@ export function EmployeePicker({
       {missing ? (
         <p role="alert" className="text-body-medium text-error">{missing}</p>
       ) : candidates === undefined ? (
-        <p className="text-body-medium text-on-surface-variant">Задайте период — кандидаты подберутся под него.</p>
+        <p className="text-body-medium text-on-surface-variant" aria-busy={loading || undefined}>
+          {loading ? 'Подбираем кандидатов…' : 'Задайте период — кандидаты подберутся под него.'}
+        </p>
       ) : (
         <>
           {more && (

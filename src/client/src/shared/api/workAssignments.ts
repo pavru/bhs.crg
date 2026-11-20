@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { directoryMissingOf } from './directoryMissing';
+import { apiError } from '@/shared/utils/apiError';
 import type { AssignmentCandidatesPage } from './work';
 
 /**
@@ -73,27 +74,25 @@ export interface RefusedEmployee {
  * - `conflict` — прочий 409: назначение изменили под окном, период пересекается с другим, на стройке не
  *   останется менеджера. Различает их только текст сервера, и выход у всех один — перечитать.
  * - `forbidden` — 403: назначать на этой стройке может её менеджер.
- * - `other` — 400, 404 и прочее: текст сервера как есть.
+ * - `gone` — 404: назначение тем временем сняли; править и снимать нечего.
+ * - `other` — 400 и прочее: текст сервера как есть.
  */
 export type AssignmentRefusal =
   | { kind: 'refused'; error: string; refused: RefusedEmployee[] }
   | { kind: 'missing'; error: string }
   | { kind: 'conflict'; error: string }
   | { kind: 'forbidden'; error: string }
+  | { kind: 'gone'; error: string }
   | { kind: 'other'; error: string };
 
 const FORBIDDEN = 'Назначать на этой стройке может её менеджер или пользователь с правом «на любых стройках».';
 
 /**
- * Текст отказа — только из тела ответа. Без тела `apiError` отдал бы сообщение axios («Request failed with status
- * code 403»), а человеку нужна фраза о стройке.
+ * Текст отказа — общим разбором `apiError`, но только из тела ответа: без тела `apiError` отдал бы сообщение axios
+ * («Request failed with status code 403»), а человеку нужна фраза о стройке. Поэтому разбор получает один ответ.
  */
-function said(e: unknown, fallback: string): string {
-  const data = (e as { response?: { data?: unknown } })?.response?.data;
-  if (typeof data === 'string' && data.trim()) return data;
-  const error = (data as { error?: unknown } | null | undefined)?.error;
-  return typeof error === 'string' && error.trim() ? error : fallback;
-}
+const said = (e: unknown, fallback: string) =>
+  apiError({ response: (e as { response?: unknown })?.response }, fallback);
 
 export function assignmentRefusalOf(e: unknown): AssignmentRefusal {
   const response = (e as { response?: { status?: number; data?: { refused?: unknown } } })?.response;
@@ -106,6 +105,7 @@ export function assignmentRefusalOf(e: unknown): AssignmentRefusal {
     }
     case 409: return { kind: 'conflict', error: said(e, 'Назначение тем временем изменили — перечитайте.') };
     case 403: return { kind: 'forbidden', error: said(e, FORBIDDEN) };
+    case 404: return { kind: 'gone', error: said(e, 'Назначение тем временем сняли.') };
     default: return { kind: 'other', error: said(e, 'Назначение не записано.') };
   }
 }

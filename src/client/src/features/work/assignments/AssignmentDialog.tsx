@@ -45,7 +45,10 @@ export function AssignmentDialog({ assignment, siteName, onReread, onClose }: {
       await change.mutateAsync({ id: assignment.id, version, dateFrom: from, dateTo: to || null });
       onClose();
     } catch (e) {
-      setRefusal(assignmentRefusalOf(e));
+      const refused = assignmentRefusalOf(e);
+      // 404 — назначение сняли под окном: сохранять нечего, «Сохранить» уходит, остаётся выход.
+      if (refused.kind === 'gone') setGone(true);
+      else setRefusal(refused);
     }
   };
 

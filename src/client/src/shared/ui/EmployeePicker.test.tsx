@@ -65,6 +65,12 @@ describe('EmployeePicker', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
+  it('первый запрос в пути — «подбираем», а не «задайте период»', () => {
+    mount({ candidates: undefined, loading: true });
+    expect(screen.getByText('Подбираем кандидатов…')).toBeTruthy();
+    expect(screen.queryByText(/Задайте период/)).toBeNull();
+  });
+
   it('выдача обрезана — строка «показаны первые N»', () => {
     mount({ candidates: [cand('А')], more: true, limit: 200 });
     expect(screen.getByText(/Показаны первые 200/)).toBeTruthy();

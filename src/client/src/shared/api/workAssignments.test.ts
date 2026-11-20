@@ -40,6 +40,11 @@ describe('assignmentRefusalOf', () => {
     expect(assignmentRefusalOf(refusal(403, undefined)).error).toMatch(/может её менеджер/);
   });
 
+  it('404 — назначение сняли: свой вид, текст сервера', () => {
+    expect(assignmentRefusalOf(refusal(404, { error: 'Назначение не найдено: его сняли или идентификатор неверен.' })))
+      .toEqual({ kind: 'gone', error: 'Назначение не найдено: его сняли или идентификатор неверен.' });
+  });
+
   it('400 — текст сервера как есть', () => {
     expect(assignmentRefusalOf(refusal(400, { error: 'Не задано начало периода (dateFrom).' })))
       .toEqual({ kind: 'other', error: 'Не задано начало периода (dateFrom).' });

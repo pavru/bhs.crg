@@ -14,7 +14,7 @@ import { Timeline, type TimelineRow, type TimelineTone } from '@/shared/ui/Timel
 import { formatDate } from '@/shared/format/format';
 import { apiError } from '@/shared/utils/apiError';
 import {
-  ASSIGNMENTS_KEY, KIND_LABEL, useAssignments, useRemoveAssignment, type Assignment, type AssignmentSite,
+  ASSIGNMENTS_KEY, KIND_LABEL, assignmentRefusalOf, useAssignments, useRemoveAssignment, type Assignment, type AssignmentSite,
 } from '@/shared/api/workAssignments';
 import { barLabel, filterAssignments, periodLabel, phaseLabel, phaseOf, type AssignmentFilter } from './assignmentRows';
 import { AssignmentDialog } from './AssignmentDialog';
@@ -69,16 +69,15 @@ export function AssignmentsPanel({ constructionId }: { constructionId: string })
     if (a.canRemove) list.push({ key: 'remove', label: 'Снять назначение', icon: Delete, danger: true, onSelect: () => setRemoving(a) });
     return list;
   };
-  const menu = (a: Assignment) => {
-    const list = actionsOf(a);
-    return list.length > 0 ? <RowActionsMenu actions={list} ariaLabel={`Действия назначения: ${a.employeeName}`} /> : null;
-  };
+  const menuOf = (a: Assignment, list: RowAction[]) =>
+    list.length > 0 ? <RowActionsMenu actions={list} ariaLabel={`Действия назначения: ${a.employeeName}`} /> : null;
+  const menu = (a: Assignment) => menuOf(a, actionsOf(a));
 
   const chooseView = (next: PanelView) => { setView(next); storeView(next); };
 
   return (
     <Shell>
-      <Header site={site} count={items.length}>
+      <Header site={site}>
         {items.length > 0 && (
           <>
             <Tabs id={VIEW_TABS} variant="segmented" aria-label="Вид панели" value={view} onChange={chooseView}
@@ -119,7 +118,10 @@ export function AssignmentsPanel({ constructionId }: { constructionId: string })
               state={hidden > 0 ? 'filtered-out' : 'no-data'} />
           ) : site.today ? (
             <Timeline aria-label="Лента назначений" nameLabel="Сотрудник" today={site.today}
-              rows={shown.map(a => timelineRow(a, site, menu(a), actionsOf(a).some(x => x.key === 'change') ? () => setEditing(a) : undefined))} />
+              rows={shown.map(a => {
+                const list = actionsOf(a);
+                return timelineRow(a, site, menuOf(a, list), list.some(x => x.key === 'change') ? () => setEditing(a) : undefined);
+              })} />
           ) : (
             <p className="text-body-medium text-on-surface-variant">
               Ленте нужна сегодняшняя дата стройки, а пояс стройки не определён — назначения видны в таблице.
@@ -153,7 +155,12 @@ export function AssignmentsPanel({ constructionId }: { constructionId: string })
           void qc.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
           throw e;
         })}
-        onRefused={() => ({ note: 'Назначение осталось в списке. Перечитайте назначения стройки — признаки могли измениться.' })} />
+        onRefused={e => ({
+          // Список уже перечитан (выше) — просить «перечитайте» без кнопки незачем; сказать надо, что с назначением.
+          note: assignmentRefusalOf(e).kind === 'gone'
+            ? 'Его уже сняли — список назначений перечитан.'
+            : 'Назначение осталось в списке; список перечитан — признаки строк по свежему ответу.',
+        })} />
     </Shell>
   );
 }
@@ -176,12 +183,12 @@ function Shell({ children }: { children: ReactNode }) {
   return <div className="mx-auto max-w-5xl space-y-3">{children}</div>;
 }
 
-function Header({ site, count, children }: { site?: AssignmentSite; count?: number; children?: ReactNode }) {
+function Header({ site, children }: { site?: AssignmentSite; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="min-w-0 flex-1">
         <h2 className="text-title-large text-on-surface">Назначения</h2>
-        {site?.today && count !== undefined && (
+        {site?.today && (
           <p className="text-body-small text-on-surface-variant">Сегодня на стройке — {formatDate(site.today)}</p>
         )}
       </div>

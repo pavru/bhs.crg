@@ -152,6 +152,14 @@ describe('окно «Изменить период»', () => {
     expect(vi.mocked(apiClient.put).mock.calls[1][2]).toEqual({ headers: { 'If-Match': 'v2' } });
   });
 
+  it('404 — назначение сняли под окном: «Сохранить» уходит, окно говорит, что изменять нечего', async () => {
+    vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(404, { error: 'Назначение не найдено: его сняли или идентификатор неверен.' }));
+    const dialog = await openEdit();
+    fireEvent.click(within(dialog).getByRole('button', { name: /Сохранить/ }));
+    expect(await within(dialog).findByText(/тем временем сняли/)).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: /Сохранить/ })).toBeNull();
+  });
+
   it('пересечение — словами сервера, окно не закрывается', async () => {
     vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Период пересекается с назначением 01.12.2026–31.12.2026.' }));
     const dialog = await openEdit();
@@ -196,6 +204,23 @@ describe('окно «Назначить на период»', () => {
     }]);
   });
 
+  it('смена вида сбрасывает поиск: отмеченный, скрытый поиском, проверяется по полной выдаче', async () => {
+    const fit = (n: string) => ({ employeeId: n, name: n, personnelNumber: null, eligible: true, reason: null, assigned: null, account: { state: 'linked' as const } });
+    candidates = { items: [fit('Белов'), fit('Мельник')], inArchive: 0, limit: 200, more: false };
+    list = page({}, [manager]);
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: /Назначить на период/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Назначить на период' });
+    fireEvent.keyDown(within(dialog).getByRole('combobox', { name: 'Вид' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Менеджер' }));
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Отметить: Мельник' }));
+    const search = within(dialog).getByLabelText('Найти сотрудника') as HTMLInputElement;
+    fireEvent.change(search, { target: { value: 'Бел' } });
+    fireEvent.keyDown(within(dialog).getByRole('combobox', { name: 'Вид' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Монтажник' }));
+    expect(search.value).toBe('');
+  });
+
   it('смена периода перечитывает кандидатов; ставший негодным снимается, его строка — с причиной', async () => {
     const fit = (n: string, eligible = true, reason: string | null = null) => ({
       employeeId: n, name: n, personnelNumber: null, eligible, reason, assigned: null, account: { state: 'linked' as const },
@@ -219,6 +244,19 @@ describe('окно «Назначить на период»', () => {
     expect(await within(dialog).findByText('уволен с 20.12.2026')).toBeTruthy();
     await waitFor(() => expect(within(dialog).getByRole('button', { name: /Назначить · 1/ })).toBeTruthy());
     expect((within(dialog).getByRole('checkbox', { name: 'Отметить: Мельник' }) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+describe('снятие назначения — уже сняли', () => {
+  it('404 — окно говорит «уже сняли», а не «осталось в списке»', async () => {
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(refusal(404, { error: 'Назначение не найдено: его сняли или идентификатор неверен.' }));
+    mount();
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Действия назначения: Белов Андрей Сергеевич' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Снять назначение/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Снять назначение\?|Назначение не снято/ });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Снять назначение' }));
+    expect(await within(dialog).findByText(/Его уже сняли/)).toBeTruthy();
+    expect(within(dialog).queryByText(/осталось в списке/)).toBeNull();
   });
 });
 
