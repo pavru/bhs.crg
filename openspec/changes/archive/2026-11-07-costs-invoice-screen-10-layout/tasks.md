@@ -123,7 +123,7 @@
   работает как 1024 [COST-6.2]. Проверка — живой прогон на 1024×768: файл поверх, все части достижимы;
   `invoice-scan-checks` зелёный.
 
-- [x] 4.7 `hand-card` в файлах раскладки — до нуля, по выбору А `sharedui-md3-17` (макеты 4f525fa0, артефакт https://claude.ai/artifact/WJ8QAATJ9CX7VMMUhkVkgJ)
+- [x] 4.7 `hand-card` в файлах раскладки — до нуля, по выбору А `sharedui-md3-17` (макеты 4f525fa0, артефакт https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77)
   [UI-81]. Три места (по одному к 05.11.2026):
   1. `InvoiceLinesTable.tsx:446` — полоса сверки → липкая строка сверки (1.7), не `Card`;
   2. `InvoicePayment.tsx:46` — `InvoiceLockNote` «Счёт заперт» → `Banner` (сообщение, до индикатора 11;

@@ -1,7 +1,7 @@
 # Tasks: отборы над лентой счетов — в один ряд
 
 Один клиентский PR с «Closes #1910». В описании PR — макет
-https://claude.ai/artifact/WZ825m7bDtaipxWScqZyMc, вариант В (выбран 12.11.2026). Поведение отборов
+https://claude.ai/artifact/JBRovSvLUXaw1Qb7kqBFwo, вариант В (выбран 12.11.2026). Поведение отборов
 меняется заметно, поэтому PR — с меткой `version:minor`.
 
 ## 1. Общие компоненты: `Select` и `SelectItem`

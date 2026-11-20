@@ -175,9 +175,9 @@ Esc ловится слушателем `window` в фазе перехвата,
 Макеты (0.2), 11.11.2026, на токенах «BHS.CRG UI»; в каждом восемь кадров (панель счёта 420 выключена и
 включена над «ИНН / КПП», заглушка до готовности куска, кнопка standard-selected для сравнения, правый
 край, широкий предпросмотр 900 при 100 %, оба в тёмной теме), состояния кнопки; окно ходит за мышью:
-- А — прямоугольник у указателя (★ Дизайнер): https://claude.ai/artifact/NgeKwoUR9ThPYgf4rLijqw
-- Б — круг у указателя: https://claude.ai/artifact/FF8tnJh9rpvgXTn4V7qY7y
-- В — окно в стороне от указателя: https://claude.ai/artifact/EkeDVNJG9wB23Ubq1yVEuR
+- А — прямоугольник у указателя (★ Дизайнер): https://claude.ai/artifact/SJm21EEWmUtL46ey5iBQsV
+- Б — круг у указателя: https://claude.ai/artifact/2pxZAeVHMxwPGeugdJrzSE
+- В — окно в стороне от указателя: https://claude.ai/artifact/HZvfqdyY59boUgRnSkNcGu
 
 ## Risks / Trade-offs
 

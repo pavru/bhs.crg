@@ -41,7 +41,7 @@ function within(e: DragEvent) {
 
 /**
  * Площадка выбора и броска одного файла ([UI-89], change `sharedui-file-drop-zone`). Вид — вариант Б
- * «Площадка» макета «Площадка файла · FileDropZone» (https://claude.ai/artifact/DkC1pS2r15uGtos1SS5m56),
+ * «Площадка» макета «Площадка файла · FileDropZone» (https://claude.ai/artifact/TdHt1Y6hm26rUyAu8pXNsb),
  * выбор владельца 08.11.2026.
  *
  * - **Два пути — один исход.** Бросок и кнопка выбора отдают экрану один и тот же `File`; отказ у обоих тот

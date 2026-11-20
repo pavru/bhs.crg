@@ -79,4 +79,4 @@
   переписываются (MODIFIED): их сценарии называли «Сохранить строки» и «Сохранить».
 - **Документы:** ТЗ — абзац [COST-6.5]; `docs/USER_GUIDE.md` — «как счёт сохраняется», «Изменить».
 - **PR:** два, оба с меткой `version:minor`. Макет — «Экран счёта · критический пересмотр», вариант Г, лист
-  0, раздел 3.2 — https://claude.ai/artifact/QRAkNdAL6wAy9HBubKndCF.
+  0, раздел 3.2 — https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa.
