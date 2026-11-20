@@ -248,7 +248,7 @@ type Target =
 - Дизайнер — оси макетов (В «выбор переключателем» заменён на В «по контейнеру»), битая отмеченная — заливкой
   (Р3), «Выбрать» только у активной (Р2);
 - владелец — П1 В, П2 галочка, П3 (б), П4 (а), П5 да. Макеты —
-  https://claude.ai/artifact/WS1vWJpd1wKUgEdNweodNA.
+  https://claude.ai/artifact/Qaik5dtwrTAzAfBeYtw9in.
 
 ## Risks / Trade-offs
 

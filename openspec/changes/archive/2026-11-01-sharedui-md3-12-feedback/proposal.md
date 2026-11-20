@@ -22,7 +22,7 @@
 
 Владелец выбрал вариант Г для всего приложения. Snackbar по одному — изменение поведения, его решает В9.
 
-**Выбор 01.11.2026 — макет А «MD3 целиком»** (В9, В16): https://claude.ai/artifact/GBtQvAZXiQC8pWtSmBcQEH.
+**Выбор 01.11.2026 — макет А «MD3 целиком»** (В9, В16): https://claude.ai/artifact/LKFzkVSmBePXMvqEkiaF19.
 Подробности и отвергнутые варианты — `design.md`, «Выбор владельца».
 
 ## What Changes

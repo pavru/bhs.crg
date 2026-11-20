@@ -12,7 +12,7 @@
 ## Выбор владельца (31.10.2026)
 
 Макеты — проект Claude Design «Поля и выбор MD3 — плотность и текст поля (В5, В6)»,
-https://claude.ai/artifact/CtzRvyu2Mihu8EgD8CQrZ1. Разбор Дизайнера и Архитектора — лист
+https://claude.ai/artifact/LaBBdXGdNLHHf1crrbjEjj. Разбор Дизайнера и Архитектора — лист
 «0 Разбор и вопрос» там же и разделы «§ sharedui-md3-11-inputs» их отчётов.
 
 **Выбран вариант А:**
