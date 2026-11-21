@@ -13,7 +13,7 @@
 | План: привязки материалов и MCP (разработка) | [PLAN_QUALITY_LINKS_AND_MCP.md](PLAN_QUALITY_LINKS_AND_MCP.md) | — |
 
 - `images/` — скриншоты, используемые в инструкциях.
-- `tools/` — конвертер Markdown → PDF, построитель содержания и [дорожная карта этапов 3–4](tools/roadmap/README.md).
+- `tools/` — конвертер Markdown → PDF и построитель содержания.
 
 ## Пересборка PDF
 

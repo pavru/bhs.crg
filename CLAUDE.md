@@ -316,9 +316,6 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
   [`plan-00-epic`](openspec/changes/plan-00-epic/design.md), этап 4 —
   [`work-00-epic`](openspec/changes/work-00-epic/design.md). Этап 3 строит механизмы, которых ждёт этап 4
   (контракт, право контракта, позиции перечня, навигация) — таблица «что взял» в D2 и D18 зонтиков.
-- **Дорожная карта этапов 3–4** — [`docs/tools/roadmap`](docs/tools/roadmap/README.md). После обновления
-  `tasks.md` этапов 3–4 или переноса их change в архив пересоберите карту в той же рабочей копии
-  командой `python docs/tools/roadmap/build.py`.
 - ⚠️ **Одна сессия — один change.** Если оказалось, что сначала нужен другой change, в этой сессии его
   не делают. Свою работу останавливают (несохранённое — WIP-коммитом в свою ветку), а тот change
   реализуют `/openspec-apply-change <change>` в чистой дочерней сессии со своим worktree. Текущая сессия ждёт, пока

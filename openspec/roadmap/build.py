@@ -7,7 +7,7 @@ from tempfile import NamedTemporaryFile
 
 
 HERE = Path(__file__).resolve().parent
-CHANGES = HERE.parents[2] / "openspec" / "changes"
+CHANGES = HERE.parent / "changes"
 OUTPUT = HERE / "dist" / "roadmap-3-4.html"
 CHANGE = re.compile(r"(?:plan|work)-\d{2}-[a-z0-9-]+|core-attachment-owner")
 ARCHIVE = re.compile(r"\d{4}-\d{2}-\d{2}-(.+)")
