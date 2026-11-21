@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дорожная карта этапов 3–4</title>
+<style>
+/* Ведомость: лист-таблица с узкой колонкой номеров, группы — заголовки листа, две линии и этап после них */
+:root {
+  --paper: #F3F5F2;
+  --sheet: #FFFFFF;
+  --ink: #1B2220;
+  --muted: #5B6863;
+  --rule: #D6DCD7;
+  --rule-strong: #AEB8B2;
+  --accent: #1D5BB8;
+  --accent-soft: #E6EEFA;
+  --done: #2D7A4C;
+  --done-soft: #E5F2EA;
+  --warn: #9A5A00;
+  --warn-soft: #FBF0DD;
+  --code-bg: #EEF1EE;
+  --f-display: "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "PT Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "PT Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111614; --sheet: #19201D; --ink: #E2E8E4; --muted: #94A39C; --rule: #2B3430;
+    --rule-strong: #46524D; --accent: #7FA9F2; --accent-soft: #1C2A40; --done: #63BE89;
+    --done-soft: #17291F; --warn: #E3A74E; --warn-soft: #2F2414; --code-bg: #222B27;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111614; --sheet: #19201D; --ink: #E2E8E4; --muted: #94A39C; --rule: #2B3430;
+  --rule-strong: #46524D; --accent: #7FA9F2; --accent-soft: #1C2A40; --done: #63BE89;
+  --done-soft: #17291F; --warn: #E3A74E; --warn-soft: #2F2414; --code-bg: #222B27;
+  color-scheme: dark;
+}
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; gap: 22px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 34px; line-height: 1.1; }
+h2 { font-size: 24px; line-height: 1.15; }
+h3 { font-size: 18px; }
+code { font-family: var(--f-mono); font-size: .86em; background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.eyebrow { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .08em; font-size: 13px; color: var(--muted); }
+
+header.top { display: grid; gap: 10px; }
+.lead { max-width: 68ch; margin: 0; color: var(--muted); }
+
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .summary { grid-template-columns: 1fr; } }
+.track-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0; align-content: start; }
+.track-card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.track-card .count { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--done); border-radius: 3px; transition: width .3s; }
+.next { font-size: 14px; display: grid; gap: 6px; }
+.next .lbl { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--accent); }
+.next p { margin: 0; overflow-wrap: anywhere; }
+.linkbtn { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); padding-block: 10px; border-bottom: 1px solid var(--rule); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+.toolbar input[type=search] { flex: 1 1 240px; min-width: 0; font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--rule-strong); border-radius: 4px; background: var(--sheet); color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 4px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; padding: 6px 10px; background: var(--sheet); color: var(--ink); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule-strong); }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--sheet); }
+.btn { font: inherit; font-size: 13px; padding: 6px 10px; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 4px; cursor: pointer; }
+
+section.track { display: grid; gap: 12px; }
+section.track > .th { display: grid; gap: 4px; padding-top: 6px; }
+section.track > .th p { margin: 0; max-width: 72ch; color: var(--muted); font-size: 14px; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: 4px; overflow: hidden; }
+.group-h { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 9px 14px; background: var(--code-bg); border-bottom: 1px solid var(--rule-strong); }
+.group-h .count { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.group + .group .group-h { border-top: 1px solid var(--rule-strong); }
+
+.step { display: grid; grid-template-columns: 64px 28px minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
+.step:last-child { border-bottom: 0; }
+.step .num { font-family: var(--f-mono); font-size: 13px; color: var(--muted); padding: 12px 0 0 14px; border-right: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.step .chk { padding: 11px 0 0 8px; }
+.step .body { padding: 10px 14px 12px 6px; display: grid; gap: 5px; min-width: 0; }
+.step.is-done .num { color: var(--done); }
+.step.is-done .main { color: var(--muted); }
+.step.is-next { background: var(--accent-soft); }
+.step.is-next .num { color: var(--accent); font-weight: 700; }
+.step.withdrawn .main { text-decoration: line-through; text-decoration-color: var(--rule-strong); color: var(--muted); }
+.step.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { box-shadow: inset 4px 0 0 var(--accent); background: var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { .step.flash { animation: none; } .bar > i { transition: none; } }
+.main { overflow-wrap: anywhere; }
+.cname { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; overflow-wrap: anywhere; }
+.cname .cid { font-size: 12px; color: var(--accent); background: var(--accent-soft); }
+.cname .ctitle { font-family: var(--f-display); font-weight: 700; font-size: 17px; line-height: 1.2; }
+.cname .ctitle code { font-size: .8em; }
+.step.is-done .cname .ctitle, .step.withdrawn .cname .ctitle { color: var(--muted); }
+.step.withdrawn .cname .ctitle { text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+.refs { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.refs .rl { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .05em; font-size: 12px; }
+.refs .ref { overflow-wrap: anywhere; }
+.refs .ref code { color: var(--accent); }
+.sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.sub b { font-weight: 700; color: var(--ink); font-family: var(--f-display); letter-spacing: .03em; }
+.tag { font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--rule); border-radius: 3px; padding: 0 3px; white-space: nowrap; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; }
+.pill { font-family: var(--f-display); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+.pill.pr { background: var(--code-bg); color: var(--muted); }
+.pill.ok { background: var(--done-soft); color: var(--done); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.off { background: var(--code-bg); color: var(--muted); }
+.mini { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.mini .bar { width: 70px; height: 4px; }
+.who { font-size: 12px; color: var(--done); }
+.expander { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--accent); cursor: pointer; }
+
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--done); margin: 0; }
+
+.change { margin-top: 6px; border-left: 2px solid var(--rule-strong); padding-left: 12px; display: grid; gap: 10px; }
+.change .why { font-size: 13px; color: var(--muted); max-width: 75ch; margin: 0; }
+.csec h4 { margin: 0 0 4px; font-family: var(--f-display); font-size: 15px; font-weight: 700; }
+.task { display: grid; grid-template-columns: 22px 40px minmax(0, 1fr); gap: 0 4px; padding: 4px 0; font-size: 14px; border-top: 1px dashed var(--rule); }
+.task:first-of-type { border-top: 0; }
+.task .tn { font-family: var(--f-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+.task input { margin-top: 2px; width: 16px; height: 16px; }
+.task.is-done .tt { color: var(--muted); }
+.task .tt { overflow-wrap: anywhere; display: grid; gap: 2px; }
+.empty { padding: 14px; color: var(--muted); font-size: 14px; }
+footer { font-size: 13px; color: var(--muted); max-width: 75ch; }
+@media (max-width: 520px) {
+  .step { grid-template-columns: 50px 26px minmax(0, 1fr); }
+  .step .num { padding-left: 8px; font-size: 12px; }
+  h1 { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">BHS.CRG · OpenSpec · openspec/changes</div>
+    <h1>Дорожная карта этапов 3–4</h1>
+    <p class="lead">Порядок выполнения заведённых change: этап 3 «Планирование», то, что разрешено вести параллельно ему, и этап 4 «Учёт работ». Шаг верхнего уровня — строка зонтика (<code>plan-00-epic</code>, <code>work-00-epic</code>); у шага с change раскрываются его задачи из <code>tasks.md</code>. Галочки показывают состояние OpenSpec. Рядом с прежними отметками указана дата из Claude.</p>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Поиск: change, метка PLAN-7, файл…" aria-label="Поиск по шагам и задачам">
+    <div class="seg" role="group" aria-label="Что показывать">
+      <button type="button" id="f-all" aria-pressed="true">Все шаги</button>
+      <button type="button" id="f-open" aria-pressed="false">Невыполненные</button>
+    </div>
+    <button type="button" class="btn" id="collapse">Свернуть задачи</button>
+  </div>
+
+  <main id="tracks"></main>
+
+  <footer id="foot"></footer>
+</div>
+
+<script type="application/json" id="data">__ROADMAP_DATA__</script>
+<script>
+(function () {
+  const { changes: CH, claudeMarks } = JSON.parse(document.getElementById('data').textContent);
+
+  // ---------- модель шагов ----------
+  const CHANGE_RE = /^`((?:plan|work)-\d\d-[a-z0-9-]+)`\s*\((\d+)\)(?:\s*—\s*|,\s*)?/;
+  const CHANGE_IDS = Object.keys(CH);
+  // change, на которые шаг ссылается, кроме своего: полное имя или короткое `plan-02`
+  function refsOf(text, own) {
+    const out = [];
+    (text.match(/`((?:plan|work)-\d\d(?:-[a-z0-9-]+)?|core-attachment-owner)`/g) || []).forEach(t => {
+      const id = t.slice(1, -1);
+      const full = CH[id] ? id : CHANGE_IDS.find(k => k.startsWith(id + '-'));
+      if (full && full !== own && !/-00-epic$/.test(full) && !out.includes(full)) out.push(full);
+    });
+    return out;
+  }
+  function epicStep(epic, prefix, item) {
+    const m = item.text.match(CHANGE_RE);
+    const change = m && CH[m[1]] ? m[1] : null;
+    const text = change ? item.text.slice(m[0].length) : item.text;
+    return {
+      key: epic + ':' + item.n, num: prefix + item.n, text, fileDone: item.done,
+      change, refs: refsOf(text, change), prs: m ? +m[2] : null, withdrawn: /\*\*снят\*\*/.test(item.text),
+    };
+  }
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const changeTitle = id => cap(CH[id].title);
+  function epicGroups(epic, prefix, filter) {
+    return CH[epic].sections.filter(s => s.items.length && filter(s)).map(s => ({
+      title: s.title, steps: s.items.map(it => epicStep(epic, prefix, it)),
+    }));
+  }
+  const closing = (epic, prefix, label) => ({
+    title: 'Закрытие', steps: [{
+      key: epic + ':archive', num: prefix + '∎', fileDone: CH[epic].archived, change: null, refs: [], prs: null, withdrawn: false,
+      text: 'Зонтик `' + epic + '` заархивирован — последним, после всех дочерних change (' + label + '). Проверка — `openspec archive ' + epic + '`',
+    }],
+  });
+
+  function extraGroups(epic, prefix) {
+    const listed = new Set(epicGroups(epic, '', () => true).flatMap(g => g.steps.map(s => s.change)));
+    const steps = CHANGE_IDS.filter(id => id.startsWith(prefix + '-') && id !== epic && !listed.has(id))
+      .map((id, index) => ({
+        key: id + ':change', num: (prefix === 'plan' ? '3' : '4') + '·+' + (index + 1),
+        fileDone: CH[id].archived, change: id, refs: refsOf(CH[id].why || '', id),
+        prs: null, withdrawn: false, text: CH[id].why || changeTitle(id),
+      }));
+    return steps.length ? [{ title: 'Вне нарезки', steps }] : [];
+  }
+
+  const coreId = 'core-attachment-owner';
+  const coreGroups = CH[coreId] ? [{
+    title: 'Ядро', steps: [{
+      key: coreId + ':change', num: 'Я·1', fileDone: CH[coreId].archived, change: coreId,
+      refs: ['work-17-photos'].filter(id => CH[id]), prs: 1, withdrawn: false,
+      text: 'Владелец у записи реестра, выдача по владельцу, порт `IModuleBlobs` [CORE-37.2]. Условие для `work-17-photos`.',
+    }],
+  }] : [];
+  const TRACKS = [
+    {
+      id: 'A', title: 'Этап 3 · Планирование', short: 'Этап 3',
+      sub: 'Основная линия. Порядок групп — порядок старта; число в скобках у change — количество PR.',
+      groups: epicGroups('plan-00-epic', '3·', () => true).concat(
+        extraGroups('plan-00-epic', 'plan'), closing('plan-00-epic', '3·', 'модуль plan')),
+    },
+    {
+      id: 'B', title: 'Параллельно этапу 3', short: 'Параллельно',
+      sub: 'Ранние change этапа 4 разрешены параллельно этапу 3 (решение 22.10.2026, STG-18). Change ядра core-attachment-owner — самостоятельный, условие для work-17.',
+      groups: epicGroups('work-00-epic', '4·', s => /^1\./.test(s.title)).concat(coreGroups),
+    },
+    {
+      id: 'C', title: 'Этап 4 · Учёт работ', short: 'Этап 4',
+      sub: 'Основной поток по STG-18.1. Группы 2–5 опираются на plan-21 и plan-22. Группа 6 ждёт графиков и «Хода работ» этапа 3.',
+      groups: epicGroups('work-00-epic', '4·', s => !/^1\./.test(s.title)).concat(
+        extraGroups('work-00-epic', 'work'), closing('work-00-epic', '4·', 'модуль work')),
+    },
+  ];
+  const ALL_STEPS = [];
+  TRACKS.forEach(t => t.groups.forEach(g => g.steps.forEach(s => { s.track = t.id; ALL_STEPS.push(s); })));
+  const STEP_BY_KEY = new Map(ALL_STEPS.map(s => [s.key, s]));
+
+  const childTasks = change => CH[change].sections.flatMap(sec => sec.items);
+
+  // ---------- состояние ----------
+  const ui = { filter: 'all', q: '', open: new Set() };
+  try {
+    const saved = JSON.parse(localStorage.getItem('roadmap-ui') || '{}');
+    if (saved.filter) ui.filter = saved.filter;
+    if (Array.isArray(saved.open)) saved.open.forEach(k => ui.open.add(k));
+  } catch (e) {}
+  function saveUi() {
+    try { localStorage.setItem('roadmap-ui', JSON.stringify({ filter: ui.filter, open: [...ui.open] })); } catch (e) {}
+  }
+
+  const stepDone = s => s.fileDone;
+  function childStats(change) {
+    const ts = childTasks(change);
+    return { total: ts.length, done: ts.filter(t => t.done).length };
+  }
+
+  // ---------- вывод текста ----------
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function inline(s) {
+    // код выносим в заглушки, чтобы метки и ** внутри него не трогать
+    const codes = [];
+    let h = esc(s).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return '\u0000' + (codes.length - 1) + '\u0000'; });
+    h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+         .replace(/\[([A-Z]{2,5}-[A-Z0-9.]+)\]/g, '<span class="tag">$1</span>');
+    return h.replace(/\u0000(\d+)\u0000/g, (_, i) => '<code>' + codes[+i] + '</code>');
+  }
+  function richText(text, mainCls) {
+    const parts = text.split(/\.\s+(Проверка|Условие)\s+—\s+/);
+    let html = '<div class="' + mainCls + '">' + inline(parts[0]) + '</div>';
+    for (let i = 1; i < parts.length; i += 2) {
+      html += '<div class="sub"><b>' + parts[i] + ':</b> ' + inline(parts[i + 1]) + '</div>';
+    }
+    return html;
+  }
+  const historyFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+  function stamp(key) {
+    const at = claudeMarks[key];
+    if (!at) return '';
+    return '<time class="who" datetime="' + esc(at) + '">Claude · ' + historyFormat.format(new Date(at)) + '</time>';
+  }
+  const matches = (text) => !ui.q || text.toLowerCase().includes(ui.q);
+  function stepMatches(s) {
+    if (matches(s.text) || matches(s.num)) return true;
+    if (s.refs.some(r => matches(r) || matches(CH[r].title))) return true;
+    if (s.change) {
+      if (matches(s.change) || matches(CH[s.change].title)) return true;
+      return CH[s.change].sections.some(sec => sec.items.some(it => matches(it.text)));
+    }
+    return false;
+  }
+  // при поиске раскрываем change, где нашлись только его задачи
+  const childHit = s => !!ui.q && !!s.change && !matches(s.text) && !matches(s.change) && !matches(CH[s.change].title) &&
+    CH[s.change].sections.some(sec => sec.items.some(it => matches(it.text)));
+  const isOpen = s => ui.open.has(s.key) || childHit(s);
+  const domId = key => 's-' + key.replace(/[^a-z0-9-]/gi, '_');
+
+  function nextOf(trackId) {
+    return ALL_STEPS.find(s => s.track === trackId && !s.withdrawn && !stepDone(s));
+  }
+
+  function checkbox(key, done, label) {
+    return '<input type="checkbox" data-key="' + esc(key) + '"' + (done ? ' checked' : '') +
+      ' disabled aria-label="' + esc(label) + '" title="Статус из OpenSpec">';
+  }
+
+  // ---------- отрисовка ----------
+  function renderSummary() {
+    const el = document.getElementById('summary');
+    el.innerHTML = TRACKS.map(t => {
+      const steps = ALL_STEPS.filter(s => s.track === t.id && !s.withdrawn);
+      const done = steps.filter(stepDone).length;
+      const nx = nextOf(t.id);
+      let next = '<div class="next"><span class="lbl">Готово</span><p class="muted">Все шаги отмечены.</p></div>';
+      if (nx) {
+        next = '<div class="next"><span class="lbl">Первый открытый шаг · ' + esc(nx.num) + '</span>' +
+          (nx.change ? '<p class="cname"><code class="cid">' + esc(nx.change) + '</code> <span class="ctitle">' + inline(changeTitle(nx.change)) + '</span></p>' : '') +
+          '<p>' + inline(nx.text.split(/\.\s+(?:Проверка|Условие)\s+—/)[0]) + '</p>' +
+          '<button type="button" class="linkbtn" data-goto="' + esc(nx.key) + '">Перейти к шагу</button></div>';
+      }
+      return '<div class="track-card"><div class="head"><h3>' + esc(t.short) + '</h3><span class="count">' + done + ' / ' + steps.length + '</span></div>' +
+        '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + steps.length + '" aria-valuenow="' + done + '" aria-label="' + esc(t.short) + '"><i style="width:' + (steps.length ? 100 * done / steps.length : 0) + '%"></i></div>' +
+        next + '</div>';
+    }).join('');
+  }
+
+  function renderChange(change, narrow) {
+    const c = CH[change];
+    let h = '<div class="change">';
+    if (c.why) h += '<p class="why">' + inline(c.why) + '</p>';
+    c.sections.forEach(sec => {
+      const items = narrow ? sec.items.filter(it => matches(it.text)) : sec.items;
+      if (!items.length) return;
+      h += '<div class="csec"><h4>' + esc(sec.title) + '</h4>';
+      items.forEach(it => {
+        const key = change + ':' + it.n;
+        const done = it.done;
+        if (ui.filter === 'open' && done) return;
+        h += '<div class="task' + (done ? ' is-done' : '') + '">' + checkbox(key, it.done, change + ' ' + it.n) +
+          '<span class="tn">' + esc(it.n) + '</span><div class="tt">' + richText(it.text, 'tmain') +
+          stamp(key) + '</div></div>';
+      });
+      h += '</div>';
+    });
+    return h + '</div>';
+  }
+
+  function renderStep(s, nextKeys) {
+    const done = stepDone(s);
+    const cls = ['step'];
+    if (done) cls.push('is-done');
+    if (s.withdrawn) cls.push('withdrawn');
+    if (nextKeys.has(s.key)) cls.push('is-next');
+    let meta = '';
+    if (s.withdrawn) meta += '<span class="pill off">снят</span>';
+    if (s.prs != null && !s.withdrawn) meta += '<span class="pill pr">' + s.prs + ' PR</span>';
+    if (nextKeys.has(s.key)) meta += '<span class="pill warn">первый открытый</span>';
+    if (s.change && !s.withdrawn) {
+      const st = childStats(s.change);
+      meta += '<span class="mini" title="Задачи change"><span class="bar"><i style="width:' + (st.total ? 100 * st.done / st.total : 0) + '%"></i></span>' + st.done + '/' + st.total + '</span>';
+      if (st.total && st.done === st.total && !done) meta += '<span class="pill ok">задачи выполнены — архивировать</span>';
+      const open = isOpen(s);
+      meta += '<button type="button" class="expander" data-toggle="' + esc(s.key) + '" aria-expanded="' + open + '">' + (open ? 'Скрыть задачи' : 'Задачи change') + '</button>';
+    }
+    meta += stamp(s.key);
+    let h = '<div class="' + cls.join(' ') + '" id="' + domId(s.key) + '"><div class="num">' + esc(s.num) + '</div>' +
+      '<div class="chk">' + checkbox(s.key, s.fileDone, 'Шаг ' + s.num) + '</div><div class="body">' +
+      (s.change ? '<div class="cname"><code class="cid">' + esc(s.change) + '</code> <span class="ctitle">' + inline(changeTitle(s.change)) + '</span></div>' : '') +
+      richText(s.text, 'main') +
+      (s.refs.length ? '<div class="refs"><span class="rl">' + (s.change ? 'Связан с' : 'Для change') + ':</span>' +
+        s.refs.map(r => '<span class="ref"><code>' + esc(r) + '</code> ' + inline(CH[r].title) + '</span>').join('') + '</div>' : '') +
+      (meta ? '<div class="meta">' + meta + '</div>' : '');
+    if (s.change && !s.withdrawn && isOpen(s)) h += renderChange(s.change, !!ui.q && !matches(s.text) && !matches(s.change));
+    return h + '</div></div>';
+  }
+
+  function render() {
+    renderSummary();
+    const nextKeys = new Set(TRACKS.map(t => nextOf(t.id)).filter(Boolean).map(s => s.key));
+    let shown = 0;
+    const html = TRACKS.map(t => {
+      let body = '';
+      t.groups.forEach(g => {
+        const steps = g.steps.filter(s => (ui.filter === 'all' || !stepDone(s) && !s.withdrawn) && stepMatches(s));
+        if (!steps.length) return;
+        shown += steps.length;
+        const all = g.steps.filter(s => !s.withdrawn);
+        body += '<div class="group"><div class="group-h"><h3>' + esc(g.title) + '</h3><span class="count">' +
+          all.filter(stepDone).length + ' / ' + all.length + '</span></div>' + steps.map(s => renderStep(s, nextKeys)).join('') + '</div>';
+      });
+      return '<section class="track"><div class="th"><span class="eyebrow">Линия ' + t.id + '</span><h2>' + esc(t.title) + '</h2><p>' + esc(t.sub) + '</p></div>' +
+        '<div class="sheet">' + (body || '<div class="empty">Нет шагов под условие отбора.</div>') + '</div></section>';
+    }).join('');
+    document.getElementById('tracks').innerHTML = '<div style="display:grid;gap:28px">' + html + '</div>';
+    if (!shown && ui.q) document.getElementById('tracks').insertAdjacentHTML('afterbegin', '<p class="muted">По запросу «' + esc(ui.q) + '» ничего не найдено.</p>');
+  }
+
+  // ---------- события ----------
+  document.addEventListener('click', e => {
+    const tg = e.target.closest('[data-toggle]');
+    if (tg) {
+      const k = tg.dataset.toggle;
+      if (ui.open.has(k)) ui.open.delete(k); else ui.open.add(k);
+      saveUi(); render();
+      return;
+    }
+    const go = e.target.closest('[data-goto]');
+    if (go) {
+      const k = go.dataset.goto;
+      const s = STEP_BY_KEY.get(k);
+      if (ui.q) { ui.q = ''; document.getElementById('q').value = ''; }
+      if (s && s.change) ui.open.add(k);
+      saveUi(); render();
+      const el = document.getElementById(domId(k));
+      if (el) {
+        el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      }
+    }
+  });
+  function setFilter(f) {
+    ui.filter = f;
+    document.getElementById('f-all').setAttribute('aria-pressed', f === 'all');
+    document.getElementById('f-open').setAttribute('aria-pressed', f === 'open');
+    saveUi(); render();
+  }
+  document.getElementById('f-all').addEventListener('click', () => setFilter('all'));
+  document.getElementById('f-open').addEventListener('click', () => setFilter('open'));
+  document.getElementById('collapse').addEventListener('click', () => { ui.open.clear(); saveUi(); render(); });
+  let qt = null;
+  document.getElementById('q').addEventListener('input', e => {
+    clearTimeout(qt);
+    qt = setTimeout(() => { ui.q = e.target.value.trim().toLowerCase(); render(); }, 150);
+  });
+
+  const nTasks = Object.keys(CH).reduce((a, k) => a + childTasks(k).length, 0);
+  document.getElementById('foot').innerHTML = 'Снимок <code>openspec/changes</code> включает ' + Object.keys(CH).length +
+    ' change, ' + nTasks + ' задач. После изменения OpenSpec пересоберите карту и обновите страницу.';
+  setFilter(ui.filter);
+})();
+</script>
+</body>
+</html>
