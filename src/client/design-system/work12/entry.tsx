@@ -16,7 +16,7 @@ import '@fontsource/roboto/500.css';
 import '../catalog.css';
 import './work12.css';
 
-export const variants = [
+const variants = [
   { id: 'a', name: 'А · Состав бригады', note: 'Группы людей и карточки. Назначение — в общем окне.', advantage: 'Когда важнее быстро увидеть людей и их роли.', cost: 'При большой бригаде потребуется больше прокрутки.' },
   { id: 'b', name: 'Б · Рабочее место', note: 'Список слева, подробности справа. Назначение — прямо на странице.', advantage: 'Для последовательной проверки и правки назначений.', cost: 'Постоянная панель оставляет меньше места списку.' },
   { id: 'c', name: 'В · Периоды в центре', note: 'Лента — основной вид. Сначала период, затем сотрудники.', advantage: 'Когда важнее сравнивать периоды и готовить следующий состав.', cost: 'Меньше строк помещается на узком экране; назначение в два шага.' },
@@ -28,7 +28,7 @@ const scenario = scenarios.find(s => s.value === params.get('scenario'))?.value 
 installWork12Api(scenario);
 setFormatLocale('ru-RU');
 
-function App() {
+export function App() {
   const { resolvedTheme, setTheme } = useTheme();
   const [info, setInfo] = useState(true);
   const navigate = (key: string, value: string) => { const url = new URL(location.href); url.searchParams.set(key, value); location.assign(url); };
