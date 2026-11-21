@@ -71,4 +71,4 @@
 - **Зависит от:** ребёнок 02, ребёнок 10.
 - **Документы:** ТЗ — абзац [COST-6.4]; `docs/USER_GUIDE.md` — индикатор вместо плашек.
 - **PR:** два, оба с меткой `version:minor`. Макет — «Экран счёта · критический пересмотр», вариант Г
-  (артефакт https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa).
+  (артефакт http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504).

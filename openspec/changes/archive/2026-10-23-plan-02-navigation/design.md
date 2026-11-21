@@ -189,7 +189,7 @@
 ### Макеты
 
 Раунд П0 — три варианта в Claude Design:
-[«Навигация Планирования»](https://claude.ai/artifact/CZbkRR4ZohtSGctuJbJJau?file=%D0%9D%D0%B0%D0%B2%D0%B8%D0%B3%D0%B0%D1%86%D0%B8%D1%8F+%D0%9F%D0%BB%D0%B0%D0%BD%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F.html).
+[«Навигация Планирования»](http://127.0.0.1:5200/?section=mockups&project=5c73eaee-a37a-4487-8aa6-b0c451ac549f&page=%D0%9D%D0%B0%D0%B2%D0%B8%D0%B3%D0%B0%D1%86%D0%B8%D1%8F+%D0%9F%D0%BB%D0%B0%D0%BD%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F.html).
 1 «Блок модуля», 2 «Работы стройки сверху», 3 «Стройка — сводка, модуль — рабочее место». Разборы —
 Дизайнер §73, Архитектор «П0: навигация plan» (22.10.2026).
 

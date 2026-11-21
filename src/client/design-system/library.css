@@ -1,0 +1,64 @@
+.library-layout { display: grid; grid-template-columns: 232px minmax(0,1fr); gap: 28px; }
+.component-index { min-width: 0; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); display: flex; flex-direction: column; gap: 16px; }
+.component-index nav { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 2px; }
+.component-nav { justify-content: space-between; padding-inline: 12px; min-height: 36px; height: auto; text-align: left; color: var(--md-sys-color-on-surface); font-size: 12px; }
+.component-nav > span { font-size: 10px; color: var(--md-sys-color-on-surface-variant); }
+.component-nav.is-current { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.index-count { font-size: 11px; color: var(--md-sys-color-on-surface-variant); margin: 0; }
+.component-detail { min-width: 0; }
+.component-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.component-heading h2 { font-size: 28px; font-weight: 400; margin: 0; }
+.component-heading p { color: var(--md-sys-color-on-surface-variant); font-size: 12px; margin: 6px 0 0; }
+.component-description { color: var(--md-sys-color-on-surface-variant); font-size: 14px; line-height: 1.7; margin: 0 0 24px; max-width: 80ch; }
+.component-description summary { cursor: pointer; }
+.component-description p { white-space: pre-line; }
+.variant-axes { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 16px; margin: 24px 0; }
+.variant-axis { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.variant-axis > span { font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+.story-preview-scroll { width: 100%; max-width: 100%; overflow: auto; border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-surface); }
+.story-preview { display: block; height: 640px; border: 0; max-width: none; min-width: 320px; }
+.story-status { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0 20px; font-size: 12px; }
+.story-status a, .component-detail a, .coverage-table a, .integration-list a { color: var(--md-sys-color-primary); text-decoration: underline; text-underline-offset: 3px; }
+.api-controls, .state-list { border-bottom: 1px solid var(--md-sys-color-outline-variant); padding: 16px 0; }
+.api-controls summary, .state-list summary { font-size: 14px; cursor: pointer; padding: 4px; }
+.property-controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 24px; padding: 24px 4px 12px; }
+.state-list > div { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 8px; margin-top: 20px; }
+.state-list button { justify-content: flex-start; font-size: 11px; min-height: 40px; height: auto; white-space: normal; text-align: left; }
+.state-list button[aria-pressed="true"] { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.api-table-scroll, .coverage-table { max-width: 100%; overflow: auto; }
+.api-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--md-sys-color-surface); }
+.api-table th, .api-table td { text-align: left; vertical-align: top; padding: 14px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.api-table thead { background: var(--md-sys-color-surface-container); }
+.api-table th { font-weight: 500; }
+.api-table td { line-height: 1.7; }
+.api-table td code { font-size: 11px; overflow-wrap: anywhere; white-space: normal; }
+.api-table td:nth-child(2) { max-width: 280px; }
+.api-table td:nth-child(3) { min-width: 200px; }
+.coverage-tools { margin: 28px 0 20px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.coverage-tools > div:first-child { min-width: 220px; flex: 1; }
+.coverage-table td > div { margin-bottom: 8px; }
+.coverage-table code { overflow-wrap: anywhere; }
+.integration-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 28px; }
+.integration-list article { border-top: 1px solid var(--md-sys-color-outline-variant); padding-top: 20px; }
+.integration-list h3 { font-weight: 500; font-size: 16px; margin: 0 0 12px; }
+.integration-list p { font-size: 13px; color: var(--md-sys-color-on-surface-variant); line-height: 1.7; }
+.integration-list article > div { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; }
+.state-token-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; }
+.state-token-grid > div { display: flex; flex-direction: column; gap: 8px; }
+.state-token-grid span { height: 72px; border-radius: var(--md-sys-shape-corner-medium); }
+.state-token-grid small { font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+.motion-track { position: relative; height: 72px; margin: 28px 0 16px; border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-surface-container); }
+.motion-track > span { position: absolute; left: 12px; top: 16px; height: 40px; width: 40px; background: var(--md-sys-color-primary); border-radius: var(--md-sys-shape-corner-medium); transition-property: left; }
+.motion-track > span.is-moved { left: calc(100% - 52px); }
+@media (prefers-reduced-motion:reduce) { .motion-track > span { transition: none; } }
+@media (max-width:1100px) { .library-layout { grid-template-columns: 184px minmax(0,1fr); gap: 20px; } }
+@media (max-width:760px) {
+  .library-layout { grid-template-columns: minmax(0,1fr); }
+  .component-index { position: static; max-height: none; }
+  .component-index nav { max-height: 180px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--md-sys-shape-corner-small); padding: 8px; }
+  .component-nav { font-size: 11px; }
+  .component-heading h2 { font-size: 24px; }
+  .story-preview { height: 580px; }
+  .variant-axes { grid-template-columns: 1fr 1fr; }
+  .api-table td:nth-child(3) { min-width: 160px; }
+}

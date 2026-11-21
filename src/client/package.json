@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "ui:catalog": "vite --config design-system/vite.config.ts",
+    "ui:catalog:build": "tsc -p design-system/tsconfig.json && vite build --config design-system/vite.config.ts",
+    "ui:catalog:check": "vitest run design-system/coverage.test.ts design-system/mockups.test.ts",
+    "ui:catalog:browser": "node design-system/browser-check.mjs",
+    "ui:mockups:browser": "node design-system/mockup-browser-check.mjs",
     "build": "tsc -b && npm run build:bundle",
     "build:bundle": "vite build",
     "lint": "eslint .",

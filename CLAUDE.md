@@ -240,11 +240,12 @@ bash scripts/bump-version.tests.sh   # логика скриптов верси�
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — «почему так сделано» и полный листинг REST API.
 - [`docs/UI.md`](docs/UI.md) — **правила интерфейса**: Material 3, цвет только ролью MD3 (`bg-primary`,
   `text-on-surface`; тема — `src/client/src/theme/md3-theme.json`), шкала радиусов и теней.
-  ⚠️ **Новый экран, компонент или заметная переделка взаимодействия — сначала три макета в Claude
-  (артефакты типа «Design») и выбор владельца, потом код** (issue #1545). Дизайн-система —
-  [артефакт «BHS.CRG UI»](https://claude.ai/artifact/DckGDGRbsYEtJn6rr2ibMN); до кода её догоняет
-  владелец, агент синхронизацию не запускает. Что в `shared/ui` новее — по коду и `.d.ts`. Порядок и
-  исключения — [docs/UI.md](docs/UI.md#новый-экран-порядок).
+  ⚠️ **Новый экран, компонент или заметная переделка взаимодействия — сначала три макета на живой
+  дизайн-системе и выбор владельца, потом код** (issue #1545). [«BHS.CRG UI»](http://127.0.0.1:5200/?section=library)
+  берёт компоненты и тему из текущего кода; примеры новых состояний добавляются явно. Исторические
+  [макеты восстановлены из экспорта Claude](http://127.0.0.1:5200/?section=mockups).
+  Запуск и происхождение — [docs/design/README.md](docs/design/README.md); порядок и исключения —
+  [docs/UI.md](docs/UI.md#новый-экран-порядок).
 - `deploy/` — Docker Compose на весь стек + Dockerfile'ы и `.env.example`. api и web — образы из GHCR
   (`APP_VERSION` в `.env`), выпуск — ручной запуск workflow `Release`. Установка —
   `deploy/install.sh` (с нуля, вплоть до первого администратора; в каталоге с `.env` отказывается),

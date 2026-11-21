@@ -1,0 +1,19 @@
+/** Nonvisual APIs are documented explicitly instead of fabricated as visual components. */
+export const integrations: Record<string, { purpose: string; examples: string[] }> = {
+  AuthProvider: { purpose: 'Сессия и вход пользователя. В примерах используется отдельный демонстрационный AuthContext.', examples: ['AccountMenu', 'NoAccessPage'] },
+  BrandIconLinks: { purpose: 'Обновляет значки вкладки и приложения в head документа; собственного элемента на экране нет.', examples: ['BrandLogo'] },
+  BugReportProvider: { purpose: 'Принимает события отправки сообщения о проблеме и открывает окно.', examples: ['BugReportDialog'] },
+  DocumentTitleManager: { purpose: 'Синхронизирует заголовок вкладки с открытой страницей.', examples: ['PageHeader'] },
+  EntryRedirect: { purpose: 'Выбирает стартовый маршрут после входа с учётом доступных разделов.', examples: ['AppShell'] },
+  LayerBoundary: { purpose: 'Управляет фокусом и портальными слоями внутри окон.', examples: ['Modal', 'Menu', 'Popover'] },
+  LeaveGuard: { purpose: 'Охраняет уход с несохранённой формы.', examples: ['LeaveQuestion', 'LeaveGuardDialog'] },
+  LocaleProvider: { purpose: 'Общий язык форматирования чисел, дат и сегментного ввода.', examples: ['DateField', 'Calendar', 'DateRange'] },
+  NavigationGuardProvider: { purpose: 'Объединяет охрану переходов и несохранённые изменения.', examples: ['LeaveGuardDialog', 'DetailHeader'] },
+  PinnedPagesProvider: { purpose: 'Состояние закреплённых страниц и их порядка.', examples: ['PinnedGroup', 'PinnedLink'] },
+  ProtectedRoute: { purpose: 'Граница маршрута для вошедшего пользователя.', examples: ['NoAccessPage'] },
+  RequireAccess: { purpose: 'Граница доступа по правам и модулям.', examples: ['NoAccessPage'] },
+  SnackbarProvider: { purpose: 'Очередь временных уведомлений и портальная область показа.', examples: ['Snackbar'] },
+  ThemeProvider: { purpose: 'Выбор светлой, тёмной или системной темы. В каталоге тема изолирована от пользовательских настроек приложения.', examples: ['ThemeToggle'] },
+  WorkspaceProvider: { purpose: 'Выбранное рабочее пространство и видимость разделов.', examples: ['WorkspaceSwitcher', 'OutsideBanner', 'HiddenByWorkspace'] },
+  SiteFilterProvider: { purpose: 'Состояние отбора и избранных строек; в каталоге используются локальные фикстуры.', examples: ['SitesFilter', 'FavoritesPicker'] },
+};

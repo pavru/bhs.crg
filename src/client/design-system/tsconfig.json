@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "composite": false,
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.ui-catalog.tsbuildinfo",
+    "paths": { "@/*": ["../src/*"] }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx"]
+}

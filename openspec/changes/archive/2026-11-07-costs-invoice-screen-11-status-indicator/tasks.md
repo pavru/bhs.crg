@@ -81,7 +81,7 @@
   один banner, «по сохранённому». `docs/USER_GUIDE.md` — индикатор и перечень вместо плашек, оглавление —
   `cd docs/tools && npm run toc`. Проверка — дифф в PR 1; проверка оглавления зелёная.
 - [x] 3.5 Снимки «после» на четырёх размерах, название макета «Экран счёта · критический пересмотр»,
-  вариант Г, ссылка (https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa) — в описании PR 1. Проверка —
+  вариант Г, ссылка (http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504) — в описании PR 1. Проверка —
   описание PR.
 
 ## 4. Поля и сверка (PR 2)
@@ -109,7 +109,7 @@
   `InvoiceDeleteDialog`, `InvoicePartyNote`, `InvoiceRecognitionNote`, `InvoiceTwinNotes` 2, `LostReferencesNote`,
   `StaleInvoiceNotice`), и `hand-card` в заметках — `InvoiceRecognitionNote`, `LostReferencesNote`,
   `SupplierMatchNote` 3 — до нуля: заметка уходит в перечень листа или становится `Banner`, карточка — `Card`
-  по выбору А `sharedui-md3-17` (макеты 4f525fa0, артефакт https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77)
+  по выбору А `sharedui-md3-17` (макеты 4f525fa0, артефакт http://127.0.0.1:5200/?section=mockups&project=ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3)
   [COST-6.4] [UI-81]. Уровень опускает тот PR, что убирает файл: PR 1 — 7 мест `notice-plaque` и все 5 мест
   `hand-card` (3.1), PR 2 — `InvoicePartyNote`. `InvoicePartyNote` — отказ «Организация не заведена» в окне
   заведения организации (`:195`): он становится `ModalBanner tone="error"`, а не пунктом перечня (сообщения

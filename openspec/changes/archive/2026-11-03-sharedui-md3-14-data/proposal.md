@@ -2,7 +2,7 @@
 
 Дочерний change зонтика `sharedui-md3-00-epic`, общая архитектура — `../sharedui-md3-00-epic/design.md`
 (D6, D7, D8, D10, D11, D12). Выбор владельца 02.11.2026 — вариант А «Data table буквально» (макеты
-https://claude.ai/artifact/Q8fScAiy7Xd571tXwtt8oi).
+http://127.0.0.1:5200/?section=mockups&project=a7a3bb1b-2c9c-4797-9973-b192ac92a99c).
 
 ## Why
 
