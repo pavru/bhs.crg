@@ -53,5 +53,5 @@ export default defineConfig({
   worker: { format: 'es' },
   cacheDir: resolve(client, '../../.design-sync/ui-catalog-vite'),
   server: { host: '127.0.0.1', port: 5200, strictPort: true, fs: { allow: [client, realpathSync(resolve(client, 'node_modules'))] } },
-  build: { outDir: resolve(client, 'dist/ui-catalog'), emptyOutDir: true, rolldownOptions: { input: { index: resolve(root, 'index.html'), story: resolve(root, 'story.html'), mockup: resolve(root, 'mockup.html') } } },
+  build: { outDir: resolve(client, 'dist/ui-catalog'), emptyOutDir: true, rolldownOptions: { input: { index: resolve(root, 'index.html'), story: resolve(root, 'story.html'), mockup: resolve(root, 'mockup.html'), work12: resolve(root, 'work12.html') } } },
 });
