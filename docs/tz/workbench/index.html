@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ТЗ — рабочее обсуждение</title>
+<link rel="stylesheet" href="style.css">
+<script src="marked.js"></script>
+<script src="data.js"></script>
+<script src="storage.js"></script>
+</head><body>
+
+
+<div class="top">
+  <span class="brand">ТЗ: модульная архитектура</span>
+  <a href="/">Текущее ТЗ</a>
+  <a href="/?claude">Снимок Claude</a>
+  <span class="counts" id="counts">…</span>
+  <span class="grow"></span>
+  <div class="search"><span aria-hidden="true">🔍</span>
+    <input id="q" type="search" placeholder="Поиск по пунктам" autocomplete="off"></div>
+  <div class="filters" role="group" aria-label="Фильтр">
+    <button id="f-all" aria-pressed="true">Все</button>
+    <button id="f-q" aria-pressed="false">Вопросы</button>
+    <button id="f-cmt" aria-pressed="false">С комментариями</button>
+    <button id="f-open" aria-pressed="false">Открытые</button>
+  </div>
+  <button class="ghost" id="summary">Сводка</button>
+</div>
+
+<div class="wrap">
+  <nav class="rail" id="rail"><h3>Разделы</h3></nav>
+  <main>
+    <p><strong>__SOURCE_LABEL__</strong></p>
+    <p>Текст редактируется в Markdown-файлах docs/tz. После правки обновите страницу.
+      Обсуждение сохраняется в comments.json этой рабочей копии.</p>
+    <div class="note" id="dbnote" hidden></div>
+    <div id="results" class="results" hidden></div>
+    <div id="general"></div>
+    <article class="doc" id="doc"></article>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <div class="dlg-head"><strong style="flex:1">Сводка замечаний</strong>
+    <button class="ghost" id="copy">Скопировать</button>
+    <button class="ghost" id="close">Закрыть</button></div>
+  <div class="dlg-body"><pre id="dlgtext"></pre></div>
+</dialog>
+
+<script src="view.js"></script>
+</body></html>
