@@ -1,0 +1,21 @@
+{
+  "id": "work-12-assignments-restored",
+  "title": "Назначения на стройку",
+  "status": "restored",
+  "statusLabel": "Восстановленный макет · Не первичный",
+  "isPrimary": false,
+  "savedOn": "2026-11-22",
+  "purpose": "Сохранён для дальнейшей работы по запросу владельца.",
+  "sourceChange": "openspec/changes/archive/2026-11-20-work-12-assignments-ui",
+  "sourceComponent": "src/client/src/features/work/assignments/AssignmentsPanel.tsx",
+  "originalDesign": "https://claude.ai/artifact/SQn3oWKHrGEeuEQ4o2ySn1",
+  "originalSourceAvailable": false,
+  "provenance": "Стенд воссоздан по требованиям закрытого work-12 и текущей реализации. Исходный макет Р2 отсутствует в доступном экспорте.",
+  "historicalSelection": "А+, выбор владельца 20.11.2026",
+  "variants": [
+    { "id": "a", "origin": "new-concept", "description": "Новая концепция по требованиям закрытого change: состав бригады." },
+    { "id": "b", "origin": "new-concept", "description": "Новая концепция по требованиям закрытого change: рабочее место." },
+    { "id": "c", "origin": "new-concept", "description": "Новая концепция по требованиям закрытого change: периоды в центре." },
+    { "id": "code", "origin": "restored-from-code", "description": "Восстановлен из кода: прямой импорт реализованной панели А+ и её окон; оболочка сокращена." }
+  ]
+}
