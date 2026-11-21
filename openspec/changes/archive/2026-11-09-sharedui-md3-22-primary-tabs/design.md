@@ -12,7 +12,7 @@
   `RateMatchesPage`, `PrimitiveTypesPage`, `TemplatesPage`); `segmented` — у пяти.
 - Правило храповика `tabs` (`scripts/ui-ratchet-lib.mjs`) считает свои `role="tab"` / `tablist` / `tabpanel`
   мимо `Tabs`; его подсказка `instead` называет `underline` и `segmented`.
-- Макет П11, вариант 1 (`https://claude.ai/artifact/JcbFFuephT32dYcVeJEHG2`, лист `A`), рисует переключатель
+- Макет П11, вариант 1 (`http://127.0.0.1:5200/?section=mockups&project=f7a32bf4-f014-4782-88d0-9d077f338fda`, лист `A`), рисует переключатель
   «Редакции 3 | Приложения 3» **сегментами** (`.seg`); класс `.tab` в `mock.css` холста подписан «Tabs, primary»
   (48, `label-large`, индикатор 3 px с радиусом 3 px сверху, отступ 12 px от краёв вкладки), но на листе
   варианта 1 не использован. То есть облик primary-вкладок в этом ряду владелец ещё не видел: выбран вариант с

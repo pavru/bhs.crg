@@ -4,7 +4,7 @@
 
 Общая архитектура — `../costs-invoice-screen-00-epic/design.md` (D7). Мотивация — `proposal.md`.
 Разборы, на которых стоит этот документ: Архитектор и Дизайнер по листу «Ф» (27.10.2026), макет «Ф»
-(`mock/drop.js`, артефакт https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa).
+(`mock/drop.js`, артефакт http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504).
 
 Как устроено сегодня:
 - **Цель броска — только колонка списка.** `InvoiceScanDrop` обёрнут вокруг `nav` в `InvoicesPage.tsx`.

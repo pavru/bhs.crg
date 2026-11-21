@@ -1,0 +1,3420 @@
+{
+  "version": 1,
+  "origin": "Claude export, 2026-11-16",
+  "sourceSha256": "3dd7d8b3754111822ef1b533f3ef4ab923a3254b4a1ee960656316efdcf4cab4",
+  "projects": [
+    {
+      "id": "ebe9812c-739d-4c00-8612-74e64adc07b6",
+      "title": "Три поколения BHS",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-09-02_Три поколения BHS_ebe9812c",
+        "updatedAt": "2026-09-02T05:46:59+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "df33ed3f-dd50-4665-98ab-d1bb2ffc7797",
+      "title": "ТЗ: модульная архитектура",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-09-19_ТЗ_ модульная архитектура_df33ed3f",
+        "updatedAt": "2026-10-20T22:21:08+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "a8a4405a-7786-499a-8934-1e5b50abec49",
+      "title": "Цвета без токена #1362",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-15_Цвета без токена #1362_a8a4405a",
+        "updatedAt": "2026-10-15T15:21:35+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "38b1f04c-c6f9-4222-b0d5-28999d1371f1",
+      "title": "Анализ UI BHS.CRG",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Обзор и выводы",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Foundations.dc.html",
+          "title": "Основа: цвет, шрифт, форма",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Shell.dc.html",
+          "title": "Каркас и навигация",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Adoption.dc.html",
+          "title": "Охват дизайн-системой",
+          "width": 1280,
+          "height": 1000
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-17_Анализ UI BHS.CRG_38b1f04c",
+        "updatedAt": "2026-10-15T12:18:10+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "10296e5c-097a-4236-9a47-e8940cd02dd5",
+      "title": "Анализ дизайна IT4US",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Сводка",
+          "width": 1200,
+          "height": 960
+        },
+        {
+          "path": "Tokens.dc.html",
+          "title": "Токены и компоненты",
+          "width": 1200,
+          "height": 960
+        },
+        {
+          "path": "ListScreen.dc.html",
+          "title": "Экран «Стройки» — замечания",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "InnerScreen.dc.html",
+          "title": "Карточка стройки — замечания",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "ListAfter.dc.html",
+          "title": "Экран «Стройки» — набросок «после»",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "InnerAfter.dc.html",
+          "title": "Карточка стройки — набросок «после»",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "DocTypesScreen.dc.html",
+          "title": "Типы документов — замечания",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "DocTypesAfter.dc.html",
+          "title": "Типы документов — набросок «после»",
+          "width": 1840,
+          "height": 900
+        },
+        {
+          "path": "Shell.dc.html",
+          "title": "Каркас — интерактивный прототип",
+          "width": 1840,
+          "height": 900
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-17_Анализ дизайна IT4US_10296e5c",
+        "updatedAt": "2026-10-02T21:08:38+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "c058e859-8343-45f1-ae1e-8def1d5a0070",
+      "title": "Анализ UI · повторный замер 17.10",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Итог: что изменилось",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Foundations.dc.html",
+          "title": "Основа: шрифт, цвет, подсказки",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Shell.dc.html",
+          "title": "Каркас и окна",
+          "width": 1280,
+          "height": 1000
+        },
+        {
+          "path": "Adoption.dc.html",
+          "title": "Охват и что осталось",
+          "width": 1280,
+          "height": 1000
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-26_Анализ UI · повторный замер 17.10_c058e859",
+        "updatedAt": "2026-10-17T04:13:07+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "67091f2d-04d4-4ec8-89ae-fd9a0d0fadbd",
+      "title": "Профили печати и вид счёта",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Профили печати · A — список и карточка",
+          "width": 1360,
+          "height": 860
+        },
+        {
+          "path": "ProfilesB.dc.html",
+          "title": "Профили печати · B — листы-образцы и правка рядом",
+          "width": 1360,
+          "height": 860
+        },
+        {
+          "path": "InvoiceA.dc.html",
+          "title": "Счёт · A — «Перестроить ▾» с меню профилей",
+          "width": 1440,
+          "height": 880
+        },
+        {
+          "path": "InvoiceB.dc.html",
+          "title": "Счёт · B — раскладка чипом в строке вида",
+          "width": 1440,
+          "height": 880
+        },
+        {
+          "path": "InvoiceStates.dc.html",
+          "title": "Строка вида: все состояния (к A и B)",
+          "width": 760,
+          "height": 880
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-26_Профили печати и вид счёта_67091f2d",
+        "updatedAt": "2026-10-18T04:13:48+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "3d896e74-7544-47ac-8fc9-5d94005ca63f",
+      "title": "Значки lucide → Material Symbols",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [
+        "8bjUDt6Z94azKq1jGKdvmt"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-03-icons/tasks.md",
+          "line": 22,
+          "publicId": "3d896e74-7544-47ac-8fc9-5d94005ca63f"
+        }
+      ],
+      "source": {
+        "folder": "2026-10-28_Значки lucide → Material Symbols_3d896e74",
+        "updatedAt": "2026-10-28T22:55:19+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "a868c410-d5a3-4ffe-8671-e681da5990b0",
+      "title": "Значки MD3: снимки PR #1679",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-28_Значки MD3_ снимки PR #1679_a868c410",
+        "updatedAt": "2026-10-28T11:14:46+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "36fa4244-96ee-476e-b3d5-bec21b9595d0",
+      "title": "Палитра MD3: снимки PR 1",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "7nkk4dyet9uPDBWk4nC4pP"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-04-palette/tasks.md",
+          "line": 34,
+          "publicId": "36fa4244-96ee-476e-b3d5-bec21b9595d0"
+        }
+      ],
+      "source": {
+        "folder": "2026-10-28_Палитра MD3_ снимки PR 1_36fa4244",
+        "updatedAt": "2026-10-28T23:59:31+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "641c49f1-b017-43e5-a756-c7ad8ea26622",
+      "title": "Split-кнопка «Сохранить»",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-29_Split-кнопка «Сохранить»_641c49f1",
+        "updatedAt": "2026-10-29T22:46:40+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "28bc7e96-eba7-4b69-936f-f87cd07243b8",
+      "title": "Роли текста MD3 — снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-29_Роли текста MD3 — снимки_28bc7e96",
+        "updatedAt": "2026-10-29T08:25:11+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "848b29a3-9090-4afa-ac26-fec7b7d56a97",
+      "title": "Слой состояния: снимки PR 1",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "HNHkivhRLvhKKtCoBzWYke"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-05-state-motion/tasks.md",
+          "line": 42,
+          "publicId": "848b29a3-9090-4afa-ac26-fec7b7d56a97"
+        }
+      ],
+      "source": {
+        "folder": "2026-10-29_Слой состояния_ снимки PR 1_848b29a3",
+        "updatedAt": "2026-10-29T02:55:06+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "f2b78037-3568-4114-a39c-36ec9fea86d6",
+      "title": "Форма и возвышение: снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-29_Форма и возвышение_ снимки_f2b78037",
+        "updatedAt": "2026-10-29T05:55:56+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "7636a50f-8fb2-4173-b183-97759691afe7",
+      "title": "Действия MD3: снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-10-31_Действия MD3_ снимки_7636a50f",
+        "updatedAt": "2026-10-31T04:05:51+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "67120dee-6758-4c07-8b78-e5f7fc68e510",
+      "title": "Снимки полей MD3",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "DjCc7zGazHiKznKFAQEJYF"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/tasks.md",
+          "line": 281,
+          "publicId": "67120dee-6758-4c07-8b78-e5f7fc68e510"
+        }
+      ],
+      "source": {
+        "folder": "2026-10-31_Снимки полей MD3_67120dee",
+        "updatedAt": "2026-10-31T21:38:06+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "59910380-7003-4fd4-a95f-128095af8d84",
+      "title": "Меню и слой",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "C4V19AVrBsTcDFyX9f8zCB"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 160,
+          "publicId": "59910380-7003-4fd4-a95f-128095af8d84"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-01_Меню и слой_59910380",
+        "updatedAt": "2026-11-01T23:23:32+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "cbbe52d0-8edf-4443-924b-14e12fc3b86d",
+      "title": "Обратная связь MD3",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "SAEFG9d4ZGfW69XBF7vd32"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 227,
+          "publicId": "cbbe52d0-8edf-4443-924b-14e12fc3b86d"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-01_Обратная связь MD3_cbbe52d0",
+        "updatedAt": "2026-11-01T02:01:51+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "1c445ef9-d638-425a-b0b9-40918f6b89a9",
+      "title": "Окна MD3 · снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "4VTB1kGSs3v25N9RdD4dbn"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 84,
+          "publicId": "1c445ef9-d638-425a-b0b9-40918f6b89a9"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-01_Окна MD3 · снимки_1c445ef9",
+        "updatedAt": "2026-11-01T03:40:04+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "a6d49810-d9bf-4287-a9ae-5caefb33aea2",
+      "title": "Окно во весь экран",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-01_Окно во весь экран_a6d49810",
+        "updatedAt": "2026-11-01T21:40:45+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "cb1b9535-0bbc-4a89-9ed4-882926a38e30",
+      "title": "Панель строки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "S5gB3CeoT32U7fWuSKuZUs"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 199,
+          "publicId": "cb1b9535-0bbc-4a89-9ed4-882926a38e30"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-02_Панель строки_cb1b9535",
+        "updatedAt": "2026-11-02T00:35:09+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "4c8a330b-285e-4d3c-bec4-8f3854c94e03",
+      "title": "Таблицы MD3 — снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-02_Таблицы MD3 — снимки_4c8a330b",
+        "updatedAt": "2026-11-02T20:24:43+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "793edfb6-93ed-4a4c-820b-64018703e00a",
+      "title": "Календарь docked md3-16",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-03_Календарь docked md3-16_793edfb6",
+        "updatedAt": "2026-11-03T06:37:08+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "f070165b-c5ba-4963-a591-d4ff8988d963",
+      "title": "Оболочка MD3 до и после",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "Wh38oGjZYqz4JvWS8hktNW"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-15-shell/tasks.md",
+          "line": 160,
+          "publicId": "f070165b-c5ba-4963-a591-d4ff8988d963"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-03_Оболочка MD3 до и после_f070165b",
+        "updatedAt": "2026-11-03T00:10:24+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "4351dc2a-b3f5-4755-a07f-b86540c23fb9",
+      "title": "Просмотрщик и редактор md3-16",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-03_Просмотрщик и редактор md3-16_4351dc2a",
+        "updatedAt": "2026-11-03T05:38:44+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "8bc525e2-c703-463a-a53e-114093740dc4",
+      "title": "Снимки md3-17 PR 1",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "JG3eocTdHSf7igGF82mpDZ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 92,
+          "publicId": "8bc525e2-c703-463a-a53e-114093740dc4"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-03_Снимки md3-17 PR 1_8bc525e2",
+        "updatedAt": "2026-11-03T22:29:31+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "1ab61082-06a9-4c08-932b-814885c23b17",
+      "title": "Снимки md3-17 PR 2",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "4JJrg2AfFtifwG137wspqk"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 109,
+          "publicId": "1ab61082-06a9-4c08-932b-814885c23b17"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-03_Снимки md3-17 PR 2_1ab61082",
+        "updatedAt": "2026-11-03T23:27:58+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "9235dc2b-d720-4391-a623-78ed27b90d2b",
+      "title": "Снимки md3-17 PR 3",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "K4AxBynPFfZzpknRqzHjfQ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 135,
+          "publicId": "9235dc2b-d720-4391-a623-78ed27b90d2b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-04_Снимки md3-17 PR 3_9235dc2b",
+        "updatedAt": "2026-11-04T01:05:13+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "34c0e763-adc9-4abb-a166-de9bdd329bce",
+      "title": "Снимки md3-17 PR 4",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "7WpscdPEcQBsEzPvrcCPgR"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 163,
+          "publicId": "34c0e763-adc9-4abb-a166-de9bdd329bce"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-04_Снимки md3-17 PR 4_34c0e763",
+        "updatedAt": "2026-11-04T21:45:06+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "6682a7eb-defe-461b-9625-eb895c2ce2e1",
+      "title": "Снимки md3-17 PR 5а",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "DfBvGpqC6ykaKn72jYoeTi"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 181,
+          "publicId": "6682a7eb-defe-461b-9625-eb895c2ce2e1"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-04_Снимки md3-17 PR 5а_6682a7eb",
+        "updatedAt": "2026-11-04T23:23:08+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "75f0c25c-353b-4b18-9bca-cc49d6b72609",
+      "title": "BHS.CRG — роли текста MD3 (В10)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Роли текста.html",
+          "title": "Роли текста MD3"
+        }
+      ],
+      "aliases": [
+        "FZhbVPczBaSTNkqZTNaxCQ",
+        "Kdbcm2BkT1L8hFL6zWk3AJ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-07-typescale/design.md",
+          "line": 75,
+          "publicId": "75f0c25c-353b-4b18-9bca-cc49d6b72609"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 62,
+          "publicId": "75f0c25c-353b-4b18-9bca-cc49d6b72609"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_BHS.CRG — роли текста MD3 (В10)_75f0c25c",
+        "updatedAt": "2026-10-29T07:01:30+00:00",
+        "designId": "45ab3fb0-ef0b-4211-8af2-c66f12b6eebc"
+      }
+    },
+    {
+      "id": "06363a5d-b882-403d-b86d-0df343af91b1",
+      "title": "Split-кнопка «Сохранить» · sharedui-split-button",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Split-кнопка.html",
+          "title": "Split-кнопка «Сохранить»"
+        }
+      ],
+      "aliases": [
+        "1mVQCYrqBaJMKcGQFZ5c1e",
+        "7UAinGSjbzZVeiKPc8rkJ4"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-30-sharedui-split-button/design.md",
+          "line": 70,
+          "publicId": "06363a5d-b882-403d-b86d-0df343af91b1"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Split-кнопка «Сохранить» · sharedui-split-button_06363a5d",
+        "updatedAt": "2026-10-29T21:47:43+00:00",
+        "designId": "87996c8e-7e01-4377-9025-b685a20e89aa"
+      }
+    },
+    {
+      "id": "bc1a7be7-c024-4ebb-b09f-728f43819100",
+      "title": "Действия MD3 — кнопки, чипы, сегменты (В7)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Б - XS 32 в клетках.html",
+          "title": "Б — XS 32 в клетках"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "Действия MD3 — В7"
+        },
+        {
+          "path": "В - dense 32 в панелях.html",
+          "title": "В — dense 32 в панелях"
+        },
+        {
+          "path": "А - 40 везде.html",
+          "title": "А — 40 везде"
+        }
+      ],
+      "aliases": [
+        "QEDNhW2sbFUVvuGYXU3QbH",
+        "YPJi9FbJUtu2DKhoifx8sV"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-31-sharedui-md3-10-actions/design.md",
+          "line": 13,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-31-sharedui-md3-10-actions/tasks.md",
+          "line": 17,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-31-sharedui-md3-10-actions/tasks.md",
+          "line": 38,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-31-sharedui-md3-10-actions/tasks.md",
+          "line": 39,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-31-sharedui-md3-10-actions/tasks.md",
+          "line": 40,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 37,
+          "publicId": "bc1a7be7-c024-4ebb-b09f-728f43819100"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Действия MD3 — кнопки, чипы, сегменты (В7)_bc1a7be7",
+        "updatedAt": "2026-10-30T22:58:18+00:00",
+        "designId": "d79801d4-00b7-4eb6-8ee7-d68506dbe64c"
+      }
+    },
+    {
+      "id": "7fa8eab1-f9d0-4206-8c65-9b10e017771b",
+      "title": "Значение реквизита из источника и под замком (md3-19)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "0 Сейчас.html",
+          "title": "Сейчас — для сравнения"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "Разбор и вопрос"
+        },
+        {
+          "path": "В - Исключение.html",
+          "title": "В — Исключение без подложки"
+        },
+        {
+          "path": "Б - Плотное под подписью.html",
+          "title": "Б — Плотное поле под своей подписью"
+        },
+        {
+          "path": "А - Подпись в вырезе.html",
+          "title": "А — Подпись в вырезе"
+        }
+      ],
+      "aliases": [
+        "3KoUN4K6WaG4T8bYm34bQv",
+        "GmK2hporaGiQx4bfHS4yfQ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-19-requisite-fields/design.md",
+          "line": 135,
+          "publicId": "7fa8eab1-f9d0-4206-8c65-9b10e017771b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-19-requisite-fields/tasks.md",
+          "line": 32,
+          "publicId": "7fa8eab1-f9d0-4206-8c65-9b10e017771b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Значение реквизита из источника и под замком (md3-19)_7fa8eab1",
+        "updatedAt": "2026-11-05T07:12:25+00:00",
+        "designId": "6713dd13-24f2-4f4c-9d7d-b91399d86dbc"
+      }
+    },
+    {
+      "id": "5d443645-20fe-4831-86a9-8c737e883357",
+      "title": "Значки MD3 · стиль и шкала (sharedui-md3-03)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Значки MD3.html",
+          "title": "Значки MD3 — выбор"
+        }
+      ],
+      "aliases": [
+        "CWyz3tiBXiosLzzGXpYQdk",
+        "R6F246o1yKvnxQsktkp8MX"
+      ],
+      "references": [
+        {
+          "file": "docs/UI.md",
+          "line": 477,
+          "publicId": "5d443645-20fe-4831-86a9-8c737e883357"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-03-icons/design.md",
+          "line": 23,
+          "publicId": "5d443645-20fe-4831-86a9-8c737e883357"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 24,
+          "publicId": "5d443645-20fe-4831-86a9-8c737e883357"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 147,
+          "publicId": "5d443645-20fe-4831-86a9-8c737e883357"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Значки MD3 · стиль и шкала (sharedui-md3-03)_5d443645",
+        "updatedAt": "2026-10-28T09:49:09+00:00",
+        "designId": "b90b1ec7-b219-4aa7-9721-499c4831bba4"
+      }
+    },
+    {
+      "id": "d7fcc2c4-7030-4e56-95ee-a18864f6a727",
+      "title": "Исправление накладной — варианты",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Исправление накладной.html",
+          "title": "Исправление накладной — варианты"
+        }
+      ],
+      "aliases": [
+        "2zzt5fAqRykSDmJGJhGPbT",
+        "TfvNeNgjyH8L2vu7XmWEHk"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-26-costs-waybill-correction/design.md",
+          "line": 109,
+          "publicId": "d7fcc2c4-7030-4e56-95ee-a18864f6a727"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Исправление накладной — варианты_d7fcc2c4",
+        "updatedAt": "2026-10-26T06:29:38+00:00",
+        "designId": "e9d45e70-a729-468a-831d-48ebcf56f2f6"
+      }
+    },
+    {
+      "id": "c4f5b7dc-8c06-46e1-9971-83b7a4b4f3dd",
+      "title": "Календарь в диалоге оплаты",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Календарь в диалоге.html",
+          "title": "Календарь в диалоге оплаты"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-05_Календарь в диалоге оплаты_c4f5b7dc",
+        "updatedAt": "2026-10-19T01:44:29+00:00",
+        "designId": "10fd2abf-fcab-4a1e-8239-11aa6d10d4c1"
+      }
+    },
+    {
+      "id": "93100a4e-fa95-42c2-8a82-8c8baa55a07b",
+      "title": "Контейнеры MD3 — окна, меню, листы, карточки (В8)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "А - MD3 буквально.html",
+          "title": "А — MD3 буквально"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "0 — Разбор и вопрос"
+        },
+        {
+          "path": "В - Подвал полосой и рамка у слоёв.html",
+          "title": "В — Подвал полосой и рамка у слоёв"
+        },
+        {
+          "path": "Б - MD3 и названные отступления.html",
+          "title": "Б — MD3 и названные отступления"
+        }
+      ],
+      "aliases": [
+        "KAGz512CaW4jLHcPdGGWRp",
+        "RNDSjns1bkd9kB17muuGVK"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/design.md",
+          "line": 8,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/proposal.md",
+          "line": 5,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 18,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 39,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 42,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-02-sharedui-md3-13-containers/tasks.md",
+          "line": 44,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 44,
+          "publicId": "93100a4e-fa95-42c2-8a82-8c8baa55a07b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Контейнеры MD3 — окна, меню, листы, карточки (В8)_93100a4e",
+        "updatedAt": "2026-11-01T02:31:56+00:00",
+        "designId": "2ca30933-cd85-452d-9e7a-2dae1cb62e3e"
+      }
+    },
+    {
+      "id": "ec2dc74e-d4f0-45f5-8534-0bbf523d276e",
+      "title": "Оболочка MD3 — рейл, подпанель, шапка, поиск, телефон (md3-15)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "В - Заголовок в полосе.html",
+          "title": "В — Заголовок в полосе"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "00 — Разбор и вопрос (md3-15)"
+        },
+        {
+          "path": "Б - Тонкая полоса.html",
+          "title": "Б — Тонкая полоса"
+        },
+        {
+          "path": "А - MD3 буквально.html",
+          "title": "А — MD3 буквально"
+        }
+      ],
+      "aliases": [
+        "DdTfnBR7uMPLQWUPr7fdsc",
+        "WAXw9Td8QbU695er64khqf"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-15-shell/tasks.md",
+          "line": 17,
+          "publicId": "ec2dc74e-d4f0-45f5-8534-0bbf523d276e"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-15-shell/tasks.md",
+          "line": 49,
+          "publicId": "ec2dc74e-d4f0-45f5-8534-0bbf523d276e"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-15-shell/tasks.md",
+          "line": 52,
+          "publicId": "ec2dc74e-d4f0-45f5-8534-0bbf523d276e"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-15-shell/tasks.md",
+          "line": 55,
+          "publicId": "ec2dc74e-d4f0-45f5-8534-0bbf523d276e"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Оболочка MD3 — рейл, подпанель, шапка, поиск, телефон (md3-1_ec2dc74e",
+        "updatedAt": "2026-11-02T21:05:59+00:00",
+        "designId": "70788b18-6b3a-4350-88de-caa087ec88ff"
+      }
+    },
+    {
+      "id": "7afe339b-6444-4423-af94-a287f3ab7996",
+      "title": "Обратная связь MD3 — snackbar, подсказки, banner, пометки (В9, В16)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Б - знак ошибки и число с тоном.html",
+          "title": "Б — знак ошибки и число с тоном"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "0 — Разбор и вопрос"
+        },
+        {
+          "path": "В - стопка и пилюли.html",
+          "title": "В — стопка и пилюли"
+        },
+        {
+          "path": "А - MD3 целиком.html",
+          "title": "А — MD3 целиком"
+        }
+      ],
+      "aliases": [
+        "GBtQvAZXiQC8pWtSmBcQEH",
+        "LKFzkVSmBePXMvqEkiaF19"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/design.md",
+          "line": 15,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/proposal.md",
+          "line": 25,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 19,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 54,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 56,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 58,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-12-feedback/tasks.md",
+          "line": 230,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 55,
+          "publicId": "7afe339b-6444-4423-af94-a287f3ab7996"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Обратная связь MD3 — snackbar, подсказки, banner, пометки (В_7afe339b",
+        "updatedAt": "2026-10-31T22:04:03+00:00",
+        "designId": "fbeaec15-de71-4127-8d01-87dbc09b040c"
+      }
+    },
+    {
+      "id": "4ec0bd6b-c99b-42f6-ab6b-43e47f351d6b",
+      "title": "Отбор реестра: подсказка стройки",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Подсказка стройки в отборе.html",
+          "title": "Подсказка стройки в отборе"
+        }
+      ],
+      "aliases": [
+        "Aj32zBzNfgfKgpFAtYRc8S",
+        "NaLtP1Rnxcv7kQ3W99mgPp"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-24-costs-filter-place-hints/design.md",
+          "line": 222,
+          "publicId": "4ec0bd6b-c99b-42f6-ab6b-43e47f351d6b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Отбор реестра_ подсказка стройки_4ec0bd6b",
+        "updatedAt": "2026-10-24T03:13:49+00:00",
+        "designId": "f5713131-d072-495b-b9fd-6d573cea3a23"
+      }
+    },
+    {
+      "id": "c2a3ae79-6d2d-44f4-bf2c-15e2b2e1dce8",
+      "title": "Палитра MD3 · схема из seed",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Палитра MD3.html",
+          "title": "Палитра MD3 · схема из seed"
+        }
+      ],
+      "aliases": [
+        "D3Fe7KqxF1wu185GPDPeRo",
+        "R32QX3tPR9WRBjBBAXRAq5"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-04-palette/design.md",
+          "line": 34,
+          "publicId": "c2a3ae79-6d2d-44f4-bf2c-15e2b2e1dce8"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-04-palette/tasks.md",
+          "line": 11,
+          "publicId": "c2a3ae79-6d2d-44f4-bf2c-15e2b2e1dce8"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 20,
+          "publicId": "c2a3ae79-6d2d-44f4-bf2c-15e2b2e1dce8"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Палитра MD3 · схема из seed_c2a3ae79",
+        "updatedAt": "2026-10-28T23:20:43+00:00",
+        "designId": "af61dae9-6aea-4c13-9f49-7f5824d31641"
+      }
+    },
+    {
+      "id": "c22af728-26ce-4842-8388-7faa080ca821",
+      "title": "Подсказка по введённому (SuggestField)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Флажок подсказки в карточке поля.html",
+          "title": "Флажок подсказки в карточке поля"
+        },
+        {
+          "path": "Подсказка по введённому.html",
+          "title": "Подсказка по введённому"
+        }
+      ],
+      "aliases": [
+        "HHhfPHpsktahJQc53CLBfq",
+        "QyeXQfX5bZvF7bwvLWxuda"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-23-suggest-03-field/design.md",
+          "line": 63,
+          "publicId": "c22af728-26ce-4842-8388-7faa080ca821"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-23-suggest-05-wiring/design.md",
+          "line": 80,
+          "publicId": "c22af728-26ce-4842-8388-7faa080ca821"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Подсказка по введённому (SuggestField)_c22af728",
+        "updatedAt": "2026-10-23T06:20:32+00:00",
+        "designId": "a6a517a8-bbfd-43d2-93b3-05ff36d4a886"
+      }
+    },
+    {
+      "id": "ece5a12e-4540-410c-96ee-cbfa196c6a0a",
+      "title": "Поле времени и время копии (#1468)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Поле времени.html",
+          "title": "Поле времени и время копии"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-05_Поле времени и время копии (#1468)_ece5a12e",
+        "updatedAt": "2026-10-21T10:27:02+00:00",
+        "designId": "1f822470-2ef2-422f-949e-821a73c20520"
+      }
+    },
+    {
+      "id": "83f44771-9062-4a6e-a42a-2826efe4043e",
+      "title": "Поле даты: «Очистить» и «Сегодня»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Очистить и Сегодня.html",
+          "title": "Поле даты: «Очистить» и «Сегодня»"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-05_Поле даты_ «Очистить» и «Сегодня»_83f44771",
+        "updatedAt": "2026-10-21T03:37:47+00:00",
+        "designId": "9d18059f-c44e-42c5-a506-4a13ab6e1a12"
+      }
+    },
+    {
+      "id": "6bc78d59-1c35-416c-bbb7-289fc83fe373",
+      "title": "Поле даты: обвязка, min/max, диапазон (#1464)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Обвязка, границы, диапазон.html",
+          "title": "Поле даты: обвязка, границы, диапазон"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-05_Поле даты_ обвязка, min_max, диапазон (#1464)_6bc78d59",
+        "updatedAt": "2026-10-21T05:55:16+00:00",
+        "designId": "2f8246c4-eb74-4354-aa33-b464a4a17a5b"
+      }
+    },
+    {
+      "id": "6056d994-c283-48e4-822b-d312ecf6134c",
+      "title": "Поля и выбор MD3 — плотность и текст поля (В5, В6)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "0 — Разбор и вопрос"
+        },
+        {
+          "path": "В - 16 без чипа.html",
+          "title": "В — 16 без чипа"
+        },
+        {
+          "path": "Б - 14 и подчёркивание.html",
+          "title": "Б — 14 и подчёркивание"
+        },
+        {
+          "path": "А - 16 и чип.html",
+          "title": "А — 16 и чип"
+        }
+      ],
+      "aliases": [
+        "CtzRvyu2Mihu8EgD8CQrZ1",
+        "LaBBdXGdNLHHf1crrbjEjj"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/design.md",
+          "line": 15,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/tasks.md",
+          "line": 17,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/tasks.md",
+          "line": 43,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/tasks.md",
+          "line": 44,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-01-sharedui-md3-11-inputs/tasks.md",
+          "line": 45,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 31,
+          "publicId": "6056d994-c283-48e4-822b-d312ecf6134c"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Поля и выбор MD3 — плотность и текст поля (В5, В6)_6056d994",
+        "updatedAt": "2026-10-31T07:03:25+00:00",
+        "designId": "d208fc78-d214-44e3-ac95-4cdebe612d2e"
+      }
+    },
+    {
+      "id": "790b740f-1c21-46d8-a486-8303d85085be",
+      "title": "Просмотрщик PDF: панель",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Просмотрщик PDF.html",
+          "title": "Просмотрщик PDF"
+        }
+      ],
+      "aliases": [
+        "Fww7aJbNedSzQNFGhQNmh7",
+        "S9mipkyguSjq4KGnyqqYXR"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-25-viewer-01-component/design.md",
+          "line": 188,
+          "publicId": "790b740f-1c21-46d8-a486-8303d85085be"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Просмотрщик PDF_ панель_790b740f",
+        "updatedAt": "2026-10-25T02:23:48+00:00",
+        "designId": "07415cb6-4423-4f9f-bfec-e8cbd8e9ffa9"
+      }
+    },
+    {
+      "id": "c44860f3-0f85-40a1-a011-58ae7118ec70",
+      "title": "Просмотрщик, календарь, редактор кода по MD3 (md3-16)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "А - MD3 буквально.html",
+          "title": "А — MD3 буквально"
+        },
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "00 — Разбор и вопрос (md3-16)"
+        },
+        {
+          "path": "В - Плавающая панель.html",
+          "title": "В — Плавающая панель"
+        },
+        {
+          "path": "Б - Плотно.html",
+          "title": "Б — Плотно"
+        }
+      ],
+      "aliases": [
+        "5CgmqYfvmwtYzDdyBPdscY",
+        "REo494CzkurtKJAkjM7xXy"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-16-surfaces/tasks.md",
+          "line": 15,
+          "publicId": "c44860f3-0f85-40a1-a011-58ae7118ec70"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-16-surfaces/tasks.md",
+          "line": 47,
+          "publicId": "c44860f3-0f85-40a1-a011-58ae7118ec70"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-16-surfaces/tasks.md",
+          "line": 50,
+          "publicId": "c44860f3-0f85-40a1-a011-58ae7118ec70"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-16-surfaces/tasks.md",
+          "line": 54,
+          "publicId": "c44860f3-0f85-40a1-a011-58ae7118ec70"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Просмотрщик, календарь, редактор кода по MD3 (md3-16)_c44860f3",
+        "updatedAt": "2026-11-03T04:22:47+00:00",
+        "designId": "7a545ca1-74dd-4f61-b42c-0c395b147b27"
+      }
+    },
+    {
+      "id": "1517ce04-20ae-4919-8412-04088436cb0a",
+      "title": "Прочитано, в счёт не положено (#1484)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Не положено в счёт.html",
+          "title": "Прочитано, в счёт не положено (#1484)"
+        }
+      ],
+      "aliases": [
+        "3c53ruR7RvUeyayuW3hggy",
+        "TCjBZ35o64XqQh2Vnvwh8N"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-23-invrec-05-unplaced/design.md",
+          "line": 89,
+          "publicId": "1517ce04-20ae-4919-8412-04088436cb0a"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Прочитано, в счёт не положено (#1484)_1517ce04",
+        "updatedAt": "2026-10-22T12:56:25+00:00",
+        "designId": "0a5fe51c-fa42-4249-9c99-df4ac9c83fa5"
+      }
+    },
+    {
+      "id": "99be7fe4-77ca-4f61-a002-f2480c0ff206",
+      "title": "Реквизит из источника: снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [
+        "Kz8UknepYj41enXucrHVH7"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-19-requisite-fields/tasks.md",
+          "line": 98,
+          "publicId": "99be7fe4-77ca-4f61-a002-f2480c0ff206"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Реквизит из источника_ снимки_99be7fe4",
+        "updatedAt": "2026-11-05T10:37:11+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "35b1369d-18e1-4146-af13-580fa98c6f32",
+      "title": "Состояния MD3 · sharedui-md3-05",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Состояния MD3.html",
+          "title": "Состояния MD3 · слой, фокус, отключённое"
+        }
+      ],
+      "aliases": [
+        "7dYpB1NmxvCAsEo1Lpk7pm",
+        "SkSUKWK3AfXY8j6eD8BJWS"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-05-state-motion/design.md",
+          "line": 64,
+          "publicId": "35b1369d-18e1-4146-af13-580fa98c6f32"
+        },
+        {
+          "file": "openspec/changes/archive/2026-10-29-sharedui-md3-05-state-motion/tasks.md",
+          "line": 12,
+          "publicId": "35b1369d-18e1-4146-af13-580fa98c6f32"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 79,
+          "publicId": "35b1369d-18e1-4146-af13-580fa98c6f32"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Состояния MD3 · sharedui-md3-05_35b1369d",
+        "updatedAt": "2026-10-29T02:07:03+00:00",
+        "designId": "b65108ed-2d54-40b7-819a-e1720684e7c4"
+      }
+    },
+    {
+      "id": "d192a49b-68ef-47fd-8a39-3acc996ef1c4",
+      "title": "Списки list-detail (md3-18) — раскрываемая группа строк",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "00 Вопрос.html",
+          "title": "Раскрываемая группа — вопрос"
+        },
+        {
+          "path": "В - Строка-родитель с отступом.html",
+          "title": "В — Строка-родитель с отступом"
+        },
+        {
+          "path": "Б - Подзаголовок сворачивает группу.html",
+          "title": "Б — Подзаголовок сворачивает группу"
+        },
+        {
+          "path": "А - Группа без сворачивания, версии в карточке.html",
+          "title": "А — Группа без сворачивания"
+        }
+      ],
+      "aliases": [
+        "BtVcQotQmuDkUhBkLMuqAY",
+        "SsymsWmU74wzDqq2MDTs6B"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-18-lists/design.md",
+          "line": 172,
+          "publicId": "d192a49b-68ef-47fd-8a39-3acc996ef1c4"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-18-lists/tasks.md",
+          "line": 43,
+          "publicId": "d192a49b-68ef-47fd-8a39-3acc996ef1c4"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Списки list-detail (md3-18) — раскрываемая группа строк_d192a49b",
+        "updatedAt": "2026-11-05T02:55:12+00:00",
+        "designId": "214e220b-c8a7-4f79-8a6b-ed4b8f2ab57c"
+      }
+    },
+    {
+      "id": "356803c3-362c-45fd-a419-415c1071aa26",
+      "title": "Строка-оговорка вида для чтения (viewer-06, #1495)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Строка-оговорка.html",
+          "title": "Строка-оговорка вида для чтения"
+        }
+      ],
+      "aliases": [
+        "7bW38m8Wxor3xmPdqRg9G9",
+        "LaatkFy14wVurBFFTVtPtQ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-26-viewer-06-invoice-reading-note/design.md",
+          "line": 114,
+          "publicId": "356803c3-362c-45fd-a419-415c1071aa26"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Строка-оговорка вида для чтения (viewer-06, #1495)_356803c3",
+        "updatedAt": "2026-10-26T02:22:39+00:00",
+        "designId": "1c72b0cf-ffe9-42e1-84f0-15ea8542b709"
+      }
+    },
+    {
+      "id": "ec5ffdaf-4a7e-47c0-9be7-f447aaac54f8",
+      "title": "Строки списков MD3",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [
+        "WBwQrQJDEh8Bjg8XmVEPom"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-18-lists/tasks.md",
+          "line": 133,
+          "publicId": "ec5ffdaf-4a7e-47c0-9be7-f447aaac54f8"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Строки списков MD3_ec5ffdaf",
+        "updatedAt": "2026-11-05T04:53:26+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "d19efaba-e308-4981-9fcb-6281240935fc",
+      "title": "Счёт: раздел в шапке",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Раздел в шапке счёта.html",
+          "title": "Раздел в шапке счёта"
+        }
+      ],
+      "aliases": [
+        "5Hyi6VVQiitGGu2ChYJmbB",
+        "StKnuSzwFgZKzWLfNeUKkF"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-25-costs-invoice-section-allocation/design.md",
+          "line": 148,
+          "publicId": "d19efaba-e308-4981-9fcb-6281240935fc"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Счёт_ раздел в шапке_d19efaba",
+        "updatedAt": "2026-10-24T07:20:24+00:00",
+        "designId": "63234770-5657-4ff5-9207-e5ce9dbd6dc3"
+      }
+    },
+    {
+      "id": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c",
+      "title": "Таблицы и списки MD3 — data table, сетка правки, списки (md3-14)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "0 — Разбор и вопрос"
+        },
+        {
+          "path": "В - По месту.html",
+          "title": "В — По месту"
+        },
+        {
+          "path": "Б - Рабочий реестр.html",
+          "title": "Б — Рабочий реестр"
+        },
+        {
+          "path": "А - Data table буквально.html",
+          "title": "А — Data table буквально"
+        }
+      ],
+      "aliases": [
+        "Mhef6nK6QQ7vYUjgSJMyAb",
+        "Q8fScAiy7Xd571tXwtt8oi"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/design.md",
+          "line": 8,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/proposal.md",
+          "line": 5,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/tasks.md",
+          "line": 18,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/tasks.md",
+          "line": 42,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/tasks.md",
+          "line": 44,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-03-sharedui-md3-14-data/tasks.md",
+          "line": 46,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-18-lists/proposal.md",
+          "line": 6,
+          "publicId": "a7a3bb1b-2c9c-4797-9973-b192ac92a99c"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Таблицы и списки MD3 — data table, сетка правки, списки (md3_a7a3bb1b",
+        "updatedAt": "2026-11-02T05:44:31+00:00",
+        "designId": "2d7f81d4-5708-4674-87a1-fac3ddc04e33"
+      }
+    },
+    {
+      "id": "33568109-871b-4f5e-9f99-47669c07daa5",
+      "title": "Финал MD3: снимки до и после",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-05_Финал MD3_ снимки до и после_33568109",
+        "updatedAt": "2026-11-05T01:15:28+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "642e2e17-9a25-452f-b9e6-d7057cb7e2df",
+      "title": "Форма и возвышение MD3 (В11)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Форма и возвышение.html",
+          "title": "Форма и возвышение MD3"
+        }
+      ],
+      "aliases": [
+        "DNW3Ms459tn1GwmeKKHter",
+        "RzQWBoHs1EYqz9JiQLLPUs"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/tasks.md",
+          "line": 66,
+          "publicId": "642e2e17-9a25-452f-b9e6-d7057cb7e2df"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-05_Форма и возвышение MD3 (В11)_642e2e17",
+        "updatedAt": "2026-10-29T05:03:53+00:00",
+        "designId": "fec49266-e84e-4ada-aadb-06034f485646"
+      }
+    },
+    {
+      "id": "81ccbd23-4f24-4181-9310-9253c9b45a81",
+      "title": "Списки выбора MD3",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [
+        "H2dxbRXuQKKB1mDE2uyesS"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-21-pick-lists/tasks.md",
+          "line": 197,
+          "publicId": "81ccbd23-4f24-4181-9310-9253c9b45a81"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-06_Списки выбора MD3_81ccbd23",
+        "updatedAt": "2026-11-06T02:28:36+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "ee572f14-4f94-49c4-84af-1fe50691005b",
+      "title": "Списки выбора и списки карточки (md3-21)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Сейчас (master 2.77.0)",
+          "width": 1100,
+          "height": 980
+        },
+        {
+          "path": "A.dc.html",
+          "title": "А · строка списка везде — 1366",
+          "width": 2040,
+          "height": 1640
+        },
+        {
+          "path": "B.dc.html",
+          "title": "Б · пункт меню везде — 1366",
+          "width": 2040,
+          "height": 1640
+        },
+        {
+          "path": "V.dc.html",
+          "title": "В · по контейнеру — 1366",
+          "width": 2040,
+          "height": 1640
+        },
+        {
+          "path": "A-phone.dc.html",
+          "title": "А · 375",
+          "width": 1740,
+          "height": 940
+        },
+        {
+          "path": "B-phone.dc.html",
+          "title": "Б · 375",
+          "width": 1740,
+          "height": 940
+        },
+        {
+          "path": "V-phone.dc.html",
+          "title": "В · 375",
+          "width": 1740,
+          "height": 940
+        },
+        {
+          "path": "Cards.dc.html",
+          "title": "Списки карточки (PR 2), П3, П4 — общие для А/Б/В",
+          "width": 2040,
+          "height": 1900
+        }
+      ],
+      "aliases": [
+        "Qaik5dtwrTAzAfBeYtw9in",
+        "WS1vWJpd1wKUgEdNweodNA"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-21-pick-lists/design.md",
+          "line": 251,
+          "publicId": "ee572f14-4f94-49c4-84af-1fe50691005b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-06-sharedui-md3-21-pick-lists/tasks.md",
+          "line": 59,
+          "publicId": "ee572f14-4f94-49c4-84af-1fe50691005b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-06_Списки выбора и списки карточки (md3-21)_ee572f14",
+        "updatedAt": "2026-11-05T21:49:10+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "0786e46e-62f5-4f76-b92f-454c7912d92c",
+      "title": "Экран счёта: PR 1",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-06_Экран счёта_ PR 1_0786e46e",
+        "updatedAt": "2026-11-06T06:10:59+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "45cc943a-4d11-47a3-89ec-6b29b8176fb1",
+      "title": "Экран счёта: PR 2",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-06_Экран счёта_ PR 2_45cc943a",
+        "updatedAt": "2026-11-06T07:15:26+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "7262eef9-519c-4e29-a230-8213adece668",
+      "title": "Индикатор состояния счёта (costs-invoice-screen-11)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "00 · Разбор и вопрос",
+          "width": 1280,
+          "height": 1040
+        },
+        {
+          "path": "Sheet.dc.html",
+          "title": "Перечень «Состояние счёта» — общий для А/Б/В, 1366×768",
+          "width": 1366,
+          "height": 768
+        },
+        {
+          "path": "A.dc.html",
+          "title": "А · пометка в кнопке",
+          "width": 1880,
+          "height": 1200
+        },
+        {
+          "path": "B.dc.html",
+          "title": "Б · знак тона и подпись кнопки",
+          "width": 1880,
+          "height": 1200
+        },
+        {
+          "path": "V.dc.html",
+          "title": "В · две строки: уровень и фраза",
+          "width": 1880,
+          "height": 1200
+        }
+      ],
+      "aliases": [
+        "7te7pKZVKMMhkLAeEBKsVF",
+        "F8FFsmRVBWod3nYMryUjjd"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-11-status-indicator/design.md",
+          "line": 127,
+          "publicId": "7262eef9-519c-4e29-a230-8213adece668"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-07_Индикатор состояния счёта (costs-invoice-screen-11)_7262eef9",
+        "updatedAt": "2026-11-06T23:55:08+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "d3ab20c9-af28-4c6d-baf3-a401f6476c88",
+      "title": "Индикатор состояния счёта: PR 1",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-07_Индикатор состояния счёта_ PR 1_d3ab20c9",
+        "updatedAt": "2026-11-07T02:51:42+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "a77ccd4f-ead8-4f91-99b3-25284bfbf4b5",
+      "title": "Поля и сверка счёта: PR 2",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-07_Поля и сверка счёта_ PR 2_a77ccd4f",
+        "updatedAt": "2026-11-07T04:27:46+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "627f15a5-ae9b-45b6-bf26-e10dc85cd41c",
+      "title": "Сумма к оплате обязательна",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-07_Сумма к оплате обязательна_627f15a5",
+        "updatedAt": "2026-11-07T23:38:28+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "bcf293e0-af8a-46eb-a5e7-bc5929fe9d49",
+      "title": "Отмена вместо подтверждения",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-08_Отмена вместо подтверждения_bcf293e0",
+        "updatedAt": "2026-11-08T05:27:28+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "0c23293f-fabb-4ea2-8d48-4be85ff25be5",
+      "title": "П1 · Экраны смет модуля «Планирование»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Экраны смет.html",
+          "title": "П1 · Экраны смет модуля «Планирование»"
+        }
+      ],
+      "aliases": [
+        "2VvsJecFdAwsSQhSn8Tqrk",
+        "WwXJFSeZMk6K343ncuXLnX"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-26-plan-09-estimate-ui/design.md",
+          "line": 29,
+          "publicId": "0c23293f-fabb-4ea2-8d48-4be85ff25be5"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-08_П1 · Экраны смет модуля «Планирование»_0c23293f",
+        "updatedAt": "2026-10-26T00:23:07+00:00",
+        "designId": "03f60dfc-de8c-4660-ae27-5fdc8b271a42"
+      }
+    },
+    {
+      "id": "0a960650-ad11-4f99-bf83-573b236bdf86",
+      "title": "П2 · Распределение сметы по разделам",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Общее: разбор, обязательное, сравнение, сервер, вопросы",
+          "width": 1440,
+          "height": 1900
+        },
+        {
+          "path": "A.dc.html",
+          "title": "1 · Режим таблицы в карточке сметы",
+          "width": 1920,
+          "height": 1900
+        },
+        {
+          "path": "B.dc.html",
+          "title": "2 · Окно «Распределить по разделам»",
+          "width": 1920,
+          "height": 1900
+        },
+        {
+          "path": "C.dc.html",
+          "title": "3 · Матрица: разделы ЛСР × разделы стройки",
+          "width": 1920,
+          "height": 1900
+        }
+      ],
+      "aliases": [
+        "2JpT5oUZhSZr8bkVvv9iW1",
+        "JsWbUBqC3eUVvrJu3SxQ4v"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-09-plan-10-distribution/design.md",
+          "line": 166,
+          "publicId": "0a960650-ad11-4f99-bf83-573b236bdf86"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-plan-10-distribution/tasks.md",
+          "line": 72,
+          "publicId": "0a960650-ad11-4f99-bf83-573b236bdf86"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-08_П2 · Распределение сметы по разделам_0a960650",
+        "updatedAt": "2026-11-08T21:45:37+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "67356f07-9e7f-4438-9c01-64cd249493ed",
+      "title": "Площадка файла · FileDropZone",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Общее: было, что общее, сравнение",
+          "width": 1440,
+          "height": 1240
+        },
+        {
+          "path": "A.dc.html",
+          "title": "А · Строка в форме",
+          "width": 1440,
+          "height": 1240
+        },
+        {
+          "path": "B.dc.html",
+          "title": "Б · Площадка",
+          "width": 1440,
+          "height": 1440
+        },
+        {
+          "path": "C.dc.html",
+          "title": "В · Поле файла",
+          "width": 1440,
+          "height": 1240
+        }
+      ],
+      "aliases": [
+        "DkC1pS2r15uGtos1SS5m56",
+        "TdHt1Y6hm26rUyAu8pXNsb"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-08-sharedui-file-drop-zone/design.md",
+          "line": 51,
+          "publicId": "67356f07-9e7f-4438-9c01-64cd249493ed"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-08-sharedui-file-drop-zone/tasks.md",
+          "line": 6,
+          "publicId": "67356f07-9e7f-4438-9c01-64cd249493ed"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-08_Площадка файла · FileDropZone_67356f07",
+        "updatedAt": "2026-11-08T07:23:18+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "0e60b995-4174-43e4-8391-714976276b63",
+      "title": "Снимки броска счёта",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из архива"
+        }
+      ],
+      "aliases": [
+        "2myZrycq9Yvs77XRpDR2BU"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-14-file-drop/tasks.md",
+          "line": 115,
+          "publicId": "0e60b995-4174-43e4-8391-714976276b63"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-08_Снимки броска счёта_0e60b995",
+        "updatedAt": "2026-11-08T21:54:25+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "3e0fae8d-450d-4e38-a16d-92611ba9fe2d",
+      "title": "Primary tabs md3-22",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [
+        "8fVK6y8soqbrXcYkEyCx9A"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-09-sharedui-md3-22-primary-tabs/tasks.md",
+          "line": 62,
+          "publicId": "3e0fae8d-450d-4e38-a16d-92611ba9fe2d"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-09_Primary tabs md3-22_3e0fae8d",
+        "updatedAt": "2026-11-09T08:51:40+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "fa4252b1-d0b8-4c5f-92da-8be01227b738",
+      "title": "Автосохранение счёта · снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-09_Автосохранение счёта · снимки_fa4252b1",
+        "updatedAt": "2026-11-09T06:16:23+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "f7a32bf4-f014-4782-88d0-9d077f338fda",
+      "title": "П11 · Приложения сметы: КА и ВОР",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Общее: разбор, обязательное, сравнение, сервер, вопросы",
+          "width": 1440,
+          "height": 2300
+        },
+        {
+          "path": "A.dc.html",
+          "title": "1 · ✓ ВЫБРАН 09.11.2026 — Вкладка «Приложения» в карточке сметы",
+          "width": 1920,
+          "height": 2100
+        },
+        {
+          "path": "B.dc.html",
+          "title": "2 · Полоса приложений и окно просмотра",
+          "width": 1920,
+          "height": 2100
+        },
+        {
+          "path": "C.dc.html",
+          "title": "3 · Приложение своей страницей — сравнение поставщиков",
+          "width": 1920,
+          "height": 2100
+        },
+        {
+          "path": "D.dc.html",
+          "title": "Общее для всех: окно загрузки, согласие, удаление, пустые",
+          "width": 1920,
+          "height": 2100
+        }
+      ],
+      "aliases": [
+        "JcbFFuephT32dYcVeJEHG2",
+        "XabqQ7TwPQagXTT2gcuzyw"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-09-sharedui-md3-22-primary-tabs/design.md",
+          "line": 15,
+          "publicId": "f7a32bf4-f014-4782-88d0-9d077f338fda"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-plan-11-conjuncture/design.md",
+          "line": 53,
+          "publicId": "f7a32bf4-f014-4782-88d0-9d077f338fda"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-09_П11 · Приложения сметы_ КА и ВОР_f7a32bf4",
+        "updatedAt": "2026-11-09T08:45:46+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "d419a120-4332-4406-9f0d-07920b7b3653",
+      "title": "Свёрнутые «Сроки и оплата»",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-09_Свёрнутые «Сроки и оплата»_d419a120",
+        "updatedAt": "2026-11-09T22:52:23+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "f7186cd4-e443-49e3-bb0a-232577ede962",
+      "title": "Удаление строки с разноской",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Общее — разбор и вопрос",
+          "width": 1440,
+          "height": 1640
+        },
+        {
+          "path": "A.dc.html",
+          "title": "А · Перечень в тексте",
+          "width": 1800,
+          "height": 820
+        },
+        {
+          "path": "B.dc.html",
+          "title": "Б · Цели с долями и суммами (★ автор)",
+          "width": 1800,
+          "height": 820
+        },
+        {
+          "path": "V.dc.html",
+          "title": "В · Фраза и флажок",
+          "width": 1800,
+          "height": 820
+        }
+      ],
+      "aliases": [
+        "MbntQVZE4dtWKDgXWh4mAT",
+        "XWihMussCKdBVwv8X5L4SM"
+      ],
+      "references": [
+        {
+          "file": "docs/UI.md",
+          "line": 616,
+          "publicId": "f7186cd4-e443-49e3-bb0a-232577ede962"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-line-delete-allocation/design.md",
+          "line": 49,
+          "publicId": "f7186cd4-e443-49e3-bb0a-232577ede962"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-line-delete-allocation/tasks.md",
+          "line": 12,
+          "publicId": "f7186cd4-e443-49e3-bb0a-232577ede962"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-00-epic/tasks.md",
+          "line": 208,
+          "publicId": "f7186cd4-e443-49e3-bb0a-232577ede962"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-09_Удаление строки с разноской_f7186cd4",
+        "updatedAt": "2026-11-09T01:57:30+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "c91f756c-127c-4944-9b23-0caa8d5973d4",
+      "title": "Явные режимы счёта · снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-09_Явные режимы счёта · снимки_c91f756c",
+        "updatedAt": "2026-11-09T07:25:34+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "d880716f-e982-4fcf-ab43-4e30ff6b1645",
+      "title": "Лента счетов: состояние значком — А",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "А · Значок у каждой строки (★ Дизайнер)",
+          "width": 1760,
+          "height": 1120
+        }
+      ],
+      "aliases": [
+        "AQrV6MiBFxBhk2nHf3buxn",
+        "Tjc3qHyqHfFttcXeP4Dtv8"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-10-costs-invoice-list-state-mark/design.md",
+          "line": 56,
+          "publicId": "d880716f-e982-4fcf-ab43-4e30ff6b1645"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лента счетов_ состояние значком — А_d880716f",
+        "updatedAt": "2026-11-10T00:12:33+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "be111f02-c8eb-4fee-a14a-932f45cbb3ce",
+      "title": "Лента счетов: состояние значком — Б",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Б · Значок только у разобранного, оплаченного и отклонённого",
+          "width": 1760,
+          "height": 1120
+        }
+      ],
+      "aliases": [
+        "5WNMJg9yGc1YVaqkV9ouqo",
+        "QUGz3QnixgMx8fgkjug2fw"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-10-costs-invoice-list-state-mark/design.md",
+          "line": 57,
+          "publicId": "be111f02-c8eb-4fee-a14a-932f45cbb3ce"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лента счетов_ состояние значком — Б_be111f02",
+        "updatedAt": "2026-11-10T00:13:58+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "3860caad-853e-4c6e-8146-d32b1e03d783",
+      "title": "Лента счетов: состояние значком — В",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "В · Значок + пометка «оплачен» во второй строке",
+          "width": 1760,
+          "height": 1120
+        }
+      ],
+      "aliases": [
+        "7xnX8fPNv6PT1TDtjaYEbL",
+        "Axio1eaLbJPwi2Nv19sYNL"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-10-costs-invoice-list-state-mark/design.md",
+          "line": 58,
+          "publicId": "3860caad-853e-4c6e-8146-d32b1e03d783"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лента счетов_ состояние значком — В_3860caad",
+        "updatedAt": "2026-11-10T00:14:27+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "af98ec18-5240-48a9-9c97-4f3fc535e5f6",
+      "title": "Лупа просмотрщика — А",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "А · Прямоугольник у указателя (★ Дизайнер)",
+          "width": 1776,
+          "height": 2240
+        },
+        {
+          "path": "Sheet.dc.html",
+          "title": "Лист счёта — образец (общий для кадров)",
+          "width": 595,
+          "height": 842
+        }
+      ],
+      "aliases": [
+        "NgeKwoUR9ThPYgf4rLijqw",
+        "SJm21EEWmUtL46ey5iBQsV"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-sharedui-pdf-magnifier/design.md",
+          "line": 178,
+          "publicId": "af98ec18-5240-48a9-9c97-4f3fc535e5f6"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лупа просмотрщика — А_af98ec18",
+        "updatedAt": "2026-11-10T20:15:52+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "735937d6-8575-4520-9894-624ab22f5190",
+      "title": "Лупа просмотрщика — Б",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Б · Круг у указателя",
+          "width": 1776,
+          "height": 2240
+        },
+        {
+          "path": "Sheet.dc.html",
+          "title": "Лист счёта — образец (общий для кадров)",
+          "width": 595,
+          "height": 842
+        }
+      ],
+      "aliases": [
+        "2pxZAeVHMxwPGeugdJrzSE",
+        "FF8tnJh9rpvgXTn4V7qY7y"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-sharedui-pdf-magnifier/design.md",
+          "line": 179,
+          "publicId": "735937d6-8575-4520-9894-624ab22f5190"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лупа просмотрщика — Б_735937d6",
+        "updatedAt": "2026-11-10T20:16:46+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "6f5eb82d-f624-431e-9e37-8aa62cbe8294",
+      "title": "Лупа просмотрщика — В",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "В · Окно в стороне от указателя",
+          "width": 1776,
+          "height": 2240
+        },
+        {
+          "path": "Sheet.dc.html",
+          "title": "Лист счёта — образец (общий для кадров)",
+          "width": 595,
+          "height": 842
+        }
+      ],
+      "aliases": [
+        "EkeDVNJG9wB23Ubq1yVEuR",
+        "HZvfqdyY59boUgRnSkNcGu"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-sharedui-pdf-magnifier/design.md",
+          "line": 180,
+          "publicId": "6f5eb82d-f624-431e-9e37-8aa62cbe8294"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Лупа просмотрщика — В_6f5eb82d",
+        "updatedAt": "2026-11-10T20:16:56+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "dec6cdd1-8b01-403f-bdf4-68da9578a874",
+      "title": "Лупа просмотрщика — снимки",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из архива"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-10_Лупа просмотрщика — снимки_dec6cdd1",
+        "updatedAt": "2026-11-10T21:07:44+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "8fdc4ff0-76ed-4355-8307-d27fd567be23",
+      "title": "Обрезанная клетка таблицы",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-10_Обрезанная клетка таблицы_8fdc4ff0",
+        "updatedAt": "2026-11-10T04:39:45+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "ed1132af-4972-4db7-8177-fd42594e0e88",
+      "title": "Окно выбора позиции: до и после",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Разбор из архива"
+        }
+      ],
+      "aliases": [
+        "WGtxZwgZKVX6dtGT8nNiwH"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 125,
+          "publicId": "ed1132af-4972-4db7-8177-fd42594e0e88"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Окно выбора позиции_ до и после_ed1132af",
+        "updatedAt": "2026-11-10T09:19:09+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "75aec9a0-7e86-454e-a70d-c0afec7f4b89",
+      "title": "Окно выбора — А «Лист по явному действию»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "А — Лист по явному действию · кадры до и после карточки",
+          "width": 2892,
+          "height": 3400
+        },
+        {
+          "path": "Picker.dc.html",
+          "title": "Шаблон кадров окна выбора (вариант — свойство variant)",
+          "width": 2892,
+          "height": 3400
+        }
+      ],
+      "aliases": [
+        "FXrYcnYaAehcPQxRTKMCuv",
+        "HL41NjYQB6iFakAxYro7cN"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 66,
+          "publicId": "75aec9a0-7e86-454e-a70d-c0afec7f4b89"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Окно выбора — А «Лист по явному действию»_75aec9a0",
+        "updatedAt": "2026-11-10T08:39:44+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "62a28869-b370-46ff-b385-29ae98bbe554",
+      "title": "Окно выбора — Б «Панель деталей всегда»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Б — Панель деталей всегда · кадры до и после карточки",
+          "width": 2892,
+          "height": 3400
+        },
+        {
+          "path": "Picker.dc.html",
+          "title": "Шаблон кадров окна выбора (вариант — свойство variant)",
+          "width": 2892,
+          "height": 3400
+        }
+      ],
+      "aliases": [
+        "DBS3JSV8iPeQ1mvrT5B979",
+        "YWzBgZ3sFgfAxaRSTuuYL8"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 64,
+          "publicId": "62a28869-b370-46ff-b385-29ae98bbe554"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Окно выбора — Б «Панель деталей всегда»_62a28869",
+        "updatedAt": "2026-11-10T08:38:09+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "bd739804-d4d8-41ec-ab0c-da13ac1f7bf9",
+      "title": "Окно выбора — Д «Сторож наведения»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Д — Сторож наведения · кадры до и после карточки",
+          "width": 2892,
+          "height": 3400
+        },
+        {
+          "path": "Picker.dc.html",
+          "title": "Шаблон кадров окна выбора (вариант — свойство variant)",
+          "width": 2892,
+          "height": 3400
+        }
+      ],
+      "aliases": [
+        "7dpRTSvD5AGrec12ME46aG",
+        "QPsNUAUT85KvwGQA3Sv3yi"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 68,
+          "publicId": "bd739804-d4d8-41ec-ab0c-da13ac1f7bf9"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Окно выбора — Д «Сторож наведения»_bd739804",
+        "updatedAt": "2026-11-10T08:39:50+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "dad311f1-3eb1-46cb-938e-16cce78c253c",
+      "title": "Окно выбора — Е′ «Полоса над колонками»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Е′ — Полоса над колонками · кадры до и после карточки",
+          "width": 2892,
+          "height": 3400
+        },
+        {
+          "path": "Picker.dc.html",
+          "title": "Шаблон кадров окна выбора (вариант — свойство variant)",
+          "width": 2892,
+          "height": 3400
+        }
+      ],
+      "aliases": [
+        "U2EvjgBH6fpVNJpFkVuWe7",
+        "U5JxkH6qMmv9w4RtNavWFi"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/design.md",
+          "line": 75,
+          "publicId": "dad311f1-3eb1-46cb-938e-16cce78c253c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 70,
+          "publicId": "dad311f1-3eb1-46cb-938e-16cce78c253c"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 122,
+          "publicId": "dad311f1-3eb1-46cb-938e-16cce78c253c"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Окно выбора — Е′ «Полоса над колонками»_dad311f1",
+        "updatedAt": "2026-11-10T08:39:56+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "41a6cfdd-15e4-4ccf-af75-086552813a7c",
+      "title": "Остаток разноски — сам во второй объект",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Общее — правило, края, вопросы",
+          "width": 1640,
+          "height": 1040
+        },
+        {
+          "path": "A.dc.html",
+          "title": "А · Как набранное (★ исполнитель)",
+          "width": 1640,
+          "height": 1060
+        },
+        {
+          "path": "B.dc.html",
+          "title": "Б · С пометкой «остаток» и «Очистить»",
+          "width": 1640,
+          "height": 1060
+        },
+        {
+          "path": "V.dc.html",
+          "title": "В · Как А + «Остаток сюда» у объекта",
+          "width": 1640,
+          "height": 1060
+        }
+      ],
+      "aliases": [
+        "97CkPr3qBDyDcE54dq1ci7",
+        "Rj1quLypXXpLD6BxiBJ7WW"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-10-costs-allocation-remainder-fill/design.md",
+          "line": 54,
+          "publicId": "41a6cfdd-15e4-4ccf-af75-086552813a7c"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Остаток разноски — сам во второй объект_41a6cfdd",
+        "updatedAt": "2026-11-09T19:41:03+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "6c91c8ce-727e-4311-81b4-aed810311d67",
+      "title": "Шапка части счёта",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-10_Шапка части счёта_6c91c8ce",
+        "updatedAt": "2026-11-10T21:01:00+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3",
+      "title": "Экраны без самоделок (md3-17)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "00 Разбор и вопрос.html",
+          "title": "Экраны без самоделок — разбор"
+        },
+        {
+          "path": "В - Тише.html",
+          "title": "В — Тише"
+        },
+        {
+          "path": "Б - На месте.html",
+          "title": "Б — На месте"
+        },
+        {
+          "path": "А - MD3 буквально.html",
+          "title": "А — MD3 буквально"
+        }
+      ],
+      "aliases": [
+        "MUVKcggmjQuMTugfRy5Y77",
+        "WJ8QAATJ9CX7VMMUhkVkgJ"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/design.md",
+          "line": 41,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 16,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 49,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 52,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-05-sharedui-md3-17-screens/tasks.md",
+          "line": 56,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-10-layout/tasks.md",
+          "line": 126,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-11-status-indicator/tasks.md",
+          "line": 112,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/proposal.md",
+          "line": 18,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 52,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-11-costs-picker-sheet-reflow/tasks.md",
+          "line": 58,
+          "publicId": "ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-10_Экраны без самоделок (md3-17)_ed3d39a6",
+        "updatedAt": "2026-11-03T08:25:33+00:00",
+        "designId": "4f525fa0-00c5-414a-9ec5-3e1d42d90a72"
+      }
+    },
+    {
+      "id": "ef5525ad-9e47-449d-8039-c3709b3b972b",
+      "title": "Отборы над списком счетов (#1910)",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "Сейчас (2.106.0)",
+          "width": 1120,
+          "height": 720
+        },
+        {
+          "path": "VariantA.dc.html",
+          "title": "А — «Стройки», перенос как есть",
+          "width": 1120,
+          "height": 720
+        },
+        {
+          "path": "VariantB.dc.html",
+          "title": "Б — сетка в две равные колонки",
+          "width": 1120,
+          "height": 720
+        },
+        {
+          "path": "VariantV.dc.html",
+          "title": "В — очереди одним чипом-меню",
+          "width": 1120,
+          "height": 720
+        }
+      ],
+      "aliases": [
+        "JBRovSvLUXaw1Qb7kqBFwo",
+        "WZ825m7bDtaipxWScqZyMc"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-13-costs-invoice-filter-row/design.md",
+          "line": 3,
+          "publicId": "ef5525ad-9e47-449d-8039-c3709b3b972b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-13-costs-invoice-filter-row/proposal.md",
+          "line": 14,
+          "publicId": "ef5525ad-9e47-449d-8039-c3709b3b972b"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-13-costs-invoice-filter-row/tasks.md",
+          "line": 4,
+          "publicId": "ef5525ad-9e47-449d-8039-c3709b3b972b"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-11_Отборы над списком счетов (#1910)_ef5525ad",
+        "updatedAt": "2026-11-11T22:01:14+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "5c73eaee-a37a-4487-8aa6-b0c451ac549f",
+      "title": "П0 · Навигация модуля «Планирование»",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Навигация Планирования.html",
+          "title": "П0 · Навигация модуля «Планирование»"
+        }
+      ],
+      "aliases": [
+        "CR9zaXeQxX7AFTqj4KVEgN",
+        "CZbkRR4ZohtSGctuJbJJau"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-10-23-plan-02-navigation/design.md",
+          "line": 192,
+          "publicId": "5c73eaee-a37a-4487-8aa6-b0c451ac549f"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-11_П0 · Навигация модуля «Планирование»_5c73eaee",
+        "updatedAt": "2026-10-22T13:02:35+00:00",
+        "designId": "8c8e3533-88d7-4ddd-b4df-28bd2b0dafeb"
+      }
+    },
+    {
+      "id": "dc89e31c-64d1-45d2-98ed-1626935c222f",
+      "title": "Оболочка BHS.CRG · два варианта",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "A · Счета",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "path": "ASearch.dc.html",
+          "title": "A · Открыт поиск (Ctrl K)",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "path": "APhone.dc.html",
+          "title": "A · Телефон",
+          "width": 390,
+          "height": 844
+        },
+        {
+          "path": "BMain.dc.html",
+          "title": "B · Счета",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "path": "BAccount.dc.html",
+          "title": "B · Открыто меню профиля",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "path": "BPhone.dc.html",
+          "title": "B · Телефон",
+          "width": 390,
+          "height": 844
+        },
+        {
+          "path": "BAdmin.dc.html",
+          "title": "B · Администрирование",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "path": "BHome.dc.html",
+          "title": "B · Главная «Продолжить работу»",
+          "width": 1440,
+          "height": 900
+        }
+      ],
+      "aliases": [
+        "SqdUcJ32PRpQ7xWojsP5X3",
+        "UEWyhUxdz6ScU954sETuP4"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-13-shell-00-epic/design.md",
+          "line": 51,
+          "publicId": "dc89e31c-64d1-45d2-98ed-1626935c222f"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-12_Оболочка BHS.CRG · два варианта_dc89e31c",
+        "updatedAt": "2026-10-17T05:53:04+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "3da1edf7-4f39-4a42-b750-e9312fac0698",
+      "title": "Отборы счетов #1910",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-13_Отборы счетов #1910_3da1edf7",
+        "updatedAt": "2026-11-13T03:46:27+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "83c2e934-91bd-4535-bf8a-8a42b7a40c72",
+      "title": "Р0–Р1 · Учёт работ: навигация и сотрудники",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Main.dc.html",
+          "title": "0 · Лист сравнения и вопросы владельцу",
+          "width": 1600,
+          "height": 2560
+        },
+        {
+          "path": "R0-Common.dc.html",
+          "title": "Р0 · 0 · Общее для всех вариантов",
+          "width": 1820,
+          "height": 1900
+        },
+        {
+          "path": "R0-A.dc.html",
+          "title": "Р0 · А · Закреплённые в подпанели, телефон «Ещё»",
+          "width": 1820,
+          "height": 1340
+        },
+        {
+          "path": "R0-B.dc.html",
+          "title": "Р0 · Б · Свой раздел рейла, телефон из трёх мест",
+          "width": 1820,
+          "height": 1340
+        },
+        {
+          "path": "R0-V.dc.html",
+          "title": "Р0 · В · Закрепления в самом рейле, личная строка",
+          "width": 1820,
+          "height": 1340
+        },
+        {
+          "path": "R1-Common.dc.html",
+          "title": "Р1 · 0 · Общее для всех вариантов",
+          "width": 1820,
+          "height": 1500
+        },
+        {
+          "path": "R1-A.dc.html",
+          "title": "Р1 · А · Только карточка, конвейер",
+          "width": 1820,
+          "height": 1340
+        },
+        {
+          "path": "R1-B.dc.html",
+          "title": "Р1 · Б · Карточка и «Пользователи»",
+          "width": 1820,
+          "height": 1340
+        },
+        {
+          "path": "R1-V.dc.html",
+          "title": "Р1 · В · Сопоставление пачкой",
+          "width": 1820,
+          "height": 1340
+        }
+      ],
+      "aliases": [
+        "HGgpB7JPaK5Z8VB3x91nbB",
+        "MebHJhzkMCYsmVw9vZpFht"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-12-work-01-employee-account/design.md",
+          "line": 131,
+          "publicId": "83c2e934-91bd-4535-bf8a-8a42b7a40c72"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-13-work-03-navigation/design.md",
+          "line": 124,
+          "publicId": "83c2e934-91bd-4535-bf8a-8a42b7a40c72"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-13-work-04-pinned-sections/design.md",
+          "line": 89,
+          "publicId": "83c2e934-91bd-4535-bf8a-8a42b7a40c72"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-13_Р0–Р1 · Учёт работ_ навигация и сотрудники_83c2e934",
+        "updatedAt": "2026-11-11T07:49:51+00:00",
+        "designId": null
+      }
+    },
+    {
+      "id": "bda20c05-87c1-47e1-9c55-a3baeb8a7504",
+      "title": "Экран счёта · критический пересмотр",
+      "kind": "design",
+      "pages": [
+        {
+          "path": "Экран счёта.html",
+          "title": "Экран счёта · критический пересмотр"
+        }
+      ],
+      "aliases": [
+        "QRAkNdAL6wAy9HBubKndCF",
+        "TKsfs7FhZTPAmngAqZnmCa"
+      ],
+      "references": [
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-10-layout/design.md",
+          "line": 10,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-11-status-indicator/design.md",
+          "line": 18,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-11-status-indicator/proposal.md",
+          "line": 74,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-07-costs-invoice-screen-11-status-indicator/tasks.md",
+          "line": 84,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-08-costs-invoice-screen-13-undo/proposal.md",
+          "line": 73,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-08-costs-invoice-screen-13-undo/tasks.md",
+          "line": 84,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-00-epic/design.md",
+          "line": 9,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-00-epic/proposal.md",
+          "line": 13,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-00-epic/tasks.md",
+          "line": 247,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-12-autosave/design.md",
+          "line": 59,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-12-autosave/proposal.md",
+          "line": 82,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-12-autosave/tasks.md",
+          "line": 75,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-12-autosave/tasks.md",
+          "line": 95,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-14-file-drop/design.md",
+          "line": 7,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-14-file-drop/tasks.md",
+          "line": 21,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-09-costs-invoice-screen-14-file-drop/tasks.md",
+          "line": 115,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/design.md",
+          "line": 8,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        },
+        {
+          "file": "openspec/changes/archive/2026-11-10-sharedui-md3-00-epic/proposal.md",
+          "line": 6,
+          "publicId": "bda20c05-87c1-47e1-9c55-a3baeb8a7504"
+        }
+      ],
+      "source": {
+        "folder": "2026-11-13_Экран счёта · критический пересмотр_bda20c05",
+        "updatedAt": "2026-11-13T06:27:25+00:00",
+        "designId": "ee2cb716-f2c0-415c-95bd-95f139b5e4a5"
+      }
+    },
+    {
+      "id": "355aa989-df0e-4555-8d67-8e92d4362e93",
+      "title": "Дорожная карта этапов 3–4",
+      "kind": "reference",
+      "pages": [
+        {
+          "path": "index.html",
+          "title": "Снимки из исходного экспорта"
+        }
+      ],
+      "aliases": [],
+      "references": [],
+      "source": {
+        "folder": "2026-11-16_Дорожная карта этапов 3–4_355aa989",
+        "updatedAt": "2026-11-16T04:01:05+00:00",
+        "designId": null
+      }
+    }
+  ]
+}

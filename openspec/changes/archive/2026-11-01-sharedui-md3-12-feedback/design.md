@@ -12,7 +12,7 @@
 
 **01.11.2026 — макет А «MD3 целиком»** (В9 и В16 в зонтике), проект Claude Design «Обратная связь MD3 —
 snackbar, подсказки, banner, пометки (В9, В16)»:
-https://claude.ai/artifact/LKFzkVSmBePXMvqEkiaF19 — лист «А - MD3 целиком».
+http://127.0.0.1:5200/?section=mockups&project=7afe339b-6444-4423-af94-a287f3ab7996 — лист «А - MD3 целиком».
 
 | Ось | Выбрано (А) | Отвергнуто |
 |---|---|---|

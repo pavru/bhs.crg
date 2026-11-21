@@ -31,7 +31,7 @@
 ## Decisions
 
 ### Описание темы в режиме `seed`
-- Решения владельца 29.10.2026 (лист https://claude.ai/artifact/D3Fe7KqxF1wu185GPDPeRo):
+- Решения владельца 29.10.2026 (лист http://127.0.0.1:5200/?section=mockups&project=c2a3ae79-6d2d-44f4-bf2c-15e2b2e1dce8):
   вариант `tonalSpot`, primary закреплён (В2), без гармонизации (В3), `fg3`/`fg4` → `on-surface-variant`
   (В1), обводки предупреждения нет.
 - `md3-theme.json`: `mode: "seed"`, `seed: "#1d5fb0"`, `variant: "tonalSpot"`, `contrast: 0`,

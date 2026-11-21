@@ -18,7 +18,7 @@
   `design.md` называет каждое (D1–D6).
 - [x] 0.3 Тексты окна повтора, покрытия, итога пакета и вопроса замены сверены с листом «Ф» макета
   «Экран счёта · критический пересмотр» (`mock/drop.js`, артефакт
-  https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa). Расхождения согласованы с Дизайнером до
+  http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504). Расхождения согласованы с Дизайнером до
   кода. [COST-6.7] Проверка — ссылка на макет и перечень текстов в описании PR 1.
 - [x] 0.4 Состояние `shell-07-scan-drop-hint` (#1435) выяснено. Если он слит — его требование о колонке
   как цели правится здесь, через `/opsx:update` (колонка — часть окна). Если не слит — в его change
@@ -112,5 +112,5 @@
 - [x] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
 - [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный (`scanBatch.ts`, `InvoicesPage.tsx` под присмотром: новое — своими файлами)
-- [x] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa; зонтик 3.2). Сделано: «после» — https://claude.ai/artifact/2myZrycq9Yvs77XRpDR2BU; «до» — кадры листа «Ф» (снимок master против этого стенда не снялся); кадр 8 листа «Ф» (пустая панель) не действует — вариант Б, 09.11.2026
+- [x] 4.5 Живые прогоны счёта (`invoices-smoke`, `invoice-lines-smoke`, `invoice-payment-smoke`, `invoice-layout-checks`) на 1366×768, 1280×720, 1366×650 и 1024×768 (зонтик 3.1); снимки до и после со ссылкой на макет «Экран счёта · критический пересмотр», лист «Ф» (http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504; зонтик 3.2). Сделано: «после» — http://127.0.0.1:5200/?section=mockups&project=0e60b995-4174-43e4-8391-714976276b63; «до» — кадры листа «Ф» (снимок master против этого стенда не снялся); кадр 8 листа «Ф» (пустая панель) не действует — вариант Б, 09.11.2026
 - [x] 4.6 Оба PR с меткой `version:minor`; `<Version>` не тронута

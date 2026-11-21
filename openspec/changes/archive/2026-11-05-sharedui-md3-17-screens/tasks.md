@@ -13,7 +13,7 @@
   какие места сводятся к готовому компоненту, а какие меняют раскладку. Перечень — комментарием к задаче,
   разбор с Дизайнером. Проверка — у каждого раздела перечень с пометкой «компонент» или «макет»
   Сделано 03.11.2026. Сводка — лист «00 Разбор и вопрос» проекта Claude Design
-  https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77?file=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
+  http://127.0.0.1:5200/?section=mockups&project=ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3&page=00+%D0%A0%D0%B0%D0%B7%D0%B1%D0%BE%D1%80+%D0%B8+%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.html.
   Все 145 мест открыты в коде. Компонент / макет: PR 1 — 34 / 8 (с `LoginPage`), PR 2 — 18 / 6, PR 3 — 21 / 15,
   PR 4 — 17 / 3, PR 5 — 7 / 0; ещё 16 мест экрана счёта → PR 5 (их переписывают `costs-invoice-screen-10`,
   `-11`, `-13`; 11 сам сводит `StaleInvoiceNotice` к листу состояния). Сверх правил «макет» —
@@ -46,14 +46,14 @@
   отвергнуты; перенесено `/opsx:update` в proposal, design (таблица Р1–Р9, PR 0), spec и задачи ниже:
   - (А) MD3 буквально — banner в начале области, ошибка у поля, input chip, медиа с галкой, кликабельная
     карточка, контекстная шапка выбора, `SideSheet` 400; форме на 1366 — 598 px вместо 432 —
-    https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77?file=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
+    http://127.0.0.1:5200/?section=mockups&project=ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3&page=%D0%90+-+MD3+%D0%B1%D1%83%D0%BA%D0%B2%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE.html
   - (Б) На месте — banner у причины (отступление от `docs/UI.md`), `Card filled`, `TextAreaField readOnly`,
     поле с кнопками в хвосте, нижняя панель выбора, supporting pane; форме — 432, как сейчас —
-    https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77?file=%D0%91+-+%D0%9D%D0%B0+%D0%BC%D0%B5%D1%81%D1%82%D0%B5.html
+    http://127.0.0.1:5200/?section=mockups&project=ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3&page=%D0%91+-+%D0%9D%D0%B0+%D0%BC%D0%B5%D1%81%D1%82%D0%B5.html
   - (В) Тише — текст со знаком у причины, «запись есть в архиве» — окном, «подпись — значение» без рамки,
     строка списка вместо плитки, `DataGrid` вместо карточек строек, предпросмотр — modal-лист по кнопке;
     форме — 998 —
-    https://claude.ai/artifact/MUVKcggmjQuMTugfRy5Y77?file=%D0%92+-+%D0%A2%D0%B8%D1%88%D0%B5.html
+    http://127.0.0.1:5200/?section=mockups&project=ed3d39a6-65a5-4ea4-8bfe-afcff839cbc3&page=%D0%92+-+%D0%A2%D0%B8%D1%88%D0%B5.html
 
 ## 0б. PR 0: компоненты `shared/ui` (design, «PR 0»)
 
@@ -89,7 +89,7 @@
   `npm run -s test:e2e:ci` зелёные; снимки экранов раздела до и после в обеих темах. Проверка — описание PR
   Сделано 04.11.2026 на стенде как в CI (своя база и бакет, посев): все 21 набор `test:e2e:ci` зелёные
   (`print-profiles-checks` едет внутри `settings`). Снимки до и после, обе темы, 1366 и 375 —
-  https://claude.ai/artifact/JG3eocTdHSf7igGF82mpDZ
+  http://127.0.0.1:5200/?section=mockups&project=8bc525e2-c703-463a-a53e-114093740dc4
 
 ## 2. PR 2: `datasets`, `templates`, `tables`
 
@@ -106,7 +106,7 @@
 - [x] 2.2 Живые прогоны (`field-mapping-smoke`, `table-*`) и весь `npm run -s test:e2e:ci` зелёные;
   снимки до и после. Проверка — описание PR
   Сделано 04.11.2026 на стенде как в CI: все 21 набор `test:e2e:ci` зелёные. Снимки до и после, обе темы,
-  1366 и 375 — https://claude.ai/artifact/4JJrg2AfFtifwG137wspqk. Редактор разбиения PDF и построитель
+  1366 и 375 — http://127.0.0.1:5200/?section=mockups&project=1ab61082-06a9-4c08-932b-814885c23b17. Редактор разбиения PDF и построитель
   XPath посев стенда не открывает (нужен разобранный движком PDF и XML-набор) — на снимках их нет
 
 ## 3. PR 3: `document-sets`, `quality-docs`, `catalog`, `common-data`
@@ -132,7 +132,7 @@
   Сделано 04.11.2026 на стенде как в CI: все 21 набор `test:e2e:ci` зелёные. Карточка стройки стала одной
   ссылкой, а переключатель предпросмотра — кнопкой в шапке, и три проверки подстроены под это: `routing`
   щёлкает ссылку карточки, `favorites` отмечает стройку звездой в её шапке, `fields` открывает вложение
-  его чипом. Снимки до и после, обе темы, 1366 и 375 — https://claude.ai/artifact/K4AxBynPFfZzpknRqzHjfQ
+  его чипом. Снимки до и после, обе темы, 1366 и 375 — http://127.0.0.1:5200/?section=mockups&project=9235dc2b-d720-4391-a623-78ed27b90d2b
 
 ## 4. PR 4: `costs`, `planning`, `periods`, `reconciliations`
 
@@ -160,7 +160,7 @@
   позиции и затрат стройки до и после. Проверка — описание PR
   Сделано 05.11.2026 на стенде как в CI: все 21 набор `test:e2e:ci` зелёные (в них — проверки окна выбора
   позиции на листе); ни одна проверка не подстраивалась. Снимки до и после, обе темы, 1366 и 375 —
-  https://claude.ai/artifact/7WpscdPEcQBsEzPvrcCPgR
+  http://127.0.0.1:5200/?section=mockups&project=34c0e763-adc9-4abb-a166-de9bdd329bce
 
 ## 5. PR 5а и 5б: `shared/`, тест пустого уровня и документы
 
@@ -178,7 +178,7 @@ PR 5 разделён на два (решение владельца 05.11.2026)
   `Markdown` — `title-medium` / `title-small`; название в рейле — `label-small` без начертания; совпадение в
   подсказке — `font-medium` (три теста `SuggestField` ищут его по этому классу); поиск избранного — плотный
   `TextField`. Уровни: `raw-field` 1 → 0, `legacy-type` 6 → 0; остались `notice-plaque` 8 и `hand-card` 8 —
-  экран счёта. Весь `test:e2e:ci` зелёный (21 набор); снимки — https://claude.ai/artifact/DfBvGpqC6ykaKn72jYoeTi
+  экран счёта. Весь `test:e2e:ci` зелёный (21 набор); снимки — http://127.0.0.1:5200/?section=mockups&project=6682a7eb-defe-461b-9625-eb895c2ce2e1
   Правки ревью PR (05.11.2026): совпадение в подсказке — вес `font-medium` с меткой `data-match`, [UI-4] и
   сценарий [UI-55] переписаны с «жирным» на «весом» (MODIFIED в дельте `sharedui`); заголовки `Markdown` —
   `h3`–`h5` ролями `title-large` / `title-medium` / `title-small` (`##` и `###` совпадали); поиск избранного —

@@ -20,7 +20,7 @@
   `expand_less`, `business`, `insights`, `do_not_disturb`, `remove_circle`, `place` отсутствуют (проверено
   по пакету 28.10.2026). Таблица 0.4 сверяется с файлами пакета, а не со справочником Google Fonts.
 - Лист выбора В4 и В13 (задача 0.1) — Claude Design, «Значки MD3.html»:
-  https://claude.ai/artifact/R6F246o1yKvnxQsktkp8MX (было / А Outlined 18-20-24 /
+  http://127.0.0.1:5200/?section=mockups&project=5d443645-20fe-4831-86a9-8c737e883357 (было / А Outlined 18-20-24 /
   Б Outlined 16-20-24 / В Rounded 16-20-24, обе темы, реальные пути обоих наборов).
 
 ## Goals / Non-Goals

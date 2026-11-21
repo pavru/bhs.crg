@@ -132,7 +132,7 @@
 ### D7. Выбран вариант А (владелец, 05.11.2026)
 
 Значение из источника и под замком — поле с подписью в вырезе, как у редактируемых реквизитов и у
-`LockedFieldValue`. Макеты — https://claude.ai/artifact/3KoUN4K6WaG4T8bYm34bQv (проект Claude Design 6713dd13).
+`LockedFieldValue`. Макеты — http://127.0.0.1:5200/?section=mockups&project=7fa8eab1-f9d0-4206-8c65-9b10e017771b (проект Claude Design 6713dd13).
 Условия из разбора Дизайнера и Архитектора:
 - **Кнопка привязки — в хвосте и слита со знаком происхождения.** В углу ячейки (`absolute top-0.5
   right-0.5`) `SourceBindingTrigger` накрывал бы хвост поля. У привязанного поля `FieldSourceBinding`

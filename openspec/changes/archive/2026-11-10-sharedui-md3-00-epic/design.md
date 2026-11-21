@@ -5,7 +5,7 @@
 
 Основание — разборы Дизайнера (инвентарь по осям MD3) и Архитектора (механика перехода) от 27.10.2026.
 Числа в них посчитаны `rg` по `src/client/src` на master `1e81da2e`. Образец языка — вариант Г экрана
-счёта (`ee2cb716-…`, артефакт https://claude.ai/artifact/TKsfs7FhZTPAmngAqZnmCa; `mock/md3.css`, `mock/md3x.js`, лист «Г»).
+счёта (`ee2cb716-…`, артефакт http://127.0.0.1:5200/?section=mockups&project=bda20c05-87c1-47e1-9c55-a3baeb8a7504; `mock/md3.css`, `mock/md3x.js`, лист «Г»).
 
 ## Context
 
@@ -283,7 +283,7 @@ filled, рейл и нижняя навигация, extended FAB, размер�
 ### D12. Внешние носители
 
 - **Дизайн-система «BHS.CRG UI»** (до 05.11.2026 — в Claude Design, теперь артефакт
-  https://claude.ai/artifact/DckGDGRbsYEtJn6rr2ibMN; `/design-sync` в него пока не пишет, состояние 2.74.0) — README («Styling idiom» перечисляет словарь Fluent),
+  http://127.0.0.1:5200/?section=library; `/design-sync` в него пока не пишет, состояние 2.74.0) — README («Styling idiom» перечисляет словарь Fluent),
   `_ds_bundle`, `conventions.md`. `/design-sync` — сразу после 01 и после каждого визуального ребёнка.
   Состояние `.design-sync/` лежит только в основной копии. В worktree его копируют туда и обратно.
 - **Документы.** `docs/UI.md`: язык и цвет — в 01, каждый ребёнок — свой раздел, финал — в 20.

@@ -3,7 +3,7 @@
 Дочерний change зонтика `sharedui-md3-00-epic`, общая архитектура — `../sharedui-md3-00-epic/design.md`
 (D6, D7, D8, D10, D11, D12). Вид выбран владельцем 02.11.2026 в `sharedui-md3-14-data` — вариант А «Data
 table буквально», экран 5 «Список list-detail» (макеты
-https://claude.ai/artifact/Q8fScAiy7Xd571tXwtt8oi). Тем же ответом списки вынесены из 14
+http://127.0.0.1:5200/?section=mockups&project=a7a3bb1b-2c9c-4797-9973-b192ac92a99c). Тем же ответом списки вынесены из 14
 сюда, по совету Дизайнера и Архитектора.
 
 ## Why
