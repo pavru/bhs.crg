@@ -59,27 +59,9 @@ public sealed class PeriodClosureService(
         var rows = await db.PeriodClosures.AsNoTracking()
             .Where(r => r.Through >= date && (r.Contour == PeriodContourKind.Company || r.ConstructionId == constructionId))
             .OrderBy(r => r.EventOrder)
-            .Select(r => new { r.Id, r.CancelsId, r.At, r.Kind })
+            .Select(r => new PeriodClosureEvent(r.Id, r.Kind, r.CancelsId, r.At))
             .ToListAsync(ct);
-        var active = new HashSet<Guid>();
-        var cancelled = new HashSet<Guid>();
-        (Guid Id, DateTimeOffset At)? first = null;
-        foreach (var row in rows)
-        {
-            // Перекрывающее закрытие продлевает отрезок. Обнуляем начало, только когда день открылся.
-            if (row.CancelsId is { } id)
-            {
-                cancelled.Add(id);
-                active.Remove(id);
-                if (active.Count == 0) first = null;
-            }
-            else if (row.Kind == PeriodClosureKind.Close && !cancelled.Contains(row.Id))
-            {
-                first ??= (row.Id, row.At);
-                active.Add(row.Id);
-            }
-        }
-        return first;
+        return PeriodLedger.ContinuousClosing(rows);
     }
 
     public async Task<DateOnly> TodayAsync(CancellationToken ct = default)
