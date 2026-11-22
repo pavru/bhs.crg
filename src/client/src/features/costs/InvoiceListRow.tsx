@@ -70,8 +70,9 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
     </Tooltip>
   );
 
+  // Позиционируем sr-only внутри строки, чтобы скрытая подпись не раздувала прокрутку оболочки (#2010).
   return (
-    <div onFocus={e => setFocused(focusCallsTooltip(e.target))} onBlur={() => setFocused(false)}>
+    <div className="relative" onFocus={e => setFocused(focusCallsTooltip(e.target))} onBlur={() => setFocused(false)}>
       <ListItem ref={row} data-testid="invoice-row" selected={active} onClick={onClick}
         headline={headline} leading={lead}
         trailing={(item.total != null || item.issuedOn) && (
