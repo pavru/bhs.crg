@@ -95,6 +95,10 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
         var stats = new List<RestoreSectionStat>();
         var restored = new List<BackupModuleSchema>();
 
+        // Триггеры модулей могут различать восстановление копии и обычный путь записи.
+        await using (var begin = Command(transaction, "SET LOCAL bhs.module_restore = 'on'"))
+            await begin.ExecuteNonQueryAsync(ct);
+
         foreach (var section in data)
         {
             var module = registry.Find(section.Module);
@@ -166,6 +170,8 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
             }
         }
 
+        await using (var end = Command(transaction, "SET LOCAL bhs.module_restore = 'off'"))
+            await end.ExecuteNonQueryAsync(ct);
         await WarnAboutAbsentAsync(data, transaction, warnings, ct);
 
         return new ModuleRestoreOutcome(stats, [.. restored]);

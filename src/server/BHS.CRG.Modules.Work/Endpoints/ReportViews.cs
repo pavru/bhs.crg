@@ -15,7 +15,8 @@ public sealed record ReportPhotoDto(Guid Id, string State);
 public sealed record ReportLineDto(
     Guid Id, int Position, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, Guid WorkPlanItemId, JsonElement Details,
-    IReadOnlyList<ReportMaterialDto> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<ReportPhotoDto> Photos);
+    IReadOnlyList<ReportMaterialDto> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<ReportPhotoDto> Photos,
+    string? CrewRole);
 
 /// <summary>Кто ввёл отчёт за сотрудника (ТЗ WORK-31): учётная запись и имя снимком на момент заведения.</summary>
 public sealed record ReportEnteredByDto(Guid UserId, string Name);
@@ -123,6 +124,7 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
             l.IsCrew, l.WorkPlanItemId, details.RootElement.Clone(),
             [.. l.Materials.OrderBy(m => m.Position).Select(m => new ReportMaterialDto(m.NomenclatureId, m.Note))],
             [.. l.Participants.Select(p => p.EmployeeId)],
-            [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State)))]);
+            [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State)))],
+            l.CrewRole);
     }
 }

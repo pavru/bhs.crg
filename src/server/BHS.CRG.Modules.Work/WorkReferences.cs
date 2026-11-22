@@ -44,6 +44,14 @@ public static class WorkReferences
         ModuleReference.Holding("report_line_participants", "employee_id", ReferenceTarget.Record,
             "участие в бригадных работах отчётов монтажников"),
 
+        ModuleReference.Holding("crew_groups", "construction_id", ReferenceTarget.Construction, "группы сверки бригад"),
+        ModuleReference.Holding("crew_groups", "work_type_id", ReferenceTarget.Record, "группы сверки по этому виду работ"),
+        ModuleReference.Holding("crew_groups", "unit_id", ReferenceTarget.Record, "итоги сверки бригад в этой единице"),
+        ModuleReference.Remembering("crew_groups", "approved_by", ReferenceTarget.User,
+            "автор утверждения итогового объёма с именем снимком"),
+        ModuleReference.Remembering("crew_groups", "input_revision", target: null, "версия состава и строк группы"),
+        ModuleReference.Remembering("crew_groups", "approved_revision", target: null, "версия состава и строк при утверждении"),
+
         // Протокол изменений — узкая запись для повтора и курсора: держит отчёт сам, а после удаления черновика
         // запись остаётся нарочно — по ней клиент узнаёт об удалении.
         ModuleReference.Remembering("report_changes", "report_id", target: null,

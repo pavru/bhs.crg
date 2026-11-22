@@ -129,6 +129,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     public DbSet<OfferSectionMarkup> OfferSectionMarkups => Set<OfferSectionMarkup>();
 
     public DbSet<OfferVersion> OfferVersions => Set<OfferVersion>();
+    public DbSet<PriceListEntry> PriceListEntries => Set<PriceListEntry>();
+
+    public string VersionOf(PriceListEntry entry) => Version(entry);
 
     /// <summary>Версия КП — её называет каждая правка (<c>If-Match</c>).</summary>
     public string VersionOf(Offer offer) => Version(offer);
@@ -197,6 +200,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// </summary>
     private ConflictException? Refusal(DbUpdateException e)
     {
+        if ((e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is PriceListEntry)) ||
+            e.InnerException is PostgresException { ConstraintName: PriceListEntry.DateKey })
+            return new ConflictException("Цену на эту дату тем временем изменили. Перечитайте прайс-лист и повторите.", e);
         if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is EstimateImport))
             return new ConflictException(
                 "Импорт тем временем изменили — разбор завершился, импорт отменили или из него создали редакцию в " +
@@ -270,5 +276,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         AttachmentModel.Configure(builder);
         OfferModel.Configure(builder);
         OfferVersion.Map(builder);
+        PriceListEntry.Map(builder);
     }
 }

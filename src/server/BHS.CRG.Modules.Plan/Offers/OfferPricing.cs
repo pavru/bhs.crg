@@ -108,7 +108,7 @@ public static class OfferPricing
 
     /// <summary>
     /// Пересчитать КП целиком: цены строк по базам и наценкам, затем суммы. Базы — итоги строк редакции по
-    /// идентификатору строки редакции; строки без строки-источника (прайс-лист, <c>plan-14</c>) здесь не бывают.
+    /// идентификатору строки редакции или сохранённые цены прайс-листа.
     /// </summary>
     public static void Reprice(Offer offer, IReadOnlyDictionary<Guid, decimal?> baseTotals)
     {
@@ -116,19 +116,30 @@ public static class OfferPricing
         foreach (var line in offer.Lines)
         {
             var markup = Effective(line.Markup, line.LsrSectionCode, sections, offer.Markup);
-            var baseTotal = line.RevisionRowId is { } row ? baseTotals.GetValueOrDefault(row) : null;
-            var price = Price(baseTotal, line.Volume, markup.Value);
+            var price = line.RevisionRowId is { } row
+                ? Price(baseTotals.GetValueOrDefault(row), line.Volume, markup.Value)
+                : FromPriceList(line.PriceListPrice, line.Volume.GetValueOrDefault(), markup.Value);
             line.Reprice(price.Price, price.Amount);
         }
 
-        var totals = Totals(offer.Lines.Select(l => l.Amount), offer.VatMode, offer.VatRate);
-        offer.Reprice(totals.LinesTotal, totals.Vat, totals.Total);
+        Retotal(offer);
+    }
+
+    private static LinePrice FromPriceList(decimal? basis, decimal volume, decimal markup)
+    {
+        if (basis is not { } value) return new(null, 0m);
+        var price = Money(value * (1m + markup / 100m));
+        if (price > PriceListEntry.MaxPrice || (volume > 1m && price >= (PriceListEntry.MaxPrice + 0.005m) / volume))
+            throw new InvalidRequestException("Цена или сумма строки КП выходит за допустимый размер.");
+        return new(price, Money(price * volume));
     }
 
     /// <summary>Пересчитать только суммы КП — цены строк не тронуты (сменились режим или ставка НДС).</summary>
     public static void Retotal(Offer offer)
     {
         var totals = Totals(offer.Lines.Select(l => l.Amount), offer.VatMode, offer.VatRate);
+        if (offer.RevisionId is null && totals.Total > PriceListEntry.MaxPrice)
+            throw new InvalidRequestException("Итог КП выходит за допустимый размер суммы.");
         offer.Reprice(totals.LinesTotal, totals.Vat, totals.Total);
     }
 

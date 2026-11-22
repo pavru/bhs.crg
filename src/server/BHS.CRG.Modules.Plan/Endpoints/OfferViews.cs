@@ -78,8 +78,9 @@ internal static class OfferViews
                 l.Id, l.Order, l.Number,
                 l.LsrSectionCode is null && l.LsrSectionName is null ? null : new LsrSectionDto(l.LsrSectionCode, l.LsrSectionName),
                 l.Name, l.Volume, l.Unit, l.WorkTypeId, l.Material ? "material" : "work", l.Markup,
-                new OfferMarkupDto(markup.Value, LevelCode(markup.Level)), l.Price, l.Amount, Marks(l, bases),
-                bases is null ? null : new OfferCostDto(baseTotal, baseTotal is { } b ? l.Amount - b : null));
+                new OfferMarkupDto(markup.Value, LevelCode(markup.Level)), l.Price, Amount(l), Marks(l, bases),
+                bases is null ? null : new OfferCostDto(baseTotal, baseTotal is { } b ? l.Amount - b : null),
+                PriceSource(l), l.PriceListUnitId);
         }).ToList();
 
         var sections = offer.Lines.Where(l => l.LsrSectionCode is not null)
@@ -94,16 +95,19 @@ internal static class OfferViews
         {
             var known = lines.Where(l => l.Cost?.Total is not null).ToList();
             var baseSum = known.Sum(l => l.Cost!.Total!.Value);
-            total = new OfferCostDto(baseSum, known.Count == 0 ? null : known.Sum(l => l.Amount) - baseSum);
+            total = new OfferCostDto(baseSum, known.Count == 0 ? null : known.Sum(l => l.Amount.GetValueOrDefault()) - baseSum);
         }
 
         return new OfferDto(
             offer.Id, offer.Number, offer.Date, StatusCode(offer.Status), offer.CurrentVersion, offer.SentOn, Text(version),
             offer.ConstructionId, Customer(offer.CustomerId, customers), offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
             new OfferVatDto(VatCode(offer.VatMode), offer.VatRate), offer.Markup, sections,
-            new OfferMoneyDto(offer.LinesTotal, offer.VatAmount, offer.Total), lines, OfferRequisites.Customer(offer),
+            Money(offer), lines, OfferRequisites.Customer(offer),
             offer.CreatedAt, offer.CreatedByName, offer.ChangedAt, total,
-            cost ? null : [new HiddenPart("cost", PlanModule.EstimateCost, PlanModule.EstimateCostGives)]);
+            cost || offer.RevisionId is null ? null : [new HiddenPart("cost", PlanModule.EstimateCost, PlanModule.EstimateCostGives)])
+        {
+            PriceListDate = offer.PriceListDate,
+        };
     }
 
     /// <summary>
@@ -126,7 +130,8 @@ internal static class OfferViews
         }
 
         var page = await query.OrderByDescending(o => o.Date).ThenByDescending(o => o.Year).ThenByDescending(o => o.Sequence)
-            .Select(o => new { Offer = o, Version = EF.Property<uint>(o, PlanDbContext.RowVersion) })
+            .Select(o => new { Offer = o, Version = EF.Property<uint>(o, PlanDbContext.RowVersion),
+                Incomplete = o.RevisionId == null && o.Lines.Any(l => l.PriceListPrice == null) })
             .Take(take + 1).ToListAsync(ct);
         var more = page.Count > take;
         if (more) page.RemoveAt(page.Count - 1);
@@ -138,7 +143,7 @@ internal static class OfferViews
             p.Offer.ConstructionId, Customer(p.Offer.CustomerId, customers),
             p.Offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
             new OfferVatDto(VatCode(p.Offer.VatMode), p.Offer.VatRate),
-            new OfferMoneyDto(p.Offer.LinesTotal, p.Offer.VatAmount, p.Offer.Total), p.Offer.ChangedAt)).ToList();
+            new OfferMoneyDto(p.Offer.LinesTotal, p.Offer.VatAmount, p.Offer.Total, p.Incomplete), p.Offer.ChangedAt)).ToList();
 
         var last = page.Count > 0 ? page[^1].Offer : null;
         return new OfferListDto(items, more && last is not null
@@ -181,11 +186,21 @@ internal static class OfferViews
     private static List<PlanMark> Marks(OfferLine line, IReadOnlyDictionary<Guid, decimal?>? bases)
     {
         var marks = new List<PlanMark>();
+        if (line.MissingPrice) marks.Add(new("no-price", "Нет цены в прайс-листе"));
         if (line.Unmatched) marks.Add(new("unmatched", "Строка сметы не сопоставлена с видом работы"));
         if (bases is not null && line.RevisionRowId is { } row && bases.GetValueOrDefault(row) is null)
             marks.Add(new("no-base", "У строки сметы нет итога — цена продажи не посчитана"));
         return marks;
     }
+
+    internal static decimal? Amount(OfferLine line) => line.MissingPrice ? null : line.Amount;
+
+    internal static OfferPriceSourceDto? PriceSource(OfferLine line) => line.RevisionRowId is not null
+        ? null
+        : line.PriceListValidFrom is { } date ? new("pricelist", date) : new("none");
+
+    internal static OfferMoneyDto Money(Offer offer) =>
+        new(offer.LinesTotal, offer.VatAmount, offer.Total, offer.Lines.Any(l => l.MissingPrice));
 
     private static OfferCustomerDto? Customer(Guid? id, IReadOnlyDictionary<Guid, ModuleCatalogRef>? known)
     {

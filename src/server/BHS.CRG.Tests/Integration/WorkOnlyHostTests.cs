@@ -105,12 +105,12 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     [Fact]
     public async Task Work_permissions_are_declared_with_explanations_and_reach_the_database()
     {
-        // Пять из восьми прав WORK-45 — правило этапа (D2 зонтика work-00-epic): право объявляется вместе с
-        // первым адресом, который оно открывает. work.crew.approve — work-18, work.facts.read (право
-        // контракта) — work-27, work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
+        // Право объявляется вместе с первым адресом, который оно открывает (D2 зонтика work-00-epic).
+        // work.facts.read — work-27, work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
         // своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
         var work = await ModuleOnlyChecks.DeclaredAndStoredAsync(host, WorkModule.ModuleCode,
-            [WorkModule.Assign, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview, WorkModule.SitesAll],
+            [WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+                WorkModule.SitesAll],
             "id", "costs", "plan");
 
         Assert.All(work, p => Assert.False(p.Contract, $"«{p.Code}» — права контракта каркас не объявляет."));
@@ -143,8 +143,8 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     ///   <item>«Администратор» — всё объявленное, в том числе <c>work.sites.all</c> («или администратор» из
     ///   WORK-21 выражено правом, WORK-46).</item>
     ///   <item>«Монтажник» — свои отчёты. До каркаса у него не было ни одного модуля.</item>
-    ///   <item>«Менеджер проекта» — приёмка и назначения; <c>work.crew.approve</c> и
-    ///   <c>work.devices.manage</c> в его составе ещё не объявлены и пропускаются.</item>
+    ///   <item>«Менеджер проекта» — приёмка, назначения и сверка бригад. <c>work.devices.manage</c>
+    ///   в его составе появится на этапе 5.</item>
     ///   <item>«Руководитель» — чтение всех отчётов через «читать всё» (AUTH-5.2).</item>
     ///   <item>«Инженер ИД» и «Производитель работ» — модуля нет: у них в составе только
     ///   <c>work.facts.read</c>, право контракта, которое ещё не объявлено (<c>work-27</c>) и модуль не
@@ -153,9 +153,10 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     /// </summary>
     [Theory]
     [InlineData(SystemRoles.Admin, true,
-        WorkModule.Assign, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview, WorkModule.SitesAll)]
+        WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+        WorkModule.SitesAll)]
     [InlineData("Installer", true, WorkModule.ReportOwn)]
-    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.ReportReview)]
+    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportReview)]
     [InlineData("Executive", true, WorkModule.ReportRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("WorksManager", false)]

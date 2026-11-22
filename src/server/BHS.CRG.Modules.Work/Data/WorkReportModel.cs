@@ -61,7 +61,8 @@ internal static class WorkReportModel
         report.HasIndex(r => new { r.ConstructionId, r.Date }).HasDatabaseName("ix_reports_site");
 
         var line = builder.Entity<ReportLine>();
-        line.ToTable("report_lines");
+        line.ToTable("report_lines", t => t.HasCheckConstraint("ck_report_lines_crew_role",
+            "(is_crew AND crew_role IS NOT NULL AND crew_role IN ('lead', 'member')) OR (NOT is_crew AND crew_role IS NULL)"));
         line.HasKey(l => l.Id);
         line.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
         line.Property(l => l.ReportId).HasColumnName("report_id");
@@ -74,6 +75,7 @@ internal static class WorkReportModel
         line.Property(l => l.Location).HasColumnName("location");
         line.Property(l => l.Comment).HasColumnName("comment");
         line.Property(l => l.IsCrew).HasColumnName("is_crew");
+        line.Property(l => l.CrewRole).HasColumnName("crew_role").HasMaxLength(6);
         line.Property(l => l.WorkPlanItemId).HasColumnName("work_plan_item_id");
         line.Property(l => l.Details).HasColumnName("details").HasColumnType("jsonb");
         line.HasMany(l => l.Materials).WithOne().HasForeignKey(m => m.LineId).OnDelete(DeleteBehavior.Cascade);

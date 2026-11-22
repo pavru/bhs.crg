@@ -72,6 +72,9 @@ public sealed class Offer
     /// <summary>Редакция-источник; <c>null</c> — КП по прайс-листу (<c>plan-14</c>).</summary>
     public Guid? RevisionId { get; private set; }
 
+    /// <summary>На какую дату сняты цены. Правка шапки снимок цен не меняет.</summary>
+    public DateOnly? PriceListDate { get; private set; }
+
     public OfferStatus Status { get; private set; }
 
     /// <summary>Номер действующей версии (ТЗ PLAN-12); прежние — историей <c>OfferVersion</c> (PR 2).</summary>
@@ -179,6 +182,12 @@ public sealed class Offer
         LinesTotal = linesTotal;
         VatAmount = vatAmount;
         Total = total;
+    }
+
+    internal void SetPriceListDate(DateOnly date, DateTimeOffset now)
+    {
+        PriceListDate = date;
+        ChangedAt = now;
     }
 
     internal void EnsureDraft()
