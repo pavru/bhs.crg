@@ -1,9 +1,42 @@
 import { Icon } from '@/shared/ui/Icon';
-import { ArrowOutward, Warning } from '@/shared/ui/icons';
-import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
+import { ArrowOutward, LockIcon, Warning } from '@/shared/ui/icons';
+import type { ClosingLine, ClosingPreview, ClosingSection } from '@/shared/api/periods';
 import { formatMoney } from '@/shared/format/format';
-import { figure, goneLines, goneSections, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
+import { figure, goneLines, goneSections, groupLines, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { StatusText } from '@/shared/ui/StatusText';
+import { Card } from '@/shared/ui/Card';
+
+/** Р4-Б: проверка остаётся первой в DOM, на узком экране сводка следует за ней. */
+export function ClosingPreviewSections({ preview, stale, before }: {
+  preview: ClosingPreview; stale: boolean; before: ClosingSection[] | null;
+}) {
+  const { sections, canClose } = preview;
+  const blockers = sections.filter(section =>
+    groupLines(section, 'blocking').length > 0 || goneLines(before, section, 'blocking').length > 0);
+  const removed = goneSections(before, sections).filter(section => groupLines(section, 'blocking').length > 0);
+
+  return (
+    <div className={`grid items-start gap-4 md:grid-cols-2 ${stale ? 'opacity-50' : ''}`} aria-busy={stale}>
+      <section aria-label="Проверка закрытия" className="space-y-3">
+        <div role="status">
+          {stale ? <StatusText>Проверяем, можно ли закрыть…</StatusText>
+            : canClose ? <StatusText tone="success">Нет запретов на закрытие</StatusText>
+            : <StatusText tone="error" icon={LockIcon}>Закрытие запрещено</StatusText>}
+        </div>
+        {[...blockers, ...removed.map(section => ({ ...section, blocking: [] }))].map(section => (
+          <Card key={section.module} title={section.title}>
+            <Group title={groupLines(section, 'blocking').length ? 'Что мешает закрытию' : 'Запреты сняты'}
+              group="blocking" section={section} before={before} />
+          </Card>
+        ))}
+      </section>
+      <section aria-label="Сводка закрытия">
+        <ClosingSections sections={sections} before={before} cards />
+      </section>
+    </div>
+  );
+}
 
 /**
  * Перечень диалога закрытия периода: по разделу на модуль — что не завершено и что войдёт в закрытый
@@ -24,19 +57,17 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * @param before Перечень, который человек видел до отказа «данные изменились»: изменившиеся строки
  * говорят, какими были.
  */
-export function ClosingSections({ sections, stale, before = null }: {
-  sections: ClosingSection[]; stale?: boolean; before?: ClosingSection[] | null;
+export function ClosingSections({ sections, before = null, cards = false }: {
+  sections: ClosingSection[]; before?: ClosingSection[] | null; cards?: boolean;
 }) {
   const gone = goneSections(before, sections);
   if (sections.length === 0 && gone.length === 0)
     return <p className="text-body-medium text-on-surface-variant">Включённых модулей учёта нет. Закрытие запишет только границу периода.</p>;
 
   return (
-    // Пока идёт пересчёт, прежние числа приглушены, а не убраны: «ещё не знаем» — не «пусто».
-    <div className={`space-y-4 ${stale ? 'opacity-50' : ''}`} aria-busy={stale}>
-      {sections.map(section => (
-        <section key={section.module} aria-label={section.title}>
-          <h3 className="text-title-small text-on-surface">{section.title}</h3>
+    <div className="space-y-4">
+      {sections.map(section => {
+        const content = <>
           <p className="text-body-small text-on-surface-variant">{section.dateRule}</p>
 
           <Group title="Не завершено — закрытию не мешает" group="unfinished" section={section} before={before} warn
@@ -47,8 +78,16 @@ export function ClosingSections({ sections, stale, before = null }: {
           {section.amountsHidden && (
             <p className="mt-1.5 text-body-small text-on-surface-variant">Суммы не показаны: у вас нет права их видеть.</p>
           )}
-        </section>
-      ))}
+        </>;
+        return (
+          <section key={section.module} aria-label={section.title}>
+            {cards ? <Card title={section.title}>{content}</Card> : <>
+              <h3 className="text-title-small text-on-surface">{section.title}</h3>
+              {content}
+            </>}
+          </section>
+        );
+      })}
       {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
       {gone.map(section => (
         <section key={`gone:${section.module}`} aria-label={section.title} className="text-body-medium text-on-surface-variant">
@@ -65,35 +104,37 @@ export function ClosingSections({ sections, stale, before = null }: {
 
 function Group({ title, group, section, before, empty, warn }: {
   title: string; group: ClosingGroup; section: ClosingSection; before: ClosingSection[] | null;
-  empty: string; warn?: boolean;
+  empty?: string; warn?: boolean;
 }) {
-  const lines = section[group];
+  const lines = groupLines(section, group);
   const gone = goneLines(before, section, group);
+  const blocking = group === 'blocking';
+  const danger = blocking && lines.length > 0;
 
   return (
-    <div className="mt-2">
-      <h4 className="text-title-small text-on-surface-variant">{title}</h4>
+    <div className={danger ? 'rounded-md bg-error-container p-3 text-on-error-container' : 'mt-2'}>
+      <h4 className={`text-title-small ${danger ? '' : 'text-on-surface-variant'}`}>{title}</h4>
       {lines.length === 0 && gone.length === 0 ? (
-        <p className="text-body-medium text-on-surface-variant">{empty}</p>
+        empty && <p className="text-body-medium text-on-surface-variant">{empty}</p>
       ) : (
         <ul className="mt-0.5 space-y-1">
           {lines.map(line => (
             <li key={line.key} className="text-body-medium">
-              <div className={`flex items-baseline gap-1.5 ${warn ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+              <div className={`flex items-baseline gap-1.5 ${blocking ? '' : warn ? 'text-on-surface' : 'text-on-surface-variant'}`}>
                 {warn && <Icon icon={Warning} size={18} className="shrink-0 self-center text-warning" aria-hidden />}
                 <span className="min-w-0 break-words">
-                  {line.text}: <Figure line={line} />
-                  <Was text={wasText(before, section.module, group, line)} />
+                  {line.text}: <Figure line={line} blocking={blocking} />
+                  <Was text={wasText(before, section.module, group, line)} onErrorContainer={danger} />
                 </span>
               </div>
-              {line.note && <p className={`text-body-small text-on-surface-variant ${warn ? 'pl-5' : ''}`}>{line.note}</p>}
+              {line.note && <p className={`text-body-small ${blocking ? '' : 'text-on-surface-variant'} ${warn ? 'pl-5' : ''}`}>{line.note}</p>}
             </li>
           ))}
           {/* Исчезнувшая строка — тоже изменение: без неё «было 2 счёта» пропало бы молча. */}
           {gone.map(line => (
-            <li key={`gone:${line.key}`} className="text-body-medium text-on-surface-variant">
+            <li key={`gone:${line.key}`} className={`text-body-medium ${danger ? '' : 'text-on-surface-variant'}`}>
               <span className={warn ? 'pl-5' : ''}>
-                {line.text}: теперь нет <Was text={`было: ${figure(line)}`} />
+                {line.text}: теперь нет <Was text={`было: ${figure(line)}`} onErrorContainer={danger} />
               </span>
             </li>
           ))}
@@ -104,7 +145,7 @@ function Group({ title, group, section, before, empty, warn }: {
 }
 
 /** Число и сумма строки; со ссылкой модуля — ссылкой на экран, где эти документы перечислены. */
-function Figure({ line }: { line: ClosingLine }) {
+function Figure({ line, blocking }: { line: ClosingLine; blocking: boolean }) {
   const text = (
     <>
       <span className="tabular-nums font-medium">{line.counted}</span>
@@ -117,7 +158,7 @@ function Figure({ line }: { line: ClosingLine }) {
   return (
     <Tooltip content="Открыть список — в новой вкладке">
       <a href={link} target="_blank" rel="noreferrer"
-        className="text-primary hover:underline">
+        className={blocking ? 'underline' : 'text-primary hover:underline'}>
         {text}
         <Icon icon={ArrowOutward} size={18} className="inline-block align-baseline ml-0.5" aria-hidden />
       </a>
@@ -125,7 +166,7 @@ function Figure({ line }: { line: ClosingLine }) {
   );
 }
 
-function Was({ text }: { text: string | null }) {
+function Was({ text, onErrorContainer = false }: { text: string | null; onErrorContainer?: boolean }) {
   if (!text) return null;
-  return <span className="ml-1.5 rounded-xs bg-warning/15 px-1 text-body-small text-on-surface-variant">{text}</span>;
+  return <span className={`ml-1.5 rounded-xs px-1 text-body-small ${onErrorContainer ? 'bg-on-error-container/10' : 'bg-warning/15 text-on-surface-variant'}`}>{text}</span>;
 }

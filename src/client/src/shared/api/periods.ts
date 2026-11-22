@@ -68,6 +68,7 @@ export interface ClosingSection {
   title: string;
   /** По какой дате модуль относит документ к периоду. */
   dateRule: string;
+  blocking: ClosingLine[];
   unfinished: ClosingLine[];
   frozen: ClosingLine[];
   /** В разделе есть суммы, которых этому человеку не показали. */
@@ -78,6 +79,8 @@ export interface ClosingPreview {
   /** Отпечаток увиденного: закрытие обязано его назвать и откажет, если данные с тех пор изменились. */
   stamp: string;
   sections: ClosingSection[];
+  /** Разрешено ли закрытие по этому перечню. */
+  canClose: boolean;
 }
 
 const KEY = ['periods'] as const;

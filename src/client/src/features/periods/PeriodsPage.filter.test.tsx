@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
+import type { ClosingLine, ClosingPreview } from '@/shared/api/periods';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
 import { PeriodsPage } from './PeriodsPage';
@@ -47,7 +48,7 @@ function answer(periods: unknown) {
     data: url === '/periods' ? periods : url === '/periods/history' ? HISTORY : url === '/constructions' ? SITES : null,
   }));
   vi.mocked(apiClient.post).mockImplementation((url: string) =>
-    Promise.resolve({ data: url.endsWith('/preview') ? { stamp: 's1', sections: [] } : {} }));
+    Promise.resolve({ data: url.endsWith('/preview') ? { stamp: 's1', sections: [], canClose: true } : {} }));
 }
 
 interface Filter {
@@ -90,12 +91,16 @@ const contours = () => within(screen.getAllByRole('table')[0]).getAllByRole('row
 /** Стройки ещё не известны — строка под сеткой, а не строка контура. */
 const loadingSites = () => screen.queryByText('Загрузка строек...');
 
-/** Открыть закрытие компании, прочитать пояснение и закрыть; вернуть всё, что ушло на сервер. */
-async function closeCompany() {
+async function openCompany() {
   const company = within(screen.getAllByRole('table')[0]).getAllByRole('row')[1];
   fireEvent.click(within(company).getByRole('button', { name: 'Закрыть период' }));
   for (let i = 0; i < 4; i++) await tick();
-  const dialog = screen.getByRole('dialog');
+  return screen.getByRole('dialog');
+}
+
+/** Открыть закрытие компании, прочитать пояснение и закрыть; вернуть всё, что ушло на сервер. */
+async function closeCompany() {
+  const dialog = await openCompany();
   const note = dialog.textContent!;
   fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть период' }));
   for (let i = 0; i < 4; i++) await tick();
@@ -168,6 +173,92 @@ describe('Учётный период под фильтром избранног
     // «Школа» закрыта своим закрытием и названа отдельно; дни откроются «Северу» и двум скрытым.
     expect(screen.getByRole('dialog').textContent)
       .toContain('Дни откроются и у строек — 3, в том числе 2, скрытых фильтром избранного.');
+  });
+});
+
+describe('Р4-Б: предпросмотр закрытия', () => {
+  const item = (key: string, text: string, count: number, counted: string): ClosingLine =>
+    ({ key, text, count, counted, amount: null, note: null, link: null });
+  const waiting = item('pending-review', 'Ждут приёмки', 3, '3 отчёта');
+  const unfinished = item('unsettled', 'Оплачены в периоде, но не разобраны', 2, '2 счёта');
+  const dateRule = 'Отчёт относится к периоду по дате смены, сутки — по поясу стройки.';
+  function preview(blocking: ClosingLine[], accepted: ClosingLine, stamp = 's1'): ClosingPreview {
+    return {
+      stamp,
+      canClose: !blocking.some(line => line.count !== 0),
+      sections: [
+        { module: 'work', title: 'Учёт работ', dateRule, amountsHidden: false, blocking, unfinished: [], frozen: [accepted] },
+        { module: 'costs', title: 'Счета и накладные', dateRule: 'По учётному периоду оплаты.',
+          amountsHidden: false, blocking: [], unfinished: [unfinished], frozen: [] },
+      ],
+    };
+  }
+  const accepted = item('accepted', 'Принятые отчёты', 24, '24 отчёта');
+  const closeButton = (dialog: HTMLElement) =>
+    within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Закрыть период' });
+
+  it('отдельно показывает три запрета и блокирует запрос закрытия', async () => {
+    await shown(NO_FILTER);
+    const drafts = { ...item('submission-window', 'В окне подачи', 1, '1 отчёт'), note: 'Дождитесь автоподачи.' };
+    const returned = item('returned', 'Возвращены на правку', 2, '2 отчёта');
+    vi.mocked(apiClient.post).mockResolvedValue({ data: preview([drafts, waiting, returned], accepted) });
+    const dialog = await openCompany();
+    const regions = within(dialog);
+    const blockers = regions.getByRole('region', { name: 'Проверка закрытия' });
+    const summary = regions.getByRole('region', { name: 'Сводка закрытия' });
+    expect(blockers.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(blockers.textContent).toContain('В окне подачи: 1 отчёт');
+    expect(blockers.textContent).toContain('Дождитесь автоподачи.');
+    expect(blockers.textContent).toContain('Ждут приёмки: 3 отчёта');
+    expect(blockers.textContent).toContain('Возвращены на правку: 2 отчёта');
+    expect(within(blockers).queryByRole('link')).toBeNull();
+    expect(summary.textContent).toContain('Не завершено — закрытию не мешает');
+    expect(summary.textContent).toContain(dateRule);
+    expect(dialog.textContent).toContain('Граница закрытия и «сегодня» — по поясу компании.');
+    expect(dialog.textContent).toContain('Есть запреты на закрытие');
+    expect(closeButton(dialog).disabled).toBe(true);
+    fireEvent.click(closeButton(dialog));
+    expect(vi.mocked(apiClient.post).mock.calls.map(([url]) => url)).toEqual(['/periods/close/preview']);
+  });
+
+  it('отправляет отпечаток, если есть только незавершённое и запреты нулевые', async () => {
+    await shown(NO_FILTER);
+    vi.mocked(apiClient.post).mockImplementation((url: string) => Promise.resolve({
+      data: url.endsWith('/preview') ? preview([{ ...waiting, count: 0, counted: '0 отчётов' }], accepted) : {},
+    }));
+    const dialog = await openCompany();
+    expect(dialog.textContent).toContain('Нет запретов на закрытие');
+    expect(dialog.textContent).not.toContain('Ждут приёмки');
+    expect(dialog.textContent).toContain('Не завершено: 2 счёта');
+    expect(closeButton(dialog).disabled).toBe(false);
+    fireEvent.click(closeButton(dialog));
+    await waitFor(() => expect(vi.mocked(apiClient.post)).toHaveBeenCalledWith('/periods/close',
+      { contour: 'company', from: '2026-09-01', through: '2026-09-30', ifMatch: '2026-08-31', report: 's1' }));
+  });
+
+  it('после 409 перечитывает список за те же даты и блокирует повтор, если появился запрет', async () => {
+    await shown(NO_FILTER);
+    const before = preview([], accepted);
+    const after = preview([waiting], { ...accepted, count: 21, counted: '21 отчёт' }, 's2');
+    let refused = false;
+    vi.mocked(apiClient.post).mockImplementation((url: string) => {
+      if (url.endsWith('/preview')) return Promise.resolve({ data: refused ? after : before });
+      refused = true;
+      return Promise.reject({ response: { status: 409, data: { error: 'Перечень изменился.' } } });
+    });
+    const dialog = await openCompany();
+    expect(closeButton(dialog).disabled).toBe(false);
+    fireEvent.click(closeButton(dialog));
+    await within(dialog).findByText('Перечень изменился.');
+    const blockers = within(dialog).getByRole('region', { name: 'Проверка закрытия' });
+    expect(blockers.textContent).toContain('Ждут приёмки: 3 отчёта');
+    expect(blockers.textContent).toContain('не было');
+    expect(dialog.textContent).toContain('было: 24 отчёта');
+    expect(dialog.textContent).not.toContain('закрыть можно');
+    expect(closeButton(dialog).disabled).toBe(true);
+    const calls = vi.mocked(apiClient.post).mock.calls;
+    expect(calls.map(([url]) => url)).toEqual(['/periods/close/preview', '/periods/close', '/periods/close/preview']);
+    expect(calls[0]).toEqual(calls[2]);
   });
 });
 

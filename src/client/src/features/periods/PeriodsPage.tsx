@@ -1,10 +1,12 @@
 import { formatDateTime } from '@/shared/format/format';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CalendarCheck, ChevronRight, KeyboardArrowDown, LockIcon, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
+import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
+import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { DateField } from '@/shared/ui/DateField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -19,7 +21,7 @@ import {
   type PeriodContourState, type PeriodClosureRecord, type ClosingSection,
 } from '@/shared/api/periods';
 import { ruDate, suggestFirstFrom, suggestThrough } from './periodDates';
-import { ClosingSections } from './ClosingSections';
+import { ClosingPreviewSections, ClosingSections } from './ClosingSections';
 import { unfinishedSummary, visiblyChanged } from './closing';
 import { companyClosingNote, companyReopenNote, shownSitesCount, type PeriodSites } from './periodSites';
 import { DataGrid } from '@/shared/ui/DataGrid';
@@ -171,6 +173,8 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
   const [through, setThrough] = useState(() => suggestThrough(today, state.closedThrough));
   // Начало первого закрытия называет человек; у следующих оно задано границей и не правится.
   const [firstFrom, setFirstFrom] = useState(() => suggestFirstFrom(suggestThrough(today, state.closedThrough)));
+  const narrow = useMedia(NARROW);
+  const blockedNote = useId();
   // Даты чаще выбирают в календаре, а его окно само не замечает: признак правок — явно.
   const edited = useChangedSince([through, firstFrom]);
   const [error, setError] = useState<string | null>(null);
@@ -195,24 +199,28 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
   // того, чего на экране нет, подтверждать нечем.
   const seen = preview.data && !preview.isError && !preview.isPlaceholderData && !preview.isFetching
     ? preview.data : null;
-  const ready = !!from && !!through && !!seen;
+  const ready = !backwards && !!from && !!through && seen?.canClose === true;
+  const blocked = seen?.canClose === false;
   // То, что останется после закрытия как есть, — рядом с кнопкой: перечень длинный, и кнопка бывает
   // видна без него.
   const unfinished = seen ? unfinishedSummary(seen.sections) : null;
   const before = seen && refused?.dates === dates ? refused.sections : null;
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
+    <Modal open onOpenChange={o => { if (!o) onDone(); }}
+      title={narrow ? 'Закрытие периода' : `Закрыть период: ${name}`} wide
       isDirty={edited} busy={close.isPending}
       footer={<>
-        {unfinished && (
+        {blocked ? <ModalNote><span id={blockedNote}>Есть запреты на закрытие</span></ModalNote> : unfinished && (
           <ModalNote>Не завершено: <span className="font-medium text-on-surface">{unfinished}</span></ModalNote>
         )}
         <ModalExit />
-        <ModalPrimary disabled={!ready} loading={close.isPending}
+        <ModalPrimary disabled={!ready} loading={close.isPending} aria-label="Закрыть период"
+          aria-describedby={blocked ? blockedNote : undefined}
           onClick={async () => {
+            if (!ready || !seen || close.isPending) return;
             setError(null);
-            const shown = seen!;
+            const shown = seen;
             // Под «не удалось закрыть» — только само закрытие. Сбой после него (уведомление, закрытие
             // диалога) отказом закрытия не является, и называть его так нельзя: период уже закрыт.
             try {
@@ -231,10 +239,14 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
             const left = unfinishedSummary(shown.sections);
             toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
           }}>
-          Закрыть период
+          {narrow ? 'Закрыть' : 'Закрыть период'}
         </ModalPrimary>
       </>}>
+      {/* Отказ относится к датам запроса. Если граница уже сдвинулась за конец, ниже названа точная причина. */}
+      {error && !backwards && <ModalBanner tone="error">{error}</ModalBanner>}
       <div className="space-y-4">
+        {narrow && <p className="text-title-small">{name}</p>}
+        <p className="text-body-small text-on-surface-variant">Граница закрытия и «сегодня» — по поясу компании.</p>
         <div className="grid grid-cols-2 gap-3">
           {state.expectedFrom ? (
             <DateField label="С" value={state.expectedFrom} onChange={() => {}} readOnly
@@ -266,22 +278,18 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
           </p>
         ) : preview.data ? (
           <>
-            <ClosingSections sections={preview.data.sections} stale={!seen} before={before} />
+            <ClosingPreviewSections preview={preview.data} stale={!seen} before={before} />
             {/* Сервер сверяет весь перечень, а на экране — не всё: суммы бывают скрыты правом. */}
             {before && seen && !visiblyChanged(before, seen.sections) && (
               <p role="note" className="text-body-medium text-on-surface-variant">
                 Числа на экране прежние: изменилось то, чего здесь не видно, — например, суммы, скрытые
-                правом. Перечень перечитан — закрыть можно.
+                правом. {seen.canClose ? 'Перечень перечитан — закрыть можно.' : 'Запреты на закрытие сохраняются.'}
               </p>
             )}
           </>
         ) : (
           from && through && <p className="text-body-medium text-on-surface-variant">Считаем, что попадёт в период…</p>
         )}
-        {/* Отказ закрытия — о датах, с которыми его отправляли. Сменили дату — он уже не о том. А когда
-            период «наоборот», причина названа выше, и точнее: рядом с «период уже закрыт» строка «не
-            удалось закрыть» противоречила бы ей — так бывает, когда закрытие прошло, а ответ потерялся. */}
-        {error && !backwards && <p role="alert" className="text-body-medium text-error">{error}</p>}
       </div>
     </Modal>
   );
