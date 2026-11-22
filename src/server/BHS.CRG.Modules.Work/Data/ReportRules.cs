@@ -49,15 +49,17 @@ public static class ReportRules
     /// Объём строки — не отрицательный, в пределах колонки и не точнее четырёх знаков. Ноль принимается: черновик
     /// строки, где объём ещё не назван (колонка обязательна, «не названо» другим способом не сказать).
     /// </summary>
-    public static void EnsureVolume(int position, decimal volume)
+    public static void EnsureVolume(int position, decimal volume) =>
+        EnsureVolume($"Строка {position + 1}", "volume", volume);
+
+    internal static void EnsureVolume(string at, string field, decimal volume)
     {
-        var at = $"Строка {position + 1}";
         if (volume < 0)
-            throw new InvalidRequestException($"{at}: объём (volume) не может быть отрицательным.");
+            throw new InvalidRequestException($"{at}: объём ({field}) не может быть отрицательным.");
         if (volume > MaxVolume)
-            throw new InvalidRequestException($"{at}: объём (volume) больше допустимого.");
+            throw new InvalidRequestException($"{at}: объём ({field}) больше допустимого.");
         if (decimal.Round(volume, VolumeScale) != volume)
-            throw new InvalidRequestException($"{at}: объём (volume) — не больше {VolumeScale} знаков после запятой.");
+            throw new InvalidRequestException($"{at}: объём ({field}) — не больше {VolumeScale} знаков после запятой.");
     }
 
     /// <summary>Текст поля как он ляжет в колонку: пустой и из пробелов — <c>null</c>, иначе без краевых пробелов.</summary>
@@ -112,6 +114,8 @@ public static class ReportRules
         EnsureVariant(at, line.VariantId, workType);
         EnsureSection(at, line.SectionId, site);
         EnsureMaterials(at, line.Materials);
+        if (line.CrewRole is not null && (!line.IsCrew || line.CrewRole is not ("lead" or "member")))
+            throw new InvalidRequestException($"{at}: роль (crewRole) — lead или member только у бригадной работы.");
         if (!line.IsCrew && line.Participants.Count > 0)
             throw new InvalidRequestException(
                 $"{at}: участники (participants) перечисляются только у бригадной работы (isCrew) — у этой строки " +

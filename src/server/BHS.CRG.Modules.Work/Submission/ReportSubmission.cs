@@ -1,4 +1,5 @@
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Crew;
 
 namespace BHS.CRG.Modules.Work.Submission;
 
@@ -13,7 +14,7 @@ namespace BHS.CRG.Modules.Work.Submission;
 /// сохранении — его ловит вызывающий: ручная подача отвечает «уже подан», автоподача пропускает отчёт до следующего
 /// такта.</para>
 /// </summary>
-public sealed class ReportSubmission(WorkDbContext db, ReportJournal journal)
+public sealed class ReportSubmission(WorkDbContext db, ReportJournal journal, CrewInputs crew)
 {
     /// <summary>Подать отчёт, прочитанный с отслеживанием и со строками. Транзакцию открывает и фиксирует вызывающий.</summary>
     /// <param name="at">Момент подачи: у ручной — по правилу окна, у автоподачи — конец окна.</param>
@@ -23,8 +24,10 @@ public sealed class ReportSubmission(WorkDbContext db, ReportJournal journal)
         Guid changeId, DateTimeOffset? deviceTime, DateTimeOffset now, CancellationToken ct)
     {
         var before = ReportJournal.Capture(report);
+        if (report.Lines.Any(l => l.IsCrew)) await crew.LockAsync(report, ct);
         var seq = await db.NextReportSeqAsync(report.EmployeeId, ct);
         report.Submit(at, by, missing, seq, now);
+        await crew.SubmissionChangedAsync(report, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Submitted, deviceTime, now, db.VersionOf(report)));
         var kind = by == ReportSubmitter.Auto ? ReportJournalKinds.AutoSubmitted : ReportJournalKinds.Submitted;

@@ -54,7 +54,8 @@ public class IsolatedReadInventoryTests
             "сотруднику учётной записи или стройки менеджера), чужой и несуществующий — один null одним путём; " +
             "вопросы пути записи «занято ли» и «чей идентификатор» полей чужого отчёта не отдают; журнал отчёта (work-14) — " +
             "тем же охватом, черновик — только сотруднику и автору ввода; фото строки (work-17) — тем же охватом и " +
-            "правилом черновика, «чья строка у идентификатора фото» — только для сравнения",
+            "правилом черновика, «чья строка у идентификатора фото» — только для сравнения; " +
+            "группы сверки (work-18) читаются в охвате строек вместе с уже поданными строками",
     };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
@@ -242,7 +243,7 @@ public class IsolatedReadInventoryTests
         var work = Models().Single(m => m.Context == typeof(BHS.CRG.Modules.Work.Data.WorkDbContext)).Model;
 
         Assert.Equal(
-            ["LinePhoto", "Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial",
+            ["CrewGroupRecord", "LinePhoto", "Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial",
                 "ReportLineParticipant", "ReviewDigestMark", "ReviewDigestRetry"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));

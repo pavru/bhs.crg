@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq.Expressions;
+using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Access;
 using Microsoft.EntityFrameworkCore;
 
@@ -337,7 +338,54 @@ public sealed class ReportReads(WorkDbContext db)
     }
 
     private ReviewMarkSources Sources(Guid? userId) =>
-        new(db.Set<ReportJournalEntry>().AsNoTracking(), db.Assignments.AsNoTracking(), userId);
+        new(db.Set<ReportJournalEntry>().AsNoTracking(), db.Assignments.AsNoTracking(), userId, CrewMismatchReports());
+
+    private IQueryable<Guid> CrewMismatchReports()
+    {
+        var submitted = db.Set<Report>().Where(r => r.Status == ReportStatus.Submitted || r.Status == ReportStatus.Accepted);
+        return from report in submitted
+               from line in report.Lines
+               where line.IsCrew && db.Set<CrewGroupRecord>().Any(g => g.ConstructionId == report.ConstructionId
+                   && g.Date == report.Date && g.Shift == report.Shift && g.WorkTypeId == line.WorkTypeId
+                   && (g.ApprovedRevision == null || g.ApprovedRevision != g.InputRevision))
+               where submitted.Any(other => other.ConstructionId == report.ConstructionId
+                   && other.Date == report.Date && other.Shift == report.Shift
+                   && other.Lines.Any(l => l.IsCrew && l.WorkTypeId == line.WorkTypeId && l.Volume != line.Volume))
+               select report.Id;
+    }
+
+    internal IQueryable<CrewGroupRecord> CrewGroups(ModuleReach reach)
+    {
+        var groups = db.Set<CrewGroupRecord>();
+        if (reach.Kind == ModuleReachKind.All) return groups;
+        var sites = reach.Sites.ToArray();
+        return groups.Where(g => sites.Contains(g.ConstructionId));
+    }
+
+    internal Task<List<CrewGroupRecord>> CrewGroupsOnShiftAsync(Report report, Guid[] workTypes, CancellationToken ct) =>
+        CrewGroups(ModuleReach.OfSites([report.ConstructionId]))
+            .Where(g => g.Date == report.Date && g.Shift == report.Shift && workTypes.Contains(g.WorkTypeId))
+            .ToListAsync(ct);
+
+    internal Task<List<CrewGroupLine>> CrewLinesAsync(ReportViewer viewer, IQueryable<CrewGroupRecord> groups,
+        CancellationToken ct) =>
+        (from crew in groups
+         from report in Visible(viewer).AsNoTracking()
+         where report.ConstructionId == crew.ConstructionId && report.Date == crew.Date && report.Shift == crew.Shift
+               && (report.Status == ReportStatus.Submitted || report.Status == ReportStatus.Accepted)
+         from line in report.Lines
+         where line.IsCrew && line.WorkTypeId == crew.WorkTypeId
+         orderby report.Id, line.Position
+         select new CrewGroupLine(crew.Id, report.Id, report.EmployeeId, line.Id, line.VariantId, line.Volume,
+             line.UnitId, line.CrewRole!, line.Participants.Select(p => p.EmployeeId).ToList())).ToListAsync(ct);
+
+    internal Task<List<CrewSubmittedEmployee>> CrewSubmittedEmployeesAsync(ReportViewer viewer,
+        IQueryable<CrewGroupRecord> groups, CancellationToken ct) =>
+        (from crew in groups
+         from report in Visible(viewer).AsNoTracking()
+         where report.ConstructionId == crew.ConstructionId && report.Date == crew.Date && report.Shift == crew.Shift
+               && (report.Status == ReportStatus.Submitted || report.Status == ReportStatus.Accepted)
+         select new CrewSubmittedEmployee(crew.Id, report.EmployeeId)).ToListAsync(ct);
 
     private IQueryable<Report> Expired(DateTimeOffset now)
     {

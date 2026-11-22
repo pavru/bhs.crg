@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
+using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Photos;
@@ -38,6 +39,8 @@ public sealed class WorkModule : IAppModule
     /// <summary>Приёмка и возврат отчётов своих строек, ввод за сотрудника (ТЗ WORK-45).</summary>
     public const string ReportReview = "work.report.review";
 
+    public const string CrewApprove = "work.crew.approve";
+
     /// <summary>
     /// Назначения на свои стройки (ТЗ WORK-21, WORK-45).
     ///
@@ -69,9 +72,9 @@ public sealed class WorkModule : IAppModule
     /// <summary>
     /// Права модуля (ТЗ WORK-45, WORK-46) — каждое с объяснением: галку в редакторе ролей ставит человек.
     ///
-    /// <para>⚠️ Здесь пять прав из восьми, и это правило этапа, а не недоделка (D2 зонтика
+    /// <para>⚠️ Здесь шесть прав из восьми (D2 зонтика
     /// <c>work-00-epic</c>): право объявляется вместе с первым адресом, который оно открывает.
-    /// <c>work.crew.approve</c> придёт с бригадой (<c>work-18</c>), <c>work.facts.read</c> — право
+    /// <c>work.facts.read</c> — право
     /// контракта — с «Фактическими работами» (<c>work-27</c>), <c>work.devices.manage</c> — с этапом 5.
     /// Объявленное раньше, право было бы галкой, которая не делает ничего, — а «Инженер ИД» с одним
     /// <c>work.facts.read</c> до признака права контракта у него получил бы пустой модуль.</para>
@@ -116,6 +119,12 @@ public sealed class WorkModule : IAppModule
             "ничего",
             [Assign, ReportReview],
             ReadAllMark.Out("назначает и принимает на любых стройках")),
+
+        new(CrewApprove,
+            "утверждать итоговый объём бригадной работы своих строек",
+            "сохраняет единый итог сверки бригадных строк поданных отчётов и записывает решение в журналы отчётов",
+            [],
+            ReadAllMark.Out("утверждает итоговый объём бригадной работы")),
 
         new(ReportRead,
             "читать отчёты всех строек: строки, часы, фото и журнал — без приёмки и правки",
@@ -190,6 +199,9 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
         services.AddScoped<ReportWriter>();
+        services.AddScoped<CrewCandidates>();
+        services.AddScoped<CrewInputs>();
+        services.AddScoped<CrewGroups>();
         services.AddScoped<ReportViews>();
         services.AddScoped<ReportJournal>();
         services.AddScoped<ReportPeople>();
@@ -232,6 +244,8 @@ public sealed class WorkModule : IAppModule
         ReportJournalEndpoint.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
         ReviewQueue.Map(endpoints);
+        CrewCandidates.Map(endpoints);
+        CrewGroups.Map(endpoints);
         PhotoEndpoints.Map(endpoints);
     }
 

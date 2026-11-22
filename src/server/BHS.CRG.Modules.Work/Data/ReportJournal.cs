@@ -69,6 +69,7 @@ public sealed class ReportJournal(WorkDbContext db)
             values[(id, "location")] = line.Location;
             values[(id, "comment")] = line.Comment;
             values[(id, "isCrew")] = line.IsCrew;
+            if (line.CrewRole is not null) values[(id, "crewRole")] = line.CrewRole;
             values[(id, "materials")] = new JsonArray([
                 .. line.Materials.OrderBy(m => m.Position)
                     .Select(m => (JsonNode)new JsonObject { ["nomenclatureId"] = m.NomenclatureId.ToString(), ["note"] = m.Note }),
@@ -98,7 +99,7 @@ public sealed class ReportJournal(WorkDbContext db)
     {
         var after = kind == ReportJournalKinds.Deleted ? null : Capture(report);
         var actedAt = deviceTime ?? serverTime;
-        var entry = ReportJournalEntry.Of(report, kind, changeId, seq, author, executorName, deviceTime, serverTime,
+        var entry = ReportJournalEntry.Of(report.Id, report.EmployeeId, kind, changeId, seq, author, executorName, deviceTime, serverTime,
             // Правкой после подачи бывает только правка содержимого: подача, приёмка и возврат — переходы статуса. У
             // возвращённого — нет (work-16): его исправляют по просьбе менеджера, а момент подачи у него прежний.
             afterSubmission: ReportJournalKinds.IsEdit(kind)
@@ -107,6 +108,22 @@ public sealed class ReportJournal(WorkDbContext db)
             changes: Diff(before, after).ToJsonString(), comment: comment);
         db.Add(entry);
         return entry;
+    }
+
+    internal void AppendCrewApproval(Guid reportId, Guid employeeId, Guid groupId, decimal? before, decimal total,
+        string unit, ReportJournalActor actor, string executor, Guid changeId, long seq, DateTimeOffset now)
+    {
+        var changes = new JsonArray(new JsonObject
+        {
+            ["line"] = null,
+            ["field"] = "crewTotal",
+            ["crewGroupId"] = groupId,
+            ["before"] = Number(before),
+            ["after"] = Number(total),
+        });
+        var comment = $"итог бригады: {total.ToString("0.####", CultureInfo.InvariantCulture)} {unit}";
+        db.Add(ReportJournalEntry.Of(reportId, employeeId, ReportJournalKinds.CrewApproved, changeId, seq, actor,
+            executor, deviceTime: null, now, afterSubmission: false, changes.ToJsonString(), comment));
     }
 
     /// <summary>Изменённые поля: шапка первой, строки — по позиции «после», удалённые — следом, по позиции «до».</summary>
