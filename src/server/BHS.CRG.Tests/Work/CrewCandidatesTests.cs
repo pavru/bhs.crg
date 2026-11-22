@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Tests.Integration;
 
@@ -39,6 +41,29 @@ public class CrewCandidatesTests(AssignmentHost host) : IAsyncLifetime
         var denied = await CrewWorld.JsonAsync(await installer.GetAsync(url.Replace(crew.Site.ToString(), crew.Reports.SiteB.ToString())));
         Assert.Empty(denied.GetProperty("items").EnumerateArray());
         Assert.Equal("not-assigned", denied.GetProperty("reason").GetString());
+    }
+
+    [Theory]
+    [InlineData("former-manager", "2026-10-15")]
+    [InlineData("archived-installer", "2026-10-31")]
+    [InlineData("dismissed-installer", "2026-10-31")]
+    public async Task Assignment_alone_does_not_open_candidates(string scenario, string date)
+    {
+        var formerManager = scenario == "former-manager";
+        var assignments = crew.Reports.Assignments;
+        var employee = await assignments.EmployeeAsync(crew.Reports.EmployeeType, "Спрашивающий",
+            dismissed: scenario == "dismissed-installer" ? date : null);
+        var candidate = await crew.Reports.EmployeeAsync("Кандидат");
+        var (user, client) = await assignments.UserAsync("Спрашивающий", formerManager ? WorkModule.ReportReview : WorkModule.ReportOwn);
+        await assignments.LinkAsync(employee, user);
+        await assignments.AssignedAsync(employee, crew.Site, formerManager ? AssignmentKind.Manager : AssignmentKind.Installer,
+            "2026-10-01", formerManager ? "2026-10-20" : "2026-11-15");
+        await crew.AssignAsync(candidate, from: "2026-10-01");
+        if (scenario == "archived-installer") await assignments.ArchiveAsync(employee);
+
+        var result = await CrewWorld.JsonAsync(await client.GetAsync($"/api/work/constructions/{crew.Site}/crew-candidates?date={date}"));
+        Assert.Empty(result.GetProperty("items").EnumerateArray());
+        Assert.Equal("not-assigned", result.GetProperty("reason").GetString());
     }
 
     [Fact]

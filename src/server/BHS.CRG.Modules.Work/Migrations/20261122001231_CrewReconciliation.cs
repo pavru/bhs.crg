@@ -111,6 +111,33 @@ namespace BHS.CRG.Modules.Work.Migrations
                     FOR EACH ROW WHEN (NEW.is_crew <> (NEW.crew_role IS NOT NULL))
                     EXECUTE FUNCTION work.restore_legacy_crew_line();
                 """);
+
+            // При слиянии старой копии изменяется шапка раньше строк. По OLD ещё виден прежний ключ группы.
+            // Группы новой копии загружены перед отчётами; у них уже xmin текущей транзакции.
+            migrationBuilder.Sql("""
+                CREATE FUNCTION work.invalidate_crew_on_report_restore() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    UPDATE work.crew_groups g
+                    SET input_revision = gen_random_uuid()
+                    WHERE g.construction_id = OLD.construction_id AND g.date = OLD.date AND g.shift = OLD.shift
+                      AND g.xmin <> pg_current_xact_id()::xid
+                      AND EXISTS (
+                          SELECT 1 FROM work.report_lines line
+                          WHERE line.report_id = OLD.id AND line.is_crew AND line.work_type_id = g.work_type_id
+                      );
+                    RETURN NEW;
+                END $$;
+                CREATE TRIGGER invalidate_crew_on_report_restore
+                    BEFORE UPDATE OF construction_id, date, shift, status ON work.reports
+                    FOR EACH ROW WHEN (
+                        current_setting('bhs.module_restore', true) = 'on'
+                        AND OLD.status IN ('submitted', 'accepted')
+                        AND (NEW.status NOT IN ('submitted', 'accepted')
+                            OR (OLD.construction_id, OLD.date, OLD.shift)
+                               IS DISTINCT FROM (NEW.construction_id, NEW.date, NEW.shift))
+                    )
+                    EXECUTE FUNCTION work.invalidate_crew_on_report_restore();
+                """);
         }
 
         /// <inheritdoc />
@@ -119,6 +146,8 @@ namespace BHS.CRG.Modules.Work.Migrations
             migrationBuilder.Sql("""
                 DROP TRIGGER restore_legacy_crew_line ON work.report_lines;
                 DROP FUNCTION work.restore_legacy_crew_line();
+                DROP TRIGGER invalidate_crew_on_report_restore ON work.reports;
+                DROP FUNCTION work.invalidate_crew_on_report_restore();
                 """);
 
             migrationBuilder.DropTable(

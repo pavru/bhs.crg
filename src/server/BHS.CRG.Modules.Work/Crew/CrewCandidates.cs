@@ -23,10 +23,12 @@ public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
         CrewCandidates candidates, CancellationToken ct)
     {
         var (me, _) = await WorkAccounts.OfUserAsync(user, employees, ct);
-        var assigned = await candidates.AssignedAsync(id, date, ct);
-        if (me is null || (!assigned.Contains(me.Id) && !(await managers.OfEmployeeAsync(me, ct: ct)).Contains(id)))
+        if (me is not { Archived: false } ||
+            (!await candidates.IsInstallerOnAsync(me, id, date, ct) &&
+             !(await managers.OfEmployeeAsync(me, ct: ct)).Contains(id)))
             return Results.Ok(new { items = Array.Empty<Candidate>(), reason = "not-assigned" });
 
+        var assigned = await candidates.AssignedAsync(id, date, ct);
         var items = (await employees.GetAsync(assigned, ct) ?? [])
             .OrderBy(e => e.FullName, StringComparer.CurrentCulture).ThenBy(e => e.Id)
             .Select(e => new Candidate(e.Id, e.FullName)).ToArray();
@@ -48,8 +50,14 @@ public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
         }
     }
 
+    private async Task<bool> IsInstallerOnAsync(ModuleEmployee employee, Guid site, DateOnly date, CancellationToken ct) =>
+        employee.NotWorkingOn(date) is null &&
+        await AssignmentsOn(site, date).AnyAsync(a => a.Kind == AssignmentKind.Installer && a.EmployeeId == employee.Id, ct);
+
     private Task<Guid[]> AssignedAsync(Guid site, DateOnly date, CancellationToken ct) =>
+        AssignmentsOn(site, date).Select(a => a.EmployeeId).Distinct().ToArrayAsync(ct);
+
+    private IQueryable<Assignment> AssignmentsOn(Guid site, DateOnly date) =>
         db.Assignments.AsNoTracking()
-            .Where(a => a.ConstructionId == site && a.DateFrom <= date && (a.DateTo == null || date <= a.DateTo))
-            .Select(a => a.EmployeeId).Distinct().ToArrayAsync(ct);
+            .Where(a => a.ConstructionId == site && a.DateFrom <= date && (a.DateTo == null || date <= a.DateTo));
 }
