@@ -25,6 +25,77 @@ namespace BHS.CRG.Modules.Work.Migrations
 
             modelBuilder.HasSequence("report_seq", "work");
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Crew.CrewGroupRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by");
+
+                    b.Property<string>("ApprovedByName")
+                        .HasColumnType("text")
+                        .HasColumnName("approved_by_name");
+
+                    b.Property<Guid?>("ApprovedRevision")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_revision");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("InputRevision")
+                        .HasColumnType("uuid")
+                        .HasColumnName("input_revision");
+
+                    b.Property<string>("Shift")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("shift");
+
+                    b.Property<decimal?>("Total")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total");
+
+                    b.Property<Guid?>("UnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("unit_id");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<Guid>("WorkTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_type_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("WorkTypeId");
+
+                    b.HasIndex("ConstructionId", "Date", "Shift", "WorkTypeId")
+                        .IsUnique();
+
+                    b.ToTable("crew_groups", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.Assignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -436,6 +507,11 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("text")
                         .HasColumnName("comment");
 
+                    b.Property<string>("CrewRole")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("crew_role");
+
                     b.Property<string>("Details")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -502,7 +578,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.HasIndex("ReportId", "Position")
                         .HasDatabaseName("ix_report_lines_report");
 
-                    b.ToTable("report_lines", "work");
+                    b.ToTable("report_lines", "work", t =>
+                        {
+                            t.HasCheckConstraint("ck_report_lines_crew_role", "(is_crew AND crew_role IS NOT NULL AND crew_role IN ('lead', 'member')) OR (NOT is_crew AND crew_role IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportLineMaterial", b =>

@@ -32,11 +32,12 @@ public class ReviewMarkCatalogTests
         string[] codes =
         [
             ReviewMarks.EditedAfterSubmit, ReviewMarks.SamePerson, ReviewMarks.ManagerEdit, ReviewMarks.SiteNotAssigned,
-            ReviewMarks.PhotosPending, ReviewMarks.LateDelivery,
+            ReviewMarks.PhotosPending, ReviewMarks.CrewMismatch, ReviewMarks.LateDelivery,
         ];
         Assert.All(codes, code => Assert.NotNull(ReviewMarks.Of(code)));
         // Фото недогружены — данные с work-17; доставки с телефона до этапа 5 нет — ноль честен, но и запроса за ним нет.
         Assert.NotNull(ReviewMarks.Of(ReviewMarks.PhotosPending)!.Has);
+        Assert.NotNull(ReviewMarks.Of(ReviewMarks.CrewMismatch)!.Has);
         Assert.Null(ReviewMarks.Of(ReviewMarks.LateDelivery)!.Has);
     }
 

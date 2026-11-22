@@ -28,6 +28,8 @@ public static class ReportJournalKinds
     /// <summary>Возвращён на правку; что исправить — в <see cref="ReportJournalEntry.Comment" /> (<c>work-16</c>).</summary>
     public const string Returned = "returned";
 
+    public const string CrewApproved = "crew-approved";
+
     /// <summary>
     /// Правка менеджером поданного отчёта адресом ввода за сотрудника (<c>work-16</c>, ТЗ WORK-14) — запасной ход:
     /// протокол пишет её обычной правкой, а журнал называет отдельно, и по этой записи отчёт несёт пометку.
@@ -127,14 +129,14 @@ public sealed class ReportJournalEntry : IIsolatedRecord, IAppendOnly
 
     /// <summary>Собрать запись. Зовёт только место записи — <see cref="ReportJournal" /> (перепись).</summary>
     internal static ReportJournalEntry Of(
-        Report report, string kind, Guid changeId, long seq, ReportJournalActor author, string executorName,
+        Guid reportId, Guid employeeId, string kind, Guid changeId, long seq, ReportJournalActor author, string executorName,
         DateTimeOffset? deviceTime, DateTimeOffset serverTime, bool afterSubmission, string changes, string? comment) => new()
     {
-        Id = Guid.NewGuid(), ReportId = report.Id, ChangeId = changeId, Seq = seq, Kind = kind,
-        AuthorId = author.UserId, AuthorName = author.Name, ExecutorEmployeeId = report.EmployeeId,
+        Id = Guid.NewGuid(), ReportId = reportId, ChangeId = changeId, Seq = seq, Kind = kind,
+        AuthorId = author.UserId, AuthorName = author.Name, ExecutorEmployeeId = employeeId,
         ExecutorName = executorName,
         // Система за сотрудника не вводит: автоподача — её действие, а не ввод (work-15).
-        EnteredFor = author.UserId is not null && author.EmployeeId != report.EmployeeId,
+        EnteredFor = kind != ReportJournalKinds.CrewApproved && author.UserId is not null && author.EmployeeId != employeeId,
         // К UTC — как у протокола: колонка timestamptz принимает только нулевое смещение.
         DeviceTime = deviceTime?.ToUniversalTime(), ServerTime = serverTime.ToUniversalTime(),
         AfterSubmission = afterSubmission, Changes = changes, Comment = comment,

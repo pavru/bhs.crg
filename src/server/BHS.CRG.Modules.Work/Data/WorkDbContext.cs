@@ -1,5 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Work.Crew;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -78,6 +79,13 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
     /// <summary>Ключ замка отчётов сотрудника — им же пользуется тест очерёдности.</summary>
     public static string ReportLockKey(Guid employeeId) => $"work.reports:{employeeId}";
 
+    // Всегда перед замком сотрудника: утверждение записывает журнал сразу нескольких сотрудников.
+    internal Task LockCrewShiftAsync(Guid site, DateOnly date, ReportShift shift, CancellationToken ct)
+    {
+        var key = FormattableString.Invariant($"work.crew:{site}:{date:yyyy-MM-dd}:{shift}");
+        return Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
+    }
+
     /// <summary>
     /// Версия строки назначения — поле <c>version</c> ответа и значение <c>If-Match</c>. ⚠️ Только у
     /// отслеживаемой строки: теневое свойство у прочитанной без отслеживания не заполняется — была бы «0».
@@ -155,6 +163,7 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
         assignment.HasIndex(a => new { a.EmployeeId, a.ConstructionId }).HasDatabaseName("ix_assignments_employee");
 
         WorkReportModel.Configure(builder, RowVersion);
+        CrewGroupRecord.Configure(builder);
     }
 
     /// <summary>

@@ -27,20 +27,13 @@ public class PhotoMigrationTests
             await migrator.MigrateAsync(Migration.InitialDatabase);
             await migrator.MigrateAsync(previous);
             var now = DateTimeOffset.UtcNow;
-            var report = Report.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 11, 16),
-                ReportShift.Day, 8m, "прежний отчёт", 1, now, now.AddHours(1));
-            var line = ReportLine.Create(report.Id, 0,
-                new ReportLineValues(Guid.NewGuid(), Guid.NewGuid(), null, 1m, Guid.NewGuid(), null,
-                    null, null, false, null, [], []), Guid.NewGuid());
-            report.Lines.Add(line);
-            db.Add(report);
-            await db.SaveChangesAsync();
+            var (_, lineId) = await WorkMigrationRows.AddAsync(db, Guid.NewGuid(), Guid.NewGuid(), "draft", isCrew: false);
 
             await db.Database.MigrateAsync();
             Assert.False(db.Database.HasPendingModelChanges());
-            var pending = LinePhoto.Declared(Guid.NewGuid(), line.Id, now);
+            var pending = LinePhoto.Declared(Guid.NewGuid(), lineId, now);
             db.Add(pending);
-            db.Add(LinePhotoRemoval.Of(LinePhoto.Declared(Guid.NewGuid(), line.Id, now), now));
+            db.Add(LinePhotoRemoval.Of(LinePhoto.Declared(Guid.NewGuid(), lineId, now), now));
             await db.SaveChangesAsync();
             Assert.Single(await db.Set<LinePhoto>().AsNoTracking().ToListAsync());
             Assert.Single(await db.Set<LinePhotoRemoval>().AsNoTracking().ToListAsync());
@@ -48,7 +41,7 @@ public class PhotoMigrationTests
             db.ChangeTracker.Clear();
             await migrator.MigrateAsync(previous);
             Assert.Equal("прежний отчёт", (await db.Set<Report>().SingleAsync()).Note);
-            Assert.Equal(line.Id, (await db.Set<ReportLine>().SingleAsync()).Id);
+            Assert.Equal(lineId, await db.Database.SqlQueryRaw<Guid>("SELECT id AS \"Value\" FROM work.report_lines").SingleAsync());
 
             await db.Database.MigrateAsync();
             Assert.Empty(await db.Set<LinePhoto>().ToListAsync());

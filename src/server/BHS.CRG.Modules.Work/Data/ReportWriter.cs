@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Submission;
 
@@ -53,7 +54,7 @@ public sealed class ReportKeyTakenException(Guid existingId) : ConflictException
 public sealed class ReportWriter(
     WorkDbContext db, IModuleConstructions constructions, IModuleWorkTypes workTypes, IModuleTypes types,
     IModuleWriteGuard guard, ReportReferenceCheck references, WorkPlanItemLink planItems, ReportReads reads,
-    IModuleSettings settings)
+    IModuleSettings settings, CrewCandidates crew)
 {
     /// <summary>Завести отчёт со строками в контекст модуля (без сохранения).</summary>
     public async Task<Report> CreateAsync(
@@ -130,6 +131,7 @@ public sealed class ReportWriter(
                     ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
         for (var i = 0; i < lines.Count; i++)
             ReportRules.EnsureLine(i, lines[i], known.FirstOrDefault(w => w.Id == lines[i].WorkTypeId), site);
+        await crew.EnsureAssignedAsync(header, lines, ct);
         return site;
     }
 

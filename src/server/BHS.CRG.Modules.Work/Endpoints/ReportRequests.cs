@@ -18,7 +18,7 @@ public sealed record ReportPhotoRequest(Guid? Id);
 public sealed record ReportLineRequest(
     Guid? Id, Guid? WorkTypeId, Guid? VariantId, decimal? Volume, Guid? UnitId, Guid? SectionId, string? Location,
     string? Comment, bool? IsCrew, JsonElement? Details, IReadOnlyList<ReportMaterialRequest>? Materials,
-    IReadOnlyList<Guid>? Participants, IReadOnlyList<ReportPhotoRequest>? Photos = null)
+    IReadOnlyList<Guid>? Participants, IReadOnlyList<ReportPhotoRequest>? Photos = null, string? CrewRole = null)
 {
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
@@ -67,7 +67,7 @@ public sealed record ReportRequest(
             line.Details is { ValueKind: not (JsonValueKind.Undefined or JsonValueKind.Null) } details ? details.GetRawText() : null,
             [.. (line.Materials ?? []).Select(m => new ReportMaterialValues(m.NomenclatureId, m.Note))],
             [.. line.Participants ?? []],
-            PhotosOf(at, line.Photos));
+            PhotosOf(at, line.Photos), line.CrewRole);
     }
 
     /// <summary>
