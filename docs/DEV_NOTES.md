@@ -4175,10 +4175,13 @@ Change `costs-invoice-screen-02-state-facts` (COST-9.1, COST-6.4). Индика�
   `PaymentPosting.Refusal`) строится по тому же роду, так что правило одно. Список «`total` мешает оплате» в готовности или на клиенте молча отстал
   бы от первой правки правила оплаты.
 - **Оплаченному `payment` не ставится**: вопрос об оплате не стоит.
-- **Род отказа в ответе** — `payment.refusalKind`: тот же `PaymentRefusal.Of`, что у готовности (отклонён
-  раньше денег — одним местом, а не двумя цепочками). Договор для индикатора: у причины отказа есть
-  пункт с `payment` в `blocks` — это один пункт; нет — причина отдельным пунктом (у разобранного, у
-  отклонённого, у запертого).
+- **Род отказа в ответе** — `payment.refusalKind`. Порядок проверки для неоплаченного счёта
+  `rejected` → `duplicate` → денежные причины. При `duplicate` поле `payment.duplicateBlockers`
+  перечисляет все неотклонённые совпадения по поставщику, номеру и дате без действующего подтверждения.
+  Статус оплаты, `otherRevision` и названия строек из разноски приходят вместе с реквизитами двойника.
+  Денежные причины сохраняются
+  в `moneyRefusal` и `moneyRefusalKind`. Если ту же денежную причину называет пункт готовности с
+  `payment` в `blocks`, индикатор показывает её один раз.
 - ⚠️ **Пункт поля «Итого» появляется только с change `costs-invoice-screen-01-parsed-amount`** (сумма к
   оплате обязательна для «Разобран»). До него у счёта без суммы род `amount` пунктом готовности не
   покрыт, и индикатор называет его отдельно — это правда, а не дефект.
@@ -6951,6 +6954,8 @@ GET    /api/costs/invoices/same-file?fingerprint=…&fingerprint=… → «не�
 GET    /api/costs/invoices/{id}     → счёт: реквизиты по схеме + метки + дубликаты + строки + сверка сумм
                                       + readiness { required, gaps } — чего не хватает до «разобран»;
                                       gaps: [] — всё готово, null — счёт разобран либо отклонён
+                                      duplicates[].confirmed — действует ли отметка для пары.
+                                      payment.duplicateBlockers — совпадения, блокирующие оплату.
 GET    /api/costs/invoices/{id}/scan → файл счёта потоком — ОРИГИНАЛ (у файла в хранилище прав нет, у адреса есть)
 GET    /api/costs/invoices/{id}/scan/image → читаемый образ файла: { state: original|built|refused,
                                       pages, notes, converter, builtAt, reason, aboutFile };
@@ -7041,8 +7046,19 @@ POST   /api/costs/invoices/{id}/paid/preview  { paidOn? }                     co
                                       → расклад по контурам: сумма, учётная дата, перенос и его причина
                                       словами; отказы оплаты — полями refusal / dateRefusal, а не кодом;
                                       stamp — отметка расклада. Без paidOn — «сегодня» по часам компании
+                                      При блокирующем совпадении — 200, refusalKind: duplicate,
+                                      причина в refusal, без строк расклада и с пустым stamp.
 POST   /api/costs/invoices/{id}/paid          { paidOn, document?, seen }     costs.invoice.pay
                                       seen — stamp предпросмотра; без него 400, с устаревшим 409
+                                      Совпадения проверяются заново в транзакции после If-Match.
+                                      Блокирующее совпадение — 409 с причиной, без записи оплаты.
+POST   /api/costs/invoices/{id}/duplicate-confirmations
+                                      { otherInvoiceId, otherRevision, reason } costs.invoice.pay
+                                      If-Match текущего счёта, otherRevision из payment.duplicateBlockers.
+                                      200 — свежая карточка, решение действует в обе стороны.
+                                      400 — нет версии, редакции или причины (до 500 знаков).
+                                      409 — версия устарела либо вторая запись изменилась, отклонена
+                                      или удалена. Повтор актуальной пары сохраняет исходное событие.
 PUT    /api/costs/invoices/{id}/paid          { document }  — платёжный документ; дата так не меняется.
                                       Открыт и запертому: в книгу ничего (E2)
 POST   /api/costs/invoices/{id}/unpaid        { reason }    — отмена отметки; причина обязательна.
@@ -7052,8 +7068,8 @@ GET    /api/costs/site-costs?site=&from=&to=&vat=&view= → затраты за 
                                       ⚠️ Оплаченный счёт, требующий исправления (учётная дата в ЗАКРЫТОМ
                                       периоде ИЛИ есть книга исправлений), заперт для обычной правки:
                                       все PUT/POST счёта отвечают 409 «заперт: …»; исключения —
-                                      POST …/scan, когда скана ещё нет, PUT …/paid и POST …/unpaid
-                                      (выше) и исправление (ниже)
+                                      POST …/scan, когда скана ещё нет, PUT …/paid, POST …/unpaid,
+                                      POST …/duplicate-confirmations (выше) и исправление (ниже)
 POST   /api/costs/invoices/{id}/correction/preview { reason, requisites, lines (с parts), document,
                                       vatMode (обязателен: Included | OnTop, #1498) }
                                       → что запишет исправление: version, day (D), records (opening,

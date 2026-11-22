@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 
@@ -55,7 +56,8 @@ public sealed record PaymentPostingView(
     string? Refusal,
     string? DateRefusal,
     IReadOnlyList<PostingRowView> Rows,
-    string Stamp);
+    string Stamp,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RefusalKind = null);
 
 /// <summary>Оплата в ответе счёта.</summary>
 /// <param name="Refusal">Почему счёт сейчас оплатить нельзя — словами сервера; у оплаченного пусто.</param>
@@ -66,7 +68,7 @@ public sealed record PaymentPostingView(
 /// (правом оплаты и исправления, spec v3.3 п. 1.5).</param>
 /// <param name="Periods">Учётные месяцы счёта — «09.2026», по возрастанию.</param>
 /// <param name="RefusalKind">Род причины <c>Refusal</c> (COST-6.4): <c>amount</c>, <c>discrepancy</c>,
-/// <c>rejected</c> (<see cref="Data.PaymentRefusal" />); пусто — оплатить можно. Тем же правилом, что
+/// <c>rejected</c> или <c>duplicate</c> (<see cref="Data.PaymentRefusal" />); пусто — оплатить можно. Тем же правилом, что
 /// отказ записи оплаты. По нему индикатор видит, что причина уже названа пунктом готовности с
 /// <c>payment</c> в <c>blocks</c>, и не повторяет её.</param>
 public sealed record PaymentView(
@@ -77,7 +79,15 @@ public sealed record PaymentView(
     string? Refusal,
     string? LockedBy,
     IReadOnlyList<string> Periods,
-    string? RefusalKind = null);
+    string? RefusalKind = null,
+    IReadOnlyList<InvoiceDuplicateBlocker>? DuplicateBlockers = null,
+    string? MoneyRefusal = null,
+    string? MoneyRefusalKind = null);
+
+public sealed record InvoiceDuplicateBlocker(
+    Guid Id, Guid SupplierId, string Number, DateOnly IssuedOn, decimal? Total, bool Paid, DateOnly? PaidOn,
+    Guid OtherRevision, DateTimeOffset CreatedAt, string? ScanBlobPath, string? ScanFileName,
+    IReadOnlyList<string> ConstructionNames);
 
 /// <summary>Сборка ответов оплаты.</summary>
 public static class PaymentViews

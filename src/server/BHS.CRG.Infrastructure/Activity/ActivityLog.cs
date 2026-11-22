@@ -5,6 +5,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace BHS.CRG.Infrastructure.Activity;
 
@@ -16,7 +17,7 @@ namespace BHS.CRG.Infrastructure.Activity;
 /// мало — прямой запрос к базе обходит и приватные сеттеры, и фабрику.
 /// </summary>
 public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivityActionLookup actions,
-    IAppSettingsStore settings, TimeProvider time) : IActivityLog
+    IAppSettingsStore settings, TimeProvider time) : IActivityLog, IDeferredActivityLog
 {
     /// <summary>Потолок страницы: журнал читают экраном, а не выгрузкой, и «take=100000» превратило
     /// бы чтение в способ выгрузить его целиком одним запросом.</summary>
@@ -27,6 +28,20 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
 
     // Пояс компании — на время запроса: служба живёт в его области, а пояс за запрос не меняется.
     private TimeZoneInfo? _companyZone;
+
+    public async Task AppendOnceAsync(ActivityRecord record, CancellationToken ct)
+    {
+        db.ActivityRecords.Add(record);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_activity_log" })
+        {
+            db.Entry(record).State = EntityState.Detached;
+        }
+    }
 
     /// <summary>
     /// Запись с сессией правки (ТЗ CORE-28.2): новая строка получает ключ сессии и признак головы

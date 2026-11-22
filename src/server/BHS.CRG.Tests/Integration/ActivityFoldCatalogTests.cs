@@ -96,7 +96,7 @@ public class ActivityFoldCatalogTests(ModulePortsHost host) : IClassFixture<Modu
     public async Task Порт_модуля_передаёт_журналу_вид_со_свёрткой()
     {
         var journal = new RecordingJournal();
-        var port = new ModuleActivityLogPort(journal, Catalog(Head(), Lines()));
+        var port = new ModuleActivityLogPort(journal, journal, Catalog(Head(), Lines()));
 
         await port.RecordAsync(Lines(), targetId: "счёт-1", after: "3 строки");
 
@@ -110,9 +110,11 @@ public class ActivityFoldCatalogTests(ModulePortsHost host) : IClassFixture<Modu
         public IReadOnlyList<ModuleActivityAction> Actions => actions;
     }
 
-    private sealed class RecordingJournal : IActivityLog
+    private sealed class RecordingJournal : IActivityLog, IDeferredActivityLog
     {
         public List<ActivityAction> Recorded { get; } = [];
+
+        public Task AppendOnceAsync(ActivityRecord record, CancellationToken ct) => throw new NotSupportedException();
 
         public Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
             string? before = null, string? after = null, CancellationToken ct = default)

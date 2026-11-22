@@ -51,10 +51,12 @@ public sealed record AllocationPlaces(
 /// <summary>Читает <see cref="AllocationPlaces" /> из ядра: стройки — одним портом, статьи — другим.</summary>
 public sealed class AllocationPlacesSource(IModuleConstructions sites, IModuleOwnCatalog catalog)
 {
+    internal Task<IReadOnlyList<ModuleConstruction>> SitesAsync(CancellationToken ct) => sites.ListAsync(ct);
+
     public async Task<AllocationPlaces> LoadAsync(CancellationToken ct)
     {
         var articles = await ArticlesAsync(catalog, ct);
-        return new(await sites.ListAsync(ct), articles ?? [], articles is not null);
+        return new(await SitesAsync(ct), articles ?? [], articles is not null);
     }
 
     /// <summary>

@@ -36,11 +36,10 @@ public sealed record InvoiceConfirmRequest(IReadOnlyList<string> Fields);
 /// запись модуля выглядит обычным документом, и рисует её общая форма.</param>
 /// <param name="Unconfirmed">Что распознано и не подтверждено. Переживает повторное открытие
 /// черновика — в этом весь смысл (ТЗ COST-6.2).</param>
-/// <param name="Duplicates">Счета с тем же поставщиком, номером и датой (ТЗ COST-6.2) — оговорка, а
-/// не запрет: у поставщика бывает два счёта с одним номером в один день, и человек знает об этом
-/// больше нас.</param>
-/// <param name="SameFile">Счета, к которым приложен файл с тем же содержимым (issue #1295), — тоже
-/// оговорка: в одном файле бывает несколько счетов.</param>
+/// <param name="Duplicates">Счета с тем же поставщиком, номером и датой (ТЗ COST-6.2) и признаком
+/// действующего подтверждения каждой пары. Блокирующие пары перечислены в <c>payment.duplicateBlockers</c>.</param>
+/// <param name="SameFile">Счета, к которым приложен файл с тем же содержимым (issue #1295).
+/// В одном файле бывает несколько счетов, поэтому совпадение только по файлу не блокирует оплату.</param>
 /// <param name="Lines">Строки счёта в порядке бумаги (C2, issue #1078). Приезжают ВМЕСТЕ со счётом, а
 /// не отдельным запросом: форма показывает шапку и строки одним экраном, и два запроса дали бы два
 /// снимка одного счёта — сверка суммы строк с суммой к оплате считалась бы по разным состояниям.</param>
@@ -199,7 +198,7 @@ public sealed record InvoiceDueView(
 }
 
 /// <summary>Найденный дубликат: чем он дубликат — тем и назван.</summary>
-public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total);
+public sealed record InvoiceDuplicate(Guid Id, string? Number, DateOnly? IssuedOn, decimal? Total, bool Confirmed = false);
 
 /// <summary>Сборка ответов из записей. Отдельно от адресов: адреса про маршруты и права.</summary>
 public static class InvoiceViews
@@ -305,6 +304,6 @@ public static class InvoiceViews
         Overdue: InvoiceDue.OverdueOf(invoice, today) == true,
         Corrected: invoice.BookSeq > 0);
 
-    public static InvoiceDuplicate Duplicate(Invoice invoice) =>
-        new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total);
+    public static InvoiceDuplicate Duplicate(Invoice invoice, bool confirmed) =>
+        new(invoice.Id, invoice.Number, invoice.IssuedOn, invoice.Total, confirmed);
 }

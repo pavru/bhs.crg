@@ -56,7 +56,7 @@ public static class InvoiceDeletion
                 db.Invoices.Remove(invoice);
                 await db.SaveChangesAsync(ct);
                 return gone;
-            }, ct);
+            }, ct, duplicate: InvoiceDuplicateWrite.Change);
         }
         catch (ConflictException lost) when (lost.InnerException is DbUpdateConcurrencyException)
         {

@@ -22,8 +22,8 @@ namespace BHS.CRG.Tests.Integration;
 /// Механизм копии состав модуля спрашивает у базы, поэтому каждая новая колонка и каждое ограничение
 /// модуля попадают в него без правки — и без проверки. Здесь она есть.</para>
 ///
-/// <para>Сравнивается секция модуля ЦЕЛИКОМ, строка в строку: до потери и после восстановления. Так
-/// проверка не знает состава таблиц и не устареет с первой же миграцией модуля.</para>
+/// <para>Сравнивается секция модуля целиком, строка в строку. Для служебной редакции дублей
+/// проверяется выпуск нового значения при восстановлении.</para>
 /// </summary>
 // ⚠️ Собрание указывается КАЖДОМУ классу: атрибут не наследуется от базового.
 [Collection("Integration")]
@@ -59,7 +59,23 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         var restored = Assert.Single(after.ModuleData!);
         Assert.Equal(section.Tables.Select(t => t.Table), restored.Tables.Select(t => t.Table));
         foreach (var (was, now) in section.Tables.Zip(restored.Tables))
-            Assert.Equal(was.Rows.Select(r => r.GetRawText()), now.Rows.Select(r => r.GetRawText()));
+        {
+            if (was.Table != "invoices")
+            {
+                Assert.Equal(was.Rows.Select(r => r.GetRawText()), now.Rows.Select(r => r.GetRawText()));
+                continue;
+            }
+
+            Assert.Equal(was.Rows.Length, now.Rows.Length);
+            foreach (var (oldRow, newRow) in was.Rows.Zip(now.Rows))
+            {
+                const string revision = "duplicate_revision";
+                Assert.NotEqual(Guid.Empty, newRow.GetProperty(revision).GetGuid());
+                Assert.NotEqual(oldRow.GetProperty(revision).GetGuid(), newRow.GetProperty(revision).GetGuid());
+                Assert.Equal(oldRow.EnumerateObject().Where(p => p.Name != revision).Select(p => p.ToString()),
+                    newRow.EnumerateObject().Where(p => p.Name != revision).Select(p => p.ToString()));
+            }
+        }
 
         // И счёт читается обычной дорогой — со строкой и её разноской.
         var read = await ReadAsync(client, invoice);

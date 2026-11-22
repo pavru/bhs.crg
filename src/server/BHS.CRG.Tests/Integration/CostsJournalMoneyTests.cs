@@ -176,6 +176,7 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/draft", null));
 
         // Оплата, правка платёжного документа и отмена.
+        await ConfirmTwinAsync(client, invoice);
         var today = await TodayAsync();
         var preview = await client.PostAsJsonAsync($"/api/costs/invoices/{invoice}/paid/preview", new { paidOn = Iso(today) });
         await OkAsync(preview);
@@ -274,6 +275,27 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
             && r.After.Contains("— суммой"));
     }
 
+    private static async Task ConfirmTwinAsync(HttpClient client, Guid invoice)
+    {
+        var url = $"/api/costs/invoices/{invoice}";
+        var original = await client.GetFromJsonAsync<JsonElement>(url);
+        var requisites = original.GetProperty("requisites").EnumerateObject()
+            .Where(field => field.Name is "Номер" or "Дата" or "Поставщик" or "Плательщик" or "Итого")
+            .ToDictionary(field => field.Name, field => field.Value);
+        var created = await client.PostAsJsonAsync("/api/costs/invoices", new { requisites });
+        await OkAsync(created);
+        var twin = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var view = await client.GetFromJsonAsync<JsonElement>(url);
+        var pair = view.GetProperty("payment").GetProperty("duplicateBlockers").EnumerateArray()
+            .Single(row => row.GetProperty("id").GetGuid() == twin);
+        await OkAsync(await client.PostAsJsonAsync($"{url}/duplicate-confirmations", new
+        {
+            otherInvoiceId = twin,
+            otherRevision = pair.GetProperty("otherRevision").GetGuid(),
+            reason = "Разные поставки",
+        }));
+    }
+
     /// <summary>Записать разноску счёта матрицей — набором частей каждой строки, по отметке версии из вида.</summary>
     private static async Task<JsonElement> MatrixAsync(
         HttpClient client, Guid invoice, JsonElement view, params (Guid Line, Dictionary<string, object?>[] Parts)[] lines)
@@ -308,7 +330,8 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
         using var scope = host.Services.CreateScope();
         var ids = targets.Select(t => t.ToString()).ToHashSet();
         return (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ExportAsync())
-            .Where(r => r.TargetId is { } id && ids.Contains(id))
+            .Where(r => r.TargetId is { } id && (ids.Contains(id)
+                || r.Action == InvoiceActions.DuplicateConfirmed.Code && id.Split('/').Any(ids.Contains)))
             .Reverse()
             .ToList();
     }

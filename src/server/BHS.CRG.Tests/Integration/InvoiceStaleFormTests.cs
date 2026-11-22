@@ -64,6 +64,8 @@ public class InvoiceStaleFormTests(InvoiceLineHost host) : InvoiceLineTestBase(h
     private static readonly Dictionary<string, object> Bodies = new()
     {
         ["POST /api/costs/invoices/{id:guid}/confirmed"] = new { fields = new[] { "Номер" } },
+        ["POST /api/costs/invoices/{id:guid}/duplicate-confirmations"] =
+            new { otherInvoiceId = Guid.NewGuid(), otherRevision = Guid.NewGuid(), reason = "проверка версии" },
         ["PUT /api/costs/invoices/{id:guid}/lines"] = new { lines = Array.Empty<object>() },
         ["PUT /api/costs/invoices/{id:guid}/lines/{lineId:guid}/allocation"] = new { parts = Array.Empty<object>() },
         ["PUT /api/costs/invoices/{id:guid}/allocation"] =

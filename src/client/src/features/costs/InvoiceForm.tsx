@@ -54,6 +54,7 @@ import { invoiceLeave } from './invoiceLeave';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { InvoiceStatusIndicator } from './InvoiceStatusIndicator';
 import { InvoiceStatusBanner, InvoiceStatusSheet } from './InvoiceStatusSheet';
+import { InvoiceDuplicateDialog } from './InvoiceDuplicateDialog';
 import { useInvoiceStatus } from './useInvoiceStatus';
 
 /**
@@ -355,10 +356,11 @@ export function InvoiceForm({
   // говорит, что прочитанное пропадёт (ревью PR #1808).
   const fresh = useFresh(view.id);
   const deleteNow = !!onDeleteLater && fresh && !unsaved && !watch.running && canDelete(view, canEdit && !closed);
+  const [reviewDuplicate, setReviewDuplicate] = useState<string | null>(null);
   const indicator = useInvoiceStatus({
     view, recognition: watch.recognition, recognitionUnread: watch.failed, onRetryRecognition: watch.retry,
     headerStale: !gone && base.stale && !watch.settling && !byScan && !correcting, onRereadHeader: reread,
-    onClose, onOpenInvoice, onRetryOrganizations, rereadFailed, hiddenByFilter,
+    onClose, onOpenInvoice, onReviewDuplicate: setReviewDuplicate, onRetryOrganizations, rereadFailed, hiddenByFilter,
     onRetryExtras: extras.retry, onConfirmMarks: () => void confirmFields(marks), onShowScan: onShowFile,
     onConfirmHiddenMarks: () => void confirmFields(orphanMarks), confirming: confirm.isPending, reveal,
     form: {
@@ -415,6 +417,11 @@ export function InvoiceForm({
           current={scan === null ? null : scan.fileName ?? 'файл без имени'} onClose={() => setFileDialog(false)} />
       )}
       {paying && <PayDialog view={view} onDone={() => setPaying(false)} />}
+      {reviewDuplicate && <InvoiceDuplicateDialog view={view} initialId={reviewDuplicate}
+        supplierName={savedSupplierName(view, organizations)} canPay={canPay && !gone}
+        onClose={() => { setReviewDuplicate(null); setSheet(true); }}
+        onDone={() => { setReviewDuplicate(null); setSheet(true); }}
+        onOpenInvoice={onOpenInvoice} />}
       <InvoiceStatusSheet open={sheet} onClose={() => setSheet(false)} status={indicator.status} saving={queue.saving}
         savedAt={formatDateTime(view.updatedAt)} onAction={indicator.run} />
 

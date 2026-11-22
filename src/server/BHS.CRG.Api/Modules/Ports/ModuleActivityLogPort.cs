@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Activity;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Domain.Activity;
 using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Api.Modules.Ports;
@@ -16,10 +17,23 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// доезжало бы до человека вовсе (поймано ревью PR #1106). Форму кода и префикс модуля каталог
 /// проверяет при старте.</para>
 /// </summary>
-public sealed class ModuleActivityLogPort(IActivityLog log, ActivityActionCatalog catalog) : IModuleActivityLog
+public sealed class ModuleActivityLogPort(IActivityLog log, IDeferredActivityLog deferred, ActivityActionCatalog catalog)
+    : IModuleActivityLog, IModuleDeferredActivityLog
 {
     public Task RecordAsync(ModuleActivityAction action, string? targetId = null, string? targetLabel = null,
-        string? before = null, string? after = null, CancellationToken ct = default)
+        string? before = null, string? after = null, CancellationToken ct = default) =>
+        log.RecordAsync(Declared(action), targetId, targetLabel, before, after, ct);
+
+    public Task RecordDeferredAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct = default)
+    {
+        var declared = Declared(action);
+        if (declared.Fold is not null)
+            throw new InvalidOperationException("Отложенное событие записывается отдельной строкой журнала.");
+        return deferred.AppendOnceAsync(ActivityRecord.Create(declared.Code, saved.AuthorId, saved.AuthorName,
+            saved.TargetId, saved.TargetLabel, after: saved.After, id: saved.EventId, occurredAt: saved.OccurredAt), ct);
+    }
+
+    private ActivityAction Declared(ModuleActivityAction action)
     {
         if (action.Validate() is { } problem)
             throw new InvalidOperationException(
@@ -48,6 +62,6 @@ public sealed class ModuleActivityLogPort(IActivityLog log, ActivityActionCatalo
         // Вид — ИЗ КАТАЛОГА, а не собранный заново из вызова (ТЗ CORE-28.3): в каталоге он уже со
         // свёрткой, переведённой и проверенной при старте. Собранный здесь, он терял бы её молча, и
         // объявленные сворачиваемыми записи ложились бы одиночными.
-        return log.RecordAsync(catalog.Find(action.Code)!, targetId, targetLabel, before, after, ct);
+        return catalog.Find(action.Code)!;
     }
 }

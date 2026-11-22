@@ -75,7 +75,7 @@ const CASES = [
     reason: null,
     preview: { today: '2026-10-13', paidOn: '2026-10-13', total: 100, refusal: null, dateRefusal: null, rows: [], stamp: 'p1' },
     dialog: (onDone: () => void) => (
-      <PayDialog onDone={onDone} view={{ id: 'i1', version: '7', requisites: {} } as never} />
+      <PayDialog onDone={onDone} view={{ id: 'i1', version: '7', requisites: {}, payment: { refusalKind: null } } as never} />
     ),
   },
   {

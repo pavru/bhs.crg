@@ -58,6 +58,7 @@ export type StatusPlace = ReadinessTarget;
 export type StatusAction = { label: string; short?: string } & (
   | { kind: 'goto'; place: StatusPlace }
   | { kind: 'open'; invoiceId: string }
+  | { kind: 'review-duplicate'; invoiceId: string }
   | { kind: 'delete'; reason: DeleteReason }
   | {
     kind: 'close' | 'reread' | 'retry-view' | 'retry-orgs' | 'recognize' | 'retry-recognition'
@@ -341,12 +342,14 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // У черновика «нет суммы» называет пункт поля «Итого» (сумма обязательна для «Разобран»); здесь остаются
   // разобранный и запертый счёт без перечня готовности — например разобранный без суммы до обновления (Э3).
   const payment = view.payment;
-  // Без права оплаты отказ оплаты ничему не мешает — его не показывала и прежняя часть «Сроки и оплата».
-  const payItem = can.pay && !payment.paid && !!payment.refusal && payment.refusalKind !== 'rejected' && !payNamed && !gone;
+  const duplicate = payment.refusalKind === 'duplicate';
+  const moneyRefusal = duplicate ? payment.moneyRefusal : payment.refusal;
+  const moneyKind = duplicate ? payment.moneyRefusalKind : payment.refusalKind;
+  const payItem = can.pay && !payment.paid && !!moneyRefusal && moneyKind !== 'rejected' && !payNamed && !gone;
   if (payItem)
     add({
-      key: 'pay-refusal', level: 'gate', text: `Оплатить нельзя: ${payment.refusal}`, blocks: ['pay'],
-      actions: payment.refusalKind === 'amount' && !closed
+      key: 'pay-refusal', level: 'gate', text: `Оплатить нельзя: ${moneyRefusal}`, blocks: ['pay'],
+      actions: moneyKind === 'amount' && !closed
         ? [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.total } }] : [],
     });
 
@@ -355,7 +358,7 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // Без суммы к оплате (нуль — не сумма) сверять не с чем: о ней говорит поле «Итого» (`reconciled`, D5).
   const alloc = view.allocation;
   const discrepancyNamed = (gaps?.some(gap => gap.kind === 'total') ?? false)
-    || (payItem && payment.refusalKind === 'discrepancy');
+    || (payItem && moneyKind === 'discrepancy');
   if (!gone && !discrepancyNamed && alloc.reconciled && !alloc.withinTolerance && alloc.discrepancy !== null
     && view.lines.length > 0 && state !== REJECTED)
     add({
@@ -582,8 +585,26 @@ function recognitionItems(recognition: InvoiceRecognition, editable: boolean, ca
  * (короткий путь #1282) — действием пункта, где удалить можно; «Открыть» тогда — сама строка перечня.
  */
 function twinItems(view: InvoiceView, canDelete: boolean, now?: boolean): StatusItem[] {
-  const { sameFile, both, duplicates } = twinsOf(view);
-  const found: StatusItem[] = [];
+  const blockers = view.payment.duplicateBlockers ?? [];
+  const hidden = new Set([...blockers.map(twin => twin.id), ...view.duplicates.filter(twin => twin.confirmed).map(twin => twin.id)]);
+  const sameFileIds = new Set(view.sameFile.map(twin => twin.id));
+  const { sameFile, both, duplicates } = twinsOf({
+    sameFile: view.sameFile.filter(twin => !hidden.has(twin.id)),
+    duplicates: view.duplicates.filter(twin => !hidden.has(twin.id)),
+  });
+  const found: StatusItem[] = blockers.map(twin => ({
+    key: `duplicate:${twin.id}`, level: 'gate', text: `Совпадают реквизиты счёта № ${duplicateLabel(twin)}`,
+    detail: [
+      `Заведён ${formatDateTime(twin.createdAt)}.`,
+      twin.paid ? `Оплачен${twin.paidOn ? ` ${formatDate(twin.paidOn)}` : ''}.` : 'Не оплачен.',
+      sameFileIds.has(twin.id) ? 'Тот же файл.' : null,
+    ].filter(Boolean).join(' '),
+    blocks: ['pay'],
+    actions: [
+      { kind: 'review-duplicate', label: 'Сверить счета…', short: 'Сверить…', invoiceId: twin.id },
+      { kind: 'open', label: 'Открыть двойника', invoiceId: twin.id },
+    ],
+  }));
   const openLabel = (number: string | null) => (number ? `Открыть ${number}` : 'Открыть счёт');
   if (sameFile.length > 0) {
     // У разобранного пара с одним файлом скорее законная (в файле несколько счетов) — если не совпали ещё и

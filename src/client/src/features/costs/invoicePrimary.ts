@@ -10,11 +10,11 @@ import type { ReadinessItem } from './invoiceReadiness';
  */
 
 /**
- * Можно ли внести оплату: есть право, счёт не оплачен и не отклонён. Одно условие на оба входа — кнопку
+ * Можно ли открыть оплату: есть право, счёт не оплачен, не отклонён и без блокирующих совпадений. Одно условие на оба входа — кнопку
  * части «Сроки и оплата» и основное действие сводки (ревью PR #1786).
  */
 export function mayMarkPaid(view: InvoiceView, canPay: boolean): boolean {
-  return canPay && !view.payment.paid && view.requisites[K.state] !== REJECTED;
+  return canPay && !view.payment.paid && view.requisites[K.state] !== REJECTED && view.payment.refusalKind !== 'duplicate';
 }
 
 /**

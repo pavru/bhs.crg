@@ -21,6 +21,18 @@ export interface InvoiceDuplicate {
   number: string | null;
   issuedOn: string | null;
   total: number | null;
+  confirmed?: boolean;
+}
+
+export interface InvoiceDuplicateBlocker extends InvoiceDuplicate {
+  supplierId: string;
+  paid: boolean;
+  paidOn: string | null;
+  otherRevision: string;
+  constructionNames: string[];
+  createdAt: string;
+  scanBlobPath: string | null;
+  scanFileName: string | null;
 }
 
 /**
@@ -275,7 +287,10 @@ export interface PaymentView {
    * сходится, `rejected` — счёт отклонён; `null` — оплатить можно. По нему видно, что причина уже названа
    * пунктом готовности с `payment` в `blocks`. Старый сервер поля не присылает.
    */
-  refusalKind?: 'amount' | 'discrepancy' | 'rejected' | null;
+  refusalKind?: 'amount' | 'discrepancy' | 'rejected' | 'duplicate' | null;
+  duplicateBlockers?: InvoiceDuplicateBlocker[] | null;
+  moneyRefusal?: string | null;
+  moneyRefusalKind?: 'amount' | 'discrepancy' | null;
 }
 
 /**

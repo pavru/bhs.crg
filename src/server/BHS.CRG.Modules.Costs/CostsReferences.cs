@@ -62,6 +62,16 @@ public static class CostsReferences
         // лишает счёт подписи «изменил Петров» — колонка только сравнивается с читающим («это вы»).
         ModuleReference.Remembering("invoices", "updated_by", ReferenceTarget.User,
             "кто записал счёт последним — справочное поле; удаление учётной записи счетов не касается"),
+        ModuleReference.Remembering("invoices", "duplicate_revision", target: null,
+            "редакция для проверки двойников, не идентификатор записи ядра"),
+        ModuleReference.Remembering("invoice_duplicate_confirmations", "first_invoice_id", target: null,
+            "первый счёт пары — идентификатор строки своего модуля; история не держит счёт"),
+        ModuleReference.Remembering("invoice_duplicate_confirmations", "second_invoice_id", target: null,
+            "второй счёт пары — идентификатор строки своего модуля; история не держит счёт"),
+        ModuleReference.Remembering("invoice_duplicate_confirmations", "first_revision", target: null,
+            "редакция первого счёта, не идентификатор записи ядра"),
+        ModuleReference.Remembering("invoice_duplicate_confirmations", "second_revision", target: null,
+            "редакция второго счёта, не идентификатор записи ядра"),
 
         // Запись о распознавании скана (issue #1077). Идентификатор в ней один — фоновой задачи, и
         // он справка: задачи ядро чистит само и держателей не спрашивает. Колонки JSON — текст,

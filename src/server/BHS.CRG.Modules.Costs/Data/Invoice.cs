@@ -209,6 +209,15 @@ public sealed partial class Invoice
     /// </summary>
     public string? TrustedFingerprint => Trusted(ScanBlobPath, ScanFingerprint, ScanFingerprintSeal);
 
+    /// <summary>Редакция поставщика, номера, даты и содержимого файла для подтверждения пары.</summary>
+    public Guid DuplicateRevision { get; private set; }
+
+    internal void SealExistingScan(string path, string fingerprint)
+    {
+        ScanFingerprint = fingerprint;
+        ScanFingerprintSeal = Seal(path);
+    }
+
     /// <summary>То же правило для строки, прочитанной не сущностью: поиск двойников читает проекцию.</summary>
     public static string? Trusted(string? path, string? fingerprint, string? seal) =>
         path is not null && fingerprint is not null && seal == Seal(path) ? fingerprint : null;

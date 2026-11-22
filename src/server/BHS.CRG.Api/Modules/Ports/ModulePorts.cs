@@ -45,6 +45,7 @@ public static class ModulePorts
             sp => sp.GetRequiredService<Activity.ActivityActionCatalog>());
 
         services.AddScoped<IModuleActivityLog, ModuleActivityLogPort>();
+        services.AddScoped<IModuleDeferredActivityLog, ModuleActivityLogPort>();
         // Файлы и их читаемые образы (issue #1269) — по ключу, коду модуля (ТЗ CORE-37.2): у каждого
         // включённого модуля свой экземпляр, и порт знает, от чьего имени читать. Образом владеет ядро,
         // модуль спрашивает его по пути оригинала. Без ключа этих портов в контейнере нет.

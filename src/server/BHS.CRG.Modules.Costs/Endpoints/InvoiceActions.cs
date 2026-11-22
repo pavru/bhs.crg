@@ -141,6 +141,9 @@ public sealed class InvoiceActions : IModuleActivityActions
     /// <summary>Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа нет.</summary>
     public static readonly ModuleActivityAction Unpaid = new("costs.invoice.unpaid", "Оплата счёта отменена", InvoiceRead);
 
+    public static readonly ModuleActivityAction DuplicateConfirmed =
+        new("costs.invoice.duplicate-confirmed", "Подтверждено, что счета разные", InvoiceRead);
+
     public static readonly ModuleActivityAction PaymentDescribed =
         new("costs.invoice.paydoc", "Платёжный документ счёта изменён", InvoiceRead);
 
@@ -217,6 +220,6 @@ public sealed class InvoiceActions : IModuleActivityActions
 
     public IReadOnlyList<ModuleActivityAction> Actions =>
         [Created, Changed, Confirmed, DueByHand, DueByRule, ScanAttached, Recognized, OrganizationCreated, LinesChanged, MatchesRemembered, MatchPointed, MatchForgotten, MatchesForgotten, TermsSet, TermsRemoved, Parsed, Draft, Rejected, Deleted, AllocationChanged,
-         Paid, Unpaid, PaymentDescribed, Corrected, ToleranceAligned, ArticleCreated, ArticleRenamed, ArticleDeleted,
+         Paid, Unpaid, DuplicateConfirmed, PaymentDescribed, Corrected, ToleranceAligned, ArticleCreated, ArticleRenamed, ArticleDeleted,
          ArticleArchived, ArticleUnarchived];
 }

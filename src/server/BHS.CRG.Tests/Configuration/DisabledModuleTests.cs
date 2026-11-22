@@ -46,6 +46,16 @@ public class DisabledModuleTests
         Assert.Contains("Счета и накладные", body.GetProperty("error").GetString());
     }
 
+    [Fact]
+    public async Task InvoiceDuplicatePayment_Подтверждение_недоступно_при_выключенном_модуле()
+    {
+        using var host = await StartAsync(enabled: "id", new IdLike(), new BHS.CRG.Modules.Costs.CostsModule());
+        var response = await host.GetTestClient().PostAsJsonAsync(
+            $"/api/costs/invoices/{Guid.NewGuid()}/duplicate-confirmations", new { });
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Equal("costs", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("module").GetString());
+    }
+
     /// <summary>
     /// Адрес ядра под тем же префиксом, что у выключенного модуля, продолжает работать.
     ///

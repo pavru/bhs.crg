@@ -56,6 +56,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
     /// </summary>
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
+    public DbSet<InvoiceDuplicateConfirmation> InvoiceDuplicateConfirmations => Set<InvoiceDuplicateConfirmation>();
+
     /// <summary>
     /// Строки счёта (C2, issue #1078). Своим набором, а не полем счёта: на строку опирается код —
     /// отбор «ждёт номенклатуры», сверка сумм, разноска по количеству (F1).
@@ -193,6 +195,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
         base.OnModelCreating(builder);
 
         var invoice = builder.Entity<Invoice>();
+        InvoiceDuplicateConfirmation.Configure(builder, invoice);
         invoice.ToTable("invoices");
         invoice.HasKey(i => i.Id);
 
