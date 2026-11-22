@@ -37,6 +37,9 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
   '/src/features/planning/estimates/EstimatesPage.tsx': { filters: true },
   '/src/features/planning/estimates/ImportDialog.tsx': { filters: true },
+  '/src/features/work/review/ReviewQueuePage.tsx': {
+    filters: false, because: 'серверные счётчики и граница выдачи охватывают все доступные стройки; выбранную стройку отбирает API',
+  },
   '/src/shared/siteFilter/SiteFilterProvider.tsx': {
     filters: false, because: 'это и есть справочник, с которым пересекается избранное',
   },

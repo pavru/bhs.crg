@@ -1,6 +1,7 @@
 // Посев сотрудников для живых прогонов (work-01): зовёт его `seed.mjs` своими помощниками запросов.
 
 import { seedAssignments } from './seed-assignments.mjs';
+import { seedReview } from './seed-review.mjs';
 
 /**
  * Сотрудники и их учётные записи (work-01, ТЗ WORK-47): справочник и двое с учётными записями того же
@@ -32,5 +33,5 @@ export async function ensureEmployees({ api, findType, ensureUser, constructionI
     console.log(`  + сотрудник ${e.name}`);
   }
   // Назначения (work-12) — на справочнике, который только что заведён: без него адрес назначений отвечает 409.
-  await seedAssignments({ api, ensureUser, constructionId });
+  if (await seedAssignments({ api, ensureUser, constructionId })) await seedReview({ api, constructionId });
 }

@@ -45,6 +45,7 @@ import { WaybillsPage } from '@/features/costs/WaybillsPage';
 import { TablePage } from '@/features/tables/TablePage';
 import { EstimatesPage } from '@/features/planning/estimates/EstimatesPage';
 import { RateMatchesPage } from '@/features/planning/estimates/RateMatchesPage';
+import { ReviewQueuePage } from '@/features/work/review/ReviewQueuePage';
 import { ProfilePage } from '@/features/account/ProfilePage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
@@ -148,6 +149,7 @@ function AppRoutes() {
             <Route path="periods" element={<PeriodsPage />} />
             <Route path="estimates/*" element={<EstimatesPage />} />
             <Route path="rate-matches" element={<RateMatchesPage />} />
+            <Route path="work-review" element={<ReviewQueuePage />} />
             <Route path="reconciliations" element={<ReconciliationsPage />} />
           </Route>
           <Route element={<RequireAccess />}>

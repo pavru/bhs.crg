@@ -49,9 +49,10 @@ export const EMPLOYEES_KEY = ['employees'] as const;
  * Список сотрудников — показ: архивные на месте, с признаком. Отказ `directory-missing` — не ошибка
  * загрузки, а состояние экрана, поэтому он приходит значением, а не исключением.
  */
-export function useEmployees() {
+export function useEmployees(enabled = true) {
   return useQuery({
     queryKey: [...EMPLOYEES_KEY, 'list'],
+    enabled,
     queryFn: async (): Promise<{ items: Employee[]; missing: null } | { items: null; missing: DirectoryMissing }> => {
       try {
         return { items: (await apiClient.get<Employee[]>('/employees')).data, missing: null };
