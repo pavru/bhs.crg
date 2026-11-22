@@ -29,6 +29,7 @@ export interface InvoiceDuplicateBlocker extends InvoiceDuplicate {
   paid: boolean;
   paidOn: string | null;
   otherRevision: string;
+  constructionNames: string[];
   createdAt: string;
   scanBlobPath: string | null;
   scanFileName: string | null;

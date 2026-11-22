@@ -1,3 +1,6 @@
+using System.Data.Common;
+using System.Text.Json;
+
 namespace BHS.CRG.Modules.Data;
 
 /// <summary>
@@ -27,6 +30,9 @@ namespace BHS.CRG.Modules.Data;
 /// контекст живёт областью запроса.</param>
 public sealed record ModuleSchema(string Name, Type ContextType)
 {
+    /// <summary>Подготовить строки копии в транзакции импорта, до записи любой таблицы этой схемы.</summary>
+    public Func<DbTransaction, IDictionary<string, JsonElement[]>, CancellationToken, Task>? PrepareRestoreAsync { get; init; }
+
     /// <summary>Схема ядра. Модулю в неё нельзя — ни таблицей, ни историей миграций.</summary>
     public const string CoreSchema = "public";
 

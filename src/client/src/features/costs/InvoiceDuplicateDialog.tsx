@@ -15,15 +15,19 @@ import { K, asInput, duplicateLabel } from './invoiceFields';
 import { toNumber } from './invoiceLines';
 
 type ComparisonInvoice = Pick<InvoiceDuplicateBlocker,
-  'id' | 'number' | 'issuedOn' | 'total' | 'paid' | 'paidOn' | 'createdAt' | 'scanBlobPath' | 'scanFileName'>;
+  'id' | 'number' | 'issuedOn' | 'total' | 'paid' | 'paidOn' | 'createdAt' | 'scanBlobPath' | 'scanFileName' | 'constructionNames'>;
 
 function currentCard(view: InvoiceView): ComparisonInvoice {
   const file = view.requisites[K.scan] as { fileName?: string; blobPath?: string } | null;
+  const parts = [...view.lines.flatMap(line => line.allocation.parts), ...view.allocation.document.parts];
+  const constructions = parts.filter(part => part.constructionId)
+    .map(part => part.constructionName ?? 'Стройка удалена');
   return {
     id: view.id, number: asInput(view.requisites[K.number]), issuedOn: asInput(view.requisites[K.date]).slice(0, 10),
     total: toNumber(asInput(view.requisites[K.total])), createdAt: view.createdAt,
     paid: view.payment.paid, paidOn: view.payment.paidOn,
     scanBlobPath: file?.blobPath ?? null, scanFileName: file?.fileName ?? null,
+    constructionNames: [...new Set(constructions)].sort((a, b) => a.localeCompare(b, 'ru')),
   };
 }
 
@@ -83,7 +87,7 @@ export function InvoiceDuplicateDialog({ view, initialId, supplierName, canPay, 
         {shown.blockers.length > 1 && <Select label="Счёт для сверки" value={selected}
           onValueChange={id => { setSelected(id); setReason(''); setError(null); }}>
           {shown.blockers.map(blocker => <SelectItem key={blocker.id} value={blocker.id}>
-            № {duplicateLabel(blocker)} · {formatDateTime(blocker.createdAt)}
+            № {duplicateLabel(blocker)} · {constructionLabel(blocker)} · {formatDateTime(blocker.createdAt)}
           </SelectItem>)}
         </Select>}
         <div className="grid gap-3 md:grid-cols-2">
@@ -101,12 +105,17 @@ export function InvoiceDuplicateDialog({ view, initialId, supplierName, canPay, 
   );
 }
 
+function constructionLabel(card: ComparisonInvoice) {
+  return card.constructionNames.join(', ') || 'Стройка не указана';
+}
+
 function ComparisonCard({ title, card, supplierName, onOpen }: {
   title: string; card: ComparisonInvoice; supplierName: string | null; onOpen?: () => void;
 }) {
   const facts = [
     ['Поставщик', supplierName ?? 'Название недоступно'],
     ['Дата счёта', card.issuedOn ? formatDate(card.issuedOn) : 'Не указана'],
+    ['Стройка', constructionLabel(card)],
     ['К оплате', card.total === null ? 'Не указана' : formatMoney(card.total)],
     ['Заведён', formatDateTime(card.createdAt)],
   ];

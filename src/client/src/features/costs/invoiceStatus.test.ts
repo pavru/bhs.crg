@@ -53,7 +53,7 @@ describe('Блокировка по совпадению реквизитов', 
   const blocker = {
     id: 'twin', number: 'СЧ-7', issuedOn: '2026-10-03', total: 100, supplierId: 'supplier',
     paid: true, paidOn: '2026-10-04', otherRevision: 'rev', createdAt: '2026-10-03T09:00:00Z',
-    scanBlobPath: 'old.pdf', scanFileName: 'Счёт.pdf',
+    scanBlobPath: 'old.pdf', scanFileName: 'Счёт.pdf', constructionNames: [],
   };
   const payment = {
     refusal: 'есть неподтверждённое совпадение', refusalKind: 'duplicate' as const, duplicateBlockers: [blocker],

@@ -233,7 +233,8 @@ public sealed class CostsModule : IAppModule
     /// из <c>dotnet ef</c>, где реестра модулей нет вовсе, — а схема, известная только реестру, дала бы
     /// миграции в схему ядра.</para>
     /// </summary>
-    public ModuleSchema? Schema => new(CostsDbContext.SchemaName, typeof(CostsDbContext));
+    public ModuleSchema? Schema => new(CostsDbContext.SchemaName, typeof(CostsDbContext))
+        { PrepareRestoreAsync = InvoiceDuplicateRestore.PrepareAsync };
 
     /// <summary>
     /// Типы модуля (C1, issue #1076, ТЗ TYPE-14): пока один — счёт на оплату. Накладная приезжает

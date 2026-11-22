@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Data;
@@ -19,5 +20,17 @@ internal static class InvoiceDuplicateLock
         return mode == InvoiceDuplicateWrite.Payment
             ? db.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM pg_advisory_xact_lock_shared({Key})").ToListAsync(ct)
             : db.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM pg_advisory_xact_lock({Key})").ToListAsync(ct);
+    }
+
+    internal static async Task AcquireForRestoreAsync(DbTransaction transaction, CancellationToken ct)
+    {
+        await using var command = transaction.Connection!.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT pg_advisory_xact_lock(@key)";
+        var key = command.CreateParameter();
+        key.ParameterName = "key";
+        key.Value = Key;
+        command.Parameters.Add(key);
+        await command.ExecuteNonQueryAsync(ct);
     }
 }

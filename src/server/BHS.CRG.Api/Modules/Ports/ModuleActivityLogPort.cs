@@ -24,7 +24,7 @@ public sealed class ModuleActivityLogPort(IActivityLog log, IDeferredActivityLog
         string? before = null, string? after = null, CancellationToken ct = default) =>
         log.RecordAsync(Declared(action), targetId, targetLabel, before, after, ct);
 
-    public Task PublishAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct = default)
+    public Task RecordDeferredAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct = default)
     {
         var declared = Declared(action);
         if (declared.Fold is not null)

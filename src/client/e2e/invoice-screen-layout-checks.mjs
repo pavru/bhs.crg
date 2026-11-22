@@ -51,7 +51,7 @@ async function box(locator, what) {
 async function allMessages(page, h) {
   const number = `СЧ-Г${h.stamp}`;
   // Двойник: тот же поставщик, номер и дата.
-  await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Двойник для раскладки') });
+  const twin = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Двойник для раскладки') });
   const created = await h.api('POST', '/costs/invoices', {
     requisites: h.requisites(number, 'Раскладка экрана счёта'), unconfirmed: ['Номер', 'Итого', 'Срок'],
   });
@@ -66,7 +66,7 @@ async function allMessages(page, h) {
   }
   const lines = Array.from({ length: LINES }, (_, i) => ({ supplierText: `Строка раскладки ${i + 1}`, quantity: '1', price: '100' }));
   await h.api('PUT', `/costs/invoices/${created.id}/lines`, { lines });
-  return { id: created.id, number };
+  return { id: created.id, number, twinId: twin.id };
 }
 
 export async function invoiceScreenLayoutChecks(page, check, h) {
@@ -222,7 +222,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
       ? route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"Строки не приняты (проба)."}' })
       : route.continue()), async () => {
       await name.fill('Правка, которой откажут');
-      await statusOpen(page, 'duplicate');
+      await statusOpen(page, `duplicate:${invoice.twinId}`);
       await h.named('носитель не назвал отказ', () => untilSaveState(page, 'refused'));
       if (new URLSearchParams(new URL(page.url()).search).get('invoice') !== invoice.id)
         throw new Error('запись строк отказала, а счёт сменился — набранное ушло вместе с ним');
@@ -235,7 +235,7 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
     // Запись проходит: сначала строка записана, затем открыт другой счёт.
     await name.fill('Дописано при смене счёта');
     const written = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith(`/costs/invoices/${invoice.id}/lines`), { timeout: 15_000 });
-    await statusOpen(page, 'duplicate');
+    await statusOpen(page, `duplicate:${invoice.twinId}`);
     if (!(await written).ok()) throw new Error('запись строк при смене счёта отказала');
     await h.named('другой счёт не открылся после записи', () => page.waitForURL(url => new URL(url).searchParams.get('invoice') !== invoice.id, { timeout: 10_000 }));
     if (await page.getByRole('dialog').count()) throw new Error('смена счёта с записанной строкой спросила о несохранённом');

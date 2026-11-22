@@ -100,7 +100,7 @@ if (organizations.length === 0) {
 }
 
 /** Счёт из одной строки-услуги, разнесённой на стройку прогона целиком. */
-async function invoice(number, amount, total) {
+async function invoice(number, amount, total, construction = site.id) {
   const created = await api('POST', '/costs/invoices', {
     requisites: {
       'Номер': number, 'Дата': '2026-09-01', 'Итого': total,
@@ -111,7 +111,7 @@ async function invoice(number, amount, total) {
     lines: [{ supplierText: 'Услуга прогона', amount }],
   });
   await api('PUT', `/costs/invoices/${created.id}/lines/${view.lines[0].id}/allocation`, {
-    parts: [{ construction: site.id, amount }],
+    parts: [{ construction, amount }],
   });
   return created.id;
 }
@@ -158,7 +158,7 @@ await check('refusal-is-shown-instead-of-the-form', async () => {
 });
 
 await check('duplicate-arrives-after-preview-and-review-confirms-one-pair',
-  () => duplicatePaymentCheck(page, { api, invoice, open, number: `ОПЛ-Д-${stamp}` }));
+  () => duplicatePaymentCheck(page, { api, invoice, open, site, number: `ОПЛ-Д-${stamp}` }));
 
 // ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок и Tab ведут по форме ────────
 const calendarNumber = `ОПЛ-К-${stamp}`;

@@ -55,7 +55,7 @@ internal static class InvoiceDuplicateEndpoints
             return (invoice, confirmation);
         }, ct, WhenLocked.Decide, duplicate: InvoiceDuplicateWrite.Change);
 
-        await journal.PublishAsync(confirmation, ct);
+        await journal.DeliverAsync(confirmation, ct);
         return TypedResults.Ok(await desk.ViewAsync(invoice, ct));
     }
 }

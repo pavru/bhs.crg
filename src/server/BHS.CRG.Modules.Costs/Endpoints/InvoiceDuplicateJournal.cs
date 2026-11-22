@@ -10,7 +10,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 internal sealed class InvoiceDuplicateJournal(
     CostsDbContext db, IModuleDeferredActivityLog log, IModuleClock clock, ILogger<InvoiceDuplicateJournal> logger)
 {
-    internal async Task PublishAsync(InvoiceDuplicateConfirmation saved, CancellationToken ct)
+    internal async Task DeliverAsync(InvoiceDuplicateConfirmation saved, CancellationToken ct)
     {
         if (saved.JournaledAt is not null) return;
         try
@@ -18,7 +18,7 @@ internal sealed class InvoiceDuplicateJournal(
             Guid? author = Guid.TryParse(saved.AuthorId, out var id) ? id : null;
             var target = $"{saved.FirstInvoiceId}/{saved.SecondInvoiceId}";
             var label = $"{saved.FirstLabel} и {saved.SecondLabel}";
-            await log.PublishAsync(InvoiceActions.DuplicateConfirmed, new ModuleDeferredActivity(
+            await log.RecordDeferredAsync(InvoiceActions.DuplicateConfirmed, new ModuleDeferredActivity(
                 saved.EventId, author, saved.AuthorName, saved.ConfirmedAt, target, label, saved.Reason), ct);
             saved.MarkJournaled(clock.UtcNow());
             await db.SaveChangesAsync(ct);
@@ -30,11 +30,11 @@ internal sealed class InvoiceDuplicateJournal(
         }
     }
 
-    internal async Task PublishPendingAsync(CancellationToken ct)
+    internal async Task DeliverPendingAsync(CancellationToken ct)
     {
         var pending = await db.InvoiceDuplicateConfirmations.Where(saved => saved.JournaledAt == null)
             .OrderBy(saved => saved.ConfirmedAt).ThenBy(saved => saved.EventId).Take(100).ToListAsync(ct);
-        foreach (var saved in pending) await PublishAsync(saved, ct);
+        foreach (var saved in pending) await DeliverAsync(saved, ct);
     }
 }
 
@@ -49,7 +49,7 @@ internal sealed class InvoiceDuplicateJournalWorker(
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<InvoiceDuplicateJournal>().PublishPendingAsync(ct);
+                await scope.ServiceProvider.GetRequiredService<InvoiceDuplicateJournal>().DeliverPendingAsync(ct);
             }
             catch (Exception error) when (!ct.IsCancellationRequested)
             {

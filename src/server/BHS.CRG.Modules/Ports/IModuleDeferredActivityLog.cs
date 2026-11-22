@@ -8,5 +8,5 @@ public sealed record ModuleDeferredActivity(
 /// <summary>Доставка записанного события с исходным автором и временем. Повтор того же ID безопасен.</summary>
 public interface IModuleDeferredActivityLog
 {
-    Task PublishAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct = default);
+    Task RecordDeferredAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct = default);
 }

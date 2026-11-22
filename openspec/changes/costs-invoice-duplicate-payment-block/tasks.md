@@ -9,7 +9,7 @@
 
 - [x] 2.1 [COST-6.2] Добавить в `CostsDbContext` редакцию данных подтверждения, таблицу симметричных пар редакций и миграцию. Проверить отсутствие разрешений по умолчанию, уникальность пары в обоих порядках и сохранность подтверждений при обновлении и восстановлении свежей копии.
 - [x] 2.2 [COST-6.2] Менять редакцию при изменении поставщика, номера, даты или байтов файла. Покрыть правку любой стороны через обычную форму и исправление, запись распознанных реквизитов, возврат прежних значений, замену файла с тем же именем, переименование и повтор тех же байтов. Проверить прежний файл без доверенного отпечатка и восстановление старой копии в живую базу.
-- [x] 2.3 [COST-4] [COST-6.2] Включить замок D2 на путях внесения оплаты и изменения пар или подтверждений. Тест с разными соединениями проверяет ожидание между разделяемым и исключительным режимами и освобождение замка при фиксации и откате.
+- [x] 2.3 [COST-4] [COST-6.2] Включить замок D2 на путях внесения оплаты, изменения пар или подтверждений и восстановления копии. Тест с разными соединениями проверяет ожидание между режимами и отказ оплаты после восстановления оплаченного двойника. Отдельно проверить, что возврат старой редакции из современной копии не оживляет аннулированное подтверждение.
 
 ## 3. Серверный запрет и подтверждение
 
@@ -29,4 +29,4 @@
 
 - [x] 5.1 [COST-4] [COST-6.2] [COST-6.4] [COST-6.7] [CORE-28] [AUTH-8] [AUTH-9] Запустить в `src/server` профильные тесты командой `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceDuplicatePayment|FullyQualifiedName~InvoicePayment|FullyQualifiedName~InvoiceStateFacts|FullyQualifiedName~InvoiceSameFile|FullyQualifiedName~InvoiceBackupRoundTrip|FullyQualifiedName~PermissionGate|FullyQualifiedName~ModuleBoundary"`. Новый набор интеграционных сценариев назвать `InvoiceDuplicatePaymentTests`.
 - [x] 5.2 [COST-4] [COST-6.4] Запустить в `src/client` `npx tsc -b`, `npm test`, `npm run ui:ratchet` и браузерный сценарий `npm run test:e2e:invoice-payment` на живом стенде с дополнением проверки дубля.
-- [x] 5.3 [COST-4] [COST-6.2] Запустить `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` из `src/server` и `openspec validate --all --strict --no-interactive` из корня.
+- [x] 5.3 [COST-4] [COST-6.2] Запустить проверки переписей ссылок и внутренних исключений, отсутствия сумм в новом событии журнала и `If-Match` нового адреса. Запустить `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` из `src/server` и `openspec validate --all --strict --no-interactive` из корня.

@@ -372,7 +372,7 @@ public sealed partial class InvoiceDesk(
             .Where(id => records[id] == ReferenceState.Archived).ToList();
         var twins = await InvoiceSameFiles.FindAsync(db, invoice, ct);
         var duplicates = await InvoiceDuplicates.FindAsync(db, invoice, ct);
-        var blockers = InvoiceDuplicates.Blockers(invoice, duplicates).Select(InvoiceDuplicates.View).ToArray();
+        var blockers = await InvoiceDuplicates.ViewsAsync(db, invoice, duplicates, known, places, ct);
         var parties = archived.Concat(twins.Suppliers).Distinct().ToList();
         var organizations = parties.Count == 0
             ? null

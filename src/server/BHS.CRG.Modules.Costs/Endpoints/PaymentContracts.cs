@@ -86,7 +86,8 @@ public sealed record PaymentView(
 
 public sealed record InvoiceDuplicateBlocker(
     Guid Id, Guid SupplierId, string Number, DateOnly IssuedOn, decimal? Total, bool Paid, DateOnly? PaidOn,
-    Guid OtherRevision, DateTimeOffset CreatedAt, string? ScanBlobPath, string? ScanFileName);
+    Guid OtherRevision, DateTimeOffset CreatedAt, string? ScanBlobPath, string? ScanFileName,
+    IReadOnlyList<string> ConstructionNames);
 
 /// <summary>Сборка ответов оплаты.</summary>
 public static class PaymentViews

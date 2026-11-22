@@ -130,26 +130,21 @@ public partial class InvoiceDuplicatePaymentTests
         var number = UniqueNumber();
         var one = await CreateNamedAsync(client, number);
         var other = await CreateNamedAsync(client, number);
-        var view = await ReadAsync(client, one);
-        await OkAsync(await ConfirmAsync(client, one, Version(view), other, Revision(view, other), "Разные заказы"));
-
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
         var backup = scope.ServiceProvider.GetRequiredService<IModuleSchemaBackup>();
-        BackupModuleSchema snapshot;
-        await using (var read = await db.Database.BeginTransactionAsync())
-        {
-            var schema = Assert.Single(await backup.ReadAsync(read.GetDbTransaction(), [], default));
-            snapshot = schema with
-            {
-                Tables = [.. schema.Tables.Where(table => table.Table is "invoices" or "invoice_duplicate_confirmations")
-                    .Select(table => table with { Rows = [.. table.Rows.Where(row => table.Table == "invoices"
-                        ? new[] { one, other }.Contains(row.GetProperty("id").GetGuid())
-                        : new[] { one, other }.Contains(row.GetProperty("first_invoice_id").GetGuid()))] })],
-                Files = null,
-            };
-            await read.CommitAsync();
-        }
+        var beforeConfirmation = await ReadInvoiceBackupAsync(db, backup, one, other);
+        var view = await ReadAsync(client, one);
+        await OkAsync(await ConfirmAsync(client, one, Version(view), other, Revision(view, other), "Разные заказы"));
+        var snapshot = await ReadInvoiceBackupAsync(db, backup, one, other);
+
+        var edited = await RequisitesWithAsync(client, other, "Номер", UniqueNumber());
+        await OkAsync(await client.PutAsJsonAsync(Url(other), new { requisites = edited }));
+        await RestoreAsync(beforeConfirmation);
+        Assert.Equal(other, Blocker(await ReadAsync(client, one)).GetProperty("id").GetGuid());
+        Assert.Equal(one, Blocker(await ReadAsync(client, other)).GetProperty("id").GetGuid());
+        await RestoreAsync(snapshot);
+        Assert.Empty(Blockers(await ReadAsync(client, one)));
 
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"DELETE FROM costs.invoice_duplicate_confirmations WHERE first_invoice_id IN ({one}, {other})");
@@ -191,6 +186,63 @@ public partial class InvoiceDuplicatePaymentTests
         }
     }
 
+    [Fact]
+    public async Task Оплата_ждёт_импорта_копии_и_видит_восстановленного_оплаченного_двойника()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var number = UniqueNumber();
+        var other = await CreateNamedAsync(client, number);
+        var (site, _) = await SiteAsync("Счёт из копии");
+        await AllocateAsync(client, other, LineId(await ReadAsync(client, other), 1), [Part(site, quantity: 1)]);
+        var today = await TodayAsync();
+        await OkAsync(await PayAsync(client, other, today, Stamp(await PreviewAsync(client, other, today)),
+            Version(await ReadAsync(client, other))));
+
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        var backup = scope.ServiceProvider.GetRequiredService<IModuleSchemaBackup>();
+        var snapshot = await ReadInvoiceBackupAsync(db, backup, other);
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE costs.invoices SET number = {UniqueNumber()} WHERE id = {other}");
+
+        var one = await CreateNamedAsync(client, number);
+        await AllocateAsync(client, one, LineId(await ReadAsync(client, one), 1), [Part(site, quantity: 1)]);
+        var version = Version(await ReadAsync(client, one));
+        var seen = Stamp(await PreviewAsync(client, one, today));
+        Assert.NotEmpty(seen);
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var restored = await backup.RestoreAsync([snapshot], tx.GetDbTransaction(), [], default);
+        Assert.NotEmpty(restored.Restored);
+        var paying = PayAsync(client, one, today, seen, version);
+        await WaitForLockAsync(db, "ShareLock");
+        Assert.False(paying.IsCompleted);
+        await tx.CommitAsync();
+
+        using var refused = await paying;
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var after = await ReadAsync(client, one);
+        Assert.False(Payment(after).GetProperty("paid").GetBoolean());
+        Assert.True(Blocker(after).GetProperty("paid").GetBoolean());
+        Assert.Equal(other, Blocker(after).GetProperty("id").GetGuid());
+    }
+
+    private static async Task<BackupModuleSchema> ReadInvoiceBackupAsync(
+        CostsDbContext db, IModuleSchemaBackup backup, params Guid[] invoices)
+    {
+        await using var read = await db.Database.BeginTransactionAsync();
+        var schema = Assert.Single(await backup.ReadAsync(read.GetDbTransaction(), [], default));
+        await read.CommitAsync();
+        return schema with
+        {
+            Tables = [.. schema.Tables.Where(table => table.Table is "invoices" or "invoice_duplicate_confirmations")
+                .Select(table => table with { Rows = [.. table.Rows.Where(row => table.Table == "invoices"
+                    ? invoices.Contains(row.GetProperty("id").GetGuid())
+                    : invoices.Contains(row.GetProperty("first_invoice_id").GetGuid())
+                        && invoices.Contains(row.GetProperty("second_invoice_id").GetGuid()))] })],
+            Files = null,
+        };
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -230,9 +282,9 @@ public partial class InvoiceDuplicatePaymentTests
 
     private sealed class FailingDelivery(IModuleDeferredActivityLog inner, bool afterAppend) : IModuleDeferredActivityLog
     {
-        public async Task PublishAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct)
+        public async Task RecordDeferredAsync(ModuleActivityAction action, ModuleDeferredActivity saved, CancellationToken ct)
         {
-            if (afterAppend) await inner.PublishAsync(action, saved, ct);
+            if (afterAppend) await inner.RecordDeferredAsync(action, saved, ct);
             throw new InvalidOperationException("Проверка повторной доставки");
         }
     }

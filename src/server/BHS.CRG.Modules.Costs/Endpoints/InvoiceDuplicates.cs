@@ -42,8 +42,29 @@ internal static class InvoiceDuplicates
     internal static async Task<bool> BlocksPaymentAsync(CostsDbContext db, Invoice invoice, CancellationToken ct) =>
         CanBlock(invoice) && Blockers(invoice, await FindAsync(db, invoice, ct)).Any();
 
-    internal static InvoiceDuplicateBlocker View(Invoice invoice) => new(
+    internal static async Task<IReadOnlyList<InvoiceDuplicateBlocker>> ViewsAsync(
+        CostsDbContext db, Invoice invoice, IReadOnlyList<InvoiceDuplicateMatch> matches,
+        AllocationPlaces known, AllocationPlacesSource places, CancellationToken ct)
+    {
+        var blockers = Blockers(invoice, matches).ToArray();
+        if (blockers.Length == 0) return [];
+
+        var ids = blockers.Select(other => other.Id).ToArray();
+        var allocated = await db.InvoiceAllocations.AsNoTracking()
+            .Where(part => ids.Contains(part.InvoiceId) && part.ConstructionId != null)
+            .Select(part => new { part.InvoiceId, ConstructionId = part.ConstructionId!.Value })
+            .Distinct().ToListAsync(ct);
+        if (allocated.Count == 0) return blockers.Select(other => View(other, [])).ToArray();
+
+        var sites = ReferenceEquals(known.Sites, AllocationPlaces.None.Sites) ? await places.SitesAsync(ct) : known.Sites;
+        var names = sites.ToDictionary(site => site.Id, site => site.Name);
+        var byInvoice = allocated.ToLookup(part => part.InvoiceId, part => part.ConstructionId);
+        return blockers.Select(other => View(other, [.. byInvoice[other.Id]
+            .Select(id => names.GetValueOrDefault(id, "Стройка удалена")).Distinct().Order()])).ToArray();
+    }
+
+    private static InvoiceDuplicateBlocker View(Invoice invoice, IReadOnlyList<string> constructionNames) => new(
         invoice.Id, invoice.SupplierId!.Value, invoice.Number!, invoice.IssuedOn!.Value, invoice.Total,
         invoice.Payment == InvoicePaymentState.Paid, invoice.PaidOn, invoice.DuplicateRevision,
-        invoice.CreatedAt, invoice.ScanBlobPath, invoice.ScanFileName);
+        invoice.CreatedAt, invoice.ScanBlobPath, invoice.ScanFileName, constructionNames);
 }

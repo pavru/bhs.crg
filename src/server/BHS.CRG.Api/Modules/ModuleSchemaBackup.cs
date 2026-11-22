@@ -141,14 +141,16 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
                         "знает только миграция модуля.");
 
                 var placed = new List<BackupModuleTable>();
+                var rowsByTable = section.Tables.ToLookup(t => t.Table, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First().Rows, StringComparer.Ordinal);
+                if (schema.PrepareRestoreAsync is { } prepare)
+                    await prepare(transaction, rowsByTable, ct);
 
                 // Порядок вставки берётся у НЫНЕШНЕЙ модели, а не из копии: в копии он был таким,
                 // каким был состав модуля тогда, а внешние ключи проверяет сегодняшняя база.
                 foreach (var table in tables)
                 {
-                    var rows = section.Tables.FirstOrDefault(
-                        t => string.Equals(t.Table, table.Name, StringComparison.Ordinal))?.Rows ?? [];
-                    if (rows.Length == 0) continue;
+                    if (!rowsByTable.TryGetValue(table.Name, out var rows) || rows.Length == 0) continue;
 
                     if (await RestoreTableAsync(transaction, table, rows, module.Code, warnings, ct)
                         is not { } counts) continue;
