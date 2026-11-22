@@ -1,6 +1,7 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Endpoints;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,7 @@ public sealed record ReturnRequest(string? Comment, Guid? ChangeId, DateTimeOffs
 /// </summary>
 public sealed class ReportReview(
     WorkDbContext db, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal, ReportPeople people,
-    ReportActivity activity, ReturnNotice notice)
+    ReportActivity activity, ReturnNotice notice, CrewInputs crew)
 {
     /// <summary>
     /// Отказ повтора: этим <c>changeId</c> к отчёту применено другое изменение (правка, подача или другое решение). Ответ
@@ -86,9 +87,14 @@ public sealed class ReportReview(
             var samePerson = accept && ReportViews.AcceptWouldMark(report, people.UserId);
 
             var before = ReportJournal.Capture(report);
+            if (!accept && report.Lines.Any(l => l.IsCrew)) await crew.LockAsync(report, ct);
             var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
             if (accept) report.Accept(seq, now);
-            else report.Return(seq, now);
+            else
+            {
+                report.Return(seq, now);
+                await crew.SubmissionChangedAsync(report, ct);
+            }
             await db.SaveChangesAsync(ct);
             db.Add(ReportChange.Of(seq, report, change, kind, deviceTime, now, db.VersionOf(report)));
             journal.Append(accept ? ReportJournalKinds.Accepted : ReportJournalKinds.Returned, report, before, actor,

@@ -21,6 +21,7 @@ export const WORK_MARK_CODES = [
   'manager-edit',
   'site-not-assigned',
   'photos-pending',
+  'crew-mismatch',
   'late-delivery',
 ] as const;
 

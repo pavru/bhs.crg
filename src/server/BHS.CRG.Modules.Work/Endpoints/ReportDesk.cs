@@ -3,6 +3,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Http;
@@ -43,7 +44,8 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// </summary>
 public sealed class ReportDesk(
     WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
-    ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required, LinePhotos photos)
+    ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required, LinePhotos photos,
+    CrewInputs crew)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -129,8 +131,12 @@ public sealed class ReportDesk(
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var kind = ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
         var before = ReportJournal.Capture(report);
+        var changesCrew = report.Status is ReportStatus.Submitted or ReportStatus.Accepted
+            && (report.Lines.Any(l => l.IsCrew) || lines.Any(l => l.IsCrew));
+        if (changesCrew) await crew.LockAsync(report, ct);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         var dropped = await writer.ChangeAsync(report, header, lines, seq, now, ct);
+        if (changesCrew) await crew.LinesChangedAsync(report, before, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
         var entry = journal.Append(kind, report, before, actor, executor, changeId, seq, body.DeviceTime, now);

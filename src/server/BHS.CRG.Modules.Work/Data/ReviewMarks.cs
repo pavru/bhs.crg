@@ -9,8 +9,10 @@ namespace BHS.CRG.Modules.Work.Data;
 /// <param name="Journal">Журнал отчётов (<c>work-14</c>).</param>
 /// <param name="Assignments">Назначения (<c>work-11</c>).</param>
 /// <param name="Viewer">Учётная запись читающего; <c>null</c> — система.</param>
+/// <param name="CrewMismatchReports">Отчёты с расхождением в группе, чей итог требует утверждения.</param>
 public sealed record ReviewMarkSources(
-    IQueryable<ReportJournalEntry> Journal, IQueryable<Assignment> Assignments, Guid? Viewer);
+    IQueryable<ReportJournalEntry> Journal, IQueryable<Assignment> Assignments, Guid? Viewer,
+    IQueryable<Guid> CrewMismatchReports);
 
 /// <summary>Пометка в ответе: код для отбора и счётчика, текст — для человека.</summary>
 public sealed record ReviewMarkDto(string Code, string Text);
@@ -32,8 +34,7 @@ public sealed record ReviewMark(
 
 /// <summary>
 /// Каталог пометок очереди приёмки (ТЗ WORK-28, MOB-21, WORK-34; change <c>work-16-review</c>) — один, на сервере, и
-/// открыт для дописывания: <c>crew-mismatch</c>, <c>accepted-changed</c> и <c>fields-missing</c> добавят <c>work-18</c>,
-/// <c>work-19</c> и <c>work-24</c>.
+/// открыт для дописывания: <c>accepted-changed</c> и <c>fields-missing</c> добавят <c>work-19</c> и <c>work-24</c>.
 ///
 /// <para><b>Пометка считается запросом, а не на клиенте.</b> Счётчики очереди — по всему отбору, а не по странице:
 /// предикат одной пометки даёт и её строки, и её число. Клиент знает только коды (<c>WORK_MARK_CODES</c> в
@@ -49,6 +50,7 @@ public static class ReviewMarks
     public const string SamePerson = "same-person";
     public const string ManagerEdit = "manager-edit";
     public const string SiteNotAssigned = "site-not-assigned";
+    public const string CrewMismatch = "crew-mismatch";
     public const string PhotosPending = "photos-pending";
     public const string LateDelivery = "late-delivery";
 
@@ -82,6 +84,9 @@ public static class ReviewMarks
         new(PhotosPending, "фото не загружены",
             "фото строк отчёта (work-17): объявлены строкой, файл ещё не дошёл",
             _ => r => r.Lines.Any(l => l.Photos.Any(p => p.State == LinePhotoState.Pending))),
+        new(CrewMismatch, "расхождение в бригаде",
+            "расходящиеся объёмы в группе, чей итог требует утверждения (work-18)",
+            s => r => s.CrewMismatchReports.Contains(r.Id)),
         new(LateDelivery, "поздняя доставка",
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
     ];

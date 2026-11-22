@@ -52,6 +52,8 @@ public sealed class ReportLine : IIsolatedRecord
     /// <summary>Бригадная работа: участники перечисляются только у неё (ТЗ WORK-50).</summary>
     public bool IsCrew { get; private set; }
 
+    public string? CrewRole { get; private set; }
+
     /// <summary>Позиция перечня работ стройки — ставит сервер по ключу строки (ТЗ CORE-12).</summary>
     public Guid WorkPlanItemId { get; private set; }
 
@@ -113,6 +115,7 @@ public sealed class ReportLine : IIsolatedRecord
         Location = ReportRules.Text(values.Location);
         Comment = ReportRules.Text(values.Comment);
         IsCrew = values.IsCrew;
+        CrewRole = IsCrew ? values.CrewRole ?? CrewRole ?? "lead" : null;
         WorkPlanItemId = workPlanItemId;
         Details = string.IsNullOrWhiteSpace(values.Details) ? "{}" : values.Details;
 
@@ -139,7 +142,8 @@ public sealed record ReportMaterialValues(Guid? NomenclatureId, string? Note);
 public sealed record ReportLineValues(
     Guid Id, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, string? Details,
-    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<Guid>? Photos = null)
+    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<Guid>? Photos = null,
+    string? CrewRole = null)
 {
     /// <summary>Ключ позиции перечня строки на стройке.</summary>
     public PlanItemKey KeyOn(Guid constructionId) => new(WorkTypeId, constructionId, SectionId, UnitId);
