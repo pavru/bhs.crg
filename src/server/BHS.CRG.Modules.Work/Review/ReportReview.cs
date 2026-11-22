@@ -1,5 +1,6 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Endpoints;
@@ -20,8 +21,8 @@ public sealed record ReturnRequest(string? Comment, Guid? ChangeId, DateTimeOffs
 /// протокол и журнал отчёта — одной транзакцией; журнал ядра и уведомление — после фиксации, и их сбой решения не
 /// отменяет.
 ///
-/// <para><b>Порядок отказов:</b> версия не названа (400) → комментарий пуст (400, у возврата) → отчёт (404: чужая стройка
-/// неотличима от несуществующего) → повтор того же <c>changeId</c> (200, если им применено то же решение; иначе 409
+/// <para><b>Порядок отказов:</b> отчёт в охвате (404) → период (409) → версия не названа (400) → комментарий пуст
+/// (400, у возврата) → повтор того же <c>changeId</c> (200, если им применено то же решение; иначе 409
 /// <see cref="ChangeTaken" />) → статус (409 <c>report-status</c>) → версия
 /// (409). Статус раньше версии: принятый другим менеджером отчёт отвечает «уже принят», а не «обновите страницу».</para>
 ///
@@ -33,7 +34,7 @@ public sealed record ReturnRequest(string? Comment, Guid? ChangeId, DateTimeOffs
 /// </summary>
 public sealed class ReportReview(
     WorkDbContext db, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal, ReportPeople people,
-    ReportActivity activity, ReturnNotice notice, CrewInputs crew)
+    ReportActivity activity, ReturnNotice notice, CrewInputs crew, ReportPeriods periods)
 {
     /// <summary>
     /// Отказ повтора: этим <c>changeId</c> к отчёту применено другое изменение (правка, подача или другое решение). Ответ
@@ -42,27 +43,19 @@ public sealed class ReportReview(
     public const string ChangeTaken =
         "Идентификатор изменения (changeId) уже занят другим изменением этого отчёта — у нового решения новый changeId.";
 
-    public async Task<IResult> AcceptAsync(
-        ReportViewer viewer, Guid id, AcceptRequest? body, HttpRequest request, CancellationToken ct)
-    {
-        var seen = SeenVersions.Required(request, "отчёта");
-        return await DecideAsync(viewer, id, seen, body?.ChangeId, body?.DeviceTime, comment: null, ct);
-    }
+    public Task<IResult> AcceptAsync(
+        ReportViewer viewer, Guid id, AcceptRequest? body, HttpRequest request, CancellationToken ct) =>
+        DecideAsync(viewer, id, request, body?.ChangeId, body?.DeviceTime, accept: true, comment: null, ct);
 
-    public async Task<IResult> ReturnAsync(
-        ReportViewer viewer, Guid id, ReturnRequest? body, HttpRequest request, CancellationToken ct)
-    {
-        var seen = SeenVersions.Required(request, "отчёта");
-        var comment = ReportRules.ReturnComment(body?.Comment);
-        return await DecideAsync(viewer, id, seen, body?.ChangeId, body?.DeviceTime, comment, ct);
-    }
+    public Task<IResult> ReturnAsync(
+        ReportViewer viewer, Guid id, ReturnRequest? body, HttpRequest request, CancellationToken ct) =>
+        DecideAsync(viewer, id, request, body?.ChangeId, body?.DeviceTime, accept: false, body?.Comment, ct);
 
-    /// <summary>Принять (<paramref name="comment" /> — <c>null</c>) или вернуть с комментарием.</summary>
+    /// <summary>Принять или вернуть с комментарием.</summary>
     private async Task<IResult> DecideAsync(
-        ReportViewer viewer, Guid id, string seen, Guid? changeId, DateTimeOffset? deviceTime, string? comment,
-        CancellationToken ct)
+        ReportViewer viewer, Guid id, HttpRequest request, Guid? changeId, DateTimeOffset? deviceTime, bool accept,
+        string? comment, CancellationToken ct)
     {
-        var accept = comment is null;
         var kind = accept ? ReportChangeKind.Accepted : ReportChangeKind.Returned;
         // Автор — до транзакции: запрос к ядру не держит её открытой.
         var actor = await people.ActorAsync(viewer, ct);
@@ -73,7 +66,11 @@ public sealed class ReportReview(
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var boundaries = await periods.UnderWriteLockAsync(ct);
             report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
+            ReportPeriods.EnsureOpen(boundaries, report);
+            var seen = SeenVersions.Required(request, "отчёта");
+            if (!accept) comment = ReportRules.ReturnComment(comment);
             if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is { } applied)
                 return applied.Kind == kind
                     ? Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct))
@@ -114,8 +111,11 @@ public sealed class ReportReview(
             // Правка монтажника или решение второго менеджера успели между чтением и записью. Решение другого — отказ по
             // статусу («уже принят»): обновление страницы его не отменит; правка — устаревшая версия.
             db.ChangeTracker.Clear();
-            if (await reads.FindAsync(viewer, id, ct) is { Status: not ReportStatus.Submitted } decided)
-                throw new ReportStatusException(decided.Status);
+            if (await reads.FindAsync(viewer, id, ct) is { } decided)
+            {
+                ReportPeriods.EnsureOpen(await periods.CurrentAsync(ct), decided);
+                if (decided.Status != ReportStatus.Submitted) throw new ReportStatusException(decided.Status);
+            }
             throw new ConflictException(ReportDesk.Stale);
         }
 

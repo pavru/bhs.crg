@@ -17,6 +17,7 @@ public enum ReportChangeKind
 
     /// <summary>Возвращён на правку с комментарием (<c>work-16</c>): телефон узнаёт о возврате курсором.</summary>
     Returned,
+    Corrected,
 }
 
 /// <summary>

@@ -85,6 +85,9 @@ public class PeriodClosure : IAppendOnlyRecord
     /// <summary>Когда решено. Время сервера в UTC.</summary>
     public DateTimeOffset At { get; private set; }
 
+    /// <summary>Порядок записи под замком закрытия. Ноль означает запись из копии без номера.</summary>
+    public long EventOrder { get; private set; }
+
     /// <summary>Кто решил. <c>null</c> — учётной записи нет (запись приехала копией без неё).</summary>
     public Guid? ById { get; private set; }
 
@@ -157,7 +160,7 @@ public class PeriodClosure : IAppendOnlyRecord
     public static PeriodClosure Restore(
         Guid id, PeriodClosureKind kind, PeriodContourKind contour, Guid? constructionId,
         DateOnly from, DateOnly through, DateTimeOffset at, Guid? byId, string byName, string? reason,
-        Guid? cancelsId, string? report = null) => new()
+        Guid? cancelsId, string? report = null, long eventOrder = 0) => new()
         {
             Id = id,
             Kind = kind,
@@ -166,6 +169,7 @@ public class PeriodClosure : IAppendOnlyRecord
             From = from,
             Through = through,
             At = at,
+            EventOrder = eventOrder,
             ById = byId,
             ByName = Fit(byName, ByNameMax),
             Reason = Clean(reason),
@@ -173,6 +177,13 @@ public class PeriodClosure : IAppendOnlyRecord
             // Неразобранный перечень копии не берём: запись неизменяема, и мусор остался бы в ней навсегда.
             Report = ClosingReport.FromJson(report)?.ToJson(),
         };
+
+    public PeriodClosure WithEventOrder(long order)
+    {
+        var copy = (PeriodClosure)MemberwiseClone();
+        copy.EventOrder = order;
+        return copy;
+    }
 
     private static string? Clean(string? reason)
     {

@@ -4851,6 +4851,11 @@ Change `core-journal-series` (ТЗ CORE-28.2, CORE-28.3). Автосохране
   и отпечаток; закрытие обязано его назвать, пересчитывает перечень под исключительным замком и
   отказывает 409, если отпечаток другой. «Записать присланное клиентом» не годится (клиент без права
   модуля сумм не видит), «пересчитать без сверки» записало бы то, чего человек не видел.
+- **Запрещающие строки** (`work-19`). Раздел модуля передаёт их отдельно в `blocking`, предпросмотр
+  сообщает `canClose: false` при ненулевом числе. Закрытие проверяет строки под исключительным замком,
+  отвечает 409 с причиной и числом и оставляет историю и журнал закрытия без новой записи.
+  В `work` учитываются черновики до подачи, поданные и возвращённые на правку в отдельных строках.
+  Их относят к периоду по дате смены стройки. Граница и «сегодня» считаются по поясу компании.
 - **Замка закрытия достаточно**, хотя модуль читает своим соединением: под исключительным замком ни
   одной записи модуля в полёте нет, новые ждут фиксации. ⚠️ Поэтому отчёт модуля не вправе брать замок
   записи сам — ждал бы собственный, и PostgreSQL этого не видит (сторож `ClosingReportLockTests`).
@@ -6388,12 +6393,13 @@ GET    /api/periods                         → { today, company, constructions[
 GET    /api/periods/history                 → записи о закрытиях и отменах (core.period.close); у
                                               закрытия — report: перечень диалога, суммы — по праву
 POST   /api/periods/close/preview           { contour, constructionId?, from, through } →
-                                              { stamp, sections[] } — что войдёт в период и что не
-                                              завершено, по модулям (E1b, #1099)
+                                              { stamp, canClose, sections[] }; у раздела blocking,
+                                              unfinished, frozen и правило даты
 POST   /api/periods/close                   { contour: company|construction, constructionId?, from,
                                               through, ifMatch, report, reason? } — ifMatch = увиденная
                                               граница (дата) или "none"; report = stamp предпросмотра,
-                                              обязателен; перечень изменился → 409
+                                              обязателен; есть запрещающая строка или перечень
+                                              изменился → 409
 POST   /api/periods/reopen                  { contour, constructionId?, ifMatch, reason } — отмена
                                               ПОСЛЕДНЕГО закрытия контура, причина обязательна
 POST   /api/common-data/{id}/archive        → { id, displayName, archived, changed } — запись в архив (#1185)
@@ -6644,7 +6650,12 @@ POST   /api/work/reports                    { id, constructionId, date, shift?, 
                                     replayed: true; id чужого — 409 без полей; четвёрка занята — 409
                                     { error, existingId }; employeeId в теле, кроме своего, — 400;
                                     hours в строке — 400.
-GET    /api/work/reports/{id}               → отчёт; чужой — тот же 404, что несуществующий.
+GET    /api/work/reports/{id}?view=         → отчёт; чужой — тот же 404, что несуществующий.
+                                    view: corrected (по умолчанию) или at-closing; исходное
+                                    содержимое возвращается при наличии снимка текущего закрытия;
+                                    поздно доставленные фото в at-closing остаются pending.
+                                    Ответ несёт currentVersion и versions: [{ number, reason,
+                                    author: { id, name }, at }].
 PUT    /api/work/reports/{id}               то же тело + changeId (обязателен) + If-Match. Повтор
                                     применённого changeId — 200 replayed: true с текущей версией.
 DELETE /api/work/reports/{id}?changeId=&deviceTime=  + If-Match → 204; только черновик (иначе 409);
@@ -6653,7 +6664,8 @@ POST   /api/work/entry/reports              { employeeId, ...как у свои�
                                     (WORK-31): work.report.review, стройки менеджера (с
                                     work.sites.all — все). Стройка вне своих — 404 «не найдена среди
                                     ваших строек»; enteredBy — автор ввода.
-GET    /api/work/entry/reports/{id}         PUT — + If-Match и changeId; отчёт чужой стройки — 404.
+GET    /api/work/entry/reports/{id}?view=   те же виды; отчёт чужой стройки — 404.
+PUT    /api/work/entry/reports/{id}         правка + If-Match и changeId.
 POST   /api/work/reports/{id}/submit        { changeId?, deviceTime? } + If-Match → отчёт (work-15,
                                     WORK-10). Момент — deviceTime, но не позже конца окна; уже
                                     поданный — 200 alreadySubmitted: true без сверки версии; принятый
@@ -6671,6 +6683,14 @@ POST   /api/work/reports/{id}/return        { comment, changeId?, deviceTime? } 
                                     пустой comment — 400; остальное — как у accept. Личное
                                     уведомление монтажнику; нет учётной записи — запись журнала
                                     notify-none.
+                                    Пишущие адреса проверяют охват и открытый период до If-Match.
+                                    После закрытия допускается доставка файла фото, объявленного до
+                                    закрытия. Состав отчёта и его версия при доставке сохраняются.
+POST   /api/work/reports/{id}/correction   { reason, constructionId, date, shift?, hours?, note?,
+                                    lines } + If-Match → отчёт. Для закрытого дня стройки,
+                                    work.report.review в охвате менеджера. Правка хранит прежнее
+                                    содержимое, поднимает currentVersion и записывает журнал.
+                                    Для открытого дня — 409 «исправление не нужно».
 GET    /api/work/review/queue?constructionId=&employeeId=&from=&to=&mark=&offset=0&limit=50
                                     → { items: [{ id, employeeId, constructionId, date, shift,
                                     hours, status, version, submittedAt, submittedBy, enteredBy,
@@ -6688,7 +6708,7 @@ GET    /api/work/review/queue?constructionId=&employeeId=&from=&to=&mark=&offset
                                     limit вне 1…200 — 400.
 GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted|submitted|
                                     auto-submitted|accepted|returned|manager-edited|same-person|
-                                    notify-none, changeId, comment,
+                                    notify-none|corrected|accepted-changed, changeId, comment,
                                     author: { id, name }, executor: { employeeId, name }, enteredFor,
                                     deviceTime, serverTime, afterSubmission, changes: [{ line, field,
                                     before, after }] }] } — журнал отчёта (work-14), только чтение

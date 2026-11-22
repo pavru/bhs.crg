@@ -82,5 +82,16 @@ public static class WorkReferences
             "исполнитель — сотрудник отчёта с именем снимком; держит сотрудника сам отчёт"),
         ModuleReference.Remembering("report_journal", "changes", target: null,
             "прежние и новые значения изменённых полей — снимок, а не ссылки; действующие ссылки держат отчёт и строки"),
+
+        ModuleReference.Remembering("report_versions", "author_id", ReferenceTarget.User,
+            "автор исправления с именем снимком; удаление учётной записи не меняет историю"),
+        ModuleReference.Remembering("report_versions", "closing_id", target: null,
+            "идентификатор неизменяемой записи о закрытии дня"),
+        ModuleReference.Remembering("report_versions", "content", target: null,
+            "снимок отчёта и строк до исправления; действующие ссылки хранятся в отчёте и строках"),
+        ModuleReference.Remembering("line_photos", "declared_in_closing_id", target: null,
+            "неизменяемое закрытие, в котором исправление объявило фото"),
+        ModuleReference.Remembering("line_photos", "stored_in_closing_id", target: null,
+            "неизменяемое закрытие, в котором получен файл фото"),
     ];
 }

@@ -51,6 +51,13 @@ public class RecordVersionInventoryTests
                 "чтения истории: адрес версий и пометка списка «исправлена после закрытия» — день и причина, " +
                 "без сумм (issue #1340)",
         },
+        ["ReportVersion"] = new Dictionary<string, string>
+        {
+            ["BHS.CRG.Modules.Work/Endpoints/ReportCorrection.cs"] =
+                "единственная запись снимка закрытого отчёта, вместе с новым содержимым и журналом",
+            ["BHS.CRG.Modules.Work/Data/ReportReads.Versions.cs"] =
+                "чтение снимков и метаданных под изоляцией отчёта",
+        },
     };
 
     /// <summary>
@@ -81,6 +88,8 @@ public class RecordVersionInventoryTests
     /// </summary>
     private static readonly Dictionary<string, string> TableNames = new()
     {
+        ["BHS.CRG.Modules.Work/WorkReferences.cs"] =
+            "справочные ссылки снимка, автора и закрытия; удаление записи ядра не меняет историю",
         ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =
             "справочные ссылки исторического снимка и автора: историю удаление записи ядра не меняет",
         ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =

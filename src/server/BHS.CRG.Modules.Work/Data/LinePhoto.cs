@@ -68,6 +68,11 @@ public sealed class LinePhoto : IIsolatedRecord
     /// <summary>Когда файл лёг в хранилище.</summary>
     public DateTimeOffset? StoredAt { get; private set; }
 
+    // Пустой UUID означает открытый период, null — запись до появления этих колонок.
+    public Guid? DeclaredInClosingId { get; private set; }
+
+    public Guid? StoredInClosingId { get; private set; }
+
     /// <summary>
     /// Номер изменения отчётов сотрудника, под которым пришёл файл (ТЗ MOB-16). Доставка объявленного фото отчёт не
     /// трогает — ни номера, ни версии, — и лента <c>?since</c> (<see cref="ReportReads.SinceAsync" />) узнаёт о ней по
@@ -76,8 +81,12 @@ public sealed class LinePhoto : IIsolatedRecord
     public long? StoredSeq { get; private set; }
 
     /// <summary>Фото, названное строкой при сохранении, — ждёт файла.</summary>
-    public static LinePhoto Declared(Guid id, Guid lineId, DateTimeOffset now) =>
-        new() { Id = id, LineId = lineId, State = LinePhotoState.Pending, DeclaredAt = Stamp(now) };
+    public static LinePhoto Declared(Guid id, Guid lineId, DateTimeOffset now, Guid? closingId = null) =>
+        new()
+        {
+            Id = id, LineId = lineId, State = LinePhotoState.Pending, DeclaredAt = Stamp(now),
+            DeclaredInClosingId = closingId ?? Guid.Empty,
+        };
 
     /// <summary>Фото, файл которого пришёл, а строка его не называла (правка, ТЗ WORK-11).</summary>
     public static LinePhoto Arrived(Guid id, Guid lineId, PhotoFiles files, long seq, DateTimeOffset now)
@@ -88,7 +97,7 @@ public sealed class LinePhoto : IIsolatedRecord
     }
 
     /// <summary>Файл дошёл: пути, размеры и данные снимка. Пишет только путь загрузки (<c>LinePhotos</c>).</summary>
-    public void Store(PhotoFiles files, long seq, DateTimeOffset now)
+    public void Store(PhotoFiles files, long seq, DateTimeOffset now, Guid? closingId = null)
     {
         State = LinePhotoState.Stored;
         BlobPath = files.BlobPath;
@@ -102,8 +111,12 @@ public sealed class LinePhoto : IIsolatedRecord
         // Пояс съёмки — в колонке UTC: timestamptz пояса не хранит, а момент тот же.
         TakenAt = files.Prepared.TakenAt?.ToUniversalTime();
         StoredAt = Stamp(now);
+        StoredInClosingId = closingId ?? Guid.Empty;
         StoredSeq = seq;
     }
+
+    internal bool DeclaredBeforeClosing(Guid closingId, DateTimeOffset at) =>
+        DeclaredInClosingId is { } declared ? declared != closingId : DeclaredAt < at;
 
     /// <summary>
     /// Момент с точностью базы — до микросекунды, в UTC: ответ первой загрузки и её повтора (прочитанный из базы) обязаны

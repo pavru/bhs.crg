@@ -11,6 +11,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Contour = BHS.CRG.Domain.Periods.PeriodContour;
@@ -113,6 +114,56 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var nowhere = await accountant.PostAsJsonAsync("/api/periods/close",
             CloseBody(through.AddDays(1), through.AddDays(2), Iso(through), Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.NotFound, nowhere.StatusCode);
+    }
+
+    [Fact]
+    public async Task Запрещающая_строка_меняет_отпечаток_и_не_даёт_закрыть()
+    {
+        var (accountant, _) = await SignInAsync("Accountant");
+        var through = new DateOnly(2001, 1, 31);
+        var body = CloseBody(through.AddDays(-30), through, "none");
+        var costsOnly = await (await accountant.PostAsJsonAsync("/api/periods/close/preview", body))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(costsOnly.GetProperty("canClose").GetBoolean());
+        Assert.Empty(costsOnly.GetProperty("sections")[0].GetProperty("blocking").EnumerateArray());
+
+        var probe = new BlockingProbe();
+        await using var factory = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<IModuleClosingReport>(probe)));
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = accountant.DefaultRequestHeaders.Authorization;
+        var clear = await (await client.PostAsJsonAsync("/api/periods/close/preview", body)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(clear.GetProperty("canClose").GetBoolean());
+
+        probe.Count = 3;
+        var blocked = await (await client.PostAsJsonAsync("/api/periods/close/preview", body)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(blocked.GetProperty("canClose").GetBoolean());
+        Assert.NotEqual(clear.GetProperty("stamp").GetString(), blocked.GetProperty("stamp").GetString());
+        var section = blocked.GetProperty("sections").EnumerateArray().Single(s => s.GetProperty("module").GetString() == "id");
+        Assert.Equal(3, section.GetProperty("blocking")[0].GetProperty("count").GetInt32());
+
+        using var scope = host.Services.CreateScope();
+        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
+        var before = await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code);
+        var refused = await client.PostAsJsonAsync("/api/periods/close",
+            CloseBody(through.AddDays(-30), through, "none", report: clear.GetProperty("stamp").GetString()!));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("Пробное препятствие: 3 отчёта", await ErrorAsync(refused));
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().HistoryAsync(10));
+        Assert.Equal(before, await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code));
+
+        probe.Count = 0;
+        await ClosedAsync(client, through.AddDays(-30), through, "none");
+    }
+
+    private sealed class BlockingProbe : IModuleClosingReport
+    {
+        public string Module => "id";
+        public int Count { get; set; }
+
+        public Task<ModuleClosingSection> ReportAsync(ModuleClosingScope scope, CancellationToken ct = default) =>
+            Task.FromResult(new ModuleClosingSection("Проба", [], [],
+                [new("probe", "Пробное препятствие", Count, new("отчёт", "отчёта", "отчётов"))]));
     }
 
     [Fact]
@@ -284,12 +335,19 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     public async Task Копия_переносит_закрытия_и_не_открывает_закрытое_позже()
     {
         var through = (await TodayAsync()).AddDays(-20);
+        var (site, _) = await SiteAsync("Стройка для проверки порядка закрытий");
         byte[] zip;
+        Guid firstClosing;
 
         using (var scope = host.Services.CreateScope())
         {
-            await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
-                .CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+            var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+            var company = await closures.CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+            firstClosing = company.Id;
+            // Второе по порядку закрытие записано после перевода часов назад.
+            var siteClosing = PeriodClosure.Close(Contour.Construction(site), through.AddDays(1), through.AddDays(1), null,
+                "Из копии", null, company.At.AddMinutes(-1), ClosingReport.Empty).WithEventOrder(company.EventOrder + 1);
+            Assert.Equal(1, await closures.ImportAsync([siteClosing]));
             var (stream, _) = await scope.ServiceProvider.GetRequiredService<BackupService>().ExportAsync(BackupScope.Full);
             await using (stream)
             {
@@ -305,7 +363,13 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         {
             var report = await scope.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(new MemoryStream(zip));
             Assert.True(report.Success, string.Join("; ", report.Warnings));
-            Assert.Equal(through, (await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().LedgerAsync()).Company);
+            var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+            Assert.Equal(through, (await closures.LedgerAsync()).Company);
+            Assert.Equal(firstClosing, (await closures.ClosingAsync(site, through))?.Id);
+            var events = await closures.ExportAsync();
+            Assert.Equal(firstClosing, events[0].Id);
+            Assert.True(events[1].EventOrder > events[0].EventOrder);
+            Assert.True(events[1].At < events[0].At);
         }
 
         // Экземпляр ушёл дальше копии: восстановление не откатывает границу и не падает на повторе.
@@ -320,7 +384,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
             Assert.True(report.Success, string.Join("; ", report.Warnings));
             var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
             Assert.Equal(through.AddDays(5), (await closures.LedgerAsync()).Company);
-            Assert.Equal(2, (await closures.ExportAsync()).Count);
+            Assert.Equal(3, (await closures.ExportAsync()).Count);
         }
     }
 

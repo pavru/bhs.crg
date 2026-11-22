@@ -91,6 +91,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         Assert.True(host.SchemaDroppedBeforeStart, "Хост не снёс схемы до старта — проверка шла бы вхолостую.");
         Assert.Empty(await work.Database.GetPendingMigrationsAsync());
         Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_Initial", StringComparison.Ordinal));
+        Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_ReportVersions", StringComparison.Ordinal));
 
         var core = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Empty(await core.Database.GetPendingMigrationsAsync());

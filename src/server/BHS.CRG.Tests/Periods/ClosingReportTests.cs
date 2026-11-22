@@ -55,6 +55,15 @@ public class ClosingReportTests
         Assert.Equal("Не завершено: Счета и накладные — не разобраны: 2 счёта", read.JournalText());
     }
 
+    [Fact]
+    public void Перечень_до_появления_запретов_читается_с_пустым_списком()
+    {
+        const string json = """{"sections":[{"module":"costs","title":"Счета","dateRule":"По дате","unfinished":[],"frozen":[]}]}""";
+        var read = Assert.IsType<ClosingReport>(ClosingReport.FromJson(json));
+        Assert.Empty(Assert.Single(read.Sections).Blocking);
+        Assert.True(read.CanClose);
+    }
+
     /// <summary>
     /// Закрытие компании закрывает впервые не все дни своего отрезка: стройка, закрытая своим закрытием
     /// дальше, часть из них уже держит. Названа она — с днём, по который закрыта; стройка, чьё закрытие

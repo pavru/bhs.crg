@@ -18,6 +18,8 @@ public interface IPeriodClosures
     /// <summary>Границы на сейчас. Один запрос на всё: реестр спрашивает про сотни записей сразу.</summary>
     Task<PeriodLedger> LedgerAsync(CancellationToken ct = default);
 
+    Task<(Guid Id, DateTimeOffset At)?> ClosingAsync(Guid constructionId, DateOnly date, CancellationToken ct = default);
+
     /// <summary>
     /// Стройки, которые можно закрыть, — все существующие. Только идентификаторы: названия открывает
     /// своё право, а границы периода читает любой вошедший.

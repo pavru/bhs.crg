@@ -31,7 +31,8 @@ public abstract class ModuleRecordVersion : IAppendOnly
     /// <summary>Для EF.</summary>
     protected ModuleRecordVersion() { }
 
-    protected ModuleRecordVersion(Guid recordId, int number, string content, string reason, Guid? authorId)
+    protected ModuleRecordVersion(
+        Guid recordId, int number, string content, string reason, Guid? authorId, DateTimeOffset? at = null)
     {
         Id = Guid.CreateVersion7();
         RecordId = recordId;
@@ -39,7 +40,7 @@ public abstract class ModuleRecordVersion : IAppendOnly
         Content = content;
         Reason = reason;
         AuthorId = authorId;
-        At = DateTimeOffset.UtcNow;
+        At = at?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
     }
 
     public Guid Id { get; private set; }

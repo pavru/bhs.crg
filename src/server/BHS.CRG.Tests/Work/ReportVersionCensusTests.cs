@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Photos;
+using BHS.CRG.Modules.Work.Review;
 using BHS.CRG.Tests.Integration;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,8 +16,8 @@ namespace BHS.CRG.Tests.Work;
 /// отчёт, требует версию заголовком <c>If-Match</c> — без него 400 со словами, где её взять. Приём
 /// <c>InvoiceStaleFormTests</c>: адреса берутся из живого приложения, и новый пишущий адрес попадает сюда сам.
 ///
-/// <para>Исключения названы с причиной. Загрузка фото — одно из них: фото догоняют отчёт отдельной очередью, версия
-/// отчёта к их приходу сдвинута, а перезаписать загрузка не может ничего. Удаление фото — не исключение.</para>
+/// <para>Загрузка фото — без версии. У остальных именованных исключений версия обязательна после проверки
+/// охвата и периода. Порядок и требование версии проверяют ReportClosedPeriodTests и ReportCorrectionTests.</para>
 /// </summary>
 [Collection(AssignmentHost.Collection)]
 public class ReportVersionCensusTests(AssignmentHost host) : IAsyncLifetime
@@ -30,6 +31,19 @@ public class ReportVersionCensusTests(AssignmentHost host) : IAsyncLifetime
             "загрузка фото строки (work-17): фото догоняют отчёт отдельной очередью (WORK-34), и версия отчёта к их " +
             "приходу сдвинута подачей, правкой менеджера или приёмкой. Загрузка ничего не перезаписывает: " +
             "идентификатор от клиента, повтор отвечает тем же, занятый другой строкой — 409",
+    };
+
+    private static readonly Dictionary<string, string> VersionAfterNeed = new()
+    {
+        [$"PUT {ReportEndpoints.Path}/{{id:guid}}"] = "свой отчёт: сначала охват и открытый период",
+        [$"DELETE {ReportEndpoints.Path}/{{id:guid}}"] = "свой отчёт: сначала охват и открытый период",
+        [$"POST {ReportEndpoints.Path}/{{id:guid}}/submit"] = "свой отчёт: сначала охват и открытый период",
+        [$"PUT {EntryReportEndpoints.Path}/{{id:guid}}"] = "отчёт стройки менеджера: сначала охват и открытый период",
+        [$"POST {EntryReportEndpoints.Path}/{{id:guid}}/submit"] = "отчёт стройки менеджера: сначала охват и открытый период",
+        [$"POST {ReportReviewEndpoints.AcceptPath}"] = "приёмка: сначала охват и открытый период",
+        [$"POST {ReportReviewEndpoints.ReturnPath}"] = "возврат: сначала охват и открытый период",
+        [$"DELETE {PhotoEndpoints.LinePath}"] = "снятие фото: сначала видимость строки и открытый период",
+        [$"POST {ReportCorrection.Path}"] = "исправление: сначала охват и необходимость исправления в закрытом периоде",
     };
 
     public Task InitializeAsync() => world.SeedAsync();
@@ -47,7 +61,7 @@ public class ReportVersionCensusTests(AssignmentHost host) : IAsyncLifetime
         await world.Assignments.LinkAsync(employee, userId);
 
         var silent = new List<string>();
-        foreach (var (method, pattern) in routes)
+        foreach (var (method, pattern) in routes.Where(r => !VersionAfterNeed.ContainsKey($"{r.Method} {r.Pattern}")))
         {
             var url = Regex.Replace(pattern, @"\{[^}]+\}", _ => Guid.NewGuid().ToString());
             using var request = new HttpRequestMessage(new HttpMethod(method), url);
@@ -61,7 +75,7 @@ public class ReportVersionCensusTests(AssignmentHost host) : IAsyncLifetime
         Assert.True(silent.Count == 0,
             "Пишущие адреса отчёта приняли запрос без версии (If-Match):\n" + string.Join("\n", silent) + "\n\n" +
             "Правка без версии записалась бы поверх чужой. Спросите версию первой (SeenVersions.Required) — или впишите " +
-            "адрес в WithoutVersion с причиной, почему он перезаписать не может.");
+            "адрес в WithoutVersion или VersionAfterNeed с причиной и проверкой порядка отказов.");
     }
 
     /// <summary>Исключение называет живой адрес: переименованный адрес не прячет за собой забытый.</summary>
@@ -70,7 +84,7 @@ public class ReportVersionCensusTests(AssignmentHost host) : IAsyncLifetime
     {
         _ = host.CreateClient();
         var live = Endpoints().Select(e => $"{e.Method} {e.Pattern}").ToHashSet();
-        Assert.All(WithoutVersion.Keys, key => Assert.Contains(key, live));
+        Assert.All(WithoutVersion.Keys.Concat(VersionAfterNeed.Keys), key => Assert.Contains(key, live));
     }
 
     private List<(string Method, string Pattern)> WritingRoutes()

@@ -56,6 +56,8 @@ public class IsolatedReadInventoryTests
             "тем же охватом, черновик — только сотруднику и автору ввода; фото строки (work-17) — тем же охватом и " +
             "правилом черновика, «чья строка у идентификатора фото» — только для сравнения; " +
             "группы сверки (work-18) читаются в охвате строек вместе с уже поданными строками",
+        ["BHS.CRG.Modules.Work/Data/ReportReads.Versions.cs"] =
+            "история исправлений (work-19) читается только в охвате отчёта и с учётом видимости его содержимого",
     };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>
@@ -244,7 +246,7 @@ public class IsolatedReadInventoryTests
 
         Assert.Equal(
             ["CrewGroupRecord", "LinePhoto", "Report", "ReportChange", "ReportJournalEntry", "ReportLine", "ReportLineMaterial",
-                "ReportLineParticipant", "ReviewDigestMark", "ReviewDigestRetry"],
+                "ReportLineParticipant", "ReportVersion", "ReviewDigestMark", "ReviewDigestRetry"],
             IsolatedOf(work).Select(r => r.Type).Order(StringComparer.Ordinal));
         Assert.All(IsolatedOf(work), r => Assert.Equal("work", r.Schema));
     }

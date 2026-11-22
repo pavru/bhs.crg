@@ -75,14 +75,14 @@ public sealed class ReportLine : IIsolatedRecord
     /// <c>null</c> — перечень не прислан, фото не трогаются: правка без знания о фото их не теряет. Возвращает снятые —
     /// их файлы удаляются после фиксации, ссылка уходит первой.
     /// </summary>
-    public IReadOnlyList<LinePhoto> ApplyPhotos(IReadOnlyList<Guid>? named, DateTimeOffset now)
+    public IReadOnlyList<LinePhoto> ApplyPhotos(IReadOnlyList<Guid>? named, DateTimeOffset now, Guid? closingId = null)
     {
         if (named is null) return [];
         var keep = named.ToHashSet();
         var removed = Photos.Where(p => !keep.Contains(p.Id)).ToList();
         Photos.RemoveAll(p => !keep.Contains(p.Id));
         var have = Photos.Select(p => p.Id).ToHashSet();
-        Photos.AddRange(named.Distinct().Where(id => !have.Contains(id)).Select(id => LinePhoto.Declared(id, Id, now)));
+        Photos.AddRange(named.Distinct().Where(id => !have.Contains(id)).Select(id => LinePhoto.Declared(id, Id, now, closingId)));
         return removed;
     }
 

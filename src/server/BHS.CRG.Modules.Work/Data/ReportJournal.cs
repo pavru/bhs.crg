@@ -10,16 +10,20 @@ namespace BHS.CRG.Modules.Work.Data;
 /// </summary>
 public sealed class ReportSnapshot
 {
-    internal ReportSnapshot(IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> values, IReadOnlyList<Guid?> order)
+    internal ReportSnapshot(IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> values,
+        IReadOnlyList<Guid?> order, DateTimeOffset? submittedAtForEdit)
     {
         Values = values;
         Order = order;
+        SubmittedAtForEdit = submittedAtForEdit;
     }
 
     internal IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> Values { get; }
 
     /// <summary>Порядок строк для порядка записей «что изменилось»: шапка первой, затем строки по позиции.</summary>
     internal IReadOnlyList<Guid?> Order { get; }
+
+    internal DateTimeOffset? SubmittedAtForEdit { get; }
 }
 
 /// <summary>
@@ -51,6 +55,7 @@ public sealed class ReportJournal(WorkDbContext db)
             [(null, "shift")] = Report.ShiftCode(report.Shift),
             [(null, "hours")] = Number(report.Hours),
             [(null, "note")] = report.Note,
+            [(null, "currentVersion")] = report.CurrentVersion,
             // Подача (work-15): статус, момент и незаполненное к автоподаче — запись о подаче называет их.
             [(null, "status")] = Report.StatusCode(report.Status),
             [(null, "submittedAt")] = report.SubmittedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
@@ -85,7 +90,8 @@ public sealed class ReportJournal(WorkDbContext db)
                 foreach (var (key, value) in details)
                     values[(id, "details." + key)] = value?.DeepClone();
         }
-        return new ReportSnapshot(values, [null, .. lines.Select(l => (Guid?)l.Id)]);
+        var submittedAtForEdit = report.Status is ReportStatus.Submitted or ReportStatus.Accepted ? report.SubmittedAt : null;
+        return new ReportSnapshot(values, [null, .. lines.Select(l => (Guid?)l.Id)], submittedAtForEdit);
     }
 
     /// <summary>
@@ -102,9 +108,7 @@ public sealed class ReportJournal(WorkDbContext db)
         var entry = ReportJournalEntry.Of(report.Id, report.EmployeeId, kind, changeId, seq, author, executorName, deviceTime, serverTime,
             // Правкой после подачи бывает только правка содержимого: подача, приёмка и возврат — переходы статуса. У
             // возвращённого — нет (work-16): его исправляют по просьбе менеджера, а момент подачи у него прежний.
-            afterSubmission: ReportJournalKinds.IsEdit(kind)
-                             && report.Status is ReportStatus.Submitted or ReportStatus.Accepted
-                             && report.SubmittedAt is { } submitted && actedAt > submitted,
+            afterSubmission: ReportJournalKinds.IsEdit(kind) && before?.SubmittedAtForEdit is { } submitted && actedAt > submitted,
             changes: Diff(before, after).ToJsonString(), comment: comment);
         db.Add(entry);
         return entry;
@@ -155,6 +159,17 @@ public sealed class ReportJournal(WorkDbContext db)
         JsonNode.Parse(entry.Changes) is JsonArray changes
             ? string.Join(", ", changes.Select(c => c?["field"]?.GetValue<string>()).OfType<string>().Distinct())
             : "";
+
+    internal static string AfterOwnEdit(ReportViewer viewer, Report report, ReportSnapshot before, DateTimeOffset now, string kind)
+    {
+        if (viewer.EmployeeId == report.EmployeeId && report.Status == ReportStatus.Accepted
+            && Diff(before, Capture(report)).Count > 0)
+        {
+            report.ResubmitAcceptedEdit(now);
+            return ReportJournalKinds.AcceptedChanged;
+        }
+        return kind;
+    }
 
     /// <summary>
     /// Число без хвостовых нулей: колонка <c>numeric(18,4)</c> читается как <c>120.0000</c>, а запрос приносит

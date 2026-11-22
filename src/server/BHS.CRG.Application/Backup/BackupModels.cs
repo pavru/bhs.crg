@@ -182,7 +182,7 @@ public record BackupPeriodClosure(
     Guid Id, string Kind, string Contour, Guid? ConstructionId, DateOnly From, DateOnly Through,
     DateTimeOffset At, Guid? ById, string ByName, string? Reason, Guid? CancelsId,
     // Перечень диалога закрытия (E1b, issue #1099). Аддитивно: копия прежней версии несёт здесь null.
-    string? Report = null);
+    string? Report = null, long? EventOrder = null);
 
 // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
 

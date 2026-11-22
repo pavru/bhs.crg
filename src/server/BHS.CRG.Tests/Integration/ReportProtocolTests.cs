@@ -19,7 +19,11 @@ public class ReportProtocolTests(AssignmentHost host) : IAsyncLifetime
 
     public Task InitializeAsync() => world.SeedAsync();
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync()
+    {
+        host.ClosureTime = null;
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Опоздавший повтор заведения после удаления черновика — 409 «удалён», а не воскресший отчёт; с прежним
@@ -74,6 +78,57 @@ public class ReportProtocolTests(AssignmentHost host) : IAsyncLifetime
         var next = await ReportWorld.PutAsync(client, $"{Url}/{id}", replay.GetProperty("version").GetString(),
             world.Draft(id, world.SiteA, 5m, changeId: Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task Повтор_правки_в_закрытую_прежнюю_дату_возвращает_текущий_отчёт()
+    {
+        host.ClosureTime = AssignmentHost.Now.AddDays(1);
+        var (_, client) = await world.InstallerAsync("Монтажник");
+        var (_, closer) = await world.Assignments.UserAsync("Закрывающий период", BHS.CRG.Api.Auth.CorePermissions.PeriodClose);
+        var id = Guid.NewGuid();
+        var url = $"{Url}/{id}";
+        var created = await client.PostAsJsonAsync(Url, world.Draft(id, world.SiteA));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var v1 = ReviewWorld.Version(await ReportWorld.JsonAsync(created));
+        var first = world.Draft(id, world.SiteA, date: WorkPeriodWorld.OctoberEnd, changeId: Guid.NewGuid());
+        var moved = await ReportWorld.PutAsync(client, url, v1, first);
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        var movedAgain = await ReportWorld.PutAsync(client, url, ReviewWorld.Version(await ReportWorld.JsonAsync(moved)),
+            world.Draft(id, world.SiteA, hours: 6m, changeId: Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.OK, movedAgain.StatusCode);
+        var current = await ReportWorld.JsonAsync(movedAgain);
+        await WorkPeriodWorld.CloseAsync(closer);
+
+        var replay = await ReportWorld.PutAsync(client, url, v1, first);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        var result = await ReportWorld.JsonAsync(replay);
+        Assert.True(result.GetProperty("replayed").GetBoolean());
+        Assert.Equal(ReportWorld.Day16, result.GetProperty("date").GetString());
+        Assert.Equal(6m, result.GetProperty("hours").GetDecimal());
+        Assert.Equal(ReviewWorld.Version(current), ReviewWorld.Version(result));
+        Assert.Equal(3, (await world.ChangesAsync(id)).Count);
+        Assert.Equal(HttpStatusCode.BadRequest, (await ReportWorld.PutAsync(client, url, null, first)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Повтор_удаления_требует_заголовок_и_проверяет_владельца()
+    {
+        var (_, client) = await world.InstallerAsync("Монтажник");
+        var (_, other) = await world.InstallerAsync("Другой монтажник");
+        var id = Guid.NewGuid();
+        var created = await client.PostAsJsonAsync(Url, world.Draft(id, world.SiteA));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var seen = ReviewWorld.Version(await ReportWorld.JsonAsync(created));
+        var url = $"{Url}/{id}?changeId={Guid.NewGuid()}";
+        Assert.Equal(HttpStatusCode.NoContent, (await ReportWorld.DeleteAsync(client, url, seen)).StatusCode);
+
+        var noHeader = await ReportWorld.DeleteAsync(client, url, null);
+        Assert.Equal(HttpStatusCode.BadRequest, noHeader.StatusCode);
+        Assert.Contains("If-Match", await AssignmentWorld.ErrorAsync(noHeader));
+        Assert.Equal(HttpStatusCode.NotFound, (await ReportWorld.DeleteAsync(other, url, seen)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await ReportWorld.DeleteAsync(client, url, seen)).StatusCode);
+        Assert.Single(await world.ChangesAsync(id), c => c.Kind == ReportChangeKind.Deleted);
     }
 
     /// <summary>

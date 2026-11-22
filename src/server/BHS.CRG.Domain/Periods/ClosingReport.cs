@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace BHS.CRG.Domain.Periods;
 
@@ -38,9 +39,17 @@ public sealed record ClosingLine(
 /// <param name="DateRule">По какой дате модуль относит документ к периоду (ТЗ CORE-35).</param>
 /// <param name="Unfinished">Не завершено: закрытию не мешает, но после него останется как есть.</param>
 /// <param name="Frozen">Что войдёт в закрытый период.</param>
+/// <param name="Blocking">Строки, которые запрещают закрытие.</param>
 public sealed record ClosingSection(
     string Module, string Title, string DateRule,
-    IReadOnlyList<ClosingLine> Unfinished, IReadOnlyList<ClosingLine> Frozen);
+    IReadOnlyList<ClosingLine> Unfinished, IReadOnlyList<ClosingLine> Frozen,
+    IReadOnlyList<ClosingLine>? Blocking = null)
+{
+    // У записей закрытия до work-19 поля в JSON нет.
+    public IReadOnlyList<ClosingLine> Blocking { get; init; } = Blocking ?? [];
+
+    public IEnumerable<ClosingLine> Lines() => Unfinished.Concat(Frozen).Concat(Blocking);
+}
 
 /// <summary>
 /// Что показал диалог закрытия периода: по каждому включённому модулю — что войдёт в закрытый период и
@@ -58,6 +67,9 @@ public sealed record ClosingSection(
 public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
 {
     public static ClosingReport Empty { get; } = new([]);
+
+    [JsonIgnore]
+    public bool CanClose => !Sections.Any(s => s.Blocking.Any(l => l.Count != 0));
 
     // Кириллица — как есть: запись читают и глазами, а «О…» в колонке не читает никто.
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -93,7 +105,7 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
     private static bool Sound(ClosingReport? report) =>
         report?.Sections is { } sections && sections.All(s =>
             s is { Module: not null, Title: not null, DateRule: not null, Unfinished: not null, Frozen: not null }
-            && s.Unfinished.Concat(s.Frozen).All(l =>
+            && s.Blocking is not null && s.Lines().All(l =>
                 l is { Key: not null, Text: not null, Unit: { One: not null, Few: not null, Many: not null } }));
 
     /// <summary>
@@ -129,7 +141,12 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
         ClosingLine Cut(ClosingLine line) =>
             line.AmountPermission is { } needed && !permissions.Contains(needed) ? line with { Amount = null } : line;
 
-        return new([.. Sections.Select(s => s with { Unfinished = [.. s.Unfinished.Select(Cut)], Frozen = [.. s.Frozen.Select(Cut)] })]);
+        return new([.. Sections.Select(s => s with
+        {
+            Unfinished = [.. s.Unfinished.Select(Cut)],
+            Frozen = [.. s.Frozen.Select(Cut)],
+            Blocking = [.. s.Blocking.Select(Cut)],
+        })]);
     }
 
     /// <summary>
@@ -143,8 +160,7 @@ public sealed record ClosingReport(IReadOnlyList<ClosingSection> Sections)
 
     /// <summary>Скрыта ли в разделе хоть одна сумма — тогда экран говорит об этом одной строкой.</summary>
     public static bool HidesAmounts(ClosingSection shown, ClosingSection full) =>
-        full.Unfinished.Concat(full.Frozen).Count(l => l.Amount is not null)
-        != shown.Unfinished.Concat(shown.Frozen).Count(l => l.Amount is not null);
+        full.Lines().Count(l => l.Amount is not null) != shown.Lines().Count(l => l.Amount is not null);
 
     private static string Lower(string text) =>
         text.Length == 0 ? text : char.ToLower(text[0], CultureInfo.GetCultureInfo("ru-RU")) + text[1..];

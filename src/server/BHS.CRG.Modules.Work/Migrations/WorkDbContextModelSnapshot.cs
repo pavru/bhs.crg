@@ -168,6 +168,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("declared_at");
 
+                    b.Property<Guid?>("DeclaredInClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("declared_in_closing_id");
+
                     b.Property<double?>("GeoAlt")
                         .HasColumnType("double precision")
                         .HasColumnName("geo_alt");
@@ -211,6 +215,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.Property<DateTimeOffset?>("StoredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("stored_at");
+
+                    b.Property<Guid?>("StoredInClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stored_in_closing_id");
 
                     b.Property<long?>("StoredSeq")
                         .HasColumnType("bigint")
@@ -272,6 +280,12 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<int>("CurrentVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("current_version");
 
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date")
@@ -642,6 +656,58 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("report_line_participants", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("author_name");
+
+                    b.Property<Guid>("ClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closing_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("record_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_report_versions_number");
+
+                    b.ToTable("report_versions", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReviewDigestMark", b =>
                 {
                     b.Property<Guid>("ReportId")
@@ -725,6 +791,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .WithMany("Participants")
                         .HasForeignKey("LineId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Data.ReportVersion", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

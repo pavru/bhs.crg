@@ -67,7 +67,7 @@ public sealed class ReportWriter(
         await EnsureFreeAsync(reportId, employeeId, header, lines, ct);
 
         var report = NewReport(reportId, employeeId, header, seq, now, site);
-        await PlaceLinesAsync(report, site, storedSite: site.Id, lines, now, ct);
+        await PlaceLinesAsync(report, site, storedSite: site.Id, lines, now, closingId: null, ct);
         db.Add(report);
         return report;
     }
@@ -79,7 +79,7 @@ public sealed class ReportWriter(
     /// </summary>
     public async Task<IReadOnlyList<string>> ChangeAsync(
         Report report, ReportHeaderValues header, IReadOnlyList<ReportLineValues> lines, long seq, DateTimeOffset now,
-        CancellationToken ct)
+        CancellationToken ct, Guid? closingId = null)
     {
         // Ключ поданного не меняется (ТЗ MOB-35) — до всего, что оставляет след в ядре.
         if (report.KeyChanges(header.ConstructionId, header.Date, header.Shift) && !report.KeyEditable())
@@ -92,7 +92,7 @@ public sealed class ReportWriter(
 
         // Ключи лежащих строк — на ПРЕЖНЕЙ стройке: отчёт, перенесённый на другую, меняет ключ каждой строки.
         var storedSite = report.ConstructionId;
-        var dropped = await PlaceLinesAsync(report, site, storedSite, lines, now, ct);
+        var dropped = await PlaceLinesAsync(report, site, storedSite, lines, now, closingId, ct);
         ChangeHeader(report, header, seq, now, site);
         return dropped;
     }
@@ -176,7 +176,7 @@ public sealed class ReportWriter(
     /// </summary>
     private async Task<IReadOnlyList<string>> PlaceLinesAsync(
         Report report, ModuleConstruction site, Guid storedSite, IReadOnlyList<ReportLineValues> lines, DateTimeOffset now,
-        CancellationToken ct)
+        Guid? closingId, CancellationToken ct)
     {
         var stored = report.Lines.ToDictionary(l => l.Id);
         await EnsureAllowedAsync(lines, stored, ct);
@@ -199,7 +199,7 @@ public sealed class ReportWriter(
         foreach (var removal in await reads.RemovalsAsync(named, ct)) db.Remove(removal);
         var dropped = new List<string>();
         foreach (var line in lines)
-            foreach (var photo in report.Lines.First(l => l.Id == line.Id).ApplyPhotos(line.Photos, now))
+            foreach (var photo in report.Lines.First(l => l.Id == line.Id).ApplyPhotos(line.Photos, now, closingId))
             {
                 db.Add(LinePhotoRemoval.Of(photo, now));
                 dropped.AddRange(photo.Paths());

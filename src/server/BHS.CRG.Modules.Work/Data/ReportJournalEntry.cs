@@ -30,6 +30,10 @@ public static class ReportJournalKinds
 
     public const string CrewApproved = "crew-approved";
 
+    public const string Corrected = "corrected";
+
+    public const string AcceptedChanged = "accepted-changed";
+
     /// <summary>
     /// Правка менеджером поданного отчёта адресом ввода за сотрудника (<c>work-16</c>, ТЗ WORK-14) — запасной ход:
     /// протокол пишет её обычной правкой, а журнал называет отдельно, и по этой записи отчёт несёт пометку.
@@ -49,7 +53,7 @@ public static class ReportJournalKinds
     public const string NotifyNone = "notify-none";
 
     /// <summary>Виды, которые бывают «правкой после подачи» (ТЗ WORK-11): правки содержимого, а не переходы статуса.</summary>
-    public static bool IsEdit(string kind) => kind is Updated or ManagerEdited;
+    public static bool IsEdit(string kind) => kind is Updated or ManagerEdited or AcceptedChanged;
 }
 
 /// <summary>

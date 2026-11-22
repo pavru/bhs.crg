@@ -31,5 +31,6 @@ public class PeriodClosureConfiguration : IEntityTypeConfiguration<PeriodClosure
         // службы и сверка увиденной границы, а у контура «компания» индекс и не ловил бы ничего —
         // NULL в колонке стройки для него различимы.
         b.HasIndex(e => e.At);
+        b.HasIndex(e => e.EventOrder).IsUnique();
     }
 }

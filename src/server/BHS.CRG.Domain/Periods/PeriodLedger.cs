@@ -2,6 +2,9 @@ using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.Periods;
 
+/// <summary>Данные события, нужные для восстановления непрерывного закрытия одного дня.</summary>
+public readonly record struct PeriodClosureEvent(Guid Id, PeriodClosureKind Kind, Guid? CancelsId, DateTimeOffset At);
+
 /// <summary>
 /// Границы закрытия, сведённые из записей (ТЗ CORE-35; задача E1a, issue #1081): до какой даты
 /// закрыта компания и каждая стройка, что можно закрыть следующим и что — отменить.
@@ -14,7 +17,7 @@ namespace BHS.CRG.Domain.Periods;
 /// компании закрывает все стройки. Поэтому следующее закрытие стройки начинается после действующей
 /// границы, а не после своей — иначе запись стройки заново «закрывала» бы закрытое компанией.</para>
 ///
-/// <para><b>Порядок записей не нужен.</b> Действующие закрытия контура — те, что не названы ни одной
+/// <para><b>Текущая граница не зависит от порядка записей.</b> Действующие закрытия контура — те, что не названы ни одной
 /// отменой; каждое следующее обязано уходить дальше действующей границы, а отменить можно только
 /// последнее, так что среди действующих граница — попросту наибольшая. Считать «стопкой по времени»
 /// значило бы доверить результат часам сервера и порядку строк после восстановления копии.</para>
@@ -41,6 +44,30 @@ public sealed class PeriodLedger
             .ToDictionary(g => g.Key, g => g.MaxBy(r => r.Through)!);
 
         return new(last);
+    }
+
+    /// <summary>Начало текущего закрытия дня по событиям, отобранным по дню и контурам и упорядоченным по записи.</summary>
+    public static (Guid Id, DateTimeOffset At)? ContinuousClosing(IEnumerable<PeriodClosureEvent> events)
+    {
+        var active = new HashSet<Guid>();
+        var cancelled = new HashSet<Guid>();
+        (Guid Id, DateTimeOffset At)? first = null;
+        foreach (var row in events)
+        {
+            // Перекрывающее закрытие продлевает отрезок. Обнуляем начало, только когда день открылся.
+            if (row.CancelsId is { } id)
+            {
+                cancelled.Add(id);
+                active.Remove(id);
+                if (active.Count == 0) first = null;
+            }
+            else if (row.Kind == PeriodClosureKind.Close && !cancelled.Contains(row.Id))
+            {
+                first ??= (row.Id, row.At);
+                active.Add(row.Id);
+            }
+        }
+        return first;
     }
 
     /// <summary>Граница компании: закрыто всё по эту дату включительно. <c>null</c> — не закрыто ничего.</summary>

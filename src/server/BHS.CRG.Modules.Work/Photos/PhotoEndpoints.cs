@@ -52,25 +52,23 @@ public static class PhotoEndpoints
         IModuleReaders readers, ManagerSites sites, IModuleEmployees employees, LinePhotos photos, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
-            // Версия — первой, до сотрудника и охвата: порядок отказов один у всех пишущих адресов отчёта.
-            var seen = SeenVersions.Required(request, "отчёта");
             return await photos.RemoveAsync(await WriterAsync(user, readers, sites, employees, ct), id, lineId, photoId,
-                changeId, ReportEndpoints.DeviceTimeOf(deviceTime), seen, ct);
+                changeId, ReportEndpoints.DeviceTimeOf(deviceTime), request, ct);
         });
 
     private static Task<IResult> OriginalAsync(
-        Guid photoId, HttpContext http, IModuleUser user, IModuleReaders readers, ManagerSites sites,
+        Guid photoId, Guid? reportId, int? number, HttpContext http, IModuleUser user, IModuleReaders readers, ManagerSites sites,
         IModuleEmployees employees, LinePhotos photos, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () => await photos.OpenAsync(
             await ReportJournalEndpoint.ViewerAsync(user, readers, sites, employees, ct), user.Id, photoId, preview: false,
-            http, ct));
+            reportId, number, http, ct));
 
     private static Task<IResult> PreviewAsync(
-        Guid photoId, HttpContext http, IModuleUser user, IModuleReaders readers, ManagerSites sites,
+        Guid photoId, Guid? reportId, int? number, HttpContext http, IModuleUser user, IModuleReaders readers, ManagerSites sites,
         IModuleEmployees employees, LinePhotos photos, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () => await photos.OpenAsync(
             await ReportJournalEndpoint.ViewerAsync(user, readers, sites, employees, ct), user.Id, photoId, preview: true,
-            http, ct));
+            reportId, number, http, ct));
 
     /// <summary>
     /// Охват того, кто правит фото: с правом приёмки — стройки менеджера (с <c>work.sites.all</c> — все) и, при праве

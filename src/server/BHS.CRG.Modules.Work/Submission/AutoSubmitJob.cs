@@ -1,5 +1,6 @@
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Review;
@@ -44,7 +45,8 @@ namespace BHS.CRG.Modules.Work.Submission;
 /// </summary>
 public sealed class AutoSubmitJob(
     WorkDbContext db, ReportReads reads, ReportSubmission submission, RequiredFields required, IModuleReaders readers,
-    IModuleEmployees employees, IModuleActivityLog log, SubmittedDigest digest, TimeProvider time, ILogger<AutoSubmitJob> logger)
+    IModuleEmployees employees, IModuleActivityLog log, SubmittedDigest digest, TimeProvider time, ILogger<AutoSubmitJob> logger,
+    ReportPeriods periods)
     : IModuleJobHandler
 {
     public const string Code = "work.autosubmit";
@@ -156,7 +158,9 @@ public sealed class AutoSubmitJob(
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var boundaries = await periods.UnderWriteLockAsync(ct);
             if (await reads.ExpiredDraftAsync(reader, id, now, ct) is not { } report) return Outcome.Skipped;
+            if (ReportPeriods.IsClosed(boundaries, report.ConstructionId, report.Date)) return Outcome.Skipped;
             var found = await required.OfAsync(report, ct);
             await submission.ApplyAsync(report, report.WindowEndsAt, ReportSubmitter.Auto, RequiredFields.Json(found),
                 new ReportJournalActor(null, SystemAuthor, null), executor, Guid.NewGuid(), deviceTime: null, now, ct);
