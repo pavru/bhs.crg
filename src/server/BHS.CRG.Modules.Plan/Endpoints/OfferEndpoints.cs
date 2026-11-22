@@ -23,7 +23,7 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// <para><b>Деньги считает код</b> (<see cref="OfferPricing" />): цены, суммы, НДС и «Итого» адреса не
 /// принимают вовсе, а системные поля типа в данных заказчика — отказ охраны записи.</para>
 /// </summary>
-public static class OfferEndpoints
+public static partial class OfferEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -35,6 +35,8 @@ public static class OfferEndpoints
         offers.MapGet("/", ListAsync).RequireAuthorization(read);
         offers.MapGet("/{id:guid}", GetAsync).RequireAuthorization(read);
         offers.MapPost("/", CreateAsync).RequireAuthorization(edit);
+        offers.MapPost("/from-pricelist", CreateFromPriceListAsync).RequireAuthorization(edit);
+        offers.MapPost("/{id:guid}/reprice-from-pricelist", RepriceFromPriceListAsync).RequireAuthorization(edit);
         offers.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(edit);
         offers.MapPut("/{id:guid}/markups", MarkupsAsync).RequireAuthorization(edit);
         offers.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);
@@ -62,36 +64,17 @@ public static class OfferEndpoints
         OfferCreateRequest body, PlanDbContext db, OfferDesk desk, IModuleUser user, IModuleTypes types,
         IModuleWriteGuard guard, IModuleClock clock, IModuleActivityLog log, CancellationToken ct)
     {
-        var typeId = await types.FindAsync(PlanRecordTypes.OfferCode, ct)
-            ?? throw new ConflictException(
-                $"Тип «{PlanRecordTypes.Offer.Name}» на экземпляре не заведён — поля заказчика КП не с чем сверить. Он " +
-                "заводится при старте приложения с модулем «Планирование»; перезапустите приложение и повторите.");
         var revision = await db.EstimateRevisions.FirstOrDefaultAsync(r => r.Id == body.RevisionId, ct)
             ?? throw new InvalidRequestException("Редакции нет — её удалили либо адрес неверен.");
         var estimate = await db.Estimates.AsNoTracking().FirstAsync(e => e.Id == revision.EstimateId, ct);
 
-        var markup = OfferPricing.CheckedMarkup(body.Markup ?? 0m, "предложения");
-        var vatMode = OfferViews.VatMode(body.VatMode);
-        var vatRate = OfferPricing.CheckedVat(vatMode, body.VatRate);
-        await desk.EnsureCustomerAsync(body.CustomerId, stored: null, ct);
-
-        var now = clock.UtcNow();
-        var date = body.Date ?? await clock.TodayAsync(ct);
-        var offer = Offer.Create(typeId, estimate.ConstructionId, revision.Id, date,
-            await desk.NextSequenceAsync(date.Year, ct), user.Id, user.Name, now);
-        offer.ReplaceHeader(date, body.CustomerId, vatMode, vatRate, now);
-        offer.ChangeMarkup(markup, now);
-
-        // Поля заказчика у создания — впервые: лежащего нет, и названное системное поле охрана отвергнет.
-        var (guarded, customer) = OfferRequisites.Incoming(body.Data, stored: null);
-        await OfferRequisites.EnsureAllowedAsync(guard, typeId, stored: null, guarded, ct);
-        offer.ApplyCustomerData(customer, now);
+        var offer = await CreateDraftAsync(estimate.ConstructionId, revision.Id, body.Header, desk, user, types, guard, clock, ct);
 
         var rows = await desk.RevisionRowsAsync(revision.Id, ct);
         foreach (var row in rows) offer.Lines.Add(OfferLine.FromRevisionRow(offer.Id, row));
         OfferPricing.Reprice(offer, rows.ToDictionary(r => r.Id, r => r.Total));
 
-        revision.Freeze(new EstimateFreeze("offer", offer.Label), now);
+        revision.Freeze(new EstimateFreeze("offer", offer.Label), offer.CreatedAt);
         db.Offers.Add(offer);
         await db.SaveChangesAsync(ct);
 

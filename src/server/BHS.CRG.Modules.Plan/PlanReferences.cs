@@ -36,6 +36,10 @@ public static class PlanReferences
 
     public static IReadOnlyList<ModuleReference> All =>
     [
+        ModuleReference.Holding("price_list_entries", "work_type_id", ReferenceTarget.Record,
+            "строки прайс-листа с этим видом работы"),
+        ModuleReference.Remembering("price_list_entries", "changed_by", ReferenceTarget.User,
+            "кто записал цену — справочное поле; удаление учётной записи прайс-листа не касается"),
         ModuleReference.Remembering("offer_versions", "content", target: null,
             "история КП помнит ссылки отправленной версии; их держит действующее КП, а не история"),
         ModuleReference.Remembering("offer_versions", "author_id", ReferenceTarget.User,

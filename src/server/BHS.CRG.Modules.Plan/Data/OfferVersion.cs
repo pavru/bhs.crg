@@ -23,16 +23,18 @@ public sealed class OfferVersion : ModuleRecordVersion
         JsonSerializer.Serialize(new
         {
             offer.Number, offer.Date, offer.DocumentTypeId, offer.ConstructionId, offer.CustomerId,
-            offer.RevisionId, offer.Status, offer.CurrentVersion, offer.SentOn, offer.Markup,
+            offer.RevisionId, source = offer.RevisionId is null ? "pricelist" : "estimate",
+            offer.PriceListDate, offer.Status, offer.CurrentVersion, offer.SentOn, offer.Markup,
             vat = new { mode = offer.VatMode, rate = offer.VatRate },
-            money = new { offer.LinesTotal, vat = offer.VatAmount, offer.Total },
+            money = Endpoints.OfferViews.Money(offer),
             data = JsonSerializer.Deserialize<JsonElement>(offer.Data),
             offer.CreatedAt, offer.CreatedBy, offer.CreatedByName, offer.ChangedAt, authorName,
             sections = offer.SectionMarkups.OrderBy(s => s.SectionCode).Select(s => new { s.SectionCode, s.Markup }),
             lines = offer.Lines.OrderBy(l => l.Order).Select(l => new
             {
                 l.Id, l.Order, l.RevisionRowId, l.WorkTypeId, l.Material, l.LsrSectionCode, l.LsrSectionName,
-                l.Number, l.Name, l.Volume, l.Unit, l.Markup, l.Price, l.Amount,
+                l.Number, l.Name, l.Volume, l.Unit, l.Markup, l.Price,
+                amount = Endpoints.OfferViews.Amount(l), priceSource = Endpoints.OfferViews.PriceSource(l),
             }),
         }, Json), author);
 

@@ -1037,6 +1037,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("number");
 
+                    b.Property<DateOnly?>("PriceListDate")
+                        .HasColumnType("date")
+                        .HasColumnName("price_list_date");
+
                     b.Property<Guid?>("RevisionId")
                         .HasColumnType("uuid")
                         .HasColumnName("revision_id");
@@ -1166,6 +1170,15 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("price");
 
+                    b.Property<decimal?>("PriceListPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("price_list_price");
+
+                    b.Property<DateOnly?>("PriceListValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("price_list_valid_from");
+
                     b.Property<Guid?>("RevisionRowId")
                         .HasColumnType("uuid")
                         .HasColumnName("revision_row_id");
@@ -1260,6 +1273,49 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasDatabaseName("ux_offer_versions_number");
 
                     b.ToTable("offer_versions", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.PriceListEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<Guid?>("ChangedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("price");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<Guid>("WorkTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_type_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkTypeId", "ValidFrom")
+                        .IsUnique()
+                        .HasDatabaseName("ux_price_list_entries_work_type_date");
+
+                    b.ToTable("price_list_entries", "plan");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RateMatch", b =>

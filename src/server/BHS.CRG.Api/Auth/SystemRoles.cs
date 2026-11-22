@@ -89,7 +89,7 @@ public static class SystemRoles
                 // ЧИТАЕТ — КП и график строятся из редакции сметы (решение В-1, PLAN-Q9, 22.10.2026), — но
                 // без plan.estimate.cost: себестоимость видит сметчик (PLAN-2). plan.labor.read — право
                 // контракта: нормы чел.-ч для «по смете — фактически» (WORK-42).
-                "plan.estimate.read", "plan.offer.read", "plan.offer.edit", "plan.offer.send",
+                "plan.estimate.read", "plan.offer.read", "plan.offer.edit", "plan.offer.send", "plan.pricelist.edit",
                 "plan.pricelist.edit", "plan.schedule.read", "plan.schedule.edit", "plan.labor.read",
             ]),
 

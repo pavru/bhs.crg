@@ -1,3 +1,5 @@
+using BHS.CRG.Modules.Ports;
+
 namespace BHS.CRG.Modules.Plan.Data;
 
 /// <summary>
@@ -49,6 +51,12 @@ public sealed class OfferLine
     /// <summary>Цена продажи за единицу; <c>null</c> — у строки нет объёма или итога в смете.</summary>
     public decimal? Price { get; private set; }
 
+    /// <summary>Цена прайс-листа на момент расчёта, до наценки КП.</summary>
+    public decimal? PriceListPrice { get; private set; }
+    public DateOnly? PriceListValidFrom { get; private set; }
+
+    public bool MissingPrice => RevisionRowId is null && PriceListPrice is null;
+
     /// <summary>Сумма строки по цене продажи.</summary>
     public decimal Amount { get; private set; }
 
@@ -73,6 +81,24 @@ public sealed class OfferLine
         };
 
     internal void ChangeMarkup(decimal? markup) => Markup = markup;
+
+    internal static OfferLine FromWorkType(Guid offerId, int order, ModuleWorkType work, decimal volume) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            OfferId = offerId,
+            Order = order,
+            WorkTypeId = work.Id,
+            Name = work.Name ?? work.DisplayName,
+            Volume = volume,
+            Unit = PlanText.Clip(work.UnitName, EstimateRow.UnitLength),
+        };
+
+    internal void SetPriceListEntry(PriceListEntry? entry)
+    {
+        PriceListPrice = entry?.Price;
+        PriceListValidFrom = entry?.ValidFrom;
+    }
 
     /// <summary>Цена и сумма — их кладёт только расчёт (<see cref="Offers.OfferPricing" />).</summary>
     internal void Reprice(decimal? price, decimal amount)
