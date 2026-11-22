@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
+import type { ClosingPreview } from '@/shared/api/periods';
 import { CloseDialog, ReopenDialog } from './periods/PeriodsPage';
 import { CancelDialog, PayDialog } from './costs/InvoicePayment';
 
@@ -61,7 +62,7 @@ const CASES = [
     confirm: 'Закрыть период',
     decline: 'Отмена',
     reason: null,
-    preview: { stamp: 's1', sections: [] },
+    preview: { stamp: 's1', sections: [], canClose: true } satisfies ClosingPreview,
     dialog: (onDone: () => void) => (
       <CloseDialog onDone={onDone} name="Компания" today="2026-10-13"
         state={{ constructionId: null, closedThrough: '2026-08-31', expectedFrom: '2026-09-01', reopenable: null } as never} />
