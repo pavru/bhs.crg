@@ -33,6 +33,7 @@ internal static class WorkReportModel
         report.Property(r => r.Status).HasColumnName("status").HasMaxLength(16)
             .HasConversion(v => Report.StatusCode(v), v => Enum.Parse<ReportStatus>(v, true));
         report.Property(r => r.Note).HasColumnName("note");
+        report.Property(r => r.CurrentVersion).HasColumnName("current_version").HasDefaultValue(1);
         report.Property(r => r.Seq).HasColumnName("seq");
         report.Property(r => r.CreatedAt).HasColumnName("created_at");
         report.Property(r => r.UpdatedAt).HasColumnName("updated_at");

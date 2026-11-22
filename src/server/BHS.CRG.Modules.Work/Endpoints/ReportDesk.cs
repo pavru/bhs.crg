@@ -2,6 +2,7 @@ using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Photos;
@@ -33,19 +34,13 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 /// подачи дублируются в журнал действий ядра ПОСЛЕ фиксации (<see cref="ReportActions" />): сбой там — предупреждение
 /// в журнал приложения, а не откат, — свидетельство уже лежит в журнале отчёта.</para>
 ///
-/// <para><b>Подача</b> (<c>work-15</c>) — тот же ход для своих отчётов и ввода за сотрудника. Порядок отказов: версия
-/// не названа (400) → отчёт (404) → уже подан (200 <c>alreadySubmitted</c>, без сверки версии: изменения нет, и
-/// потерять нечего) → другой статус (409) → версия (409) → обязательные поля (422). Конфликт версии строки при
-/// сохранении — автоподача обогнала: перечитанный поданный отчёт отвечает тем же <c>alreadySubmitted</c>.</para>
-///
-/// <para><b>Порядок отказов правки:</b> запрос (400: версия, <c>changeId</c>, тело) → отчёт (404, чужой как
-/// несуществующий) → сотрудник в теле (400) → повтор (200) → версия (409) → стройка вне охвата (404) → правила
-/// записи (400/409).</para>
+/// <para>Пишущий адрес сначала находит отчёт в охвате читателя, затем проверяет период под замком и требует
+/// <c>If-Match</c>. Повтор подачи открытого периода отвечает <c>alreadySubmitted</c> без сверки значения версии.</para>
 /// </summary>
 public sealed class ReportDesk(
     WorkDbContext db, ReportWriter writer, ReportReads reads, ReportViews views, TimeProvider time, ReportJournal journal,
     ReportPeople people, ReportActivity activity, ReportSubmission submission, RequiredFields required, LinePhotos photos,
-    CrewInputs crew)
+    CrewInputs crew, ReportPeriods periods)
 {
     public const string IdTaken =
         "Идентификатор отчёта (id) уже занят — у нового отчёта идентификатор новый, его создаёт клиент.";
@@ -74,13 +69,16 @@ public sealed class ReportDesk(
         if (id == Guid.Empty) throw new InvalidRequestException("Идентификатор отчёта (id) пуст: его создаёт клиент.");
         var header = body.Header();
         var lines = body.LineValues();
-        if (await reads.HolderOfIdAsync(id, ct) is { } holder) return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, ct);
-        await EnsureNotDeletedAsync(id, employeeId, ct);
         var (actor, executor) = (await people.ActorAsync(viewer, ct), await people.ExecutorAsync(employeeId, ct));
 
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var boundaries = await periods.UnderWriteLockAsync(ct);
+            if (await reads.HolderOfIdAsync(id, ct) is { } holder)
+                return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, boundaries, ct);
+            ReportPeriods.EnsureOpen(boundaries, header.ConstructionId, header.Date);
+            await EnsureNotDeletedAsync(id, employeeId, ct);
             var (seq, now) = (await db.NextReportSeqAsync(employeeId, ct), time.GetUtcNow());
             var report = await writer.CreateAsync(id, employeeId, header, lines, seq, now, ct);
             if (enteredBy is var (userId, name)) report.EnteredBy(userId, name);
@@ -96,7 +94,10 @@ public sealed class ReportDesk(
         {
             // Два заведения разом: проигравший видит запись победителя. Тот же id — повтор, та же четвёрка — ключ занят.
             db.ChangeTracker.Clear();
-            if (await reads.HolderOfIdAsync(id, ct) is { } won) return await ReplayedOrTakenAsync(viewer, id, employeeId, won, ct);
+            var boundaries = await periods.CurrentAsync(ct);
+            if (await reads.HolderOfIdAsync(id, ct) is { } won)
+                return await ReplayedOrTakenAsync(viewer, id, employeeId, won, boundaries, ct);
+            ReportPeriods.EnsureOpen(boundaries, header.ConstructionId, header.Date);
             if (await reads.KeyHolderAsync(employeeId, header.ConstructionId, header.Date, header.Shift, id, ct) is { } key)
                 throw new ReportKeyTakenException(key);
             await EnsureNotDeletedAsync(id, employeeId, ct);
@@ -107,26 +108,32 @@ public sealed class ReportDesk(
     /// <summary>Править отчёт, видимый читателю, — или ответить повтором уже применённой правки.</summary>
     public async Task<IResult> ChangeAsync(ReportViewer viewer, Guid id, ReportRequest body, HttpRequest request, CancellationToken ct)
     {
+        // Автор — до транзакции: запрос к ядру не держит её открытой.
+        var actor = await people.ActorAsync(viewer, ct);
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var boundaries = await periods.UnderWriteLockAsync(ct);
+        var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
+        ReportPeriods.EnsureOpen(boundaries, report);
+        if (body.ConstructionId is { } site && !viewer.Covers(site, report.EmployeeId))
+            throw new NotFoundException(SiteNotYours);
+        if (body.ConstructionId is { } destination && body.Date is { } date
+            && ReportPeriods.IsClosed(boundaries, destination, date))
+            throw new ConflictException("Период закрыт: перенести отчёт на эту дату нельзя.");
         var seen = SeenVersions.Required(request, "отчёта");
         var changeId = body.ChangeId ?? throw new InvalidRequestException(
             "Не назван идентификатор изменения (changeId): его создаёт клиент, и повтор правки с ним не применится " +
             "второй раз.");
         if (body.Id is { } named && named != id)
             throw new InvalidRequestException("Идентификатор отчёта в теле (id) не совпадает с адресом.");
-        var header = body.Header();
-        var lines = body.LineValues();
-        // Автор — до транзакции: запрос к ядру не держит её открытой.
-        var actor = await people.ActorAsync(viewer, ct);
-
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
         if (body.EmployeeId is { } employee && employee != report.EmployeeId)
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
         if (await reads.AppliedAsync(id, changeId, ct) is not null)
             return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
-        if (!viewer.Covers(header.ConstructionId, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
+        var header = body.Header();
+        var lines = body.LineValues();
 
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var kind = ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
@@ -136,6 +143,7 @@ public sealed class ReportDesk(
         if (changesCrew) await crew.LockAsync(report, ct);
         var (seq, now) = (await db.NextReportSeqAsync(report.EmployeeId, ct), time.GetUtcNow());
         var dropped = await writer.ChangeAsync(report, header, lines, seq, now, ct);
+        kind = ReportJournal.AfterOwnEdit(viewer, report, before, now, kind);
         if (changesCrew) await crew.LinesChangedAsync(report, before, ct);
         await db.SaveChangesAsync(ct);
         db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.Updated, body.DeviceTime, now, db.VersionOf(report)));
@@ -143,12 +151,12 @@ public sealed class ReportDesk(
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         // Файлы снятых фото — после фиксации: ссылка ушла первой (work-17).
-        await photos.DropAsync(dropped);
+        await photos.DropRemovedAsync(report, dropped);
 
         var changed = "изменено: " + ReportJournal.FieldsOf(entry);
         if (kind == ReportJournalKinds.ManagerEdited)
             await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: changed);
-        else if (entry.AfterSubmission)
+        else if (entry.AfterSubmission || kind == ReportJournalKinds.AcceptedChanged)
             await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: changed);
         return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
     }
@@ -161,12 +169,14 @@ public sealed class ReportDesk(
     public async Task<IResult> SubmitAsync(
         ReportViewer viewer, Guid id, SubmitRequest? body, HttpRequest request, CancellationToken ct)
     {
-        var seen = SeenVersions.Required(request, "отчёта");
         var actor = await people.ActorAsync(viewer, ct);
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var boundaries = await periods.UnderWriteLockAsync(ct);
             var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
+            ReportPeriods.EnsureOpen(boundaries, report);
+            var seen = SeenVersions.Required(request, "отчёта");
             if (report.Status == ReportStatus.Submitted)
                 return Results.Ok(await views.OneAsync(viewer, report, alreadySubmitted: true, ct: ct));
             if (report.SubmitRefusal() is { } refusal) throw new ConflictException(refusal);
@@ -192,8 +202,12 @@ public sealed class ReportDesk(
         {
             // Автоподача (или вторая подача) успела между чтением и записью: поданный отчёт — повтор, иное — версия.
             db.ChangeTracker.Clear();
-            if (await reads.FindAsync(viewer, id, ct) is { Status: ReportStatus.Submitted } won)
-                return Results.Ok(await views.OneAsync(viewer, won, alreadySubmitted: true, ct: ct));
+            if (await reads.FindAsync(viewer, id, ct) is { } won)
+            {
+                ReportPeriods.EnsureOpen(await periods.CurrentAsync(ct), won);
+                if (won.Status == ReportStatus.Submitted)
+                    return Results.Ok(await views.OneAsync(viewer, won, alreadySubmitted: true, ct: ct));
+            }
             throw new ConflictException(Stale);
         }
     }
@@ -205,9 +219,9 @@ public sealed class ReportDesk(
     public async Task<IResult> RemoveDraftAsync(
         ReportViewer viewer, Guid id, Guid? changeId, DateTimeOffset? deviceTime, HttpRequest request, CancellationToken ct)
     {
-        var seen = SeenVersions.Required(request, "отчёта");
         var actor = await people.ActorAsync(viewer, ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var boundaries = await periods.UnderWriteLockAsync(ct);
         if (await reads.FindAsync(viewer, id, ct) is not { } report)
         {
             if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is { Kind: ReportChangeKind.Deleted } gone
@@ -215,9 +229,12 @@ public sealed class ReportDesk(
                 return Results.NoContent();
             throw new NotFoundException(NotFoundText);
         }
-        if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
+        ReportPeriods.EnsureOpen(boundaries, report);
+        if (SeenVersions.Required(request, "отчёта") != db.VersionOf(report)) throw new ConflictException(Stale);
         if (report.Status != ReportStatus.Draft)
             throw new ConflictException("Удалить можно только черновик: поданный отчёт остаётся, его возвращают на правку.");
+        if (report.CurrentVersion > 1)
+            throw new ConflictException("Отчёт с историей исправлений удалить нельзя.");
 
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var before = ReportJournal.Capture(report);
@@ -251,11 +268,15 @@ public sealed class ReportDesk(
     /// бы как «адреса нет».
     /// </summary>
     private async Task<IResult> ReplayedOrTakenAsync(
-        ReportViewer viewer, Guid id, Guid employeeId, (Guid EmployeeId, Guid ConstructionId) holder, CancellationToken ct)
+        ReportViewer viewer, Guid id, Guid employeeId, (Guid EmployeeId, Guid ConstructionId) holder,
+        PeriodBoundaries boundaries, CancellationToken ct)
     {
         if (holder.EmployeeId == employeeId && viewer.Covers(holder.ConstructionId, employeeId)
             && await reads.FindAsync(viewer, id, ct) is { } report)
+        {
+            ReportPeriods.EnsureOpen(boundaries, report);
             return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
+        }
         throw new ConflictException(IdTaken);
     }
 

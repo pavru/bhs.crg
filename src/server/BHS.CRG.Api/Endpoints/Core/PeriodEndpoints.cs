@@ -71,7 +71,7 @@ public static class PeriodEndpoints
 
             var preview = await closures.PreviewAsync(new PreviewClosing(contour, from, through), ct);
             return Results.Ok(new ClosingPreviewDto(
-                preview.Stamp, Sections(preview.Report, await permissions.ForAsync(user, ct))));
+                preview.Stamp, Sections(preview.Report, await permissions.ForAsync(user, ct)), preview.Report.CanClose));
         });
 
         close.MapPost("/close", async (ClosePeriodRequest req, IPeriodClosures closures, CancellationToken ct) =>
@@ -156,7 +156,7 @@ public static class PeriodEndpoints
         var shown = report.VisibleTo(granted);
         return [.. shown.Sections.Zip(report.Sections, (mine, full) => new ClosingSectionDto(
             mine.Module, mine.Title, mine.DateRule, [.. mine.Unfinished.Select(Line)], [.. mine.Frozen.Select(Line)],
-            ClosingReport.HidesAmounts(mine, full)))];
+            ClosingReport.HidesAmounts(mine, full), [.. mine.Blocking.Select(Line)]))];
 
         ClosingLineDto Line(ClosingLine line) => new(
             line.Key, line.Text, line.Count, line.Unit.Text(line.Count), line.Amount, line.Note,
@@ -164,12 +164,12 @@ public static class PeriodEndpoints
     }
 
     /// <param name="Stamp">Отпечаток увиденного — его называет закрытие (<c>report</c>).</param>
-    private record ClosingPreviewDto(string Stamp, ClosingSectionDto[] Sections);
+    private record ClosingPreviewDto(string Stamp, ClosingSectionDto[] Sections, bool CanClose);
 
     /// <param name="AmountsHidden">В разделе есть суммы, которых этому человеку не показали.</param>
     private record ClosingSectionDto(
         string Module, string Title, string DateRule, ClosingLineDto[] Unfinished, ClosingLineDto[] Frozen,
-        bool AmountsHidden);
+        bool AmountsHidden, ClosingLineDto[] Blocking);
 
     /// <param name="Counted">Число документов словами: «3 счёта».</param>
     /// <param name="Amount">Сумма; <c>null</c> — строка денег не несёт либо сумма закрыта правом.</param>

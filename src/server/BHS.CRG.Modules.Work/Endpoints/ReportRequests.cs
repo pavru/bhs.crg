@@ -44,6 +44,9 @@ public sealed record ReportRequest(
     Guid? Id, Guid? EmployeeId, Guid? ConstructionId, DateOnly? Date, string? Shift, decimal? Hours, string? Note,
     Guid? ChangeId, DateTimeOffset? DeviceTime, IReadOnlyList<ReportLineRequest>? Lines)
 {
+    /// <summary>Причина обязательна для исправления закрытого отчёта.</summary>
+    public string? Reason { get; init; }
+
     /// <summary>Шапка отчёта: стройка и дата обязательны (ТЗ WORK-58), смена по умолчанию — дневная (ТЗ MOB-35).</summary>
     public ReportHeaderValues Header() => new(
         ConstructionId ?? throw new InvalidRequestException(ReportRules.NoSite),

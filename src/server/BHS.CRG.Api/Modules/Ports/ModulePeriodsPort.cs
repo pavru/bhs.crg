@@ -17,6 +17,9 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// </summary>
 public sealed class ModulePeriodsPort(IPeriodClosures closures) : IModulePeriods
 {
+    public Task<(Guid Id, DateTimeOffset At)?> ClosingAsync(Guid constructionId, DateOnly date, CancellationToken ct = default) =>
+        closures.ClosingAsync(constructionId, date, ct);
+
     public async Task<PeriodBoundaries> BoundariesAsync(CancellationToken ct = default)
     {
         var ledger = await closures.LedgerAsync(ct);

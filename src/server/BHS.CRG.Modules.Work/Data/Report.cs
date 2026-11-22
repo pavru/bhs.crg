@@ -75,6 +75,8 @@ public sealed class Report : IIsolatedRecord
 
     public string? Note { get; private set; }
 
+    public int CurrentVersion { get; private set; } = 1;
+
     /// <summary>
     /// Номер последнего изменения в серверной последовательности <c>work.report_seq</c> (ТЗ MOB-16) — тот же, что
     /// у последней записи <see cref="ReportChange" /> отчёта. По нему отдаёт изменения курсор <c>since</c>.
@@ -233,6 +235,15 @@ public sealed class Report : IIsolatedRecord
         EnsureReviewable();
         Status = ReportStatus.Returned;
         Touch(seq, now);
+    }
+
+    public void AdvanceVersion() => CurrentVersion++;
+
+    public void ResubmitAcceptedEdit(DateTimeOffset now)
+    {
+        Status = ReportStatus.Submitted;
+        SubmittedAt = now.ToUniversalTime();
+        SubmittedBy = ReportSubmitter.Manual;
     }
 
     /// <summary>Статус словами для отказа и уведомления: «черновик», «подан», «принят», «возвращён».</summary>

@@ -11,6 +11,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Contour = BHS.CRG.Domain.Periods.PeriodContour;
@@ -113,6 +114,56 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         var nowhere = await accountant.PostAsJsonAsync("/api/periods/close",
             CloseBody(through.AddDays(1), through.AddDays(2), Iso(through), Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.NotFound, nowhere.StatusCode);
+    }
+
+    [Fact]
+    public async Task Запрещающая_строка_меняет_отпечаток_и_не_даёт_закрыть()
+    {
+        var (accountant, _) = await SignInAsync("Accountant");
+        var through = new DateOnly(2001, 1, 31);
+        var body = CloseBody(through.AddDays(-30), through, "none");
+        var costsOnly = await (await accountant.PostAsJsonAsync("/api/periods/close/preview", body))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(costsOnly.GetProperty("canClose").GetBoolean());
+        Assert.Empty(costsOnly.GetProperty("sections")[0].GetProperty("blocking").EnumerateArray());
+
+        var probe = new BlockingProbe();
+        await using var factory = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<IModuleClosingReport>(probe)));
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = accountant.DefaultRequestHeaders.Authorization;
+        var clear = await (await client.PostAsJsonAsync("/api/periods/close/preview", body)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(clear.GetProperty("canClose").GetBoolean());
+
+        probe.Count = 3;
+        var blocked = await (await client.PostAsJsonAsync("/api/periods/close/preview", body)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(blocked.GetProperty("canClose").GetBoolean());
+        Assert.NotEqual(clear.GetProperty("stamp").GetString(), blocked.GetProperty("stamp").GetString());
+        var section = blocked.GetProperty("sections").EnumerateArray().Single(s => s.GetProperty("module").GetString() == "id");
+        Assert.Equal(3, section.GetProperty("blocking")[0].GetProperty("count").GetInt32());
+
+        using var scope = host.Services.CreateScope();
+        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
+        var before = await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code);
+        var refused = await client.PostAsJsonAsync("/api/periods/close",
+            CloseBody(through.AddDays(-30), through, "none", report: clear.GetProperty("stamp").GetString()!));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("Пробное препятствие: 3 отчёта", await ErrorAsync(refused));
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().HistoryAsync(10));
+        Assert.Equal(before, await journal.CountAsync(ActivityVisibility.Whole, ActivityActions.PeriodClosed.Code));
+
+        probe.Count = 0;
+        await ClosedAsync(client, through.AddDays(-30), through, "none");
+    }
+
+    private sealed class BlockingProbe : IModuleClosingReport
+    {
+        public string Module => "id";
+        public int Count { get; set; }
+
+        public Task<ModuleClosingSection> ReportAsync(ModuleClosingScope scope, CancellationToken ct = default) =>
+            Task.FromResult(new ModuleClosingSection("Проба", [], [],
+                [new("probe", "Пробное препятствие", Count, new("отчёт", "отчёта", "отчётов"))]));
     }
 
     [Fact]

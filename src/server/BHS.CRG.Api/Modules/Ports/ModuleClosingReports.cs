@@ -49,12 +49,13 @@ public sealed class ModuleClosingReports(IEnumerable<IModuleClosingReport> repor
             var section = await report.ReportAsync(scope, ct);
             // Ссылка строки ляжет в неизменяемую запись и станет адресом в экране ядра — только путь
             // внутри приложения. Чужой адрес отсюда вёл бы человека наружу под видом «посмотреть счета».
-            if (section.Unfinished.Concat(section.Frozen).FirstOrDefault(l => l.Link is not null && !ClosingReport.IsLocalLink(l.Link)) is { } foreign)
+            var lines = section.Unfinished.Concat(section.Frozen).Concat(section.Blocking);
+            if (lines.FirstOrDefault(l => l.Link is not null && !ClosingReport.IsLocalLink(l.Link)) is { } foreign)
                 throw new InvalidOperationException(
                     $"Модуль «{code}» дал строке диалога закрытия «{foreign.Key}» ссылку «{foreign.Link}». " +
                     "Ссылка строки — путь внутри приложения, от корня: «/tables/…».");
             sections.Add(new(code, modules.Find(code)!.Title, section.DateRule,
-                [.. section.Unfinished.Select(Line)], [.. section.Frozen.Select(Line)]));
+                [.. section.Unfinished.Select(Line)], [.. section.Frozen.Select(Line)], [.. section.Blocking.Select(Line)]));
         }
 
         return new(sections);

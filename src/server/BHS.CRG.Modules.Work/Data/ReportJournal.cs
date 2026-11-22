@@ -51,6 +51,7 @@ public sealed class ReportJournal(WorkDbContext db)
             [(null, "shift")] = Report.ShiftCode(report.Shift),
             [(null, "hours")] = Number(report.Hours),
             [(null, "note")] = report.Note,
+            [(null, "currentVersion")] = report.CurrentVersion,
             // Подача (work-15): статус, момент и незаполненное к автоподаче — запись о подаче называет их.
             [(null, "status")] = Report.StatusCode(report.Status),
             [(null, "submittedAt")] = report.SubmittedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
@@ -155,6 +156,17 @@ public sealed class ReportJournal(WorkDbContext db)
         JsonNode.Parse(entry.Changes) is JsonArray changes
             ? string.Join(", ", changes.Select(c => c?["field"]?.GetValue<string>()).OfType<string>().Distinct())
             : "";
+
+    internal static string AfterOwnEdit(ReportViewer viewer, Report report, ReportSnapshot before, DateTimeOffset now, string kind)
+    {
+        if (viewer.EmployeeId == report.EmployeeId && report.Status == ReportStatus.Accepted
+            && Diff(before, Capture(report)).Count > 0)
+        {
+            report.ResubmitAcceptedEdit(now);
+            return ReportJournalKinds.AcceptedChanged;
+        }
+        return kind;
+    }
 
     /// <summary>
     /// Число без хвостовых нулей: колонка <c>numeric(18,4)</c> читается как <c>120.0000</c>, а запрос приносит

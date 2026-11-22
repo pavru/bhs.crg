@@ -1,4 +1,5 @@
 using System.Globalization;
+using BHS.CRG.Modules.Ports;
 using System.Linq.Expressions;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Access;
@@ -66,7 +67,7 @@ public sealed record ReportGone(Guid Id, long Seq);
 /// занятости, у ключа — идентификатор отчёта ТОГО ЖЕ сотрудника, у идентификатора отчёта — чей он, для сравнения
 /// адресом, а не для ответа.</para>
 /// </summary>
-public sealed class ReportReads(WorkDbContext db)
+public sealed partial class ReportReads(WorkDbContext db)
 {
     /// <summary>
     /// Отчёт по идентификатору, если он виден читателю, — с отслеживанием (версия строки — теневое свойство) и со
@@ -387,6 +388,22 @@ public sealed class ReportReads(WorkDbContext db)
                && (report.Status == ReportStatus.Submitted || report.Status == ReportStatus.Accepted)
          select new CrewSubmittedEmployee(crew.Id, report.EmployeeId)).ToListAsync(ct);
 
+    public async Task<IReadOnlyDictionary<ReportStatus, int>> ClosingCountsAsync(
+        ModuleReader system, ModuleClosingScope scope, CancellationToken ct)
+    {
+        EnsureSystem(system);
+        var reports = db.Set<Report>().Where(r => r.Date <= scope.Through);
+        if (scope.From is { } from) reports = reports.Where(r => r.Date >= from);
+        if (scope.ConstructionId is { } site) reports = reports.Where(r => r.ConstructionId == site);
+
+        // Черновик остаётся препятствием до подачи, включая задержку между концом окна и тактом.
+        var counts = await reports.GroupBy(r => new { r.ConstructionId, r.Date, r.Status })
+            .Select(g => new { g.Key.ConstructionId, g.Key.Date, g.Key.Status, Count = g.Count() })
+            .ToListAsync(ct);
+        return counts.Where(r => scope.ClosesAnew(r.ConstructionId, r.Date)).GroupBy(r => r.Status)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
+    }
+
     private IQueryable<Report> Expired(DateTimeOffset now)
     {
         var at = now.ToUniversalTime();
@@ -398,8 +415,7 @@ public sealed class ReportReads(WorkDbContext db)
     {
         if (!reader.IsSystem || string.IsNullOrWhiteSpace(reader.SystemReason))
             throw new InvalidOperationException(
-                "Черновики с истёкшим окном и отчёты к сводке читает только такт автоподачи — от имени системы с причиной: у " +
-                "человека охват свой.");
+                "Автоподача, сводка и перечень закрытия читают все отчёты от имени системы с причиной: у человека охват свой.");
     }
 
     private IQueryable<Report> Visible(ReportViewer viewer)

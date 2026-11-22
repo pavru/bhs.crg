@@ -40,8 +40,11 @@ public sealed class ReportActions : IModuleActivityActions
     public static readonly ModuleActivityAction ManagerEdited =
         new("work.report.manager-edited", "Отчёт изменён менеджером", WorkModule.ReportRead);
 
+    public static readonly ModuleActivityAction Corrected =
+        new("work.report.corrected", "Закрытый отчёт исправлен", WorkModule.ReportRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Deleted, EditedAfterSubmission, AutoSubmitted, Accepted, Returned, ManagerEdited];
+        [Deleted, EditedAfterSubmission, AutoSubmitted, Accepted, Returned, ManagerEdited, Corrected];
 
     /// <summary>Цель записи: «Петров П. П. — Стройка А, 16.11.2026, день».</summary>
     public static string Label(string employee, string site, Report report) =>

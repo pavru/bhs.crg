@@ -31,6 +31,7 @@ public class PhotoMigrationTests
 
             await db.Database.MigrateAsync();
             Assert.False(db.Database.HasPendingModelChanges());
+            Assert.Equal(1, await db.Set<Report>().Select(r => r.CurrentVersion).SingleAsync());
             var pending = LinePhoto.Declared(Guid.NewGuid(), lineId, now);
             db.Add(pending);
             db.Add(LinePhotoRemoval.Of(LinePhoto.Declared(Guid.NewGuid(), lineId, now), now));
@@ -40,7 +41,7 @@ public class PhotoMigrationTests
 
             db.ChangeTracker.Clear();
             await migrator.MigrateAsync(previous);
-            Assert.Equal("прежний отчёт", (await db.Set<Report>().SingleAsync()).Note);
+            Assert.Equal("прежний отчёт", await db.Set<Report>().Select(r => r.Note).SingleAsync());
             Assert.Equal(lineId, await db.Database.SqlQueryRaw<Guid>("SELECT id AS \"Value\" FROM work.report_lines").SingleAsync());
 
             await db.Database.MigrateAsync();

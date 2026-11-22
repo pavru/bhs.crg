@@ -22,6 +22,9 @@ public interface IModulePeriods
 {
     /// <summary>Границы закрытия на сейчас — компании и каждой стройки со своим закрытием.</summary>
     Task<PeriodBoundaries> BoundariesAsync(CancellationToken ct = default);
+
+    /// <summary>Запись, с которой день стройки остаётся закрытым. После открытия и нового закрытия — новая запись.</summary>
+    Task<(Guid Id, DateTimeOffset At)?> ClosingAsync(Guid constructionId, DateOnly date, CancellationToken ct = default);
 }
 
 /// <summary>

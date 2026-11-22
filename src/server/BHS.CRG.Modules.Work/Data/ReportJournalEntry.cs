@@ -30,6 +30,10 @@ public static class ReportJournalKinds
 
     public const string CrewApproved = "crew-approved";
 
+    public const string Corrected = "corrected";
+
+    public const string AcceptedChanged = "accepted-changed";
+
     /// <summary>
     /// Правка менеджером поданного отчёта адресом ввода за сотрудника (<c>work-16</c>, ТЗ WORK-14) — запасной ход:
     /// протокол пишет её обычной правкой, а журнал называет отдельно, и по этой записи отчёт несёт пометку.

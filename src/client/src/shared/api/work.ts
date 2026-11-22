@@ -22,6 +22,7 @@ export const WORK_MARK_CODES = [
   'site-not-assigned',
   'photos-pending',
   'crew-mismatch',
+  'accepted-changed',
   'late-delivery',
 ] as const;
 

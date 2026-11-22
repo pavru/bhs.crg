@@ -163,6 +163,7 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
         assignment.HasIndex(a => new { a.EmployeeId, a.ConstructionId }).HasDatabaseName("ix_assignments_employee");
 
         WorkReportModel.Configure(builder, RowVersion);
+        ReportVersion.Configure(builder);
         CrewGroupRecord.Configure(builder);
     }
 

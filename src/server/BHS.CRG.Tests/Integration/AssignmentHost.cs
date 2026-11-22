@@ -7,10 +7,12 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Periods;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Periods;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
@@ -40,6 +42,8 @@ public sealed class AssignmentHost : ModuleOnlyHost
     /// <summary>20:00 31.10.2026 по Москве, 03:00 01.11.2026 во Владивостоке.</summary>
     public static readonly DateTimeOffset Now = new(2026, 10, 31, 17, 0, 0, TimeSpan.Zero);
 
+    internal DateTimeOffset? ClosureTime { get; set; }
+
     protected override string ModuleCode => WorkModule.ModuleCode;
 
     protected override string DatabaseSuffix => "assign";
@@ -53,6 +57,9 @@ public sealed class AssignmentHost : ModuleOnlyHost
             services.AddScoped<IModuleClock>(sp => new ModuleClockPort(
                 sp.GetRequiredService<IAppSettingsStore>(), new Fixed(Now),
                 sp.GetRequiredService<IRepository<Construction>>()));
+            services.RemoveAll<IPeriodClosures>();
+            services.AddScoped<IPeriodClosures>(sp => ActivatorUtilities.CreateInstance<PeriodClosureService>(
+                sp, ClosureTime is { } at ? (TimeProvider)new Fixed(at) : TimeProvider.System));
         });
     }
 

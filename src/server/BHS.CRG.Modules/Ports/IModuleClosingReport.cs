@@ -43,8 +43,13 @@ public sealed record ModuleClosingLine(
 /// учётному периоду оплаты» (ТЗ CORE-35).</param>
 /// <param name="Unfinished">Не завершено: закрытию не мешает, но после него останется как есть.</param>
 /// <param name="Frozen">Что войдёт в закрытый период.</param>
+/// <param name="Blocking">Что запрещает закрытие, пока число в строке ненулевое.</param>
 public sealed record ModuleClosingSection(
-    string DateRule, IReadOnlyList<ModuleClosingLine> Unfinished, IReadOnlyList<ModuleClosingLine> Frozen);
+    string DateRule, IReadOnlyList<ModuleClosingLine> Unfinished, IReadOnlyList<ModuleClosingLine> Frozen,
+    IReadOnlyList<ModuleClosingLine>? Blocking = null)
+{
+    public IReadOnlyList<ModuleClosingLine> Blocking { get; init; } = Blocking ?? [];
+}
 
 /// <summary>
 /// Что модуль скажет диалогу закрытия периода (ТЗ CORE-35; задача E1b, issue #1099). Модуль

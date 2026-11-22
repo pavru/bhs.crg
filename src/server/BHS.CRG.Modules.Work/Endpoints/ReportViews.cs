@@ -10,7 +10,11 @@ public sealed record ReportMaterialDto(Guid NomenclatureId, string? Note);
 /// Фото строки в ответе отчёта (ТЗ WORK-34, <c>work-17</c>): <c>state</c> — <c>pending</c> (объявлено, файла нет) |
 /// <c>stored</c>. Файл — адресами <c>/api/work/photos/{id}</c> и <c>…/preview</c>.
 /// </summary>
-public sealed record ReportPhotoDto(Guid Id, string State);
+public sealed record ReportPhotoDto(Guid Id, string State)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? VersionUrl { get; init; }
+}
 
 public sealed record ReportLineDto(
     Guid Id, int Position, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
@@ -47,7 +51,8 @@ public sealed record ReportDto(
     string? Note, long Seq, string Version, bool AssignedOnDate, ReportEnteredByDto? EnteredBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
     DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
-    bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks, int PhotosPending);
+    bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks, int PhotosPending,
+    int CurrentVersion, IReadOnlyList<ReportVersionDto> Versions, string View);
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается на чтении, по назначениям <c>work-11</c>, и не хранится:
@@ -70,13 +75,15 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
         IReadOnlyDictionary<Guid, string>? versions = null)
     {
         var marks = await reads.MarksAsync(viewer, [.. reports.Select(r => r.Id)], user.Id, ct);
+        var history = await reads.VersionListsAsync(viewer, user.Id, reports, ct);
         return
         [
             .. reports.Select(r =>
             {
                 var codes = marks.GetValueOrDefault(r.Id) ?? [];
                 return Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
-                    versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes);
+                    versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes,
+                    history.GetValueOrDefault(r.Id) ?? []);
             }),
         ];
     }
@@ -88,7 +95,8 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
     public static bool AcceptWouldMark(Report r, Guid? viewer) => ReviewMarks.AcceptWouldMark(r, viewer);
 
     private static ReportDto Dto(
-        Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks)
+        Report r, bool assigned, bool replayed, string version, bool acceptWouldMark, IReadOnlyList<string> marks,
+        IReadOnlyList<ReportVersionDto> history)
     {
         var pending = PhotosPendingOf(r);
         return new ReportDto(
@@ -96,19 +104,23 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
             Report.StatusCode(r.Status), r.Note, r.Seq, version, assigned,
             r.EnteredByUserId is { } by ? new ReportEnteredByDto(by, r.EnteredByName ?? by.ToString()) : null,
             r.CreatedAt, r.UpdatedAt,
-            [.. r.Lines.OrderBy(l => l.Position).Select(Line)],
+            LinesOf(r),
             replayed,
             r.Status == ReportStatus.Draft ? r.WindowEndsAt : null,
             r.SubmittedAt,
             r.SubmittedBy is { } submitter ? Report.SubmitterCode(submitter) : null,
             r.RequiredMissing is { } missing ? Parsed(missing) : null,
             AlreadySubmitted: false, AcceptWouldMark: acceptWouldMark,
-            Marks: ReviewMarks.Dtos(marks, pending), PhotosPending: pending);
+            Marks: ReviewMarks.Dtos(marks, pending), PhotosPending: pending,
+            r.CurrentVersion, history, ReportHistory.Corrected);
     }
 
     /// <summary>Недогруженные фото отчёта — строки обязаны быть загружены вместе с фото.</summary>
     public static int PhotosPendingOf(Report r) =>
         r.Lines.Sum(l => l.Photos.Count(p => p.State == LinePhotoState.Pending));
+
+    internal static IReadOnlyList<ReportLineDto> LinesOf(Report report) =>
+        [.. report.Lines.OrderBy(l => l.Position).Select(Line)];
 
     private static JsonElement Parsed(string json)
     {

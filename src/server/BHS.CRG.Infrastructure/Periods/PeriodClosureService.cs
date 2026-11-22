@@ -54,6 +54,26 @@ public sealed class PeriodClosureService(
     public async Task<IReadOnlyList<Guid>> ConstructionsAsync(CancellationToken ct = default) =>
         await db.Constructions.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Id).ToListAsync(ct);
 
+    public async Task<(Guid Id, DateTimeOffset At)?> ClosingAsync(Guid constructionId, DateOnly date, CancellationToken ct = default)
+    {
+        var rows = await db.PeriodClosures.AsNoTracking()
+            .Where(r => r.Through >= date && (r.Contour == PeriodContourKind.Company || r.ConstructionId == constructionId))
+            .Select(r => new { r.Id, r.CancelsId, r.At, r.Kind })
+            .ToListAsync(ct);
+        var cancelled = rows.Where(r => r.CancelsId != null).GroupBy(r => r.CancelsId!.Value)
+            .ToDictionary(g => g.Key, g => g.Min(r => r.At));
+        // День закрыт, пока его покрывает хотя бы одна действующая запись. Отмена перекрытого
+        // закрытия не прерывает этот отрезок. Начало ищем от действующих записей назад.
+        (Guid Id, DateTimeOffset At)? first = null;
+        foreach (var row in rows.Where(r => r.Kind == PeriodClosureKind.Close)
+                     .OrderByDescending(r => r.At).ThenByDescending(r => r.Id))
+        {
+            if (cancelled.TryGetValue(row.Id, out var end) && (first == null || end <= first.Value.At)) continue;
+            first = (row.Id, row.At);
+        }
+        return first;
+    }
+
     public async Task<DateOnly> TodayAsync(CancellationToken ct = default)
     {
         // Пояс компании, а не стройки: собственный пояс стройки (ТЗ CORE-5) здесь не учитывается —
@@ -103,6 +123,12 @@ public sealed class PeriodClosureService(
         // прислал клиент. Отпечаток сверяет его с увиденным; расхождение — это деньги, которые «останутся
         // неверными», и человек подтверждал не их.
         var report = await CollectAsync(ledger, request.Contour, request.Through, ct);
+        if (!report.CanClose)
+        {
+            var reasons = report.Sections.SelectMany(s => s.Blocking.Where(l => l.Count != 0)
+                .Select(l => $"{s.Title} — {l.Text}: {l.Unit.Text(l.Count)}"));
+            throw new ConflictException("Период нельзя закрыть. " + string.Join(". ", reasons));
+        }
         if (request.ReportSeen is { } seen && seen != report.Stamp(request.Contour, request.From, request.Through))
             throw new ConflictException(
                 "Пока диалог был открыт, данные изменились: в период попадает уже не то, что вы видели. " +
@@ -110,7 +136,8 @@ public sealed class PeriodClosureService(
 
         var before = ledger.ClosedThrough(request.Contour);
         var row = PeriodClosure.Close(
-            request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow(), report);
+            request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow(),
+            new ClosingReport([.. report.Sections.Select(s => s with { Blocking = [] })]));
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
 

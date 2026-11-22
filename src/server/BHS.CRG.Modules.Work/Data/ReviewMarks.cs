@@ -51,6 +51,7 @@ public static class ReviewMarks
     public const string ManagerEdit = "manager-edit";
     public const string SiteNotAssigned = "site-not-assigned";
     public const string CrewMismatch = "crew-mismatch";
+    public const string AcceptedChanged = "accepted-changed";
     public const string PhotosPending = "photos-pending";
     public const string LateDelivery = "late-delivery";
 
@@ -87,6 +88,12 @@ public static class ReviewMarks
         new(CrewMismatch, "расхождение в бригаде",
             "расходящиеся объёмы в группе, чей итог требует утверждения (work-18)",
             s => r => s.CrewMismatchReports.Contains(r.Id)),
+        new(AcceptedChanged, "изменение принятого",
+            "журнал отчёта: исполнитель изменил принятый отчёт и тот снова ждёт приёмки (work-19)",
+            s => r => r.Status == ReportStatus.Submitted
+                      && s.Journal.Any(e => e.ReportId == r.Id && e.Kind == ReportJournalKinds.AcceptedChanged
+                          && !s.Journal.Any(x => x.ReportId == r.Id && x.Seq > e.Seq
+                              && (x.Kind == ReportJournalKinds.Accepted || x.Kind == ReportJournalKinds.Returned)))),
         new(LateDelivery, "поздняя доставка",
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
     ];
