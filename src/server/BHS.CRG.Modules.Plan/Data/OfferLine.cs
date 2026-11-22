@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 
 namespace BHS.CRG.Modules.Plan.Data;
@@ -99,7 +100,7 @@ public sealed class OfferLine
     internal void SetPriceListEntry(PriceListEntry? entry)
     {
         if (entry is not null && (entry.WorkTypeId != WorkTypeId || entry.UnitId != PriceListUnitId))
-            throw new InvalidOperationException("Вид работы и единица цены должны совпадать со строкой КП.");
+            throw new ConflictException("Выбранная цена не соответствует виду работы или единице строки КП.");
         PriceListPrice = entry?.Price;
         PriceListValidFrom = entry?.ValidFrom;
     }
