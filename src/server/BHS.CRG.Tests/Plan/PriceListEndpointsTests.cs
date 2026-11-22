@@ -40,6 +40,51 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
     }
 
     [Fact]
+    public async Task Смена_единицы_сохраняет_единицу_истории_и_старого_КП()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var classifier = await EstimateSeed.ClassifierAsync(host);
+        var work = await WorkAsync("Вид со сменой единицы");
+        var manager = await ManagerAsync();
+        var original = await PutAsync(manager, work, January, 10m);
+        var oldOffer = await CreateOfferAsync(manager, site.Construction, work);
+
+        var workType = (await new WorkTypeSeed(host).SendAsync(new GetCommonDataEntryQuery(work)))!;
+        var name = workType.DisplayName!;
+        var code = workType.Data.RootElement.GetProperty("Код").GetString()!;
+        var piece = await UnitAsync(classifier.Piece);
+        var estimator = await AccessProbe.SignInAsync(host, "Estimator", "plan14");
+        var changed = await SendAsync(estimator, HttpMethod.Put, $"/api/work-types/{work}", workType.Version,
+            new { displayName = name, data = WorkTypeSeed.WorkTypeData(code, name, piece) });
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+
+        var history = await ReadPriceAsync(manager, work, June);
+        Assert.Equal(classifier.Piece, history.GetProperty("unitId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, history.GetProperty("effective").ValueKind);
+        Assert.Equal("м", history.GetProperty("history")[0].GetProperty("unit").GetString());
+        var unpriced = await CreateOfferAsync(manager, site.Construction, work);
+        Assert.Equal(JsonValueKind.Null, unpriced.GetProperty("lines")[0].GetProperty("price").ValueKind);
+
+        await PutAsync(manager, work, June, 100m);
+        var historical = await PutAsync(manager, work, January, 12m, Version(original));
+        Assert.Equal(classifier.Unit, historical.GetProperty("unitId").GetGuid());
+        var newOffer = await CreateOfferAsync(manager, site.Construction, work);
+        var newLine = newOffer.GetProperty("lines")[0];
+        Assert.Equal(classifier.Piece, newLine.GetProperty("priceListUnitId").GetGuid());
+        Assert.Equal(100m, newLine.GetProperty("price").GetDecimal());
+
+        var repricing = $"{Offers}/{oldOffer.GetProperty("id").GetGuid()}/reprice-from-pricelist";
+        var preview = await JsonAsync(await SendAsync(manager, HttpMethod.Post, repricing, Version(oldOffer),
+            new { preview = true }), HttpStatusCode.OK);
+        var applied = await JsonAsync(await SendAsync(manager, HttpMethod.Post, repricing, Version(oldOffer),
+            new { previewToken = PreviewToken(preview) }), HttpStatusCode.OK);
+        var oldLine = applied.GetProperty("offer").GetProperty("lines")[0];
+        Assert.Equal("м", oldLine.GetProperty("unit").GetString());
+        Assert.Equal(classifier.Unit, oldLine.GetProperty("priceListUnitId").GetGuid());
+        Assert.Equal(12m, oldLine.GetProperty("price").GetDecimal());
+    }
+
+    [Fact]
     public async Task Правка_и_снятие_цены_требуют_права_и_актуальной_версии()
     {
         var manager = await ManagerAsync();
@@ -118,6 +163,17 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
     }
 
     [Fact]
+    public async Task Пустой_элемент_массива_строк_отклоняется()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var manager = await ManagerAsync();
+        var response = await manager.PostAsJsonAsync($"{Offers}/from-pricelist",
+            new { constructionId = site.Construction, lines = new object?[] { null } });
+        var refusal = await JsonAsync(response, HttpStatusCode.BadRequest);
+        Assert.Contains("вид работы и объём", refusal.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task Цена_заморожена_до_пересчёта_черновика_с_предпросмотром()
     {
         var manager = await ManagerAsync();
@@ -130,13 +186,14 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
         var id = offer.GetProperty("id").GetGuid();
         var url = $"{Offers}/{id}";
         var reprice = $"{url}/reprice-from-pricelist";
-        await PutAsync(manager, work, January, 20m, Version(first));
+        var raised = await PutAsync(manager, work, January, 20m, Version(first));
 
         Assert.Equal(10m, (await ReadOffer()).GetProperty("lines")[0].GetProperty("price").GetDecimal());
         offer = await JsonAsync(await SendAsync(manager, HttpMethod.Put, $"{url}/markups", Version(offer),
             new { markup = 10m }), HttpStatusCode.OK);
         Assert.Equal(11m, offer.GetProperty("lines")[0].GetProperty("price").GetDecimal());
         Assert.Equal(HttpStatusCode.BadRequest, (await manager.PostAsJsonAsync(reprice, new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await SendAsync(manager, HttpMethod.Post, reprice, Version(offer), new { })).StatusCode);
 
         var preview = await JsonAsync(await SendAsync(manager, HttpMethod.Post, reprice, Version(offer),
             new { preview = true }), HttpStatusCode.OK);
@@ -146,12 +203,26 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
         Assert.Equal(22m, change.GetProperty("price").GetDecimal());
         Assert.Equal(11m, (await ReadOffer()).GetProperty("lines")[0].GetProperty("price").GetDecimal());
 
-        var applied = await JsonAsync(await SendAsync(manager, HttpMethod.Post, reprice, Version(offer), new { }), HttpStatusCode.OK);
+        await PutAsync(manager, work, January, 30m, Version(raised));
+        var stale = await SendAsync(manager, HttpMethod.Post, reprice, Version(offer), new { previewToken = PreviewToken(preview) });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        var unchanged = await ReadOffer();
+        Assert.Equal(Version(offer), Version(unchanged));
+        Assert.Equal(11m, unchanged.GetProperty("lines")[0].GetProperty("price").GetDecimal());
+
+        var fresh = await JsonAsync(await SendAsync(manager, HttpMethod.Post, reprice, Version(offer),
+            new { preview = true }), HttpStatusCode.OK);
+        Assert.Equal(33m, Assert.Single(fresh.GetProperty("changes").EnumerateArray()).GetProperty("price").GetDecimal());
+        var wrongDate = await SendAsync(manager, HttpMethod.Post, reprice, Version(offer),
+            new { date = July, previewToken = PreviewToken(fresh) });
+        Assert.Equal(HttpStatusCode.Conflict, wrongDate.StatusCode);
+        var applied = await JsonAsync(await SendAsync(manager, HttpMethod.Post, reprice, Version(offer),
+            new { previewToken = PreviewToken(fresh) }), HttpStatusCode.OK);
         var updated = applied.GetProperty("offer");
         Assert.NotEqual(Version(offer), Version(updated));
-        Assert.Equal(55m, updated.GetProperty("money").GetProperty("total").GetDecimal());
+        Assert.Equal(77m, updated.GetProperty("money").GetProperty("total").GetDecimal());
         Assert.Single(applied.GetProperty("changes").EnumerateArray());
-        Assert.Equal(22m, (await ReadOffer()).GetProperty("lines")[0].GetProperty("price").GetDecimal());
+        Assert.Equal(33m, (await ReadOffer()).GetProperty("lines")[0].GetProperty("price").GetDecimal());
         Assert.Equal(HttpStatusCode.Conflict, (await SendAsync(manager, HttpMethod.Post, reprice, Version(offer), new { })).StatusCode);
         var sent = await JsonAsync(await SendAsync(manager, HttpMethod.Post, $"{url}/send", Version(updated),
             new { sentOn = June }), HttpStatusCode.OK);
@@ -164,11 +235,16 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
     {
         var classifier = await EstimateSeed.ClassifierAsync(host);
         var seed = new WorkTypeSeed(host);
-        using var scope = host.Services.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
-        var unit = await repo.GetByIdAsync(classifier.Unit) ?? throw new InvalidOperationException();
+        var unit = await UnitAsync(classifier.Unit);
         return (await seed.RecordAsync(classifier.WorkTypeClass, name, WorkTypeSeed.WorkTypeData(
             $"02.{Guid.NewGuid():N}", name, unit))).Id;
+    }
+
+    private async Task<DomainObject> UnitAsync(Guid id)
+    {
+        using var scope = host.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+        return await repo.GetByIdAsync(id) ?? throw new InvalidOperationException();
     }
 
     private Task<HttpClient> ManagerAsync() => AccessProbe.SignInAsync(host, "ProjectManager", "plan14");
@@ -188,6 +264,8 @@ public class PriceListEndpointsTests(PlanOnlyHost host)
         }), HttpStatusCode.Created);
 
     private static string Version(JsonElement value) => value.GetProperty("version").GetString()!;
+
+    private static string PreviewToken(JsonElement value) => value.GetProperty("previewToken").GetString()!;
 
     private static async Task<HttpResponseMessage> SendAsync(
         HttpClient client, HttpMethod method, string url, string? version, object? body = null)

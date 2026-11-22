@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Offers;
@@ -40,6 +42,8 @@ public static partial class OfferEndpoints
     {
         if (body.Lines is not { Count: > 0 } lines)
             throw new InvalidRequestException("Добавьте хотя бы один вид работы в КП («lines»).");
+        if (lines.Any(l => l is null))
+            throw new InvalidRequestException("Каждая строка КП должна содержать вид работы и объём («lines»).");
         if (!(await constructions.ListAsync(ct)).Any(c => c.Id == body.ConstructionId))
             throw new InvalidRequestException("Стройка не найдена — её удалили либо адрес неверен.");
 
@@ -54,7 +58,7 @@ public static partial class OfferEndpoints
             if (line.Volume <= 0m || line.Volume >= 1_000_000_000_000m || decimal.Round(line.Volume, 6) != line.Volume)
                 throw new InvalidRequestException($"Объём «{work.DisplayName}» должен быть больше нуля, до 12 цифр до запятой и до шести после.");
             var added = OfferLine.FromWorkType(offer.Id, offer.Lines.Count + 1, work, line.Volume);
-            added.SetPriceListEntry(prices.GetValueOrDefault(work.Id));
+            added.SetPriceListEntry(prices.GetValueOrDefault((work.Id, work.UnitId!.Value)));
             offer.Lines.Add(added);
         }
         offer.SetPriceListDate(offer.Date, offer.CreatedAt);
@@ -81,17 +85,35 @@ public static partial class OfferEndpoints
         var date = body.Date ?? offer.Date;
         var ids = offer.Lines.Select(l => l.WorkTypeId!.Value).Distinct().ToArray();
         var entries = await PriceListPricing.ForWorksAsync(db, ids, date, ct);
+        var selected = offer.Lines.OrderBy(l => l.Order).ThenBy(l => l.Id)
+            .Select(l => (Line: l, Price: entries.GetValueOrDefault((l.WorkTypeId!.Value, l.PriceListUnitId!.Value))))
+            .ToList();
+        var previewToken = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            offer.Id,
+            Version = version,
+            Date = date,
+            Prices = selected.Select(s => new { s.Line.Id, EntryId = s.Price?.Id, Price = s.Price?.Price, ValidFrom = s.Price?.ValidFrom }),
+        })));
+        if (!body.Preview)
+        {
+            if (string.IsNullOrWhiteSpace(body.PreviewToken))
+                throw new InvalidRequestException("Сначала запросите предпросмотр и передайте его «previewToken».");
+            if (!string.Equals(previewToken, body.PreviewToken, StringComparison.Ordinal))
+                throw new ConflictException("Цены или дата пересчёта изменились после предпросмотра. Повторите предпросмотр КП.");
+        }
+
         var before = offer.Lines.ToDictionary(l => l.Id, l => (l.PriceListPrice, l.Price, Amount: OfferViews.Amount(l),
             Source: OfferViews.PriceSource(l)!));
-        foreach (var line in offer.Lines)
-            line.SetPriceListEntry(entries.GetValueOrDefault(line.WorkTypeId!.Value));
+        foreach (var (line, price) in selected)
+            line.SetPriceListEntry(price);
         OfferPricing.Reprice(offer, baseTotals: new Dictionary<Guid, decimal?>());
         var changes = offer.Lines.OrderBy(l => l.Order)
             .Where(l => before[l.Id] != (l.PriceListPrice, l.Price, OfferViews.Amount(l), OfferViews.PriceSource(l)!))
             .Select(l => new OfferPriceListLineChange(l.Id, l.WorkTypeId!.Value, l.Name, before[l.Id].Price, l.Price,
                 before[l.Id].Amount, OfferViews.Amount(l), before[l.Id].Source, OfferViews.PriceSource(l)!)).ToList();
         var money = OfferViews.Money(offer);
-        if (body.Preview) return Results.Ok(new OfferPriceListRepriceDto(date, version, changes, money, null));
+        if (body.Preview) return Results.Ok(new OfferPriceListRepriceDto(date, version, previewToken, changes, money, null));
 
         if (changes.Count > 0 || offer.PriceListDate != date)
         {
@@ -103,6 +125,6 @@ public static partial class OfferEndpoints
                 after: $"цены на {date:dd.MM.yyyy}; изменено строк: {changes.Count}; итого {Money(offer.Total)}", ct: ct);
         }
         var updated = await OfferViews.OneAsync(db, desk, user, id, ct);
-        return Results.Ok(new OfferPriceListRepriceDto(date, updated.Version, changes, money, updated));
+        return Results.Ok(new OfferPriceListRepriceDto(date, updated.Version, null, changes, money, updated));
     }
 }

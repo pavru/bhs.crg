@@ -38,6 +38,8 @@ public static class PlanReferences
     [
         ModuleReference.Holding("price_list_entries", "work_type_id", ReferenceTarget.Record,
             "строки прайс-листа с этим видом работы"),
+        ModuleReference.Holding("price_list_entries", "unit_id", ReferenceTarget.Record,
+            "цены прайс-листа за эту единицу измерения"),
         ModuleReference.Remembering("price_list_entries", "changed_by", ReferenceTarget.User,
             "кто записал цену — справочное поле; удаление учётной записи прайс-листа не касается"),
         ModuleReference.Remembering("offer_versions", "content", target: null,
@@ -58,6 +60,8 @@ public static class PlanReferences
             "кто сделал КП — справочное поле; удаление учётной записи КП не касается"),
         ModuleReference.Holding("offer_lines", "work_type_id", ReferenceTarget.Record,
             "строки коммерческих предложений с этим видом работы", Offer("offer_id")),
+        ModuleReference.Holding("offer_lines", "price_list_unit_id", ReferenceTarget.Record,
+            "строки коммерческих предложений по прайс-листу в этой единице измерения", Offer("offer_id")),
         ModuleReference.Holding("estimates", "construction_id", ReferenceTarget.Construction,
             "сметы этой стройки", Estimate("id")),
         ModuleReference.Holding("estimates", "section_id", ReferenceTarget.Section,

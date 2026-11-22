@@ -79,7 +79,8 @@ internal static class OfferViews
                 l.LsrSectionCode is null && l.LsrSectionName is null ? null : new LsrSectionDto(l.LsrSectionCode, l.LsrSectionName),
                 l.Name, l.Volume, l.Unit, l.WorkTypeId, l.Material ? "material" : "work", l.Markup,
                 new OfferMarkupDto(markup.Value, LevelCode(markup.Level)), l.Price, Amount(l), Marks(l, bases),
-                bases is null ? null : new OfferCostDto(baseTotal, baseTotal is { } b ? l.Amount - b : null), PriceSource(l));
+                bases is null ? null : new OfferCostDto(baseTotal, baseTotal is { } b ? l.Amount - b : null),
+                PriceSource(l), l.PriceListUnitId);
         }).ToList();
 
         var sections = offer.Lines.Where(l => l.LsrSectionCode is not null)

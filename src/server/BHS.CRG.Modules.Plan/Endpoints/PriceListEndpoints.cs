@@ -34,11 +34,11 @@ public static class PriceListEndpoints
         var names = works.ToDictionary(w => w.Id);
         var items = entries.GroupBy(e => e.Entry.WorkTypeId).Select(g =>
         {
-            var effective = PriceListPricing.Effective(g.Select(e => e.Entry), on);
-            var history = g.Select(e => View(e.Entry, e.Version.ToString(CultureInfo.InvariantCulture))).ToList();
             var work = names.GetValueOrDefault(g.Key);
+            var effective = PriceListPricing.Effective(g.Select(e => e.Entry).Where(e => e.UnitId == work?.UnitId), on);
+            var history = g.Select(e => View(e.Entry, e.Version.ToString(CultureInfo.InvariantCulture))).ToList();
             return new PriceListWorkDto(g.Key, work?.Code, work?.DisplayName, work?.UnitName,
-                work?.Archived ?? false, history.FirstOrDefault(e => e.Id == effective?.Id), history);
+                work?.UnitId, work?.Archived ?? false, history.FirstOrDefault(e => e.Id == effective?.Id), history);
         }).OrderBy(w => w.Code, StringComparer.Ordinal).ThenBy(w => w.Name).ThenBy(w => w.WorkTypeId).ToList();
         return Results.Ok(new PriceListDto(on, items));
     }
@@ -55,8 +55,8 @@ public static class PriceListEndpoints
             if (seen is not null)
                 throw new ConflictException("Строки прайс-листа на эту дату больше нет. Перечитайте прайс-лист.");
             var works = await workTypes.GetAsync([workTypeId], ct) ?? throw new ConflictException(IModuleWorkTypes.NotSetUp);
-            EnsureSelectable(works.SingleOrDefault(), workTypeId);
-            entry = PriceListEntry.Create(workTypeId, date);
+            var work = EnsureSelectable(works.SingleOrDefault(), workTypeId);
+            entry = PriceListEntry.Create(workTypeId, work.UnitId!.Value, work.UnitName!, date);
             db.PriceListEntries.Add(entry);
         }
         else
@@ -92,13 +92,14 @@ public static class PriceListEndpoints
     }
 
     private static PriceListEntryDto View(PriceListEntry entry, string version) =>
-        new(entry.Id, entry.WorkTypeId, entry.ValidFrom, entry.Price, entry.ChangedBy, entry.ChangedAt, version);
+        new(entry.Id, entry.WorkTypeId, entry.UnitId, entry.Unit, entry.ValidFrom, entry.Price, entry.ChangedBy, entry.ChangedAt, version);
 }
 
 public sealed record PriceListPutRequest(DateOnly? ValidFrom, decimal? Price);
 public sealed record PriceListEntryDto(
-    Guid Id, Guid WorkTypeId, DateOnly ValidFrom, decimal Price, Guid? ChangedBy, DateTimeOffset ChangedAt, string Version);
+    Guid Id, Guid WorkTypeId, Guid UnitId, string Unit, DateOnly ValidFrom, decimal Price,
+    Guid? ChangedBy, DateTimeOffset ChangedAt, string Version);
 public sealed record PriceListWorkDto(
-    Guid WorkTypeId, string? Code, string? Name, string? Unit, bool Archived,
+    Guid WorkTypeId, string? Code, string? Name, string? Unit, Guid? UnitId, bool Archived,
     PriceListEntryDto? Effective, IReadOnlyList<PriceListEntryDto> History);
 public sealed record PriceListDto(DateOnly Date, IReadOnlyList<PriceListWorkDto> Items);

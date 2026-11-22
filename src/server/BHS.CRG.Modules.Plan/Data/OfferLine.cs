@@ -54,6 +54,7 @@ public sealed class OfferLine
     /// <summary>Цена прайс-листа на момент расчёта, до наценки КП.</summary>
     public decimal? PriceListPrice { get; private set; }
     public DateOnly? PriceListValidFrom { get; private set; }
+    public Guid? PriceListUnitId { get; private set; }
 
     public bool MissingPrice => RevisionRowId is null && PriceListPrice is null;
 
@@ -91,11 +92,14 @@ public sealed class OfferLine
             WorkTypeId = work.Id,
             Name = work.Name ?? work.DisplayName,
             Volume = volume,
+            PriceListUnitId = work.UnitId,
             Unit = PlanText.Clip(work.UnitName, EstimateRow.UnitLength),
         };
 
     internal void SetPriceListEntry(PriceListEntry? entry)
     {
+        if (entry is not null && (entry.WorkTypeId != WorkTypeId || entry.UnitId != PriceListUnitId))
+            throw new InvalidOperationException("Вид работы и единица цены должны совпадать со строкой КП.");
         PriceListPrice = entry?.Price;
         PriceListValidFrom = entry?.ValidFrom;
     }

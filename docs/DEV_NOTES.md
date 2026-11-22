@@ -7213,15 +7213,17 @@ POST   /api/plan/revisions/{id}/distribution/carry-over/{itemId}  { action: appl
                                       помещаются — 400 balance; уже решено — 409. Журнал
                                       plan.distribution.carry-over
 
-# Прайс-лист (plan-14, PLAN-10.1). Действующая цена — запись с самой поздней датой validFrom,
-# не позже запрошенной даты. Цена задана за единицу классификатора. Ноль — допустимая цена.
-GET    /api/plan/pricelist?date=  → { date, items: [{ workTypeId, code, name, unit, archived,
+# Прайс-лист (plan-14, PLAN-10.1). Действующая цена — запись в текущей единице вида работы
+# с самой поздней датой validFrom, не позже запрошенной даты. Ноль — допустимая цена.
+GET    /api/plan/pricelist?date=  → { date, items: [{ workTypeId, code, name, unit, unitId, archived,
                                       effective, history }] }; право plan.offer.read. Без date —
                                       сегодня по поясу компании. effective — запись или null;
-                                      history — все цены вида работы, новые даты сверху
-PUT    /api/plan/pricelist/{workTypeId}  { validFrom, price } → запись { id, workTypeId, validFrom,
+                                      history — все цены с сохранёнными единицами, новые даты сверху
+PUT    /api/plan/pricelist/{workTypeId}  { validFrom, price } → запись { id, workTypeId, unitId, unit, validFrom,
                                       price, changedBy, changedAt, version }; право plan.pricelist.edit.
                                       Новая дата — без If-Match, правка — с версией записи.
+                                      У новой записи сохраняется текущая единица вида работы,
+                                      у существующей записи правка сохраняет прежнюю единицу.
                                       Если запись удалена после чтения, запрос с версией получает 409
 DELETE /api/plan/pricelist/entries/{id}  If-Match → 204; право plan.pricelist.edit. Для существующей
                                       записи отсутствие версии — 400, устаревшая версия — 409
@@ -7229,8 +7231,9 @@ DELETE /api/plan/pricelist/entries/{id}  If-Match → 204; право plan.price
 # КП по прайс-листу. Создание и пересчёт — право plan.offer.edit.
 POST   /api/plan/offers/from-pricelist  { constructionId, date?, customerId?, markup?, vatMode?,
                                       vatRate?, data?, lines: [{ workTypeId, volume }] } → 201 КП.
-                                      Снимок цены на дату КП хранится в строке до явного пересчёта,
-                                      наценки считаются от этого снимка. Цена и сумма строки без цены
+                                      Снимок цены на дату КП хранится в строке до явного пересчёта.
+                                      Единица строки (priceListUnitId, unit) фиксируется при создании.
+                                      Наценки считаются от снимка цены. Цена и сумма строки без цены
                                       равны null, priceSource: { kind: "none" }, marks: ["no-price"]
                                       по коду пометки. У строки с ценой priceSource:
                                       { kind: "pricelist", validFrom }. Итог по оценённым строкам
@@ -7238,9 +7241,12 @@ POST   /api/plan/offers/from-pricelist  { constructionId, date?, customerId?, ma
 GET    /api/plan/offers/{id}  → для КП по прайс-листу source: "pricelist", priceListDate — дата
                                       снимка цен, revision и drift равны null, canBuildSchedule: false,
                                       scheduleReason: "КП не из сметы". Чтение — право plan.offer.read
-POST   /api/plan/offers/{id}/reprice-from-pricelist  { date?, preview? } If-Match (version КП) →
-                                      { priceListDate, version, changes, money, offer }; date по
-                                      умолчанию — дата КП. Только для черновика по прайс-листу.
-                                      preview: true считает разницу без записи (offer: null).
+POST   /api/plan/offers/{id}/reprice-from-pricelist  { date?, preview?, previewToken? } If-Match (version КП) →
+                                      { priceListDate, version, previewToken, changes, money, offer };
+                                      date по умолчанию — дата КП. Для черновика по прайс-листу
+                                      выбирает цены в сохранённых единицах строк.
+                                      preview: true считает разницу без записи (offer: null) и отдаёт
+                                      previewToken. Для подтверждения передают этот токен и ту же дату.
+                                      Без токена — 400, при изменении цены или даты — 409.
                                       При применении возвращает сохранённое КП и изменения строк
 ```

@@ -27,14 +27,15 @@ public sealed record OfferPriceListCreateRequest(
     internal OfferDraftHeader Header => new(CustomerId, Date, Markup, VatMode, VatRate, Data);
 }
 
-public sealed record OfferPriceListRepriceRequest(DateOnly? Date, bool Preview);
+public sealed record OfferPriceListRepriceRequest(DateOnly? Date, bool Preview, string? PreviewToken);
 
 public sealed record OfferPriceListLineChange(
     Guid LineId, Guid WorkTypeId, string Name, decimal? PreviousPrice, decimal? Price, decimal? PreviousAmount,
     decimal? Amount, OfferPriceSourceDto PreviousPriceSource, OfferPriceSourceDto PriceSource);
 
 public sealed record OfferPriceListRepriceDto(
-    DateOnly PriceListDate, string Version, IReadOnlyList<OfferPriceListLineChange> Changes, OfferMoneyDto Money, OfferDto? Offer);
+    DateOnly PriceListDate, string Version, string? PreviewToken, IReadOnlyList<OfferPriceListLineChange> Changes,
+    OfferMoneyDto Money, OfferDto? Offer);
 
 /// <summary>Шапка КП целиком: что не названо, то пусто (заказчик, ставка, поля заказчика).</summary>
 public sealed record OfferUpdateRequest(
@@ -102,7 +103,8 @@ public sealed record OfferLineDto(
     Guid? WorkTypeId, string Kind, decimal? OwnMarkup, OfferMarkupDto Markup, decimal? Price, decimal? Amount,
     IReadOnlyList<PlanMark> Marks,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferCostDto? Cost,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferPriceSourceDto? PriceSource);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferPriceSourceDto? PriceSource,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? PriceListUnitId);
 
 /// <param name="Version">Версия строки для <c>If-Match</c>.</param>
 /// <param name="CurrentVersion">Номер версии КП (ТЗ PLAN-12).</param>

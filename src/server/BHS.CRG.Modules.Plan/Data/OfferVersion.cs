@@ -33,7 +33,7 @@ public sealed class OfferVersion : ModuleRecordVersion
             lines = offer.Lines.OrderBy(l => l.Order).Select(l => new
             {
                 l.Id, l.Order, l.RevisionRowId, l.WorkTypeId, l.Material, l.LsrSectionCode, l.LsrSectionName,
-                l.Number, l.Name, l.Volume, l.Unit, l.Markup, l.Price,
+                l.Number, l.Name, l.Volume, l.Unit, l.PriceListUnitId, l.Markup, l.Price,
                 amount = Endpoints.OfferViews.Amount(l), priceSource = Endpoints.OfferViews.PriceSource(l),
             }),
         }, Json), author);

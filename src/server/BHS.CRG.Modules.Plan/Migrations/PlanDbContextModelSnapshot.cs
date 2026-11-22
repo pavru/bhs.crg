@@ -1175,6 +1175,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("price_list_price");
 
+                    b.Property<Guid?>("PriceListUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("price_list_unit_id");
+
                     b.Property<DateOnly?>("PriceListValidFrom")
                         .HasColumnType("date")
                         .HasColumnName("price_list_valid_from");
@@ -1198,6 +1202,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnName("work_type_id");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PriceListUnitId")
+                        .HasDatabaseName("ix_offer_lines_price_list_unit_id")
+                        .HasFilter("price_list_unit_id IS NOT NULL");
 
                     b.HasIndex("RevisionRowId")
                         .HasDatabaseName("ix_offer_lines_revision_row_id");
@@ -1301,6 +1309,16 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("unit");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("unit_id");
+
                     b.Property<DateOnly>("ValidFrom")
                         .HasColumnType("date")
                         .HasColumnName("valid_from");
@@ -1310,6 +1328,9 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnName("work_type_id");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UnitId")
+                        .HasDatabaseName("ix_price_list_entries_unit_id");
 
                     b.HasIndex("WorkTypeId", "ValidFrom")
                         .IsUnique()
