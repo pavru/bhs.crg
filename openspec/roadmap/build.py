@@ -4,9 +4,12 @@ import json
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import sys
 
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from milestones import attach_milestones
 CHANGES = HERE.parent / "changes"
 OUTPUT = HERE / "dist" / "roadmap-3-4.html"
 CHANGE = re.compile(r"(?:plan|work)-\d{2}-[a-z0-9-]+|core-attachment-owner")
@@ -61,6 +64,26 @@ def read_why(path):
     return " ".join(line.strip() for line in match[1].splitlines()) if match else None
 
 
+def theme_roles():
+    """Подставляет роли живой темы в автономный HTML, без сетевых зависимостей."""
+    css = (HERE.parents[1] / "src/client/src/theme/md3-tokens.css").read_text(encoding="utf-8")
+    blocks = re.findall(r"[^{}]+\{([^{}]+)\}", css)
+    roles = {
+        "paper": "surface-container-low", "sheet": "surface", "ink": "on-surface",
+        "muted": "on-surface-variant", "rule": "outline-variant", "rule-strong": "outline",
+        "accent": "primary", "accent-soft": "primary-container", "done": "success",
+        "done-soft": "success-container", "warn": "warning", "warn-soft": "warning-container",
+        "code-bg": "surface-container",
+    }
+    result = []
+    for block in blocks[:2]:
+        values = dict(re.findall(r"--md-(?:sys|ext)-color-([\w-]+):\s*([^;]+);", block))
+        result.append(" ".join(f"--{name}: {values[role]};" for name, role in roles.items()))
+    if len(result) != 2:
+        raise ValueError("Нужны обе схемы темы MD3")
+    return result
+
+
 def main():
     changes = {}
     for change_id, (path, archived) in sorted(change_dirs().items()):
@@ -70,14 +93,20 @@ def main():
             "sections": sections,
             "why": read_why(path / "proposal.md"),
             "archived": archived,
+            "path": path.relative_to(HERE.parents[1]).as_posix(),
         }
     if not {"plan-00-epic", "work-00-epic"} <= changes.keys():
         raise SystemExit("В текущей копии OpenSpec нужны plan-00-epic и work-00-epic с tasks.md.")
 
+    definitions = json.loads((HERE / "milestones.json").read_text(encoding="utf-8"))["changes"]
+    attach_milestones(changes, definitions)
     history = json.loads((HERE / "claude-marks.json").read_text(encoding="utf-8"))["marks"]
     payload = json.dumps({"changes": changes, "claudeMarks": history}, ensure_ascii=False, separators=(",", ":"))
     template = (HERE / "roadmap.html").read_text(encoding="utf-8")
     page = template.replace("__ROADMAP_DATA__", payload.replace("<", "\\u003c"))
+    page = page.replace("__ROADMAP_SCRIPT__", (HERE / "roadmap.js").read_text(encoding="utf-8"))
+    light, dark = theme_roles()
+    page = page.replace("__LIGHT_THEME__", light).replace("__DARK_THEME__", dark)
     OUTPUT.parent.mkdir(exist_ok=True)
     with NamedTemporaryFile(dir=OUTPUT.parent, delete=False) as draft:
         path = Path(draft.name)
