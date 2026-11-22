@@ -12,6 +12,12 @@ public sealed class OfferActions : IModuleActivityActions
     public static readonly ModuleActivityAction Created =
         new("plan.offer.created", "КП сделано из редакции сметы", PlanModule.OfferRead);
 
+    public static readonly ModuleActivityAction CreatedFromPriceList =
+        new("plan.offer.created-from-pricelist", "КП сделано по прайс-листу", PlanModule.OfferRead);
+
+    public static readonly ModuleActivityAction RepricedFromPriceList =
+        new("plan.offer.repriced-from-pricelist", "КП пересчитано по прайс-листу", PlanModule.OfferRead);
+
     public static readonly ModuleActivityAction Changed =
         new("plan.offer.changed", "Шапка КП изменена", PlanModule.OfferRead);
 
@@ -31,5 +37,6 @@ public sealed class OfferActions : IModuleActivityActions
     public static readonly ModuleActivityAction NewVersion =
         new("plan.offer.version", "Новая версия КП создана", PlanModule.OfferRead);
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Markups, Deleted, Sent, Outcome, NewVersion];
+    public IReadOnlyList<ModuleActivityAction> Actions =>
+        [Created, CreatedFromPriceList, RepricedFromPriceList, Changed, Markups, Deleted, Sent, Outcome, NewVersion];
 }

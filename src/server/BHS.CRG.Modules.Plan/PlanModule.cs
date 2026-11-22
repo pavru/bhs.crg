@@ -71,6 +71,8 @@ public sealed class PlanModule : IAppModule
 
     public const string OfferSend = "plan.offer.send";
 
+    public const string PriceListEdit = "plan.pricelist.edit";
+
     /// <summary>Почему права контракта не входят в «читать всё»: это выдача другим модулям (D12 зонтика).</summary>
     private static readonly ReadAllMark ContractOut = ReadAllMark.Out("выдача другим модулям: модуль «Планирование» не открывает");
 
@@ -152,14 +154,14 @@ public sealed class PlanModule : IAppModule
         // цен продажи (PLAN-2), «Менеджер проекта» — наоборот (PLAN-11). Себестоимость в ответе КП — по-прежнему
         // под plan.estimate.cost.
         new(OfferRead,
-            "видеть коммерческие предложения: цены продажи, наценки и итоги",
-            "КП всех строек экземпляра — строки, цены продажи, наценки, НДС и итоги; себестоимость и маржу строк " +
+            "видеть коммерческие предложения и прайс-лист: цены продажи, наценки и итоги",
+            "Прайс-лист и КП всех строек экземпляра — строки, цены продажи, наценки, НДС и итоги; себестоимость и маржу строк " +
             "открывает право на себестоимость сметы",
             [EstimateRead],
             ReadAllMark.In),
 
         new(OfferEdit,
-            "делать КП из редакции сметы, править шапку и наценки, удалять черновики",
+            "делать КП из редакции сметы и по прайс-листу, править черновики и удалять их",
             "то же, что чтение КП, плюс изменение; КП, сделанное из редакции, фиксирует её — редакцию больше не " +
             "правят и не удаляют",
             [OfferRead, EstimateRead],
@@ -170,6 +172,11 @@ public sealed class PlanModule : IAppModule
             "отправленная версия не правится",
             [OfferRead],
             ReadAllMark.Out("отмечает отправку и итог коммерческого предложения")),
+        new(PriceListEdit,
+            "править прайс-лист",
+            "заводить, изменять и снимать цены продажи за единицу вида работы с датой начала действия",
+            [OfferRead],
+            ReadAllMark.Out("правит цены продажи")),
     ];
 
     /// <summary>
@@ -282,6 +289,7 @@ public sealed class PlanModule : IAppModule
         DistributionEndpoints.Map(endpoints);
         ConjunctureEndpoints.Map(endpoints);
         OfferEndpoints.Map(endpoints);
+        PriceListEndpoints.Map(endpoints);
     }
 
     /// <summary>

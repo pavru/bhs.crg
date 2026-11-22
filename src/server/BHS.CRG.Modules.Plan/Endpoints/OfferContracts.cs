@@ -10,7 +10,32 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// <param name="Data">Поля заказчика по схеме типа; системные «Наценка» и «Итого» не присылаются.</param>
 public sealed record OfferCreateRequest(
     Guid RevisionId, Guid? CustomerId, DateOnly? Date, decimal? Markup, string? VatMode, decimal? VatRate,
-    JsonElement? Data);
+    JsonElement? Data)
+{
+    internal OfferDraftHeader Header => new(CustomerId, Date, Markup, VatMode, VatRate, Data);
+}
+
+internal sealed record OfferDraftHeader(
+    Guid? CustomerId, DateOnly? Date, decimal? Markup, string? VatMode, decimal? VatRate, JsonElement? Data);
+
+public sealed record OfferPriceListWorkRequest(Guid WorkTypeId, decimal Volume);
+
+public sealed record OfferPriceListCreateRequest(
+    Guid ConstructionId, Guid? CustomerId, DateOnly? Date, decimal? Markup, string? VatMode, decimal? VatRate,
+    JsonElement? Data, IReadOnlyList<OfferPriceListWorkRequest>? Lines)
+{
+    internal OfferDraftHeader Header => new(CustomerId, Date, Markup, VatMode, VatRate, Data);
+}
+
+public sealed record OfferPriceListRepriceRequest(DateOnly? Date, bool Preview, string? PreviewToken);
+
+public sealed record OfferPriceListLineChange(
+    Guid LineId, Guid WorkTypeId, string Name, decimal? PreviousPrice, decimal? Price, decimal? PreviousAmount,
+    decimal? Amount, OfferPriceSourceDto PreviousPriceSource, OfferPriceSourceDto PriceSource);
+
+public sealed record OfferPriceListRepriceDto(
+    DateOnly PriceListDate, string Version, string? PreviewToken, IReadOnlyList<OfferPriceListLineChange> Changes,
+    OfferMoneyDto Money, OfferDto? Offer);
 
 /// <summary>Шапка КП целиком: что не названо, то пусто (заказчик, ставка, поля заказчика).</summary>
 public sealed record OfferUpdateRequest(
@@ -51,7 +76,11 @@ public sealed record OfferVatDto(string Mode, decimal? Rate);
 /// <param name="LinesTotal">Сумма строк по ценам продажи.</param>
 /// <param name="Vat">НДС с суммы строк; <c>null</c> — «без НДС».</param>
 /// <param name="Total">«Итого» — к оплате.</param>
-public sealed record OfferMoneyDto(decimal LinesTotal, decimal? Vat, decimal Total);
+public sealed record OfferMoneyDto(decimal LinesTotal, decimal? Vat, decimal Total, bool Incomplete);
+
+public sealed record OfferPriceSourceDto(
+    string Kind,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? ValidFrom = null);
 
 /// <summary>Действующая наценка и откуда она: <c>line</c>, <c>section</c>, <c>offer</c>.</summary>
 public sealed record OfferMarkupDto(decimal Value, string Level);
@@ -71,9 +100,11 @@ public sealed record OfferCostDto(decimal? Total, decimal? Margin);
 /// <param name="Price">Цена продажи за единицу; <c>null</c> — у строки нет объёма или итога в смете (пометка).</param>
 public sealed record OfferLineDto(
     Guid Id, int Order, string? Number, LsrSectionDto? LsrSection, string Name, decimal? Volume, string? Unit,
-    Guid? WorkTypeId, string Kind, decimal? OwnMarkup, OfferMarkupDto Markup, decimal? Price, decimal Amount,
+    Guid? WorkTypeId, string Kind, decimal? OwnMarkup, OfferMarkupDto Markup, decimal? Price, decimal? Amount,
     IReadOnlyList<PlanMark> Marks,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferCostDto? Cost);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferCostDto? Cost,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferPriceSourceDto? PriceSource,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? PriceListUnitId);
 
 /// <param name="Version">Версия строки для <c>If-Match</c>.</param>
 /// <param name="CurrentVersion">Номер версии КП (ТЗ PLAN-12).</param>
@@ -85,12 +116,23 @@ public sealed record OfferDto(
     IReadOnlyList<OfferSectionDto> Sections, OfferMoneyDto Money, IReadOnlyList<OfferLineDto> Lines, JsonElement Data,
     DateTimeOffset CreatedAt, string? CreatedBy, DateTimeOffset ChangedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OfferCostDto? Cost,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden)
+{
+    public string Source => Revision is null ? "pricelist" : "estimate";
+    public DateOnly? PriceListDate { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public JsonElement Drift => Revision is null ? JsonSerializer.SerializeToElement<object?>(null) : default;
+    public bool CanBuildSchedule => Revision is not null;
+    public string? ScheduleReason => Revision is null ? "КП не из сметы" : null;
+}
 
 /// <summary>КП в списке: шапка и суммы, без строк.</summary>
 public sealed record OfferListItemDto(
     Guid Id, string Number, DateOnly Date, string Status, int CurrentVersion, DateOnly? SentOn, string Version, Guid ConstructionId,
-    OfferCustomerDto? Customer, OfferRevisionDto? Revision, OfferVatDto Vat, OfferMoneyDto Money, DateTimeOffset ChangedAt);
+    OfferCustomerDto? Customer, OfferRevisionDto? Revision, OfferVatDto Vat, OfferMoneyDto Money, DateTimeOffset ChangedAt)
+{
+    public string Source => Revision is null ? "pricelist" : "estimate";
+}
 
 /// <param name="Next">Курсор следующей страницы; <c>null</c> — КП больше нет.</param>
 public sealed record OfferListDto(

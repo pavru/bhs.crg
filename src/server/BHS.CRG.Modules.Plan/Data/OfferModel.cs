@@ -29,6 +29,7 @@ internal static class OfferModel
         offer.Property(o => o.ConstructionId).HasColumnName("construction_id");
         offer.Property(o => o.CustomerId).HasColumnName("customer_id");
         offer.Property(o => o.RevisionId).HasColumnName("revision_id");
+        offer.Property(o => o.PriceListDate).HasColumnName("price_list_date");
         offer.Property(o => o.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16);
         offer.Property(o => o.CurrentVersion).HasColumnName("current_version");
         offer.Property(o => o.SentOn).HasColumnName("sent_on");
@@ -78,10 +79,16 @@ internal static class OfferModel
         line.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(EstimateRow.UnitLength);
         line.Property(l => l.Markup).HasColumnName("markup").HasPrecision(7, 2);
         line.Property(l => l.Price).HasColumnName("price").HasPrecision(18, 2);
+        line.Property(l => l.PriceListPrice).HasColumnName("price_list_price").HasPrecision(18, 2);
+        line.Property(l => l.PriceListUnitId).HasColumnName("price_list_unit_id");
+        line.Property(l => l.PriceListValidFrom).HasColumnName("price_list_valid_from");
         line.Property(l => l.Amount).HasColumnName("amount").HasPrecision(18, 2);
         line.Ignore(l => l.Unmatched);
+        line.Ignore(l => l.MissingPrice);
         line.HasIndex(l => new { l.OfferId, l.Order }).HasDatabaseName("ix_offer_lines_offer_order");
         line.HasIndex(l => l.WorkTypeId).HasDatabaseName("ix_offer_lines_work_type_id").HasFilter("work_type_id IS NOT NULL");
+        line.HasIndex(l => l.PriceListUnitId).HasDatabaseName("ix_offer_lines_price_list_unit_id")
+            .HasFilter("price_list_unit_id IS NOT NULL");
         // Строка редакции держится базой так же, как редакция: редакция КП зафиксирована и не удаляется.
         line.HasOne<EstimateRow>().WithMany().HasForeignKey(l => l.RevisionRowId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_offer_lines_revision_row");

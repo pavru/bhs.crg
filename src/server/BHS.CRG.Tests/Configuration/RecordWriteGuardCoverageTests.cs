@@ -105,8 +105,9 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "строка новой редакции сметы (plan-06): сметное наполнение по схеме «Позиция сметы» вносится " +
                       "впервые — редакция заводится целиком, лежащего нет; единственное место записи строк"),
         ["BHS.CRG.Modules.Plan/Endpoints/OfferEndpoints.cs|offer.ApplyCustomerData(customer, now);"] =
-            (Guarded, "поля заказчика КП (plan-13): у создания — впервые, у правки — против лежащего с проекцией " +
-                      "системных полей «Наценка» и «Итого»; охрана стоит перед записью в обоих адресах"),
+            (Guarded, "правка полей заказчика КП против лежащего с проекцией системных полей «Наценка» и «Итого»"),
+        ["BHS.CRG.Modules.Plan/Endpoints/OfferPriceListEndpoints.cs|offer.ApplyCustomerData(customer, now);"] =
+            (Guarded, "создание черновика из редакции или по прайс-листу: поля заказчика вносятся впервые"),
         ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|if (was is null) report.Lines.Add(ReportLine.Create(report.Id, i, line, items[line.Id]));"] =
             (Guarded, "новая строка отчёта монтажника (work-13): сведения по схеме «Строка работы: сведения» вносятся " +
                       "впервые — охрана как создание"),
