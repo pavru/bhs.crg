@@ -5,8 +5,8 @@ import { figure, goneLines, goneSections, localLink, unfinishedSummary, visiblyC
 const line = (key: string, count: number, counted: string, amount: number | null = null): ClosingLine =>
   ({ key, text: key, count, counted, amount, note: null, link: null });
 
-const section = (module: string, unfinished: ClosingLine[], frozen: ClosingLine[] = []): ClosingSection =>
-  ({ module, title: module, dateRule: '', unfinished, frozen, amountsHidden: false });
+const section = (module: string, unfinished: ClosingLine[], frozen: ClosingLine[] = [], blocking: ClosingLine[] = []): ClosingSection =>
+  ({ module, title: module, dateRule: '', blocking, unfinished, frozen, amountsHidden: false });
 
 describe('figure', () => {
   it('называет сумму, только когда она есть', () => {
@@ -101,5 +101,17 @@ describe('goneSections и visiblyChanged', () => {
   it('изменившаяся или исчезнувшая строка — видимое изменение', () => {
     expect(visiblyChanged(before, [section('costs', [line('unsettled', 3, '3 счёта')], [line('entering', 5, '5 счетов')]), before[1]])).toBe(true);
     expect(visiblyChanged(before, [section('costs', [], [line('entering', 5, '5 счетов')]), before[1]])).toBe(true);
+  });
+
+  it('видит новый запрет и снятие запрета, включая переход через нулевое число', () => {
+    const empty = section('work', [], [], [line('pending', 0, '0 отчётов')]);
+    const pending = line('pending', 2, '2 отчёта');
+    const blocked = section('work', [], [], [pending]);
+    expect(wasText([empty], 'work', 'blocking', pending)).toBe('не было');
+    expect(goneLines([blocked], empty, 'blocking')).toEqual([pending]);
+    expect(visiblyChanged([empty], [blocked])).toBe(true);
+    expect(visiblyChanged([blocked], [empty])).toBe(true);
+    expect(visiblyChanged([empty], [section('work', [])])).toBe(false);
+    expect(unfinishedSummary([blocked])).toBeNull();
   });
 });

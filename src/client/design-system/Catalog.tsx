@@ -13,6 +13,7 @@ import { Library } from './Library';
 import { Coverage } from './Coverage';
 import { Mockups } from './Mockups';
 import { Work12 } from './Work12';
+import { Work19 } from './work19/Review';
 import { componentNames, catalogStories } from './catalog-data';
 
 const sections = [
@@ -28,6 +29,7 @@ const sections = [
   { id: 'screen', label: 'Пример экрана', icon: glyphs.Description, description: 'Один экран в трёх компоновках' },
   { id: 'mockups', label: 'Восстановленные макеты', icon: glyphs.Description, description: 'Макеты и варианты из архива Claude' },
   { id: 'work12', label: 'Назначения · 4 варианта', icon: glyphs.Group, description: 'work-12 · Восстановленный макет · Не первичный' },
+  { id: 'work19', label: 'Закрытие периода · Р4', icon: glyphs.CalendarCheck, description: 'Три варианта диалога work-19' },
   { id: 'coverage', label: 'Покрытие исходников', icon: glyphs.Check, description: 'Полнота библиотеки и служебные контексты' },
 ];
 
@@ -81,7 +83,7 @@ export function Catalog() {
   const content: Record<string, ReactNode> = {
     overview: <Overview navigate={navigate} />, foundations: <Foundations theme={theme} />,
     actions: <Actions />, fields: <Fields />, selection: <Selection />,
-    feedback: <Feedback />, layers: <Layers />, icons: <IconLibrary />, screen: <DocumentScreen />, library: <Library />, coverage: <Coverage />, mockups: <Mockups />, work12: <Work12 />,
+    feedback: <Feedback />, layers: <Layers />, icons: <IconLibrary />, screen: <DocumentScreen />, library: <Library />, coverage: <Coverage />, mockups: <Mockups />, work12: <Work12 />, work19: <Work19 />,
   };
   return <ThemeContext.Provider value={{ theme, resolvedTheme: theme, setTheme: t => setTheme(t === 'dark' ? 'dark' : 'light'), saveState: 'idle' }}>
     <a className="skip-link" href="#catalog-content">К содержимому</a>

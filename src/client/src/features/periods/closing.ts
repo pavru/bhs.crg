@@ -7,7 +7,13 @@ import { formatMoney } from '@/shared/format/format';
  * изменились».
  */
 
-export type ClosingGroup = 'unfinished' | 'frozen';
+export type ClosingGroup = 'blocking' | 'unfinished' | 'frozen';
+
+/** Нулевой запрет не мешает закрытию и не показывается как причина. */
+export function groupLines(section: ClosingSection, group: ClosingGroup): ClosingLine[] {
+  const lines = section[group];
+  return group === 'blocking' ? lines.filter(line => line.count !== 0) : lines;
+}
 
 /** Строка числом и суммой: «3 счёта на 412 500,00 ₽»; без суммы — «3 счёта». */
 export function figure(line: Pick<ClosingLine, 'counted' | 'amount'>): string {
@@ -24,9 +30,6 @@ export function unfinishedSummary(sections: ClosingSection[]): string | null {
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-const lineOf = (sections: ClosingSection[], module: string, group: ClosingGroup, key: string) =>
-  sections.find(s => s.module === module)?.[group].find(l => l.key === key);
-
 /**
  * Чем строка была в перечне, который человек видел до отказа: «было: 2 счёта на 300,00 ₽»; строки не
  * было — «не было». null — строка не изменилась либо сравнивать не с чем.
@@ -35,7 +38,8 @@ export function wasText(
   before: ClosingSection[] | null, module: string, group: ClosingGroup, line: ClosingLine,
 ): string | null {
   if (!before) return null;
-  const was = lineOf(before, module, group, line.key);
+  const section = before.find(s => s.module === module);
+  const was = section && groupLines(section, group).find(l => l.key === line.key);
   if (!was) return 'не было';
   return figure(was) === figure(line) ? null : `было: ${figure(was)}`;
 }
@@ -44,8 +48,10 @@ export function wasText(
 export function goneLines(
   before: ClosingSection[] | null, section: ClosingSection, group: ClosingGroup,
 ): ClosingLine[] {
-  const was = before?.find(s => s.module === section.module)?.[group] ?? [];
-  return was.filter(l => !section[group].some(now => now.key === l.key));
+  const previous = before?.find(s => s.module === section.module);
+  if (!previous) return [];
+  const now = groupLines(section, group);
+  return groupLines(previous, group).filter(l => !now.some(line => line.key === l.key));
 }
 
 /** Разделы, которые были в прежнем перечне, а в нынешнем их нет вовсе: модуль перестал отвечать. */
@@ -59,10 +65,10 @@ export function goneSections(before: ClosingSection[] | null, sections: ClosingS
  * тогда об этом надо сказать словами, иначе отказ выглядит беспричинным.
  */
 export function visiblyChanged(before: ClosingSection[], sections: ClosingSection[]): boolean {
-  const groups: ClosingGroup[] = ['unfinished', 'frozen'];
+  const groups: ClosingGroup[] = ['blocking', 'unfinished', 'frozen'];
   return goneSections(before, sections).length > 0 || sections.some(section => groups.some(group =>
     goneLines(before, section, group).length > 0
-    || section[group].some(line => wasText(before, section.module, group, line) !== null)));
+    || groupLines(section, group).some(line => wasText(before, section.module, group, line) !== null)));
 }
 
 /**
