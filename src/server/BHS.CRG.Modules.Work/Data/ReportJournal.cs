@@ -10,16 +10,20 @@ namespace BHS.CRG.Modules.Work.Data;
 /// </summary>
 public sealed class ReportSnapshot
 {
-    internal ReportSnapshot(IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> values, IReadOnlyList<Guid?> order)
+    internal ReportSnapshot(IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> values,
+        IReadOnlyList<Guid?> order, DateTimeOffset? submittedAtForEdit)
     {
         Values = values;
         Order = order;
+        SubmittedAtForEdit = submittedAtForEdit;
     }
 
     internal IReadOnlyDictionary<(Guid? Line, string Field), JsonNode?> Values { get; }
 
     /// <summary>Порядок строк для порядка записей «что изменилось»: шапка первой, затем строки по позиции.</summary>
     internal IReadOnlyList<Guid?> Order { get; }
+
+    internal DateTimeOffset? SubmittedAtForEdit { get; }
 }
 
 /// <summary>
@@ -86,7 +90,8 @@ public sealed class ReportJournal(WorkDbContext db)
                 foreach (var (key, value) in details)
                     values[(id, "details." + key)] = value?.DeepClone();
         }
-        return new ReportSnapshot(values, [null, .. lines.Select(l => (Guid?)l.Id)]);
+        var submittedAtForEdit = report.Status is ReportStatus.Submitted or ReportStatus.Accepted ? report.SubmittedAt : null;
+        return new ReportSnapshot(values, [null, .. lines.Select(l => (Guid?)l.Id)], submittedAtForEdit);
     }
 
     /// <summary>
@@ -103,9 +108,7 @@ public sealed class ReportJournal(WorkDbContext db)
         var entry = ReportJournalEntry.Of(report.Id, report.EmployeeId, kind, changeId, seq, author, executorName, deviceTime, serverTime,
             // Правкой после подачи бывает только правка содержимого: подача, приёмка и возврат — переходы статуса. У
             // возвращённого — нет (work-16): его исправляют по просьбе менеджера, а момент подачи у него прежний.
-            afterSubmission: ReportJournalKinds.IsEdit(kind)
-                             && report.Status is ReportStatus.Submitted or ReportStatus.Accepted
-                             && report.SubmittedAt is { } submitted && actedAt > submitted,
+            afterSubmission: ReportJournalKinds.IsEdit(kind) && before?.SubmittedAtForEdit is { } submitted && actedAt > submitted,
             changes: Diff(before, after).ToJsonString(), comment: comment);
         db.Add(entry);
         return entry;

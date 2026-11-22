@@ -53,7 +53,7 @@ public static class ReportJournalKinds
     public const string NotifyNone = "notify-none";
 
     /// <summary>Виды, которые бывают «правкой после подачи» (ТЗ WORK-11): правки содержимого, а не переходы статуса.</summary>
-    public static bool IsEdit(string kind) => kind is Updated or ManagerEdited;
+    public static bool IsEdit(string kind) => kind is Updated or ManagerEdited or AcceptedChanged;
 }
 
 /// <summary>

@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Tests.Work;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Integration.WorkPeriodWorld;
 
@@ -129,6 +131,71 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(firstClosing, (await periods.ClosingAsync(site, AssignmentWorld.Day(OctoberEnd)))?.Id);
         var view = await installer.GetFromJsonAsync<JsonElement>($"{Reports}/{id}?view=at-closing");
         Assert.Equal(120m, Volume(view));
+    }
+
+    [Fact]
+    public async Task Чтение_на_момент_закрытия_удерживает_отчёт_и_границу_до_конца()
+    {
+        var site = period.World.SiteA;
+        var (employee, installer) = await period.World.InstallerAsync("Монтажник");
+        var (_, manager) = await period.World.ManagerAsync("Менеджер", site);
+        var closer = await period.CloserAsync();
+        var (id, line) = (Guid.NewGuid(), Guid.NewGuid());
+        var accepted = await period.AcceptedAsync(installer, manager, id, site, lineId: line);
+        await CloseAsync(closer);
+        var first = await CorrectAsync(manager, id, ReviewWorld.Version(accepted), Body(site, line, 100m));
+
+        using var readerScope = host.Services.CreateScope();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var gate = new PausedClosingPort(readerScope.ServiceProvider.GetRequiredService<IModulePeriods>());
+        var reader = ActivatorUtilities.CreateInstance<ReportHistory>(readerScope.ServiceProvider, (IModulePeriods)gate);
+        var reading = reader.GetAsync(ReportViewer.Own(employee), id, ReportHistory.AtClosing, timeout.Token);
+        try
+        {
+            await gate.Entered.Task.WaitAsync(timeout.Token);
+            using var probeScope = host.Services.CreateScope();
+            var db = probeScope.ServiceProvider.GetRequiredService<WorkDbContext>();
+            await using var tx = await db.Database.BeginTransactionAsync(timeout.Token);
+            var canReopen = await db.Database
+                .SqlQuery<bool>($"""SELECT pg_try_advisory_xact_lock({OpenPeriodWrite.LockKey}) AS "Value" """)
+                .SingleAsync(timeout.Token);
+            var canCorrect = await db.Database
+                .SqlQuery<bool>($"""SELECT pg_try_advisory_xact_lock(hashtextextended({WorkDbContext.ReportLockKey(employee)}, 0)) AS "Value" """)
+                .SingleAsync(timeout.Token);
+            Assert.False(canReopen);
+            Assert.False(canCorrect);
+        }
+        finally
+        {
+            gate.Resume.TrySetResult();
+            await reading;
+        }
+        var historical = await reading;
+        Assert.Equal(ReportHistory.AtClosing, historical.View);
+        Assert.Equal(120m, Assert.Single(historical.Lines).Volume);
+
+        await CorrectAsync(manager, id, ReviewWorld.Version(first), Body(site, line, 90m));
+        host.ClosureTime = host.ClosureTime!.Value.AddMinutes(1);
+        await ReopenCompanyAsync(closer);
+        var open = await installer.GetFromJsonAsync<JsonElement>($"{Reports}/{id}?view=at-closing");
+        Assert.Equal("corrected", open.GetProperty("view").GetString());
+        Assert.Equal(90m, Volume(open));
+    }
+
+    private sealed class PausedClosingPort(IModulePeriods inner) : IModulePeriods
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<PeriodBoundaries> BoundariesAsync(CancellationToken ct = default) => inner.BoundariesAsync(ct);
+
+        public async Task<(Guid Id, DateTimeOffset At)?> ClosingAsync(Guid constructionId, DateOnly date,
+            CancellationToken ct = default)
+        {
+            Entered.TrySetResult();
+            await Resume.Task.WaitAsync(ct);
+            return await inner.ClosingAsync(constructionId, date, ct);
+        }
     }
 
     [Fact]

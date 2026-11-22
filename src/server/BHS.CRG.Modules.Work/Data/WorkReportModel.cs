@@ -128,6 +128,8 @@ internal static class WorkReportModel
         photo.Property(p => p.TakenAt).HasColumnName("taken_at");
         photo.Property(p => p.DeclaredAt).HasColumnName("declared_at");
         photo.Property(p => p.StoredAt).HasColumnName("stored_at");
+        photo.Property(p => p.DeclaredInClosingId).HasColumnName("declared_in_closing_id");
+        photo.Property(p => p.StoredInClosingId).HasColumnName("stored_in_closing_id");
         photo.Property(p => p.StoredSeq).HasColumnName("stored_seq");
         // Версия строки фото: правка, прочитавшая фото ждущим, не снимет его после доставки по устаревшему виду —
         // иначе пути файлов, пришедших тем временем, ушли бы вместе со строкой, а файлы остались бы без ссылки.

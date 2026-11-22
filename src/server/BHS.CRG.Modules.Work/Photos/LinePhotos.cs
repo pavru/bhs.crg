@@ -82,7 +82,7 @@ public sealed class LinePhotos(
         if (await reads.PhotoLineAsync(photoId, ct) is { } holder && holder != lineId) throw new ConflictException(Capital(IdTaken));
         var declared = line.Photos.FirstOrDefault(p => p.Id == photoId);
         if (declared is null && await reads.PhotoRemovedAsync(photoId, ct)) return Gone();
-        await EnsureDeliveryAllowedAsync(await periods.CurrentAsync(ct), report, declared, ct);
+        await DeliveryClosingAsync(await periods.CurrentAsync(ct), report, declared, ct);
         if (declared is { State: LinePhotoState.Stored }) return Results.Ok(Dto(report.Id, declared));
         var max = await PerLineAsync(settings, ct);
         if (declared is null && line.Photos.Count >= max) throw new InvalidRequestException(Capital(TooMany(max)));
@@ -144,13 +144,13 @@ public sealed class LinePhotos(
         if (photo is null && (await reads.PhotoRemovedAsync(photoId, ct)
                               || await reads.AppliedAsync(reportId, photoId, ct) is not null))
             return (Gone(), false);
-        await EnsureDeliveryAllowedAsync(boundaries, report, photo, ct);
+        var closingId = await DeliveryClosingAsync(boundaries, report, photo, ct);
         if (photo is { State: LinePhotoState.Stored }) return (Results.Ok(Dto(report.Id, photo)), false);
         var now = time.GetUtcNow();
         if (photo is not null)
         {
             // Объявленное фото — доставка (WORK-11): отчёт и его версия не меняются, журнал молчит. Номер — фото, для ленты.
-            photo.Store(files, await db.NextReportSeqAsync(employee, ct), now);
+            photo.Store(files, await db.NextReportSeqAsync(employee, ct), now, closingId);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return (Results.Ok(Dto(report.Id, photo)), true);
@@ -177,14 +177,15 @@ public sealed class LinePhotos(
         return (Results.Ok(Dto(report.Id, photo)), true);
     }
 
-    private async Task EnsureDeliveryAllowedAsync(
+    private async Task<Guid?> DeliveryClosingAsync(
         PeriodBoundaries boundaries, Report report, LinePhoto? photo, CancellationToken ct)
     {
-        if (!ReportPeriods.IsClosed(boundaries, report.ConstructionId, report.Date)) return;
-        if (photo is not null && await periods.ClosingAsync(report, ct) is { } closing && photo.DeclaredAt < closing.At)
-            return;
+        if (!ReportPeriods.IsClosed(boundaries, report.ConstructionId, report.Date)) return null;
+        if (photo is not null && await periods.ClosingAsync(report, ct) is { } closing
+            && photo.DeclaredBeforeClosing(closing.Id, closing.At))
+            return closing.Id;
 
-        ReportPeriods.EnsureOpen(boundaries, report);
+        throw ReportPeriods.ClosedReport(report.Id);
     }
 
     /// <summary>Автор правки и исполнитель отчёта — для журнала.</summary>
@@ -320,7 +321,7 @@ public sealed class LinePhotos(
     {
         if (kind == ReportJournalKinds.ManagerEdited)
             await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: what);
-        else if (entry.AfterSubmission || kind == ReportJournalKinds.AcceptedChanged)
+        else if (entry.AfterSubmission)
             await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: what);
     }
 

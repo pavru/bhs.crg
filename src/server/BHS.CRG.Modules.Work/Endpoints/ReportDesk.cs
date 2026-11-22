@@ -115,11 +115,13 @@ public sealed class ReportDesk(
         var boundaries = await periods.UnderWriteLockAsync(ct);
         var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
         ReportPeriods.EnsureOpen(boundaries, report);
-        if (body.ConstructionId is { } site && !viewer.Covers(site, report.EmployeeId))
-            throw new NotFoundException(SiteNotYours);
-        if (body.ConstructionId is { } destination && body.Date is { } date
-            && ReportPeriods.IsClosed(boundaries, destination, date))
-            throw new ConflictException("Период закрыт: перенести отчёт на эту дату нельзя.");
+        var replayed = body.ChangeId is { } change && await reads.AppliedAsync(id, change, ct) is not null;
+        if (!replayed && body.ConstructionId is { } destination)
+        {
+            if (!viewer.Covers(destination, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
+            if (body.Date is { } date && ReportPeriods.IsClosed(boundaries, destination, date))
+                throw new ConflictException("Период закрыт: перенести отчёт на эту дату нельзя.");
+        }
         var seen = SeenVersions.Required(request, "отчёта");
         var changeId = body.ChangeId ?? throw new InvalidRequestException(
             "Не назван идентификатор изменения (changeId): его создаёт клиент, и повтор правки с ним не применится " +
@@ -129,7 +131,7 @@ public sealed class ReportDesk(
         if (body.EmployeeId is { } employee && employee != report.EmployeeId)
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
-        if (await reads.AppliedAsync(id, changeId, ct) is not null)
+        if (replayed)
             return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
         if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
         var header = body.Header();
@@ -156,7 +158,7 @@ public sealed class ReportDesk(
         var changed = "изменено: " + ReportJournal.FieldsOf(entry);
         if (kind == ReportJournalKinds.ManagerEdited)
             await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: changed);
-        else if (entry.AfterSubmission || kind == ReportJournalKinds.AcceptedChanged)
+        else if (entry.AfterSubmission)
             await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: changed);
         return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
     }
@@ -226,7 +228,10 @@ public sealed class ReportDesk(
         {
             if (changeId is { } repeat && await reads.AppliedAsync(id, repeat, ct) is { Kind: ReportChangeKind.Deleted } gone
                 && viewer.Covers(gone.ConstructionId, gone.EmployeeId))
+            {
+                _ = SeenVersions.Required(request, "отчёта");
                 return Results.NoContent();
+            }
             throw new NotFoundException(NotFoundText);
         }
         ReportPeriods.EnsureOpen(boundaries, report);

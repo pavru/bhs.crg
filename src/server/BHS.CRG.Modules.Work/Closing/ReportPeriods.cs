@@ -28,8 +28,10 @@ public sealed class ReportPeriods(WorkDbContext db, IModulePeriods periods)
     {
         if (!IsClosed(boundaries, site, date)) return;
 
-        throw new ConflictException(reportId is { } id
-            ? $"Период закрыт: исправление — новой версией (POST /api/work/reports/{id}/correction)."
-            : "Период закрыт: новый отчёт на эту дату завести нельзя.");
+        throw reportId is { } id ? ClosedReport(id)
+            : new ConflictException("Период закрыт: новый отчёт на эту дату завести нельзя.");
     }
+
+    internal static ConflictException ClosedReport(Guid id) =>
+        new($"Период закрыт: исправление — новой версией (POST /api/work/reports/{id}/correction).");
 }

@@ -23,6 +23,7 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
     public Task DisposeAsync()
     {
         host.ClosureTime = null;
+        host.ReportTime = null;
         return Task.CompletedTask;
     }
 
@@ -119,6 +120,7 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(1, queue.GetProperty("counts").GetProperty("accepted-changed").GetInt32());
         Assert.Contains(Assert.Single(queue.GetProperty("items").EnumerateArray()).GetProperty("marks").EnumerateArray(), HasMark);
         var entry = Assert.Single(await period.Review.EntriesAsync(id), e => e.Kind == ReportJournalKinds.AcceptedChanged);
+        Assert.True(entry.AfterSubmission);
         using var changes = JsonDocument.Parse(entry.Changes);
         Assert.Contains(changes.RootElement.EnumerateArray(), field =>
             field.GetProperty("line").ValueKind == JsonValueKind.String && field.GetProperty("line").GetGuid() == added);
@@ -132,8 +134,33 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Файл_заявленного_фото_догоняет_отчёт_а_снимок_сохраняет_ожидание()
+    public async Task Досланная_правка_с_устройства_до_исходной_подачи_не_помечается_как_поздняя()
     {
+        var site = period.World.SiteA;
+        var (_, installer) = await period.World.InstallerAsync("Монтажник");
+        var (_, manager) = await period.World.ManagerAsync("Менеджер", site);
+        var (id, line) = (Guid.NewGuid(), Guid.NewGuid());
+        var accepted = await period.AcceptedAsync(installer, manager, id, site, lineId: line);
+        var acted = accepted.GetProperty("submittedAt").GetDateTimeOffset().AddMinutes(-1);
+
+        var sent = await ReportWorld.PutAsync(installer, $"{Reports}/{id}", ReviewWorld.Version(accepted),
+            period.World.Draft(id, site, date: OctoberEnd, lineId: line, volume: 90m,
+                changeId: Guid.NewGuid(), deviceTime: acted.ToString("O")));
+
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        Assert.Equal("submitted", (await ReportWorld.JsonAsync(sent)).GetProperty("status").GetString());
+        var entry = Assert.Single(await period.Review.EntriesAsync(id), e => e.Kind == ReportJournalKinds.AcceptedChanged);
+        Assert.False(entry.AfterSubmission);
+        Assert.Empty(await period.Review.CoreRecordsAsync(ReportActions.EditedAfterSubmission.Code, id));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Доставка_заявленного_фото_сохраняет_состояние_при_равных_или_переведённых_часах(int minutes)
+    {
+        var closeTime = host.ClosureTime!.Value;
+        host.ReportTime = closeTime;
         var site = period.World.SiteA;
         var (_, installer) = await period.World.InstallerAsync("Монтажник");
         var (_, stranger) = await period.World.InstallerAsync("Другой монтажник");
@@ -169,8 +196,9 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         var seen = ReviewWorld.Version(acceptedView);
         var entries = (await period.Review.EntriesAsync(id)).Count;
         var changes = (await period.World.ChangesAsync(id)).Count;
-        host.ClosureTime = DateTimeOffset.UtcNow;
-        await CloseAsync(await period.CloserAsync());
+        var closer = await period.CloserAsync();
+        await CloseAsync(closer);
+        host.ReportTime = closeTime.AddMinutes(minutes);
 
         var shot = PhotoWorld.Shot();
         Assert.Equal(HttpStatusCode.NotFound,
@@ -179,6 +207,7 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
             (await PhotoWorld.UploadAsync(installer, id, line, afterClose, shot)).StatusCode);
         var delivered = await PhotoWorld.UploadAsync(installer, id, line, beforeClose, shot);
         Assert.Equal(HttpStatusCode.OK, delivered.StatusCode);
+        Assert.Equal(host.ReportTime, (await ReportWorld.JsonAsync(delivered)).GetProperty("storedAt").GetDateTimeOffset());
         var replay = await PhotoWorld.UploadAsync(installer, id, line, beforeClose, shot);
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         Assert.Equal(await delivered.Content.ReadAsStringAsync(), await replay.Content.ReadAsStringAsync());
@@ -205,6 +234,14 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         var snapshot = await installer.GetFromJsonAsync<JsonElement>(url + "?view=at-closing");
         Assert.Equal("pending", State(snapshot));
         Assert.False(snapshot.GetProperty("lines")[0].GetProperty("photos")[0].TryGetProperty("versionUrl", out _));
+
+        host.ClosureTime = closeTime.AddMinutes(1);
+        await ReopenCompanyAsync(closer);
+        host.ClosureTime = closeTime.AddMinutes(2);
+        await CloseAsync(closer);
+        Assert.Equal(HttpStatusCode.OK, (await PhotoWorld.UploadAsync(installer, id, line, afterClose, shot)).StatusCode);
+        Assert.Equal("stored", State(await installer.GetFromJsonAsync<JsonElement>(url)));
+        Assert.Equal("pending", State(await installer.GetFromJsonAsync<JsonElement>(url + "?view=at-closing")));
 
         static string? State(JsonElement report) =>
             Assert.Single(report.GetProperty("lines")[0].GetProperty("photos").EnumerateArray()).GetProperty("state").GetString();

@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ public sealed record ReportVersionAuthorDto(Guid? Id, string Name);
 
 public sealed record ReportVersionDto(int Number, string Reason, ReportVersionAuthorDto Author, DateTimeOffset At);
 
-internal sealed record ArchivedPhoto(Guid Id, string? Path, string? PreviewPath, DateTimeOffset? StoredAt);
+internal sealed record ArchivedPhoto(Guid Id, string? Path, string? PreviewPath, DateTimeOffset? StoredAt, Guid? StoredInClosingId);
 
 internal sealed record ReportVersionContent(
     decimal? Hours, string? Note, IReadOnlyList<ReportLineDto> Lines, IReadOnlyList<ArchivedPhoto> Photos,
@@ -21,7 +22,8 @@ internal sealed record ReportVersionContent(
 
     internal static string Capture(Report report) => JsonSerializer.Serialize(new ReportVersionContent(
         report.Hours, report.Note, ReportViews.LinesOf(report),
-        [.. report.Lines.SelectMany(l => l.Photos).Select(p => new ArchivedPhoto(p.Id, p.BlobPath, p.PreviewBlobPath, p.StoredAt))],
+        [.. report.Lines.SelectMany(l => l.Photos)
+            .Select(p => new ArchivedPhoto(p.Id, p.BlobPath, p.PreviewBlobPath, p.StoredAt, p.StoredInClosingId))],
         report.UpdatedAt), Json);
 
     internal static ReportVersionContent Read(string json) => JsonSerializer.Deserialize<ReportVersionContent>(json, Json)!;
@@ -35,13 +37,22 @@ public sealed class ReportHistory(
 
     public async Task<ReportDto> GetAsync(ReportViewer viewer, Guid id, string? view, CancellationToken ct)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var historical = view == AtClosing;
+        await using var tx = await db.Database.BeginTransactionAsync(
+            historical ? IsolationLevel.ReadCommitted : IsolationLevel.RepeatableRead, ct);
+        if (historical)
+        {
+            // Порт читает своим соединением. Границы и содержимое неподвижны после обоих замков.
+            await OpenPeriodWrite.HoldAsync(db, ct);
+            var employee = await reads.VisibleEmployeeAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
+            await db.LockReportsAsync(employee, ct);
+        }
         var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
         if (view is not (null or Corrected or AtClosing))
             throw new InvalidRequestException("Параметр view — corrected или at-closing.");
 
         var dto = await views.OneAsync(viewer, report, ct: ct);
-        if (view != AtClosing || !ReportReads.ContentVisible(report, viewer, user.Id)
+        if (!historical || !ReportReads.ContentVisible(report, viewer, user.Id)
             || await periods.ClosingAsync(report.ConstructionId, report.Date, ct) is not { } closing)
             return dto;
 
@@ -49,9 +60,10 @@ public sealed class ReportHistory(
             ? await reads.VersionAtClosingAsync(viewer, user.Id, id, report.CurrentVersion, closing.Id, ct)
             : null;
         var content = version is null ? null : ReportVersionContent.Read(version.Content);
-        var late = (content?.Photos.Select(p => (p.Id, p.StoredAt))
-                    ?? report.Lines.SelectMany(l => l.Photos).Select(p => (p.Id, p.StoredAt)))
-            .Where(p => p.StoredAt > closing.At).Select(p => p.Id).ToHashSet();
+        var late = (content?.Photos.Select(p => (p.Id, p.StoredAt, p.StoredInClosingId))
+                    ?? report.Lines.SelectMany(l => l.Photos).Select(p => (p.Id, p.StoredAt, p.StoredInClosingId)))
+            .Where(p => p.StoredInClosingId is { } recorded ? recorded == closing.Id : p.StoredAt > closing.At)
+            .Select(p => p.Id).ToHashSet();
         if (content is null && late.Count == 0) return dto;
 
         var lines = (content?.Lines ?? dto.Lines).Select(line => line with

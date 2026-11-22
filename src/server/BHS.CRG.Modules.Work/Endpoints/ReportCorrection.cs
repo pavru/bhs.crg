@@ -74,7 +74,7 @@ public sealed class ReportCorrection(
             var before = ReportJournal.Capture(report);
             db.Add(new ReportVersion(report, closing.Id, ReportVersionContent.Capture(report), reason, actor, now));
             // Снятые файлы остаются у снимка, который их содержит. В резервную копию они попадут по этому пути.
-            await writer.ChangeAsync(report, header, lines, seq, now, ct);
+            await writer.ChangeAsync(report, header, lines, seq, now, ct, closingId: closing.Id);
             report.AdvanceVersion();
             if (changesCrew) await crew.LinesChangedAsync(report, before, ct);
             journal.Append(ReportJournalKinds.Corrected, report, before, actor, executor, change, seq,

@@ -16,6 +16,8 @@ using BHS.CRG.Infrastructure.Periods;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Photos;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -43,6 +45,7 @@ public sealed class AssignmentHost : ModuleOnlyHost
     public static readonly DateTimeOffset Now = new(2026, 10, 31, 17, 0, 0, TimeSpan.Zero);
 
     internal DateTimeOffset? ClosureTime { get; set; }
+    internal DateTimeOffset? ReportTime { get; set; }
 
     protected override string ModuleCode => WorkModule.ModuleCode;
 
@@ -60,8 +63,18 @@ public sealed class AssignmentHost : ModuleOnlyHost
             services.RemoveAll<IPeriodClosures>();
             services.AddScoped<IPeriodClosures>(sp => ActivatorUtilities.CreateInstance<PeriodClosureService>(
                 sp, ClosureTime is { } at ? (TimeProvider)new Fixed(at) : TimeProvider.System));
+            services.RemoveAll<ReportDesk>();
+            services.AddScoped(CreateWithReportTime<ReportDesk>);
+            services.RemoveAll<LinePhotos>();
+            services.AddScoped(CreateWithReportTime<LinePhotos>);
+            services.RemoveAll<ReportCorrection>();
+            services.AddScoped(CreateWithReportTime<ReportCorrection>);
         });
     }
+
+    private T CreateWithReportTime<T>(IServiceProvider services) where T : class =>
+        ActivatorUtilities.CreateInstance<T>(services,
+            ReportTime is { } at ? new Fixed(at) : services.GetRequiredService<TimeProvider>());
 
     private sealed class Fixed(DateTimeOffset now) : TimeProvider
     {

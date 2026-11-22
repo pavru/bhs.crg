@@ -168,6 +168,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("declared_at");
 
+                    b.Property<Guid?>("DeclaredInClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("declared_in_closing_id");
+
                     b.Property<double?>("GeoAlt")
                         .HasColumnType("double precision")
                         .HasColumnName("geo_alt");
@@ -211,6 +215,10 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.Property<DateTimeOffset?>("StoredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("stored_at");
+
+                    b.Property<Guid?>("StoredInClosingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stored_in_closing_id");
 
                     b.Property<long?>("StoredSeq")
                         .HasColumnType("bigint")
