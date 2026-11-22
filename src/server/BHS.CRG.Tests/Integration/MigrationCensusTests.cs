@@ -125,6 +125,34 @@ public class MigrationCensusTests : IAsyncLifetime
             await ScalarAsync(db, $"SELECT \"Name\" FROM constructions WHERE \"Id\" = '{construction}'"));
     }
 
+    [Fact]
+    public async Task Period_closure_order_migration_keeps_legacy_cancellation_after_its_close()
+    {
+        await using var db = await CreateDatabaseAsync("period_order");
+        var migrations = db.Database.GetMigrations().ToList();
+        var at = migrations.FindIndex(m => m.EndsWith("_PeriodClosureEventOrder", StringComparison.Ordinal));
+        Assert.True(at > 0);
+        await db.GetService<IMigrator>().MigrateAsync(migrations[at - 1]);
+
+        var close = Guid.NewGuid();
+        var reopen = Guid.NewGuid();
+        var through = new DateOnly(2026, 10, 31);
+        var closedAt = new DateTimeOffset(2026, 11, 1, 8, 0, 0, TimeSpan.Zero);
+        var reopenedAt = closedAt.AddMinutes(-1);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO period_closures ("Id", "Kind", "Contour", "From", "Through", "At", "ByName", "Reason", "CancelsId")
+            VALUES ({close}, 'Close', 'Company', {through}, {through}, {closedAt}, 'Бухгалтер', NULL, NULL),
+                   ({reopen}, 'Reopen', 'Company', {through}, {through}, {reopenedAt}, 'Бухгалтер', 'Ошибка', {close});
+            """);
+
+        await db.Database.MigrateAsync();
+
+        var events = await db.PeriodClosures.AsNoTracking().OrderBy(r => r.EventOrder).ToListAsync();
+        Assert.Equal([close, reopen], events.Select(r => r.Id));
+        Assert.Equal([1L, 2L], events.Select(r => r.EventOrder));
+        Assert.Equal([closedAt, reopenedAt], events.Select(r => r.At));
+    }
+
     /// <summary>
     /// Сверка обязана ЛОВИТЬ потерю, а не только не мешать. Проверяется на переписях напрямую:
     /// подделать миграцию нельзя, а потеря выглядит именно так.

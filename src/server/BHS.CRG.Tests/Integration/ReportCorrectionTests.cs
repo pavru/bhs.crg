@@ -110,27 +110,38 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(85m, Volume(closedAgain));
     }
 
-    [Fact]
-    public async Task Отмена_закрытия_компании_не_меняет_снимок_стройки_которая_осталась_закрыта()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Перекрытие_закрытий_при_сдвиге_часов_сохраняет_снимок_и_запрет_догрузки(int minutes)
     {
         var site = period.World.SiteA;
         var (_, installer) = await period.World.InstallerAsync("Монтажник");
         var (_, manager) = await period.World.ManagerAsync("Менеджер стройки", site);
         var closer = await period.CloserAsync();
-        var (id, line) = (Guid.NewGuid(), Guid.NewGuid());
+        var (id, line, photo) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var accepted = await period.AcceptedAsync(installer, manager, id, site, lineId: line);
+        var firstAt = host.ClosureTime!.Value;
         var firstClosing = await CloseAsync(closer);
-        await CorrectAsync(manager, id, ReviewWorld.Version(accepted), Body(site, line, 100m));
-        host.ClosureTime = host.ClosureTime!.Value.AddMinutes(1);
+        await CorrectAsync(manager, id, ReviewWorld.Version(accepted), Body(site, line, 100m, photo: photo));
+        host.ClosureTime = firstAt.AddMinutes(minutes);
         await CloseAsync(closer, through: "2026-11-01", site: site, from: "2026-11-01", seen: OctoberEnd);
-        host.ClosureTime = host.ClosureTime!.Value.AddMinutes(1);
+
+        var historicalUrl = $"{Reports}/{id}?view=at-closing";
+        var view = await installer.GetFromJsonAsync<JsonElement>(historicalUrl);
+        Assert.Equal(ReportHistory.AtClosing, view.GetProperty("view").GetString());
+        Assert.Equal(120m, Volume(view));
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await PhotoWorld.UploadAsync(installer, id, line, photo, PhotoWorld.Shot())).StatusCode);
+
+        host.ClosureTime = firstAt.AddMinutes(-2);
         await ReopenCompanyAsync(closer);
 
         using var scope = host.Services.CreateScope();
         var periods = scope.ServiceProvider.GetRequiredService<IModulePeriods>();
         Assert.Equal(firstClosing, (await periods.ClosingAsync(site, AssignmentWorld.Day(OctoberEnd)))?.Id);
-        var view = await installer.GetFromJsonAsync<JsonElement>($"{Reports}/{id}?view=at-closing");
-        Assert.Equal(120m, Volume(view));
+        Assert.Equal(120m, Volume(await installer.GetFromJsonAsync<JsonElement>(historicalUrl)));
     }
 
     [Fact]
@@ -255,10 +266,14 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync(url)).StatusCode);
     }
 
-    private object Body(Guid site, Guid line, decimal volume, string reason = "Объём по акту") => new
+    private object Body(Guid site, Guid line, decimal volume, string reason = "Объём по акту", Guid? photo = null) => new
     {
         reason, constructionId = site, date = OctoberEnd, hours = 7,
-        lines = new[] { new { id = line, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume } },
+        lines = new[] { new
+        {
+            id = line, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume,
+            photos = photo is { } id ? new[] { new { id } } : null,
+        } },
     };
 
     internal static Task<HttpResponseMessage> PostAsync(HttpClient client, Guid id, string? version, object body) =>

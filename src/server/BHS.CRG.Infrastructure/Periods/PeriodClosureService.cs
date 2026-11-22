@@ -58,18 +58,26 @@ public sealed class PeriodClosureService(
     {
         var rows = await db.PeriodClosures.AsNoTracking()
             .Where(r => r.Through >= date && (r.Contour == PeriodContourKind.Company || r.ConstructionId == constructionId))
+            .OrderBy(r => r.EventOrder)
             .Select(r => new { r.Id, r.CancelsId, r.At, r.Kind })
             .ToListAsync(ct);
-        var cancelled = rows.Where(r => r.CancelsId != null).GroupBy(r => r.CancelsId!.Value)
-            .ToDictionary(g => g.Key, g => g.Min(r => r.At));
-        // День закрыт, пока его покрывает хотя бы одна действующая запись. Отмена перекрытого
-        // закрытия не прерывает этот отрезок. Начало ищем от действующих записей назад.
+        var active = new HashSet<Guid>();
+        var cancelled = new HashSet<Guid>();
         (Guid Id, DateTimeOffset At)? first = null;
-        foreach (var row in rows.Where(r => r.Kind == PeriodClosureKind.Close)
-                     .OrderByDescending(r => r.At).ThenByDescending(r => r.Id))
+        foreach (var row in rows)
         {
-            if (cancelled.TryGetValue(row.Id, out var end) && (first == null || end <= first.Value.At)) continue;
-            first = (row.Id, row.At);
+            // Перекрывающее закрытие продлевает отрезок. Обнуляем начало, только когда день открылся.
+            if (row.CancelsId is { } id)
+            {
+                cancelled.Add(id);
+                active.Remove(id);
+                if (active.Count == 0) first = null;
+            }
+            else if (row.Kind == PeriodClosureKind.Close && !cancelled.Contains(row.Id))
+            {
+                first ??= (row.Id, row.At);
+                active.Add(row.Id);
+            }
         }
         return first;
     }
@@ -137,7 +145,8 @@ public sealed class PeriodClosureService(
         var before = ledger.ClosedThrough(request.Contour);
         var row = PeriodClosure.Close(
             request.Contour, request.From, request.Through, who.Id, who.Name, request.Reason, time.GetUtcNow(),
-            new ClosingReport([.. report.Sections.Select(s => s with { Blocking = [] })]));
+            new ClosingReport([.. report.Sections.Select(s => s with { Blocking = [] })]))
+            .WithEventOrder(checked(await LastOrderAsync(ct) + 1));
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
 
@@ -168,7 +177,8 @@ public sealed class PeriodClosureService(
 
         var before = ledger.ClosedThrough(request.Contour);
         var row = PeriodClosure.Reopen(
-            ledger.Reopenable(request.Contour), who.Id, who.Name, request.Reason, time.GetUtcNow());
+            ledger.Reopenable(request.Contour), who.Id, who.Name, request.Reason, time.GetUtcNow())
+            .WithEventOrder(checked(await LastOrderAsync(ct) + 1));
         db.PeriodClosures.Add(row);
         await db.SaveChangesAsync(ct);
 
@@ -182,23 +192,16 @@ public sealed class PeriodClosureService(
 
     public async Task<IReadOnlyList<PeriodClosure>> HistoryAsync(int take, CancellationToken ct = default) =>
         await db.PeriodClosures.AsNoTracking()
-            .OrderByDescending(r => r.At).ThenByDescending(r => r.Id)
+            .OrderByDescending(r => r.EventOrder)
             .Take(Math.Clamp(take, 1, 200))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<PeriodClosure>> ExportAsync(CancellationToken ct = default) =>
-        await db.PeriodClosures.AsNoTracking().OrderBy(r => r.At).ThenBy(r => r.Id).ToListAsync(ct);
+        await db.PeriodClosures.AsNoTracking().OrderBy(r => r.EventOrder).ToListAsync(ct);
 
     public async Task<int> ImportAsync(IReadOnlyList<PeriodClosure> records, CancellationToken ct = default)
     {
         if (records.Count == 0) return 0;
-
-        var ids = records.Select(r => r.Id).ToList();
-        var known = await db.PeriodClosures.Where(r => ids.Contains(r.Id)).Select(r => r.Id).ToHashSetAsync(ct);
-        // DistinctBy: копия, правленая руками, может нести запись дважды — отслеживание упало бы на
-        // втором экземпляре и откатило бы восстановление целиком вместо пропуска повтора.
-        var fresh = records.Where(r => !known.Contains(r.Id)).DistinctBy(r => r.Id).ToList();
-        if (fresh.Count == 0) return 0;
 
         // Дописанное закрытие СДВИГАЕТ границу — значит, идёт под тем же замком, что и закрытие
         // (ревью PR #1189): иначе запись модуля, проверившая «период открыт», легла бы в период,
@@ -209,11 +212,27 @@ public sealed class PeriodClosureService(
             : null;
         await LockOutWritersAsync(ct);
 
-        db.PeriodClosures.AddRange(fresh);
+        var unique = records.DistinctBy(r => r.Id).ToDictionary(r => r.Id);
+        var ids = unique.Keys.ToArray();
+        var known = await db.PeriodClosures.Where(r => ids.Contains(r.Id)).Select(r => r.Id).ToHashSetAsync(ct);
+        var fresh = unique.Values.Where(r => !known.Contains(r.Id)).ToList();
+        if (fresh.Count == 0) return 0;
+
+        // Новая копия несёт порядок источника. Старая восстанавливает его по времени с учётом
+        // причинной связи: отмена должна идти после своего закрытия даже при сдвиге часов.
+        var ordered = fresh.OrderBy(r => r.EventOrder > 0).ThenBy(r => Math.Max(0, r.EventOrder))
+            .ThenBy(r => r.CancelsId is { } id && unique.TryGetValue(id, out var close) && close.At > r.At ? close.At : r.At)
+            .ThenBy(r => r.Kind).ThenBy(r => r.At).ThenBy(r => r.Id);
+        var last = await LastOrderAsync(ct);
+        db.PeriodClosures.AddRange(ordered.Select((r, index) => r.WithEventOrder(checked(last + index + 1L))));
         await db.SaveChangesAsync(ct);
         if (own is not null) await own.CommitAsync(ct);
         return fresh.Count;
     }
+
+    // Вызывается только под исключительным замком. Транзакция удерживает его до сохранения и фиксации событий.
+    private async Task<long> LastOrderAsync(CancellationToken ct) =>
+        await db.PeriodClosures.MaxAsync(r => (long?)r.EventOrder, ct) ?? 0;
 
     /// <summary>
     /// Исключительный замок до конца транзакции. Вне транзакции он снялся бы тем же запросом и не

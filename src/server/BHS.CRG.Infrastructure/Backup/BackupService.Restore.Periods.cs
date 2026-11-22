@@ -38,7 +38,7 @@ public partial class BackupService
             }
 
             valid.Add(PeriodClosure.Restore(item.Id, kind, contour, item.ConstructionId, item.From,
-                item.Through, item.At, item.ById, item.ByName, item.Reason, item.CancelsId, item.Report));
+                item.Through, item.At, item.ById, item.ByName, item.Reason, item.CancelsId, item.Report, item.EventOrder ?? 0));
         }
 
         var added = await periods.ImportAsync(valid, ct);

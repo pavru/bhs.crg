@@ -335,12 +335,19 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
     public async Task Копия_переносит_закрытия_и_не_открывает_закрытое_позже()
     {
         var through = (await TodayAsync()).AddDays(-20);
+        var (site, _) = await SiteAsync("Стройка для проверки порядка закрытий");
         byte[] zip;
+        Guid firstClosing;
 
         using (var scope = host.Services.CreateScope())
         {
-            await scope.ServiceProvider.GetRequiredService<IPeriodClosures>()
-                .CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+            var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+            var company = await closures.CloseAsync(new ClosePeriod(Contour.Company, through.AddDays(-30), through, null, null));
+            firstClosing = company.Id;
+            // Второе по порядку закрытие записано после перевода часов назад.
+            var siteClosing = PeriodClosure.Close(Contour.Construction(site), through.AddDays(1), through.AddDays(1), null,
+                "Из копии", null, company.At.AddMinutes(-1), ClosingReport.Empty).WithEventOrder(company.EventOrder + 1);
+            Assert.Equal(1, await closures.ImportAsync([siteClosing]));
             var (stream, _) = await scope.ServiceProvider.GetRequiredService<BackupService>().ExportAsync(BackupScope.Full);
             await using (stream)
             {
@@ -356,7 +363,13 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         {
             var report = await scope.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(new MemoryStream(zip));
             Assert.True(report.Success, string.Join("; ", report.Warnings));
-            Assert.Equal(through, (await scope.ServiceProvider.GetRequiredService<IPeriodClosures>().LedgerAsync()).Company);
+            var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
+            Assert.Equal(through, (await closures.LedgerAsync()).Company);
+            Assert.Equal(firstClosing, (await closures.ClosingAsync(site, through))?.Id);
+            var events = await closures.ExportAsync();
+            Assert.Equal(firstClosing, events[0].Id);
+            Assert.True(events[1].EventOrder > events[0].EventOrder);
+            Assert.True(events[1].At < events[0].At);
         }
 
         // Экземпляр ушёл дальше копии: восстановление не откатывает границу и не падает на повторе.
@@ -371,7 +384,7 @@ public class PeriodClosureTests(InvoiceLineHost host) : InvoiceLineTestBase(host
             Assert.True(report.Success, string.Join("; ", report.Warnings));
             var closures = scope.ServiceProvider.GetRequiredService<IPeriodClosures>();
             Assert.Equal(through.AddDays(5), (await closures.LedgerAsync()).Company);
-            Assert.Equal(2, (await closures.ExportAsync()).Count);
+            Assert.Equal(3, (await closures.ExportAsync()).Count);
         }
     }
 

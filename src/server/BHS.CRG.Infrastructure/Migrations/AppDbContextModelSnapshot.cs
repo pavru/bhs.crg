@@ -1380,6 +1380,9 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<long>("EventOrder")
+                        .HasColumnType("bigint");
+
                     b.Property<DateOnly>("From")
                         .HasColumnType("date");
 
@@ -1401,6 +1404,9 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("At");
+
+                    b.HasIndex("EventOrder")
+                        .IsUnique();
 
                     b.ToTable("period_closures", (string)null);
                 });
