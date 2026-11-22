@@ -73,6 +73,12 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("due_date_manual");
 
+                    b.Property<Guid>("DuplicateRevision")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("uuid")
+                        .HasColumnName("duplicate_revision")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
                     b.Property<DateOnly?>("IssuedOn")
                         .HasColumnType("date")
                         .HasColumnName("issued_on");
@@ -452,6 +458,81 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.ToTable("invoice_book_lines", "costs", t =>
                         {
                             t.HasCheckConstraint("ck_invoice_book_lines_one_target", "construction_id IS NULL OR article_id IS NULL");
+                        });
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceDuplicateConfirmation", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("author_name");
+
+                    b.Property<DateTimeOffset>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid>("FirstInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("first_invoice_id");
+
+                    b.Property<string>("FirstLabel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("first_label");
+
+                    b.Property<Guid>("FirstRevision")
+                        .HasColumnType("uuid")
+                        .HasColumnName("first_revision");
+
+                    b.Property<DateTimeOffset?>("JournaledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("journaled_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("SecondInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("second_invoice_id");
+
+                    b.Property<string>("SecondLabel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("second_label");
+
+                    b.Property<Guid>("SecondRevision")
+                        .HasColumnType("uuid")
+                        .HasColumnName("second_revision");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("ConfirmedAt")
+                        .HasDatabaseName("ix_invoice_duplicate_pending")
+                        .HasFilter("journaled_at IS NULL");
+
+                    b.HasIndex("SecondInvoiceId", "SecondRevision")
+                        .HasDatabaseName("ix_invoice_duplicate_second");
+
+                    b.HasIndex("FirstInvoiceId", "FirstRevision", "SecondInvoiceId", "SecondRevision")
+                        .IsUnique()
+                        .HasDatabaseName("ix_invoice_duplicate_pair");
+
+                    b.ToTable("invoice_duplicate_confirmations", "costs", t =>
+                        {
+                            t.HasCheckConstraint("ck_invoice_duplicate_order", "first_invoice_id < second_invoice_id");
                         });
                 });
 

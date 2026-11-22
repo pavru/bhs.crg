@@ -42,6 +42,7 @@
 import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn, expandInvoiceParts, invoiceMenu } from './harness.mjs';
 import { statusItems, untilStatus } from './invoice-status.mjs';
 import { paidSaveChecks } from './invoice-paid-save-checks.mjs';
+import { duplicatePaymentCheck } from './invoice-payment-duplicates.mjs';
 
 
 const browser = await launchBrowser();
@@ -155,6 +156,9 @@ await check('refusal-is-shown-instead-of-the-form', async () => {
   if (named.length !== 1 || !/оплат/.test(named[0].text))
     throw new Error(`расхождение в перечне не одним пунктом «мешает: оплата»: ${JSON.stringify(named)}`);
 });
+
+await check('duplicate-arrives-after-preview-and-review-confirms-one-pair',
+  () => duplicatePaymentCheck(page, { api, invoice, open, number: `ОПЛ-Д-${stamp}` }));
 
 // ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок и Tab ведут по форме ────────
 const calendarNumber = `ОПЛ-К-${stamp}`;

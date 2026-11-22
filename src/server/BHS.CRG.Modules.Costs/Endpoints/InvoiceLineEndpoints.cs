@@ -333,7 +333,7 @@ public static class InvoiceLineEndpoints
             write.Invoice.ReturnToDraft();
             await db.SaveChangesAsync(ct);
             return (write.Invoice, was);
-        }, ct);
+        }, ct, duplicate: InvoiceDuplicateWrite.Change);
 
         // Откуда вернули — в записи: «разобранный вернули править» и «отклонённый решили всё же
         // платить» — разные решения, а действие в журнале у них одно.
@@ -375,7 +375,7 @@ public static class InvoiceLineEndpoints
             write.Invoice.Reject();
             await db.SaveChangesAsync(ct);
             return (write.Invoice, was);
-        }, ct);
+        }, ct, duplicate: InvoiceDuplicateWrite.Change);
 
         if (from is { } state)
             await log.RecordAsync(InvoiceActions.Rejected, invoice.Id.ToString(),

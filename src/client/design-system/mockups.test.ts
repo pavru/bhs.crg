@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import manifest from './mockups/manifest.json';
+import { liveMockups } from './live-mockups';
 import { readMockupArchive } from './mockup-assets';
 
 const root = resolve(import.meta.dirname, '../../..');
@@ -15,7 +16,7 @@ describe('Restored Claude mockups', () => {
     expect(missing).toEqual([]);
   });
   it('keeps public aliases unambiguous', () => {
-    const ids = manifest.projects.flatMap(project => [project.id, ...project.aliases]);
+    const ids = [...liveMockups, ...manifest.projects].flatMap(project => [project.id, ...project.aliases]);
     expect(new Set(ids).size).toBe(ids.length);
   });
   it('resolves the updated documentation links to actual projects and pages', () => {
@@ -27,7 +28,7 @@ describe('Restored Claude mockups', () => {
       if (match[0].includes('<UUID')) continue;
       const url = new URL(match[0].replace(/\.$/, ''));
       const id = url.searchParams.get('project'); if (!id) continue;
-      const project = manifest.projects.find(project => project.id === id || project.aliases.includes(id));
+      const project = [...liveMockups, ...manifest.projects].find(project => project.id === id || project.aliases.includes(id));
       const page = url.searchParams.get('page');
       if (!project || page && !project.pages.some(item => item.path === page)) invalid.push(`${path}: ${match[0]}`);
       checked++;

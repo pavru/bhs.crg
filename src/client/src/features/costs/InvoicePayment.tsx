@@ -193,7 +193,8 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
   }
 
   const fresh = posting !== null && !preview.isPending && posting.paidOn === paidOn && failed === null;
-  const payable = fresh && !posting.refusal && !posting.dateRefusal;
+  const duplicateRefusal = view.payment.refusalKind === 'duplicate' ? view.payment.refusal : null;
+  const payable = fresh && !posting.refusal && !posting.dateRefusal && !duplicateRefusal;
 
   async function submit() {
     if (!posting || !payable) return;
@@ -205,21 +206,21 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
       toast.success(paidToast(paidOn, posting.rows));
       onDone();
     } catch (e) {
-      // Причин у 409 три — закрыли период, поправили разноску, сменили сумму, — и какая из них,
-      // знает сервер: показываем его текст и свежий расклад с подсветкой изменившегося.
+      // После 409 сервер заново объясняет отказ или возвращает изменившийся расклад.
       setError(apiError(e, 'Оплата не записана.'));
       if (isConflict(e)) await ask(paidOn, posting);
     }
   }
 
   // Отказ, не зависящий от даты: заполнять нечего — только причина.
-  if (posting?.refusal)
+  const refusal = posting?.refusal ?? duplicateRefusal;
+  if (refusal)
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
         acknowledge="Понятно">
         <p role="alert" className="text-body-medium text-on-surface">
-          Оплатить нельзя: {posting.refusal}.
-          {posting.refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
+          Оплатить нельзя: {refusal}.
+          {refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
         </p>
       </Modal>
     );

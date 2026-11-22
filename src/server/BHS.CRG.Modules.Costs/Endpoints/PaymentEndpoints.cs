@@ -39,6 +39,8 @@ public static class PaymentEndpoints
         group.MapPost("/paid", PayAsync).RequireAuthorization(AppPolicies.Permission(Pay));
         group.MapPut("/paid", DescribeAsync).RequireAuthorization(AppPolicies.Permission(Pay));
         group.MapPost("/unpaid", CancelAsync).RequireAuthorization(AppPolicies.Permission(Pay));
+        group.MapPost("/duplicate-confirmations", InvoiceDuplicateEndpoints.ConfirmAsync)
+            .RequireAuthorization(AppPolicies.Permission(Pay));
     }
 
     /// <summary>
@@ -114,6 +116,8 @@ public static class PaymentEndpoints
                     "оплаты и новой отметкой.");
 
             var posting = await PostingAsync(db, places, invoice, paidOn, today, PostedBefore.None, write.Boundaries, tolerance, ct);
+            if (posting.RefusalKind == PaymentRefusal.Duplicate)
+                throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: оплатить нельзя — {posting.Refusal}.");
             if ((posting.Refusal ?? posting.DateRefusal) is { } why)
                 throw new InvalidRequestException($"{InvoiceEndpoints.Label(invoice)}: оплатить нельзя — {why}.");
             if (posting.Stamp != seen)
@@ -124,7 +128,7 @@ public static class PaymentEndpoints
             invoice.Pay(paidOn, document, user.Id);
             await db.SaveChangesAsync(ct);
             return (invoice, posting.Rows.Where(r => r.Moved).ToList());
-        }, ct);
+        }, ct, duplicate: InvoiceDuplicateWrite.Payment);
 
         // Сумм в журнале ядра нет нарочно: его читают по core.audit.read, без права на счета.
         await log.RecordAsync(InvoiceActions.Paid, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
@@ -197,7 +201,7 @@ public static class PaymentEndpoints
             invoice.Unpay();
             await db.SaveChangesAsync(ct);
             return (invoice, was);
-        }, ct, WhenLocked.Correct, reason);
+        }, ct, WhenLocked.Correct, reason, InvoiceDuplicateWrite.Change);
 
         await log.RecordAsync(InvoiceActions.Unpaid, invoice.Id.ToString(), InvoiceEndpoints.Label(invoice),
             before: $"оплачен {was:dd.MM.yyyy}", after: $"не оплачен. Причина: {reason}", ct: ct);
@@ -217,12 +221,14 @@ public static class PaymentEndpoints
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
         var math = lines.Select(InvoiceAllocations.Line).ToList();
 
-        var refusal = PaymentRefusal.Text(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance));
+        var duplicate = await InvoiceDuplicates.BlocksPaymentAsync(db, invoice, ct);
+        var refusal = PaymentRefusal.Text(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance), duplicate);
         var late = paidOn > today
             ? $"дата платежа {paidOn:dd.MM.yyyy} в будущем: сегодня {today:dd.MM.yyyy}"
             : null;
         if (refusal is not null || late is not null)
-            return new PaymentPostingView(today, paidOn, invoice.Total, refusal, late, [], string.Empty);
+            return new PaymentPostingView(today, paidOn, invoice.Total, refusal, late, [], string.Empty,
+                duplicate ? PaymentRefusal.Duplicate : null);
 
         var total = invoice.Total!.Value;
         var plan = PaymentPosting.Plan(paidOn, total, math, parts, kept, boundaries, tolerance);

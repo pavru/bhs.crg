@@ -119,8 +119,13 @@ public static class InvoiceEndpoints
         invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey), rule);
         if (marks.Count > 0) invoice.MarkUnconfirmed(marks);
 
-        db.Invoices.Add(invoice);
-        await db.SaveChangesAsync(ct);
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            await InvoiceDuplicateLock.AcquireAsync(db, InvoiceDuplicateWrite.Change, ct);
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
         // Журнал — ПОСЛЕ сохранения своего: общей транзакции у контекста модуля и таблиц ядра нет
         // (A2a, issue #1072). Порядок обязателен: запись в журнал о счёте, который не сохранился,
@@ -175,7 +180,7 @@ public static class InvoiceEndpoints
 
             await db.SaveChangesAsync(ct);
             return (invoice, changed, reason, dueWas);
-        }, ct);
+        }, ct, duplicate: InvoiceDuplicateWrite.Change);
 
         await RecordRequisitesAsync(log, invoice, changed, dueWas, ct);
 
@@ -380,6 +385,7 @@ public static class InvoiceEndpoints
         // приложить можно — он хранится и скачивается, но не показывается и не распознаётся.
         var kind = await InvoiceScanRecognition.KindAsync(file, ct);
         var print = await InvoiceSameFiles.FingerprintAsync(file, ct);
+        var oldFingerprint = await InvoiceScanRevision.ExistingFingerprintAsync(db, blobs, id, ct);
 
         string path;
         await using (var content = file.OpenReadStream())
@@ -397,10 +403,16 @@ public static class InvoiceEndpoints
                         $"{Label(write.Invoice)} заперт: {locked}. Заменить файл нельзя: прежний — документ " +
                         "закрытого периода, и замена его удалила бы.");
 
+                if (oldFingerprint is { } old && old.Path == replaced && old.Fingerprint == print)
+                {
+                    // Триггер видит отпечаток прежнего пути в OLD и может доказать равенство байтов.
+                    write.Invoice.SealExistingScan(old.Path, old.Fingerprint);
+                    await db.SaveChangesAsync(ct);
+                }
                 write.Invoice.AttachScan(path, file.FileName, kind, file.Length, print);
                 await db.SaveChangesAsync(ct);
                 return (write.Invoice, replaced);
-            }, ct, WhenLocked.Decide);
+            }, ct, WhenLocked.Decide, duplicate: InvoiceDuplicateWrite.Change);
         }
         catch
         {
@@ -579,26 +591,4 @@ public static class InvoiceEndpoints
         await db.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)
         ?? throw new NotFoundException("Счёт не найден.");
 
-    /// <summary>
-    /// Дубликаты по поставщику, номеру и дате (ТЗ COST-6.2) — оговорка, а не запрет.
-    ///
-    /// <para>Ищутся только когда все три части заполнены: у черновика без номера «дубликатом» оказался
-    /// бы каждый второй черновик, и оговорка, звучащая без повода, перестаёт значить что-либо.</para>
-    /// </summary>
-    internal static async Task<IReadOnlyList<InvoiceDuplicate>> DuplicatesAsync(
-        CostsDbContext db, Invoice invoice, CancellationToken ct)
-    {
-        if (invoice.SupplierId is not { } supplier || invoice.Number is not { Length: > 0 } number
-            || invoice.IssuedOn is not { } issued)
-            return [];
-
-        var found = await db.Invoices
-            .AsNoTracking()
-            .Where(i => i.Id != invoice.Id && i.SupplierId == supplier && i.Number == number
-                && i.IssuedOn == issued)
-            .OrderBy(i => i.CreatedAt)
-            .ToListAsync(ct);
-
-        return [.. found.Select(InvoiceViews.Duplicate)];
-    }
 }

@@ -24,7 +24,10 @@ public class InvoiceWritePathTests
     private static readonly Dictionary<string, (int Saves, string Why)> OutsideTheDesk = new()
     {
         ["Endpoints/InvoiceEndpoints.cs"] =
-            (1, "создание счёта: новый счёт не оплачен, а неоплаченный не принадлежит ни одному периоду"),
+            (2, "создание счёта под замком дублей и сохранение отпечатка прежнего файла внутри связки " +
+                "до замены пути, когда байты совпали (D3, issue #2011)"),
+        ["Endpoints/InvoiceDuplicateJournal.cs"] =
+            (1, "отметка о доставке события: меняется только invoice_duplicate_confirmations после записи журнала"),
         ["Endpoints/WaybillEndpoints.cs"] =
             (1, "создание накладной: новая накладная — черновик, а черновик не принадлежит ни одному " +
                 "периоду. Остальные правки идут через WaybillDesk (issue #1285)"),

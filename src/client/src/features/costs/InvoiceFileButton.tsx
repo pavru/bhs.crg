@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { OpenInFull, RightPanelClose, RightPanelOpen } from '@/shared/ui/icons';
-import { IconButton } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
+import { Icon } from '@/shared/ui/Icon';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
 import { PdfViewerOverlay } from '@/shared/ui/viewer/PdfViewer';
@@ -30,7 +31,7 @@ export interface FileShow {
   show: () => void;
 }
 
-export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle, onReveal, showRef }: {
+export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggle, onReveal, showRef, showName }: {
   invoiceId: string; blobPath: string | null; fileName: string | null;
   file: InvoicePlace['file'];
   /** Рядом с формой: открыть или закрыть панель. */
@@ -38,6 +39,7 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   /** Файл уже открыт рядом — показать его панель (страница переводит в неё фокус). */
   onReveal?: () => void;
   showRef?: Ref<FileShow>;
+  showName?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -140,8 +142,11 @@ export function InvoiceFileButton({ invoiceId, blobPath, fileName, file, onToggl
   useImperativeHandle(showRef, () => ({ show: () => showNow.current() }), []);
   return (
     <>
-      <IconButton icon={look.icon} label="Файл" aria-pressed={look.pressed} title={look.title}
-        loading={loading} onClick={look.onClick} />
+      {showName
+        ? <Button variant="text" multiline className="max-w-full break-all" loading={loading}
+            icon={<Icon icon={look.icon} size={18} />} onClick={look.onClick}>{name}</Button>
+        : <IconButton icon={look.icon} label="Файл" aria-pressed={look.pressed} title={look.title}
+            loading={loading} onClick={look.onClick} />}
       {shown && (
         <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}
           title={shown.title} rememberZoomAs="invoice-overlay"

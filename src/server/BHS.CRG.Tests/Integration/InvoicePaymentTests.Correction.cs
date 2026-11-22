@@ -26,6 +26,37 @@ public partial class InvoicePaymentTests
 {
     private const string ToleranceKey = "costs.allocation.tolerance";
 
+    [Fact]
+    public async Task InvoiceDuplicatePayment_Исправление_оплаченной_стороны_аннулирует_сверку()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var (paid, _, _) = await LockedAsync(client, await TodayAsync());
+        var former = await ReadAsync(client, paid);
+        var number = former.GetProperty("requisites").GetProperty("Номер").GetString()!;
+        var other = await CreateAsync(client, complete: true);
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{other}",
+            new { requisites = await RequisitesWithAsync(client, other, "Номер", number) }));
+        var view = await ReadAsync(client, other);
+        var blocker = Assert.Single(view.GetProperty("payment").GetProperty("duplicateBlockers").EnumerateArray());
+        await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{other}/duplicate-confirmations",
+            new { otherInvoiceId = paid, otherRevision = blocker.GetProperty("otherRevision").GetGuid(), reason = "Разные договоры" }));
+
+        var changed = await RenameAsync(former, $"ИСПР-{Guid.NewGuid():N}");
+        Assert.Empty((await ReadAsync(client, other)).GetProperty("payment").GetProperty("duplicateBlockers").EnumerateArray());
+        await RenameAsync(changed, number);
+        var active = await ReadAsync(client, other);
+        Assert.Equal(paid, Assert.Single(active.GetProperty("payment").GetProperty("duplicateBlockers").EnumerateArray())
+            .GetProperty("id").GetGuid());
+
+        async Task<JsonElement> RenameAsync(JsonElement current, string next)
+        {
+            var body = Correction(current, "Номер на бумаге");
+            body.Requisites["Номер"] = next;
+            var preview = await CorrectionPreviewAsync(client, paid, current, body);
+            return await CorrectAsync(client, paid, current, body with { Stamp = preview.GetProperty("stamp").GetString() });
+        }
+    }
+
     /// <summary>
     /// Главный путь: предпросмотр показывает день и строки книги и не пишет ничего; запись кладёт версию,
     /// книгу и журнал и двигает версию формы. Счёт с книгой и после отмены закрытия правится только

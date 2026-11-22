@@ -103,8 +103,11 @@ public static class InvoiceRecognitionEndpoints
         {
             invoice.AttachScan(path, file.FileName, kind, file.Length, print);
             if (accept) await InvoiceSameFiles.AcceptRepeatAsync(db, invoice, ct);
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            await InvoiceDuplicateLock.AcquireAsync(db, InvoiceDuplicateWrite.Change, ct);
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
         catch
         {

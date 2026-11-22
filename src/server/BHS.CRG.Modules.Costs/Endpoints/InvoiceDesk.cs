@@ -41,7 +41,7 @@ public enum WhenLocked
 /// <see cref="WriteAsync{T}" />, а перепись по исходникам (<c>InvoiceWritePathTests</c>) не даёт писать
 /// счёт мимо неё.</para>
 ///
-/// <para><b>Порядок внутри связки</b> (ревизия Архитектора): замок периода → блокировка строки счёта →
+/// <para><b>Порядок внутри связки</b>: замок периода → замок проверки дублей (где нужен) → блокировка строки счёта →
 /// чтение счёта → версия формы → проверка «не требует исправления» → правка адреса → учётные даты →
 /// книга (оплата и её отмена у счёта с книгой) → фиксация. Счёт читается ПОСЛЕ замков: проверка по прочитанному до них проверяла бы прошлое. Журнал
 /// ядра, удаление файлов и сборка ответа — СНАРУЖИ, после возврата: журнал пишется соединением ядра и
@@ -103,13 +103,13 @@ public sealed partial class InvoiceDesk(
     /// оплаты счёта с книгой или запертого).</param>
     public Task<T> WriteAsync<T>(
         Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct, WhenLocked whenLocked = WhenLocked.Refuse,
-        string? reason = null) =>
-        WriteAsync(id, write, seen: true, whenLocked, reason, ct);
+        string? reason = null, InvoiceDuplicateWrite duplicate = InvoiceDuplicateWrite.None) =>
+        WriteAsync(id, write, seen: true, whenLocked, reason, duplicate, ct);
 
     /// <summary>
     /// Правка счёта ВНЕ запроса — фоновой задачей (распознавание скана, issue #1077). Тот же замок
     /// против закрытия периода, тот же отказ запертому счёту и те же учётные даты, что у
-    /// <see cref="WriteAsync{T}(Guid, Func{InvoiceWrite, Task{T}}, CancellationToken, WhenLocked, string)" />, — но без
+    /// <see cref="WriteAsync{T}(Guid, Func{InvoiceWrite, Task{T}}, CancellationToken, WhenLocked, string, InvoiceDuplicateWrite)" />, — но без
     /// сверки версии формы: формы у фоновой задачи нет.
     ///
     /// <para>⚠️ Версию «на момент постановки» сверять нельзя, и это не упрощение. Пока скан читается,
@@ -124,17 +124,18 @@ public sealed partial class InvoiceDesk(
     public async Task<T> MergeAsync<T>(Guid id, Func<InvoiceWrite, Task<T>> write, CancellationToken ct)
     {
         using var _ = db.Writing(InvoiceAuthor.Recognition);
-        return await WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, ct);
+        return await WriteAsync(id, write, seen: false, WhenLocked.Refuse, reason: null, InvoiceDuplicateWrite.Change, ct);
     }
 
     private Task<T> WriteAsync<T>(
         Guid id, Func<InvoiceWrite, Task<T>> write, bool seen, WhenLocked whenLocked, string? reason,
-        CancellationToken ct) =>
+        InvoiceDuplicateWrite duplicate, CancellationToken ct) =>
         db.InOpenPeriodAsync(periods, async boundaries =>
         {
             // Строка счёта — под блокировкой ДО чтения и сверки версии (E2, spec v3.3 п. 1.3): порядок
-            // замков у всех пишущих один — период, потом строка. Без неё исправление и правка, прочитавшие
+            // замков у всех пишущих один — период, проверка дублей, затем строка. Без неё исправление и правка, прочитавшие
             // одно «до», прошли бы обе: запись в книгу версию строки не двигает до сохранения.
+            await InvoiceDuplicateLock.AcquireAsync(db, duplicate, ct);
             await InvoiceBook.LockAsync(db, id, ct);
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
             var label = InvoiceEndpoints.Label(invoice);
@@ -370,6 +371,8 @@ public sealed partial class InvoiceDesk(
         var archived = new[] { invoice.SupplierId, invoice.PayerId }.OfType<Guid>().Distinct()
             .Where(id => records[id] == ReferenceState.Archived).ToList();
         var twins = await InvoiceSameFiles.FindAsync(db, invoice, ct);
+        var duplicates = await InvoiceDuplicates.FindAsync(db, invoice, ct);
+        var blockers = InvoiceDuplicates.Blockers(invoice, duplicates).Select(InvoiceDuplicates.View).ToArray();
         var parties = archived.Concat(twins.Suppliers).Distinct().ToList();
         var organizations = parties.Count == 0
             ? null
@@ -381,9 +384,9 @@ public sealed partial class InvoiceDesk(
             : null;
 
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
-            await InvoiceEndpoints.DuplicatesAsync(db, invoice, ct),
+            [.. duplicates.Select(match => InvoiceViews.Duplicate(match.Other, match.Confirmed))],
             twins.Of(invoice.TrustedFingerprint, organizations, user.Id), lines, names, allocation,
-            await PaymentAsync(invoice, lines, parts, known, tolerance, ct),
+            await PaymentAsync(invoice, lines, parts, known, tolerance, blockers, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
                 Side(invoice.SupplierId)?.DisplayName, Side(invoice.PayerId)?.DisplayName,
@@ -407,13 +410,18 @@ public sealed partial class InvoiceDesk(
     /// </summary>
     private async Task<PaymentView> PaymentAsync(
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        AllocationPlaces known, decimal tolerance, CancellationToken ct)
+        AllocationPlaces known, decimal tolerance, IReadOnlyList<InvoiceDuplicateBlocker> blockers, CancellationToken ct)
     {
         var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total, tolerance);
 
         if (invoice.Payment != InvoicePaymentState.Paid)
-            return new PaymentView(false, null, null, null, PaymentRefusal.Text(invoice, balance), null, [],
-                PaymentRefusal.Of(invoice, balance));
+        {
+            var duplicate = blockers.Count > 0;
+            return new PaymentView(false, null, null, null, PaymentRefusal.Text(invoice, balance, duplicate), null, [],
+                PaymentRefusal.Of(invoice, balance, duplicate), blockers,
+                duplicate ? PaymentRefusal.Text(invoice, balance) : null,
+                duplicate ? PaymentRefusal.Of(invoice, balance) : null);
+        }
 
         var boundaries = await periods.BoundariesAsync(ct);
         var locked = ClosedPeriodGuard.NeedOf(invoice, parts, boundaries);
@@ -423,6 +431,7 @@ public sealed partial class InvoiceDesk(
 
         // Замок стройки возможен, только когда доли есть, — а тогда места уже прочитаны.
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
-            locked is null ? null : PaymentViews.Text(locked, known), [.. months.Select(m => PaymentViews.Month(m.Month))]);
+            locked is null ? null : PaymentViews.Text(locked, known), [.. months.Select(m => PaymentViews.Month(m.Month))],
+            DuplicateBlockers: blockers);
     }
 }

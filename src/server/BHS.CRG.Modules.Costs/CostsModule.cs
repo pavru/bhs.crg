@@ -331,6 +331,8 @@ public sealed class CostsModule : IAppModule
         // Связка записи счёта и его ответ (C5, issue #1082): замок «запись против закрытия периода»,
         // отказ запертому счёту и учётные даты оплаченного — одним местом на все адреса.
         services.AddScoped<InvoiceDesk>();
+        services.AddScoped<InvoiceDuplicateJournal>();
+        services.AddHostedService<InvoiceDuplicateJournalWorker>();
         // Снимок для готовности — счёту и пачке одним кодом (issue #1292): его читают ответ счёта,
         // переход «разобран» и список, называющий в строке, чего черновику не хватает.
         services.AddScoped<InvoiceSnapshots>();

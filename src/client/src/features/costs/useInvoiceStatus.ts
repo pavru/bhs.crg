@@ -22,6 +22,7 @@ export interface StatusHandlers {
   onRereadHeader: () => void;
   onClose: () => void;
   onOpenInvoice: (id: string) => void;
+  onReviewDuplicate: (id: string) => void;
   onRetryOrganizations?: () => void;
   rereadFailed?: { error: string; retrying: boolean; onRetry: () => void };
   hiddenByFilter?: () => void;
@@ -69,6 +70,7 @@ export function useInvoiceStatus(h: StatusHandlers): {
     switch (action.kind) {
       case 'goto': h.reveal(action.place); return;
       case 'open': h.onOpenInvoice(action.invoiceId); return;
+      case 'review-duplicate': h.onReviewDuplicate(action.invoiceId); return;
       case 'close': h.onClose(); return;
       case 'reread':
         // Одно «Перечитать счёт» на все устаревшие части: шапку, строки, исправление.

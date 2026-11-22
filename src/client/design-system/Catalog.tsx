@@ -27,7 +27,7 @@ const sections = [
   { id: 'layers', label: 'Окна и меню', icon: glyphs.OpenInNew, description: 'Modal · Menu · Tooltip' },
   { id: 'icons', label: 'Значки', icon: glyphs.Search, description: 'Векторный каталог из кода' },
   { id: 'screen', label: 'Пример экрана', icon: glyphs.Description, description: 'Один экран в трёх компоновках' },
-  { id: 'mockups', label: 'Восстановленные макеты', icon: glyphs.Description, description: 'Макеты и варианты из архива Claude' },
+  { id: 'mockups', label: 'Макеты', icon: glyphs.Description, description: 'Новые варианты и макеты из архива Claude' },
   { id: 'work12', label: 'Назначения · 4 варианта', icon: glyphs.Group, description: 'work-12 · Восстановленный макет · Не первичный' },
   { id: 'work19', label: 'Закрытие периода · Р4', icon: glyphs.CalendarCheck, description: 'Три варианта диалога work-19' },
   { id: 'coverage', label: 'Покрытие исходников', icon: glyphs.Check, description: 'Полнота библиотеки и служебные контексты' },

@@ -26,7 +26,7 @@ internal sealed record CorrectionDone(
 /// отметка предпросмотра. Человек без права исправления на обычном счёте слышит «правьте как обычно», а
 /// не «нет права»: путь у него есть.</para>
 ///
-/// <para><b>Замки — как у всех пишущих</b>: период, потом строка счёта, и всё — до чтения. Допуск
+/// <para><b>Замки — как у всех пишущих</b>: период, проверка дублей, затем строка счёта, и всё — до чтения. Допуск
 /// читается под ними впервые в запросе (п. 1.3): порт настроек держит значение до конца запроса, и
 /// прочитанный раньше допуск молча остался бы прежним, если его сменили, пока запрос ждал замка.</para>
 ///
@@ -47,6 +47,7 @@ public sealed partial class InvoiceDesk
         {
             return await db.InOpenPeriodAsync(periods, async boundaries =>
             {
+                await InvoiceDuplicateLock.AcquireAsync(db, InvoiceDuplicateWrite.Change, ct);
                 await InvoiceBook.LockAsync(db, id, ct);
                 var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
                 var label = InvoiceEndpoints.Label(invoice);

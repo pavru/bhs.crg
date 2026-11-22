@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { QK, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
 
@@ -102,4 +102,19 @@ export function useDescribePayment() {
 export function useCancelPayment() {
   return useInvoiceWrite(({ id, version, reason }: { id: string; version: string; reason: string }) =>
     apiClient.post<InvoiceView>(`/costs/invoices/${id}/unpaid`, { reason }, seenBy(version)).then(r => r.data));
+}
+
+export function useConfirmInvoiceDuplicate() {
+  const qc = useQueryClient();
+  return useInvoiceWrite(async ({ id, version, otherInvoiceId, otherRevision, reason }: {
+    id: string; version: string; otherInvoiceId: string; otherRevision: string; reason: string;
+  }) => {
+    try {
+      const response = await apiClient.post<InvoiceView>(`/costs/invoices/${id}/duplicate-confirmations`,
+        { otherInvoiceId, otherRevision, reason }, seenBy(version));
+      return response.data;
+    } finally {
+      void qc.invalidateQueries({ queryKey: [QK, otherInvoiceId], refetchType: 'all' });
+    }
+  });
 }

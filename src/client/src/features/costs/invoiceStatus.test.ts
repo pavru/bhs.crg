@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceReadinessGap, InvoiceView, PaymentView } from '@/shared/api/invoices';
 import type { InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import { bannerOf, blocksText, briefOf, statusOf, type StatusInput } from './invoiceStatus';
+import { mayMarkPaid, primaryOf } from './invoicePrimary';
 
 /**
  * Индикатор состояния счёта (costs-invoice-screen-11, задачи 1.1–1.4, ТЗ COST-6.4). Чем ломается: число
@@ -47,6 +48,53 @@ const failed = (reason: string): InvoiceRecognition => ({
 const DISCREPANCY: InvoiceReadinessGap = {
   kind: 'total', label: 'сумма строк расходится с суммой к оплате на 38400.50', field: 'Итого', blocks: ['parsed', 'payment'],
 };
+
+describe('Блокировка по совпадению реквизитов', () => {
+  const blocker = {
+    id: 'twin', number: 'СЧ-7', issuedOn: '2026-10-03', total: 100, supplierId: 'supplier',
+    paid: true, paidOn: '2026-10-04', otherRevision: 'rev', createdAt: '2026-10-03T09:00:00Z',
+    scanBlobPath: 'old.pdf', scanFileName: 'Счёт.pdf',
+  };
+  const payment = {
+    refusal: 'есть неподтверждённое совпадение', refusalKind: 'duplicate' as const, duplicateBlockers: [blocker],
+  };
+  const sameFile: InvoiceView['sameFile'][number] = {
+    ...blocker, supplierName: 'Поставщик', supplierArchived: false, state: 'Разобран', payment: 'Оплачен',
+    createdByName: null, mine: false,
+  };
+
+  it('скрывает оба входа и сохраняет отдельное денежное замечание', () => {
+    const saved = view({ state: 'Разобран', gaps: null, payment: {
+      ...payment, moneyRefusalKind: 'amount', moneyRefusal: 'не указана сумма к оплате',
+    } });
+    expect(mayMarkPaid(saved, true)).toBe(false);
+    expect(primaryOf(saved, CAN, { gone: false, correcting: false })).toBeNull();
+    expect(statusOf(input(saved)).items.filter(i => i.blocks?.includes('pay')).map(i => i.key))
+      .toEqual(expect.arrayContaining(['pay-refusal', 'duplicate:twin']));
+  });
+
+  it('называет оплаченного двойника с тем же файлом один раз и оставляет переход при чтении', () => {
+    const saved = view({ payment, duplicates: [blocker], sameFile: [sameFile] });
+    const rows = statusOf(input(saved, { can: { ...CAN, pay: false, delete: false } })).items;
+    expect(rows.map(i => i.key)).not.toContain('same-file');
+    const distinct = rows.filter(i => i.key.startsWith('duplicate'));
+    expect(distinct).toHaveLength(1);
+    expect(distinct[0].detail).toMatch(/Оплачен.*Тот же файл/);
+    expect(distinct[0].actions).toContainEqual({ kind: 'open', label: 'Открыть двойника', invoiceId: 'twin' });
+  });
+
+  it('снимает замечание о подтверждённой паре, оставляя другие совпадения файлов', () => {
+    const another = { ...sameFile, id: 'other', number: 'СЧ-8' };
+    const saved = view({
+      duplicates: [{ ...blocker, confirmed: true }],
+      sameFile: [sameFile, another],
+    });
+    const rows = statusOf(input(saved)).items;
+    expect(rows.find(i => i.key === 'same-file')?.text).toContain('СЧ-8');
+    expect(rows.find(i => i.key === 'same-file')?.text).not.toContain('СЧ-7');
+    expect(rows.some(i => i.key.startsWith('duplicate'))).toBe(false);
+  });
+});
 
 describe('statusOf — уровни, число, фраза (1.1)', () => {
   it('число — пункты вне «К сведению»; худший уровень даёт тон', () => {
