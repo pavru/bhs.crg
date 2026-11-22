@@ -69,7 +69,7 @@ describe('строка списка счетов', () => {
   ])('%s, %s: значок и слово «%s»', (state, payment, word, hint, tone) => {
     mount({ ...ITEM, state, payment });
     const row = screen.getByTestId('invoice-row');
-    expect(row.textContent).toContain(`, ${word}, `);
+    expect(screen.getByRole('button', { name: new RegExp(`,\\s*${word},`) })).toBe(row);
     const mark = screen.getByTestId('row-state');
     expect(mark.getAttribute('aria-description')).toBe(hint);
     expect(mark.querySelector('svg')!.getAttribute('class')).toContain(tone);

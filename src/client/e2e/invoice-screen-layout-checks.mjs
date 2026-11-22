@@ -15,6 +15,7 @@
 import { clickAt, expandInvoiceParts, takePanels, setPanels, underRoute, unrouteQuiet } from './harness.mjs';
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
+import { invoiceListScrollChecks } from './invoice-list-scroll-checks.mjs';
 import { statusOpen } from './invoice-status.mjs';
 import { saveState, untilSaveState } from './invoice-save.mjs';
 
@@ -69,6 +70,7 @@ async function allMessages(page, h) {
 }
 
 export async function invoiceScreenLayoutChecks(page, check, h) {
+  await invoiceListScrollChecks(page, check, h.BASE);
   let invoice;
   await check('экран счёта: черновик «со всеми сообщениями» заведён', async () => { invoice = await allMessages(page, h); });
   if (!invoice) return;
