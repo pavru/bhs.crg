@@ -10,6 +10,17 @@ const { check, summarize } = createChecks();
 const heading = (page, name) => page.getByRole('heading', { name, exact: typeof name === 'string' });
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 
+async function pickFromCatalog(page, name) {
+  const dialog = page.getByRole('dialog');
+  const search = dialog.getByRole('combobox', { name: 'Поиск по справочнику' });
+  await search.fill(name);
+  const option = dialog.getByRole('option', { name, exact: true });
+  await option.waitFor();
+  await search.press('ArrowDown');
+  assert.equal(await search.getAttribute('aria-activedescendant'), await option.getAttribute('id'));
+  await search.press('Enter');
+}
+
 async function createOrOpen(page, path) {
   const response = page.waitForResponse(reply => new URL(reply.url()).pathname === `/api${path}`
     && reply.request().method() === 'POST');
@@ -33,7 +44,7 @@ async function fillAndSubmit(page, report, fixture) {
     const index = report.lines.length + 1;
     await button(page, 'Добавить строку').click();
     await button(page, `Вид работы, строка ${index}`).click();
-    await button(page, WORK_ENTRY_TYPE).click();
+    await pickFromCatalog(page, WORK_ENTRY_TYPE);
     await page.getByRole('textbox', { name: `Объём, строка ${index}` }).fill('12');
     await page.getByRole('combobox', { name: 'Вариант' }).click();
     await page.getByRole('option', { name: WORK_ENTRY_VARIANT, exact: true }).click();
@@ -43,7 +54,7 @@ async function fillAndSubmit(page, report, fixture) {
     await page.getByText('Добавьте материал для подачи отчёта.', { exact: true }).waitFor();
     assert.ok(await button(page, 'Добавить материал').evaluate(element => element === document.activeElement));
     await button(page, 'Добавить материал').click();
-    await button(page, WORK_ENTRY_MATERIAL).click();
+    await pickFromCatalog(page, WORK_ENTRY_MATERIAL);
     await button(page, 'Сохранить').click();
     await button(page, 'Подать отчёт').click();
     await page.getByText('Подан', { exact: true }).waitFor();

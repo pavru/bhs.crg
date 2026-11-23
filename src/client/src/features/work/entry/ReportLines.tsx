@@ -96,7 +96,7 @@ export function ReportLines({ scope, lines, savedLines, disabled, siteReady, err
       const type = typeOf(line.workTypeId);
       const unitName = unit ? `${unit.name}${unit.archived ? ' · в архиве' : ''}` : type?.unitId === line.unitId ? type.unitName : null;
       return <WorkCatalogPicker scope={scope} kind="units" label={`Единица, строка ${index + 1}`} title="Выберите единицу"
-        display={unitName || (line.unitId ? 'Недоступна' : 'Выбрать')} name={item => item.name} disabled={disabled || !siteReady} field
+        display={unitName || (line.unitId ? 'Недоступна' : 'Выбрать')} name={item => item.name} currentId={line.unitId} disabled={disabled || !siteReady} field
         onPick={item => { setPickedUnits(old => ({ ...old, [item.id]: item })); update(line, { unitId: item.id }); }} />;
     } },
     { key: 'details', label: 'Подробности', width: 'w-48', cell: (line, index) => {

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
 import { reportQuery, type EntrySites, type ReportMode, type WorkReport } from '@/shared/api/workReports';
+import { formatLocale, setFormatLocale } from '@/shared/format/format';
 import { SnackbarCtx } from '@/shared/ui/Snackbar';
 import { ReportForm } from './ReportForm';
 
@@ -52,7 +53,7 @@ beforeEach(() => {
     if (path.endsWith('/catalog/materials')) return { data: { reason: materialReason,
       items: materialReason ? [] : [{ id: 'm1', displayName: 'Кабель ВВГ', archived: false }] } };
     if (path.endsWith('/crew-candidates')) return { data: { items: [{ id: 'e2', fullName: 'Сергеев' }] } };
-    return { data: path === '/work/sites/mine' ? sites : current };
+    return { data: path === '/work/sites/mine' || path.endsWith('/sites') ? sites : current };
   });
 });
 afterEach(cleanup);
@@ -67,6 +68,23 @@ function mount(id: string, mode: ReportMode = 'own', client = new QueryClient())
 }
 
 const button = (name: string) => screen.getByRole('button', { name });
+
+it('сохраняет неизменённый дробный объём при правке часов в en-US', async () => {
+  const locale = formatLocale();
+  setFormatLocale('en-US');
+  try {
+    current = { ...report, lines: [{ ...report.lines[0], volume: 1.234 }] };
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+    mount('r1');
+    const volume = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Объём, строка 1' });
+    expect(volume.value).toBe('1,234');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Часы за смену' }), { target: { value: '7' } });
+    fireEvent.click(button('Сохранить'));
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/work/reports/r1', expect.objectContaining({
+      hours: 7, lines: [expect.objectContaining({ volume: 1.234 })],
+    }), { headers: { 'If-Match': '1' } }));
+  } finally { setFormatLocale(locale); }
+});
 
 it('при отказе 409 сохраняет выбранную смену и после перечитывания отправляет свежую версию и строки', async () => {
   vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
@@ -95,7 +113,15 @@ it('у вида без вариантов скрывает поле, сбрас�
   mount('r1');
   expect(await screen.findByRole('combobox', { name: 'Вариант' })).toBeTruthy();
   fireEvent.click(button('Вид работы, строка 1'));
-  fireEvent.click(await within(await screen.findByRole('dialog')).findByRole('button', { name: 'Монтаж коробки' }));
+  const dialog = within(await screen.findByRole('dialog'));
+  const option = await dialog.findByRole('option', { name: 'Монтаж коробки' });
+  const search = dialog.getByRole('combobox', { name: 'Поиск по справочнику' });
+  expect(document.activeElement).toBe(search);
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  expect(search.getAttribute('aria-activedescendant')).toBe(option.id);
+  expect(option.getAttribute('aria-selected')).toBe('false');
+  fireEvent.keyDown(search, { key: 'Enter' });
   await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Вариант' })).toBeNull());
   expect(button('Единица, строка 1').textContent).toContain('шт.');
   fireEvent.click(button('Сохранить'));
@@ -115,7 +141,7 @@ it('добавляет и убирает черновую строку, сохр
   }));
   fireEvent.click(button('Подробности строки 1'));
   fireEvent.click(button('Добавить материал'));
-  fireEvent.click(await within(await screen.findByRole('dialog')).findByRole('button', { name: 'Кабель ВВГ' }));
+  fireEvent.click(await within(await screen.findByRole('dialog')).findByRole('option', { name: 'Кабель ВВГ' }));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Бригадная работа' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Сергеев' }));
   expect(apiClient.get).toHaveBeenCalledWith('/work/constructions/site-a/crew-candidates',
@@ -127,6 +153,33 @@ it('добавляет и убирает черновую строку, сохр
     hours: 7.5, lines: [expect.objectContaining({ isCrew: true, participants: ['e2'],
       materials: [{ nomenclatureId: 'm1', note: null }] })],
   }), { headers: { 'If-Match': '1' } }));
+});
+
+it('после автоподачи восстанавливает ключ и позволяет сохранить набранный объём', async () => {
+  vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
+  mount('r1');
+  fireEvent.click(await screen.findByRole('tab', { name: 'Ночь' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Объём, строка 1' }), { target: { value: '12' } });
+  fireEvent.click(button('Сохранить'));
+  current = { ...report, status: 'submitted', version: '2' };
+  fireEvent.click(await screen.findByRole('button', { name: 'Перечитать' }));
+  expect(await screen.findByText(/Стройка, дата и смена восстановлены/)).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'День' }).getAttribute('aria-selected')).toBe('true');
+  expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(true);
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+  fireEvent.click(button('Сохранить'));
+  await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith('/work/reports/r1', expect.objectContaining({
+    shift: 'day', lines: [expect.objectContaining({ volume: 12 })],
+  }), { headers: { 'If-Match': '2' } }));
+});
+
+it('при вводе за сотрудника подбирает бригаду через адрес менеджера', async () => {
+  mount('r1', 'entry');
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Бригадная работа' }));
+  expect(await screen.findByRole('checkbox', { name: 'Сергеев' })).toBeTruthy();
+  expect(apiClient.get).toHaveBeenCalledWith('/work/entry/sites/site-a/crew-candidates',
+    expect.objectContaining({ params: { date: report.date } }));
+  expect(apiClient.get).not.toHaveBeenCalledWith('/work/constructions/site-a/crew-candidates', expect.anything());
 });
 
 it('показывает причину пустого ответа справочника материалов', async () => {

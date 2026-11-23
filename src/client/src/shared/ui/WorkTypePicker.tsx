@@ -8,7 +8,7 @@ export function WorkTypePicker({ scope, label, value, type, disabled, onPick }: 
 }) {
   return <WorkCatalogPicker scope={scope} kind="work-types" label={label} title="Выберите вид работы"
     display={type ? workTypeName(type) : value ? 'Вид работы недоступен' : 'Выбрать вид'}
-    name={workTypeName} disabled={disabled} field onPick={onPick} />;
+    name={workTypeName} currentId={value} disabled={disabled} field onPick={onPick} />;
 }
 
 function workTypeName(type: WorkTypeOption) {

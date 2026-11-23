@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
+import type { ReportMode } from './workReports';
 
 export interface EntryCatalogScope {
   siteId: string;
   date: string;
+  mode: ReportMode;
   reportId?: string;
   reportVersion?: string;
 }
@@ -57,12 +59,13 @@ export function useEntryCatalog<K extends keyof EntryCatalogItem>(
   });
 }
 
-export function useCrewCandidates({ siteId, date }: EntryCatalogScope, enabled: boolean) {
+export function useCrewCandidates({ siteId, date, mode }: EntryCatalogScope, enabled: boolean) {
+  const base = mode === 'entry' ? '/work/entry/sites' : '/work/constructions';
   return useQuery({
-    queryKey: ['work', 'crew-candidates', siteId, date],
+    queryKey: ['work', 'crew-candidates', mode, siteId, date],
     enabled: enabled && !!siteId && !!date,
     queryFn: ({ signal }) => apiClient.get<{ items: { id: string; fullName: string }[]; reason: 'not-assigned' | null }>(
-      `/work/constructions/${encodeURIComponent(siteId)}/crew-candidates`, { params: { date }, signal },
+      `${base}/${encodeURIComponent(siteId)}/crew-candidates`, { params: { date }, signal },
     ).then(response => response.data),
   });
 }

@@ -105,6 +105,8 @@
   выдачу строек выбранного сотрудника, затем переносится в шапку отчёта.
   `sites/mine` читает назначения спрашивающего. `assignments/candidates` требует
   `work.assignment.edit`; `crew-candidates` предназначен для участников строки известной стройки.
+  При вводе за сотрудника `GET /api/work/entry/sites/{id}/crew-candidates` требует `work.report.review`
+  и проверяет тот же охват менеджера, что и ввод отчёта. Подбор участников использует дату отчёта.
   Протокол записи, включая `If-Match`, остаётся у `work-13`, `work-15` и `work-17`.
 - **Справочники ввода.** До снятия `ReferenceReads` PR 1 даёт необходимые данные через
   `GET /api/work/entry/sites/{siteId}/catalog/{kind}`. Доступны `work-types` с вариантами, `units`,

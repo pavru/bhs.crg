@@ -1,5 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Data;
@@ -15,8 +16,12 @@ public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
 {
     private sealed record Candidate(Guid Id, string FullName);
 
-    public static void Map(IEndpointRouteBuilder endpoints) =>
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
         endpoints.MapGet("/api/work/constructions/{id:guid}/crew-candidates", GetAsync).WithTags("Отчёты");
+        endpoints.MapGet("/api/work/entry/sites/{id:guid}/crew-candidates", ForEntryAsync).WithTags("Отчёты")
+            .RequireAuthorization(AppPolicies.Permission(WorkModule.ReportReview));
+    }
 
     private static async Task<IResult> GetAsync(
         Guid id, DateOnly date, IModuleUser user, IModuleEmployees employees, ManagerSites managers,
@@ -26,9 +31,25 @@ public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
         if (me is not { Archived: false } ||
             (!await candidates.IsInstallerOnAsync(me, id, date, ct) &&
              !(await managers.OfEmployeeAsync(me, ct: ct)).Contains(id)))
-            return Results.Ok(new { items = Array.Empty<Candidate>(), reason = "not-assigned" });
+            return NotAssigned();
 
-        var assigned = await candidates.AssignedAsync(id, date, ct);
+        return await candidates.ReadAsync(id, date, ct);
+    }
+
+    private static async Task<IResult> ForEntryAsync(
+        Guid id, DateOnly date, IModuleReaders readers, ManagerSites managers, IModuleClock clock,
+        CrewCandidates candidates, CancellationToken ct)
+    {
+        var reach = await managers.ReachAsync(await readers.ForRequestAsync(ct), ct);
+        if (!reach.Covers(id, own: false) || await clock.TodayOnSiteAsync(id, ct) is null) return NotAssigned();
+        return await candidates.ReadAsync(id, date, ct);
+    }
+
+    private static IResult NotAssigned() => Results.Ok(new { items = Array.Empty<Candidate>(), reason = "not-assigned" });
+
+    private async Task<IResult> ReadAsync(Guid id, DateOnly date, CancellationToken ct)
+    {
+        var assigned = await AssignedAsync(id, date, ct);
         var items = (await employees.GetAsync(assigned, ct) ?? [])
             .OrderBy(e => e.FullName, StringComparer.CurrentCulture).ThenBy(e => e.Id)
             .Select(e => new Candidate(e.Id, e.FullName)).ToArray();

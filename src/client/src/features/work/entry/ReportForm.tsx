@@ -5,7 +5,7 @@ import {
   createWorkReport, entrySitesQuery, ownReportsKey, reportQuery, submitWorkReport, updateWorkReport,
   type EntrySite, type ReportHeader, type ReportInput, type ReportMode, type RequiredReportField, type WorkReport,
 } from '@/shared/api/workReports';
-import { formatDatePrecise, formatLocale } from '@/shared/format/format';
+import { formatDatePrecise } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { Banner } from '@/shared/ui/Banner';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -27,6 +27,8 @@ import { assignmentReason, automaticSubmission, reportFailure, reportShifts, rep
 const root = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review/entry';
 const backTo = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review';
 const headerOf = (row: WorkReport): ReportHeader => ({ constructionId: row.constructionId, date: row.date, shift: row.shift });
+const reportLocked = (row?: WorkReport) => !!row && (row.periodClosed || row.status === 'accepted');
+const reportKeyLocked = (row?: WorkReport) => reportLocked(row) || row?.status === 'submitted';
 const suggestionOf = (site?: EntrySite, date?: string): ReportHeader => ({
   constructionId: site?.id ?? '', date: date ?? site?.suggested.date ?? '', shift: site?.suggested.shift ?? 'day',
 });
@@ -91,6 +93,8 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
   const [failure, setFailure] = useState<ReturnType<typeof reportFailure>>();
   const [errorFocus, setErrorFocus] = useState<RequiredReportField>();
   const [restoredLines, setRestoredLines] = useState<number[]>([]);
+  const [mergeConflicts, setMergeConflicts] = useState<string[]>([]);
+  const [headerRestored, setHeaderRestored] = useState(false);
   const [busy, setBusy] = useState<'save' | 'submit' | 'read'>();
   const protocol = useRef<{ key: string; id: string } | null>(null);
   const creation = useRef<{ input: ReportInput; header: ReportHeader; contents: ReportContents } | null>(null);
@@ -104,12 +108,11 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
   const unchangedKey = baseline.date === header.date && baseline.constructionId === header.constructionId;
   const knownSite = !!currentSite || (unchangedKey && !!saved);
   const dirty = !!incomplete || baseline.shift !== header.shift || !unchangedKey || !sameContent(contents, savedContents);
-  const locked = !!saved && (saved.periodClosed || saved.status === 'accepted');
-  const headerLocked = locked || saved?.status === 'submitted';
-  const locale = formatLocale();
+  const locked = reportLocked(saved);
+  const headerLocked = reportKeyLocked(saved);
   const formProblem = incomplete ?? (!header.date ? 'Укажите дату смены.'
     : !header.constructionId ? 'Выберите стройку.'
-    : !knownSite ? 'На эту дату выберите назначенную стройку.' : contentsProblem(contents, locale));
+    : !knownSite ? 'На эту дату выберите назначенную стройку.' : contentsProblem(contents));
   const reason = assignmentReason(sites.data?.boundary.reason, mode === 'entry');
   const selectable = saved && !choices.some(site => site.id === saved.constructionId)
     ? [...choices, { id: saved.constructionId, name: saved.constructionName ?? 'Стройка недоступна' }] : choices;
@@ -134,6 +137,8 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     setFailure(undefined);
     setErrorFocus(undefined);
     setRestoredLines([]);
+    setMergeConflicts([]);
+    setHeaderRestored(false);
     protocol.current = null;
     cache.setQueryData(queryKey, row);
     void cache.invalidateQueries({ queryKey: ownReportsKey });
@@ -149,7 +154,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     if (formProblem || locked || busy || failure?.stale) return false;
     setBusy('save');
     try {
-      const input = reportInput(header, contents, saved?.note ?? null, locale);
+      const input = reportInput(header, contents, saved?.note ?? null);
       // После неоднозначного сбоя повторяем исходное создание. Новые правки накладываем на его ответ.
       const first = saved ? null : creation.current ??= { input, header, contents };
       const row = saved
@@ -158,11 +163,16 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       const fresh = contentsOf(row);
       const replay = first ? rebaseContents(first.contents, contents, fresh) : undefined;
       const nextContents = replay?.contents ?? fresh;
-      const nextHeader = first ? rebaseHeader(first.header, header, headerOf(row)) : headerOf(row);
-      const needsSave = !sameContent(nextHeader, headerOf(row)) || !sameContent(nextContents, fresh);
+      const serverHeader = headerOf(row);
+      const mergedHeader = first ? rebaseHeader(first.header, header, serverHeader) : serverHeader;
+      const resetHeader = reportKeyLocked(row) && !sameContent(mergedHeader, serverHeader);
+      const nextHeader = resetHeader ? serverHeader : mergedHeader;
+      const needsSave = !sameContent(nextHeader, serverHeader) || !sameContent(nextContents, fresh);
       await accept(row, nextHeader, nextContents);
+      setHeaderRestored(resetHeader);
       if (replay?.restored.length) setRestoredLines(replay.restored);
-      if (needsSave || replay?.restored.length) return false;
+      if (replay?.conflicts.length) setMergeConflicts(replay.conflicts);
+      if (needsSave || resetHeader || replay?.restored.length || replay?.conflicts.length) return false;
       if (!initial && redirect) navigate(`${root(mode)}/${row.id}`, { replace: true });
       return true;
     } catch (error) {
@@ -196,10 +206,15 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       const next = headerOf(row);
       setSaved(row);
       setBaseline(next);
-      setHeader(rebaseHeader(baseline, header, next));
+      const mergedHeader = rebaseHeader(baseline, header, next);
+      const keyLocked = reportKeyLocked(row);
+      setHeader(keyLocked ? next : mergedHeader);
+      setHeaderRestored(keyLocked && (!!incomplete || !sameContent(mergedHeader, next)));
+      if (keyLocked) setIncomplete(null);
       const rebased = rebaseContents(savedContents, contents, contentsOf(row));
       setContents(rebased.contents);
       setRestoredLines(rebased.restored);
+      setMergeConflicts(rebased.conflicts);
       setFailure(undefined);
       setErrorFocus(undefined);
       protocol.current = null;
@@ -221,6 +236,12 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     </p>}
     {saved?.returnComment && <Banner tone="warning">{saved.returnComment}</Banner>}
     {saved?.periodClosed && <Banner tone="info">Период закрыт.</Banner>}
+    {headerRestored && <Banner tone="warning">
+      Стройка, дата и смена восстановлены из отчёта, поскольку его шапка уже закрыта для правки. Введённые правки строк и часов остались в форме.
+    </Banner>}
+    {mergeConflicts.length > 0 && <Banner tone="warning">
+      <ul className="space-y-1">{mergeConflicts.map((conflict, index) => <li key={index}>{conflict}</li>)}</ul>
+    </Banner>}
     {restoredLines.length > 0 && <Banner tone="warning">
       У строк {restoredLines.join(', ')} появились материалы, участники или фото. Проверьте строки и подтвердите удаление заново.
     </Banner>}
@@ -248,7 +269,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
             if (site) setHeader(!saved && header.date === baseline.date && header.shift === baseline.shift
               ? suggestionOf(site, requestedDate) : { ...header, constructionId: id });
           }} />
-        <ShiftDateHeader date={header.date} shift={header.shift} today={today} locked={headerLocked} busy={!!busy}
+        <ShiftDateHeader key={headerLocked ? 'locked' : 'editable'} date={header.date} shift={header.shift} today={today} locked={headerLocked} busy={!!busy}
           lockReason={saved?.status === 'submitted' && !saved.periodClosed ? 'Смена меняется только после возврата' : undefined}
           onDate={date => setHeader(old => ({ ...old, date }))} onShift={shift => setHeader(old => ({ ...old, shift }))}
           onIncomplete={setIncomplete} />
@@ -256,7 +277,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       <TextField containerClassName="max-w-xs" label="Часы за смену" inputMode="decimal" value={contents.hours}
         readOnly={locked} disabled={!!busy} onChange={event => setContents(old => ({ ...old, hours: event.target.value }))} />
     </Card>
-    <ReportLines lines={contents.lines} scope={{ siteId: header.constructionId, date: header.date,
+    <ReportLines lines={contents.lines} scope={{ siteId: header.constructionId, date: header.date, mode,
       reportId: saved?.constructionId === header.constructionId ? saved?.id : undefined, reportVersion: saved?.version }}
       siteReady={knownSite && !!header.date && !incomplete} disabled={locked || !!busy}
       savedLines={saved?.lines}
