@@ -233,6 +233,7 @@ public record TableViewTotalDto(string Column, string Aggregate);
 /// модуля строк нет и исхода нет — тогда как в описании (<see cref="TableDeclarationDto.Boundary" />).</param>
 /// <param name="BoundaryOutcome">Код применившегося исхода (<c>own</c>, <c>sites</c>, <c>all</c>…);
 /// null — строк не читали (модуль выключен).</param>
+/// <param name="Reason">Причина пустого охвата, если служба строк её назвала.</param>
 public record TableDto(
     string Address, string Title, string Grain, string? Boundary,
     IReadOnlyList<TableColumnDto> Columns,
@@ -243,7 +244,8 @@ public record TableDto(
     IReadOnlyList<string>? Keys = null,
     TableBreakdownDto? Breakdown = null,
     IReadOnlyList<TableDoubtDto>? Doubts = null,
-    string? BoundaryOutcome = null);
+    string? BoundaryOutcome = null,
+    string? Reason = null);
 
 /// <summary>Колонка, по которой ответ неполон, и причина словами: «проверено не всё: …».</summary>
 public record TableDoubtDto(string Column, string Label, string Reason);

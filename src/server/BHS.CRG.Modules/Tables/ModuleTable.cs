@@ -150,6 +150,7 @@ public sealed record ModuleTableColumn(
 /// (<see cref="ModuleTableBreakdown" />): «Разноска» у счёта. null — строка не расшифровывается.</param>
 /// <param name="Shortcuts">Готовые отборы таблицы — условия, которые модуль предлагает поставить одним
 /// нажатием, с числом строк под каждым (<see cref="ModuleTableShortcut" />). null — готовых нет.</param>
+/// <param name="MissingRowIsNotFound">Пустой результат при чтении по ключу возвращается как 404.</param>
 public sealed record ModuleTable(
     string Code,
     string Title,
@@ -162,7 +163,8 @@ public sealed record ModuleTable(
     string? RecordType = null,
     IReadOnlyList<ModuleTableView>? Views = null,
     ModuleTableBreakdown? Breakdown = null,
-    IReadOnlyList<ModuleTableShortcut>? Shortcuts = null)
+    IReadOnlyList<ModuleTableShortcut>? Shortcuts = null,
+    bool MissingRowIsNotFound = false)
 {
     /// <summary>Полный адрес таблицы: <c>модуль.таблица</c>.</summary>
     public static string Address(string module, string code) => $"{module}.{code}";

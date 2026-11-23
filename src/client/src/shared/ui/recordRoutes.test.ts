@@ -22,6 +22,17 @@ describe('адрес записи по типу', () => {
     expect(link('СчётНаОплату', ID, reader)).toEqual({ to: `/invoices?invoice=${ID}`, label: 'Открыть счёт' });
   });
 
+  it('строка отчёта ведёт в карточку с правом чтения или приёмки', () => {
+    const modules = [{ code: 'work', title: 'Учёт работ', available: true }];
+    for (const permission of ['work.report.review', 'work.report.read']) {
+      expect(link('ОтчётМонтажника', ID, access([permission], modules)))
+        .toEqual({ to: `/work-review/${ID}`, label: 'Открыть отчёт' });
+    }
+    for (const permission of ['work.report.own', 'work.crew.approve', 'work.sites.all']) {
+      expect(link('ОтчётМонтажника', ID, access([permission], modules))).toBeNull();
+    }
+  });
+
   it('без права на счета ссылки нет — модуль открыт, а экран счетов закрыт', () => {
     expect(link('СчётНаОплату', ID, access(['costs.waybill.read']))).toBeNull();
   });

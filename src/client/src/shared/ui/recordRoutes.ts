@@ -1,5 +1,6 @@
 import type { AccessInfo } from '@/shared/api/access';
 import type { RecordLevel, RecordOpens } from '@/shared/api/recordSearch';
+import { WORK_REVIEW_REPORT_PERMISSIONS } from '@/shared/api/work';
 import { workNav, settingsNav } from './navConfig';
 import { allowed } from './navAccess';
 
@@ -27,6 +28,8 @@ export interface RecordRoute {
   /** Адрес, к которому прикладывается запись, если он не сам экран: панель наборов данных стройки
    *  (`/document-sets/<id>/datasets`) закрыта правом экрана строек, а адрес у неё свой. */
   path?: string;
+  /** Дополнительные права маршрута карточки, если у раздела есть другие вкладки. */
+  additionalPermission?: readonly string[];
   /** Экран свой на каждом уровне (набор данных): маршрут уровня записи — с ЕГО экраном, правом которого
    *  он закрыт, — либо null, если у уровня адреса нет. Без уровня (строка таблицы) ссылки нет вовсе. */
   at?: (level: RecordLevel) => RecordRoute | null;
@@ -85,9 +88,14 @@ export const TEMPLATE_RECORD = {
     `/templates?${new URLSearchParams({ type: opens.under, template: opens.id ?? id })}`,
 } as const satisfies RecordRoute;
 
-/** Ключ — код типа записи, тем же письмом, что у модуля на сервере (`CostsRecordTypes`). */
+const WORK_REPORT_RECORD = {
+  screen: '/work-review', label: 'Открыть отчёт', additionalPermission: WORK_REVIEW_REPORT_PERMISSIONS,
+} as const satisfies RecordRoute;
+
+/** Ключ — код типа записи, тем же письмом, что у модуля на сервере. */
 export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
   'СчётНаОплату': INVOICE_RECORD,
+  'ОтчётМонтажника': WORK_REPORT_RECORD,
   // Коды типов ядра — те же, что у групп поиска ядра на сервере (`CoreRecordSearch`).
   'Стройка': CONSTRUCTION_RECORD,
   'НаборДанных': DATASET_RECORD,
@@ -127,7 +135,8 @@ export function recordScreen(recordType: string | null | undefined, access: Acce
 /** Экран открыт этому человеку — правом его раздела (`navConfig`), тем же, что закрывает маршрут. */
 export function openTo(route: RecordRoute, access: AccessInfo): RecordRoute | null {
   const section = [...workNav, ...settingsNav].find(item => item.to === route.screen);
-  return section && allowed(section, access) ? route : null;
+  return section && allowed(section, access)
+    && allowed({ permission: route.additionalPermission && [...route.additionalPermission] }, access) ? route : null;
 }
 
 /**

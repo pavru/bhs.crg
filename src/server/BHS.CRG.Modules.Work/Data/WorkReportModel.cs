@@ -60,6 +60,7 @@ internal static class WorkReportModel
         report.HasIndex(r => new { r.Status, r.WindowEndsAt }).HasDatabaseName("ix_reports_window");
         // Отчёты стройки по дате — приёмка и «кто держит стройку».
         report.HasIndex(r => new { r.ConstructionId, r.Date }).HasDatabaseName("ix_reports_site");
+        report.HasIndex(r => new { r.EmployeeId, r.Date }).HasDatabaseName("ix_reports_employee_date");
 
         var line = builder.Entity<ReportLine>();
         line.ToTable("report_lines", t => t.HasCheckConstraint("ck_report_lines_crew_role",

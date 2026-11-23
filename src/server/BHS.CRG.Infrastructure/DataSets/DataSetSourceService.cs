@@ -211,7 +211,7 @@ public partial class DataSetSourceService(
         var previewRows = rows.Take(take)
             .Select(r => (IReadOnlyList<string?>)columns.Select(c => r.TryGetValue(c, out var v) ? v : null).ToList())
             .ToList();
-        return new SourcePreviewDto(columns, previewRows, rows.Count, loaded.Boundary);
+        return new SourcePreviewDto(columns, previewRows, rows.Count, loaded.Boundary, loaded.Reason);
     }
 
     public async Task<SourceExportDto?> ExportSourceAsync(

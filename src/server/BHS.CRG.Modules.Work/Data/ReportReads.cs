@@ -79,6 +79,11 @@ public sealed partial class ReportReads(WorkDbContext db)
     internal Task<Report?> ReviewHeaderAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Visible(viewer).FirstOrDefaultAsync(r => r.Id == id, ct);
 
+    internal IQueryable<Report> TableReports(ReportViewer viewer) => Visible(viewer).AsNoTracking();
+
+    internal IQueryable<Report> ReadableTableReports(ReportViewer viewer, Guid? employeeId, Guid? userId) =>
+        TableReports(viewer).Where(ContentReadable(employeeId, userId));
+
     internal Task<Guid?> VisibleEmployeeAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Visible(viewer).Where(r => r.Id == id).Select(r => (Guid?)r.EmployeeId).SingleOrDefaultAsync(ct);
 
@@ -432,8 +437,7 @@ public sealed partial class ReportReads(WorkDbContext db)
             case ModuleReachKind.All:
                 return reports;
             case ModuleReachKind.Own:
-                var me = viewer.EmployeeId ?? Guid.Empty;
-                return reports.Where(r => r.EmployeeId == me);
+                return viewer.EmployeeId is { } me ? reports.Where(r => r.EmployeeId == me) : reports.Where(_ => false);
             default:
                 var sites = viewer.Reach.Sites.ToArray();
                 var own = viewer.EmployeeId;

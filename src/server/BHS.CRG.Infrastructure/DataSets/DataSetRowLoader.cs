@@ -42,6 +42,7 @@ public class DataSetRowLoader(
         IReadOnlyList<DataSetColumnInfo>? columns = null;
         string? warning = null;
         string? boundary = null;
+        string? reason = null;
         DataSetColumnTypes? types = null;
         if (source.File.Format == DataSetFormat.Pdf)
         {
@@ -66,6 +67,7 @@ public class DataSetRowLoader(
             // видеть, что именно ему отдали, и в удачном случае тоже. «12 строк скрыто» не годится:
             // две разные цифры, обе выглядящие окончательными, опаснее одной с оговоркой.
             boundary = provider.Declaration.BoundaryFor(provided.Boundary);
+            reason = provided.Reason;
         }
         else
         {
@@ -87,7 +89,7 @@ public class DataSetRowLoader(
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows, source.Name);
         rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows, source.Name, types);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows, source.Name);
-        return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary);
+        return new LoadedRows(rows, parsedRows.Count, columns, warning, boundary, reason);
     }
 
     private static List<IReadOnlyDictionary<string, string?>> DeserializeCachedData(string? json)

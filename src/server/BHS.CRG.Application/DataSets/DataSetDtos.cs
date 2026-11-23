@@ -171,7 +171,7 @@ public record BindingPreviewColumnDto(string Key, string Label, string? Unavaila
 /// </param>
 public record SourcePreviewDto(
     IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, int TotalRows,
-    string? Boundary = null);
+    string? Boundary = null, string? Reason = null);
 
 /// <summary>Готовый файл выгрузки табличного источника (CSV/XLS/XLSX) — байты + имя + content-type.</summary>
 public record SourceExportDto(byte[] Content, string FileName, string ContentType);

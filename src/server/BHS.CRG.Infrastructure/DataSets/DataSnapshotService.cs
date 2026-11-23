@@ -148,7 +148,7 @@ public class DataSnapshotService(
             loaded?.Warning ?? fallback?.Warning,
             // Границу выдачи знает только УДАВШАЯСЯ загрузка: у запасного счётчика её нет, и подписать
             // описание источника прошлой подписью значило бы соврать о правах на момент вызова.
-            loaded?.Boundary);
+            loaded?.Boundary, loaded?.Reason);
     }
 
     public async Task<RowsPage?> GetRowsAsync(
@@ -194,12 +194,12 @@ public class DataSnapshotService(
                 Truncated: offset + page.Count < all.Count,
                 // Граница едет и с «не изменилось»: строк в ответе нет, а подпись к ним нужна —
                 // иначе агент, получивший unchanged, потерял бы её на всех последующих страницах.
-                columns, [], hash, pageHash, Unchanged: true, Boundary: loaded.Boundary);
+                columns, [], hash, pageHash, Unchanged: true, Boundary: loaded.Boundary, Reason: loaded.Reason);
 
         return new RowsPage(
             source.Id, offset, limit, all.Count,
             Truncated: offset + page.Count < all.Count,
-            columns, page, hash, pageHash, Boundary: loaded.Boundary);
+            columns, page, hash, pageHash, Boundary: loaded.Boundary, Reason: loaded.Reason);
     }
 
     // ── Достоверность снимка ─────────────────────────────────────────────────────

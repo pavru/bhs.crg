@@ -82,7 +82,7 @@ public record SourceDetail(
     /// ⚠️ Агенту это поле нужнее, чем человеку: человек видит подпись рядом с таблицей, а агент строит
     /// на этих строках сверку и без границы сочтёт их полными.
     /// </summary>
-    string? Boundary = null);
+    string? Boundary = null, string? Reason = null);
 
 public record ColumnInfo(string Name, IReadOnlyList<string> SampleValues);
 
@@ -114,7 +114,7 @@ public record RowsPage(
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows,
     string RowsHash = "", string PageHash = "", bool Unchanged = false,
     /// <inheritdoc cref="SourceDetail.Boundary" />
-    string? Boundary = null)
+    string? Boundary = null, string? Reason = null)
 {
     /// <inheritdoc cref="SnapshotContract.Version" />
     public int ContractVersion => SnapshotContract.Version;
