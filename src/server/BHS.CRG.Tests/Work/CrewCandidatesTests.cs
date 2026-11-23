@@ -43,6 +43,28 @@ public class CrewCandidatesTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal("not-assigned", denied.GetProperty("reason").GetString());
     }
 
+    [Fact]
+    public async Task Entry_candidates_require_review_and_use_manager_reach_without_a_personal_assignment()
+    {
+        var employee = await crew.Reports.EmployeeAsync("Участник на дату отчёта");
+        var later = await crew.Reports.EmployeeAsync("Участник следующей смены");
+        var foreign = await crew.Reports.EmployeeAsync("Участник другой стройки");
+        await crew.AssignAsync(employee, from: ReportWorld.Day16, to: ReportWorld.Day16);
+        await crew.AssignAsync(later, from: "2026-11-17");
+        await crew.AssignAsync(foreign, crew.Reports.SiteB);
+        var (_, all) = await crew.Reports.Assignments.UserAsync("Полный охват", WorkModule.ReportReview, WorkModule.SitesAll);
+        var (_, noReview) = await crew.Reports.Assignments.UserAsync("Без права ввода", WorkModule.SitesAll);
+        var (_, outside) = await crew.Reports.ManagerAsync("Менеджер другой стройки", crew.Reports.SiteB);
+
+        var url = $"/api/work/entry/sites/{crew.Site}/crew-candidates?date={ReportWorld.Day16}";
+        var allowed = await CrewWorld.JsonAsync(await all.GetAsync(url));
+        Assert.Equal([employee], allowed.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
+        var denied = await CrewWorld.JsonAsync(await outside.GetAsync(url));
+        Assert.Empty(denied.GetProperty("items").EnumerateArray());
+        Assert.Equal("not-assigned", denied.GetProperty("reason").GetString());
+        Assert.Equal(HttpStatusCode.Forbidden, (await noReview.GetAsync(url)).StatusCode);
+    }
+
     [Theory]
     [InlineData("former-manager", "2026-10-15")]
     [InlineData("archived-installer", "2026-10-31")]

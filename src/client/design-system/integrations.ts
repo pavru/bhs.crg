@@ -1,4 +1,4 @@
-/** Nonvisual APIs are documented explicitly instead of fabricated as visual components. */
+/** Integration notes cover nonvisual APIs and components that depend on a live application context. */
 export const integrations: Record<string, { purpose: string; examples: string[] }> = {
   AuthProvider: { purpose: 'Сессия и вход пользователя. В примерах используется отдельный демонстрационный AuthContext.', examples: ['AccountMenu', 'NoAccessPage'] },
   BrandIconLinks: { purpose: 'Обновляет значки вкладки и приложения в head документа; собственного элемента на экране нет.', examples: ['BrandLogo'] },
@@ -8,6 +8,7 @@ export const integrations: Record<string, { purpose: string; examples: string[] 
   LayerBoundary: { purpose: 'Управляет фокусом и портальными слоями внутри окон.', examples: ['Modal', 'Menu', 'Popover'] },
   LeaveGuard: { purpose: 'Охраняет уход с несохранённой формы.', examples: ['LeaveQuestion', 'LeaveGuardDialog'] },
   LocaleProvider: { purpose: 'Общий язык форматирования чисел, дат и сегментного ввода.', examples: ['DateField', 'Calendar', 'DateRange'] },
+  MaterialPicker: { purpose: 'В подробностях строки Work-22 добавляет позиции из справочника номенклатуры. Уже добавленные позиции из выбора исключаются.', examples: ['Modal', 'SearchInput', 'ListOption'] },
   NavigationGuardProvider: { purpose: 'Объединяет охрану переходов и несохранённые изменения.', examples: ['LeaveGuardDialog', 'DetailHeader'] },
   PinnedPagesProvider: { purpose: 'Состояние закреплённых страниц и их порядка.', examples: ['PinnedGroup', 'PinnedLink'] },
   PhotoGallery: { purpose: 'Окно просмотра с перелистыванием. В карточке приёмки открывается по превью строки и запрашивает выбранный снимок.', examples: ['Modal', 'IconButton'] },
@@ -19,5 +20,8 @@ export const integrations: Record<string, { purpose: string; examples: string[] 
   SnackbarProvider: { purpose: 'Очередь временных уведомлений и портальная область показа.', examples: ['Snackbar'] },
   ThemeProvider: { purpose: 'Выбор светлой, тёмной или системной темы. В каталоге тема изолирована от пользовательских настроек приложения.', examples: ['ThemeToggle'] },
   WorkspaceProvider: { purpose: 'Выбранное рабочее пространство и видимость разделов.', examples: ['WorkspaceSwitcher', 'OutsideBanner', 'HiddenByWorkspace'] },
+  WorkCatalogPicker: { purpose: 'В сетке и подробностях Work-22 открывает окно поиска по справочнику, доступному для даты и стройки отчёта.', examples: ['EditGrid', 'Modal', 'SearchInput', 'ListOption'] },
+  WorkTypePicker: { purpose: 'В сетке Work-22 выбирает вид с единицей и признаками из Work. Сохранённое архивное значение видно в закрытом поле.', examples: ['EditGrid', 'OutlinedField', 'Modal'] },
+  WorkVariantPicker: { purpose: 'В подробностях строки Work-22 показывает варианты выбранного вида. Поле скрыто, если выбирать нечего и сохранённого варианта нет.', examples: ['Select'] },
   SiteFilterProvider: { purpose: 'Состояние отбора и избранных строек; в каталоге используются локальные фикстуры.', examples: ['SitesFilter', 'FavoritesPicker'] },
 };
