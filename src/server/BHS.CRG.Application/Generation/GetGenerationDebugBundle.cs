@@ -1,10 +1,10 @@
-﻿using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -27,7 +27,7 @@ public class GetGenerationDebugBundleHandler(
     IDocumentGeneratorFactory generatorFactory
 ) : IRequestHandler<GetGenerationDebugBundleQuery, GenerationDebugBundle?>
 {
-    public async Task<GenerationDebugBundle?> Handle(GetGenerationDebugBundleQuery q, CancellationToken ct)
+    public async ValueTask<GenerationDebugBundle?> Handle(GetGenerationDebugBundleQuery q, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);
         if (instance is null) return null;

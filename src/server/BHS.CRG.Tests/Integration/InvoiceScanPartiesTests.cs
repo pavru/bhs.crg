@@ -7,7 +7,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using Microsoft.EntityFrameworkCore;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Integration.InvoiceFromScanTests;
 

@@ -4,10 +4,12 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Единая форма документа качества в контексте генерации (issue #736).
@@ -62,7 +64,7 @@ public class QualityDocContextShapeTests(IntegrationTestFixture fixture) : IAsyn
     private static Task<QualityDocument> AddCertAsync(IServiceScope scope, Guid typeId, string name) =>
         M(scope).Send(new CreateQualityDocumentCommand(typeId, name, J("{'НомерДок':'ЕАЭС RU С-CN.1'}"),
             CatalogScope.System, null, QualityDocSource.Manual,
-            "quality/scan.pdf", "скан.pdf", "application/pdf"));
+            "quality/scan.pdf", "скан.pdf", "application/pdf")).AsTask();
 
     /// <summary>Полный проход резолва — тот же порядок, что у генерации PDF.</summary>
     private static async Task<GenerationContext> ResolveAsync(IServiceScope scope, Guid instanceId)

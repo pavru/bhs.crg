@@ -3,7 +3,7 @@ using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -22,7 +22,7 @@ public class PlanHandlers(
     IRequestHandler<ReplaceDocumentSetPlanCommand>,
     IRequestHandler<GetPlanSummaryQuery, PlanSummary>
 {
-    public async Task<IReadOnlyList<PlanRowWithActual>> Handle(GetDocumentSetPlanQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<PlanRowWithActual>> Handle(GetDocumentSetPlanQuery q, CancellationToken ct)
     {
         // Комплекта нет — это НЕ «комплект без плана». Иначе после устаревшей навигации клиент
         // получил бы пустую форму плана, заполнил её и упёрся в 404 уже на сохранении.
@@ -43,7 +43,7 @@ public class PlanHandlers(
             .OrderBy(r => r.TypeName, StringComparer.CurrentCulture)];
     }
 
-    public async Task Handle(ReplaceDocumentSetPlanCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(ReplaceDocumentSetPlanCommand cmd, CancellationToken ct)
     {
         _ = await sets.GetByIdAsync(cmd.SetId, ct) ?? throw new NotFoundException();
 
@@ -67,9 +67,10 @@ public class PlanHandlers(
             await plans.AddAsync(DocumentSetPlanItem.Create(cmd.SetId, row.DocumentTypeId, row.PlannedCount), ct);
 
         await plans.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public async Task<PlanSummary> Handle(GetPlanSummaryQuery q, CancellationToken ct)
+    public async ValueTask<PlanSummary> Handle(GetPlanSummaryQuery q, CancellationToken ct)
     {
         var children = await scopeChildren.ChildrenOfAsync(q.Scope, q.ScopeId, ct);
 

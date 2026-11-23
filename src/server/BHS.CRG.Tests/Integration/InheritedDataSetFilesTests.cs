@@ -1,7 +1,7 @@
 using System.Text;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

@@ -1,10 +1,12 @@
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 [Collection("Integration")]
 public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -69,7 +71,7 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
     {
         using var scope = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            Mediator(scope).Send(new CreateSectionCommand(Guid.NewGuid(), "Раздел")));
+            Mediator(scope).Send(new CreateSectionCommand(Guid.NewGuid(), "Раздел")).AsTask());
     }
 
     // ── DocumentSet ───────────────────────────────────────────────────────────
@@ -168,9 +170,9 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
 
         using var act = fixture.Services.CreateScope();
         var same = await Assert.ThrowsAsync<BHS.CRG.Domain.Common.ConflictException>(
-            () => Mediator(act).Send(new DuplicateDocumentInstanceCommand(srcId)));
+            () => Mediator(act).Send(new DuplicateDocumentInstanceCommand(srcId)).AsTask());
         var other = await Assert.ThrowsAsync<BHS.CRG.Domain.Common.ConflictException>(
-            () => Mediator(act).Send(new CopyDocumentToSetCommand(srcId, otherSetId, CopyStrategy.SmartCleanup)));
+            () => Mediator(act).Send(new CopyDocumentToSetCommand(srcId, otherSetId, CopyStrategy.SmartCleanup)).AsTask());
 
         Assert.Contains("не заводится", same.Message);
         Assert.Contains("не заводится", other.Message);
@@ -315,7 +317,7 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
 
         using (var scope = fixture.Services.CreateScope())
             await Assert.ThrowsAsync<ConflictException>(
-                () => Mediator(scope).Send(new MoveDocumentToSetCommand(baseId, targetSetId, CopyStrategy.SmartCleanup)));
+                () => Mediator(scope).Send(new MoveDocumentToSetCommand(baseId, targetSetId, CopyStrategy.SmartCleanup)).AsTask());
     }
 
     [Fact]

@@ -2,7 +2,7 @@ using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -15,7 +15,7 @@ public partial class CommonDataHandlers :
     IRequestHandler<PreviewRecordPurgeQuery, PurgeBatchPreview>,
     IRequestHandler<PurgeHeldRecordsCommand, PurgedBatch>
 {
-    public async Task<PurgeBatchPreview> Handle(PreviewRecordPurgeQuery q, CancellationToken ct)
+    public async ValueTask<PurgeBatchPreview> Handle(PreviewRecordPurgeQuery q, CancellationToken ct)
     {
         if (q.Ids is { Count: > 0 } named)
         {
@@ -29,7 +29,7 @@ public partial class CommonDataHandlers :
         return await PreviewAsync(live, live.Count, missing: 0, named: false, describe: true, ct);
     }
 
-    public async Task<PurgedBatch> Handle(PurgeHeldRecordsCommand cmd, CancellationToken ct)
+    public async ValueTask<PurgedBatch> Handle(PurgeHeldRecordsCommand cmd, CancellationToken ct)
     {
         var ids = cmd.Seen.Keys.ToList();
         var entries = await repo.FindAsync(e => e.Facet == null && ids.Contains(e.Id), ct);

@@ -12,7 +12,7 @@ using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Search;
 using BHS.CRG.Tests.Support;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

@@ -8,10 +8,12 @@ using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Системная консолидация «Материалы и документы качества» (issue #624): ПОБЕДИВШИЕ связки по
@@ -52,11 +54,11 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
     private static Task<QualityDocument> AddDocAsync(IServiceScope scope, Guid typeId, string name,
         string requisites = "{}", string? scanBlobPath = null)
         => M(scope).Send(new CreateQualityDocumentCommand(typeId, name, J(requisites),
-            CatalogScope.System, null, QualityDocSource.Manual, scanBlobPath, null, null));
+            CatalogScope.System, null, QualityDocSource.Manual, scanBlobPath, null, null)).AsTask();
 
     private static Task<int> LinkAsync(IServiceScope scope, CatalogScope linkScope, Guid? scopeId,
         string key, Guid docId, string? label = null)
-        => M(scope).Send(new SetMaterialLinksCommand(linkScope, scopeId, [new MaterialLinkInput(key, label)], docId));
+        => M(scope).Send(new SetMaterialLinksCommand(linkScope, scopeId, [new MaterialLinkInput(key, label)], docId)).AsTask();
 
     private static async Task<Guid> SourceAtAsync(IServiceScope scope, string level, Guid? scopeId)
     {

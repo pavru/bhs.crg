@@ -7,10 +7,12 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Фоновый писатель данных объекта не стирает правку формы (issue #1232).
@@ -51,7 +53,7 @@ public class BackgroundWriterRaceTests(IntegrationTestFixture fixture) : IAsyncL
 
     /// <summary>Правка формы: меняет адрес и название.</summary>
     private Task<DomainObject> FormSavesAsync(Guid id, string seen) => InScopeAsync(s =>
-        M(s).Send(new UpdateCommonDataEntryCommand(id, "Ромашка-2", J("{'Адрес':'Тверь'}"), TestAccess.All, seen)));
+        M(s).Send(new UpdateCommonDataEntryCommand(id, "Ромашка-2", J("{'Адрес':'Тверь'}"), TestAccess.All, seen)).AsTask());
 
     /// <summary>Преобразование фонового писателя: добавляет поле, остальное оставляет как есть.</summary>
     private static void Stamp(DomainObject obj)

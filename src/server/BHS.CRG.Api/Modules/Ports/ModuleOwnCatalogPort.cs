@@ -6,7 +6,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using CoreRecordsFor = BHS.CRG.Application.Documents.RecordsFor;
 using RecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 

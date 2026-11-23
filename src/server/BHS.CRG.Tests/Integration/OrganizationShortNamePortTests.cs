@@ -3,7 +3,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using RecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 

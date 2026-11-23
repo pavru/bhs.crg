@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Security.Claims;
 using System.Text.Json;
@@ -9,7 +9,7 @@ using BHS.CRG.Application.Subscriptions;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
 

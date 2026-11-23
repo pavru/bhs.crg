@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -32,7 +32,7 @@ public class ValidateTypstBlocksHandler(
     ITypstSyntaxChecker checker
 ) : IRequestHandler<ValidateTypstBlocksQuery, IReadOnlyList<TypstBlockProblem>>
 {
-    public async Task<IReadOnlyList<TypstBlockProblem>> Handle(ValidateTypstBlocksQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<TypstBlockProblem>> Handle(ValidateTypstBlocksQuery q, CancellationToken ct)
     {
         var types = await docTypeRepo.GetAllAsync(ct);
 

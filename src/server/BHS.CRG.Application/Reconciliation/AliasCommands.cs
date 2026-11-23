@@ -1,6 +1,6 @@
-﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 
@@ -23,7 +23,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
     IRequestHandler<ReviewAliasCommand, ReconciliationAlias>,
     IRequestHandler<DeleteAliasCommand>
 {
-    public async Task<IReadOnlyList<ReconciliationAlias>> Handle(ListAliasesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<ReconciliationAlias>> Handle(ListAliasesQuery q, CancellationToken ct)
     {
         var items = await repo.FindAsync(a => !q.Status.HasValue || a.Status == q.Status.Value, ct);
         // Неразобранные выше: они ждут человека, остальные — уже история.
@@ -34,7 +34,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
             .ThenBy(a => a.Id)];
     }
 
-    public async Task<ReconciliationAlias> Handle(ProposeAliasCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationAlias> Handle(ProposeAliasCommand cmd, CancellationToken ct)
     {
         if (string.Equals(cmd.AliasKey, cmd.CanonicalKey, StringComparison.Ordinal))
             throw new ConflictException("Позицию нельзя связать саму с собой.");
@@ -62,7 +62,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
         return alias;
     }
 
-    public async Task<ReconciliationAlias> Handle(ReviewAliasCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationAlias> Handle(ReviewAliasCommand cmd, CancellationToken ct)
     {
         var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         alias.Review(cmd.Status, cmd.Note, cmd.By);
@@ -71,11 +71,12 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
         return alias;
     }
 
-    public async Task Handle(DeleteAliasCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteAliasCommand cmd, CancellationToken ct)
     {
         var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(alias);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
     /// <summary>Два шага: <c>FindAsync</c> не отслеживает сущности, и правка копии столкнулась бы с

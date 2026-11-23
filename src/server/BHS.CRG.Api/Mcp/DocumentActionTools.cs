@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Security.Claims;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 

@@ -7,7 +7,7 @@ using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Infrastructure.Generation;
 

@@ -1,5 +1,5 @@
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Templates;
 

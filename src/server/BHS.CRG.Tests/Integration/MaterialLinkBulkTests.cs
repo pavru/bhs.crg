@@ -3,10 +3,12 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Пакетные операции над связями «материал → документ качества» (issue #556).
@@ -51,10 +53,10 @@ public class MaterialLinkBulkTests(IntegrationTestFixture fx)
 
     private Task<int> LinkAsync(Guid docId, params string[] keys) => InScopeAsync(m =>
         m.Send(new SetMaterialLinksCommand(CatalogScope.System, null,
-            keys.Select(k => new MaterialLinkInput(k)).ToList(), docId)));
+            keys.Select(k => new MaterialLinkInput(k)).ToList(), docId)).AsTask());
 
     private Task<int> RemoveAsync(params Guid[] ids) => InScopeAsync(m =>
-        m.Send(new RemoveMaterialLinksCommand(ids)));
+        m.Send(new RemoveMaterialLinksCommand(ids)).AsTask());
 
     [Fact]
     public async Task RemovesOnlyRequestedLinks_AndReportsWhatWasActuallyRemoved()

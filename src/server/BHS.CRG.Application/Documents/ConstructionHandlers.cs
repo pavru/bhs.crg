@@ -1,8 +1,8 @@
-﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -19,7 +19,7 @@ public class ConstructionHandlers(
     IRequestHandler<CreateSectionCommand, Section>,
     IRequestHandler<RenameSectionCommand, Section>
 {
-    public async Task<Construction> Handle(CreateConstructionCommand cmd, CancellationToken ct)
+    public async ValueTask<Construction> Handle(CreateConstructionCommand cmd, CancellationToken ct)
     {
         var c = Construction.Create(cmd.Name, cmd.UserId);
         await constructionRepo.AddAsync(c, ct);
@@ -27,7 +27,7 @@ public class ConstructionHandlers(
         return c;
     }
 
-    public async Task<Construction> Handle(RenameConstructionCommand cmd, CancellationToken ct)
+    public async ValueTask<Construction> Handle(RenameConstructionCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         c.Rename(cmd.Name);
@@ -40,7 +40,7 @@ public class ConstructionHandlers(
     /// Часовой пояс стройки (ТЗ CORE-5). Пустое значение СНИМАЕТ свой пояс — стройка снова считает
     /// сутки по поясу компании; проверяет идентификатор вызывающий, здесь он уже разобран.
     /// </summary>
-    public async Task<Construction> Handle(SetConstructionTimeZoneCommand cmd, CancellationToken ct)
+    public async ValueTask<Construction> Handle(SetConstructionTimeZoneCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         c.SetTimeZone(cmd.TimeZoneId);
@@ -58,7 +58,7 @@ public class ConstructionHandlers(
     /// чтобы наружу не уехали хост и имя базы. То есть ошибка вызывающего выглядела бы поломкой
     /// сервера (ревью PR #1046 — та же находка, что уже была у создания комплекта в PR #1045).</para>
     /// </summary>
-    public async Task<Construction> Handle(SetConstructionExternalIdCommand cmd, CancellationToken ct)
+    public async ValueTask<Construction> Handle(SetConstructionExternalIdCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
 
@@ -91,16 +91,16 @@ public class ConstructionHandlers(
 
     // Удаление стройки и раздела — в ScopeDeletionHandlers: одно тело на три уровня (issue #1243).
 
-    public Task<Construction?> Handle(GetConstructionQuery q, CancellationToken ct)
-        => constructionRepo.GetByIdAsync(q.Id, ct);
+    public ValueTask<Construction?> Handle(GetConstructionQuery q, CancellationToken ct)
+        => new ValueTask<Construction?>(constructionRepo.GetByIdAsync(q.Id, ct));
 
-    public Task<IReadOnlyList<Construction>> Handle(ListConstructionsQuery q, CancellationToken ct)
-        => constructionRepo.GetAllAsync(ct);
+    public ValueTask<IReadOnlyList<Construction>> Handle(ListConstructionsQuery q, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<Construction>>(constructionRepo.GetAllAsync(ct));
 
-    public Task<Section?> Handle(GetSectionQuery q, CancellationToken ct)
-        => sectionRepo.GetByIdAsync(q.Id, ct);
+    public ValueTask<Section?> Handle(GetSectionQuery q, CancellationToken ct)
+        => new ValueTask<Section?>(sectionRepo.GetByIdAsync(q.Id, ct));
 
-    public async Task<Section> Handle(CreateSectionCommand cmd, CancellationToken ct)
+    public async ValueTask<Section> Handle(CreateSectionCommand cmd, CancellationToken ct)
     {
         _ = await constructionRepo.GetByIdAsync(cmd.ConstructionId, ct)
             ?? throw new NotFoundException("Construction not found");
@@ -110,7 +110,7 @@ public class ConstructionHandlers(
         return section;
     }
 
-    public async Task<Section> Handle(RenameSectionCommand cmd, CancellationToken ct)
+    public async ValueTask<Section> Handle(RenameSectionCommand cmd, CancellationToken ct)
     {
         var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         s.Rename(cmd.Name);

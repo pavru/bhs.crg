@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.QualityDocs;
@@ -6,6 +6,8 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Tests.QualityDocs;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Предупреждение о правке полей-идентификаторов (issue #584): изменение состава ИЛИ порядка
@@ -41,7 +43,7 @@ public class IdentityImpactHandlerTests
                 .Select(i => MaterialQualityLink.Create(CatalogScope.System, null, $"ключ-{i}", Guid.NewGuid()))]));
 
     private static Task<IdentityImpact> Run(DocumentType type, string draft, int linkCount = 3)
-        => Handler(type, linkCount).Handle(new IdentityImpactQuery(type.Id, JsonDocument.Parse(draft)), default);
+        => Handler(type, linkCount).Handle(new IdentityImpactQuery(type.Id, JsonDocument.Parse(draft)), default).AsTask();
 
     [Fact]
     public async Task UnchangedSchema_NothingToWarnAbout()

@@ -4,7 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -72,7 +72,7 @@ public class MigrateToPrefixedAddressingHandler(
     ITemplateVersionWriter versionWriter
 ) : IRequestHandler<MigrateToPrefixedAddressingCommand, PrefixedAddressingReport>
 {
-    public async Task<PrefixedAddressingReport> Handle(
+    public async ValueTask<PrefixedAddressingReport> Handle(
         MigrateToPrefixedAddressingCommand cmd, CancellationToken ct)
     {
         var types = (await docTypeRepo.GetAllAsync(ct))

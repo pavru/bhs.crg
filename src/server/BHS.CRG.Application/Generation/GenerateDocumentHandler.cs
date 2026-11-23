@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
@@ -10,7 +10,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -27,7 +27,7 @@ public class GenerateDocumentHandler(
     INotificationService notifications
 ) : IRequestHandler<GenerateDocumentCommand, IReadOnlyList<GeneratedFile>>
 {
-    public async Task<IReadOnlyList<GeneratedFile>> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<GeneratedFile>> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(cmd.InstanceId, ct)
             ?? throw new NotFoundException($"DocumentInstance {cmd.InstanceId} not found");

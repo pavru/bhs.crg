@@ -3,10 +3,12 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 [Collection("Integration")]
 public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -57,7 +59,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         {
             // Обрезка по краям — та же строка, а не новый шаблон.
             var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-                Mediator(s).Send(new CreateTemplateCommand(dtId, "  Основной ", "чужой v1")));
+                Mediator(s).Send(new CreateTemplateCommand(dtId, "  Основной ", "чужой v1")).AsTask());
             Assert.Contains("уже есть", ex.Message);
         }
 
@@ -116,7 +118,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
         using (var s = fixture.Services.CreateScope())
             await Assert.ThrowsAsync<ConflictException>(() =>
-                Mediator(s).Send(new DuplicateTemplateCommand(source.Id, "Краткий")));
+                Mediator(s).Send(new DuplicateTemplateCommand(source.Id, "Краткий")).AsTask());
 
         using var scope = fixture.Services.CreateScope();
         Assert.Equal(2, (await Mediator(scope).Send(new ListTemplatesQuery(dtId))).Count);
@@ -128,9 +130,9 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         var dtId = await CreateDocTypeAsync("DT_N5");
         using var scope = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
-            Mediator(scope).Send(new CreateTemplateCommand(dtId, "   ", "x")));
+            Mediator(scope).Send(new CreateTemplateCommand(dtId, "   ", "x")).AsTask());
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
-            Mediator(scope).Send(new CreateTemplateCommand(dtId, new string('ш', Template.NameMaxLength + 1), "x")));
+            Mediator(scope).Send(new CreateTemplateCommand(dtId, new string('ш', Template.NameMaxLength + 1), "x")).AsTask());
     }
 
     [Fact]
@@ -316,7 +318,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
         using var scope3 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope3).Send(new SaveTemplateContentCommand(original.Id, "hack")));
+            Mediator(scope3).Send(new SaveTemplateContentCommand(original.Id, "hack")).AsTask());
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

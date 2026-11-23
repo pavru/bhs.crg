@@ -4,7 +4,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Tables;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Tables;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -5,7 +5,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -171,7 +171,7 @@ public record GetQualityAuditQuery(Guid SetId) : IRequest<QualityAuditReport?>;
 public class GetQualityAuditHandler(IRepository<QualityAuditRun> runs)
     : IRequestHandler<GetQualityAuditQuery, QualityAuditReport?>
 {
-    public async Task<QualityAuditReport?> Handle(GetQualityAuditQuery q, CancellationToken ct)
+    public async ValueTask<QualityAuditReport?> Handle(GetQualityAuditQuery q, CancellationToken ct)
     {
         var run = (await runs.FindAsync(r => r.SetId == q.SetId, ct)).FirstOrDefault();
         if (run is null) return null;

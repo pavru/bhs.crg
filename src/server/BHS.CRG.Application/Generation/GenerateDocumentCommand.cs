@@ -1,6 +1,6 @@
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 

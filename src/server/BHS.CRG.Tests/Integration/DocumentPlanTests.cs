@@ -8,12 +8,14 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Application.Reconciliation;
-using MediatR;
+using Mediator;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// План по документам (issue #796): план задаётся на комплекте, уровни выше консолидируются.
@@ -140,11 +142,11 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var m = M(scope);
 
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(Guid.NewGuid(), 1)])));
+            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(Guid.NewGuid(), 1)])).AsTask());
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(type, 0)])));
+            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(type, 0)])).AsTask());
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(type, 1), new PlanRow(type, 2)])));
+            new ReplaceDocumentSetPlanCommand(set.Id, [new PlanRow(type, 1), new PlanRow(type, 2)])).AsTask());
     }
 
     // ── Процент ───────────────────────────────────────────────────────────────
@@ -249,7 +251,7 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var usage = await M(scope).Send(new GetDocumentTypeUsageQuery(type));
         Assert.Contains(usage.Reasons, r => r.Kind == "plan");
 
-        await Assert.ThrowsAsync<ConflictException>(() => M(scope).Send(new DeleteDocumentTypeCommand(type)));
+        await Assert.ThrowsAsync<ConflictException>(() => M(scope).Send(new DeleteDocumentTypeCommand(type)).AsTask());
     }
 
     /// <summary>
@@ -261,7 +263,7 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
     {
         using var scope = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<NotFoundException>(
-            () => M(scope).Send(new GetDocumentSetPlanQuery(Guid.NewGuid())));
+            () => M(scope).Send(new GetDocumentSetPlanQuery(Guid.NewGuid())).AsTask());
     }
 
     /// <summary>

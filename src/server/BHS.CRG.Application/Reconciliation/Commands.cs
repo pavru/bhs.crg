@@ -2,7 +2,7 @@ using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 

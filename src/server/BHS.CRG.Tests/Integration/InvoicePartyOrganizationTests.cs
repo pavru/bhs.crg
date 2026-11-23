@@ -162,7 +162,7 @@ public sealed class InvoicePartyOrganizationTests(InvoiceScanHost host)
         Guid twin;
         using (var scope = host.Services.CreateScope())
         {
-            var mediator = scope.ServiceProvider.GetRequiredService<MediatR.IMediator>();
+            var mediator = scope.ServiceProvider.GetRequiredService<Mediator.IMediator>();
             twin = (await mediator.Send(new BHS.CRG.Application.Documents.CreateCommonDataEntryCommand(
                 name, type, JsonDocument.Parse($$"""{"Наименование":"{{name}}","ИНН":"{{InvoiceScanPartiesTests.NextTaxId()}}"}"""),
                 CatalogScope.System, null))).Id;

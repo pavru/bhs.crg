@@ -4,7 +4,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Modules.Ports;
 

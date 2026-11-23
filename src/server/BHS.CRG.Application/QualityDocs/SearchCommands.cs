@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -10,8 +10,8 @@ public record SearchQualityDocsQuery(string Query) : IRequest<IReadOnlyList<Sear
 public class SearchQualityDocsHandler(IQualityDocSearch search)
     : IRequestHandler<SearchQualityDocsQuery, IReadOnlyList<SearchCandidate>>
 {
-    public Task<IReadOnlyList<SearchCandidate>> Handle(SearchQualityDocsQuery q, CancellationToken ct)
-        => string.IsNullOrWhiteSpace(q.Query) ? Task.FromResult<IReadOnlyList<SearchCandidate>>([]) : search.SearchAsync(q.Query, ct);
+    public ValueTask<IReadOnlyList<SearchCandidate>> Handle(SearchQualityDocsQuery q, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<SearchCandidate>>(string.IsNullOrWhiteSpace(q.Query) ? Task.FromResult<IReadOnlyList<SearchCandidate>>([]) : search.SearchAsync(q.Query, ct));
 }
 
 /// <summary>
@@ -25,7 +25,7 @@ public class ImportQualityDocFromUrlHandler(
     IFileUrlFetcher fetcher, IBlobStorage blob, IRepository<QualityDocument> repo
 ) : IRequestHandler<ImportQualityDocFromUrlCommand, QualityDocument>
 {
-    public async Task<QualityDocument> Handle(ImportQualityDocFromUrlCommand cmd, CancellationToken ct)
+    public async ValueTask<QualityDocument> Handle(ImportQualityDocFromUrlCommand cmd, CancellationToken ct)
     {
         // Дедуп: тот же URL уже импортирован в эту область — возвращаем существующий документ.
         var existing = await repo.FindAsync(

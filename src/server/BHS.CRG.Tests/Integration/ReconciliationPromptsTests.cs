@@ -4,7 +4,7 @@ using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;

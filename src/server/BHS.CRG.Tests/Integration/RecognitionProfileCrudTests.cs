@@ -4,11 +4,13 @@ using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// CRUD библиотеки профилей (issue #408). Под защитой — правила, нарушение которых ломает систему
@@ -63,14 +65,14 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
 
         var without = stamp.Fields.Where(f => f.Name != "НаименованиеДокумента").ToList();
         var ex = await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, without, stamp.RowColumns, stamp.Shape)));
+            new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, without, stamp.RowColumns, stamp.Shape)).AsTask());
         Assert.Contains("НаименованиеДокумента", ex.Message);
 
         // Переименование = потеря ключа, на который завязан код, — тоже запрещено.
         var renamed = stamp.Fields
             .Select(f => f.Name == "Шифр" ? f with { Name = "Обозначение" } : f).ToList();
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, renamed, stamp.RowColumns, stamp.Shape)));
+            new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, renamed, stamp.RowColumns, stamp.Shape)).AsTask());
     }
 
     [Fact]
@@ -109,11 +111,11 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
 
         var dup = cable.RowColumns.Append(cable.RowColumns[0]).ToList();
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, dup, cable.Shape)));
+            new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, dup, cable.Shape)).AsTask());
 
         var empty = cable.RowColumns.Append(new RecognitionProfileField("   ")).ToList();
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
-            new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, empty, cable.Shape)));
+            new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, empty, cable.Shape)).AsTask());
     }
 
     [Fact]
@@ -123,7 +125,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         var m = M(scope);
 
         var builtIn = (await m.Send(new ListRecognitionProfilesQuery())).First(p => p.IsBuiltIn);
-        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteRecognitionProfileCommand(builtIn.Id)));
+        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteRecognitionProfileCommand(builtIn.Id)).AsTask());
 
         var custom = await m.Send(new CreateRecognitionProfileCommand(
             "Список деталей шкафа", nameof(RecognitionProfileKind.Table),
@@ -145,10 +147,10 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         var m = M(scope);
 
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(new CreateRecognitionProfileCommand(
-            "Профиль", "НетТакогоВида", [], [new RecognitionProfileField("A")], null)));
+            "Профиль", "НетТакогоВида", [], [new RecognitionProfileField("A")], null)).AsTask());
 
         await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(new CreateRecognitionProfileCommand(
-            "Профиль", nameof(RecognitionProfileKind.Table), [], [], null)));
+            "Профиль", nameof(RecognitionProfileKind.Table), [], [], null)).AsTask());
     }
 
     [Fact]

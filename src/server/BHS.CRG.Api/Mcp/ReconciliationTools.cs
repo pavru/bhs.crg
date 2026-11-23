@@ -4,7 +4,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 

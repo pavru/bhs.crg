@@ -2,10 +2,12 @@ using System.Text.Json;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Удаление PrimitiveType (issue #269, по образцу EnumType #59): тип поля из реестра, используемый
@@ -51,7 +53,7 @@ public class PrimitiveTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncL
 
         using var scope2 = fixture.Services.CreateScope();
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeletePrimitiveTypeCommand(prim.Id)));
+            Mediator(scope2).Send(new DeletePrimitiveTypeCommand(prim.Id)).AsTask());
         Assert.Contains("Акт", ex.Message);
     }
 }

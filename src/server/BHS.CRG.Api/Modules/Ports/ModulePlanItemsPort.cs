@@ -2,7 +2,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

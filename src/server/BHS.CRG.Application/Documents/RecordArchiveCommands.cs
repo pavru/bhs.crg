@@ -3,7 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -37,7 +37,7 @@ public class RecordArchiveHandlers(
     IRequestHandler<SetRecordArchiveCommand, RecordArchiveResult>,
     IRequestHandler<CanArchiveRecordQuery, bool>
 {
-    public async Task<RecordArchiveResult> Handle(SetRecordArchiveCommand cmd, CancellationToken ct)
+    public async ValueTask<RecordArchiveResult> Handle(SetRecordArchiveCommand cmd, CancellationToken ct)
     {
         // Читаем ради названия и типа — они от архива не зависят. Сам признак здесь НЕ смотрим:
         // «уже в архиве», «документ» и «профиль» решает условное обновление в службе, иначе между
@@ -80,7 +80,7 @@ public class RecordArchiveHandlers(
         }
     }
 
-    public async Task<bool> Handle(CanArchiveRecordQuery q, CancellationToken ct)
+    public async ValueTask<bool> Handle(CanArchiveRecordQuery q, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(q.Id, ct);
         if (entry is null) return false;

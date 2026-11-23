@@ -3,7 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -18,7 +18,7 @@ public sealed class PrintRecordHandler(
     IGenerationRequestBuilder requestBuilder,
     IDocumentGeneratorFactory generatorFactory) : IRequestHandler<PrintRecordCommand, byte[]>
 {
-    public async Task<byte[]> Handle(PrintRecordCommand command, CancellationToken ct)
+    public async ValueTask<byte[]> Handle(PrintRecordCommand command, CancellationToken ct)
     {
         var type = (await types.FindAsync(t => t.Code == command.TypeCode && t.Module == command.Owner, ct))
             .SingleOrDefault() ?? throw new NotFoundException($"Тип печатной формы «{command.TypeCode}» не найден.");

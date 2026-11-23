@@ -9,7 +9,7 @@ using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Storage;
 using BHS.CRG.Tests.Support;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

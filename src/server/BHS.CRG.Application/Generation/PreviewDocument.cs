@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
@@ -7,7 +7,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -43,7 +43,7 @@ public class PreviewDocumentHandler(
     IDocumentGeneratorFactory generatorFactory
 ) : IRequestHandler<PreviewDocumentQuery, PreviewDocumentResult>
 {
-    public async Task<PreviewDocumentResult> Handle(PreviewDocumentQuery q, CancellationToken ct)
+    public async ValueTask<PreviewDocumentResult> Handle(PreviewDocumentQuery q, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);
         if (instance is null) return PreviewDocumentResult.Fail("Документ не найден.");

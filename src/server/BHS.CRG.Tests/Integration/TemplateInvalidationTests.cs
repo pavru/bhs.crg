@@ -3,10 +3,12 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Инвалидация вывода документов при изменении шаблона (issue #362, фаза 2): документы, чей
@@ -105,7 +107,7 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
 
         using (var scope = fixture.Services.CreateScope())
             await Assert.ThrowsAsync<ConflictException>(() =>
-                Mediator(scope).Send(new DeleteTemplateCommand(t.Id, ReassignUsersToDefault: false)));
+                Mediator(scope).Send(new DeleteTemplateCommand(t.Id, ReassignUsersToDefault: false)).AsTask());
 
         Assert.True(await TemplateExistsAsync(dtId, t.Id));           // не удалён
         Assert.Equal(t.Id, await PinAsync(docId));                    // пин на месте
