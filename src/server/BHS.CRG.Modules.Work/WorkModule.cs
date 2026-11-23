@@ -211,6 +211,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
         services.AddScoped<WorkTableReaders>();
+        services.AddScoped<Summary.SummaryQuery>();
         services.AddScoped<WorkTableNames>();
         services.AddScoped<ReportTableRows>();
         services.AddScoped<LineTableRows>();
@@ -268,6 +269,7 @@ public sealed class WorkModule : IAppModule
         ReportCorrection.Map(endpoints);
         ReviewQueue.Map(endpoints);
         ReviewCard.Map(endpoints);
+        Summary.SummaryEndpoints.Map(endpoints);
         CrewCandidates.Map(endpoints);
         CrewGroups.Map(endpoints);
         PhotoEndpoints.Map(endpoints);
