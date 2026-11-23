@@ -32,8 +32,19 @@ public class CrewGateTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await CrewWorld.ApproveAsync(reviewer, id, seen)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync(url)).StatusCode);
         Assert.Empty(await crew.GroupsAsync(other));
+        var outside = await CrewWorld.JsonAsync(await other.GetAsync(CrewWorld.Path));
+        Assert.DoesNotContain(outside.GetProperty("constructions").EnumerateArray(),
+            site => site.GetProperty("id").GetGuid() == crew.Site);
         Assert.Equal(HttpStatusCode.NotFound, (await CrewWorld.ApproveAsync(other, id, seen)).StatusCode);
         Assert.Empty((await CrewWorld.JsonAsync(await executive.GetAsync(url))).GetProperty("actions").EnumerateArray());
+        var reader = await CrewWorld.JsonAsync(await executive.GetAsync(CrewWorld.Path));
+        Assert.Contains(reader.GetProperty("constructions").EnumerateArray(),
+            site => site.GetProperty("id").GetGuid() == crew.Site && !string.IsNullOrWhiteSpace(site.GetProperty("name").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(reader.GetProperty("workTypes").GetProperty(crew.Reports.WorkType.ToString()).GetString()));
+        Assert.Equal("м", reader.GetProperty("units").GetProperty(crew.Reports.Unit.ToString()).GetString());
+        var filtered = await CrewWorld.JsonAsync(await local.GetAsync($"{CrewWorld.Path}?from=2026-11-17"));
+        Assert.Empty(filtered.GetProperty("items").EnumerateArray());
+        Assert.Contains(filtered.GetProperty("constructions").EnumerateArray(), site => site.GetProperty("id").GetGuid() == crew.Site);
         Assert.Equal(HttpStatusCode.BadRequest, (await CrewWorld.ApproveAsync(local, id, null)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await CrewWorld.ApproveAsync(local, id, "0")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await CrewWorld.ApproveAsync(allSites, id, seen)).StatusCode);

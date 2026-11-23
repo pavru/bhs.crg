@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY, useReviewCard, type ReviewFullCard } from '@/shared/api/workReview';
+import { CREW_GROUPS_KEY } from '@/shared/api/workCrew';
 import { formatDate, formatDateTime, formatDayTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -48,11 +49,14 @@ export function ReportCard() {
     void queryClient.invalidateQueries({ queryKey: [...REVIEW_CARD_KEY, id] });
     void queryClient.invalidateQueries({ queryKey: [...REVIEW_JOURNAL_KEY, id] });
     void queryClient.invalidateQueries({ queryKey: REVIEW_QUEUE_KEY });
+    void queryClient.invalidateQueries({ queryKey: CREW_GROUPS_KEY });
   }
 
   const missing = (card.error as { response?: { status?: number } } | null)?.response?.status === 404;
   return <div className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4">
-    <Button variant="text" onClick={() => navigate(`/work-review${back.size ? `?${back}` : ''}`)}>К очереди приёмки</Button>
+    <Button variant="text" onClick={() => navigate(`/work-review${back.size ? `?${back}` : ''}`)}>
+      {back.get('tab') === 'crew' ? 'К сверке бригад' : 'К очереди приёмки'}
+    </Button>
     {missing ? <EmptyState icon={<Icon icon={Assignment} size={24} />} title={notFound} />
       : card.isPending ? <p role="status" className="text-body-medium">Загрузка отчёта…</p>
         : card.isError ? <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void card.refetch() }]}>

@@ -23,11 +23,12 @@ export function readReviewQueue(params: ReviewQueueRequest, signal?: AbortSignal
   return apiClient.get<ReviewQueuePage>(queuePath, { params, signal }).then(response => response.data);
 }
 
-export function useReviewQueue(params: ReviewQueueRequest) {
+export function useReviewQueue(params: ReviewQueueRequest, enabled = true) {
   return useQuery({
     queryKey: [...REVIEW_QUEUE_KEY, params],
     queryFn: ({ signal }) => readReviewQueue(params, signal),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

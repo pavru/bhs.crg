@@ -17,11 +17,12 @@ function access(permissions: string[], modules: { code: string; available: boole
  * роли из токена, и такой пользователь видел раздел, который отвечает отказом.
  */
 describe('навигация по правам', () => {
-  it('Приёмка видна с правом приёмки или чтения при открытом модуле work', () => {
+  it('Приёмка видна с правом приёмки, чтения отчётов или утверждения бригад при открытом модуле work', () => {
     const review = workNav.find(item => item.to === '/work-review')!;
     const work = { code: 'work', available: true };
     expect(allowed(review, access(['work.report.review'], [work]))).toBe(true);
     expect(allowed(review, access(['work.report.read'], [work]))).toBe(true);
+    expect(allowed(review, access(['work.crew.approve'], [work]))).toBe(true);
     expect(allowed(review, access(['work.report.own'], [work]))).toBe(false);
     expect(allowed(review, access(['work.report.read'], [{ ...work, available: false }]))).toBe(false);
   });
