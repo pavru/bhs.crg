@@ -26,8 +26,7 @@ public static class ModulePrintTemplateSeeder
             if (typeId is not { } id || await HasTemplateAsync(db, id, ct)) continue;
 
             var declared = entry.Form.DefaultTemplate!;
-            var template = Template.Create(id, declared.Name, SystemTypstLib.EnsureImports(declared.Content));
-            template.SetDefault(true);
+            var template = Template.CreateFactoryDefault(id, declared.Name, SystemTypstLib.EnsureImports(declared.Content));
             try
             {
                 await writer.SaveRetiredThenInsertAsync([template], TemplateHandlers.NameTakenMessage, ct);

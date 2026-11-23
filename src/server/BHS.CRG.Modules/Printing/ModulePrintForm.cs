@@ -10,6 +10,7 @@ public sealed record ModulePrintTemplate(string Name, string Content);
 
 /// <summary>Пути в печатном JSON для команды «Реквизит» редактора шаблонов.</summary>
 public sealed record ModulePrintRequisites(IReadOnlyList<ModulePrintField> Fields,
-    string? CustomFieldsKey = null, IReadOnlyList<string>? ExcludedCustomKeys = null);
+    string? CustomFieldsKey = null, IReadOnlyList<string>? ExcludedCustomKeys = null,
+    IReadOnlyList<string>? ExcludedRootCustomKeys = null);
 
 public sealed record ModulePrintField(IReadOnlyList<string> Path, string Title, string Type);

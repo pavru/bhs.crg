@@ -36,7 +36,9 @@ export function templateRequisites(docType: TemplateType, allDocTypes: DocumentT
   if (!customFieldsKey) return declared;
 
   const excluded = new Set(requisites.excludedCustomKeys?.map(key => key.toUpperCase()));
-  const custom = fields.filter(field => field.segments.every(key => !excluded.has(key.toUpperCase())))
+  const excludedRoot = new Set(requisites.excludedRootCustomKeys?.map(key => key.toUpperCase()));
+  const custom = fields.filter(field => !excludedRoot.has(field.segments[0].toUpperCase())
+      && field.segments.every(key => !excluded.has(key.toUpperCase())))
     .map(field => {
       const segments = [customFieldsKey, ...field.segments];
       return { ...field, path: segments.join('.'), segments };

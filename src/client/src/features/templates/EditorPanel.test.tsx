@@ -160,16 +160,27 @@ describe('EditorPanel: «Реквизит»', () => {
         { key: 'Итого', title: 'Системный итог', type: 'number' },
         { key: 'Наценка', title: 'Наценка', type: 'number' },
         { key: 'Примечание', title: 'Примечание', type: 'string' },
+        { key: 'ГрафикОплаты', title: 'График оплаты', type: 'complex', typeId: 'schedule' },
+        { key: 'Получатель', title: 'Получатель', type: 'complex', typeId: 'recipient' },
       ] },
       printRequisites: {
         fields: [{ path: ['money', 'total'], title: 'Итого к оплате', type: 'number' }],
-        customFieldsKey: 'conditions', excludedCustomKeys: ['Итого', 'Наценка'],
+        customFieldsKey: 'conditions', excludedCustomKeys: ['Наценка'], excludedRootCustomKeys: ['Итого'],
       },
     };
-    render(<EditorPanel template={template(true)} docType={offerType} allDocTypes={[offerType]} onSaved={vi.fn()} versionPlan={NO_RETIRE} />);
+    const schedule = { ...docType, id: 'schedule', schema: { fields: [
+      { key: 'Итого', title: 'Итого по графику', type: 'number' },
+      { key: 'Наценка', title: 'Наценка', type: 'number' },
+    ] } };
+    const recipient = { ...docType, id: 'recipient', schema: { fields: [
+      { key: 'Название', title: 'Название получателя', type: 'string' },
+    ] } };
+    render(<EditorPanel template={template(true)} docType={offerType} allDocTypes={[offerType, schedule, recipient]} onSaved={vi.fn()} versionPlan={NO_RETIRE} />);
     await openPicker();
     const items = screen.getAllByRole('menuitem');
-    expect(items.map(item => item.querySelector('code')?.textContent)).toEqual(['money.total', 'conditions.Примечание']);
+    expect(items.map(item => item.querySelector('code')?.textContent)).toEqual([
+      'money.total', 'conditions.Примечание', 'conditions.ГрафикОплаты.Итого', 'conditions.Получатель.Название',
+    ]);
     await act(async () => { fireEvent.keyDown(items[0], { key: 'Enter' }); }); await act(tick);
     expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
       text: '#{ import "systemlib.typ": print-field; print-field(("money", "total",)) }',
@@ -178,6 +189,11 @@ describe('EditorPanel: «Реквизит»', () => {
     await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[1], { key: 'Enter' }); }); await act(tick);
     expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
       text: '#{ import "systemlib.typ": print-field; print-field(("conditions", "Примечание",)) }',
+    })]);
+    await openPicker();
+    await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[2], { key: 'Enter' }); }); await act(tick);
+    expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
+      text: '#{ import "systemlib.typ": print-field; print-field(("conditions", "ГрафикОплаты", "Итого",)) }',
     })]);
   });
 

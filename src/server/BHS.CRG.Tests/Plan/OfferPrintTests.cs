@@ -1,13 +1,19 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Support;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using UglyToad.PdfPig;
 
@@ -24,17 +30,20 @@ public class OfferPrintTests(PlanOnlyHost host)
         string vatMode, int? vatRate, int? vatAmount, int total)
     {
         var site = await EstimateSeed.SiteAsync(host);
+        var recipient = await SeedRecipientAsync();
         var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
         var revision = await EstimateSeed.RevisionAsync(host, estimate,
             new EstimateRowDraft("Монтаж", SourceVolume: 3m, SourceUnit: "шт", Total: 1000m));
         var manager = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.OfferEdit, PlanModule.OfferSend,
-            PlanModule.OfferRead, PlanModule.EstimateCost);
+            PlanModule.OfferRead, PlanModule.EstimateCost, CorePermissions.CatalogRead);
         var created = await manager.PostAsJsonAsync("/api/plan/offers", new
         {
             revisionId = revision.Id, date = "2026-11-12", markup = 20m, vatMode, vatRate,
             data = new Dictionary<string, object>
             {
                 ["Примечание"] = "Работы за три дня",
+                ["Получатель"] = new Dictionary<string, object> { ["$ref"] = "catalog", ["entryId"] = recipient },
+                ["ГрафикОплаты"] = new Dictionary<string, decimal> { ["Итого"] = 725m },
                 ["nested"] = new { СЕБЕСТОИМОСТЬ = 1000m, markUp = 20m },
             },
         });
@@ -68,6 +77,8 @@ public class OfferPrintTests(PlanOnlyHost host)
         Assert.Equal(1, context.GetProperty("version").GetInt32());
         Assert.Equal("2026-11-13", context.GetProperty("versionDate").GetString());
         Assert.Equal("Работы за три дня", context.GetProperty("conditions").GetProperty("Примечание").GetString());
+        Assert.Equal("Монтажная компания", context.GetProperty("conditions").GetProperty("Получатель").GetProperty("Название").GetString());
+        Assert.Equal(725m, context.GetProperty("conditions").GetProperty("ГрафикОплаты").GetProperty("Итого").GetDecimal());
         Assert.DoesNotContain(Keys(context), k => new[] { "cost", "markup", "margin", "себестоимость", "наценка" }
             .Contains(k, StringComparer.OrdinalIgnoreCase));
 
@@ -90,6 +101,10 @@ public class OfferPrintTests(PlanOnlyHost host)
                 Проверочный итог #{ import "systemlib.typ": print-field; print-field(("money", "total",)) }
 
                 Проверочное условие #{ import "systemlib.typ": print-field; print-field(("conditions", "Примечание",)) }
+
+                Получатель из справочника #{ import "systemlib.typ": print-field; print-field(("conditions", "Получатель", "Название",)) }
+
+                Сумма графика #{ import "systemlib.typ": print-field; print-field(("conditions", "ГрафикОплаты", "Итого",)) }
                 """;
             var createdTemplate = await editor.PostAsJsonAsync("/api/templates", new
             {
@@ -103,6 +118,14 @@ public class OfferPrintTests(PlanOnlyHost host)
             var text = string.Join(" ", editedDocument.GetPages().SelectMany(page => page.GetWords()).Select(word => word.Text));
             Assert.Matches(@"Проверочный\s+итог\s*1440", text);
             Assert.Matches(@"Проверочное\s+условие\s*Работы за три дня", text);
+            Assert.Matches(@"Получатель\s+из\s+справочника\s+Монтажная компания", text);
+            Assert.Matches(@"Сумма\s+графика\s+725", text);
+
+            var withoutCatalog = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.OfferRead);
+            (await withoutCatalog.PostAsync(path, null)).EnsureSuccessStatusCode();
+            var restricted = JsonSerializer.SerializeToElement(capture.LastRequest!.Context.Data);
+            Assert.Equal(JsonValueKind.Null, restricted.GetProperty("conditions").GetProperty("Получатель").ValueKind);
+            Assert.Equal(725m, restricted.GetProperty("conditions").GetProperty("ГрафикОплаты").GetProperty("Итого").GetDecimal());
         }
 
         await UpdateAsync(manager, sent, "/versions");
@@ -110,6 +133,36 @@ public class OfferPrintTests(PlanOnlyHost host)
         var draft = JsonSerializer.SerializeToElement(capture.LastRequest!.Context.Data);
         Assert.Equal(2, draft.GetProperty("version").GetInt32());
         Assert.Equal("2026-11-12", draft.GetProperty("versionDate").GetString());
+    }
+
+    private async Task<Guid> SeedRecipientAsync()
+    {
+        await using var scope = host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        const string code = "ПолучательПечатнойФормыКП";
+        var type = await db.DocumentTypes.SingleOrDefaultAsync(t => t.Code == code);
+        if (type is null)
+        {
+            type = DocumentType.Create("Получатель печатной формы КП", code, DocumentTypeKind.Composite, null,
+                JsonDocument.Parse("""{"fields":[{"key":"Название","type":"string"},{"key":"Наценка","type":"number"}]}"""),
+                TypeOwner.Core, TypeVisibility.Shared);
+            var schedule = DocumentType.Create("График оплаты КП", "ГрафикОплатыКП", DocumentTypeKind.Composite, null,
+                JsonDocument.Parse("""{"fields":[{"key":"Итого","type":"number"}]}"""), TypeOwner.Core, TypeVisibility.Shared);
+            db.DocumentTypes.AddRange(type, schedule);
+            var offerType = await db.DocumentTypes.SingleAsync(t => t.Code == PlanRecordTypes.OfferCode);
+            var schema = JsonNode.Parse(offerType.Schema.RootElement.GetRawText())!.AsObject();
+            var fields = schema["fields"]!.AsArray();
+            fields.Add(JsonSerializer.SerializeToNode(new { key = "Получатель", type = "complex", typeId = type.Id }));
+            fields.Add(JsonSerializer.SerializeToNode(new { key = "ГрафикОплаты", type = "complex", typeId = schedule.Id }));
+            offerType.UpdateSchema(JsonSerializer.SerializeToDocument(schema));
+        }
+        var parent = DomainObject.Create(type.Id, "Организация", JsonDocument.Parse("""{"Название":"Монтажная компания","Наценка":17}"""),
+            CatalogScope.System, null);
+        var recipient = DomainObject.Create(type.Id, "Получатель", JsonSerializer.SerializeToDocument(
+            new { _baseRef = parent.Id }), CatalogScope.System, null);
+        db.DomainObjects.AddRange(parent, recipient);
+        await db.SaveChangesAsync();
+        return recipient.Id;
     }
 
     private static async Task<JsonElement> UpdateAsync(HttpClient client, JsonElement offer, string suffix, object? body = null)

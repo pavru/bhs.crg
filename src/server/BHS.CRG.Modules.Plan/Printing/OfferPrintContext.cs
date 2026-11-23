@@ -8,12 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Plan.Printing;
 
-public sealed class OfferPrintContext(PlanDbContext db, OfferDesk desk, IModuleConstructions constructions) : IModulePrintContext
+public sealed class OfferPrintContext(PlanDbContext db, OfferDesk desk, IModuleConstructions constructions,
+    IModulePrintCatalog catalog) : IModulePrintContext
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private static readonly string[] InternalKeys =
-        [OfferRequisites.MarkupKey, OfferRequisites.TotalKey, "Себестоимость", "Маржа", "markup", "cost", "margin"];
+        [OfferRequisites.MarkupKey, "Себестоимость", "Маржа", "markup", "cost", "margin"];
 
     internal static readonly ModulePrintRequisites Requisites = new(
         [
@@ -29,7 +30,7 @@ public sealed class OfferPrintContext(PlanDbContext db, OfferDesk desk, IModuleC
             new(["money", "linesTotal"], "Сумма строк", "number"),
             new(["money", "vatAmount"], "Сумма НДС", "number"),
             new(["money", "total"], "Итого к оплате", "number"),
-        ], "conditions", InternalKeys);
+        ], "conditions", InternalKeys, [OfferRequisites.TotalKey]);
 
     public async Task<ModulePrintResult> BuildAsync(Guid recordId, IModuleUser user, CancellationToken ct)
     {
@@ -42,6 +43,7 @@ public sealed class OfferPrintContext(PlanDbContext db, OfferDesk desk, IModuleC
         var construction = (await constructions.ListAsync(ct)).FirstOrDefault(c => c.Id == offer.ConstructionId);
         var customers = await desk.CustomersAsync([offer.CustomerId], ct);
         var customer = offer.CustomerId is { } id ? customers?.GetValueOrDefault(id) : null;
+        var conditions = await catalog.ResolveAsync(OfferRequisites.Customer(offer), ct);
 
         return new ModulePrintResult.Found(JsonSerializer.SerializeToElement(new
         {
@@ -58,15 +60,17 @@ public sealed class OfferPrintContext(PlanDbContext db, OfferDesk desk, IModuleC
             }),
             vat = new { mode = OfferViews.VatCode(offer.VatMode), rate = offer.VatRate },
             money = new { offer.LinesTotal, offer.VatAmount, offer.Total },
-            conditions = CustomerFields(OfferRequisites.Customer(offer)),
+            conditions = CustomerFields(conditions, root: true),
         }, Json));
     }
 
-    private static object CustomerFields(JsonElement value) => value.ValueKind switch
+    private static object CustomerFields(JsonElement value, bool root) => value.ValueKind switch
     {
-        JsonValueKind.Object => value.EnumerateObject().Where(p => !InternalKeys.Contains(p.Name, StringComparer.OrdinalIgnoreCase))
-            .ToDictionary(p => p.Name, p => CustomerFields(p.Value)),
-        JsonValueKind.Array => value.EnumerateArray().Select(CustomerFields).ToArray(),
+        JsonValueKind.Object => value.EnumerateObject().Where(p =>
+                !InternalKeys.Contains(p.Name, StringComparer.OrdinalIgnoreCase)
+                && !(root && string.Equals(p.Name, OfferRequisites.TotalKey, StringComparison.OrdinalIgnoreCase)))
+            .ToDictionary(p => p.Name, p => CustomerFields(p.Value, root: false)),
+        JsonValueKind.Array => value.EnumerateArray().Select(item => CustomerFields(item, root: false)).ToArray(),
         _ => value,
     };
 }

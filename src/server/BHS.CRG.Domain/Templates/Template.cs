@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.Templates;
@@ -37,6 +39,24 @@ public class Template : Entity, ITemplateVersionKey
 
     public static Template Create(Guid documentTypeId, string name, string content)
         => new() { DocumentTypeId = documentTypeId, Name = name, Content = content, IsActive = true };
+
+    /// <summary>Стартовый шаблон формы. Идентификатор кодирует исходный текст и тип без изменения формата копии.</summary>
+    public static Template CreateFactoryDefault(Guid documentTypeId, string name, string content)
+    {
+        var template = Create(documentTypeId, name, content);
+        template.Id = FactoryId(documentTypeId, name, content);
+        template.IsDefault = true;
+        template.UpdatedAt = template.CreatedAt;
+        return template;
+    }
+
+    public bool IsUntouchedFactoryDefault() => Version == 1 && IsActive && IsDefault
+        && Parameters is null && Comment is null && UpdatedAt == CreatedAt
+        && Id == FactoryId(DocumentTypeId, Name, Content);
+
+    private static Guid FactoryId(Guid typeId, string name, string content) => new(
+        SHA256.HashData(Encoding.UTF8.GetBytes($"BHS.CRG.Template.FactoryDefault\0{typeId:D}\0{name}\0{content}"))
+            .AsSpan(0, 16));
 
     public static Template Restore(
         Guid id, Guid documentTypeId, string name, string content, int version,

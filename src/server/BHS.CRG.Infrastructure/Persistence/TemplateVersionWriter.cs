@@ -24,10 +24,12 @@ public sealed class TemplateVersionWriter(AppDbContext db) : ITemplateVersionWri
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex) when (DbFailure.IsUniqueViolationOf(
-                   ex, TemplateConfiguration.OneActiveIndex, TemplateConfiguration.VersionIndex))
+                   ex, TemplateConfiguration.OneActiveIndex, TemplateConfiguration.VersionIndex)
+               || (created.Count == 1 && created.First().IsUntouchedFactoryDefault()
+                   && DbFailure.IsUniqueViolationOf(ex, TemplateConfiguration.PrimaryKey)))
         {
-            // Проиграли гонку: строку заняли между чтением и записью. Ловятся ИМЕННО эти индексы —
-            // чужое столкновение, объявленное «шаблон изменили», увело бы разбирательство в сторону.
+            // У стартового шаблона один и тот же Id при двух запусках, поэтому у него в гонке может
+            // сработать и первичный ключ. Для пользовательских шаблонов ловим индексы версий.
             foreach (var t in created) db.Entry(t).State = EntityState.Detached;
             throw new ConflictException(conflictMessage);
         }

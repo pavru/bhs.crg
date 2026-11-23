@@ -7,6 +7,7 @@ export interface TemplateType extends DocumentType {
     fields: { path: string[]; title: string; type: string }[];
     customFieldsKey?: string | null;
     excludedCustomKeys?: string[] | null;
+    excludedRootCustomKeys?: string[] | null;
   } | null;
 }
 

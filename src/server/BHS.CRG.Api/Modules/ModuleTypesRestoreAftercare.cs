@@ -21,12 +21,13 @@ public sealed class ModuleTypesRestoreAftercare(IServiceScopeFactory scopes, ILo
         {
             await using var scope = scopes.CreateAsyncScope();
             await scope.ServiceProvider.ProjectModuleTypesAsync(ct);
+            await scope.ServiceProvider.SeedModulePrintTemplatesAsync(ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            log.LogError(ex, "Восстановление: типы модулей после восстановления не заведены");
+            log.LogError(ex, "Восстановление: типы или стартовые шаблоны модулей не заведены");
             // Причина — в журнал, а не в отчёт: текст исключения пишет не этот код (правило #1050).
-            warnings.Add("Типы модулей после восстановления не сверены — причина в журнале приложения. " +
+            warnings.Add("Типы и стартовые шаблоны модулей после восстановления не сверены — причина в журнале приложения. " +
                          "Данные восстановлены; до исправления причины API не запустится: при старте эта " +
                          "сверка повторяется.");
         }
