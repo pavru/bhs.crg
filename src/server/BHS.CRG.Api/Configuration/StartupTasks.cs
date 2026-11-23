@@ -223,6 +223,7 @@ internal static class StartupTasks
         // ловится намеренно: расхождение объявления с базой обязано останавливать старт, а не
         // оставлять систему работать с типом, в котором код модуля не найдёт своих полей.
         await scope.ServiceProvider.ProjectModuleTypesAsync();
+        await scope.ServiceProvider.SeedModulePrintTemplatesAsync();
 
         // Состав модулей — в журнал действий (ТЗ CORE-28), если он изменился с прошлого запуска.
         // После инициализации: записывать «включён модуль», который не смог подняться, значит

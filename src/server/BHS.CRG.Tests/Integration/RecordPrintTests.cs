@@ -90,7 +90,7 @@ public class RecordPrintTests(RecordPrintHost host) : IClassFixture<RecordPrintH
 
         var editor = await GrantedSignIn.WithPermissionsAsync(host, CorePermissions.PrintEdit);
         var types = await editor.GetFromJsonAsync<JsonElement>("/api/templates/types");
-        Assert.Equal(type, Assert.Single(types.EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Equal(type, Assert.Single(types.EnumerateArray()).GetProperty("type").GetProperty("id").GetGuid());
         var access = await editor.GetFromJsonAsync<JsonElement>("/api/account/access");
         Assert.Contains(access.GetProperty("permissions").EnumerateArray(), p => p.GetString() == CorePermissions.PrintEdit);
         Assert.DoesNotContain(access.GetProperty("permissions").EnumerateArray(), p => p.GetString() == "id.config.edit");

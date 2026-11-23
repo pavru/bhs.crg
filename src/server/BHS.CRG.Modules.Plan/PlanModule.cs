@@ -6,7 +6,9 @@ using BHS.CRG.Modules.Plan.Endpoints;
 using BHS.CRG.Modules.Plan.Exchange;
 using BHS.CRG.Modules.Plan.Import;
 using BHS.CRG.Modules.Plan.Matching;
+using BHS.CRG.Modules.Plan.Printing;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Printing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -189,6 +191,9 @@ public sealed class PlanModule : IAppModule
     /// <summary>Тип сметного наполнения строки — <see cref="PlanRecordTypes" /> (ТЗ TYPE-16).</summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => PlanRecordTypes.All;
 
+    public IReadOnlyList<ModulePrintForm> PrintForms =>
+        [new(PlanRecordTypes.OfferCode, PlanRecordTypes.Offer.Name, OfferRead, OfferPrintTemplate.Default, OfferPrintContext.Requisites)];
+
     /// <summary>Тэг наценки КП (ТЗ TYPE-17): объявлен модулем, на экземпляре без планирования его нет.</summary>
     public IReadOnlyList<ModuleTag> Tags => PlanRecordTypes.Tags;
 
@@ -246,6 +251,7 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddSingleton<IModuleActivityActions, OfferActions>();
         services.AddScoped<Offers.OfferDesk>();
+        services.AddKeyedScoped<IModulePrintContext, OfferPrintContext>(PlanRecordTypes.OfferCode);
         services.AddScoped<Offers.OfferLifecycle>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();

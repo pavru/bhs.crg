@@ -3,7 +3,7 @@ namespace BHS.CRG.Application.Generation;
 /// <summary>
 /// Системная Typst-библиотека (issue #344) — ХАРДКОД, только чтение. Третий уровень рядом с
 /// <c>userlib.typ</c> (админ-редактируемый) и <c>typeblocks.typ</c> (автоген). Содержит системные
-/// хелперы (сейчас <c>instance-of</c>) и авто-подключается к каждому шаблону при компиляции —
+/// хелперы и авто-подключается к каждому шаблону при компиляции —
 /// авторам шаблонов её импортировать не нужно. Просмотр — <c>GET /api/templates/systemlib</c> и
 /// read-only режим на странице шаблонов.
 /// </summary>
@@ -20,7 +20,13 @@ public static class SystemTypstLib
         "// true, если тип объекта РАВЕН code ЛИБО является его потомком — chain включает сам тип и всех\n" +
         "// предков (self→root). Устойчива к объектам без _type и к не-словарям.\n" +
         "//   #if instance-of(it, \"Организация\") [ … ]  — сработает и для потомков «Подрядчик»/«Проектировщик».\n" +
-        "#let instance-of(it, code) = type(it) == dictionary and code in it.at(\"_type\", default: (:)).at(\"chain\", default: ())\n";
+        "#let instance-of(it, code) = type(it) == dictionary and code in it.at(\"_type\", default: (:)).at(\"chain\", default: ())\n" +
+        "\n// print-field(path): реквизит печатной формы по массиву ключей JSON.\n" +
+        "#let print-field(path) = {\n" +
+        "  let data = json(\"data.json\")\n" +
+        "  let value = path.fold(data, (current, key) => if type(current) == dictionary { current.at(key, default: none) })\n" +
+        "  if value == none { [] } else if type(value) == str { value } else { repr(value) }\n" +
+        "}\n";
 
     /// <summary>Стандартные импорты, которые вставляются в НАЧАЛО шаблона ТОЛЬКО ПРИ СОЗДАНИИ шаблона
     /// (issue #353): systemlib + typeblocks. Компиляция/превью/debug-bundle шаблон НЕ трогают — он
