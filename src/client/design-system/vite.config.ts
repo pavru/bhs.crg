@@ -64,6 +64,7 @@ export default defineConfig({
       duplicatePayment: resolve(root, 'duplicate-payment.html'),
       paymentRequisites: resolve(root, 'payment-requisites.html'),
       planOffers: resolve(root, 'plan-offers.html'),
+      planCalendars: resolve(root, 'plan-calendars.html'),
     } },
   },
 });

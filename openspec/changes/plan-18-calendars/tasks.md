@@ -30,20 +30,20 @@
 
 ## 2. PR 2: экраны (макеты П4)
 
-- [ ] 2.1 Раунд П4 (часть «календари»): три варианта календаря компании и календаря стройки на живой
+- [x] 2.1 Раунд П4 (часть «календари»): три варианта календаря компании и календаря стройки на живой
   дизайн-системе BHS.CRG UI, выбор владельца; ссылку вписать в `design.md` [PLAN-19.1].
   Проверка — вариант и ссылка в `design.md`
-- [ ] 2.2 `shared/api/planningCalendars.ts`; `features/planning/calendars/CompanyCalendarPage.tsx` — год по
-  месяцам, меню вида дня, загрузка файла с предпросмотром (`Modal wide`) [PLAN-19.1]. Проверка — vitest:
+- [x] 2.2 `shared/api/planningCalendars.ts`; `features/planning/calendars/CompanyCalendarPage.tsx` — год по
+  кварталам, карточка выбранного дня, загрузка файла с предпросмотром (`Modal wide`) [PLAN-19.1]. Проверка — vitest:
   без `plan.calendar.edit` действий нет; 409 — «год тем временем изменили — перечитайте»
-- [ ] 2.3 `ConstructionCalendarPanel.tsx` в разделе «График» стройки: дни недели, сменность, исключения
+- [x] 2.3 `ConstructionCalendarPanel.tsx` в разделе «График» стройки: дни недели, сменность, исключения
   [PLAN-19.1]. Проверка — vitest на правку с версией
-- [ ] 2.4 `docs/USER_GUIDE.md` (календарь стройки), `docs/ADMIN_GUIDE.md` (производственный календарь на
+- [x] 2.4 `docs/USER_GUIDE.md` (календарь стройки), `docs/ADMIN_GUIDE.md` (производственный календарь на
   год); `cd docs/tools && npm run toc`. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
 - [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkingDays|FullyQualifiedName~PlanCalendar|FullyQualifiedName~AccountAccess|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~PlanOnlyHost"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
