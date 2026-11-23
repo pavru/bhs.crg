@@ -44,6 +44,8 @@ public static partial class OfferEndpoints
         offers.MapPost("/{id:guid}/outcome", OutcomeAsync).RequireAuthorization(send);
         offers.MapPost("/{id:guid}/versions", NextVersionAsync).RequireAuthorization(edit);
         offers.MapGet("/{id:guid}/versions", OfferHistory.ReadAsync).RequireAuthorization(read);
+        offers.MapGet("/{id:guid}/rebase-preview", RebasePreviewAsync).RequireAuthorization(edit, read);
+        offers.MapPost("/{id:guid}/rebase", RebaseAsync).RequireAuthorization(edit, read);
     }
 
     private static async Task<IResult> ListAsync(

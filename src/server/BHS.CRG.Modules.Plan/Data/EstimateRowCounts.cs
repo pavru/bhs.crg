@@ -19,6 +19,10 @@ public static class EstimateRowCounts
     public static readonly Expression<Func<EstimateRow, bool>> Unmatched =
         r => r.Kind == EstimateRowKind.Work && (r.WorkTypeId == null || r.PlanItemId == null);
 
+    /// <summary>Сопоставленные работы для покрытия производными. Материалы не входят в знаменатель.</summary>
+    public static readonly Expression<Func<EstimateRow, bool>> MatchedWorks =
+        r => r.Kind == EstimateRowKind.Work && r.WorkTypeId != null && r.PlanItemId != null;
+
     /// <summary>Строки по ключу: всего, не сопоставлено, первая по порядку файла и — с <paramref name="total" /> — итог.</summary>
     /// <param name="total">Считать итог: без права на себестоимость сумма не считается вовсе.</param>
     public static IQueryable<EstimateRowCount<TKey>> By<TKey>(

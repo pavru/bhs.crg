@@ -44,7 +44,7 @@
 
 - **Сервер, модуль** (`src/server/BHS.CRG.Modules.Plan/`): `Offers/OfferDrift.cs`, `Offers/OfferRebase.cs`,
   `Estimates/RevisionDerivatives.cs`, адреса в группах КП и смет.
-- **Зависит от:** `plan-06` (редакции, действующая), `plan-13` (КП, версии), `plan-19` (графики; блок
-  графиков приходит с ним, до него — «графиков нет»).
+- **Зависит от:** `plan-06` (редакции, действующая), `plan-13` (КП, версии) и `plan-14` (КП по прайс-листу).
+  `plan-19` наполнит блок графиков, до него открытый блок пуст.
 - **Клиент:** показ — в `plan-17` (макеты П3).
 - **Тесты:** `src/server/BHS.CRG.Tests/Plan/OfferDrift*`, `RevisionDerivatives*`.

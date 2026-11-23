@@ -69,6 +69,11 @@ public sealed record OfferCustomerDto(Guid Id, string? Name, bool Archived, bool
 /// <summary>Редакция-источник: смета, номер редакции.</summary>
 public sealed record OfferRevisionDto(Guid Id, int Number, Guid EstimateId, string EstimateName);
 
+public sealed record OfferRevisionRef(Guid Id, int Number);
+
+public sealed record OfferDriftDto(
+    string Code, string Text, OfferRevisionRef Source, OfferRevisionRef? Current, OfferRevisionRef Latest);
+
 /// <param name="Mode"><c>included</c> — НДС в том числе, <c>on-top</c> — сверху, <c>none</c> — без НДС.</param>
 /// <param name="Rate">Ставка в процентах; <c>null</c> — «без НДС».</param>
 public sealed record OfferVatDto(string Mode, decimal? Rate);
@@ -120,8 +125,7 @@ public sealed record OfferDto(
 {
     public string Source => Revision is null ? "pricelist" : "estimate";
     public DateOnly? PriceListDate { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement Drift => Revision is null ? JsonSerializer.SerializeToElement<object?>(null) : default;
+    public OfferDriftDto? Drift { get; init; }
     public bool CanBuildSchedule => Revision is not null;
     public string? ScheduleReason => Revision is null ? "КП не из сметы" : null;
 }
@@ -132,6 +136,8 @@ public sealed record OfferListItemDto(
     OfferCustomerDto? Customer, OfferRevisionDto? Revision, OfferVatDto Vat, OfferMoneyDto Money, DateTimeOffset ChangedAt)
 {
     public string Source => Revision is null ? "pricelist" : "estimate";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OfferDriftDto? Drift { get; init; }
 }
 
 /// <param name="Next">Курсор следующей страницы; <c>null</c> — КП больше нет.</param>

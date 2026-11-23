@@ -20,9 +20,14 @@ public sealed class OfferLifecycle(PlanDbContext db, IModuleUser user, IModuleCl
 
     public async Task NewVersionAsync(Offer offer, CancellationToken ct)
     {
+        BeginNextDraft(offer, clock.UtcNow());
+        await db.SaveChangesAsync(ct);
+    }
+
+    internal void BeginNextDraft(Offer offer, DateTimeOffset now)
+    {
         offer.EnsureSent();
         db.OfferVersions.Add(OfferVersion.Capture(offer, user.Id, user.Name));
-        offer.BeginNextVersion(clock.UtcNow());
-        await db.SaveChangesAsync(ct);
+        offer.BeginNextVersion(now);
     }
 }
