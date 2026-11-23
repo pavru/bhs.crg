@@ -1,11 +1,11 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 

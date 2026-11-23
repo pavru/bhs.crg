@@ -33,7 +33,7 @@ Claude: `C:/Users/alex/.claude/projects/E--Development-Office-BHS-CRG/memory/MEM
 | Слой | Технология |
 |---|---|
 | Frontend | React 19 + TypeScript, Radix UI, Tailwind v4, React Query, Monaco (редактор Typst-шаблонов) |
-| Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR |
+| Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), Mediator |
 | Auth | ASP.NET Identity + JWT, роли с гранулярными правами (`модуль.объект.действие`, `AUTH-1`) (без SSO / корп. интеграций) |
 | БД | PostgreSQL 18 |
 | Blob-хранилище | Garage (self-hosted, S3-совместимое) |
@@ -50,7 +50,7 @@ src/
   server/
     BHS.CRG.slnx          — solution file (.NET 10 format)
     BHS.CRG.Api/          — ASP.NET Core Minimal API (точка входа)
-    BHS.CRG.Application/  — MediatR команды/запросы, интерфейсы (IBlobStorage, IRepository)
+    BHS.CRG.Application/  — Mediator команды/запросы, интерфейсы (IBlobStorage, IRepository)
     BHS.CRG.Domain/       — доменные сущности (чистый C#, без зависимостей)
     BHS.CRG.Infrastructure/ — EF Core, Garage (S3), Typst-генерация, распознавание/поиск, плагины
     BHS.CRG.Plugins/      — контракты плагинов (IDataSourcePlugin)

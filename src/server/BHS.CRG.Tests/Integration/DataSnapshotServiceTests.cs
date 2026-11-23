@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
@@ -7,7 +7,7 @@ using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

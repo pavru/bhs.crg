@@ -7,7 +7,7 @@ using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Tests.Integration;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

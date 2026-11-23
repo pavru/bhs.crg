@@ -10,7 +10,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Core;
 

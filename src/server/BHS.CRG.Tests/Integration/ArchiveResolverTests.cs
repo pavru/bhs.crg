@@ -12,11 +12,13 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Архив и всё, что превращает строку в запись (ТЗ CORE-34.4, issue #1185, шаг 4): резолвер, привязки
@@ -130,7 +132,7 @@ public class ArchiveResolverTests(IntegrationTestFixture fixture) : IAsyncLifeti
         [
             new(type, ObjectMatchStrategy.Name, "Лютик"),
             new(type, ObjectMatchStrategy.Name, "Ромашка"),
-        ])));
+        ])).AsTask());
 
         Assert.Equal((live, false), (res[0]!.EntryId, res[0]!.Archived));
         Assert.Equal((archived, true), (res[1]!.EntryId, res[1]!.Archived));

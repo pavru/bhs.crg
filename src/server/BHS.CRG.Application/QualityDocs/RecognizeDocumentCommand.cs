@@ -1,11 +1,11 @@
-﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Schema;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -39,7 +39,7 @@ public class RecognizeDocumentHandler(
     INotificationService notifications
 ) : IRequestHandler<RecognizeDocumentCommand, RecognizedDocument>
 {
-    public async Task<RecognizedDocument> Handle(RecognizeDocumentCommand cmd, CancellationToken ct)
+    public async ValueTask<RecognizedDocument> Handle(RecognizeDocumentCommand cmd, CancellationToken ct)
     {
         try
         {

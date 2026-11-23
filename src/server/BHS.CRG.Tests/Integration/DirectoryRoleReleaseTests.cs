@@ -9,7 +9,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
 using System.Net.Http.Json;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

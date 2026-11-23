@@ -7,11 +7,13 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Системная консолидация «Документы качества» (issue #623): библиотека сертификатов, видимая с
@@ -64,7 +66,7 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         CatalogScope docScope, Guid? scopeId, QualityDocSource source = QualityDocSource.Manual,
         string? scanBlobPath = null, string? scanFileName = null)
         => M(scope).Send(new CreateQualityDocumentCommand(
-            typeId, name, J(requisites), docScope, scopeId, source, scanBlobPath, scanFileName, null));
+            typeId, name, J(requisites), docScope, scopeId, source, scanBlobPath, scanFileName, null)).AsTask();
 
     private static async Task<Guid> SourceAtAsync(IServiceScope scope, string level, Guid? scopeId)
     {

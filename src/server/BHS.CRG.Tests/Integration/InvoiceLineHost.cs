@@ -11,7 +11,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

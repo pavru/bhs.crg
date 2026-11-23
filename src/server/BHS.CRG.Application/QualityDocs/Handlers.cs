@@ -3,7 +3,7 @@ using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -28,7 +28,7 @@ public class QualityDocHandlers(
     IRequestHandler<RemoveMaterialLinksCommand, int>,
     IRequestHandler<ListMaterialLinksQuery, IReadOnlyList<MaterialLinkRow>>
 {
-    public async Task<QualityDocument> Handle(CreateQualityDocumentCommand cmd, CancellationToken ct)
+    public async ValueTask<QualityDocument> Handle(CreateQualityDocumentCommand cmd, CancellationToken ct)
     {
         await EnsureNameFreeAsync(cmd.DisplayName, cmd.Scope, cmd.ScopeId, exceptId: null, ct);
         // Охрана записи (issue #957). Документ качества — сегодняшний прообраз записи модуля
@@ -42,7 +42,7 @@ public class QualityDocHandlers(
         return doc;
     }
 
-    public async Task<QualityDocument> Handle(UpdateQualityDocumentCommand cmd, CancellationToken ct)
+    public async ValueTask<QualityDocument> Handle(UpdateQualityDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
         // Проверяем ТОЛЬКО смену имени. Дубли уже есть в живой базе (ради них issue #588 и заведена),
@@ -87,7 +87,7 @@ public class QualityDocHandlers(
                 + "иначе при выборе из списка непонятно, какой из документов берут.");
     }
 
-    public async Task<QualityDocument> Handle(SetQualityDocScanCommand cmd, CancellationToken ct)
+    public async ValueTask<QualityDocument> Handle(SetQualityDocScanCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
         doc.SetScan(cmd.ScanBlobPath, cmd.ScanFileName, cmd.ScanMimeType);
@@ -110,7 +110,7 @@ public class QualityDocHandlers(
     /// doc-ref-поле в UI научится выбирать документ качества, — после будет поздно, данные
     /// разъедутся раньше.</para>
     /// </summary>
-    public async Task Handle(DeleteQualityDocumentCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteQualityDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
 
@@ -126,12 +126,13 @@ public class QualityDocHandlers(
         repo.Remove(doc);
         await linkRepo.SaveChangesAsync(ct);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public Task<QualityDocument?> Handle(GetQualityDocumentQuery q, CancellationToken ct)
-        => repo.GetByIdAsync(q.Id, ct);
+    public ValueTask<QualityDocument?> Handle(GetQualityDocumentQuery q, CancellationToken ct)
+        => new ValueTask<QualityDocument?>(repo.GetByIdAsync(q.Id, ct));
 
-    public async Task<IReadOnlyList<QualityDocument>> Handle(ListQualityDocumentsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<QualityDocument>> Handle(ListQualityDocumentsQuery q, CancellationToken ct)
     {
         var scope = q.Scope;
         var scopeId = q.ScopeId;
@@ -147,7 +148,7 @@ public class QualityDocHandlers(
         return items.OrderBy(d => d.DisplayName).ToList();
     }
 
-    public async Task<int> Handle(SetMaterialLinksCommand cmd, CancellationToken ct)
+    public async ValueTask<int> Handle(SetMaterialLinksCommand cmd, CancellationToken ct)
     {
         var existing = await linkRepo.FindAsync(l => l.Scope == cmd.Scope && l.ScopeId == cmd.ScopeId, ct);
         var byKey = existing.ToDictionary(l => l.MaterialKey);
@@ -187,14 +188,15 @@ public class QualityDocHandlers(
         return count;
     }
 
-    public async Task Handle(RemoveMaterialLinkCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(RemoveMaterialLinkCommand cmd, CancellationToken ct)
     {
         var link = await linkRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         linkRepo.Remove(link);
         await linkRepo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public async Task<int> Handle(RemoveMaterialLinksCommand cmd, CancellationToken ct)
+    public async ValueTask<int> Handle(RemoveMaterialLinksCommand cmd, CancellationToken ct)
     {
         if (cmd.Ids.Count == 0) return 0;
         var ids = cmd.Ids.Distinct().ToList();
@@ -206,7 +208,7 @@ public class QualityDocHandlers(
         return links.Count;
     }
 
-    public async Task<IReadOnlyList<MaterialLinkRow>> Handle(ListMaterialLinksQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<MaterialLinkRow>> Handle(ListMaterialLinksQuery q, CancellationToken ct)
     {
         // Область необязательна: без неё отдаём связки ВСЕХ областей (экран контроля смотрит поперёк).
         // Но заданный ScopeId уважаем и без Scope — иначе запрос «связки этого комплекта» молча

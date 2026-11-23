@@ -12,7 +12,7 @@ using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using PortRecordsFor = BHS.CRG.Modules.Ports.RecordsFor;
 using RecordsFor = BHS.CRG.Application.Documents.RecordsFor;

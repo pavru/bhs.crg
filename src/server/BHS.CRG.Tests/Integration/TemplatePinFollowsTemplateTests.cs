@@ -6,7 +6,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Tests.Support;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

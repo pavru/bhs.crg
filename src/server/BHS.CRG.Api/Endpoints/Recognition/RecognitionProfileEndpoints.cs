@@ -1,8 +1,8 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Infrastructure.DataSets;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Recognition;
 

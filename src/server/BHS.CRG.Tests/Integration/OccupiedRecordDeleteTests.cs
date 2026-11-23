@@ -9,7 +9,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Data;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -180,7 +180,7 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         Assert.Contains("данные модуля, которого нет в этой сборке: 1", Assert.Single(found.Lines));
 
         var refusal = await Assert.ThrowsAsync<RecordHeldException>(() =>
-            scope.ServiceProvider.GetRequiredService<IMediator>().Send(new DeleteCommonDataEntryCommand(record)));
+            scope.ServiceProvider.GetRequiredService<IMediator>().Send(new DeleteCommonDataEntryCommand(record)).AsTask());
         Assert.Contains("ссылаются данные модулей", refusal.Message);
     }
 
@@ -271,12 +271,12 @@ public class OccupiedRecordDeleteTests(InvoiceLineHost host) : InvoiceLineTestBa
         await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0)", document.Id);
         await SqlAsync($"INSERT INTO {probe.Schema}.things VALUES (gen_random_uuid(), @p0)", certificate.Id);
 
-        await Assert.ThrowsAsync<RecordHeldException>(() => m.Send(new DeleteDocumentInstanceCommand(document.Id)));
+        await Assert.ThrowsAsync<RecordHeldException>(() => m.Send(new DeleteDocumentInstanceCommand(document.Id)).AsTask());
         await Assert.ThrowsAsync<RecordHeldException>(() =>
-            m.Send(new BHS.CRG.Application.QualityDocs.DeleteQualityDocumentCommand(certificate.Id)));
+            m.Send(new BHS.CRG.Application.QualityDocs.DeleteQualityDocumentCommand(certificate.Id)).AsTask());
         // И комплект, и стройка над документом: каскад уровня спрашивает о содержимом.
-        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteDocumentSetCommand(set.Id)));
-        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteConstructionCommand(site)));
+        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteDocumentSetCommand(set.Id)).AsTask());
+        await Assert.ThrowsAnyAsync<RecordHeldException>(() => m.Send(new DeleteConstructionCommand(site)).AsTask());
     }
 
     /// <summary>

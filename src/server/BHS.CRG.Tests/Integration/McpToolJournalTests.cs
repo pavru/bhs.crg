@@ -11,7 +11,7 @@ using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Tests.Mcp;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

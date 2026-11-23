@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 
@@ -15,7 +15,7 @@ namespace BHS.CRG.Application.Reconciliation;
 public class ProblemSummaryHandler(IMediator mediator, IScopeChildren scopeChildren)
     : IRequestHandler<GetProblemSummaryQuery, ProblemSummary>
 {
-    public async Task<ProblemSummary> Handle(GetProblemSummaryQuery q, CancellationToken ct)
+    public async ValueTask<ProblemSummary> Handle(GetProblemSummaryQuery q, CancellationToken ct)
     {
         var children = await scopeChildren.ChildrenOfAsync(q.Scope, q.ScopeId, ct);
 

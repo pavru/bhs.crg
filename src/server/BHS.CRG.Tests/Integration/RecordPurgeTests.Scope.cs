@@ -8,7 +8,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using BHS.CRG.Modules.Costs;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

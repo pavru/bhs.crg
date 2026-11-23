@@ -3,7 +3,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Printing;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Authorization;
 
 namespace BHS.CRG.Api.Endpoints.Generation;

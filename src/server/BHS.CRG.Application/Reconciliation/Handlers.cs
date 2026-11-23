@@ -1,6 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 
@@ -21,16 +21,16 @@ public class ReconciliationHandlers(
     IRequestHandler<SetDecisionCommand, ReconciliationDecision>,
     IRequestHandler<RemoveDecisionCommand>
 {
-    public async Task<IReadOnlyList<ReconciliationDefinition>> Handle(
+    public async ValueTask<IReadOnlyList<ReconciliationDefinition>> Handle(
         ListReconciliationsQuery q, CancellationToken ct)
         => await definitions.FindAsync(d =>
             (!q.Scope.HasValue || d.Scope == q.Scope.Value) &&
             (!q.ScopeId.HasValue || d.ScopeId == q.ScopeId.Value), ct);
 
-    public async Task<ReconciliationDefinition?> Handle(GetReconciliationQuery q, CancellationToken ct)
+    public async ValueTask<ReconciliationDefinition?> Handle(GetReconciliationQuery q, CancellationToken ct)
         => await definitions.GetByIdAsync(q.Id, ct);
 
-    public async Task<ReconciliationDefinition> Handle(CreateReconciliationCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationDefinition> Handle(CreateReconciliationCommand cmd, CancellationToken ct)
     {
         var d = ReconciliationDefinition.Create(cmd.Name, cmd.Scope, cmd.ScopeId, cmd.Spec);
         await definitions.AddAsync(d, ct);
@@ -38,7 +38,7 @@ public class ReconciliationHandlers(
         return d;
     }
 
-    public async Task<ReconciliationDefinition> Handle(UpdateReconciliationCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationDefinition> Handle(UpdateReconciliationCommand cmd, CancellationToken ct)
     {
         var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         d.Update(cmd.Name, cmd.Spec);
@@ -47,17 +47,18 @@ public class ReconciliationHandlers(
         return d;
     }
 
-    public async Task Handle(DeleteReconciliationCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteReconciliationCommand cmd, CancellationToken ct)
     {
         var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         definitions.Remove(d);
         await definitions.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public async Task<ReconciliationRun> Handle(RunReconciliationCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationRun> Handle(RunReconciliationCommand cmd, CancellationToken ct)
         => await runner.RunAsync(cmd.DefinitionId, cmd.Access, ct);
 
-    public async Task<IReadOnlyList<ReconciliationRun>> Handle(ListReconciliationRunsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<ReconciliationRun>> Handle(ListReconciliationRunsQuery q, CancellationToken ct)
     {
         var all = await runs.FindAsync(r => r.DefinitionId == q.DefinitionId, ct);
         return [.. all.OrderByDescending(r => r.StartedAt).Take(Math.Max(1, q.Limit))];
@@ -67,7 +68,7 @@ public class ReconciliationHandlers(
     /// Находки прогона, дополненные тем, чего в самой находке нет и быть не должно: решением человека
     /// (живёт отдельно и переживает прогоны) и признаком устранения (вычисляется из истории).
     /// </summary>
-    public async Task<IReadOnlyList<FindingView>> Handle(ListFindingsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<FindingView>> Handle(ListFindingsQuery q, CancellationToken ct)
     {
         var history = (await runs.FindAsync(
                 r => r.DefinitionId == q.DefinitionId && r.Status == ReconciliationRunStatus.Completed, ct))
@@ -102,7 +103,7 @@ public class ReconciliationHandlers(
                 Decision: byKey.GetValueOrDefault(f.Key)))];
     }
 
-    public async Task<ReconciliationDecision> Handle(SetDecisionCommand cmd, CancellationToken ct)
+    public async ValueTask<ReconciliationDecision> Handle(SetDecisionCommand cmd, CancellationToken ct)
     {
         // Одно решение на позицию: повторное по тому же ключу — правка первого, а не вторая запись,
         // иначе «какое из двух действует» стало бы неопределённым.
@@ -125,13 +126,14 @@ public class ReconciliationHandlers(
         return decision;
     }
 
-    public async Task Handle(RemoveDecisionCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(RemoveDecisionCommand cmd, CancellationToken ct)
     {
         var existing = await FindByKeyAsync(cmd.DefinitionId, cmd.Key, ct);
-        if (existing is null) return; // снятие несуществующего решения — не ошибка, состояние уже такое
+        if (existing is null) return Unit.Value; // снятие несуществующего решения — не ошибка, состояние уже такое
 
         decisions.Remove(existing);
         await decisions.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
     /// <summary>

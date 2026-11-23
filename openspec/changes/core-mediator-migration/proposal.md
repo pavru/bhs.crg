@@ -1,10 +1,6 @@
 # Proposal: переход с MediatR 12.5 на Mediator (martinothamar, MIT)
 
-> **Не к выпуску; брать при условиях из issue.** Решение владельца 17.10.2026: не сейчас. Берём, когда
-> будет свободное время или раньше срока, если:
-> - в MediatR 12.5.0 найдена уязвимость или он несовместим с новой платформой .NET;
-> - понадобилось то, чего в 12.x нет;
-> - профилировщик показал стоимость отражения и выделений памяти.
+> **В работе по поручению владельца 23.11.2026.** Прежняя отсрочка от 17.10.2026 снята.
 
 ## Why
 
@@ -42,16 +38,16 @@ Issue #1406 (enhancement, dependencies). В #1405 решение вернуло�
 
 ## Impact
 
-- **Объём (пересчитан 22.10.2026, master 2.17.11):**
-  - обработчиков `IRequestHandler<…>` — 152, все в `BHS.CRG.Application` (34 файла); без ответа
-    (`IRequestHandler<TCommand>`) — 20; запросов `IRequest` — 152;
-  - файлов с `using MediatR`: Application — 46, Api — 26, Infrastructure — 6, тесты — 95. Модули
+- **Объём (пересчитан 23.11.2026, master 2.135.0):**
+  - обработчиков `IRequestHandler<…>` — 156, все в `BHS.CRG.Application` (37 файлов); без ответа
+    (`IRequestHandler<TCommand>`) — 20; запросов `IRequest` — 156;
+  - файлов с `using MediatR`: Application — 49, Api — 39, Infrastructure — 6, тесты — 116. Модули
     (`BHS.CRG.Modules*`), Domain и Plugins MediatR не используют;
-  - обращений к `IMediator` / `ISender` / `IPublisher`: в коде — 175 (Api 166, Infrastructure 6,
-    Application 3), в тестах — 203;
-  - вызовов `.Send(`: в коде — 205 (Api 183, Infrastructure 16, Application 6), в тестах — 984;
+  - обращений к `IMediator` / `ISender` / `IPublisher`: в коде — 216 (Api 206, Infrastructure 6,
+    Application 4), в тестах — 231;
+  - вызовов `.Send(`: в коде — 238 (Api 215, Infrastructure 16, Application 7), в тестах — 1115;
   - уведомлений (`INotification`, `Publish`), pipeline behaviors, потоковых и обобщённых запросов —
-    0. Регистрация — одна сборка (`ServiceRegistration.Domain.cs:35`).
+    0. Регистрация — одна сборка (`Configuration/ServiceRegistration.Domain.cs`).
 - **Проекты:** `BHS.CRG.Application.csproj`, `BHS.CRG.Api.csproj`, `BHS.CRG.Infrastructure.csproj`,
   `BHS.CRG.Tests.csproj`.
 - **Зависит от:** #1405 (слит — `MediatRLicenseTests` и диапазон версии на месте).

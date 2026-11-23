@@ -5,10 +5,12 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Системная консолидация «Общие данные: {тип}» (issue #627) — единственная с параметризованным
@@ -54,7 +56,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
 
     private static Task<Domain.Objects.DomainObject> AddEntryAsync(IServiceScope scope, Guid typeId, string name,
         string data, CatalogScope entryScope, Guid? scopeId, string[]? aliases = null)
-        => M(scope).Send(new CreateCommonDataEntryCommand(name, typeId, J(data), entryScope, scopeId, aliases));
+        => M(scope).Send(new CreateCommonDataEntryCommand(name, typeId, J(data), entryScope, scopeId, aliases)).AsTask();
 
     private static string MarkerFor(Guid typeId) => $"{SystemDataSets.ObjectsMarkerPrefix}{typeId}";
 

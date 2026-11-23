@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Common;
@@ -7,7 +7,7 @@ using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

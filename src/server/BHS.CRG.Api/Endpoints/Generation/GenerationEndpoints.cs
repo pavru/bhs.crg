@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Security.Claims;
 using BHS.CRG.Application.Common;
@@ -7,7 +7,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Generation;
 

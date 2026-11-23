@@ -3,7 +3,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.Documents;

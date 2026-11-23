@@ -1,10 +1,10 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

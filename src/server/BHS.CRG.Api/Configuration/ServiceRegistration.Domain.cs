@@ -21,18 +21,22 @@ using static BHS.CRG.Api.Configuration.OutboundClients;
 namespace BHS.CRG.Api.Configuration;
 
 /// <summary>
-/// Корень композиции, часть 2 — предметные службы: MediatR, репозитории, копии и обслуживание,
+/// Корень композиции, часть 2 — предметные службы: Mediator, репозитории, копии и обслуживание,
 /// прикладные службы генерации, распознавания, настроек и почты (issue #1030).
 /// </summary>
 internal static class DomainRegistration
 {
-    /// <summary>MediatR и репозитории доменных сущностей.</summary>
-    internal static void AddMediatRAndRepositories(this WebApplicationBuilder builder)
+    /// <summary>Mediator и репозитории доменных сущностей.</summary>
+    internal static void AddMediatorAndRepositories(this WebApplicationBuilder builder)
     {
-    // ── MediatR ───────────────────────────────────────────────────────────────────
-    // Обработчики лежат в одной сборке — BHS.CRG.Application. Прежде здесь были названы два её типа, и
-    // это читалось как две сборки; повтор держался только на том, что MediatR сам убирает дубли (#1405).
-    builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CatalogHandlers).Assembly));
+    // ── Mediator ───────────────────────────────────────────────────────────────────
+    // Генератор установлен только в Api. Обработчики используют scoped DbContext:
+    // Singleton по умолчанию здесь недопустим (core-mediator-migration, issue #1406).
+    builder.Services.AddMediator(options =>
+    {
+        options.ServiceLifetime = ServiceLifetime.Scoped;
+        options.Assemblies = [typeof(CatalogHandlers)];
+    });
 
     // ── Repositories ──────────────────────────────────────────────────────────────
     builder.Services.AddScoped<IRepository<CatalogEntity>, Repository<CatalogEntity>>();
@@ -246,7 +250,7 @@ internal static class DomainRegistration
         BHS.CRG.Application.Generation.GenerationContextBuilder>();
     builder.Services.AddScoped<BHS.CRG.Application.Generation.IGenerationRequestBuilder,
         BHS.CRG.Application.Generation.GenerationRequestBuilder>();
-    // Проверка резолва экземпляра как СЕРВИС, а не только запрос MediatR: пакетным вызывающим нужно
+    // Проверка резолва экземпляра как СЕРВИС, а не только запрос Mediator: пакетным вызывающим нужно
     // читать справочники схемы один раз на прогон, а не на документ (issue #628).
     builder.Services.AddScoped<BHS.CRG.Application.Generation.IInstanceResolutionValidator,
         BHS.CRG.Application.Generation.InstanceResolutionValidator>();

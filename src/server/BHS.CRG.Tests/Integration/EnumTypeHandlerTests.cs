@@ -2,10 +2,12 @@ using System.Text.Json;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// CRUD для EnumType (issue #59) — по образцу DocumentTypeHandlerTests (issue #57): проверка
@@ -42,7 +44,7 @@ public class EnumTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<InvalidRequestException>(() =>
-            Mediator(scope2).Send(new CreateEnumTypeCommand("Другой статус", "dupe1", null, Values("[]"))));
+            Mediator(scope2).Send(new CreateEnumTypeCommand("Другой статус", "dupe1", null, Values("[]"))).AsTask());
     }
 
     [Fact]
@@ -102,7 +104,7 @@ public class EnumTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
         using var scope2 = fixture.Services.CreateScope();
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteEnumTypeCommand(enumType.Id)));
+            Mediator(scope2).Send(new DeleteEnumTypeCommand(enumType.Id)).AsTask());
         Assert.Contains("Акт", ex.Message);
     }
 }

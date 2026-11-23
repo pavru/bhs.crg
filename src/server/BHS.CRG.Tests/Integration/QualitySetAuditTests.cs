@@ -10,11 +10,13 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Сверка «реестр материалов ↔ карта документов качества» по комплекту (issue #589).
@@ -58,27 +60,27 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
                     { "key": "Наименование", "type": "string", "tags": ["identity:1"] },
                     { "key": "Артикул", "type": "string", "tags": ["identity:2"] },
                     { "key": "ДокументКачества", "type": "complex", "tags": ["material.qualityDocLink"] } ] }
-                """))));
+                """))).AsTask());
 
         var docType = await InScopeAsync(m => m.Send(new CreateDocumentTypeCommand(
             $"Реестр материалов {suffix}", $"REG{suffix}"[..11], DocumentTypeKind.Document, null,
             JsonDocument.Parse($$"""
                 { "fields": [ { "key": "Материалы", "type": "array", "typeId": "{{materialType.Id}}" } ] }
-                """))));
+                """))).AsTask());
 
         var certType = await InScopeAsync(m => m.Send(new CreateDocumentTypeCommand(
             $"Сертификат {suffix}", $"CRT{suffix}"[..11], DocumentTypeKind.Document, null,
-            JsonDocument.Parse("""{"fields":[{"key":"Продукция","type":"string"}]}"""))));
+            JsonDocument.Parse("""{"fields":[{"key":"Продукция","type":"string"}]}"""))).AsTask());
 
         var cert = await InScopeAsync(m => m.Send(new CreateQualityDocumentCommand(
             certType.Id, $"EKF — автоматические выключатели {suffix}",
             JsonDocument.Parse("""{"Продукция":"Выключатели автоматические, торговой марки EKF, модель: AV-125"}"""),
-            CatalogScope.System, null, QualityDocSource.Manual, null, null, null)));
+            CatalogScope.System, null, QualityDocSource.Manual, null, null, null)).AsTask());
 
-        var construction = await InScopeAsync(m => m.Send(new CreateConstructionCommand($"Стройка {suffix}", Guid.NewGuid())));
-        var section = await InScopeAsync(m => m.Send(new CreateSectionCommand(construction.Id, $"Раздел {suffix}")));
-        var set = await InScopeAsync(m => m.Send(new CreateDocumentSetCommand(section.Id, $"Комплект {suffix}")));
-        var instance = await InScopeAsync(m => m.Send(new AddDocumentToSetCommand(set.Id, docType.Id)));
+        var construction = await InScopeAsync(m => m.Send(new CreateConstructionCommand($"Стройка {suffix}", Guid.NewGuid())).AsTask());
+        var section = await InScopeAsync(m => m.Send(new CreateSectionCommand(construction.Id, $"Раздел {suffix}")).AsTask());
+        var set = await InScopeAsync(m => m.Send(new CreateDocumentSetCommand(section.Id, $"Комплект {suffix}")).AsTask());
+        var instance = await InScopeAsync(m => m.Send(new AddDocumentToSetCommand(set.Id, docType.Id)).AsTask());
 
         // Три материала: автомат (сертификат по делу), трубка (сертификат не про неё), кабель (без связки).
         await InScopeAsync(m => m.Send(new UpdateRequisitesCommand(instance.Id, JsonDocument.Parse("""
@@ -86,14 +88,14 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
                 { "Наименование": "Выключатель автоматический AV-125 3P 63А EKF", "Артикул": "AV-125-63" },
                 { "Наименование": "Трубка термоусаживаемая ТУТ нг 20/10", "Артикул": "TUT-20" },
                 { "Наименование": "Кабель ВВГнг 3х2.5", "Артикул": "VVG-3x25" } ] }
-            """))));
+            """))).AsTask());
 
         // Связки заводим ключами, которые строит сервер: порядок компонентов задан identity:1/identity:2.
         await InScopeAsync(m => m.Send(new SetMaterialLinksCommand(CatalogScope.System, null,
         [
             new MaterialLinkInput(IdentityKey.From(["Выключатель автоматический AV-125 3P 63А EKF", "AV-125-63"])),
             new MaterialLinkInput(IdentityKey.From(["Трубка термоусаживаемая ТУТ нг 20/10", "TUT-20"])),
-        ], cert.Id)));
+        ], cert.Id)).AsTask());
 
         return (set.Id, instance.Id, cert.Id);
     }
@@ -137,9 +139,9 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     public async Task EmptySet_IsQuietAndSaysSo()
     {
         var suffix = Uniq;
-        var construction = await InScopeAsync(m => m.Send(new CreateConstructionCommand($"Стройка {suffix}", Guid.NewGuid())));
-        var section = await InScopeAsync(m => m.Send(new CreateSectionCommand(construction.Id, $"Раздел {suffix}")));
-        var set = await InScopeAsync(m => m.Send(new CreateDocumentSetCommand(section.Id, $"Комплект {suffix}")));
+        var construction = await InScopeAsync(m => m.Send(new CreateConstructionCommand($"Стройка {suffix}", Guid.NewGuid())).AsTask());
+        var section = await InScopeAsync(m => m.Send(new CreateSectionCommand(construction.Id, $"Раздел {suffix}")).AsTask());
+        var set = await InScopeAsync(m => m.Send(new CreateDocumentSetCommand(section.Id, $"Комплект {suffix}")).AsTask());
 
         var report = await AuditAsync(set.Id);
 
@@ -158,7 +160,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
             var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
             typeId = (await repo.GetByIdAsync(firstInstanceId))!.CompositeTypeId;
         }
-        await InScopeAsync(m => m.Send(new AddDocumentToSetCommand(setId, typeId)));
+        await InScopeAsync(m => m.Send(new AddDocumentToSetCommand(setId, typeId)).AsTask());
     }
 
     /// <summary>Считает обращения к справочникам схемы, ничего не подменяя: сам прогон настоящий.</summary>
@@ -220,7 +222,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     public async Task NeverAudited_HasNoReport_RatherThanCleanOne()
     {
         var (setId, _, _) = await SeedAsync();
-        Assert.Null(await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId))));
+        Assert.Null(await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)).AsTask()));
     }
 
     private async Task RunAndStoreAsync(Guid setId, Guid userId)
@@ -241,7 +243,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
         var userId = Guid.NewGuid();
 
         await RunAndStoreAsync(setId, userId);
-        var stored = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)));
+        var stored = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)).AsTask());
 
         Assert.NotNull(stored);
         Assert.Equal(1, stored!.Documents);
@@ -298,7 +300,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
         Assert.NotNull(job);
         Assert.True(job!.Status == JobStatus.Succeeded, $"Задача завершилась как {job.Status}: {job.Error}");
 
-        var report = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)));
+        var report = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)).AsTask());
         Assert.NotNull(report);
         Assert.Equal(1, report!.Documents);
         Assert.Equal(2, report.Rows.Count);

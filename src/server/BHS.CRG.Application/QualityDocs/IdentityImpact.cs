@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -37,7 +37,7 @@ public class IdentityImpactHandler(
     IRepository<MaterialQualityLink> linkRepo
 ) : IRequestHandler<IdentityImpactQuery, IdentityImpact>
 {
-    public async Task<IdentityImpact> Handle(IdentityImpactQuery q, CancellationToken ct)
+    public async ValueTask<IdentityImpact> Handle(IdentityImpactQuery q, CancellationToken ct)
     {
         var types = await typeRepo.GetAllAsync(ct);
         var before = MaterialIdentity.KeysOf(types);

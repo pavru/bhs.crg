@@ -11,7 +11,7 @@ using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Submission;
 using BHS.CRG.Tests.Integration;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;

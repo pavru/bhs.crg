@@ -93,7 +93,7 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Application/QualityDocs/Handlers.cs|doc.Update(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites);"] =
             (Guarded, "правка документа качества"),
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] =
-            (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
+            (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо Mediator"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: !marks.Contains(InvoiceRequisites.DueDateKey), rule);"] =
             (Guarded, "создание счёта: реквизиты пришли из формы или из распознавания, лежащего нет — всё вносится впервые"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceScanReading.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);"] =

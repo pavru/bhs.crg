@@ -3,7 +3,7 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Objects.FieldSuggestions;
 
@@ -33,7 +33,7 @@ public sealed class FieldSuggestionsHandler(
     IScopeSubtree subtree,
     IFieldSuggestionReader reader) : IRequestHandler<FieldSuggestionsQuery, IReadOnlyList<FieldSuggestion>>
 {
-    public async Task<IReadOnlyList<FieldSuggestion>> Handle(FieldSuggestionsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<FieldSuggestion>> Handle(FieldSuggestionsQuery q, CancellationToken ct)
     {
         // Без отслеживания: адрес зовут после каждой набранной буквы, и трекинг всех типов со схемами
         // на каждый вызов — память и время впустую (GetAllAsync отслеживает).

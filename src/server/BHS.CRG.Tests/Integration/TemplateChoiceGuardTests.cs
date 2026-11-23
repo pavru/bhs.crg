@@ -10,7 +10,7 @@ using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Tests.Support;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Text.Json;
@@ -8,7 +8,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
 

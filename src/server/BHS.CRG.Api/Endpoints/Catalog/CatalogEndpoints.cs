@@ -1,8 +1,8 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Catalog;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Catalog;
 

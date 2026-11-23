@@ -3,7 +3,7 @@ using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

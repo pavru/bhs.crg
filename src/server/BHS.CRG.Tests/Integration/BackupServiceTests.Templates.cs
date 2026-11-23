@@ -3,7 +3,7 @@ using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

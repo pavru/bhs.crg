@@ -1,9 +1,9 @@
-﻿using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSets;
 using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 

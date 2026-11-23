@@ -6,7 +6,7 @@ using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

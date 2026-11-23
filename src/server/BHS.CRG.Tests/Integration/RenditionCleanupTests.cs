@@ -11,7 +11,7 @@ using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Maintenance;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

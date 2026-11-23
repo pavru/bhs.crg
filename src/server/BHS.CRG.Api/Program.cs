@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Api.Configuration;
+using BHS.CRG.Api.Configuration;
 
 // Прокси по умолчанию для процесса — «никакого» (issue #936). Иначе .NET на Linux сам берёт
 // HTTP(S)_PROXY из окружения, и туда ушли бы все клиенты, не спросив галок: SDK хранилища со своим
@@ -18,7 +18,7 @@ builder.AddProcessDefaults();
 builder.AddPersistenceAndIdentity();
 builder.AddForwardedHeadersAndRateLimiting();
 builder.AddJwtAuth();
-builder.AddMediatRAndRepositories();
+builder.AddMediatorAndRepositories();
 builder.AddSupportBackupAndMaintenance();
 builder.AddApplicationServices();
 builder.AddBackgroundWorkAndNotifications();
