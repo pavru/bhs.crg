@@ -67,8 +67,8 @@
 - [x] 4.4 `work-19-period-closure` (2) — запрещающие строки, версии (базовый тип — из
   `plan-12-record-versions`, D18), досылка [WORK-15] [WORK-16] [CORE-35] [CORE-36]. Проверка — change
   заархивирован ([архив 23.11.2026](../archive/2026-11-23-work-19-period-closure/tasks.md), PR #2033 и #2035, выбран Р4-Б)
-- [ ] 4.5 `work-20-tables-dataset` (1) — таблицы и наборы модуля [CORE-33] [CORE-24] [STG-6.2].
-  Проверка — change заархивирован
+- [x] 4.5 `work-20-tables-dataset` (1) — таблицы и наборы модуля [CORE-33] [CORE-24] [STG-6.2].
+  Проверка — change заархивирован ([архив 23.11.2026](../archive/2026-11-23-work-20-tables-dataset/tasks.md), PR #2055)
 
 ## 5. Экраны
 
