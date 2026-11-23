@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { BASE, callApiOk, createChecks, launchBrowser, login } from './harness.mjs';
+import { BASE, callApiOk, createChecks, launchBrowser, login, underRoute } from './harness.mjs';
 import { ASSIGNMENT_PM, ENTRY_EMPLOYEE, INSTALLER } from './seed-assignments.mjs';
 import { REVIEW_READER_EMAIL } from './seed-review.mjs';
 import { seedWorkEntryCatalog, WORK_ENTRY_MATERIAL, WORK_ENTRY_TYPE, WORK_ENTRY_VARIANT } from './seed-work-entry.mjs';
@@ -9,6 +9,7 @@ const browser = await launchBrowser();
 const { check, summarize } = createChecks();
 const heading = (page, name) => page.getByRole('heading', { name, exact: typeof name === 'string' });
 const button = (page, name) => page.getByRole('button', { name, exact: true });
+const shot = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
 async function pickFromCatalog(page, name) {
   const dialog = page.getByRole('dialog');
@@ -34,6 +35,53 @@ async function createOrOpen(page, path) {
   }
 }
 
+async function submitWhilePhotosUpload(page, path) {
+  const urls = new Set();
+  const upload = /\/api\/work\/reports\/[^/]+\/lines\/[^/]+\/photos\/[^/]+$/;
+  const names = ['Смена-1.png', 'Смена-2.png'];
+  const release = Promise.withResolvers();
+  await underRoute(page, upload, async route => {
+    if (route.request().method() !== 'PUT') { await route.continue(); return; }
+    urls.add(route.request().url());
+    await release.promise;
+    await route.continue();
+  }, async () => {
+    try {
+      await page.getByText(/До \d+ фото на строку/).waitFor();
+      await page.getByLabel('Файлы фото строки').setInputFiles(names.map(name => ({ name, mimeType: 'image/png', buffer: shot })));
+      await button(page, 'Сохранить').click();
+      await page.getByText('Загружается', { exact: true }).last().waitFor();
+      await button(page, 'Подать отчёт').click();
+      await page.getByText('Подан', { exact: true }).waitFor();
+      const pending = await callApiOk(page, 'GET', path);
+      assert.equal(pending.photosPending, 2);
+      assert.equal(pending.status, 'submitted');
+      assert.equal(await page.getByText('Загружается', { exact: true }).count(), 2);
+
+      release.resolve();
+      const first = button(page, `Открыть фото: ${names[0]}`);
+      const second = button(page, `Открыть фото: ${names[1]}`);
+      await first.locator('img').evaluate(image => image.decode());
+      await second.locator('img').evaluate(image => image.decode());
+      assert.equal(urls.size, 2);
+      const stored = await callApiOk(page, 'GET', path);
+      assert.equal(stored.photosPending, 0);
+      assert.equal(stored.version, pending.version);
+      await first.click();
+      const gallery = page.getByRole('dialog', { name: 'Фото строки' });
+      await gallery.getByRole('img', { name: /^Фото / }).waitFor();
+      const position = gallery.getByRole('status').filter({ hasText: /^[12] из 2$/ });
+      const before = await position.textContent();
+      await page.keyboard.press(before === '1 из 2' ? 'ArrowRight' : 'ArrowLeft');
+      assert.notEqual(await position.textContent(), before);
+      await page.keyboard.press('Escape');
+      await gallery.waitFor({ state: 'hidden' });
+    } finally {
+      release.resolve();
+    }
+  });
+}
+
 async function fillAndSubmit(page, report, fixture) {
   const path = `/work/reports/${report.id}`;
   const materials = await callApiOk(page, 'GET', `/work/entry/sites/${report.constructionId}/catalog/materials`
@@ -55,9 +103,7 @@ async function fillAndSubmit(page, report, fixture) {
     assert.ok(await button(page, 'Добавить материал').evaluate(element => element === document.activeElement));
     await button(page, 'Добавить материал').click();
     await pickFromCatalog(page, WORK_ENTRY_MATERIAL);
-    await button(page, 'Сохранить').click();
-    await button(page, 'Подать отчёт').click();
-    await page.getByText('Подан', { exact: true }).waitFor();
+    await submitWhilePhotosUpload(page, path);
   }
   const submitted = await callApiOk(page, 'GET', path);
   assert.equal(submitted.status, 'submitted');
@@ -67,6 +113,7 @@ async function fillAndSubmit(page, report, fixture) {
   assert.equal(line.unitId, fixture.unitId);
   assert.equal(line.volume, 12);
   assert.deepEqual(line.materials.map(item => item.nomenclatureId), [material.id]);
+  assert.equal(line.photos.filter(photo => photo.state === 'stored').length, 2);
 }
 
 try {

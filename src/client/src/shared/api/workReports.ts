@@ -1,7 +1,7 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { hasModule, hasPermission, type AccessInfo } from './access';
-import type { AssignmentCandidate } from './work';
+import type { AssignmentCandidate, WorkLinePhotoRef } from './work';
 import type { ReviewReport, ReviewReportLine } from './workReview';
 
 export type ReportShift = 'day' | 'night';
@@ -101,7 +101,7 @@ export interface ReportInput extends ReportHeader {
   hours: number | null;
   note: string | null;
   // Отсутствие photos сохраняет текущий состав фото при записи строк.
-  lines: Omit<WorkReportLine, 'photos'>[];
+  lines: (Omit<WorkReportLine, 'photos'> & { photos?: WorkLinePhotoRef[] })[];
 }
 
 export function createWorkReport(mode: ReportMode, id: string, employeeId: string | null, input: ReportInput) {

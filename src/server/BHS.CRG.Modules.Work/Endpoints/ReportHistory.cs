@@ -120,6 +120,7 @@ public sealed class ReportHistory(
 
         ReportPhotoDto PhotoAtClosing(ReportPhotoDto photo)
         {
+            photo = photo with { CanDeliver = null };
             if (late.Contains(photo.Id)) return photo with { State = "pending" };
             return number is not null && photo.State == "stored"
                 ? photo with { VersionUrl = $"/api/work/photos/{photo.Id}?reportId={dto.Id}&number={number}" }

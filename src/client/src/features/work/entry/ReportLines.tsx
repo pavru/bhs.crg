@@ -12,13 +12,15 @@ import { SNACKBAR_UNDO_MS, useSnackbar } from '@/shared/ui/Snackbar';
 import { StatusText } from '@/shared/ui/StatusText';
 import { WorkCatalogPicker } from '@/shared/ui/WorkCatalogPicker';
 import { WorkTypePicker } from '@/shared/ui/WorkTypePicker';
+import { LinePhotos, type ReportPhotos } from './LinePhotos';
 import { ReportLineDetails } from './ReportLineDetails';
 import { emptyLine, type DraftLine } from './reportContents';
 import { missingForId } from './reportPresentation';
 
-export function ReportLines({ scope, lines, savedLines, disabled, siteReady, errors, focus, onChange }: {
+export function ReportLines({ scope, lines, savedLines, photos, disabled, siteReady, errors, focus, onChange }: {
   scope: EntryCatalogScope; lines: DraftLine[]; disabled: boolean; siteReady: boolean;
   savedLines?: WorkReportLine[]; errors?: RequiredReportField[]; focus?: RequiredReportField;
+  photos: ReportPhotos;
   onChange: (update: (lines: DraftLine[]) => DraftLine[]) => void;
 }) {
   const toast = useSnackbar();
@@ -119,11 +121,14 @@ export function ReportLines({ scope, lines, savedLines, disabled, siteReady, err
         setExpanded(line.id);
       } }} onRemove={disabled ? undefined : remove} />
     {expandedLine && <Card title={`Подробности строки ${expandedIndex + 1}`}>
-      <div ref={details}>
-        <ReportLineDetails key={expandedLine.id} scope={scope} siteReady={siteReady} line={expandedLine}
+      <div ref={details} key={expandedLine.id}>
+        <ReportLineDetails scope={scope} siteReady={siteReady} line={expandedLine}
           type={typeOf(expandedLine.workTypeId)} disabled={disabled} errors={errors?.filter(error => error.lineId === expandedLine.id)}
           pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
           onChange={changes => update(expandedLine, changes)} />
+        <LinePhotos lineId={expandedLine.id} photos={expandedLine.photos}
+          declared={savedLines?.find(line => line.id === expandedLine.id)?.photos ?? []} controls={photos}
+          add={newPhotos => update(expandedLine, { photos: [...expandedLine.photos, ...newPhotos] })} />
       </div>
     </Card>}
     {removing && !!dependents.length && <ConfirmDialog open title={`Удалить строку ${removingIndex + 1}?`}

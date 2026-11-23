@@ -35,14 +35,20 @@ export function contentsProblem({ hours, lines }: ReportContents) {
   }
 }
 
-export function reportInput(header: ReportHeader, draft: ReportContents, note: string | null): ReportInput {
+export function reportInput(header: ReportHeader, draft: ReportContents, note: string | null, saved?: ReportContents): ReportInput {
+  const previous = new Map(saved?.lines.map(line => [line.id, new Set(line.photos.map(photo => photo.id))]));
   return {
     ...header, note, hours: readNumber(draft.hours),
-    lines: draft.lines.map(line => ({
-      ...lineFields(line), volume: readNumber(line.volume) ?? 0,
-      location: line.location?.trim() || null, comment: line.comment?.trim() || null,
-      materials: line.materials.map(material => ({ ...material, note: material.note?.trim() || null })),
-    })),
+    lines: draft.lines.map(line => {
+      const old = previous.get(line.id);
+      return {
+        ...lineFields(line), volume: readNumber(line.volume) ?? 0,
+        location: line.location?.trim() || null, comment: line.comment?.trim() || null,
+        materials: line.materials.map(material => ({ ...material, note: material.note?.trim() || null })),
+        // Сохранение без новых заявок не трогает фото. Удаление сохранённого идёт отдельным адресом.
+        ...(line.photos.some(photo => !old?.has(photo.id)) ? { photos: line.photos.map(({ id }) => ({ id })) } : {}),
+      };
+    }),
   };
 }
 
@@ -66,7 +72,7 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
     }
     if (!previous || !edited) { lines.push(edited ?? line); continue; }
     const number = lines.length + 1;
-    const changed = Object.entries(edited).filter(([key, value]) => key !== 'materials' && key !== 'participants'
+    const changed = Object.entries(edited).filter(([key, value]) => key !== 'materials' && key !== 'participants' && key !== 'photos'
       && !sameContent(previous[key as keyof DraftLine], value));
     const merged = { ...line, ...Object.fromEntries(changed) };
     merged.materials = rebaseList(previous.materials, edited.materials, line.materials, item => item.nomenclatureId, item => {
@@ -75,6 +81,7 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
       conflicts.push(`Строка ${number}: материал изменили одновременно. Сохранено состояние сервера. ${action}`);
     });
     merged.participants = rebaseList(previous.participants, edited.participants, line.participants, id => id);
+    merged.photos = rebaseList(previous.photos, edited.photos, line.photos, photo => photo.id);
     if (!merged.isCrew && merged.participants.length > 0) {
       merged.isCrew = true;
       conflicts.push(`Строка ${number}: признак бригады сохранён, поскольку в строке есть участники из другой правки.`);

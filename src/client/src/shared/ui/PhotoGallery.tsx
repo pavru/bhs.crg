@@ -25,14 +25,15 @@ export function PhotoGallery({ title, count, initialIndex, onClose, renderPhoto,
   const [selected, setSelected] = useState(initialIndex);
   const index = Math.max(0, Math.min(selected, count - 1));
   const move = (direction: number) => setSelected(Math.max(0, Math.min(index + direction, count - 1)));
-  return <Modal open wide fullScreen={fullScreen} onOpenChange={open => { if (!open) onClose(); }} title={title}
-    footer={<ModalExit>Закрыть</ModalExit>}>
-    <div className="space-y-2" onKeyDown={event => {
+  return <Modal open wide fullScreen={fullScreen} nothingToLose onOpenChange={open => { if (!open) onClose(); }} title={title}
+    footer={<ModalExit>Закрыть</ModalExit>} onKeyDown={event => {
+      if ((event.target as HTMLElement).closest('[role="dialog"]') !== event.currentTarget) return;
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
         move(event.key === 'ArrowLeft' ? -1 : 1);
       }
     }}>
+    <div className="space-y-2">
       {renderPhoto(index)}
       {count > 1 && <div className="flex items-center justify-center gap-2">
         <IconButton icon={ChevronLeft} label="Предыдущее фото" aria-disabled={index === 0}

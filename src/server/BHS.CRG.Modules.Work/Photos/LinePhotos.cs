@@ -71,6 +71,11 @@ public sealed class LinePhotos(
 
     public static string TooMany(int max) => $"не больше {max} фото на строку.";
 
+    public static long BytesOf(decimal megabytes) => (long)(megabytes * 1024 * 1024);
+
+    public static string SizeText(decimal megabytes) =>
+        $"Фото больше {megabytes:0.##} МБ — предел задан в настройках модуля.";
+
     /// <summary>Загрузить файл фото строки отчёта, видимого читателю, — или ответить повтором.</summary>
     public async Task<IResult> ReceiveAsync(
         ReportViewer viewer, Guid reportId, Guid lineId, Guid photoId, Stream body, CancellationToken ct)
@@ -93,13 +98,13 @@ public sealed class LinePhotos(
         db.ChangeTracker.Clear();
 
         var megabytes = await settings.GetAsync(WorkSettings.PhotoMaxMegabytes, ct);
-        var limits = new PhotoLimits((long)(megabytes * 1024 * 1024), MaxSide, PreviewSide, PhotoLimits.DefaultMaxPixels);
+        var limits = new PhotoLimits(BytesOf(megabytes), MaxSide, PreviewSide, PhotoLimits.DefaultMaxPixels);
         var prepared = await photos.PrepareAsync(body, limits, ct);
         // Размер — 413, а не 400: он про транспорт, и код отличает «файл слишком велик» от «файл не тот».
         if (prepared is PhotoRefusal refusal)
             return refusal.Code switch
             {
-                PhotoRefusalCode.TooLarge => TooLarge($"Фото больше {megabytes:0.##} МБ — предел задан в настройках модуля."),
+                PhotoRefusalCode.TooLarge => TooLarge(SizeText(megabytes)),
                 PhotoRefusalCode.TooManyPixels => TooLarge(refusal.Text),
                 _ => throw new InvalidRequestException(refusal.Text),
             };
@@ -181,9 +186,8 @@ public sealed class LinePhotos(
         PeriodBoundaries boundaries, Report report, LinePhoto? photo, CancellationToken ct)
     {
         if (!ReportPeriods.IsClosed(boundaries, report.ConstructionId, report.Date)) return null;
-        if (photo is not null && await periods.ClosingAsync(report, ct) is { } closing
-            && photo.DeclaredBeforeClosing(closing.Id, closing.At))
-            return closing.Id;
+        var closing = photo is null ? null : await periods.ClosingAsync(report, ct);
+        if (photo is not null && ReportPeriods.DeliveryAllowed(photo, closed: true, closing)) return closing?.Id;
 
         throw ReportPeriods.ClosedReport(report.Id);
     }

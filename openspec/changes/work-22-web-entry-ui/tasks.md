@@ -71,25 +71,26 @@
 
 ## 4. PR 3: фото и галерея
 
-- [ ] 4.1 `features/work/entry/LinePhotos.tsx`: `photoId` от клиента, повтор без дубля, 413 и предел числа
+- [x] 4.1 `features/work/entry/LinePhotos.tsx`: `photoId` от клиента, повтор без дубля, 413 и предел числа
   словами, «загружается» без ожидания подачи, удаление с `If-Match` [WORK-33] [WORK-34] [MOB-15].
   Проверка — vitest на 413 и на 409 удаления
-- [ ] 4.2 Использовать `shared/ui/PhotoGallery.tsx` из `work-21`: превью и оригинал адресами
+- [x] 4.2 Использовать `shared/ui/PhotoGallery.tsx` из `work-21`: превью и оригинал адресами
   модуля, стрелки, Esc закрывает галерею; сверка с просмотрщиком #1489 [WORK-30] [WORK-33]. Проверка
   — vitest на клавиатуру; ссылки на решения в `design.md` Work-22 и архиве Work-21
-- [ ] 4.3 Живой прогон `work-entry-smoke.mjs`: фото строки, подача до догрузки [WORK-34]. Проверка —
+- [x] 4.3 Живой прогон `work-entry-smoke.mjs`: фото строки, подача до догрузки [WORK-34]. Проверка —
   прогон зелёный на стенде
-- [ ] 4.4 `docs/USER_GUIDE.md`: фото — пределы, догрузка после подачи, геометка в снимках (`WORK-55`);
+- [x] 4.4 `docs/USER_GUIDE.md`: фото — пределы, догрузка после подачи, геометка в снимках (`WORK-55`);
   `npm run toc` в `docs/tools` [WORK-33] [WORK-55]. Проверка — проверка содержания в «Frontend» зелёная
-- [ ] 4.5 Читать действующие пределы размера и числа фото из Work, показать их в форме и передавать
-  текст отказа. Проверка — предел меняется с настройкой, после закрытия доступна досылка только
-  заявленного фото с сохранением `pending` в `at-closing` [WORK-33] [WORK-34] [WORK-52].
+- [x] 4.5 Читать действующие пределы размера и числа фото из Work, показать их в форме и передавать
+  текст отказа. Для ожидающих фото читать у отчёта разрешение на досылку. Проверка — предел меняется с
+  настройкой, после закрытия доступна досылка только заявленного фото с сохранением `pending` в
+  `at-closing` [WORK-33] [WORK-34] [WORK-52].
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Tests.Work."` — зелёный (серверы `work-11`, `work-13`, `work-15`, `work-17` не сломаны)
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста (правило `native-date` — ноль)
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 5.5 Живой прогон под ролями модуля: `node e2e/work-entry-smoke.mjs` — «Монтажник» вводит и подаёт,
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Tests.Work."` — зелёный (серверы `work-11`, `work-13`, `work-15`, `work-17` не сломаны)
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста (правило `native-date` — ноль)
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.5 Живой прогон под ролями модуля: `node e2e/work-entry-smoke.mjs` — «Монтажник» вводит и подаёт,
   «Менеджер проекта» вводит за сотрудника, «Руководитель» пункта «Мои отчёты» не видит

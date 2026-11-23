@@ -27,6 +27,7 @@ public static class PhotoEndpoints
     public const string LinePath = ReportEndpoints.Path + "/{id:guid}/lines/{lineId:guid}/photos/{photoId:guid}";
 
     public const string Path = "/api/work/photos/{photoId:guid}";
+    public const string LimitsPath = "/api/work/photos/limits";
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -36,6 +37,18 @@ public static class PhotoEndpoints
         endpoints.MapDelete(LinePath, RemoveAsync).WithTags("Отчёты").RequireAuthorization(write);
         endpoints.MapGet(Path, OriginalAsync).WithTags("Отчёты").RequireAuthorization(read);
         endpoints.MapGet(Path + "/preview", PreviewAsync).WithTags("Отчёты").RequireAuthorization(read);
+        endpoints.MapGet(LimitsPath, LimitsAsync).WithTags("Отчёты").RequireAuthorization(write);
+    }
+
+    private static async Task<IResult> LimitsAsync(IModuleSettings settings, CancellationToken ct)
+    {
+        var count = await LinePhotos.PerLineAsync(settings, ct);
+        var megabytes = await settings.GetAsync(WorkSettings.PhotoMaxMegabytes, ct);
+        return Results.Ok(new
+        {
+            count, megabytes, maxBytes = LinePhotos.BytesOf(megabytes),
+            countText = LinePhotos.TooMany(count), sizeText = LinePhotos.SizeText(megabytes),
+        });
     }
 
     /// <summary>Загрузить файл фото: тело запроса — сам файл, без <c>If-Match</c> (названное исключение).</summary>

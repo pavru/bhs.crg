@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEventHandler, type ReactNode } from 'react';
 import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Button, type ButtonProps } from './Button';
 import {
@@ -23,6 +23,8 @@ export { ModalAction, ModalButtons, ModalNote, ModalPrimary } from './ModalRoles
 interface ModalBaseProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Клавиши содержимого, в том числе когда начальный фокус стоит на самом окне. */
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   title: string;
   /** Тело диалога. Функция-форма получает requestClose (охраняемый выход) — содержимое само
    *  рисует свою шапку (для full-screen top app bar). */
@@ -145,7 +147,7 @@ export function ModalExit({ children = 'Отмена', variant = 'text', disable
 const BUSY_EXIT = 'pointer-events-none';
 
 function ModalBody({
-  onOpenChange, title, children, wide, fullScreen, question, headerless, isDirty, flushBody, footer,
+  onOpenChange, onKeyDown, title, children, wide, fullScreen, question, headerless, isDirty, flushBody, footer,
   busy = false, nothingToLose, acknowledge,
 }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
@@ -303,6 +305,7 @@ function ModalBody({
         />
         <Dialog.Content
           ref={content}
+          onKeyDown={onKeyDown}
           // Окно, которое Esc сейчас не закрывает, держит человека — см. `DialogHold`.
           data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={full

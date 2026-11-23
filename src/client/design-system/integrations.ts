@@ -11,7 +11,7 @@ export const integrations: Record<string, { purpose: string; examples: string[] 
   MaterialPicker: { purpose: 'В подробностях строки Work-22 добавляет позиции из справочника номенклатуры. Уже добавленные позиции из выбора исключаются.', examples: ['Modal', 'SearchInput', 'ListOption'] },
   NavigationGuardProvider: { purpose: 'Объединяет охрану переходов и несохранённые изменения.', examples: ['LeaveGuardDialog', 'DetailHeader'] },
   PinnedPagesProvider: { purpose: 'Состояние закреплённых страниц и их порядка.', examples: ['PinnedGroup', 'PinnedLink'] },
-  PhotoGallery: { purpose: 'Окно просмотра с перелистыванием. В карточке приёмки открывается по превью строки и запрашивает выбранный снимок.', examples: ['Modal', 'IconButton'] },
+  PhotoGallery: { purpose: 'Окно просмотра с перелистыванием. Открывается по превью строки в приёмке и во весь экран при вводе отчёта.', examples: ['Modal', 'IconButton'] },
   PhotoImage: { purpose: 'Превью и полный снимок в карточке приёмки. Объектный адрес создаётся из полученного файла и освобождается при закрытии.', examples: ['Modal'] },
   ProtectedRoute: { purpose: 'Граница маршрута для вошедшего пользователя.', examples: ['NoAccessPage'] },
   RequireAccess: { purpose: 'Граница доступа по правам и модулям.', examples: ['NoAccessPage'] },

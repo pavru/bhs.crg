@@ -13,6 +13,10 @@ public sealed record ReportMaterialDto(Guid NomenclatureId, string? Note);
 /// </summary>
 public sealed record ReportPhotoDto(Guid Id, string State)
 {
+    // Только ответ с действующим состоянием периода даёт разрешение на досылку.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CanDeliver { get; init; }
+
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? VersionUrl { get; init; }
 }
@@ -76,8 +80,14 @@ public sealed class ReportViews(
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
-        ReportViewer viewer, Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default) =>
-        (await ManyAsync(viewer, [report], ct, replayed))[0] with { AlreadySubmitted = alreadySubmitted };
+        ReportViewer viewer, Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default)
+    {
+        var dto = (await ManyAsync(viewer, [report], ct, replayed))[0] with { AlreadySubmitted = alreadySubmitted };
+        if (dto.PhotosPending == 0) return dto;
+
+        var closing = dto.PeriodClosed ? await periods.ClosingAsync(report, ct) : null;
+        return dto with { Lines = LinesOf(report, p => ReportPeriods.DeliveryAllowed(p, dto.PeriodClosed, closing)) };
+    }
 
     /// <param name="versions">Версии отчётов, прочитанных без отслеживания (выдача курсора); не названы — версия
     /// отслеживаемой строки.</param>
@@ -148,8 +158,8 @@ public sealed class ReportViews(
     public static int PhotosPendingOf(Report r) =>
         r.Lines.Sum(l => l.Photos.Count(p => p.State == LinePhotoState.Pending));
 
-    internal static IReadOnlyList<ReportLineDto> LinesOf(Report report) =>
-        [.. report.Lines.OrderBy(l => l.Position).Select(Line)];
+    internal static IReadOnlyList<ReportLineDto> LinesOf(Report report, Func<LinePhoto, bool>? canDeliver = null) =>
+        [.. report.Lines.OrderBy(l => l.Position).Select(l => Line(l, canDeliver))];
 
     private static JsonElement Parsed(string json)
     {
@@ -157,7 +167,7 @@ public sealed class ReportViews(
         return parsed.RootElement.Clone();
     }
 
-    private static ReportLineDto Line(ReportLine l)
+    private static ReportLineDto Line(ReportLine l, Func<LinePhoto, bool>? canDeliver)
     {
         using var details = JsonDocument.Parse(l.Details);
         return new ReportLineDto(
@@ -165,7 +175,10 @@ public sealed class ReportViews(
             l.IsCrew, l.WorkPlanItemId, details.RootElement.Clone(),
             [.. l.Materials.OrderBy(m => m.Position).Select(m => new ReportMaterialDto(m.NomenclatureId, m.Note))],
             [.. l.Participants.Select(p => p.EmployeeId)],
-            [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State)))],
+            [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State))
+            {
+                CanDeliver = p.State == LinePhotoState.Pending ? canDeliver?.Invoke(p) : null,
+            })],
             l.CrewRole);
     }
 }

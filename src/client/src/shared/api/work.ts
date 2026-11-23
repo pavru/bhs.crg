@@ -173,6 +173,7 @@ export type WorkPhotoState = 'pending' | 'stored';
 export interface WorkLinePhoto {
   id: string;
   state: WorkPhotoState;
+  canDeliver?: boolean;
 }
 
 /**

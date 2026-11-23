@@ -21,6 +21,9 @@ public sealed class ReportPeriods(WorkDbContext db, IModulePeriods periods)
     public static bool IsClosed(PeriodBoundaries boundaries, Guid site, DateOnly date) =>
         boundaries.IsClosed(date, new PeriodContour.Construction(site));
 
+    public static bool DeliveryAllowed(LinePhoto photo, bool closed, (Guid Id, DateTimeOffset At)? closing) =>
+        !closed || (closing is { } period && photo.DeclaredBeforeClosing(period.Id, period.At));
+
     public static void EnsureOpen(PeriodBoundaries boundaries, Report report) =>
         EnsureOpen(boundaries, report.ConstructionId, report.Date, report.Id);
 
