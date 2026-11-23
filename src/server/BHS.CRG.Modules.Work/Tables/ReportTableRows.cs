@@ -36,7 +36,8 @@ internal sealed class ReportTableRows(
                 Status = r.Header.Status,
                 Hours = r.Content!.Hours,
                 Submission = (r.Header.SubmittedAt ?? r.Header.WindowEndsAt).ToString(),
-                LineCount = (Guid?)r.Content!.Id == null ? null : r.Content.Lines.Count,
+                // Во внешнем соединении ключ содержимого становится nullable в SQL.
+                LineCount = ((Guid?)r.Content!.Id).HasValue ? r.Content.Lines.Count : null,
                 EnteredBy = r.Content!.EnteredByName,
                 Note = r.Content!.Note,
             });

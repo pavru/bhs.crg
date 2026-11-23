@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Tables;
@@ -17,7 +18,8 @@ internal sealed class WorkTableReaders(ManagerSites managerSites, IModuleEmploye
 {
     internal async Task<WorkTableAccess> ResolveAsync(ModuleReader reader, CancellationToken ct)
     {
-        var userId = reader.UserId ?? throw new InvalidOperationException("Таблицы отчётов читаются от имени человека.");
+        var userId = reader.UserId ?? throw new ConflictException(
+            $"Таблицы отчётов читаются только по правам человека ({reader.SystemReason}).");
         var employee = await employees.OfAccountAsync(userId, ct);
         ReportViewer viewer;
         if (reader.Allows(WorkModule.ReportRead) || reader.Allows(WorkModule.SitesAll))
