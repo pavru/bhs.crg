@@ -174,6 +174,8 @@ export const workNav: NavItem[] = [
   // Право И модуль, как у «Счетов»: адреса смет закрыты `plan.estimate.read` под воротами модуля.
   { to: '/estimates',       label: 'Сметы',               icon: TableChart, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan' },
+  { to: '/offers',          label: 'Коммерческие предложения', icon: Description, module: 'plan',
+    permission: 'plan.offer.read', rail: 'plan' },
   // Запомненные сопоставления смет (plan-09, ответ П1): справочник модуля — им исправляют неверно запомненное.
   { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },

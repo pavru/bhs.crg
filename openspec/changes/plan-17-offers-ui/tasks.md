@@ -2,7 +2,7 @@
 
 ## 1. Макеты
 
-- [ ] 1.1 Раунд П3: три варианта КП, прайс-листа и производных в локальном каталоге на компонентах
+- [x] 1.1 Раунд П3: три варианта КП, прайс-листа и производных в локальном каталоге на компонентах
   `shared/ui`. Показать список, карточку, уровни наценки, версии, предпросмотр обновления, печать,
   права и конфликты на широкой и узкой компоновке. Проверка — выбор владельца и ссылка в `design.md`
   [PLAN-10] [PLAN-10.1] [PLAN-12] [PLAN-13] [PLAN-22].
@@ -11,20 +11,20 @@
 
 ## 2. PR 1: КП
 
-- [ ] 2.1 `shared/api/planningOffers.ts`: список, карточка, правка с `If-Match`, статусы, версии,
+- [x] 2.1 `shared/api/planningOffers.ts`: список, карточка, правка с `If-Match`, статусы, версии,
   предпросмотр и обновление, печать; разбор 400/403/409 [PLAN-10] [PLAN-12]. Проверка — vitest на разбор отказов
-- [ ] 2.2 `features/planning/offers/OffersPage.tsx` и пункт рейла (механизм `plan-02`) [PLAN-20] [PLAN-10.1].
+- [x] 2.2 `features/planning/offers/OffersPage.tsx` и пункт рейла (механизм `plan-02`) [PLAN-20] [PLAN-10.1].
   Проверка — vitest: колонка цены есть только в ответе с ценами
-- [ ] 2.3 `OfferCard.tsx`: строки, наценки трёх уровней, итог и НДС сервера (решение В-9), колонка
+- [x] 2.3 `OfferCard.tsx`: строки, наценки трёх уровней, итог и НДС сервера (решение В-9), колонка
   себестоимости только при её наличии в ответе [PLAN-11]. Проверка — vitest: без `cost` колонки нет в разметке
-- [ ] 2.4 `OfferStatusActions.tsx`, `OfferVersions.tsx`: отметка отправки с датой, итог, «Новая версия»;
+- [x] 2.4 `OfferStatusActions.tsx`, `OfferVersions.tsx`: отметка отправки с датой, итог, «Новая версия»;
   отправленное — только чтение [PLAN-12]. Проверка — vitest: без `plan.offer.send` действия нет; после
   отправки ячеек правки нет
-- [ ] 2.5 `OfferDriftBanner.tsx`, `OfferRebaseDialog.tsx`: разница из предпросмотра, 409 по отпечатку —
+- [x] 2.5 `OfferDriftBanner.tsx`, `OfferRebaseDialog.tsx`: разница из предпросмотра, 409 по отпечатку —
   перечитать [PLAN-13]. Проверка — vitest на 409
 - [ ] 2.6 «Сделать КП» в карточке сметы (`CreateOfferDialog.tsx`) и «Печать» (`plan-15`) [PLAN-10]
   [PLAN-14]. Проверка — vitest на заведение из редакции
-- [ ] 2.7 Живой прогон `src/client/e2e/plan-offers-smoke.mjs`, посев КП в `e2e/seed.mjs`; вписать в
+- [x] 2.7 Живой прогон `src/client/e2e/plan-offers-smoke.mjs`, посев КП в `e2e/seed.mjs`; вписать в
   `test:e2e:ci` и `e2e/README.md` [PLAN-12]. Проверка — прогон зелёный на стенде
 
 ## 3. PR 2: прайс-лист, КП без сметы, производные
@@ -41,9 +41,9 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PlanOffer|FullyQualifiedName~PriceList|FullyQualifiedName~OfferDrift"` — зелёный (сервер не сломан)
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~BHS.CRG.Tests.Plan.Offer|FullyQualifiedName~BHS.CRG.Tests.Plan.PriceList|FullyQualifiedName~RevisionDerivatives"` — профильные тесты КП, печати, прайс-листа и производных зелёные
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
 - [ ] 4.3 `cd src/client && npm test` и `npm run ui:ratchet` — зелёные, без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 4.5 Живой прогон под ролями: `node e2e/plan-offers-smoke.mjs` — «Менеджер проекта» делает и отправляет
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.5 Живой прогон под ролями: `node e2e/plan-offers-smoke.mjs` — «Менеджер проекта» делает и отправляет
   КП; «Сметчик» не видит раздела КП и цен продажи
