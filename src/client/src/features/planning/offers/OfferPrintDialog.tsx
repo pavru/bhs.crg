@@ -22,5 +22,7 @@ export function OfferPrintDialog({ offer, onClose }: { offer: Offer; onClose: ()
   </Modal>;
   const pdf = query.data ?? null;
   return <PdfViewerOverlay open onOpenChange={changeOpen} source={pdf} title={title} documentKey={`${offer.id}:${offer.version}`}
-    actions={pdf && <Button variant="text" onClick={() => saveBlob(pdf, `${offer.number}.pdf`)}>Скачать PDF</Button>} />;
+    note={pdf && <div className="flex justify-end">
+      <Button variant="text" onClick={() => saveBlob(pdf, `${offer.number}.pdf`)}>Скачать PDF</Button>
+    </div>} />;
 }
