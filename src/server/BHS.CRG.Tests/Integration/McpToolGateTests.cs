@@ -21,9 +21,8 @@ namespace BHS.CRG.Tests.Integration;
 /// инструмента напрямую их не проходит вовсе: тест, дёргающий метод, подтвердил бы только то, что
 /// метод работает. Ровно этим отличается «право объявлено» от «право проверяется».
 ///
-/// Роль взята «Монтажник» — у неё есть чтение справочников ядра и нет ни одного права
-/// исполнительной документации. На ней и видно то, ради чего задача: агент с чужим токеном не
-/// получает через MCP того, чего ему не даёт интерфейс.
+/// Роль «Монтажник» читает нужные справочники через Work. Здесь проверяются инструменты MCP
+/// и витрина при том же составе прав.
 /// </summary>
 [Collection("Integration")]
 public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -42,8 +41,7 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
     /// </summary>
     private static readonly string[] InstallerTools =
     [
-        "get_catalog_entry", "get_construction", "get_dataset", "get_document_type", "get_job",
-        "get_rows", "get_source", "list_catalog_entries", "list_constructions", "list_datasets",
+        "get_job",
     ];
 
     [Fact]
@@ -119,7 +117,7 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var engineer = await SignInAsync(SystemRoles.IdEngineer);
 
         var installerUris = await ResourceUrisAsync(installer);
-        Assert.Contains($"bhs://construction/{constructionId}", installerUris);
+        Assert.DoesNotContain($"bhs://construction/{constructionId}", installerUris);
         Assert.DoesNotContain($"bhs://document-set/{setId}", installerUris);
 
         var engineerUris = await ResourceUrisAsync(engineer);

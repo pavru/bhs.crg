@@ -17,6 +17,8 @@ import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { DATE_PICKER_SURFACE } from './menuClasses';
 
 interface DateInputProps {
+  /** День, который календарь считает сегодняшним, если источник задаёт его явно. */
+  today?: string;
   /**
    * Имя поля для чтения с экрана — у группы сегментов (issue #1463): «Дата платежа». Обязательное:
    * без него скринридер слышал три безымянных «день, месяц, год», а живые прогоны искали поле по
@@ -107,7 +109,7 @@ interface DateInputProps {
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact: ownCompact = false,
-  density, noClear = false, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
+  density, noClear = false, invalid = false, hintId, min, max, range, onCommit, today }: DateInputProps) {
   const compact = ownCompact || density === 'cell';
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -136,8 +138,8 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const [storedLocale] = useLocale();
   const model = useMemo(() => {
     const locale = resolveLocale(storedLocale);
-    return dateSegmentModel(dateMask(locale, precision), dateMask(locale, 'day').order, precision);
-  }, [storedLocale, precision]);
+    return dateSegmentModel(dateMask(locale, precision), dateMask(locale, 'day').order, precision, today);
+  }, [storedLocale, precision, today]);
 
   // Иконка календаря у нередактируемого поля — приглашение к действию, которого нет: открыв её,
   // человек выберет дату, и ничего не произойдёт. Убираем её вместе с жестом Alt+↓ (issue #958).
@@ -293,7 +295,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
           onEscapeKeyDown={e => { if (headerList.current) e.preventDefault(); }}
           className={`z-50 rounded-lg overflow-y-auto max-h-(--radix-popover-content-available-height) max-w-(--radix-popover-content-available-width) focus:outline-none ${DATE_PICKER_SURFACE}`}>
-          <Calendar value={calendarValue} precision={precision}
+          <Calendar value={calendarValue} precision={precision} today={today}
             onSelect={pick} onClose={() => setPickerOpen(false)} onHeaderList={onHeaderList}
             min={min} max={max} range={range}
             onClear={clearable ? clearFromCalendar : undefined} />

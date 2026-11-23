@@ -26,8 +26,7 @@ const enter = (items: NavItem[], ws: Workspace, a: AccessInfo) =>
 
 // Тестовые пункты для ещё не открытых экранов «Работ» берут ранги из work-03.
 const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: Assignment, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
-const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Engineering, module: 'work',
-  permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports };
+const myReports = workNav.find(item => item.to === '/my-reports')!;
 const summary: NavItem = { to: '/work-summary', label: 'Сводка', icon: Engineering, module: 'work',
   permission: ['work.report.review', 'work.report.read'], rail: 'work' };
 const assignments: NavItem = { to: '/assignments', label: 'Назначения', icon: Engineering, module: 'work',
@@ -35,7 +34,7 @@ const assignments: NavItem = { to: '/assignments', label: 'Назначения'
 // Пункт Главной — из меню (shell-08): пункт ядра без права с рангом Главной.
 const home = workNav.find(isHomeItem)!;
 
-const nav = [...workNav.filter(i => !isHomeItem(i)), estimates, myReports, ...settingsNav];
+const nav = [...workNav.filter(i => !isHomeItem(i)), estimates, ...settingsNav];
 const withHome = [home, ...nav];
 
 /** Страница входа (plan-02, ТЗ AUTH-16.1, AUTH-15). */
@@ -166,7 +165,7 @@ describe('ранги входа в меню', () => {
  * отчёты», «Приёмка», «Сводка», «Назначения»; ранги — из `WORK_ENTRY_RANK`.
  */
 describe('страница входа модуля «Учёт работ»', () => {
-  const workPages = [myReports, summary, assignments];
+  const workPages = [summary, assignments];
   const menu = [home, ...workNav.filter(i => !isHomeItem(i)), estimates, ...workPages, ...settingsNav];
   const reads = ['core.types.read', 'core.catalog.read', 'core.constructions.read', 'core.datasets.read'];
 

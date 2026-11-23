@@ -44,7 +44,8 @@ const TODAY_LABEL: Record<DatePrecision, string> = { day: 'Сегодня', mont
 const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
 const YEAR_PAGE = 10;
 
-export function Calendar({ value, onSelect, precision = 'day', onClose, onClear, onHeaderList, min, max, range }: {
+export function Calendar({ value, onSelect, precision = 'day', onClose, onClear, onHeaderList, min, max, range, today: explicitToday }: {
+  today?: string;
   /** Текущее значение — полный ISO YYYY-MM-DD или ''. */
   value: string;
   /** Выбор завершён → полный ISO (скрытые точностью части = 01, как в сегментном вводе). */
@@ -69,7 +70,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   /** Период, частью которого служит значение: обе границы — полный ISO. Рисуется лентой между ними. */
   range?: [string, string];
 }) {
-  const todayISO = companyToday();
+  const todayISO = explicitToday ?? companyToday();
   const today = parseISO(todayISO)!;
   const sel = parseISO(value);
   const [stored] = useLocale();

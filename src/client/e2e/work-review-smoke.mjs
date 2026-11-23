@@ -108,7 +108,8 @@ try {
   await clearSession(page);
   await login(page, INSTALLER.email, PASSWORD);
   await check('installer-has-no-review-navigation', async () => {
-    assert.equal(await page.getByRole('link', { name: 'Работы', exact: true }).count(), 0);
+    await page.getByRole('heading', { name: 'Мои отчёты', exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Приёмка', exact: true }).count(), 0);
     await page.goto(queue);
     await page.getByText(/Раздел «Приёмка» недоступен|Раздел недоступен/).waitFor();
     assert.equal(await row(0).count(), 0);

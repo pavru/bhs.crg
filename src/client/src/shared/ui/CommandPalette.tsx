@@ -18,7 +18,7 @@ import { useHistoryLayer } from './historyLayers';
 import { useWorkspace } from './workspaceContext';
 import { Chip } from './Chip';
 import { ListOption } from './ListOption';
-import { availableActions, intentHref, recordActions } from './paletteActions';
+import { availableActions, intentHref, PALETTE_ACTIONS, recordActions } from './paletteActions';
 import { highlight, matches, queryWords, ranked } from './paletteSearch';
 import { foundGroups, hitText, openGroups, tabGroup, type FoundGroup } from './paletteRecords';
 import { hitRoute, recordHref } from './recordRoutes';
@@ -73,6 +73,7 @@ const ACTIONS = 'Действия';
 type PaletteProps = {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  reportsLabel?: string;
   /** Строка поиска в шапке: палитра встаёт на её место. Без неё — по центру под полосой. */
   anchorRef?: RefObject<HTMLElement | null>;
 };
@@ -102,7 +103,7 @@ function usePalettePlace(anchorRef: PaletteProps['anchorRef'], full: boolean) {
   return place;
 }
 
-function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
+function CommandPaletteBody({ onOpenChange, anchorRef, reportsLabel }: PaletteProps) {
   // На телефоне — full-screen search view MD3: поле во всю ширину, «Назад» вместо знака поиска.
   const full = !useMedia(WIDE);
   const place = usePalettePlace(anchorRef, full);
@@ -124,7 +125,8 @@ function CommandPaletteBody({ onOpenChange, anchorRef }: PaletteProps) {
   const { data: access } = useAccess();
   const work = visibleNav(workNav, access ?? NO_ACCESS);
   const settings = visibleNav(settingsNav, access ?? NO_ACCESS);
-  const actions = availableActions(access ?? NO_ACCESS);
+  const actions = availableActions(access ?? NO_ACCESS).flatMap(action => action.id === PALETTE_ACTIONS.workReportNew.id
+    ? reportsLabel ? [{ ...action, label: reportsLabel }] : [] : [action]);
   // Палитра ищет разделы ВСЕХ доступных модулей, а не только пространства (ТЗ AUTH-16.1, issue
   // #1001): иначе скрытый раздел недостижим ни меню, ни палитрой. Найденное вне пространства помечено.
   const { inside } = useWorkspace();

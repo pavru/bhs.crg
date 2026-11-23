@@ -14,6 +14,8 @@ export const integrations: Record<string, { purpose: string; examples: string[] 
   PhotoImage: { purpose: 'Превью и полный снимок в карточке приёмки. Объектный адрес создаётся из полученного файла и освобождается при закрытии.', examples: ['Modal'] },
   ProtectedRoute: { purpose: 'Граница маршрута для вошедшего пользователя.', examples: ['NoAccessPage'] },
   RequireAccess: { purpose: 'Граница доступа по правам и модулям.', examples: ['NoAccessPage'] },
+  ShiftDateHeader: { purpose: 'Дата и смена отчёта. Сегодня календаря приходит от стройки. В макете Work-22 показаны дневная, ночная и запертая смены.', examples: ['DateField', 'Tabs'] },
+  SitePicker: { purpose: 'В форме Work-22 показывает стройки и границу выдачи из ответа сервера.', examples: ['Select'] },
   SnackbarProvider: { purpose: 'Очередь временных уведомлений и портальная область показа.', examples: ['Snackbar'] },
   ThemeProvider: { purpose: 'Выбор светлой, тёмной или системной темы. В каталоге тема изолирована от пользовательских настроек приложения.', examples: ['ThemeToggle'] },
   WorkspaceProvider: { purpose: 'Выбранное рабочее пространство и видимость разделов.', examples: ['WorkspaceSwitcher', 'OutsideBanner', 'HiddenByWorkspace'] },

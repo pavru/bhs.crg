@@ -107,6 +107,19 @@ describe('Calendar: разметка сетки', () => {
 // «Сегодня» — день компании (issue #1463): 31 октября 20:00 UTC — во Владивостоке уже 1 ноября, в
 // Нью-Йорке ещё 31 октября. Браузер прогона стоит в своём поясе, и календарь обязан его не слушать.
 describe('Calendar: сегодня по поясу компании', () => {
+  it('сегодня стройки имеет приоритет над поясом компании при подсветке и выборе', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-31T17:00:00Z'));
+    setCompanyTimeZone('Europe/Moscow');
+    const pick = vi.fn();
+    render(<Calendar value="" today="2026-11-01" onSelect={pick} onClose={() => {}} />);
+    const current = within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('button')
+      .filter(button => button.getAttribute('aria-current') === 'date');
+    expect(current.map(button => button.textContent)).toEqual(['1']);
+    fireEvent.click(screen.getByRole('button', { name: /^Сегодня, 1 ноября 2026/ }));
+    expect(pick).toHaveBeenCalledWith('2026-11-01');
+  });
+
   it.each([
     ['Asia/Vladivostok', 'Ноябрь 2026', '1'],
     ['America/New_York', 'Октябрь 2026', '31'],

@@ -14,12 +14,12 @@ import { Icon } from './Icon';
  * каждом экране. Что экран рисует основное действие им, а не своей кнопкой, сверяет
  * `paletteActions.test.ts`.
  */
-export function PrimaryActionButton({ action, icon, loading = false, className = '', ...rest }:
-  Omit<ButtonProps, 'variant' | 'children' | 'icon'> & { action: PaletteAction; icon?: ReactNode }) {
+export function PrimaryActionButton({ action, icon, label, loading = false, className = '', ...rest }:
+  Omit<ButtonProps, 'variant' | 'children' | 'icon'> & { action: PaletteAction; icon?: ReactNode; label?: string }) {
   useReportsPrimaryBusy(action.id, loading);
   return (
     <Button variant="filled" icon={icon ?? <Icon icon={action.icon} size={18} />} loading={loading} className={`max-md:hidden ${className}`} {...rest}>
-      {action.label}
+      {label ?? action.label}
     </Button>
   );
 }

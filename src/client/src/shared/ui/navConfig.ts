@@ -177,6 +177,8 @@ export const workNav: NavItem[] = [
   // Запомненные сопоставления смет (plan-09, ответ П1): справочник модуля — им исправляют неверно запомненное.
   { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },
+  { to: '/my-reports',    label: 'Мои отчёты', icon: Assignment, module: 'work',
+    permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports },
   { to: '/work-review',     label: 'Приёмка', icon: Assignment, module: 'work',
     permission: [...WORK_REVIEW_REPORT_PERMISSIONS, 'work.crew.approve'], rail: 'work', entry: WORK_ENTRY_RANK.review },
 ];

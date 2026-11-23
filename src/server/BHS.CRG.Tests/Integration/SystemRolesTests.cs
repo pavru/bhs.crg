@@ -19,6 +19,25 @@ namespace BHS.CRG.Tests.Integration;
 public class SystemRolesTests(IntegrationTestFixture fixture)
 {
     [Fact]
+    public async Task Installer_default_role_releases_core_reference_permissions_on_startup()
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var role = (await roles.FindByNameAsync("Installer"))!;
+        var oldPermissions = new[] { "core.types.read", "core.catalog.read", "core.constructions.read", "core.datasets.read" };
+        foreach (var code in oldPermissions)
+            Assert.True((await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
+
+        await RoleSynchronizer.SyncAsync(roles, fixture.Services.GetRequiredService<PermissionCatalog>(), NullLogger.Instance);
+
+        var current = (await roles.GetClaimsAsync(role)).Where(c => c.Type == RoleSynchronizer.PermissionClaim)
+            .Select(c => c.Value).ToArray();
+        Assert.Empty(current.Intersect(oldPermissions));
+        Assert.Contains("core.files.use", current);
+    }
+
+    [Fact]
     public async Task All_system_roles_exist_after_startup()
     {
         _ = fixture.CreateClient();

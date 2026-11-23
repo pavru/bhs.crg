@@ -43,7 +43,7 @@ describe('рейл разделов', () => {
       'Затраты': [['', 'Счета', 'Накладные'],
         ['Отчёты и закрытие месяца', 'Реестр счетов', 'Затраты по стройке', 'Учётный период']],
       'Планы': [['', 'Сметы'], ['Справочники', 'Запомненные сопоставления']],
-      'Работы': [['', 'Приёмка']],
+      'Работы': [['', 'Мои отчёты', 'Приёмка']],
       'Система': [
         ['Документы', 'Типы документов', 'Шаблоны', 'Составные типы', 'Типы полей', 'Сопоставление полей',
           'Профили распознавания', 'Профили печати'],
@@ -84,10 +84,10 @@ describe('рейл разделов', () => {
     expect(railDef('work')).toMatchObject({ label: 'Работы', title: 'Учёт работ', icon: Engineering });
     expect(railDef('work').admin).toBeFalsy();
 
-    // Пункт так, как его впишет work-22: модуль, право, раздел и ранг из таблицы.
-    const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Engineering, module: 'work',
-      permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports };
-    const menu = [...workNav, myReports];
+    const menu = workNav;
+    expect(menu.find(item => item.to === '/my-reports')).toMatchObject({
+      permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports,
+    });
     const work = (open: boolean, permissions: string[]): AccessInfo => ({
       permissions, modules: [{ code: 'work', title: 'Учёт работ', available: open }],
     });

@@ -17,6 +17,13 @@ function access(permissions: string[], modules: { code: string; available: boole
  * роли из токена, и такой пользователь видел раздел, который отвечает отказом.
  */
 describe('навигация по правам', () => {
+  it('Мои отчёты видны с правом своих отчётов при открытом модуле work', () => {
+    const own = workNav.find(item => item.to === '/my-reports')!;
+    const work = { code: 'work', available: true };
+    expect(allowed(own, access(['work.report.own'], [work]))).toBe(true);
+    expect(allowed(own, access(['work.report.review', 'work.report.read'], [work]))).toBe(false);
+    expect(allowed(own, access(['work.report.own'], [{ ...work, available: false }]))).toBe(false);
+  });
   it('Приёмка видна с правом приёмки, чтения отчётов или утверждения бригад при открытом модуле work', () => {
     const review = workNav.find(item => item.to === '/work-review')!;
     const work = { code: 'work', available: true };

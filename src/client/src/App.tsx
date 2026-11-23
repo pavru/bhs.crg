@@ -46,6 +46,8 @@ import { TablePage } from '@/features/tables/TablePage';
 import { EstimatesPage } from '@/features/planning/estimates/EstimatesPage';
 import { RateMatchesPage } from '@/features/planning/estimates/RateMatchesPage';
 import { ReviewQueuePage } from '@/features/work/review/ReviewQueuePage';
+import { MyReportsPage } from '@/features/work/entry/MyReportsPage';
+import { ReportForm } from '@/features/work/entry/ReportForm';
 import { ReportCard } from '@/features/work/review/ReportCard';
 import { WORK_REVIEW_REPORT_PERMISSIONS } from '@/shared/api/work';
 import { ProfilePage } from '@/features/account/ProfilePage';
@@ -152,10 +154,15 @@ function AppRoutes() {
             <Route path="estimates/*" element={<EstimatesPage />} />
             <Route path="rate-matches" element={<RateMatchesPage />} />
             <Route path="work-review" element={<ReviewQueuePage />} />
+            <Route path="my-reports" element={<MyReportsPage />} />
+            <Route path="my-reports/:reportId" element={<ReportForm mode="own" />} />
             <Route path="reconciliations" element={<ReconciliationsPage />} />
           </Route>
           <Route element={<RequireAccess additionalPermission={[...WORK_REVIEW_REPORT_PERMISSIONS]} />}>
             <Route path="work-review/:reportId" element={<ReportCard />} />
+          </Route>
+          <Route element={<RequireAccess additionalPermission="work.report.review" />}>
+            <Route path="work-review/entry/:reportId" element={<ReportForm mode="entry" />} />
           </Route>
           <Route element={<RequireAccess />}>
             {/* key — чтобы React перемонтировал страницу между двумя маршрутами: без него это

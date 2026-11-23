@@ -36,7 +36,36 @@ public static class EntryReportEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
         group.MapPost("/{id:guid}/submit", SubmitAsync);
+        group.MapGet("/candidates", CandidatesAsync);
+        group.MapGet("/candidates/{employeeId:guid}/sites", CandidateSitesAsync);
     }
+
+    private static Task<IResult> CandidatesAsync(
+        DateOnly? date, string? q, IModuleReaders readers, ManagerSites sites, ReportEntrySites entry,
+        CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+    {
+        const int limit = AssignmentBulkEndpoints.Max;
+        var viewer = await ViewerAsync(readers, sites, ct);
+        var found = await entry.CandidatesAsync(viewer.Reach, date, q, limit + 1, ct);
+        if (found is null) return AssignmentRules.DirectoryMissing();
+        var items = found.Take(limit).Select(e => new AssignmentCandidateDto(e.Id, e.FullName, e.PersonnelNumber,
+            true, null, null, AccountStateDto.Of(e.Account)));
+        return Results.Ok(new { items, limit, more = found.Count > limit });
+    });
+
+    private static Task<IResult> CandidateSitesAsync(
+        Guid employeeId, DateOnly? date, IModuleReaders readers, ManagerSites sites, IModuleEmployees employees,
+        ReportEntrySites entry, CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+    {
+        var viewer = await ViewerAsync(readers, sites, ct);
+        var people = await employees.GetAsync([employeeId], ct);
+        if (people is null) return AssignmentRules.DirectoryMissing();
+        var employee = people.SingleOrDefault();
+        var items = employee is null ? [] : await entry.ForEmployeeAsync(employee, viewer.Reach, date, ct);
+        var boundary = new MySitesBoundary($"стройки сотрудника в вашем охвате ({items.Count})", items.Count,
+            items.Count == 0 ? MySitesEndpoint.NotAssigned : null);
+        return Results.Ok(new { items, boundary, employeeName = items.Count == 0 ? null : employee?.FullName });
+    });
 
     /// <summary>
     /// Подать отчёт, введённый за сотрудника (ТЗ WORK-31, <c>work-15</c>): тот же переход и те же правила окна и
