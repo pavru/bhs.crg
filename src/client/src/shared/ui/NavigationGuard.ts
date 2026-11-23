@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, type NavigateOptions } from 'react-router';
 import { refusedByDialog } from './modalDismissal';
 import { goPastLayers, holdNextLayer, layersAfter, layersFirst } from './historyLayers';
 
@@ -35,9 +35,9 @@ function intercepted(guard: NavGuard | null, leave: () => void): boolean {
 export function useGuardedNavClick() {
   const guard = useNavigationGuard();
   const navigate = useNavigate();
-  return (to: string) => (e: MouseEvent) => {
+  return (to: string, options?: NavigateOptions) => (e: MouseEvent) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    if (intercepted(guard, () => navigate(to))) e.preventDefault();
+    if (intercepted(guard, () => navigate(to, options))) e.preventDefault();
   };
 }
 

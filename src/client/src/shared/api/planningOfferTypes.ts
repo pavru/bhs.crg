@@ -153,3 +153,30 @@ export interface OfferRebasePreview {
   unmatchedSectionMarkups: { source: OfferLineSection; markup: number; candidates: OfferLineSection[] }[];
   hidden?: HiddenPart[];
 }
+
+export interface CreatePriceListOfferInput {
+  constructionId: string;
+  date: string;
+  markup: number;
+  vatMode: OfferVatMode;
+  vatRate: number | null;
+  lines: { workTypeId: string; volume: number }[];
+}
+
+export interface PriceListRepricePreview {
+  priceListDate: string;
+  version: string;
+  previewToken: string | null;
+  changes: {
+    lineId: string;
+    name: string;
+    previousPrice: number | null;
+    price: number | null;
+    previousAmount: number | null;
+    amount: number | null;
+    previousPriceSource: OfferPriceSource;
+    priceSource: OfferPriceSource;
+  }[];
+  money: OfferMoney;
+  offer: Offer | null;
+}

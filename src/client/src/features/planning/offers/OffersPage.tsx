@@ -16,6 +16,7 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { OfferStatusText } from './offerDisplay';
 import { moneyText, OFFERS_PATH, offerUrl, sourceLabel } from './offerFormat';
 import { OfferCard } from './OfferCard';
+import { PriceListOfferAction } from '../pricelist/PriceListOfferAction';
 
 export function OffersPage() {
   return <div className="h-full overflow-auto">
@@ -58,7 +59,7 @@ function OfferList() {
 
   const refusal = query.isError ? offerRefusal(query.error, 'Коммерческие предложения не прочитались.') : null;
   return <section className="grid min-w-0 grid-cols-1 gap-4">
-    <PageHeader icon={<Icon icon={Description} size={18} aria-hidden />} title="Коммерческие предложения" />
+    <PageHeader icon={<Icon icon={Description} size={18} aria-hidden />} title="Коммерческие предложения" actions={<PriceListOfferAction />} />
     {refusal && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>{refusal.message}</Banner>}
     {refusal?.kind !== 'forbidden' && (query.isPending || canReadSites && filter.status === 'loading' ? (
       <p role="status" className="text-body-medium text-on-surface-variant">Читаем коммерческие предложения…</p>
@@ -70,6 +71,6 @@ function OfferList() {
       {query.hasNextPage && <div><Button variant="outlined" disabled={query.isFetchingNextPage}
         onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? 'Читаем…' : 'Показать ещё'}</Button></div>}
     </> : <EmptyState icon={<Icon icon={Description} size={40} />} title="Коммерческих предложений пока нет"
-      description="КП можно создать из редакции сметы." />))}
+      description="КП можно создать из редакции сметы или по прайс-листу." />))}
   </section>;
 }

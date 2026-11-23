@@ -15,6 +15,7 @@ import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
 import { attachmentKey } from './attachmentRows';
 import { EstimateAttachments } from './EstimateAttachments';
 import { EstimateOfferAction } from './EstimateOfferAction';
+import { EstimateDerivatives } from './EstimateDerivatives';
 import { KIND_LABEL, latestRevision, visibleRevisions } from './estimateRows';
 import { ImportDialog } from './ImportDialog';
 import { openingOf, type RevisionOpening } from './importReport';
@@ -133,6 +134,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
               ) : (
                 <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
               )}
+              <EstimateDerivatives estimateId={data.id} revisionId={shown.id} />
             </TabPanel>
           </>
         )}

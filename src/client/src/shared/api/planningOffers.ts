@@ -1,9 +1,10 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiError, withBlobErrorBody } from '@/shared/utils/apiError';
 import { apiClient } from './client';
+import { DERIVATIVES_KEY } from './planningDerivatives';
 import type {
-  CreateOfferInput, Offer, OfferHeaderInput, OfferListItem, OfferMarkupsInput, OfferOutcome, OfferRebaseLine,
-  OfferRebasePreview, OfferVersion,
+  CreateOfferInput, CreatePriceListOfferInput, Offer, OfferHeaderInput, OfferListItem, OfferMarkupsInput, OfferOutcome, OfferRebaseLine,
+  OfferRebasePreview, OfferVersion, PriceListRepricePreview,
 } from './planningOfferTypes';
 
 const PATH = '/plan/offers';
@@ -47,6 +48,7 @@ async function storeOffer(qc: QueryClient, offer: Offer, estimateChanged: boolea
   void qc.invalidateQueries({ queryKey: keys.lists });
   void qc.invalidateQueries({ queryKey: keys.versions(offer.id) });
   if (estimateChanged) void qc.invalidateQueries({ queryKey: ['planning', 'estimates'] });
+  else if (offer.source === 'estimate') void qc.invalidateQueries({ queryKey: DERIVATIVES_KEY });
 }
 
 export function useCreateOffer() {
@@ -54,6 +56,25 @@ export function useCreateOffer() {
   return useMutation({
     mutationFn: (input: CreateOfferInput) => apiClient.post<Offer>(PATH, input).then(r => r.data),
     onSuccess: offer => storeOffer(qc, offer, true),
+  });
+}
+
+export function useCreatePriceListOffer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreatePriceListOfferInput) => apiClient.post<Offer>(`${PATH}/from-pricelist`, input).then(r => r.data),
+    onSuccess: offer => storeOffer(qc, offer, false),
+  });
+}
+
+export function usePriceListReprice(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ version, date, previewToken }: { version: string; date: string; previewToken?: string }) =>
+      apiClient.post<PriceListRepricePreview>(`${PATH}/${id}/reprice-from-pricelist`, {
+        date, preview: previewToken === undefined, previewToken,
+      }, { headers: headers(version) }).then(r => r.data),
+    onSuccess: result => result.offer ? storeOffer(qc, result.offer, false) : undefined,
   });
 }
 
