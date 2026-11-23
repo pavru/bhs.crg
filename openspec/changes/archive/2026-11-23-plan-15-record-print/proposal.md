@@ -1,6 +1,6 @@
 # Proposal: печать записи модуля шаблоном Typst и печатная форма КП
 
-Дочерний change зонтика `plan-00-epic`, общая архитектура — `../plan-00-epic/design.md` (D4, D13).
+Дочерний change зонтика [plan-00-epic](../../plan-00-epic/design.md), общая архитектура — D4 и D13.
 
 ## Why
 
