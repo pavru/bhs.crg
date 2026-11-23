@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useCan } from '@/shared/api/access';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useEmployees } from '@/shared/api/employees';
@@ -49,9 +49,11 @@ function Choice({ label, any, value, options, onChange }: {
   </Select>;
 }
 
-function QueueGrid({ data, sites, employees }: {
-  data: QueuePage; sites: Map<string, string>; employees: Map<string, string>;
+function QueueGrid({ data, sites, employees, search }: {
+  data: QueuePage; sites: Map<string, string>; employees: Map<string, string>; search: string;
 }) {
+  const navigate = useNavigate();
+  const reportPath = (row: ReviewQueueRow) => `/work-review/${encodeURIComponent(row.id)}${search}`;
   const columns: DataGridColumn<ReviewQueueRow>[] = [
     { key: 'employeeId', label: 'Сотрудник', rowHeader: true, wrap: true, cell: row => employees.get(row.employeeId) },
     { key: 'constructionId', label: 'Стройка', wrap: true, cell: row => sites.get(row.constructionId) },
@@ -66,7 +68,9 @@ function QueueGrid({ data, sites, employees }: {
         return <StatusText key={mark.code} icon={icon} tone={tone}>{mark.text}</StatusText>;
       })}</div> },
   ];
-  return <DataGrid columns={columns} rows={data.items} rowKey={row => row.id} />;
+  return <DataGrid columns={columns} rows={data.items} rowKey={row => row.id} onRowOpen={row => navigate(reportPath(row))} rowLink={row => ({
+    to: reportPath(row), label: `Открыть отчёт · ${employees.get(row.employeeId)}`,
+  })} />;
 }
 
 function QueuePager({ data, loading, onChange }: { data: QueuePage; loading: boolean; onChange: (offset: number) => void }) {
@@ -165,7 +169,7 @@ export function ReviewQueuePage() {
       {data?.reason && !loading && <EmptyState icon={gridIcon} title={emptyTitle[data.reason]}
         action={data.reason === 'filtered-out' && <Button variant="filled" onClick={reset}>Сбросить отбор</Button>} />}
       {data && !data.reason && (data.items.length > 0 ? <>
-        <QueueGrid data={data} sites={sites} employees={employees} />
+        <QueueGrid data={data} sites={sites} employees={employees} search={params.size ? `?${params}` : ''} />
         <QueuePager data={data} loading={loading} onChange={next => update({ offset: next ? String(next) : '' })} />
       </> : !loading && <EmptyState icon={gridIcon} title="На этой странице нет отчётов"
         action={<Button variant="tonal" onClick={() => update({ offset: '' })}>К началу очереди</Button>} />)}

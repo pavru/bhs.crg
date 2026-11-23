@@ -76,6 +76,9 @@ public sealed partial class ReportReads(WorkDbContext db)
     public Task<Report?> FindAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Full(Visible(viewer)).FirstOrDefaultAsync(r => r.Id == id, ct);
 
+    internal Task<Report?> ReviewHeaderAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
+        Visible(viewer).FirstOrDefaultAsync(r => r.Id == id, ct);
+
     internal Task<Guid?> VisibleEmployeeAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Visible(viewer).Where(r => r.Id == id).Select(r => (Guid?)r.EmployeeId).SingleOrDefaultAsync(ct);
 

@@ -35,6 +35,38 @@ public sealed class ReportHistory(
     public const string Corrected = "corrected";
     public const string AtClosing = "at-closing";
 
+    internal async Task<ReviewCardRead> ReadCardAsync(ReportViewer viewer, Guid id, int? number, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var header = await reads.ReviewHeaderAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
+        if (header.Status == ReportStatus.Draft)
+        {
+            if (number is not null) throw new NotFoundException(ReportDesk.NotFoundText);
+            return new(header, null, null, null);
+        }
+
+        var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(ReportDesk.NotFoundText);
+        var dto = await views.OneAsync(viewer, report, ct: ct);
+        var closing = dto.Versions.Count == 0 ? null : await periods.ClosingAsync(report.ConstructionId, report.Date, ct);
+        var atClosing = closing is { } period
+            ? await reads.VersionAtClosingAsync(viewer, user.Id, id, dto.CurrentVersion, period.Id, ct)
+            : null;
+        if (number is null || number == dto.CurrentVersion) return new(report, dto, dto.CurrentVersion, atClosing?.Number);
+        if (number <= 0 || number > dto.CurrentVersion) throw new NotFoundException(ReportDesk.NotFoundText);
+        var selected = atClosing?.Number == number ? atClosing
+            : await reads.VersionAsync(viewer, user.Id, id, number.Value, ct);
+        if (selected is null) throw new NotFoundException(ReportDesk.NotFoundText);
+
+        var content = ReportVersionContent.Read(selected.Content);
+        var late = selected.Number == atClosing?.Number && closing is { } boundary
+            ? content.Photos.Where(p => p.StoredInClosingId is { } recorded
+                ? recorded == boundary.Id : p.StoredAt > boundary.At).Select(p => p.Id).ToHashSet()
+            : [];
+        var archived = WithPastContent(dto, content, late, selected.Number,
+            selected.Number == atClosing?.Number ? AtClosing : "archived");
+        return new(report, archived, selected.Number, atClosing?.Number);
+    }
+
     public async Task<ReportDto> GetAsync(ReportViewer viewer, Guid id, string? view, CancellationToken ct)
     {
         var historical = view == AtClosing;
@@ -66,6 +98,12 @@ public sealed class ReportHistory(
             .Select(p => p.Id).ToHashSet();
         if (content is null && late.Count == 0) return dto;
 
+        return WithPastContent(dto, content, late, version?.Number, AtClosing);
+    }
+
+    private static ReportDto WithPastContent(
+        ReportDto dto, ReportVersionContent? content, IReadOnlySet<Guid> late, int? number, string view)
+    {
         var lines = (content?.Lines ?? dto.Lines).Select(line => line with
         {
             Photos = [.. line.Photos.Select(PhotoAtClosing)],
@@ -75,7 +113,7 @@ public sealed class ReportHistory(
         if (pending > 0) markCodes.Add(ReviewMarks.PhotosPending);
         return dto with
         {
-            View = AtClosing, Hours = content is null ? dto.Hours : content.Hours, Note = content is null ? dto.Note : content.Note,
+            View = view, Hours = content is null ? dto.Hours : content.Hours, Note = content is null ? dto.Note : content.Note,
             Lines = lines, UpdatedAt = content?.UpdatedAt ?? dto.UpdatedAt,
             PhotosPending = pending, Marks = ReviewMarks.Dtos(markCodes, pending),
         };
@@ -83,9 +121,11 @@ public sealed class ReportHistory(
         ReportPhotoDto PhotoAtClosing(ReportPhotoDto photo)
         {
             if (late.Contains(photo.Id)) return photo with { State = "pending" };
-            return version is not null && photo.State == "stored"
-                ? photo with { VersionUrl = $"/api/work/photos/{photo.Id}?reportId={id}&number={version.Number}" }
+            return number is not null && photo.State == "stored"
+                ? photo with { VersionUrl = $"/api/work/photos/{photo.Id}?reportId={dto.Id}&number={number}" }
                 : photo;
         }
     }
 }
+
+internal sealed record ReviewCardRead(Report Header, ReportDto? Content, int? ViewedVersion, int? AtClosingVersion);

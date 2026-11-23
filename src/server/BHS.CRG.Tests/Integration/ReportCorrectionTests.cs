@@ -97,6 +97,20 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync(historical)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await alien.GetAsync($"{EntryReportEndpoints.Path}/{id}?view=at-closing")).StatusCode);
 
+        var cardUrl = $"/api/work/review/reports/{id}";
+        foreach (var (number, volume, view) in new[] { (1, 120m, "at-closing"), (2, 100m, "archived"), (3, 90m, "corrected") })
+        {
+            var card = await manager.GetFromJsonAsync<JsonElement>($"{cardUrl}?number={number}");
+            Assert.Equal(number, card.GetProperty("viewedVersion").GetInt32());
+            Assert.Equal(1, card.GetProperty("atClosingVersion").GetInt32());
+            Assert.Empty(card.GetProperty("actions").EnumerateArray());
+            var version = card.GetProperty("report");
+            Assert.Equal(volume, Volume(version));
+            Assert.Equal(view, version.GetProperty("view").GetString());
+        }
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"{cardUrl}?number=4")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await alien.GetAsync($"{cardUrl}?number=2")).StatusCode);
+
         host.ClosureTime = host.ClosureTime!.Value.AddMinutes(1);
         await ReopenCompanyAsync(closer);
         var edited = await ReportWorld.PutAsync(manager, $"{EntryReportEndpoints.Path}/{id}", ReviewWorld.Version(second),

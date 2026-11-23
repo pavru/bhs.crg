@@ -69,7 +69,7 @@ public static class ReviewQueue
 
     public const string Edit = "edit";
 
-    private static readonly IReadOnlyList<string> Decisions = [Accept, Return, Edit];
+    internal static readonly IReadOnlyList<string> Decisions = [Accept, Return, Edit];
 
     /// <summary>Строки границы по исходу охвата — вид таблиц модуля (<see cref="ModuleTableBoundary" />, <c>work-07</c>).</summary>
     private static readonly IReadOnlyList<ModuleTableBoundary> Boundaries =
