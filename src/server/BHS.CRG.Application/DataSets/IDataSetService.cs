@@ -92,7 +92,7 @@ public interface IDataSetService
 
     /// <summary>Распознавание ГОСТ-комплекта по НАБОРУ (issue #38): пишет Grouping (сырьё), источников
     /// не создаёт. Штатно через фоновую задачу (Job.TargetId=fileId).</summary>
-    Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct);
+    Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, bool shortOnly = false);
 
     /// <summary>
     /// Распознаёт основную надпись каждой страницы PDF (по одной странице за вызов, через
@@ -103,7 +103,8 @@ public interface IDataSetService
     /// не передан — бросает <see cref="ConflictException"/> (эндпоинт мапит в 409), чтобы
     /// не затереть ручные правки без явного согласия пользователя.
     /// </summary>
-    Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct);
+    Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct,
+        bool shortOnly = false);
 
     /// <summary>Синхронная пред-валидация распознавания ДО постановки в фон: проверяет формат/наличие
     /// и (для GOST) конфликт ручной правки (409 при ManuallyEdited без confirm). Возвращает план —

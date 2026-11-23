@@ -89,9 +89,9 @@ public class JobBackgroundService(
             switch (kind)
             {
                 case JobKind.RecognizeGostSet:
-                    // issue #38: targetId = fileId (набор-centric), источников не создаёт.
+                    var admission = GostRecognitionJobPayload.Parse(payload);
                     await scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>()
-                        .RecognizeFileAsync(targetId, confirm: true, ct, (c, t) => report("листов", c, t));
+                        .RecognizeQueuedGostAsync(targetId, admission, ct, (c, t) => report("листов", c, t));
                     break;
 
                 case JobKind.RecognizeDocument:

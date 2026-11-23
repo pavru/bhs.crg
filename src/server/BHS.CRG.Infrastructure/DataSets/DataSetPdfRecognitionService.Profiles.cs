@@ -74,7 +74,7 @@ public partial class DataSetPdfRecognitionService
         foreach (var lineItems in ProjectionsOf(file.Sources, PdfProfiles.InvoiceLineItemsMarker))
             lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
 
-        await db.SaveChangesAsync(ct);
+        await SaveShortRecognitionAsync(file, ct);
     }
 
     /// <summary>
@@ -93,11 +93,7 @@ public partial class DataSetPdfRecognitionService
     private async Task RecognizeGostFileAsync(DataSetFile file, CancellationToken ct,
         Func<int, int, Task>? onProgress = null)
     {
-        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
-
+        var bytes = await ReadGostRecognitionPdfAsync(file, ct);
         var pngPages = await RasterizeForRecognitionAsync(bytes, ct);
 
         // Постраничная проверка текстового слоя (бесплатно, PdfPig) — гейт для второго прохода
@@ -145,6 +141,7 @@ public partial class DataSetPdfRecognitionService
         var stampFields = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var fields = GostTitleBlockFields.WithClassifiers(stampFields);
         var coverFields = (await ProfileForFileAsync(file, RecognitionProfileKind.CoverTitle, ct)).ToRecognitionFields();
+        await RequireCurrentRecognitionRevisionAsync(file, ct);
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         // Счётчик листов без ответа, первая причина и отсечка «движок замолчал» — общим накопителем
         // на все постраничные прогоны (issue #801, #802).
@@ -318,17 +315,20 @@ public partial class DataSetPdfRecognitionService
         DataSetFile file, GostGroupingData unified, byte[] bytes, CancellationToken ct)
     {
         var previousBlobs = GostGroupingSerialization.PartPaths(ParseGrouping(file.Grouping));
-        var withBlobs = await SplitDocumentsIntoGroupingAsync(bytes, unified, file.Id, ct);
-        file.SetGrouping(JsonSerializer.Serialize(withBlobs));
-
+        await using var write = new DataSetBlobWrite(db, blob, logger, file.Id, previousBlobs);
+        var withBlobs = await SplitDocumentsIntoGroupingAsync(bytes, unified, file.Id, write, ct);
         var projected = GostGroupingProjection.Project(withBlobs);
-        await RefreshProjectionSourcesAsync(file, projected, ct);
-        var invalidatedTables = await ReprojectTableSourcesAsync(file.Id, withBlobs, ct);
-
-        await db.SaveChangesAsync(ct);
-
-        var newBlobs = GostGroupingSerialization.PartPaths(withBlobs);
-        await DeleteOrphanGroupBlobsAsync(previousBlobs, newBlobs, file.Id, ct);
+        var invalidatedTables = 0;
+        await write.CommitAsync(async () =>
+        {
+            // Сверяем редакцию и занимаем строку набора до чтения проекций. Обе записи входят
+            // в одну транзакцию, а подготовка и загрузка под-PDF уже завершены.
+            file.SetGrouping(JsonSerializer.Serialize(withBlobs));
+            await db.SaveChangesAsync(ct);
+            await RefreshProjectionSourcesAsync(file, projected, ct);
+            invalidatedTables = await ReprojectTableSourcesAsync(file.Id, withBlobs, ct);
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
         var failedSplits = withBlobs.Groups.Count(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0 && string.IsNullOrEmpty(g.BlobPath));
         return new GostMaterializeResult(projected.Documents.Count, failedSplits, invalidatedTables);
@@ -337,7 +337,7 @@ public partial class DataSetPdfRecognitionService
     // Режет под-PDF каждой группы-документа и возвращает НОВУЮ группировку с BlobPath/BlobSize в группах
     // (сырьё живёт в Grouping). Отказоустойчиво: сбой одной группы оставляет её без блоба, не роняя остальные.
     private async Task<GostGroupingData> SplitDocumentsIntoGroupingAsync(
-        byte[] bytes, GostGroupingData unified, Guid fileIdForLog, CancellationToken ct)
+        byte[] bytes, GostGroupingData unified, Guid fileIdForLog, DataSetBlobWrite write, CancellationToken ct)
     {
         var groups = new List<GostGroupingGroup>(unified.Groups.Count);
         foreach (var g in unified.Groups)
@@ -349,10 +349,10 @@ public partial class DataSetPdfRecognitionService
                 var pageIndices = g.Pages.Select(p => p.PageIndex).ToList();
                 var splitBytes = PdfPageSplitter.ExtractPages(bytes, pageIndices);
                 using var splitStream = new MemoryStream(splitBytes);
-                var blobPath = await blob.UploadAsync($"{SanitizeFileName(label)}.pdf", splitStream, "application/pdf", ct);
+                var blobPath = await write.UploadAsync($"{SanitizeFileName(label)}.pdf", splitStream, "application/pdf", ct);
                 groups.Add(g with { BlobPath = blobPath, BlobSize = splitBytes.Length });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentLabel}» набора {FileId}", label, fileIdForLog);
                 groups.Add(g with { BlobPath = null, BlobSize = null });
@@ -388,15 +388,6 @@ public partial class DataSetPdfRecognitionService
         var docRows = projected.Documents.Select(d => (IReadOnlyDictionary<string, string?>)d.Fields).ToList();
         foreach (var documents in ProjectionsOf(sources, PdfProfiles.GostDocumentsMarker))
             documents.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(documentsColumnPaths, docRows)), docRows.Count, JsonSerializer.Serialize(docRows));
-    }
-
-    private async Task DeleteOrphanGroupBlobsAsync(HashSet<string> previous, HashSet<string> current, Guid fileIdForLog, CancellationToken ct)
-    {
-        foreach (var oldPath in previous.Except(current))
-        {
-            try { await blob.DeleteAsync(oldPath, ct); }
-            catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить осиротевший blob {BlobPath} набора {FileId}", oldPath, fileIdForLog); }
-        }
     }
 
     // Итоговое уведомление о распознавании групп листов PDF: Info при чистом успехе, Warning при

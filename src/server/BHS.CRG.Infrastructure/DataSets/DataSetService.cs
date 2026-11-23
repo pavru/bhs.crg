@@ -96,14 +96,15 @@ public class DataSetService(
     // ── PDF-распознавание ───────────────────────────────────────────────────────
     public Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>
         pdfRecognition.CreatePdfSourceAsync(fileId, input, ct);
-    public Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
-        pdfRecognition.RecognizePdfSourceAsync(sourceId, confirm, ct);
+    public Task<DataSetSourceDto?> RecognizePdfSourceAsync(
+        Guid sourceId, bool confirm, CancellationToken ct, bool shortOnly = false) =>
+        pdfRecognition.RecognizePdfSourceAsync(sourceId, confirm, ct, shortOnly: shortOnly);
     public Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
         pdfRecognition.PlanRecognitionAsync(sourceId, confirm, ct);
     public Task<RecognizePlan?> PlanFileRecognitionAsync(Guid fileId, bool confirm, CancellationToken ct) =>
         pdfRecognition.PlanFileRecognitionAsync(fileId, confirm, ct);
-    public Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct) =>
-        pdfRecognition.RecognizeFileAsync(fileId, confirm, ct);
+    public Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, bool shortOnly = false) =>
+        pdfRecognition.RecognizeFileAsync(fileId, confirm, ct, shortOnly: shortOnly);
     public Task<GostGroupingDto?> GetPagesAsync(Guid fileId, CancellationToken ct) =>
         pdfRecognition.GetPagesAsync(fileId, ct);
     public Task<byte[]?> GetPageThumbnailAsync(Guid fileId, int pageIndex, CancellationToken ct, int dpi = 96) =>

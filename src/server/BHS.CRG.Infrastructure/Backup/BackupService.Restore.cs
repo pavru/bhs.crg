@@ -680,26 +680,6 @@ public partial class BackupService
         stats.Count("Выпущенные файлы", c, u);
     }
 
-    private async Task RestoreDataSetFilesAsync(
-        BackupDataSetFile[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
-    {
-        if (items.Length == 0) return;
-        var existing = await db.DataSetFiles.Select(x => x.Id).ToHashSetAsync(ct);
-        var carriers = await LoadScopeCarriersAsync(ct);
-
-        var (ok, orphans) = Split(items, i =>
-            Enum.TryParse<DataSetFormat>(i.Format, out _)
-            && Enum.TryParse<CatalogScope>(i.Scope, out var sc)
-            && ScopeCarrierExists(sc, i.ScopeId, carriers.Sets, carriers.Sections, carriers.Constructions));
-        Warn(warnings, orphans.Count, "наборов данных", "их стройки, раздела или комплекта нет");
-
-        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DataSetFile.Restore(
-            i.Id, i.Name, Enum.Parse<DataSetFormat>(i.Format), i.BlobPath,
-            Enum.Parse<CatalogScope>(i.Scope), i.ScopeId, i.PreprocessingProfile, i.Grouping,
-            i.InvoiceRawData, i.RecognitionProfiles, i.CreatedAt, i.UpdatedAt))), existing, ct);
-        stats.Count("Наборы данных", c, u);
-    }
-
     private async Task RestoreDataSetSourcesAsync(
         BackupDataSetSource[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {

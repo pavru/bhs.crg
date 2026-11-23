@@ -16,8 +16,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 ///
 /// <para>Штатный вход давно по набору: <c>RecognizeFileAsync(fileId)</c> в основном файле. Здесь
 /// лежит прежняя пара по <c>sourceId</c>, сохранённая для существующих call-sites (эндпоинт
-/// <c>POST /sources/{id}/recognize</c>): дискриминатор профиля берётся из маркера ИСТОЧНИКА, а не
-/// из поля набора (issue #44).</para>
+/// <c>POST /sources/{id}/recognize</c>): операция определяется по маркеру источника (issue #44).
+/// Полное ГОСТ-распознавание также сверяет текущий профиль набора.</para>
 ///
 /// <para>Отдельным файлом — чтобы два пути не читались как один: оба зовутся «распознать», но
 /// ходят от разных сущностей, и смешение их в одном списке методов и было главной причиной
@@ -30,7 +30,8 @@ public partial class DataSetPdfRecognitionService
     /// существующих call-sites (эндпоинт POST /sources/{id}/recognize).</summary>
     public async Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
+            .AsNoTrackingWithIdentityResolution().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source is null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
             throw new InvalidRequestException("Источник не относится к PDF-файлу.");
@@ -43,16 +44,7 @@ public partial class DataSetPdfRecognitionService
         else if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal)
                  || source.SheetOrPath == PdfProfiles.LegacyTitleBlockRegistryMarker) RequireGost();
         if (descriptor?.Kind == PdfProfileKind.Gost)
-        {
-            // 409-проверка ручной правки — ДО постановки в фон (чтобы диалог подтверждения был интерактивным).
-            // Группировка живёт на НАБОРЕ (issue #28), не на источнике.
-            var existingGrouping = ParseGrouping(source.File.Grouping);
-            if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new ConflictException(
-                    "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-            await RefuseTooLongAsync(source.File.BlobPath, ct);
-            return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF", source.File.Id);
-        }
+            return await PlanGostRecognitionAsync(source.File, confirm, bySource: true, ct);
         // Таблица документа — один vision-вызов на под-PDF; счёт/legacy тоже короткие. Синхронно.
         if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
             return new RecognizePlan(Background: false, Title: "Распознавание таблицы документа", source.File.Id);
@@ -66,7 +58,7 @@ public partial class DataSetPdfRecognitionService
     /// штатный путь для обоих профилей — RecognizeFileAsync(fileId) (unifies VERB вызова); сохранён для
     /// существующих call-sites.</summary>
     public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct,
-        Func<int, int, Task>? onProgress = null)
+        Func<int, int, Task>? onProgress = null, bool shortOnly = false)
     {
         var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -84,16 +76,10 @@ public partial class DataSetPdfRecognitionService
 
         if (descriptor?.Kind == PdfProfileKind.Gost)
         {
-            // Ручная правка группировки — дороже автораспознавания LLM-вызовов (пользователь
-            // руками разбирал документы) — не затираем без явного согласия.
-            // Группировка живёт на НАБОРЕ (issue #28).
-            var existingGrouping = ParseGrouping(source.File.Grouping);
-            if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new ConflictException(
-                    "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-
-            // Мост для legacy source-centric вызова: делегируем в набор-centric распознавание (issue #38).
-            // Новый штатный путь — RecognizeFileAsync(fileId); этот сохранён для существующих call-sites.
+            if (shortOnly)
+                throw new InvalidRequestException("Профиль источника изменился. Запустите распознавание заново.");
+            RequireGost();
+            AdmitGostRecognition(source.File, confirm, bySource: true);
             await RecognizeGostFileAsync(source.File, ct, onProgress);
             return DataSetDtoMapper.MapSource(source);
         }

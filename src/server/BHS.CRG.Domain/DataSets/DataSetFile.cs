@@ -74,6 +74,9 @@ public class DataSetFile : Entity
     /// </summary>
     public string? RecognitionProfiles { get; private set; }
 
+    /// <summary>Редакция входов полного распознавания и токен конкурентной записи набора.</summary>
+    public Guid RecognitionRevision { get; private set; } = Guid.NewGuid();
+
     private DataSetFile() { }
 
     public static DataSetFile Create(string name, DataSetFormat format, string blobPath,
@@ -144,23 +147,27 @@ public class DataSetFile : Entity
     {
         BlobPath = newBlobPath;
         Format = newFormat;
-        TouchUpdatedAt();
+        ReviseRecognitionInputs();
     }
 
     /// <summary>Задать профиль препроцессинга набора (issue #28). Null — снять.</summary>
     public void SetPreprocessingProfile(string? profile)
     {
-        PreprocessingProfile = string.IsNullOrWhiteSpace(profile) ? null : profile.Trim();
-        TouchUpdatedAt();
+        var normalized = string.IsNullOrWhiteSpace(profile) ? null : profile.Trim();
+        if (PreprocessingProfile == normalized) return;
+        PreprocessingProfile = normalized;
+        ReviseRecognitionInputs();
     }
 
     /// <summary>Задать карту профилей распознавания набора (issue #412). Пустая карта → null,
     /// чтобы «нет привязок» имело единственное представление.</summary>
     public void SetRecognitionProfiles(string? profilesJson)
     {
-        RecognitionProfiles = string.IsNullOrWhiteSpace(profilesJson) || profilesJson.Trim() == "{}"
+        var normalized = string.IsNullOrWhiteSpace(profilesJson) || profilesJson.Trim() == "{}"
             ? null : profilesJson;
-        TouchUpdatedAt();
+        if (RecognitionProfiles == normalized) return;
+        RecognitionProfiles = normalized;
+        ReviseRecognitionInputs();
     }
 
     /// <summary>Задать/обновить авторитетную группировку набора (JSON GostGroupingData).
@@ -170,7 +177,7 @@ public class DataSetFile : Entity
     public void SetGrouping(string? groupingJson)
     {
         Grouping = groupingJson;
-        TouchUpdatedAt();
+        ReviseRecognitionInputs();
     }
 
     /// <summary>Пишет сырьё профиля «Счёт на оплату» (issue #44) — аналог SetGrouping для ГОСТ.</summary>
@@ -180,4 +187,9 @@ public class DataSetFile : Entity
         TouchUpdatedAt();
     }
 
+    private void ReviseRecognitionInputs()
+    {
+        RecognitionRevision = Guid.NewGuid();
+        TouchUpdatedAt();
+    }
 }

@@ -67,9 +67,26 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         Assert.Contains("get_document_set", tools);
         Assert.Contains("generate_document", tools);
+        Assert.Contains("recognize_dataset", tools);
+        Assert.Contains("recognize_source", tools);
         // Ворота модуля, а не права: библиотека документов качества своего права пока не носит.
         Assert.Contains("list_quality_documents", tools);
         Assert.Contains("list_reconciliations", tools);
+    }
+
+    [Theory]
+    [InlineData("recognize_dataset", "datasetId")]
+    [InlineData("recognize_source", "sourceId")]
+    public async Task Распознавание_объявляет_только_идентификатор_цели(string toolName, string target)
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var tools = await McpTestClient.CallAsync(admin, "tools/list");
+        var tool = tools.GetProperty("tools").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == toolName);
+        var schema = tool.GetProperty("inputSchema");
+
+        Assert.Equal(target, Assert.Single(schema.GetProperty("properties").EnumerateObject()).Name);
+        Assert.Equal(target, Assert.Single(schema.GetProperty("required").EnumerateArray()).GetString());
     }
 
     /// <summary>

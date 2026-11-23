@@ -128,6 +128,7 @@ public partial class DataSetPdfRecognitionService
             current[kindName] = profileId.Value;
         }
 
+        if (changedKinds.Count == 0) return true;
         file.SetRecognitionProfiles(current.Count > 0 ? JsonSerializer.Serialize(current) : null);
 
         // Данные, прочитанные ПРЕЖНИМИ параметрами, устарели — помечаем источники затронутых видов
@@ -135,13 +136,10 @@ public partial class DataSetPdfRecognitionService
         // файловый молчал: штамп, обложка и счёт оставались с прежними значениями, и ни один экран
         // не говорил, что читали их по другим правилам. Распознавание не перезапускаем — оно дорогое,
         // решает пользователь; наше дело сказать, что данные разошлись с настройкой.
-        if (changedKinds.Count > 0)
-        {
-            var markers = changedKinds.SelectMany(PdfProfiles.MarkersForFileProfileKind).ToHashSet();
-            var affected = await db.DataSetSources
-                .Where(s => s.FileId == fileId && markers.Contains(s.SheetOrPath)).ToListAsync(ct);
-            foreach (var src in affected) src.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
-        }
+        var markers = changedKinds.SelectMany(PdfProfiles.MarkersForFileProfileKind).ToHashSet();
+        var affected = await db.DataSetSources
+            .Where(s => s.FileId == fileId && markers.Contains(s.SheetOrPath)).ToListAsync(ct);
+        foreach (var src in affected) src.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
 
         await db.SaveChangesAsync(ct);
         return true;
