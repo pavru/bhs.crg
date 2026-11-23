@@ -167,6 +167,10 @@ for (const expectedStatus of [400, 409]) {
   await check(`required-fields-refresh-after-${expectedStatus}`,
     () => paymentRequisitesRace(page, { api, invoice, open, expectedStatus, number: `ОПЛ-Р${expectedStatus}-${stamp}` }));
 }
+await check('required-fields-from-card-when-preview-is-unavailable-after-409',
+  () => paymentRequisitesRace(page, {
+    api, invoice, open, expectedStatus: 409, previewUnavailable: true, number: `ОПЛ-Р503-${stamp}`,
+  }));
 
 // ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок и Tab ведут по форме ────────
 const calendarNumber = `ОПЛ-К-${stamp}`;

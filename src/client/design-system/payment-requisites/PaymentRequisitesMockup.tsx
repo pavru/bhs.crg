@@ -5,6 +5,7 @@ import { goTo, readinessAnchor } from '@/features/costs/invoiceReadiness';
 import { blocksText, type InvoiceStatus, type StatusBlock, type StatusItem } from '@/features/costs/invoiceStatus';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
+import { DateField } from '@/shared/ui/DateField';
 import { ListItem, LIST_CONTAINER } from '@/shared/ui/ListItem';
 import { Modal } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -78,14 +79,21 @@ function Example({ scenario }: { scenario: Scenario }) {
     setNotice('Реквизиты сохранены');
   };
   const toField = (key: string) => goTo(target(key));
+  const change = (key: Key, value: string) => {
+    setDraft(values => ({ ...values, [key]: value }));
+    setNotice('');
+  };
   const form = (
     <Card title="Реквизиты" variant="outlined">
       <form onSubmit={save} className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           {fields.map(field => (
             <div key={field.key} data-readiness={readinessAnchor(target(field.key))} className="min-w-0">
-              <TextField label={field.title} type={field.key === 'Дата' ? 'date' : 'text'} value={draft[field.key]}
-                onChange={event => { setDraft({ ...draft, [field.key]: event.target.value }); setNotice(''); }} />
+              {field.key === 'Дата' ? (
+                <DateField label={field.title} value={draft[field.key]} onChange={iso => change(field.key, iso)} />
+              ) : (
+                <TextField label={field.title} value={draft[field.key]} onChange={event => change(field.key, event.target.value)} />
+              )}
             </div>
           ))}
         </div>

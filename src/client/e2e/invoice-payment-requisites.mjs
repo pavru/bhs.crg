@@ -99,7 +99,7 @@ export async function paymentRequisitesCheck(page, { api, organization, number }
   }
 }
 
-export async function paymentRequisitesRace(page, { api, invoice, open, number, expectedStatus }) {
+export async function paymentRequisitesRace(page, { api, invoice, open, number, expectedStatus, previewUnavailable = false }) {
   const id = await invoice(number, 100, 100);
   await open(number);
   await entry(page).click();
@@ -131,5 +131,13 @@ export async function paymentRequisitesRace(page, { api, invoice, open, number, 
     await underRoute(page, paidRoute, route => route.continue({
       headers: { ...route.request().headers(), 'if-match': current.version },
     }), submitAndCheck);
+  } else if (previewUnavailable) {
+    const previewPath = `${path}/paid/preview`;
+    await underRoute(page, `**/api${previewPath}`,
+      route => route.fulfill({ status: 503, json: { error: 'Предпросмотр временно недоступен' } }),
+      () => Promise.all([
+        page.waitForResponse(r => r.url().endsWith(previewPath) && r.status() === 503),
+        submitAndCheck(),
+      ]));
   } else await submitAndCheck();
 }

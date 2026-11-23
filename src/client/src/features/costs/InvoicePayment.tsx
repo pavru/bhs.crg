@@ -194,10 +194,12 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
 
   const fresh = posting !== null && !preview.isPending && posting.paidOn === paidOn && failed === null;
   const duplicateRefusal = view.payment.refusalKind === 'duplicate' ? view.payment.refusal : null;
-  const requisiteGaps = posting?.requisiteGaps ?? view.payment.requisiteGaps ?? [];
-  const refusal = posting?.refusal ?? duplicateRefusal;
-  const refusalKind = posting?.refusalKind ?? view.payment.refusalKind;
-  const payable = fresh && !refusal && !posting.dateRefusal && !requisiteGaps.length && !view.payment.requisiteGaps?.length;
+  // После 409 карточка может обновиться, даже если остался старый расклад или повторный запрос отказал.
+  const reason = view.payment.requisiteGaps?.length ? view.payment : posting;
+  const requisiteGaps = reason?.requisiteGaps ?? [];
+  const refusal = reason?.refusal ?? duplicateRefusal;
+  const refusalKind = reason?.refusalKind ?? view.payment.refusalKind;
+  const payable = fresh && !refusal && !posting.dateRefusal && !requisiteGaps.length;
 
   async function submit() {
     if (!posting || !payable) return;
