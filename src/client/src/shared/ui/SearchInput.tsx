@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, type KeyboardEventHandler } from 'react';
 import { Icon } from './Icon';
 import { Close, Search } from './icons';
 import { IconButton } from './Button';
@@ -19,7 +19,7 @@ import { InLayerContext } from './layerPlace';
  * иначе конец запроса уходил бы под кнопку.
  */
 export function SearchInput({
-  value, onChange, placeholder = 'Поиск…', ariaLabel, className = '', autoFocus,
+  value, onChange, placeholder = 'Поиск…', ariaLabel, className = '', autoFocus, combobox,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -27,6 +27,7 @@ export function SearchInput({
   ariaLabel?: string;
   className?: string;
   autoFocus?: boolean;
+  combobox?: { listId?: string; activeId?: string; onKeyDown: KeyboardEventHandler<HTMLInputElement> };
 }) {
   const dense = useContext(InLayerContext);
   return (
@@ -36,7 +37,15 @@ export function SearchInput({
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape' && value) { e.preventDefault(); e.stopPropagation(); onChange(''); } }}
+        onKeyDown={e => {
+          combobox?.onKeyDown(e);
+          if (!e.defaultPrevented && e.key === 'Escape' && value) { e.preventDefault(); e.stopPropagation(); onChange(''); }
+        }}
+        role={combobox ? 'combobox' : undefined}
+        aria-expanded={combobox ? !!combobox.listId : undefined}
+        aria-controls={combobox?.listId}
+        aria-activedescendant={combobox?.activeId}
+        aria-autocomplete={combobox ? 'list' : undefined}
         placeholder={placeholder}
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}

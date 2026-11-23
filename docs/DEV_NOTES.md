@@ -6688,6 +6688,10 @@ POST   /api/work/entry/reports              { employeeId, ...как у свои�
                                     ваших строек»; enteredBy — автор ввода.
 GET    /api/work/entry/reports/{id}?view=   те же виды; отчёт чужой стройки — 404.
 PUT    /api/work/entry/reports/{id}         правка + If-Match и changeId.
+GET    /api/work/entry/sites/{id}/crew-candidates?date=  → { items: [{ id, fullName }], reason }.
+                                          Требует work.report.review. Для строек в охвате ввода за сотрудника
+                                          отдаёт участников с назначением на дату отчёта. Вне охвата — пусто
+                                          с reason: "not-assigned".
 POST   /api/work/reports/{id}/submit        { changeId?, deviceTime? } + If-Match → отчёт (work-15,
                                     WORK-10). Момент — deviceTime, но не позже конца окна; уже
                                     поданный — 200 alreadySubmitted: true без сверки версии; принятый

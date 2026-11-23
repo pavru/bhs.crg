@@ -2,11 +2,13 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { hasModule, hasPermission, type AccessInfo } from './access';
 import type { AssignmentCandidate } from './work';
-import type { ReviewReport } from './workReview';
+import type { ReviewReport, ReviewReportLine } from './workReview';
 
 export type ReportShift = 'day' | 'night';
 export type ReportMode = 'own' | 'entry';
 export type ReportStatus = 'draft' | 'returned' | 'submitted' | 'accepted';
+export type WorkReportLine = ReviewReportLine;
+export type RequiredReportField = { line: number; lineId: string; field: 'location' | 'materials' };
 
 export interface EntrySite {
   id: string;
@@ -34,6 +36,7 @@ export type WorkReport = Omit<ReviewReport, 'status'> & {
   note: string | null;
   autoSubmitAt: string | null;
   enteredBy: { userId: string; name: string } | null;
+  requiredMissing?: RequiredReportField[] | null;
 };
 
 interface ReportPage {
@@ -94,16 +97,20 @@ export interface ReportHeader {
   shift: ReportShift;
 }
 
-export function createWorkReport(mode: ReportMode, id: string, employeeId: string | null, header: ReportHeader) {
-  return apiClient.post<WorkReport>(reportBase(mode), { ...header, id, employeeId, lines: [] }).then(r => r.data);
+export interface ReportInput extends ReportHeader {
+  hours: number | null;
+  note: string | null;
+  // Отсутствие photos сохраняет текущий состав фото при записи строк.
+  lines: Omit<WorkReportLine, 'photos'>[];
 }
 
-export function updateWorkReport(mode: ReportMode, report: WorkReport, header: ReportHeader, changeId: string) {
-  return apiClient.put<WorkReport>(`${reportBase(mode)}/${report.id}`, {
-    ...header, changeId, hours: report.hours, note: report.note,
-    // Сохраняем существующий состав строк. Отсутствие photos сохраняет текущий состав фото на сервере.
-    lines: report.lines.map(({ photos: _photos, ...line }) => line),
-  }, { headers: { 'If-Match': report.version } }).then(r => r.data);
+export function createWorkReport(mode: ReportMode, id: string, employeeId: string | null, input: ReportInput) {
+  return apiClient.post<WorkReport>(reportBase(mode), { ...input, id, employeeId }).then(r => r.data);
+}
+
+export function updateWorkReport(mode: ReportMode, report: WorkReport, input: ReportInput, changeId: string) {
+  return apiClient.put<WorkReport>(`${reportBase(mode)}/${report.id}`, { ...input, changeId },
+    { headers: { 'If-Match': report.version } }).then(r => r.data);
 }
 
 export function submitWorkReport(mode: ReportMode, report: WorkReport, changeId: string) {
