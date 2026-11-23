@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { apiClient } from '@/shared/api/client';
@@ -17,11 +17,13 @@ const row: ReviewQueueRow = {
   actions: ['accept', 'return', 'edit'], acceptWouldMark: false, photosPending: 2,
 };
 
-let answer: (params: ReviewQueueRequest) => QueueData;
+let answer: (params: ReviewQueueRequest) => QueueData | Promise<QueueData>;
+let permissions: string[];
 
 function page(override: Partial<QueueData> = {}): QueueData {
   return {
     items: [row], total: 1, offset: 0, limit: 50, counts: { 'photos-pending': 1, 'late-delivery': 0 },
+    employees: [{ id: row.employeeId, name: 'Максим Крылов' }],
     boundary: { code: 'sites', text: 'отчёты ваших строек (2)', sites: 2 }, reason: null, ...override,
   };
 }
@@ -45,15 +47,16 @@ beforeAll(() => {
 
 beforeEach(() => {
   answer = () => page();
+  permissions = ['work.report.review', 'core.employees.read'];
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.get).mockImplementation(async (url, config) => {
-    if (url === '/work/review/queue') return { data: answer(config?.params as ReviewQueueRequest) };
+    if (url === '/work/review/queue') return { data: await answer(config?.params as ReviewQueueRequest) };
     if (url === '/work/sites/mine') return { data: { items: [
       { id: 'site-1', name: 'Терминал', kinds: ['manager'] },
       { id: 'site-2', name: 'Чужое назначение монтажником', kinds: ['installer'] },
     ] } };
     if (url === '/employees') return { data: [{ id: 'employee-1', displayName: 'Максим Крылов' }] };
-    if (url === '/account/access') return { data: { permissions: ['work.report.review', 'core.employees.read'], modules: [] } };
+    if (url === '/account/access') return { data: { permissions, modules: [] } };
     throw new Error(`Неожиданный адрес ${url}`);
   });
 });
@@ -64,10 +67,51 @@ describe('очередь приёмки', () => {
     mount();
     expect(await screen.findByText('отчёты ваших строек (2)')).toBeTruthy();
     const report = await screen.findByRole('row', { name: /Максим Крылов/ });
-    expect(within(report).getByText('Терминал')).toBeTruthy();
+    expect(await within(report).findByText('Терминал')).toBeTruthy();
     expect(within(report).getByText('☾ ночь')).toBeTruthy();
     expect(within(report).getByText('фото не загружены: 2')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /поздняя доставка/ })).toBeNull();
+  });
+
+  it('показывает имена в очереди для права чтения без доступа к справочнику сотрудников', async () => {
+    permissions = ['work.report.read'];
+    answer = () => page({
+      employees: [{ id: row.employeeId, name: 'Максим Крылов' }, { id: 'employee-2', name: 'Ирина Сафонова' }],
+      boundary: { code: 'all', text: 'все стройки', sites: null },
+    });
+    mount('?employeeId=employee-2');
+    expect(await screen.findByRole('row', { name: /Максим Крылов/ })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Сотрудник' }).textContent).toContain('Ирина Сафонова');
+    expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/employees')).toBe(false);
+  });
+
+  it.each([
+    ['пометка', /фото не загружены.*1/, { mark: 'photos-pending', offset: 0 }],
+    ['пагинация', 'Следующая страница', { offset: 50 }],
+  ] as const)('сохраняет фокус при загрузке (%s)', async (_kind, name, nextRequest) => {
+    let resolve: (data: QueueData) => void = () => {};
+    const pending = new Promise<QueueData>(done => { resolve = done; });
+    answer = params => params.mark || params.offset ? pending : page({ total: 51 });
+    mount();
+    const control = await screen.findByRole('button', { name });
+    act(() => control.focus());
+    fireEvent.click(control);
+    await screen.findByText('Загрузка очереди приёмки…');
+    expect(queueCalls().at(-1)).toMatchObject(nextRequest);
+    expect(document.activeElement).toBe(control);
+    if (nextRequest.offset > 0) {
+      expect(control.getAttribute('aria-disabled')).toBe('true');
+      fireEvent.click(control);
+      expect(queueCalls()).toHaveLength(2);
+    }
+    await act(async () => {
+      resolve(page({
+        items: [{ ...row, hours: 9 }],
+        offset: nextRequest.offset, total: nextRequest.offset + 1,
+      }));
+    });
+    expect(await screen.findByRole('cell', { name: '9' })).toBeTruthy();
+    expect(document.activeElement).toBe(control);
   });
 
   it('запрашивает выбранную пометку и сбрасывает сдвиг страницы', async () => {

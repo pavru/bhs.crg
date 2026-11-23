@@ -1,12 +1,15 @@
 // Синтетические отчёты очереди для Work-21. Справочник и назначения уже подготовил seed-employees.
 import { randomUUID } from 'node:crypto';
 
+export const REVIEW_READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
+
 export const REVIEW_REPORTS = [
   { id: '187f44ed-6fc5-4234-9b24-e270df33a052', name: 'Крылов Максим Игоревич (посев)', number: 'E2E-21', shift: 'day' },
   { id: '2e874522-0737-4629-85ed-82904fd8a092', name: 'Сафонова Ирина Олеговна (посев)', number: 'E2E-22', shift: 'night' },
 ];
 
-export async function seedReview({ api, constructionId }) {
+export async function seedReview({ api, ensureUser, constructionId }) {
+  await ensureUser(REVIEW_READER_EMAIL, 'Роман Руководителев', 'Executive');
   const { construction } = await api('GET', `/work/assignments?constructionId=${constructionId}`);
   if (!construction.today) throw new Error('У стройки посева нет текущей даты для отчётов Work-21.');
   const employees = await api('GET', '/employees');

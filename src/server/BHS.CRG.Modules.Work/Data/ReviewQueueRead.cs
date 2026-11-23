@@ -17,4 +17,5 @@ public sealed record ReviewQueueItem(Report Report, string Version, int Lines, I
 
 /// <summary>Страница очереди из файла чтения.</summary>
 public sealed record ReviewQueueRead(
-    IReadOnlyList<ReviewQueueItem> Items, int Total, IReadOnlyDictionary<string, int> Counts, bool AnyPending);
+    IReadOnlyList<ReviewQueueItem> Items, int Total, IReadOnlyDictionary<string, int> Counts,
+    IReadOnlyList<Guid> PendingEmployeeIds);

@@ -69,15 +69,18 @@ function QueueGrid({ data, sites, employees }: {
   return <DataGrid columns={columns} rows={data.items} rowKey={row => row.id} />;
 }
 
-function QueuePager({ data, onChange }: { data: QueuePage; onChange: (offset: number) => void }) {
+function QueuePager({ data, loading, onChange }: { data: QueuePage; loading: boolean; onChange: (offset: number) => void }) {
   const { offset, limit, total, items } = data;
   if (offset === 0 && items.length >= total) return null;
+  const previousDisabled = loading || offset === 0;
+  const nextDisabled = loading || offset + items.length >= total;
+  // aria-disabled сохраняет фокус кнопки во время загрузки и на границе списка.
   return <div className="flex flex-wrap items-center justify-end gap-2 text-body-small text-on-surface-variant">
-    <IconButton icon={ChevronLeft} label="Предыдущая страница" disabled={offset === 0}
-      onClick={() => onChange(Math.max(0, offset - limit))} />
+    <IconButton icon={ChevronLeft} label="Предыдущая страница" aria-disabled={previousDisabled}
+      onClick={previousDisabled ? undefined : () => onChange(Math.max(0, offset - limit))} />
     <span>{formatCount(offset + 1)}–{formatCount(offset + items.length)} из {formatCount(total)}</span>
-    <IconButton icon={ChevronRight} label="Следующая страница" disabled={offset + items.length >= total}
-      onClick={() => onChange(offset + limit)} />
+    <IconButton icon={ChevronRight} label="Следующая страница" aria-disabled={nextDisabled}
+      onClick={nextDisabled ? undefined : () => onChange(offset + limit)} />
   </div>;
 }
 
@@ -98,22 +101,24 @@ export function ReviewQueuePage() {
   const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 && requestedOffset <= 2_147_483_647 ? requestedOffset : 0;
   const query = useReviewQueue({ ...filters, offset, limit: REVIEW_QUEUE_LIMIT });
   const data = query.data;
+  const loading = query.isPending || query.isPlaceholderData;
   const allSites = data?.boundary.code === 'all' && permission('core.constructions.read');
   const needsOwnSites = !!data && !allSites && data.boundary.sites !== 0;
-  const canReadEmployees = permission('core.employees.read');
+  const useCoreEmployees = !!data && !data.employees && permission('core.employees.read');
   const siteDirectory = useConstructionDirectory(allSites);
   const ownSites = useReviewSites(needsOwnSites);
-  const employeeDirectory = useEmployees(canReadEmployees);
+  const employeeDirectory = useEmployees(useCoreEmployees);
   const rows = data?.items ?? [];
   const sites = namedOptions((allSites ? siteDirectory.data : ownSites.data) ?? [],
     [filters.constructionId, ...rows.map(row => row.constructionId)], 'Стройка');
-  const employees = namedOptions((employeeDirectory.data?.items ?? []).map(item => ({ id: item.id, name: item.displayName })),
+  const employees = namedOptions(data?.employees ?? (employeeDirectory.data?.items ?? [])
+    .map(item => ({ id: item.id, name: item.displayName })),
     [filters.employeeId, ...rows.map(row => row.employeeId)], 'Сотрудник');
   const { constructionId, employeeId, from, to } = filters;
-  const markFilters = useReviewMarkFilters(data, { constructionId, employeeId, from, to });
+  const markFilters = useReviewMarkFilters(data, { constructionId, employeeId, from, to }, !loading);
   const hasFilters = filterKeys.some(key => !!filters[key]);
   const directoryFailed = (allSites && siteDirectory.isError) || (needsOwnSites && ownSites.isError)
-    || (canReadEmployees && employeeDirectory.isError);
+    || (useCoreEmployees && employeeDirectory.isError);
 
   // DateRange может поправить границы в том же событии, в котором меняется соседний отбор.
   function update(changes: Partial<Record<(typeof filterKeys)[number] | 'offset', string>>) {
@@ -155,13 +160,15 @@ export function ReviewQueuePage() {
     {query.isError && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>
       {apiError(query.error, 'Не удалось загрузить очередь приёмки.')}
     </Banner>}
-    {query.isPending && <p role="status" className="text-body-medium text-on-surface-variant">Загрузка очереди приёмки…</p>}
-    {data?.reason && <EmptyState icon={gridIcon} title={emptyTitle[data.reason]}
-      action={data.reason === 'filtered-out' && <Button variant="filled" onClick={reset}>Сбросить отбор</Button>} />}
-    {data && !data.reason && (data.items.length > 0 ? <>
-      <QueueGrid data={data} sites={sites} employees={employees} />
-      <QueuePager data={data} onChange={next => update({ offset: next ? String(next) : '' })} />
-    </> : <EmptyState icon={gridIcon} title="На этой странице нет отчётов"
-      action={<Button variant="tonal" onClick={() => update({ offset: '' })}>К началу очереди</Button>} />)}
+    {loading && <p role="status" className="text-body-medium text-on-surface-variant">Загрузка очереди приёмки…</p>}
+    <div aria-busy={loading} className="space-y-2">
+      {data?.reason && !loading && <EmptyState icon={gridIcon} title={emptyTitle[data.reason]}
+        action={data.reason === 'filtered-out' && <Button variant="filled" onClick={reset}>Сбросить отбор</Button>} />}
+      {data && !data.reason && (data.items.length > 0 ? <>
+        <QueueGrid data={data} sites={sites} employees={employees} />
+        <QueuePager data={data} loading={loading} onChange={next => update({ offset: next ? String(next) : '' })} />
+      </> : !loading && <EmptyState icon={gridIcon} title="На этой странице нет отчётов"
+        action={<Button variant="tonal" onClick={() => update({ offset: '' })}>К началу очереди</Button>} />)}
+    </div>
   </div>;
 }

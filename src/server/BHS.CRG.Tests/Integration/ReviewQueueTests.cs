@@ -125,16 +125,22 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
     public async Task Руководитель_без_действий_монтажник_403()
     {
         var (_, head) = await world.Reports.Assignments.UserAsync("Смирнова Светлана Сергеевна", WorkModule.ReportRead);
-        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (petrovId, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (sidorovId, sidorov) = await world.Reports.InstallerAsync("Сидоров Семён Семёнович");
         await world.SubmittedAsync(petrov, Guid.NewGuid(), world.SiteA);
-        await world.SubmittedAsync(petrov, Guid.NewGuid(), world.SiteB);
+        await world.SubmittedAsync(sidorov, Guid.NewGuid(), world.SiteB);
 
         var queue = await QueueAsync(head, "");
+        var page = await QueueAsync(head, $"?employeeId={petrovId}&limit=1");
 
         Assert.Equal(2, queue.GetProperty("total").GetInt32());
         Assert.All(queue.GetProperty("items").EnumerateArray(), r => Assert.Equal(0, r.GetProperty("actions").GetArrayLength()));
         Assert.Equal("все стройки", queue.GetProperty("boundary").GetProperty("text").GetString());
         Assert.Equal("all", queue.GetProperty("boundary").GetProperty("code").GetString());
+        Assert.Equal(petrovId, Assert.Single(page.GetProperty("items").EnumerateArray()).GetProperty("employeeId").GetGuid());
+        Assert.Equal([(petrovId, "Петров Пётр Петрович"), (sidorovId, "Сидоров Семён Семёнович")],
+            page.GetProperty("employees").EnumerateArray()
+                .Select(person => (person.GetProperty("id").GetGuid(), person.GetProperty("name").GetString())));
         Assert.Equal(HttpStatusCode.Forbidden, (await petrov.GetAsync(Url)).StatusCode);
     }
 
@@ -143,10 +149,11 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
     public async Task Чужая_стройка_отсутствует()
     {
         var (_, manager) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
-        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (petrovId, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (_, sidorov) = await world.Reports.InstallerAsync("Сидоров Семён Семёнович");
         var own = Guid.NewGuid();
         await world.SubmittedAsync(petrov, own, world.SiteA);
-        await world.SubmittedAsync(petrov, Guid.NewGuid(), world.SiteB);
+        await world.SubmittedAsync(sidorov, Guid.NewGuid(), world.SiteB);
 
         var queue = await QueueAsync(manager, "");
         var other = await QueueAsync(manager, $"?constructionId={world.SiteB}");
@@ -155,6 +162,8 @@ public class ReviewQueueTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(1, queue.GetProperty("total").GetInt32());
         Assert.Equal(0, other.GetProperty("total").GetInt32());
         Assert.Equal(0, other.GetProperty("counts").GetProperty(ReviewMarks.SiteNotAssigned).GetInt32());
+        foreach (var page in new[] { queue, other })
+            Assert.Equal(petrovId, Assert.Single(page.GetProperty("employees").EnumerateArray()).GetProperty("id").GetGuid());
     }
 
     /// <summary>

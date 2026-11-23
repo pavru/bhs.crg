@@ -282,8 +282,8 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// <summary>
     /// Очередь приёмки (ТЗ WORK-28, WORK-39; <c>work-16</c>): поданные отчёты охвата читателя по отбору, страница по
     /// моменту подачи — дольше всех ждущий первым. Счётчики — по всему отбору БЕЗ отбора по пометке: так счётчик пометки
-    /// не обнуляется, когда выбрана другая, и говорит, сколько даст выбор. <c>AnyPending</c> — есть ли ждущие в охвате
-    /// вовсе: им пустая очередь отличает «ждущих нет» от «отбор исключил все».
+    /// не обнуляется, когда выбрана другая, и говорит, сколько даст выбор. Сотрудники — по всем ждущим
+    /// отчётам охвата, независимо от отбора и страницы.
     /// </summary>
     public async Task<ReviewQueueRead> QueueAsync(
         ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct)
@@ -316,13 +316,13 @@ public sealed partial class ReportReads(WorkDbContext db)
             })
             .ToListAsync(ct);
         var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
-        var anyPending = total > 0 || await pending.AnyAsync(ct);
+        var pendingEmployees = await pending.Select(r => r.EmployeeId).Distinct().ToListAsync(ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
                     p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
             ],
-            total, counts, anyPending);
+            total, counts, pendingEmployees);
     }
 
     /// <summary>

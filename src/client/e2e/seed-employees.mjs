@@ -33,5 +33,5 @@ export async function ensureEmployees({ api, findType, ensureUser, constructionI
     console.log(`  + сотрудник ${e.name}`);
   }
   // Назначения (work-12) — на справочнике, который только что заведён: без него адрес назначений отвечает 409.
-  if (await seedAssignments({ api, ensureUser, constructionId })) await seedReview({ api, constructionId });
+  if (await seedAssignments({ api, ensureUser, constructionId })) await seedReview({ api, ensureUser, constructionId });
 }

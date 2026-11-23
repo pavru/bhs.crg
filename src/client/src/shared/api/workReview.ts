@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { ReviewQueuePage, WorkMark } from './work';
 
@@ -27,6 +27,7 @@ export function useReviewQueue(params: ReviewQueueRequest) {
   return useQuery({
     queryKey: [...REVIEW_QUEUE_KEY, params],
     queryFn: ({ signal }) => readReviewQueue(params, signal),
+    placeholderData: keepPreviousData,
   });
 }
 

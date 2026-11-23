@@ -24,25 +24,29 @@ export function reviewMarkStyle(code: string) {
 }
 
 /** Числа берём из всего отбора. Неизвестные коды идут после каталога, нулевые не показываются. */
-export function useReviewMarkFilters(page: ReviewQueuePage | undefined, scope: Omit<ReviewQueueFilters, 'mark'>) {
+export function useReviewMarkFilters(
+  page: ReviewQueuePage | undefined, scope: Omit<ReviewQueueFilters, 'mark'>, confirmed: boolean,
+) {
   const counts = page?.counts ?? {};
   const positive = [...WORK_MARK_CODES, ...Object.keys(counts).filter(code => !knownMark(code))]
     .filter(code => counts[code] > 0);
   const labels = new Map(page?.items.flatMap(row => row.marks.map(mark => [mark.code, mark.text] as const)));
-  const missing = positive.filter(code => !knownMark(code) && !labels.has(code));
+  const unknown = positive.filter(code => !knownMark(code));
 
   // У нового кода счётчик может быть ненулевым за пределами страницы. Берём его подпись из строки
   // сервера, сохраняя отбор, от которого получен счётчик. Известные коды дополнительных запросов не требуют.
   const lookup = useQueries({
-    queries: missing.map(code => ({
+    queries: unknown.map(code => ({
       queryKey: [...REVIEW_QUEUE_KEY, 'mark-label', scope, code],
+      initialData: confirmed ? labels.get(code) : undefined,
+      enabled: confirmed && !labels.has(code),
       queryFn: ({ signal }: { signal: AbortSignal }) => readReviewQueue({ ...scope, mark: code, limit: 1 }, signal)
         .then(result => result.items[0]?.marks.find(mark => mark.code === code)?.text ?? null),
     })),
   });
-  missing.forEach((code, index) => {
+  unknown.forEach((code, index) => {
     const text = lookup[index].data;
-    if (text) labels.set(code, text);
+    if (text && !labels.has(code)) labels.set(code, text);
   });
 
   return {
@@ -50,6 +54,7 @@ export function useReviewMarkFilters(page: ReviewQueuePage | undefined, scope: O
       const label = knownMark(code) ? catalog[code].label : labels.get(code);
       return label ? [{ code, label, count: counts[code], icon: reviewMarkStyle(code).icon }] : [];
     }),
-    unavailable: lookup.some(query => query.isError || query.data === null),
+    unavailable: confirmed && unknown.some((code, index) =>
+      !labels.has(code) && (lookup[index].isError || lookup[index].data === null)),
   };
 }
