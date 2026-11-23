@@ -26,8 +26,8 @@ describe('право экрана групп «только карточки» �
     const route = RECORD_ROUTES[group!.recordType];
     const section = [...workNav, ...settingsNav].find(item => item.to === route.screen);
     expect(section, `у экрана ${route.screen} нет раздела навигации`).toBeDefined();
-    expect(permissionsOf(section!),
-      `право раздела ${route.screen} разошлось с ScreenRights["${code}"] в IdRecordSearch.cs — правьте отстающую сторону`)
-      .toEqual([serverRight]);
+    const rights = permissionsOf(section!);
+    expect(rights, `право карточек ИД ${route.screen} должно открывать и экран`).toContain(serverRight);
+    expect(rights).toEqual(code === 'templates' ? [serverRight, 'core.print.edit'] : [serverRight]);
   });
 });

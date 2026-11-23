@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { Template, TemplateSummary } from './types';
+import type { DocumentType, Template, TemplateSummary } from './types';
+
+export function useTemplateTypes() {
+  return useQuery({
+    queryKey: ['template-types'],
+    queryFn: () => apiClient.get<DocumentType[]>('/templates/types').then(r => r.data),
+  });
+}
 
 /** Версии шаблонов типа — без текстов (issue #1972). Текст версии — `useTemplateContent`. */
 export function useListTemplates(documentTypeId: string | undefined) {

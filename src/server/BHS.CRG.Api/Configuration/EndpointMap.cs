@@ -84,6 +84,7 @@ internal static class EndpointMap
     // Очереди Главной (shell-08, ТЗ UI-34): ключи у каждой очереди свои — по объявлению модуля.
     app.MapHomeEndpoints();
     app.MapGenerationEndpoints();
+    app.MapRecordPrintEndpoints();
 
     // Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).
     app.MapAppModules();

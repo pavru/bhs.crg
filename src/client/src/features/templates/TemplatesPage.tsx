@@ -10,7 +10,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
-import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
+import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage, useTemplateTypes } from '@/shared/api/templates';
 import type { TemplateSummary, DocumentType } from '@/shared/api/types';
 import { useMaxTemplateVersions } from '@/features/settings/useMaxTemplateVersions';
 import { buildBlankTypst } from './templateBlank';
@@ -142,11 +142,12 @@ export function TemplatesPage() {
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<TemplateGroup | null>(null);
 
   const { data: docTypes = [] } = useListDocumentTypes();
+  const { data: templateTypes = [] } = useTemplateTypes();
 
   // Тип из памяти или из ссылки мог быть удалён, стать абстрактным или сменить kind — селектор
   // такой не показывает. Поэтому выбранным считаем только пригодный тип: fallback молчаливый
   // («Выберите тип документа»), и запрос за шаблонами несуществующего типа не уходит.
-  const selectedDocType = docTypes.find(dt => dt.id === pickedTypeId && dt.kind === 'Document' && !dt.isAbstract) ?? null;
+  const selectedDocType = templateTypes.find(dt => dt.id === pickedTypeId) ?? null;
   const selectedTypeId = selectedDocType?.id ?? '';
 
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
@@ -223,7 +224,8 @@ export function TemplatesPage() {
 
   // Режим страницы в условие НЕ входит: библиотеки Typst выбора шаблона не меняют и `openedId` не ставят, а
   // сброс отметки на их вкладке слал бы её заново при каждом возврате на «Шаблоны» — без нового открытия.
-  useRecentTouch('ШаблонДокумента', selectedTemplate && selectedTemplate.id === openedId ? openedId : null);
+  const idType = selectedDocType?.module === 'id' || selectedDocType?.module === 'core';
+  useRecentTouch('ШаблонДокумента', idType && selectedTemplate?.id === openedId ? openedId : null);
 
   function handleTypeChange(id: string) {
     setPickedTypeId(id);
@@ -286,7 +288,7 @@ export function TemplatesPage() {
       <PageHeader bar className="bg-surface" title="Шаблоны" actions={<>
         {/* Выбор типа документа — только в режиме шаблонов */}
         {mode === 'templates' && (
-          <DocTypeSelector docTypes={docTypes} selected={selectedTypeId} onSelect={handleTypeChange} />
+          <DocTypeSelector docTypes={templateTypes} selected={selectedTypeId} onSelect={handleTypeChange} />
         )}
         {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
             другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только

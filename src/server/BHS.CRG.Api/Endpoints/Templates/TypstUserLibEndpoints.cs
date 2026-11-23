@@ -10,7 +10,7 @@ public static class TypstUserLibEndpoints
 {
     public static void MapTypstUserLibEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/typst-userlib").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
+        var g = app.MapGroup("/api/typst-userlib").RequireAuthorization(TemplateAccess.Policy(app, edit: true));
 
         g.MapGet("/", async (IUserLibProvider provider, CancellationToken ct) =>
         {

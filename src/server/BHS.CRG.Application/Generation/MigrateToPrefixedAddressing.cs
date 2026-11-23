@@ -44,7 +44,9 @@ public record PrefixedAddressingReport(
 
 /// <summary>Переход на адресацию <c>Код.Имя</c> (issue #773). <paramref name="DryRun"/> — посчитать
 /// и показать, ничего не записывая.</summary>
-public record MigrateToPrefixedAddressingCommand(bool DryRun) : IRequest<PrefixedAddressingReport>;
+public record MigrateToPrefixedAddressingCommand(bool DryRun, bool AllowModuleTemplates = true) : IRequest<PrefixedAddressingReport>;
+
+public sealed class ModuleTemplateMigrationForbidden : Exception;
 
 /// <summary>
 /// Одноразовый перевод системы на префиксную адресацию блоков (issue #773).
@@ -135,6 +137,9 @@ public class MigrateToPrefixedAddressingHandler(
         {
             var r = TypstCallRewriter.Rewrite(tpl.Content, map);
             if (r.Calls + r.Paths == 0) continue;
+            if (!cmd.AllowModuleTemplates && !types.Any(t => t.Id == tpl.DocumentTypeId
+                && (t.Module == "id" || TypeOwner.IsCore(t.Module))))
+                throw new ModuleTemplateMigrationForbidden();
             if (!tpl.IsActive)
             {
                 skipped.Add($"«{tpl.Name}» версия {tpl.Version} — историческая, вызовов: {r.Calls}");

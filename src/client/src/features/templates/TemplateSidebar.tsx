@@ -138,13 +138,12 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
 export function DocTypeSelector({ docTypes, selected, onSelect }: {
   docTypes: DocumentType[]; selected: string; onSelect: (id: string) => void;
 }) {
-  const nonAbstractDocs = docTypes
-    .filter(dt => dt.kind === 'Document' && !dt.isAbstract)
+  const types = docTypes
     .map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Типы документов' }));
   return (
     <TypePickerField className="w-56" recentKey="doc-type" title="Тип документа"
       placeholder="Выберите тип документа" aria-label="Тип документа"
-      types={nonAbstractDocs} value={selected || undefined} onChange={id => id && onSelect(id)} />
+      types={types} value={selected || undefined} onChange={id => id && onSelect(id)} />
   );
 }
 

@@ -211,7 +211,7 @@ const GENERAL = 'Общее';
 
 export const settingsNav: NavItem[] = [
   { to: '/document-types',       label: 'Типы документов',       icon: MenuBook, permission: 'core.types.edit', rail: 'system', group: DOCS },
-  { to: '/templates',            label: 'Шаблоны',               icon: Description, permission: 'id.config.edit', rail: 'system', group: DOCS },
+  { to: '/templates',            label: 'Шаблоны',               icon: Description, permission: ['id.config.edit', 'core.print.edit'], rail: 'system', group: DOCS },
   { to: '/composite-types',      label: 'Составные типы',        icon: Layers,   permission: 'core.types.edit', rail: 'system', group: DOCS },
   { to: '/field-types',          label: 'Типы полей',            icon: Label,      permission: 'core.types.edit', rail: 'system', group: DOCS },
   // «Сопоставление полей» (issue #1101) — рядом с типами и тем же правом: экран пишет схему типа
