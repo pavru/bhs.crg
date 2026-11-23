@@ -37,6 +37,7 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
   '/src/features/planning/estimates/EstimatesPage.tsx': { filters: true },
   '/src/features/planning/estimates/ImportDialog.tsx': { filters: true },
+  '/src/features/planning/pricelist/PriceListOfferDialog.tsx': { filters: true },
   '/src/features/planning/offers/OffersPage.tsx': { filters: true },
   '/src/features/planning/offers/OfferCard.tsx': {
     filters: false, because: 'открытая карточка КП: справочник называет стройку, избранное отбирает только реестр',
