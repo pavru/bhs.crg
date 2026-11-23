@@ -9,7 +9,7 @@ export const personas: Record<Persona, string> = {
   reader: 'Только чтение КП',
   editor: 'Правка КП без отправки',
   estimate: 'Сметчик без доступа к КП',
-  'price-editor': 'Чтение КП и правка прайс-листа',
+  'price-editor': 'Правка прайс-листа без справочника',
 };
 
 export const scenes: Record<Scene, string> = {

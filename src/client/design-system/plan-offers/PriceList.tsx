@@ -52,7 +52,8 @@ function PriceEdit({ work, entry, scene, onClose, onSave }: {
 }
 
 export function PriceList({ variant, persona, scene, onCreate }: { variant: Variant; persona: Persona; scene: Scene; onCreate?: () => void }) {
-  const [rows, setRows] = useState(prices);
+  const canBrowseCatalog = persona === 'manager' || persona === 'cost' || persona === 'editor';
+  const [rows, setRows] = useState(() => canBrowseCatalog ? prices : prices.filter(row => row.history.length > 0));
   const [selected, setSelected] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ work: Price; entry?: Price['effective'] } | null>(null);
   const [date, setDate] = useState('2026-11-23');
@@ -81,6 +82,7 @@ export function PriceList({ variant, persona, scene, onCreate }: { variant: Vari
   return <section className="grid min-w-0 grid-cols-1 gap-4">
     <PageHeader title="Прайс-лист" actions={onCreate && <Button variant="filled" onClick={onCreate}>КП по прайс-листу…</Button>} />
     <div className="max-w-56"><DateField label="Цены на дату" value={date} onChange={setDate} /></div>
+    {canEdit && !canBrowseCatalog && <Banner tone="info">Чтобы добавить новый вид работы, нужно право «Читать справочники» (<code>core.catalog.read</code>).</Banner>}
     <DataGrid rows={rows} columns={columns} rowKey={row => row.id} onRowOpen={row => setSelected(row.id)} rowOpen={row => row.id === selected} pinned={1} />
     {variant === 'split' ? <SideSheet open={Boolean(work) && !edit} variant="modal" title="История цен" onClose={() => setSelected(null)}>{history}</SideSheet>
       : variant === 'sections' && work && !edit ? <Modal open wide nothingToLose title="История цен" onOpenChange={open => { if (!open) setSelected(null); }}>{history}</Modal> : history}
