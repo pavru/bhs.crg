@@ -1,12 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Tests.Generation;
 using BHS.CRG.Tests.Integration;
+using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 
 namespace BHS.CRG.Tests.Work;
@@ -23,6 +25,72 @@ public class PhotoUploadTests(AssignmentHost host) : IAsyncLifetime
     public Task InitializeAsync() => world.SeedAsync();
 
     public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task При_повторном_открытии_имена_файлов_остаются_у_своих_идентификаторов()
+    {
+        var (_, installer) = await world.Reports.InstallerAsync("Монтажник");
+        var (report, line, arrived, waiting, legacy) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var created = await installer.PostAsJsonAsync(ReportEndpoints.Path, new
+        {
+            id = report, constructionId = world.Reports.SiteA, date = ReportWorld.Day16, shift = "day", hours = 8,
+            lines = new[] { new
+            {
+                id = line, workTypeId = world.Reports.WorkType, unitId = world.Reports.Unit, volume = 1m,
+                photos = new object[]
+                {
+                    new { id = arrived, originalName = "крепёж.jpg" },
+                    new { id = waiting, originalName = @"C:\фото\трасса.jpg" },
+                    new { id = legacy },
+                },
+            } },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var declared = await ReportWorld.JsonAsync(created);
+        Assert.Equal(HttpStatusCode.OK,
+            (await PhotoWorld.UploadAsync(installer, report, line, arrived, PhotoWorld.Shot())).StatusCode);
+        var read = await installer.GetFromJsonAsync<JsonElement>($"{ReportEndpoints.Path}/{report}");
+        Assert.Equal(ReviewWorld.Version(declared), ReviewWorld.Version(read));
+        var photos = read.GetProperty("lines")[0].GetProperty("photos").EnumerateArray()
+            .ToDictionary(photo => photo.GetProperty("id").GetGuid());
+        Assert.Equal("stored", photos[arrived].GetProperty("state").GetString());
+        Assert.Equal("крепёж.jpg", photos[arrived].GetProperty("originalName").GetString());
+        Assert.Equal("pending", photos[waiting].GetProperty("state").GetString());
+        Assert.Equal("трасса.jpg", photos[waiting].GetProperty("originalName").GetString());
+        Assert.False(photos[legacy].TryGetProperty("originalName", out _));
+    }
+
+    [Fact]
+    public async Task Пределы_ввода_читаются_из_текущих_настроек_Work()
+    {
+        var (_, installer) = await world.Reports.InstallerAsync("Монтажник");
+        var (_, manager) = await world.Reports.ManagerAsync("Менеджер", world.Reports.SiteA);
+        var (_, reader) = await world.Reports.Assignments.UserAsync("Руководитель", WorkModule.ReportRead);
+        using var scope = host.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IAppSettingsStore>();
+        var defaults = await installer.GetFromJsonAsync<JsonElement>(PhotoEndpoints.LimitsPath);
+        Assert.Equal(10, defaults.GetProperty("count").GetInt32());
+        Assert.Equal(15, defaults.GetProperty("megabytes").GetDecimal());
+        try
+        {
+            await settings.SetAsync(WorkSettings.PhotosPerLine.Key, "3");
+            await settings.SetAsync(WorkSettings.PhotoMaxMegabytes.Key, "2");
+            foreach (var client in new[] { installer, manager })
+            {
+                var limits = await client.GetFromJsonAsync<JsonElement>(PhotoEndpoints.LimitsPath);
+                Assert.Equal(3, limits.GetProperty("count").GetInt32());
+                Assert.Equal(2, limits.GetProperty("megabytes").GetDecimal());
+                Assert.Equal(2 * 1024 * 1024, limits.GetProperty("maxBytes").GetInt64());
+                Assert.Contains("3 фото", limits.GetProperty("countText").GetString());
+            }
+            Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync(PhotoEndpoints.LimitsPath)).StatusCode);
+        }
+        finally
+        {
+            await settings.SetAsync(WorkSettings.PhotosPerLine.Key, null);
+            await settings.SetAsync(WorkSettings.PhotoMaxMegabytes.Key, null);
+        }
+    }
 
     /// <summary>Ответ на загрузку потерялся, клиент повторил тот же <c>PUT</c> — одно фото, тот же ответ (MOB-15).</summary>
     [Fact]

@@ -35,21 +35,28 @@ export function contentsProblem({ hours, lines }: ReportContents) {
   }
 }
 
-export function reportInput(header: ReportHeader, draft: ReportContents, note: string | null): ReportInput {
+export function reportInput(header: ReportHeader, draft: ReportContents, note: string | null, saved?: ReportContents): ReportInput {
+  const previous = new Map(saved?.lines.map(line => [line.id, new Set(line.photos.map(photo => photo.id))]));
   return {
     ...header, note, hours: readNumber(draft.hours),
-    lines: draft.lines.map(line => ({
-      ...lineFields(line), volume: readNumber(line.volume) ?? 0,
-      location: line.location?.trim() || null, comment: line.comment?.trim() || null,
-      materials: line.materials.map(material => ({ ...material, note: material.note?.trim() || null })),
-    })),
+    lines: draft.lines.map(line => {
+      const old = previous.get(line.id);
+      return {
+        ...lineFields(line), volume: readNumber(line.volume) ?? 0,
+        location: line.location?.trim() || null, comment: line.comment?.trim() || null,
+        materials: line.materials.map(material => ({ ...material, note: material.note?.trim() || null })),
+        // Состав меняется при новой заявке и при снятии фото после повтора создания.
+        ...((old?.size ?? 0) !== line.photos.length || line.photos.some(photo => !old?.has(photo.id))
+          ? { photos: line.photos.map(({ id, originalName }) => originalName ? { id, originalName } : { id }) } : {}),
+      };
+    }),
   };
 }
 
 export const sameContent = (first: unknown, second: unknown) => JSON.stringify(first) === JSON.stringify(second);
 
 // При перечитывании локальные правки накладываются на свежие строки по устойчивому id.
-export function rebaseContents(base: ReportContents, local: ReportContents, fresh: ReportContents) {
+export function rebaseContents(base: ReportContents, local: ReportContents, fresh: ReportContents, photosLocked = false) {
   const before = new Map(base.lines.map(line => [line.id, line]));
   const edits = new Map(local.lines.map(line => [line.id, line]));
   const seen = new Set(fresh.lines.map(line => line.id));
@@ -66,7 +73,7 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
     }
     if (!previous || !edited) { lines.push(edited ?? line); continue; }
     const number = lines.length + 1;
-    const changed = Object.entries(edited).filter(([key, value]) => key !== 'materials' && key !== 'participants'
+    const changed = Object.entries(edited).filter(([key, value]) => key !== 'materials' && key !== 'participants' && key !== 'photos'
       && !sameContent(previous[key as keyof DraftLine], value));
     const merged = { ...line, ...Object.fromEntries(changed) };
     merged.materials = rebaseList(previous.materials, edited.materials, line.materials, item => item.nomenclatureId, item => {
@@ -75,6 +82,10 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
       conflicts.push(`Строка ${number}: материал изменили одновременно. Сохранено состояние сервера. ${action}`);
     });
     merged.participants = rebaseList(previous.participants, edited.participants, line.participants, id => id);
+    const photos = rebasePhotos(previous.photos, edited.photos, line.photos);
+    if (photosLocked && !sameContent(photos, line.photos)) {
+      conflicts.push(`Строка ${number}: состав фото сохранён из отчёта, поскольку отчёт закрыт для правки.`);
+    } else merged.photos = photos;
     if (!merged.isCrew && merged.participants.length > 0) {
       merged.isCrew = true;
       conflicts.push(`Строка ${number}: признак бригады сохранён, поскольку в строке есть участники из другой правки.`);
@@ -86,6 +97,16 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
     if (!seen.has(line.id) && !sameContent(before.get(line.id), line)) lines.push(line);
   }
   return { contents: { hours: base.hours === local.hours ? fresh.hours : local.hours, lines }, restored, conflicts };
+}
+
+function rebasePhotos(base: DraftLine['photos'], local: DraftLine['photos'], fresh: DraftLine['photos']) {
+  const before = new Set(base.map(photo => photo.id));
+  const edited = new Set(local.map(photo => photo.id));
+  const current = new Set(fresh.map(photo => photo.id));
+  return [
+    ...fresh.filter(photo => !before.has(photo.id) || edited.has(photo.id)),
+    ...local.filter(photo => !before.has(photo.id) && !current.has(photo.id)),
+  ];
 }
 
 function rebaseList<T>(base: T[], local: T[], fresh: T[], key: (item: T) => string, onConflict?: (local?: T) => void) {

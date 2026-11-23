@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
+import { removeWorkPhoto } from '@/shared/api/workPhotos';
 import {
   createWorkReport, entrySitesQuery, ownReportsKey, reportQuery, submitWorkReport, updateWorkReport,
   type EntrySite, type ReportHeader, type ReportInput, type ReportMode, type RequiredReportField, type WorkReport,
@@ -23,6 +24,7 @@ import { EntryEmployeePicker } from './EntryEmployeePicker';
 import { ReportLines } from './ReportLines';
 import { contentsOf, contentsProblem, rebaseContents, reportInput, sameContent, type ReportContents } from './reportContents';
 import { assignmentReason, automaticSubmission, reportFailure, reportShifts, reportStatuses, requiredFieldTitle } from './reportPresentation';
+import { usePhotoUploads, type PhotoUploads } from './usePhotoUploads';
 
 const root = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review/entry';
 const backTo = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review';
@@ -41,10 +43,18 @@ type Employee = { id: string; name: string };
 
 export function ReportForm({ mode }: { mode: ReportMode }) {
   const { reportId = 'new' } = useParams();
-  return reportId === 'new' ? <NewReport key={mode} mode={mode} /> : <ExistingReport key={`${mode}/${reportId}`} mode={mode} id={reportId} />;
+  const location = useLocation();
+  const visit = reportId === 'new' ? location.key : location.state?.reportEntryVisit ?? reportId;
+  return <ReportVisit key={`${mode}/${visit}`} id={reportId} mode={mode} />;
 }
 
-function NewReport({ mode }: { mode: ReportMode }) {
+function ReportVisit({ id, mode }: { id: string; mode: ReportMode }) {
+  const uploads = usePhotoUploads();
+  return id === 'new' ? <NewReport mode={mode} uploads={uploads} />
+    : <ExistingReport key={id} mode={mode} id={id} uploads={uploads} />;
+}
+
+function NewReport({ mode, uploads }: { mode: ReportMode; uploads: PhotoUploads }) {
   const [employee, setEmployee] = useState<Employee>();
   const [date, setDate] = useState('');
   const go = useGuardedNavigate();
@@ -55,13 +65,14 @@ function NewReport({ mode }: { mode: ReportMode }) {
   </div>;
   if (!sites.data) return <ReportLoading mode={mode} error={sites.error} retry={() => void sites.refetch()} />;
   return <Editor mode={mode} employee={employee} recommended={sites.data.items[0]} requestedDate={date || undefined}
-    onPickAnother={employee ? () => setEmployee(undefined) : undefined} />;
+    uploads={uploads} onPickAnother={employee ? () => setEmployee(undefined) : undefined} />;
 }
 
-function ExistingReport({ mode, id }: { mode: ReportMode; id: string }) {
+function ExistingReport({ mode, id, uploads }: { mode: ReportMode; id: string; uploads: PhotoUploads }) {
   const report = useQuery({ ...reportQuery(mode, id), retry: false, refetchOnMount: 'always' });
   if (!report.data) return <ReportLoading mode={mode} error={report.error} retry={() => void report.refetch()} />;
-  return <Editor mode={mode} initial={report.data} employee={{ id: report.data.employeeId, name: report.data.employeeName ?? 'Сотрудник' }} />;
+  return <Editor mode={mode} initial={report.data} uploads={uploads}
+    employee={{ id: report.data.employeeId, name: report.data.employeeName ?? 'Сотрудник' }} />;
 }
 
 function ReportLoading({ mode, error, retry }: { mode: ReportMode; error: unknown; retry: () => void }) {
@@ -74,13 +85,15 @@ function ReportLoading({ mode, error, retry }: { mode: ReportMode; error: unknow
   </div>;
 }
 
-function Editor({ mode, initial, employee, recommended, requestedDate, onPickAnother }: {
+function Editor({ mode, initial, employee, recommended, requestedDate, onPickAnother, uploads }: {
   mode: ReportMode; initial?: WorkReport; employee?: Employee; recommended?: EntrySite; requestedDate?: string;
   onPickAnother?: () => void;
+  uploads: PhotoUploads;
 }) {
   const { user } = useAuth();
   const cache = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const go = useGuardedNavigate();
   const guardedLeave = useGuardedLeave();
   const [saved, setSaved] = useState(initial);
@@ -95,7 +108,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
   const [restoredLines, setRestoredLines] = useState<number[]>([]);
   const [mergeConflicts, setMergeConflicts] = useState<string[]>([]);
   const [headerRestored, setHeaderRestored] = useState(false);
-  const [busy, setBusy] = useState<'save' | 'submit' | 'read'>();
+  const [busy, setBusy] = useState<'save' | 'submit' | 'read' | 'photo'>();
   const protocol = useRef<{ key: string; id: string } | null>(null);
   const creation = useRef<{ input: ReportInput; header: ReportHeader; contents: ReportContents } | null>(null);
   const [newId] = useState(newUuid);
@@ -116,6 +129,12 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
   const reason = assignmentReason(sites.data?.boundary.reason, mode === 'entry');
   const selectable = saved && !choices.some(site => site.id === saved.constructionId)
     ? [...choices, { id: saved.constructionId, name: saved.constructionName ?? 'Стройка недоступна' }] : choices;
+  const { deliver, transfers, forget } = uploads;
+  const pendingFiles = contents.lines.some(line => line.photos.some(photo => {
+    const transfer = transfers[photo.id];
+    return photo.state !== 'stored' && transfer && 'file' in transfer && !!transfer.file;
+  }));
+  useEffect(() => { if (saved) deliver(saved, contents.lines); }, [deliver, saved, contents.lines]);
 
   // Пока человек правит отчёт, черновик и If-Match остаются привязаны к одной серверной версии.
   if (initial && initial !== observed && !dirty && !busy && !failure?.stale) {
@@ -150,18 +169,22 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     return protocol.current.id;
   }
 
+  function openSaved(id: string) {
+    navigate(`${root(mode)}/${id}`, { replace: true, state: { reportEntryVisit: location.key } });
+  }
+
   async function save(redirect: boolean): Promise<boolean> {
     if (formProblem || locked || busy || failure?.stale) return false;
     setBusy('save');
     try {
-      const input = reportInput(header, contents, saved?.note ?? null);
+      const input = reportInput(header, contents, saved?.note ?? null, savedContents);
       // После неоднозначного сбоя повторяем исходное создание. Новые правки накладываем на его ответ.
       const first = saved ? null : creation.current ??= { input, header, contents };
       const row = saved
         ? await updateWorkReport(mode, saved, input, changeId(JSON.stringify([saved.version, input])))
         : await createWorkReport(mode, newId, mode === 'entry' ? employee?.id ?? null : null, first?.input ?? input);
       const fresh = contentsOf(row);
-      const replay = first ? rebaseContents(first.contents, contents, fresh) : undefined;
+      const replay = first ? rebaseContents(first.contents, contents, fresh, reportLocked(row)) : undefined;
       const nextContents = replay?.contents ?? fresh;
       const serverHeader = headerOf(row);
       const mergedHeader = first ? rebaseHeader(first.header, header, serverHeader) : serverHeader;
@@ -173,7 +196,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       if (replay?.restored.length) setRestoredLines(replay.restored);
       if (replay?.conflicts.length) setMergeConflicts(replay.conflicts);
       if (needsSave || resetHeader || replay?.restored.length || replay?.conflicts.length) return false;
-      if (!initial && redirect) navigate(`${root(mode)}/${row.id}`, { replace: true });
+      if (!initial && redirect) openSaved(row.id);
       return true;
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
@@ -189,7 +212,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     try {
       const row = await submitWorkReport(mode, saved, changeId(`submit/${saved.version}`));
       await accept(row);
-      if (!initial) navigate(`${root(mode)}/${row.id}`, { replace: true });
+      if (!initial) openSaved(row.id);
     } catch (error) {
       const refusal = reportFailure(error, 'Не удалось подать отчёт.');
       setFailure(refusal);
@@ -198,34 +221,54 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     finally { setBusy(undefined); }
   }
 
+  async function adoptFresh(row: WorkReport) {
+    const next = headerOf(row);
+    const mergedHeader = rebaseHeader(baseline, header, next);
+    const keyLocked = reportKeyLocked(row);
+    const rebased = rebaseContents(savedContents, contents, contentsOf(row), reportLocked(row));
+    await accept(row, keyLocked ? next : mergedHeader, rebased.contents);
+    setHeaderRestored(keyLocked && (!!incomplete || !sameContent(mergedHeader, next)));
+    if (keyLocked) setIncomplete(null);
+    setRestoredLines(rebased.restored);
+    setMergeConflicts(rebased.conflicts);
+  }
+
+  async function removePhoto(lineId: string, photoId: string) {
+    if (locked || busy || failure?.stale) return;
+    const line = saved?.lines.find(line => line.id === lineId);
+    if (!saved || !line?.photos.some(photo => photo.id === photoId)) {
+      forget(photoId);
+      setContents(current => ({ ...current, lines: current.lines.map(item => item.id === lineId
+        ? { ...item, photos: item.photos.filter(photo => photo.id !== photoId) } : item) }));
+      return;
+    }
+    setBusy('photo');
+    try {
+      const row = await removeWorkPhoto(saved, lineId, photoId, changeId(`photo/${saved.version}/${photoId}`));
+      forget(photoId);
+      await adoptFresh(row);
+    } catch (error) {
+      setFailure(reportFailure(error, 'Не удалось удалить фото.'));
+    } finally { setBusy(undefined); }
+  }
+
   async function reread() {
     if (!saved || busy) return;
     setBusy('read');
     try {
       const row = await cache.fetchQuery({ ...reportQuery(mode, saved.id), staleTime: 0, retry: false });
-      const next = headerOf(row);
-      setSaved(row);
-      setBaseline(next);
-      const mergedHeader = rebaseHeader(baseline, header, next);
-      const keyLocked = reportKeyLocked(row);
-      setHeader(keyLocked ? next : mergedHeader);
-      setHeaderRestored(keyLocked && (!!incomplete || !sameContent(mergedHeader, next)));
-      if (keyLocked) setIncomplete(null);
-      const rebased = rebaseContents(savedContents, contents, contentsOf(row));
-      setContents(rebased.contents);
-      setRestoredLines(rebased.restored);
-      setMergeConflicts(rebased.conflicts);
-      setFailure(undefined);
-      setErrorFocus(undefined);
-      protocol.current = null;
+      await adoptFresh(row);
     } catch (error) { setFailure({ text: reportFailure(error, 'Не удалось перечитать отчёт.').text, stale: true }); }
     finally { setBusy(undefined); }
   }
 
   return <div className="h-full min-w-0 space-y-4 overflow-auto px-4 py-4 md:px-6">
-    <LeaveGuard active={dirty || !!busy} save={locked ? undefined : () => save(false)} saving={!!busy}
+    <LeaveGuard active={dirty || !!busy || pendingFiles} save={!locked && dirty ? () => save(false) : undefined} saving={!!busy}
       saveBlocked={formProblem ?? (failure?.stale ? 'Сначала перечитайте отчёт.' : undefined)}
-      message="Сохранить изменения отчёта перед уходом?" />
+      message={pendingFiles && dirty
+        ? 'Сохранение запишет правки и список фото. Недоставленные файлы можно будет выбрать заново. При уходе без сохранения правки и новые объявления фото будут потеряны.'
+        : pendingFiles ? 'Часть файлов ещё не доставлена. Если уйти, их придётся выбрать заново.'
+        : 'Сохранить изменения отчёта перед уходом?'} />
     <PageHeader title={saved ? `${formatDatePrecise(saved.date)} · ${reportShifts[saved.shift]}` : 'Новый отчёт'}
       subtitle={mode === 'entry' ? `Вводит ${saved?.enteredBy?.name ?? user?.displayName ?? 'менеджер'} за сотрудника: ${saved?.employeeName ?? employee?.name ?? ''}`
         : saved?.constructionName}
@@ -280,7 +323,8 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     <ReportLines lines={contents.lines} scope={{ siteId: header.constructionId, date: header.date, mode,
       reportId: saved?.constructionId === header.constructionId ? saved?.id : undefined, reportVersion: saved?.version }}
       siteReady={knownSite && !!header.date && !incomplete} disabled={locked || !!busy}
-      savedLines={saved?.lines}
+      savedLines={saved?.lines} photos={{ uploads, locked, closed: !!saved?.periodClosed,
+        busy: !!busy || !!failure?.stale, remove: (lineId, photoId) => void removePhoto(lineId, photoId) }}
       errors={failure?.requiredMissing ?? saved?.requiredMissing ?? undefined} focus={errorFocus}
       onChange={change => setContents(old => ({ ...old, lines: change(old.lines) }))} />
     {!locked && <>

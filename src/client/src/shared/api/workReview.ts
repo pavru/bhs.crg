@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { ReviewAction, ReviewQueuePage, WorkLinePhoto, WorkMark } from './work';
+import { useWorkPhotoFile } from './workPhotos';
 
 export interface ReviewQueueFilters {
   constructionId?: string;
@@ -172,10 +173,5 @@ export function useReviewJournal(id: string) {
 
 export function useReviewPhoto(photo: ReviewReportLine['photos'][number], report: string, number: number, preview: boolean) {
   const params = photo.versionUrl ? { reportId: report, number } : undefined;
-  return useQuery({
-    queryKey: ['work', 'review-photo', photo.id, params, preview],
-    queryFn: ({ signal }) => apiClient.get<Blob>(`/work/photos/${photo.id}${preview ? '/preview' : ''}`,
-      { params, responseType: 'blob', signal }).then(response => response.data),
-    staleTime: 60_000,
-  });
+  return useWorkPhotoFile(photo.id, preview, params);
 }

@@ -200,6 +200,10 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         await CloseAsync(closer);
         host.ReportTime = closeTime.AddMinutes(minutes);
 
+        var waiting = await installer.GetFromJsonAsync<JsonElement>(url);
+        Assert.True(waiting.GetProperty("periodClosed").GetBoolean());
+        Assert.True(Photo(waiting).GetProperty("canDeliver").GetBoolean());
+
         var shot = PhotoWorld.Shot();
         Assert.Equal(HttpStatusCode.NotFound,
             (await PhotoWorld.UploadAsync(stranger, id, line, beforeClose, shot)).StatusCode);
@@ -223,10 +227,14 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         var atClosing = await installer.GetFromJsonAsync<JsonElement>(url + "?view=at-closing");
         Assert.Equal("at-closing", atClosing.GetProperty("view").GetString());
         Assert.Equal("pending", State(atClosing));
+        Assert.False(Photo(atClosing).TryGetProperty("canDeliver", out _));
         Assert.Equal(1, atClosing.GetProperty("photosPending").GetInt32());
 
         var corrected = await ReportCorrectionTests.PostAsync(manager, id, seen, Content(afterClose));
         Assert.Equal(HttpStatusCode.OK, corrected.StatusCode);
+        var afterCorrection = await installer.GetFromJsonAsync<JsonElement>(url);
+        Assert.Equal(afterClose, Photo(afterCorrection).GetProperty("id").GetGuid());
+        Assert.False(Photo(afterCorrection).GetProperty("canDeliver").GetBoolean());
         Assert.Equal(HttpStatusCode.Conflict,
             (await PhotoWorld.UploadAsync(installer, id, line, afterClose, shot)).StatusCode);
         Assert.Equal(HttpStatusCode.Gone,
@@ -243,8 +251,10 @@ public class ReportClosedPeriodTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal("stored", State(await installer.GetFromJsonAsync<JsonElement>(url)));
         Assert.Equal("pending", State(await installer.GetFromJsonAsync<JsonElement>(url + "?view=at-closing")));
 
-        static string? State(JsonElement report) =>
-            Assert.Single(report.GetProperty("lines")[0].GetProperty("photos").EnumerateArray()).GetProperty("state").GetString();
+        static string? State(JsonElement report) => Photo(report).GetProperty("state").GetString();
+
+        static JsonElement Photo(JsonElement report) =>
+            Assert.Single(report.GetProperty("lines")[0].GetProperty("photos").EnumerateArray());
     }
 
     private static bool HasMark(JsonElement mark) =>

@@ -4,12 +4,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
-import { reportQuery, type EntrySites, type ReportMode, type WorkReport } from '@/shared/api/workReports';
+import { reportQuery, type EntrySites, type ReportInput, type ReportMode, type WorkReport } from '@/shared/api/workReports';
 import { formatLocale, setFormatLocale } from '@/shared/format/format';
+import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { SnackbarCtx } from '@/shared/ui/Snackbar';
 import { ReportForm } from './ReportForm';
 
-vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
+vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: { displayName: 'Иванов' } }) }));
 
 const sites: EntrySites = {
@@ -47,6 +48,9 @@ beforeEach(() => {
   current = report;
   materialReason = null;
   vi.mocked(apiClient.get).mockImplementation(async path => {
+    if (path === '/work/photos/limits') return { data: { count: 5, megabytes: 15, maxBytes: 15 * 1024 * 1024,
+      countText: 'Не больше 5 фото на строку.', sizeText: 'Фото больше 15 МБ.' } };
+    if (path.endsWith('/preview')) return new Promise(() => {});
     if (path.endsWith('/catalog/work-types')) return { data: { items: types } };
     if (path.endsWith('/catalog/units')) return { data: { items: units } };
     if (path.endsWith('/catalog/sections')) return { data: { items: [{ id: 's1', name: 'Корпус А' }] } };
@@ -62,12 +66,159 @@ function mount(id: string, mode: ReportMode = 'own', client = new QueryClient())
   const path = mode === 'own' ? '/my-reports' : '/work-review/entry';
   render(<SnackbarCtx.Provider value={toast}><QueryClientProvider client={client}>
     <MemoryRouter initialEntries={[`${path}/${id}`]}>
-      <Routes><Route path={`${path}/:reportId`} element={<ReportForm mode={mode} />} /></Routes>
+      <NavigationGuardProvider><Routes>
+        <Route path={path} element={<h2>Список отчётов</h2>} />
+        <Route path={`${path}/:reportId`} element={<ReportForm mode={mode} />} />
+      </Routes></NavigationGuardProvider>
     </MemoryRouter>
   </QueryClientProvider></SnackbarCtx.Provider>);
 }
 
 const button = (name: string) => screen.getByRole('button', { name });
+
+async function pickPhotoForNewReport(file: File) {
+  mount('new');
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить строку' }));
+  fireEvent.click(button('Вид работы, строка 1'));
+  fireEvent.click(await screen.findByRole('option', { name: 'Монтаж коробки' }));
+  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
+  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
+}
+
+function currentFromCreate(input: unknown) {
+  const form = input as ReportInput & { id: string };
+  const lines = form.lines.map(line => ({ ...line,
+    photos: (line.photos ?? []).map(photo => ({ ...photo, state: 'pending' as const, canDeliver: true })),
+  }));
+  current = { ...report, ...form, employeeId: report.employeeId, lines };
+  return current;
+}
+
+it('объявляет фото до отправки, показывает 413 у выбранного файла и повторяет с тем же id', async () => {
+  const file = new File(['фото'], 'смена.jpg', { type: 'image/jpeg' });
+  vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => {
+    const selected = (input as { lines: { photos: { id: string }[] }[] }).lines[0].photos;
+    expect(selected).toEqual([{ id: 'p1' }, { id: expect.stringMatching(/^[0-9a-f-]{36}$/), originalName: file.name }]);
+    return { data: { ...report, version: '2', lines: [{ ...report.lines[0], photos: selected.map(photo => ({
+      ...photo, state: 'pending', canDeliver: true,
+    })) }] } };
+  }).mockRejectedValueOnce(refusal(413, { error: 'Фото больше 2 МБ — предел задан в настройках модуля.' }))
+    .mockResolvedValueOnce({ data: { state: 'stored' } });
+  mount('r1');
+  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
+  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
+  expect(screen.getByText('Загрузится после сохранения')).toBeTruthy();
+  expect(apiClient.put).not.toHaveBeenCalled();
+  fireEvent.click(button('Сохранить'));
+  await screen.findByText('Фото больше 2 МБ — предел задан в настройках модуля.');
+  expect(within(screen.getByText(file.name).closest('li')!).getByRole('alert')).toBeTruthy();
+  const first = vi.mocked(apiClient.put).mock.calls[1];
+  expect(first[0]).toMatch(/^\/work\/reports\/r1\/lines\/l1\/photos\/[0-9a-f-]{36}$/);
+  expect(first[1]).toBe(file);
+  expect(first[2]?.headers).toEqual({ 'Content-Type': 'application/octet-stream' });
+  fireEvent.click(button('Повторить'));
+  await screen.findByRole('button', { name: 'Открыть фото: смена.jpg' });
+  expect(vi.mocked(apiClient.put).mock.calls[2].slice(0, 2)).toEqual(first.slice(0, 2));
+});
+
+it('начинает загрузку фото нового черновика после перехода на созданный отчёт', async () => {
+  const file = new File(['фото'], 'новый.jpg', { type: 'image/jpeg' });
+  vi.mocked(apiClient.post).mockImplementationOnce(async (_, input) => ({ data: currentFromCreate(input) }));
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { state: 'stored' } });
+  await pickPhotoForNewReport(file);
+  fireEvent.click(button('Создать черновик'));
+  await screen.findByRole('button', { name: 'Открыть фото: новый.jpg' });
+  const line = current.lines[0];
+  expect(apiClient.put).toHaveBeenCalledExactlyOnceWith(`/work/reports/${current.id}/lines/${line.id}/photos/${line.photos[0].id}`,
+    file, expect.objectContaining({ headers: { 'Content-Type': 'application/octet-stream' } }));
+  expect(screen.queryByRole('heading', { name: 'Новый отчёт' })).toBeNull();
+});
+
+it('после потерянного ответа не восстанавливает снятое фото и записывает пустой состав с версией', async () => {
+  const file = new File(['фото'], 'снятое.jpg', { type: 'image/jpeg' });
+  vi.mocked(apiClient.post).mockImplementationOnce(async (_, input) => {
+    currentFromCreate(input);
+    throw new Error('Ответ потерян');
+  }).mockImplementationOnce(async () => ({ data: current }));
+  await pickPhotoForNewReport(file);
+  fireEvent.click(button('Создать черновик'));
+  await screen.findByText('Ответ потерян');
+  const first = vi.mocked(apiClient.post).mock.lastCall?.[1];
+  fireEvent.click(button(`Удалить фото: ${file.name}`));
+  fireEvent.click(button('Создать черновик'));
+  await screen.findByText('Черновик уже создан. Новые значения ещё не сохранены.');
+  expect(apiClient.post).toHaveBeenLastCalledWith('/work/reports', first);
+  expect(screen.getByText('Фото пока нет')).toBeTruthy();
+  vi.mocked(apiClient.put).mockImplementationOnce(async () => ({ data: {
+    ...current, version: '2', lines: [{ ...current.lines[0], photos: [] }],
+  } }));
+  fireEvent.click(button('Сохранить'));
+  await waitFor(() => expect(apiClient.put).toHaveBeenCalledExactlyOnceWith(`/work/reports/${current.id}`,
+    expect.objectContaining({ lines: [expect.objectContaining({ photos: [] })] }), { headers: { 'If-Match': '1' } }));
+});
+
+it('при уходе сохраняет часы и объявление фото, пока доставка ещё не завершилась', async () => {
+  const file = new File(['фото'], 'крепёж.jpg', { type: 'image/jpeg' });
+  vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => ({ data: {
+    ...report, version: '2', hours: 7, lines: [{ ...report.lines[0], photos:
+      ((input as ReportInput).lines[0].photos ?? []).map(photo => ({ ...photo, state: 'pending', canDeliver: true })),
+    }],
+  } })).mockImplementation(() => new Promise(() => {}));
+  mount('r1');
+  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
+  fireEvent.change(screen.getByRole('textbox', { name: 'Часы за смену' }), { target: { value: '7' } });
+  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
+  fireEvent.click(button('К отчётам'));
+  expect(await screen.findByText(/При уходе без сохранения правки и новые объявления фото будут потеряны/)).toBeTruthy();
+  fireEvent.click(button('Сохранить и перейти'));
+  await screen.findByRole('heading', { name: 'Список отчётов' });
+  expect(apiClient.put).toHaveBeenNthCalledWith(1, '/work/reports/r1', expect.objectContaining({
+    hours: 7, lines: [expect.objectContaining({ photos: [{ id: 'p1' }, expect.objectContaining({ originalName: file.name })] })],
+  }), { headers: { 'If-Match': '1' } });
+});
+
+it('сверяет версию при удалении фото и сохраняет правку часов после отказа 409 и перечитывания', async () => {
+  vi.mocked(apiClient.delete).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
+  mount('r1');
+  const hours = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Часы за смену' });
+  fireEvent.change(hours, { target: { value: '7' } });
+  fireEvent.click(button('Удалить фото: Фото 1'));
+  await screen.findByText(/Отчёт тем временем изменили — перечитайте/);
+  expect(apiClient.delete).toHaveBeenLastCalledWith('/work/reports/r1/lines/l1/photos/p1', {
+    params: { changeId: expect.any(String) }, headers: { 'If-Match': '1' },
+  });
+  expect(button('Удалить фото: Фото 1')).toBeTruthy();
+  current = { ...report, version: '2' };
+  fireEvent.click(button('Перечитать'));
+  await waitFor(() => expect(screen.queryByText(/Отчёт тем временем изменили/)).toBeNull());
+  vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: { ...current, version: '3', lines: [{ ...current.lines[0], photos: [] }] } });
+  fireEvent.click(button('Удалить фото: Фото 1'));
+  await screen.findByText('Фото пока нет');
+  expect(hours.value).toBe('7');
+  expect(apiClient.delete).toHaveBeenLastCalledWith('/work/reports/r1/lines/l1/photos/p1', {
+    params: { changeId: expect.any(String) }, headers: { 'If-Match': '2' },
+  });
+});
+
+it('после закрытия разрешает выбрать файл только для фото, у которого сервер разрешил досылку', async () => {
+  current = { ...report, periodClosed: true, status: 'accepted', lines: [{ ...report.lines[0], photos: [
+    { id: 'before', state: 'pending', canDeliver: true, originalName: 'досылка.jpg' },
+    { id: 'after', state: 'pending', canDeliver: false, originalName: 'исправление.jpg' },
+  ] }] };
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { state: 'stored' } });
+  mount('r1');
+  await screen.findByText('Период закрыт.');
+  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
+  expect(screen.queryByRole('button', { name: 'Добавить фото' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Удалить фото/ })).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Дослать' })).toHaveLength(1);
+  fireEvent.click(within(screen.getByText('досылка.jpg').closest('li')!).getByRole('button', { name: 'Дослать' }));
+  const file = new File(['фото'], 'досылка.jpg', { type: 'image/jpeg' });
+  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
+  await screen.findByRole('button', { name: 'Открыть фото: досылка.jpg' });
+  expect(apiClient.put).toHaveBeenCalledExactlyOnceWith('/work/reports/r1/lines/l1/photos/before', file,
+    expect.objectContaining({ headers: { 'Content-Type': 'application/octet-stream' } }));
+});
 
 it('сохраняет неизменённый дробный объём при правке часов в en-US', async () => {
   const locale = formatLocale();

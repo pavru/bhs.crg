@@ -9,7 +9,7 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 public sealed record ReportMaterialRequest(Guid? NomenclatureId, string? Note);
 
 /// <summary>Фото строки в теле запроса: идентификатор от клиента (ТЗ MOB-15, <c>work-17</c>); файл догоняет отдельно.</summary>
-public sealed record ReportPhotoRequest(Guid? Id);
+public sealed record ReportPhotoRequest(Guid? Id, string? OriginalName = null);
 
 /// <summary>
 /// Строка работы в теле запроса. Поля, которых у строки нет, собираются в <see cref="Extra" />: иначе часы, положенные
@@ -77,14 +77,25 @@ public sealed record ReportRequest(
     /// Перечень фото строки: не прислан — <c>null</c>, фото не трогаются (правка без знания о фото их не теряет).
     /// Идентификатор обязателен и один на фото.
     /// </summary>
-    private static IReadOnlyList<Guid>? PhotosOf(string at, IReadOnlyList<ReportPhotoRequest>? photos)
+    private static IReadOnlyList<ReportPhotoValues>? PhotosOf(string at, IReadOnlyList<ReportPhotoRequest>? photos)
     {
         if (photos is null) return null;
-        var ids = photos.Select(p => p.Id is { } id && id != Guid.Empty
-            ? id
+        var named = photos.Select(p => p.Id is { } id && id != Guid.Empty
+            ? new ReportPhotoValues(id, PhotoName(at, p.OriginalName))
             : throw new InvalidRequestException(at + "у фото не назван идентификатор (photos[].id) — его создаёт клиент.")).ToList();
-        if (ids.GroupBy(id => id).FirstOrDefault(g => g.Count() > 1) is { } twice)
+        if (named.GroupBy(p => p.Id).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new InvalidRequestException(at + $"фото {twice.Key} названо дважды.");
-        return ids;
+        return named;
+    }
+
+    private static string? PhotoName(string at, string? name)
+    {
+        if (name is null) return null;
+        var path = name.Replace('\\', '/');
+        var fileName = ReportRules.Text(path[(path.LastIndexOf('/') + 1)..]);
+        if (fileName is null) return null;
+        if (fileName.Length > LinePhoto.OriginalNameLimit || fileName.Any(char.IsControl))
+            throw new InvalidRequestException(at + $"имя файла фото должно содержать до {LinePhoto.OriginalNameLimit} знаков без управляющих символов.");
+        return fileName;
     }
 }

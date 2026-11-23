@@ -122,7 +122,7 @@ public sealed class ReportWriter(
 
         if (lines.GroupBy(l => l.Id).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new InvalidRequestException($"Строка {twice.Key} названа в отчёте дважды: идентификатор строки — один на строку.");
-        if (lines.SelectMany(l => l.Photos ?? []).GroupBy(id => id).FirstOrDefault(g => g.Count() > 1) is { } repeatedPhoto)
+        if (lines.SelectMany(l => l.Photos ?? []).GroupBy(p => p.Id).FirstOrDefault(g => g.Count() > 1) is { } repeatedPhoto)
             throw new InvalidRequestException($"Одно фото ({repeatedPhoto.Key}) может быть названо только в одной строке отчёта.");
         if (lines.Count == 0) return site;
         await EnsurePhotoCountAsync(lines, ct);
@@ -153,10 +153,10 @@ public sealed class ReportWriter(
                     "идентификатор новый.");
 
         // Идентификатор фото — ключ таблицы: фото другой строки (и того же отчёта тоже) не переносится, а заводится новым.
-        var named = lines.SelectMany(l => (l.Photos ?? []).Select(p => (Photo: p, Line: l.Id))).ToList();
+        var named = lines.SelectMany(l => (l.Photos ?? []).Select(p => (Photo: p.Id, Line: l.Id))).ToList();
         var busy = (await reads.PhotosOfOtherLinesAsync(named, ct)).ToHashSet();
         for (var i = 0; i < lines.Count; i++)
-            if ((lines[i].Photos ?? []).Any(busy.Contains))
+            if ((lines[i].Photos ?? []).Any(p => busy.Contains(p.Id)))
                 throw new ConflictException($"Строка {i + 1}: {LinePhotos.IdTaken}");
     }
 
@@ -195,7 +195,7 @@ public sealed class ReportWriter(
 
         // Фото, снятые строкой, оставляют след: их поздний файл не вернёт фото (LinePhotoRemoval). Снова названное — след
         // снимает: фото объявлено заново и ждёт файла.
-        var named = lines.SelectMany(l => l.Photos ?? []).ToHashSet();
+        var named = lines.SelectMany(l => l.Photos ?? []).Select(p => p.Id).ToHashSet();
         foreach (var removal in await reads.RemovalsAsync(named, ct)) db.Remove(removal);
         var dropped = new List<string>();
         foreach (var line in lines)
