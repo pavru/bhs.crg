@@ -23,18 +23,20 @@ internal sealed class TemplateAccess(
             : AppPolicies.Permission(CorePermissions.PrintEdit);
     }
 
-    public async Task<IReadOnlyList<DocumentType>> TypesAsync(HttpContext http, CancellationToken ct)
+    public async Task<IReadOnlyList<TemplateType>> TypesAsync(HttpContext http, CancellationToken ct)
     {
         var idEditing = modules.IsEnabled("id") && await HasAsync(http, IdEdit);
         var printing = await HasAsync(http, CorePermissions.PrintEdit);
         var offered = printing ? forms.All.Where(f => modules.IsEnabled(f.Module.Code))
-            .ToDictionary(f => f.Form.TypeCode, f => f.Module.Code) : [];
+            .ToDictionary(f => f.Form.TypeCode) : [];
         var codes = offered.Keys.ToArray();
         var types = await db.DocumentTypes.AsNoTracking()
             .Where(t => !t.IsAbstract && ((idEditing && (t.Module == "id" || t.Module == TypeOwner.Core)
                 && t.Kind == DocumentTypeKind.Document) || codes.Contains(t.Code)))
             .OrderBy(t => t.Name).ToListAsync(ct);
-        return types.Where(t => IsDocumentOwner(t.Module) || offered.GetValueOrDefault(t.Code) == t.Module).ToList();
+        return types.Select(t => (Type: t, Entry: offered.GetValueOrDefault(t.Code)))
+            .Where(x => IsDocumentOwner(x.Type.Module) || x.Entry?.Module.Code == x.Type.Module)
+            .Select(x => new TemplateType(x.Type, x.Entry?.Form.Requisites)).ToList();
     }
 
     public async Task<IResult?> ForTypeAsync(HttpContext http, Guid id, bool edit, CancellationToken ct)
@@ -88,6 +90,8 @@ internal sealed class TemplateAccess(
 
     private static bool IsDocumentOwner(string owner) => owner == "id" || TypeOwner.IsCore(owner);
 }
+
+internal sealed record TemplateType(DocumentType Type, ModulePrintRequisites? PrintRequisites);
 
 internal static class TemplateAccessFilters
 {

@@ -37,6 +37,7 @@ public partial class BackupService
             // восстановление обновит само.
             if (namesake is null || copyIds.Contains(namesake.Id)) continue;
 
+            await RemoveUnusedFactoryTemplateAsync(namesake.Id, ct);
             if (await HolderOfAsync(holders, namesake.Id, ct) is { } holder)
                 throw new ConflictException(Occupied(item, holder));
 
@@ -44,6 +45,22 @@ public partial class BackupService
             warnings.Add($"Тип «{namesake.Name}» этой системы заменён одноимённым из копии (код {item.Code}): " +
                          "данных у здешнего не было.");
         }
+    }
+
+    /// <summary>Чистая установка успевает завести форму. Пользовательские шаблоны и держатели остаются под защитой.</summary>
+    private async Task RemoveUnusedFactoryTemplateAsync(Guid typeId, CancellationToken ct)
+    {
+        var templates = await db.Templates.AsNoTracking().Where(t => t.DocumentTypeId == typeId).Take(2).ToListAsync(ct);
+        if (templates is not [var template] || !template.IsUntouchedFactoryDefault()) return;
+
+        if (await CoreHolderOfAsync([template.Id], ("templates", "Id"), history: [], ct) is not null) return;
+
+        // С тем же снимком: сохранение редактора между проверкой и удалением сохраняет держателя типа.
+        // Удаление входит в транзакцию импорта и откатывается, если у типа найдётся другой держатель.
+        await db.Templates.Where(t => t.Id == template.Id && t.DocumentTypeId == typeId
+            && t.Name == template.Name && t.Content == template.Content && t.UpdatedAt == template.UpdatedAt
+            && t.IsActive && t.IsDefault && t.Version == 1 && t.Parameters == null && t.Comment == null)
+            .ExecuteDeleteAsync(ct);
     }
 
     private static string Occupied(BackupDocumentType item, string holder) =>

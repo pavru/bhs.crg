@@ -61,6 +61,7 @@ internal static class EstimateSeed
             var unitType = (await types.FindAsync(t => t.Code == CoreRecordTypes.UnitCode)).FirstOrDefault()
                 ?? await seed.TypeAsync(CoreRecordTypes.UnitCode, "Единица измерения");
             await scope.ServiceProvider.ProjectModuleTypesAsync();
+            await scope.ServiceProvider.SeedModulePrintTemplatesAsync();
             var workType = (await seed.SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType)))!;
 
             // Номенклатура — справочник по роли, как на базе заказчика (issue #1101).
