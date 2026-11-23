@@ -46,7 +46,8 @@
 - **Клиент:** новые `src/client/src/features/work/review/*`, `src/client/src/shared/api/workReview.ts`,
   общий компонент ленты журнала `src/client/src/shared/ui/JournalFeed.tsx`; маршрут в `navConfig.ts`,
   тип записи в `recordRoutes.ts`.
-- **Сервер:** не меняется — адреса и носители несут `work-13`, `work-16`, `work-17`, `work-19`.
+- **Сервер:** ответ очереди дополняется именами сотрудников поданных отчётов в охвате читателя.
+  Адреса и остальные носители несут `work-13`, `work-16`, `work-17`, `work-19`.
 - **Живой прогон:** `src/client/e2e/work-review-smoke.mjs`.
 - **Документы:** `docs/USER_GUIDE.md`, содержание (`npm run toc` в `docs/tools`).
 - **Макеты:** раунд Р4 — три варианта и выбор владельца до кода.

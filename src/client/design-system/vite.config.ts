@@ -59,6 +59,7 @@ export default defineConfig({
     rolldownOptions: { input: {
       index: resolve(root, 'index.html'), story: resolve(root, 'story.html'),
       mockup: resolve(root, 'mockup.html'), work12: resolve(root, 'work12.html'), work19: resolve(root, 'work19.html'),
+      work21: resolve(root, 'work21.html'),
       duplicatePayment: resolve(root, 'duplicate-payment.html'),
     } },
   },

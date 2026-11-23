@@ -30,7 +30,7 @@ export type WorkMarkCode = (typeof WORK_MARK_CODES)[number];
 
 /** Пометка отчёта: код — для отбора, текст — для человека. */
 export interface WorkMark {
-  code: WorkMarkCode;
+  code: string;
   text: string;
 }
 
@@ -87,7 +87,9 @@ export interface ReviewQueuePage {
   offset: number;
   limit: number;
   /** Счётчик каждого кода каталога по всему отбору (без отбора по пометке), нулевые — тоже. */
-  counts: Record<WorkMarkCode, number>;
+  counts: Record<string, number>;
+  /** Имена сотрудников всех поданных отчётов в охвате очереди. */
+  employees?: { id: string; name: string }[];
   boundary: ReviewBoundary;
   /** Причина пустой очереди; `null` — отчёты есть. */
   reason: ReviewEmptyReason | null;

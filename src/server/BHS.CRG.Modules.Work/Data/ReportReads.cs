@@ -282,8 +282,8 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// <summary>
     /// Очередь приёмки (ТЗ WORK-28, WORK-39; <c>work-16</c>): поданные отчёты охвата читателя по отбору, страница по
     /// моменту подачи — дольше всех ждущий первым. Счётчики — по всему отбору БЕЗ отбора по пометке: так счётчик пометки
-    /// не обнуляется, когда выбрана другая, и говорит, сколько даст выбор. <c>AnyPending</c> — есть ли ждущие в охвате
-    /// вовсе: им пустая очередь отличает «ждущих нет» от «отбор исключил все».
+    /// не обнуляется, когда выбрана другая, и говорит, сколько даст выбор. Сотрудники — по всем ждущим
+    /// отчётам охвата, независимо от отбора и страницы.
     /// </summary>
     public async Task<ReviewQueueRead> QueueAsync(
         ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct)
@@ -307,7 +307,8 @@ public sealed partial class ReportReads(WorkDbContext db)
             { Has: { } has } => chosen.Where(has(sources)),
             _ => chosen.Where(_ => false),
         };
-        var total = await selected.CountAsync(ct);
+        // Число по отбору — независимый подзапрос, общий для всех сотрудников в охвате.
+        var summary = await pending.Select(r => new { r.EmployeeId, Total = selected.Count() }).Distinct().ToListAsync(ct);
         var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
             .Select(r => new
             {
@@ -316,13 +317,12 @@ public sealed partial class ReportReads(WorkDbContext db)
             })
             .ToListAsync(ct);
         var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
-        var anyPending = total > 0 || await pending.AnyAsync(ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
                     p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
             ],
-            total, counts, anyPending);
+            summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
     }
 
     /// <summary>

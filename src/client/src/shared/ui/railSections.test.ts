@@ -43,6 +43,7 @@ describe('рейл разделов', () => {
       'Затраты': [['', 'Счета', 'Накладные'],
         ['Отчёты и закрытие месяца', 'Реестр счетов', 'Затраты по стройке', 'Учётный период']],
       'Планы': [['', 'Сметы'], ['Справочники', 'Запомненные сопоставления']],
+      'Работы': [['', 'Приёмка']],
       'Система': [
         ['Документы', 'Типы документов', 'Шаблоны', 'Составные типы', 'Типы полей', 'Сопоставление полей',
           'Профили распознавания', 'Профили печати'],
@@ -72,7 +73,7 @@ describe('рейл разделов', () => {
       .toEqual(['home', 'costs']);
 
     const rail = buildRail(workNav, settingsNav);
-    expect(rail.map(s => s.def.label)).toEqual(['Главная', 'Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
+    expect(rail.map(s => s.def.label)).toEqual(['Главная', 'Стройки', 'Данные', 'Затраты', 'Планы', 'Работы', 'Система']);
     expect(railDef('plan').title).toBe('Планирование');
   });
 
@@ -82,8 +83,6 @@ describe('рейл разделов', () => {
     expect(ids.indexOf('work')).toBe(ids.indexOf('plan') + 1);
     expect(railDef('work')).toMatchObject({ label: 'Работы', title: 'Учёт работ', icon: Engineering });
     expect(railDef('work').admin).toBeFalsy();
-    // Пунктов модуля в меню ещё нет (их заводят change экранов) — и раздела в рейле нет.
-    expect(buildRail(workNav, settingsNav).map(s => s.def.id)).not.toContain('work');
 
     // Пункт так, как его впишет work-22: модуль, право, раздел и ранг из таблицы.
     const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Engineering, module: 'work',
@@ -97,9 +96,12 @@ describe('рейл разделов', () => {
     // Право контракта модуль не открывает (plan-21): он приходит с `available: false`, и раздела нет.
     const engineer = work(false, ['work.facts.read', 'work.report.own']);
     expect(buildRail(visibleNav(menu, engineer), []).map(s => s.def.id)).toEqual(['home']);
-    // Модуль открыт, а права пункта нет — пустой раздел тоже не строится.
-    const reviewer = work(true, ['work.report.review']);
-    expect(buildRail(visibleNav(menu, reviewer), []).map(s => s.def.id)).toEqual(['home']);
+    const noReportAccess = work(true, ['work.assignment.edit']);
+    expect(buildRail(visibleNav(menu, noReportAccess), []).map(s => s.def.id)).toEqual(['home']);
+    for (const permission of ['work.report.review', 'work.report.read']) {
+      expect(buildRail(visibleNav(menu, work(true, [permission])), []).find(s => s.def.id === 'work')?.home)
+        .toBe('/work-review');
+    }
   });
 
   it('адрес принадлежит разделу по самому длинному пункту', () => {

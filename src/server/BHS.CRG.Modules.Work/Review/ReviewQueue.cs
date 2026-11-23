@@ -16,6 +16,9 @@ namespace BHS.CRG.Modules.Work.Review;
 /// <param name="Sites">Число строек охвата <c>sites</c>; у <c>all</c> — <c>null</c>.</param>
 public sealed record ReviewBoundaryDto(string Code, string Text, int? Sites);
 
+/// <summary>Сотрудник для отображения и отбора очереди. Охват берётся из поданных отчётов.</summary>
+public sealed record ReviewQueueEmployeeDto(Guid Id, string Name);
+
 /// <summary>Строка очереди приёмки.</summary>
 /// <param name="Version">Значение для <c>If-Match</c> приёмки и возврата.</param>
 /// <param name="Lines">Сколько строк в отчёте.</param>
@@ -106,19 +109,23 @@ public static class ReviewQueue
             {
                 // Своих строек нет: назначений нет — или их и быть не может, потому что нет связи или справочника.
                 var (_, missing) = await WorkAccounts.OfUserAsync(user, employees, ct);
-                return Results.Ok(Page([], 0, Empty(), boundary, missing ?? NotAssigned, skip, take));
+                return Results.Ok(Page([], 0, Empty(), [], boundary, missing ?? NotAssigned, skip, take));
             }
 
             var read = await reads.QueueAsync(ReportViewer.Of(reach), filter, user.Id, skip, take, ct);
-            string? reason = read.Total > 0 ? null : read.AnyPending && filter.Any ? FilteredOut : NothingPending;
+            string? reason = read.Total > 0 ? null : read.PendingEmployeeIds.Count > 0 && filter.Any ? FilteredOut : NothingPending;
             var rows = read.Items.Select(i => Row(i, user.Id, decides)).ToList();
-            return Results.Ok(Page(rows, read.Total, read.Counts, boundary, reason, skip, take));
+            var ids = read.PendingEmployeeIds.Union(rows.Select(row => row.EmployeeId)).ToArray();
+            var people = ids.Length == 0 ? [] : await employees.GetAsync(ids, ct) ?? [];
+            var options = people.OrderBy(person => person.FullName, StringComparer.CurrentCulture).ThenBy(person => person.Id)
+                .Select(person => new ReviewQueueEmployeeDto(person.Id, person.FullName)).ToList();
+            return Results.Ok(Page(rows, read.Total, read.Counts, options, boundary, reason, skip, take));
         });
 
     private static object Page(
         IReadOnlyList<ReviewQueueRowDto> items, int total, IReadOnlyDictionary<string, int> counts,
-        ReviewBoundaryDto boundary, string? reason, int offset, int limit) =>
-        new { items, total, offset, limit, counts, boundary, reason };
+        IReadOnlyList<ReviewQueueEmployeeDto> employees, ReviewBoundaryDto boundary, string? reason, int offset, int limit) =>
+        new { items, total, offset, limit, counts, employees, boundary, reason };
 
     private static Dictionary<string, int> Empty() => ReviewMarks.All.ToDictionary(m => m.Code, _ => 0);
 

@@ -24,13 +24,10 @@ const all = (a: AccessInfo) => resolveWorkspace(a, [], 'all').workspace;
 const enter = (items: NavItem[], ws: Workspace, a: AccessInfo) =>
   entryPage(splitNav(visibleNav(items, a), ws, a).inside, a, items);
 
-// Пункты модулей — тестовые. «Сметы» повторяют пункт plan-09; пункты «Работ» заводят change экранов
-// (work-21…work-23, work-12) с рангом из `WORK_ENTRY_RANK` (work-03), адреса здесь условные.
+// Тестовые пункты для ещё не открытых экранов «Работ» берут ранги из work-03.
 const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: Assignment, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
 const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Engineering, module: 'work',
   permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports };
-const review: NavItem = { to: '/work-review', label: 'Приёмка', icon: Engineering, module: 'work',
-  permission: 'work.report.review', rail: 'work', entry: WORK_ENTRY_RANK.review };
 const summary: NavItem = { to: '/work-summary', label: 'Сводка', icon: Engineering, module: 'work',
   permission: ['work.report.review', 'work.report.read'], rail: 'work' };
 const assignments: NavItem = { to: '/assignments', label: 'Назначения', icon: Engineering, module: 'work',
@@ -169,7 +166,7 @@ describe('ранги входа в меню', () => {
  * отчёты», «Приёмка», «Сводка», «Назначения»; ранги — из `WORK_ENTRY_RANK`.
  */
 describe('страница входа модуля «Учёт работ»', () => {
-  const workPages = [myReports, review, summary, assignments];
+  const workPages = [myReports, summary, assignments];
   const menu = [home, ...workNav.filter(i => !isHomeItem(i)), estimates, ...workPages, ...settingsNav];
   const reads = ['core.types.read', 'core.catalog.read', 'core.constructions.read', 'core.datasets.read'];
 
@@ -194,9 +191,9 @@ describe('страница входа модуля «Учёт работ»', () 
     expect(enter(menu, all(both), both)).toBe('/my-reports');
   });
 
-  it('видны только «Сводка» и «Назначения» — Главная: ранга у них нет', () => {
+  it('пользователь одного модуля с правом чтения входит в очередь приёмки', () => {
     const reader = access(['work.report.read', 'work.assignment.edit', ...reads], WORK);
-    expect(enter(menu, all(reader), reader)).toBe('/home');
+    expect(enter(menu, all(reader), reader)).toBe('/work-review');
   });
 
   it('«Администратор» и «Менеджер проекта» — Главная: модулей больше одного', () => {
