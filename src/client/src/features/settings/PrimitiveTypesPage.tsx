@@ -360,7 +360,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
           </Card>
 
           <Card title="Применимые функциональные тэги">
-            <p className="text-body-small text-on-surface-variant -mt-1">Какие тэги можно назначать полям этого типа — показываются в редакторе схемы.</p>
+            <p className="text-body-small text-on-surface-variant">Какие тэги можно назначать полям этого типа — показываются в редакторе схемы.</p>
             {applicableTags.length === 0 ? (
               <p className="text-body-small text-on-surface-variant">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
             ) : (

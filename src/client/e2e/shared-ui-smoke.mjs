@@ -17,6 +17,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, emulateTouch, closeDialog, pickTheme as pickThemeOf } from './harness.mjs';
+import { checkCardFields, checkCompanyCurrency } from './section-field-spacing-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -40,6 +41,9 @@ const pickTheme = label => pickThemeOf(page, label);
 await login(page);
 
 try {
+
+await checkCardFields(page, check);
+await checkCompanyCurrency(page, check);
 
 // ── Настройки сразу после входа ────────────────────────────────────────────────
 //

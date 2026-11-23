@@ -46,7 +46,7 @@ export function CollapsibleSection({
           <Icon icon={KeyboardArrowDown} size={18} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
         </span>
       </button>
-      {open && <div className="px-4 pb-4 space-y-4">{children}</div>}
+      {open && <div className="px-4 pt-4 pb-4 space-y-4">{children}</div>}
     </div>
   );
 }

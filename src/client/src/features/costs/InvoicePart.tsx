@@ -77,7 +77,7 @@ export function InvoicePart({ title, step, line, open, onToggle, actions, childr
             <Icon icon={open ? KeyboardArrowUp : KeyboardArrowDown} size={24} />
           </span>
         </div>
-        <div id={bodyId} hidden={!open} className="flex flex-col gap-3 px-4 pb-4">{children}</div>
+        <div id={bodyId} hidden={!open} className="flex flex-col gap-3 px-4 pt-4 pb-4">{children}</div>
       </section>
     </Card>
   );
