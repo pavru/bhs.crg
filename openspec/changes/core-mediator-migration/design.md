@@ -126,3 +126,11 @@ IRequestHandler<T, Unit>, оба описывают одну команду.
 Финальный профильный прогон: 27/27 (Mediator, ModuleBoundary, FileSizeRatchet,
 GetTypeBlocksHandlerTests и AgentRulesCopy). TypeScript и UI-храповик прошли.
 Строгая проверка всех OpenSpec: 32/32. Полный backend и живые прогоны CI — задачи 5.1/5.3.
+
+### Согласование инвентаризации архивного чтения
+
+Полный прогон обнаружил один устаревший ключ ArchiveReadInventory: выражение
+`=> objRepo.GetByIdAsync(q.Id, ct);` в DocumentSetHandlers теперь обёрнуто в ValueTask.
+Меняется только точный текст ключа в ArchiveReadInventoryTests.Rows.cs, назначение чтения,
+его число и связанные живые проверки сохраняются. Правило сканирования и допуски не ослабляются.
+После правки повторно проверяются все ArchiveRead* и первая доля backend.
