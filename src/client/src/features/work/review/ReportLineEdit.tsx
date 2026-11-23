@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { editReviewReport, type ReviewFullCard } from '@/shared/api/workReview';
-import { formatLocale, formatNumber } from '@/shared/format/format';
+import { formatInput } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
@@ -14,11 +14,12 @@ export function ReportLineEdit({ card, onClose, onSaved }: {
   card: ReviewFullCard; onClose: () => void; onSaved: () => void;
 }) {
   const [original] = useState(card);
-  const [rows, setRows] = useState(() => original.report.lines.map(line => ({ ...line, amount: formatNumber(line.volume, 4, false) })));
+  const [rows, setRows] = useState(() => original.report.lines.map(line => ({ ...line, amount: formatInput(line.volume, 4) })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attempt = useRef<{ payload: string; changeId: string } | null>(null);
-  const values = rows.map(row => parseNumber(row.amount, formatLocale()));
+  // Общий `formatInput` задаёт десятичную запятую и обычные цифры для полей ввода во всех локалях.
+  const values = rows.map(row => parseNumber(row.amount, 'ru-RU'));
   const valid = values.every(value => value != null && value >= 0);
   const changed = rows.some((row, i) => values[i] !== original.report.lines[i].volume
     || (row.location || null) !== original.report.lines[i].location);

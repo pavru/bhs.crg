@@ -200,9 +200,9 @@ export function formatCount(value: number): string {
 }
 
 /** Произвольное число с пределом знаков после запятой — для ячейки таблицы, чей смысл экран не знает. */
-export function formatNumber(value: number, maxFractionDigits = 2, useGrouping = true): string {
-  const key = `number:${maxFractionDigits}:${useGrouping}`;
-  return (numbers.get(key) ?? numberFormat(key, { maximumFractionDigits: maxFractionDigits, useGrouping })).format(value);
+export function formatNumber(value: number, maxFractionDigits = 2): string {
+  const key = `number:${maxFractionDigits}`;
+  return (numbers.get(key) ?? numberFormat(key, { maximumFractionDigits: maxFractionDigits })).format(value);
 }
 
 /**
