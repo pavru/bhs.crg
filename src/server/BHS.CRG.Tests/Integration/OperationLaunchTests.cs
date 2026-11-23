@@ -3,13 +3,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Tests.Support;
@@ -67,12 +70,17 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     /// с обращением к движку и по сети. Здесь проверяется постановка, а не выполнение, и оставленный
     /// исполнитель превратил бы проверку в поход наружу.
     /// </summary>
-    private WebApplicationFactory<Program> HostWith(FakePreflight preflight)
+    private WebApplicationFactory<Program> HostWith(FakePreflight preflight, IDocumentRecognizer? recognizer = null)
         => fixture.WithWebHostBuilder(b => b.ConfigureServices(services =>
         {
             services.RemoveAll<IRecognitionPreflight>();
             services.AddSingleton<IRecognitionPreflight>(preflight);
             services.RemoveJobRunner();
+            if (recognizer is not null)
+            {
+                services.RemoveAll<IDocumentRecognizer>();
+                services.AddSingleton(recognizer);
+            }
         }));
 
     private static readonly RecognitionBlock NoEngines = new(
@@ -82,9 +90,10 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     /// ГОСТ-набор с одним источником. <paramref name="manuallyEdited" /> — разбиение правил человек,
     /// и перезапись такого требует согласия.
     /// </summary>
-    private async Task<(Guid FileId, Guid SourceId)> SeedGostSourceAsync(bool manuallyEdited)
+    private static async Task<(Guid FileId, Guid SourceId)> SeedGostSourceAsync(
+        IServiceProvider services, bool manuallyEdited)
     {
-        using var scope = fixture.Services.CreateScope();
+        using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var blobStorage = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
 
@@ -246,7 +255,7 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     {
         using var host = HostWith(new FakePreflight(NoEngines));
         var (client, _) = await AuthorizedClientAsync(host);
-        var (fileId, _) = await SeedGostSourceAsync(manuallyEdited: false);
+        var (fileId, _) = await SeedGostSourceAsync(host.Services, manuallyEdited: false);
 
         var response = await client.PostAsync($"/api/datasets/files/{fileId}/recognize", null);
 
@@ -354,7 +363,7 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
         var preflight = new FakePreflight(NoEngines);
         using var host = HostWith(preflight);
         var (client, userId) = await AuthorizedClientAsync(host);
-        var (fileId, sourceId) = await SeedGostSourceAsync(manuallyEdited: false);
+        var (fileId, sourceId) = await SeedGostSourceAsync(host.Services, manuallyEdited: false);
         await SeedJobAsync(userId, fileId, JobKind.RecognizeGostSet);
 
         // Спрашиваем по ИСТОЧНИКУ, а занят НАБОР: распознавание ГОСТ работает над набором целиком,
@@ -367,54 +376,140 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
     // ── Подтверждение перезаписи ручной правки ─────────────────────────────────────
 
-    /// <summary>
-    /// Единственное место, где запустивший распознавание способен молча стереть чужую работу:
-    /// разбиение альбома на документы, поправленное человеком. Отказ обязан дойти до агента текстом,
-    /// по которому понятно, ЧТО он собирается перезаписать.
-    /// </summary>
-    [Fact]
-    public async Task McpRecognizeSource_RefusesToOverwriteManualGrouping()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task McpRecognition_ManualGroupingDirectsToTheDatasetInWeb(bool bySource)
     {
-        using var host = HostWith(new FakePreflight(null));
+        var preflight = new FakePreflight(null);
+        using var host = HostWith(preflight);
         var (client, _) = await AuthorizedClientAsync(host);
-        var (_, sourceId) = await SeedGostSourceAsync(manuallyEdited: true);
+        var (fileId, sourceId) = await SeedGostSourceAsync(host.Services, manuallyEdited: true);
 
-        var result = await McpCallAsync(client, "recognize_source", new { sourceId });
+        var tool = bySource ? "recognize_source" : "recognize_dataset";
+        var args = bySource ? (object)new { sourceId } : new { datasetId = fileId };
+        var result = await McpCallAsync(client, tool, args);
 
         Assert.True(result.GetProperty("isError").GetBoolean());
-        Assert.Contains("вручную", TextOf(result));
+        var text = TextOf(result);
+        Assert.StartsWith("[manual_grouping]", text);
+        Assert.Contains($"/datasets/files/{fileId}/grouping", text);
+        Assert.Contains("Распознать заново", text);
+        Assert.Equal(0, preflight.Calls);
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.Jobs.AnyAsync(j => j.TargetId == fileId));
+        Assert.False(await db.ActivityRecords.AnyAsync(r => r.Action == ActivityActions.McpToolCalled.Code && r.After == tool));
+        Assert.True(GostGroupingSerialization.Parse((await db.DataSetFiles.FindAsync(fileId))!.Grouping)!.ManuallyEdited);
     }
 
-    /// <summary>
-    /// Обратная половина: с подтверждением запуск проходит. Без неё зелёный отказ выше доказывал бы
-    /// лишь то, что распознавание не запускается НИКОГДА — например, потому что подтверждение не
-    /// доходит до ядра и там всегда false.
-    ///
-    /// Цель задачи проверяется отдельно и придирчиво — это НАБОР, хотя просили источник. Ровно здесь
-    /// был дефект: вход по источнику ставил задачу с его идентификатором, а исполнитель ищет по цели
-    /// <c>DataSetFile</c>. Ответ приходил успешный (202 и номер задачи), задача падала с «DataSetFile
-    /// … not found», и увидеть это можно было только в её итоге. Проверка на «задача создана» такое
-    /// пропускает — она была зелёной и на сломанном.
-    /// </summary>
-    [Fact]
-    public async Task McpRecognizeSource_WithConfirmation_StartsJobTargetingTheDataset()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task McpRecognition_AutomaticGroupingStartsJobForTheDataset(bool bySource)
     {
         using var host = HostWith(new FakePreflight(null));
         var (client, userId) = await AuthorizedClientAsync(host);
-        var (fileId, sourceId) = await SeedGostSourceAsync(manuallyEdited: true);
-
-        var result = await McpCallAsync(
-            client, "recognize_source", new { sourceId, confirmOverwriteManualGrouping = true });
+        var (fileId, sourceId) = await SeedGostSourceAsync(host.Services, manuallyEdited: false);
+        var tool = bySource ? "recognize_source" : "recognize_dataset";
+        var args = bySource ? (object)new { sourceId } : new { datasetId = fileId };
+        var result = await McpCallAsync(client, tool, args);
 
         Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
+        using var reply = JsonDocument.Parse(TextOf(result));
+        Assert.Equal(await AssertQueuedRecognitionAsync(fileId, userId, allowManualOverwrite: false),
+            reply.RootElement.GetProperty("jobId").GetGuid());
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.ActivityRecords.SingleAsync(r => r.Action == ActivityActions.McpToolCalled.Code && r.After == tool);
+        Assert.Equal(ActivityChannel.Mcp.Code, row.Channel);
+        Assert.Equal(userId, row.ActorId);
+        Assert.Equal((bySource ? sourceId : fileId).ToString(), row.TargetId);
+    }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WebRecognition_ManualGroupingRequiresConfirmation(bool bySource)
+    {
+        using var host = HostWith(new FakePreflight(null));
+        var (client, userId) = await AuthorizedClientAsync(host);
+        var (fileId, sourceId) = await SeedGostSourceAsync(host.Services, manuallyEdited: true);
+        var path = bySource ? $"/api/datasets/sources/{sourceId}/recognize" : $"/api/datasets/files/{fileId}/recognize";
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync(path, null)).StatusCode);
+        var confirmed = await client.PostAsync(path + "?confirm=true", null);
+        Assert.Equal(HttpStatusCode.Accepted, confirmed.StatusCode);
+        var body = await confirmed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(await AssertQueuedRecognitionAsync(fileId, userId, allowManualOverwrite: true),
+            body.GetProperty("jobId").GetGuid());
+    }
+
+    [Fact]
+    public async Task McpRecognition_TableInManuallyGroupedDatasetIsRecognizedInPlace()
+    {
+        using var host = HostWith(new FakePreflight(null), new TableRecognizer());
+        var (client, _) = await AuthorizedClientAsync(host);
+        var (fileId, _) = await SeedGostSourceAsync(host.Services, manuallyEdited: true);
+        Guid sourceId;
+        Guid groupId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = (await db.DataSetFiles.FindAsync(fileId))!;
+            var grouping = GostGroupingSerialization.Parse(file.Grouping)!;
+            var group = Assert.Single(grouping.Groups) with { Id = groupId, Tags = [FunctionalTag.GostDocSpecification] };
+            file.SetGrouping(JsonSerializer.Serialize(grouping with { Groups = [group] }));
+            var source = file.AddSource("Спецификация", PdfProfiles.GostTableMarkerPrefix + groupId, "[]", 0);
+            db.DataSetSources.Add(source);
+            await db.SaveChangesAsync();
+            sourceId = source.Id;
+        }
+
+        var result = await McpCallAsync(client, "recognize_source", new { sourceId });
+        Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean(), TextOf(result));
+        using var reply = JsonDocument.Parse(TextOf(result));
+        Assert.True(reply.RootElement.GetProperty("completed").GetBoolean());
+
+        using var read = fixture.Services.CreateScope();
+        var stored = read.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await stored.Jobs.AnyAsync(j => j.TargetId == fileId));
+        var saved = GostGroupingSerialization.Parse((await stored.DataSetFiles.FindAsync(fileId))!.Grouping)!;
+        Assert.True(saved.ManuallyEdited);
+        var savedGroup = Assert.Single(saved.Groups);
+        Assert.Equal(groupId, savedGroup.Id);
+        Assert.Equal(0, Assert.Single(savedGroup.Pages).PageIndex);
+        Assert.Contains("Кабель", (await stored.DataSetSources.FindAsync(sourceId))!.CachedData);
+    }
+
+    private sealed class TableRecognizer : IDocumentRecognizer
+    {
+        public Task<RecognitionResult> RecognizeAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
+        {
+            Assert.Equal("application/pdf", mimeType);
+            var row = new Dictionary<string, string> { [fields[0].Path] = "Кабель" };
+            return Task.FromResult(new RecognitionResult(new Dictionary<string, string?>
+            {
+                ["Строки"] = JsonSerializer.Serialize(new[] { row }),
+            }, null));
+        }
+    }
+
+    private async Task<Guid> AssertQueuedRecognitionAsync(Guid fileId, Guid userId, bool allowManualOverwrite)
+    {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var job = await db.Jobs.SingleAsync(j => j.Kind == JobKind.RecognizeGostSet);
         Assert.Equal(fileId, job.TargetId);
-        Assert.NotEqual(sourceId, job.TargetId);
         Assert.Equal(userId, job.UserId);
         Assert.Equal(JobStatus.Queued, job.Status);
+        using var payload = JsonDocument.Parse(job.Payload!);
+        Assert.Equal(1, payload.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(allowManualOverwrite, payload.RootElement.GetProperty("allowManualOverwrite").GetBoolean());
+        var file = await db.DataSetFiles.FindAsync(fileId);
+        Assert.Equal(file!.RecognitionRevision, payload.RootElement.GetProperty("expectedRevision").GetGuid());
+        return job.Id;
     }
 
     /// <summary>
@@ -458,7 +553,7 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     {
         using var host = HostWith(new FakePreflight(NoEngines));
         var (client, _) = await AuthorizedClientAsync(host);
-        var (datasetId, _) = await SeedGostSourceAsync(manuallyEdited: false);
+        var (datasetId, _) = await SeedGostSourceAsync(host.Services, manuallyEdited: false);
 
         var result = await McpCallAsync(client, "recognize_dataset", new { datasetId });
 

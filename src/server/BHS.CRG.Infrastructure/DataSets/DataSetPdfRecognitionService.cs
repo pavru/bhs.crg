@@ -136,9 +136,12 @@ public partial class DataSetPdfRecognitionService(
     /// <summary>Определяет профиль набора (issue #44) — по PreprocessingProfile, либо (обратная
     /// совместимость) по маркерам уже существующих источников для наборов, созданных до появления
     /// этого поля. Требует file.Sources загруженным.</summary>
-    private static PdfProfileDescriptor ResolveDescriptor(Domain.DataSets.DataSetFile file) =>
+    private static PdfProfileDescriptor? FindDescriptor(DataSetFile file) =>
         PdfProfileRegistry.ByProfileMarker(file.PreprocessingProfile)
-        ?? file.Sources.Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null)
+        ?? file.Sources.Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null);
+
+    private static PdfProfileDescriptor ResolveDescriptor(DataSetFile file) =>
+        FindDescriptor(file)
         ?? throw new InvalidRequestException("У набора не выбран профиль распознавания PDF.");
 
     /// <summary>Планирование распознавания PDF-набора по fileId (issue #44: дискриминатор — профиль
@@ -155,16 +158,8 @@ public partial class DataSetPdfRecognitionService(
         // строкой в журнале задач, а не ответом на нажатие.
         profiles.RequireKind(descriptor.RequiredKind);
         if (descriptor.Kind == PdfProfileKind.Gost)
-        {
-            var existingGrouping = ParseGrouping(file.Grouping);
-            if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new ConflictException(
-                    "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-            await RefuseTooLongAsync(file.BlobPath, ct);
-        }
-        return new RecognizePlan(descriptor.Background,
-            descriptor.Kind == PdfProfileKind.Gost ? "Распознавание листов PDF" : "Распознавание PDF",
-            file.Id);
+            return await PlanGostRecognitionAsync(file, confirm, bySource: false, ct);
+        return new RecognizePlan(descriptor.Background, "Распознавание PDF", file.Id);
     }
 
     /// <summary>Распознавание PDF-набора по НАБОРУ (issue #38/#44) — единая точка входа для всех профилей
@@ -172,7 +167,8 @@ public partial class DataSetPdfRecognitionService(
     /// профиля — через fileId). ГОСТ пишет Grouping, источников не создаёт; Счёт — распознаёт и сразу
     /// обновляет уже созданную пару источников (шапка/товары — законно другая, не кандидатная модель).
     /// Кидает 409 при неподтверждённой ручной правке (только ГОСТ).</summary>
-    public async Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, Func<int, int, Task>? onProgress = null)
+    public async Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct,
+        Func<int, int, Task>? onProgress = null, bool shortOnly = false)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new NotFoundException($"DataSetFile {fileId} not found");
@@ -183,10 +179,9 @@ public partial class DataSetPdfRecognitionService(
 
         if (descriptor.Kind == PdfProfileKind.Gost)
         {
-            var existingGrouping = ParseGrouping(file.Grouping);
-            if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new ConflictException(
-                    "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+            if (shortOnly)
+                throw new InvalidRequestException("Профиль набора изменился. Запустите распознавание заново.");
+            AdmitGostRecognition(file, confirm, bySource: false);
             await RecognizeGostFileAsync(file, ct, onProgress);
             return;
         }

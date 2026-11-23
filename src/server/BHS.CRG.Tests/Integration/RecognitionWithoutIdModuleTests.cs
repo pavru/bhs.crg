@@ -191,6 +191,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         var fileId = await SeedPdfAsync(PdfProfiles.GostTitleBlock);
 
         await AssertNamesModuleAsync(await client.PostAsync($"/api/datasets/files/{fileId}/recognize", null));
+        await AssertMcpNamesModuleAsync(client, "recognize_dataset", new { datasetId = fileId });
 
         using var scope = host.Services.CreateScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Jobs
@@ -217,6 +218,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         }
 
         await AssertNamesModuleAsync(await client.PostAsync($"/api/datasets/sources/{sourceId}/recognize", null));
+        await AssertMcpNamesModuleAsync(client, "recognize_source", new { sourceId });
         await AssertNamesModuleAsync(await client.PutAsJsonAsync($"/api/datasets/files/{fileId}/grouping", new
         {
             groups = new[] { new { kind = "Document", code = "A1", name = "Лист", pageIndices = new[] { 0 } } },
@@ -225,6 +227,15 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         using var after = host.Services.CreateScope();
         Assert.False(await after.ServiceProvider.GetRequiredService<AppDbContext>().Jobs.AnyAsync(j => j.TargetId == fileId));
         Assert.Equal(blobsBefore, after.ServiceProvider.GetRequiredService<FakeBlobStorage>().Uploads);
+    }
+
+    private static async Task AssertMcpNamesModuleAsync(HttpClient client, string tool, object arguments)
+    {
+        var result = await McpTestClient.CallAsync(client, "tools/call", new { name = tool, arguments });
+        Assert.True(result.GetProperty("isError").GetBoolean());
+        var message = Assert.Single(result.GetProperty("content").EnumerateArray()).GetProperty("text").GetString();
+        Assert.Contains("Исполнительная документация", message);
+        Assert.Contains("выключен", message);
     }
 
     /// <summary>

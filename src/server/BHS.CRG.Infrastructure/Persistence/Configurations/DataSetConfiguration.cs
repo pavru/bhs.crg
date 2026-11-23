@@ -13,6 +13,7 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.Property(e => e.Grouping).HasColumnType("jsonb");
         b.Property(e => e.InvoiceRawData).HasColumnType("jsonb");
         b.Property(e => e.RecognitionProfiles).HasColumnType("jsonb");
+        b.Property(e => e.RecognitionRevision).IsConcurrencyToken();
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
         b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16).IsRequired();

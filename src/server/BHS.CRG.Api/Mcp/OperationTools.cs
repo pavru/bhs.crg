@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Jobs;
-using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Common;
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Api.Mcp;
@@ -23,19 +25,15 @@ public record RecognitionStarted(Guid? JobId, bool Completed);
 /// выпустить один документ, но не мог ни собрать комплект, ни отправить набор на распознавание.
 ///
 /// Слой тонкий, как и остальные: разбор аргументов и вызов <see cref="IOperationLauncher" />. Все
-/// защиты — «по этой цели уже идёт», предполёт движка, подтверждение перезаписи ручной правки —
-/// живут в нём, а не здесь: HTTP-эндпоинты зовут то же самое, и агент не получает входа в обход
-/// того, чем прикрыт человек.
+/// проверки цели, состояния набора и готовности движка выполняет общий запускатель операций.
 ///
-/// Отказы приходят исключениями и превращаются в <see cref="McpException" /> с их собственным
-/// текстом: агенту нужно знать, ЧТО не так, а не только что не вышло.
+/// Отказ называет причину, чтобы клиент мог подсказать следующее действие.
 /// </summary>
 [McpServerToolType]
 public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor http)
 {
     // Idempotent НЕ ставим ни одному из трёх: подсказку об идемпотентности клиенты используют для
-    // автоматического повтора при обрыве связи, а повтор здесь — вторая задача либо отказ. У
-    // распознавания цена выше: повторённый вызов несёт с собой и подтверждение перезаписи.
+    // автоматического повтора при обрыве связи, а повтор здесь — вторая задача либо отказ.
     [McpPermission("id.document.generate")]
     [McpServerTool(Name = "assemble_document_set", ReadOnly = false, Destructive = false,
         Title = "Собрать комплект в один PDF")]
@@ -71,9 +69,7 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
         catch (DomainException ex) { throw new McpException(ex.Message); }
     }
 
-    // Право на НАСТРОЙКУ наборов, а не на чтение: распознавание переписывает их содержимое и с
-    // подтверждением стирает ручную правку разбиения на документы. Оба распознавания объявлены
-    // разрушительными (McpToolContractTests) — ворота обязаны называть то же самое.
+    // Распознавание обновляет данные набора, поэтому оба инструмента требуют права редактирования.
     //
     // Тем же правом закрыты и адреса запуска — группа `recognize` в DataSetEndpoints (ревью #998).
     // До неё они лежали в группе наборов под правом на чтение, и агент оказался бы прикрыт
@@ -86,40 +82,43 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
         документы и таблицы. Долгая операция — альбом ГОСТ занимает минуты и возвращает jobId (итог
         через get_job); короткий профиль выполняется сразу, и тогда jobId пуст, а completed=true.
 
-        Распознавание ЗАМЕНЯЕТ прежний результат по этому набору. Если разбиение на документы
-        правил человек вручную, запуск отвергается — пока не передан
-        confirmOverwriteManualGrouping. Не передавайте его по своему решению: восстановить стёртую
-        ручную правку нельзя, и спросить об этом нужно у человека.
+        Распознавание заменяет прежний результат. Полное перераспознавание ГОСТ-набора с ручным
+        разбиением сотрудник подтверждает в веб-интерфейсе на странице набора данных.
 
         Отказ «распознавать некому» означает, что ни один движок не настроен или все уличены в
         слепоте — это вопрос к администратору, повторный запуск ничего не изменит.
         """)]
-    public async Task<RecognitionStarted> RecognizeDatasetAsync(
+    public async Task<CallToolResult> RecognizeDatasetAsync(
         [Description("Идентификатор набора данных — тот же, что у get_dataset.")] Guid datasetId,
-        CancellationToken ct,
-        [Description("""
-            Подтверждение перезаписи РУЧНОЙ правки разбиения на документы. Стирает работу человека
-            безвозвратно; по умолчанию false.
-            """)] bool confirmOverwriteManualGrouping = false)
+        CancellationToken ct)
     {
         try
         {
-            var launch = await launcher.RecognizeFileAsync(
-                datasetId, JobTools.RequireUserId(http), confirmOverwriteManualGrouping, ct)
-                ?? throw new McpException("Набор данных не найден.");
-            if (launch.Blocked is { } blocked) throw Refusal(blocked);
-            return new RecognitionStarted(launch.JobId, launch.JobId is null);
+            var launch = await launcher.RecognizeFileAsync(datasetId, JobTools.RequireUserId(http), confirm: false, ct);
+            return launch is not null ? RecognitionReply(launch) : Refusal("Набор данных не найден.");
         }
-        catch (DomainException ex) { throw new McpException(ex.Message); }
+        catch (ManualGroupingConflict ex) { return ManualGroupingRefusal(ex); }
+        catch (DomainException ex) { return Refusal(ex.Message); }
     }
 
-    /// <summary>
-    /// Отказ движка — вместе с машинным кодом. Без него агенту остаётся разбирать русскую фразу,
-    /// чтобы отличить «ни один движок не настроен» (вопрос к администратору) от «модель не видит
-    /// картинок» (вопрос к выбору модели), — а по HTTP этот код отдаётся отдельным полем.
-    /// </summary>
-    private static McpException Refusal(RecognitionBlock block)
-        => new($"[{block.Code}] {block.Message}");
+    private static CallToolResult RecognitionReply(RecognitionLaunch launch)
+    {
+        if (launch.Blocked is { } block) return Refusal($"[{block.Code}] {block.Message}");
+        var started = new RecognitionStarted(launch.JobId, launch.JobId is null);
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = JsonSerializer.Serialize(started, McpSerialization.ToolOptions) }],
+        };
+    }
+
+    private static CallToolResult Refusal(string message) =>
+        new() { IsError = true, Content = [new TextContentBlock { Text = message }] };
+
+    private static CallToolResult ManualGroupingRefusal(ManualGroupingConflict conflict)
+        => Refusal($"[manual_grouping] У набора «{conflict.FileName}» ручное разбиение. " +
+            $"Посмотреть разбиение можно в веб-интерфейсе по адресу /datasets/files/{conflict.FileId}/grouping. " +
+            "На странице «Наборы данных» соответствующего уровня откройте этот набор, " +
+            "нажмите «Распознать заново» и подтвердите действие.");
 
     [McpPermission(CorePermissions.DataSetsEdit)]
     [McpServerTool(Name = "recognize_source", ReadOnly = false, Destructive = true,
@@ -129,25 +128,20 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
         источник помечен устаревшим (stale=true у get_source) и нужно привести его данные в
         соответствие текущему файлу.
 
-        Как и recognize_dataset: результат заменяет прежний, ручная правка разбиения защищена
-        подтверждением, долгий профиль возвращает jobId.
+        Если операция пересобирает ручное разбиение всего ГОСТ-набора, её подтверждает сотрудник
+        в веб-интерфейсе. Перераспознавание отдельной таблицы доступно здесь. Долгая операция
+        возвращает jobId.
         """)]
-    public async Task<RecognitionStarted> RecognizeSourceAsync(
+    public async Task<CallToolResult> RecognizeSourceAsync(
         [Description("Идентификатор источника — тот же, что у get_source.")] Guid sourceId,
-        CancellationToken ct,
-        [Description("""
-            Подтверждение перезаписи РУЧНОЙ правки разбиения на документы. Стирает работу человека
-            безвозвратно; по умолчанию false.
-            """)] bool confirmOverwriteManualGrouping = false)
+        CancellationToken ct)
     {
         try
         {
-            var launch = await launcher.RecognizeSourceAsync(
-                sourceId, JobTools.RequireUserId(http), confirmOverwriteManualGrouping, ct)
-                ?? throw new McpException("Источник не найден.");
-            if (launch.Blocked is { } blocked) throw Refusal(blocked);
-            return new RecognitionStarted(launch.JobId, launch.JobId is null);
+            var launch = await launcher.RecognizeSourceAsync(sourceId, JobTools.RequireUserId(http), confirm: false, ct);
+            return launch is not null ? RecognitionReply(launch) : Refusal("Источник не найден.");
         }
-        catch (DomainException ex) { throw new McpException(ex.Message); }
+        catch (ManualGroupingConflict ex) { return ManualGroupingRefusal(ex); }
+        catch (DomainException ex) { return Refusal(ex.Message); }
     }
 }

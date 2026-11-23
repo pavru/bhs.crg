@@ -145,7 +145,7 @@ public class DataSetFileService(
 
     public async Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct)
     {
-        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == id, ct);
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == id, ct);
         if (file == null) return null;
         if (file.IsSystem)
             throw new InvalidRequestException("У системного набора нет файла — заменять нечего.");
@@ -153,18 +153,39 @@ public class DataSetFileService(
         var format = DataSetDtoMapper.DetectFormat(input.FileName)
             ?? throw new InvalidRequestException("Неподдерживаемый формат файла");
 
-        try { await blob.DeleteAsync(file.BlobPath, ct); }
-        catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить старый blob при замене файла {FileId}", id); }
-
-        await using var uploadStream = new MemoryStream(input.Bytes);
-        var newBlobPath = await blob.UploadAsync(input.FileName, uploadStream, input.ContentType ?? "application/octet-stream", ct);
-
         var parser = parserFactory.GetParser(format);
+        await using var write = new DataSetBlobWrite(db, blob, logger, id, [file.BlobPath]);
+        await using var uploadStream = new MemoryStream(input.Bytes);
+        var newBlobPath = await write.UploadAsync(input.FileName, uploadStream, input.ContentType ?? "application/octet-stream", ct);
 
+        var staleSources = 0;
+        await write.CommitAsync(async () =>
+        {
+            file.UpdateBlobPath(newBlobPath, format);
+            if (!string.IsNullOrWhiteSpace(input.Name)) file.UpdateName(input.Name);
+            await db.SaveChangesAsync(ct);
+            await db.Entry(file).Collection(f => f.Sources).LoadAsync(ct);
+            staleSources = await RefreshSourcesAfterFileReplacementAsync(file, parser, input.Bytes, ct);
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+        if (staleSources > 0)
+            await notifications.PublishAsync(NotificationSeverity.Warning,
+                "Файл набора обновлён — проверьте источники",
+                $"Файл «{file.Name}» заменён. Источников, требующих внимания: {staleSources} " +
+                "(PDF-распознавание — перераспознайте вручную; прочие — проверьте определение источника, если данные не совпали).",
+                "Наборы данных", audience: NotificationAudiences.DataSetsEdit, ct: ct);
+
+        return DataSetDtoMapper.MapFile(file);
+    }
+
+    private async Task<int> RefreshSourcesAfterFileReplacementAsync(
+        DataSetFile file, IDataSetParser parser, byte[] bytes, CancellationToken ct)
+    {
         // Источники управляются пользователем ЯВНО (issue #20): при замене файла НЕ авто-создаём и
         // НЕ авто-удаляем источники — только пере-разбираем СУЩЕСТВУЮЩИЕ против нового блоба.
         var staleSources = 0;
-        foreach (var src in file.Sources.ToList())
+        foreach (var src in file.Sources)
         {
             // Распознанные PDF-источники (gost-*/invoice-*/gost-table:*) не переразбираем структурно —
             // данные приходят из vision-распознавания, не из структуры файла. Помечаем устаревшими;
@@ -177,32 +198,20 @@ public class DataSetFileService(
             }
             try
             {
-                var parsed = await parser.ParseAsync(input.Bytes, src.SheetOrPath, src.ColumnExpressions, ct);
+                var parsed = await parser.ParseAsync(bytes, src.SheetOrPath, src.ColumnExpressions, ct);
                 src.UpdateCache(DataSetDtoMapper.SerializeSchema(parsed.Columns), parsed.Rows.Count);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Источник не разбирается против нового файла (лист/путь исчез или сменился формат) —
                 // помечаем устаревшим, но НЕ удаляем (источник создан пользователем явно).
-                logger.LogWarning(ex, "Источник {SourceId} не разобран при замене файла {FileId}", src.Id, id);
+                logger.LogWarning(ex, "Источник {SourceId} не разобран при замене файла {FileId}", src.Id, file.Id);
                 src.MarkRecognitionStale(DataSetStaleReason.NotParsedAgainstNewFile);
                 staleSources++;
             }
         }
 
-        file.UpdateBlobPath(newBlobPath, format);
-        if (!string.IsNullOrWhiteSpace(input.Name)) file.UpdateName(input.Name);
-
-        await db.SaveChangesAsync(ct);
-
-        if (staleSources > 0)
-            await notifications.PublishAsync(NotificationSeverity.Warning,
-                "Файл набора обновлён — проверьте источники",
-                $"Файл «{file.Name}» заменён. Источников, требующих внимания: {staleSources} " +
-                "(PDF-распознавание — перераспознайте вручную; прочие — проверьте определение источника, если данные не совпали).",
-                "Наборы данных", audience: NotificationAudiences.DataSetsEdit, ct: ct);
-
-        return DataSetDtoMapper.MapFile(file);
+        return staleSources;
     }
 
     public async Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct)
@@ -239,14 +248,15 @@ public class DataSetFileService(
         var file = await db.DataSetFiles.FindAsync([id], ct);
         if (file == null) return false;
 
+        db.DataSetFiles.Remove(file);
+        await db.SaveChangesAsync(ct);
+
         if (!file.IsSystem)
         {
             try { await blob.DeleteAsync(file.BlobPath, ct); }
             catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить blob при удалении файла {FileId}", id); }
         }
 
-        db.DataSetFiles.Remove(file);
-        await db.SaveChangesAsync(ct);
         return true;
     }
 }

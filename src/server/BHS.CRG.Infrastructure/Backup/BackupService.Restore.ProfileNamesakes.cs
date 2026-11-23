@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Recognition;
 using Microsoft.EntityFrameworkCore;
@@ -136,7 +137,8 @@ public partial class BackupService
     {
         var patterns = map.Keys.Select(id => "%" + id + "%").ToArray();
         var rows = await db.Database.SqlQueryRaw<FileProfileRefs>("""
-            SELECT "Id", "RecognitionProfiles"::text AS "RecognitionProfiles", "Grouping"::text AS "Grouping"
+            SELECT "Id", "RecognitionRevision", "RecognitionProfiles"::text AS "RecognitionProfiles",
+                   "Grouping"::text AS "Grouping"
             FROM dataset_files
             WHERE "RecognitionProfiles"::text ILIKE ANY({0}) OR "Grouping"::text ILIKE ANY({0})
             """, (object)patterns).ToListAsync(ct);
@@ -153,10 +155,15 @@ public partial class BackupService
                 hit.Add(from);
                 return map[from].ToString();
             });
-            await db.Database.ExecuteSqlRawAsync(
-                """UPDATE dataset_files SET "RecognitionProfiles" = @profiles, "Grouping" = @grouping WHERE "Id" = @id""",
+            var updated = await db.Database.ExecuteSqlRawAsync(
+                """
+                UPDATE dataset_files
+                SET "RecognitionProfiles" = @profiles, "Grouping" = @grouping, "RecognitionRevision" = gen_random_uuid()
+                WHERE "Id" = @id AND "RecognitionRevision" = @revision
+                """,
                 [Jsonb("profiles", Rebind(row.RecognitionProfiles)), Jsonb("grouping", Rebind(row.Grouping)),
-                 new NpgsqlParameter("id", row.Id)], ct);
+                 new NpgsqlParameter("id", row.Id), new NpgsqlParameter("revision", row.RecognitionRevision)], ct);
+            if (updated != 1) throw new DataSetRevisionConflict();
             if (copyFileIds.Contains(row.Id)) continue;
             foreach (var from in hit) rebound[from] = rebound.GetValueOrDefault(from) + 1;
         }
@@ -198,5 +205,5 @@ public partial class BackupService
 
     private sealed record HereProfile(Guid Id, string Code, string Name, bool IsModified);
 
-    private sealed record FileProfileRefs(Guid Id, string? RecognitionProfiles, string? Grouping);
+    private sealed record FileProfileRefs(Guid Id, Guid RecognitionRevision, string? RecognitionProfiles, string? Grouping);
 }

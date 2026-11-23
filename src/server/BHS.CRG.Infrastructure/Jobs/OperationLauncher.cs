@@ -54,7 +54,7 @@ public class OperationLauncher(
         {
             if (await preflight.CheckAsync(ct) is { } shortBlock)
                 return new RecognitionLaunch(null, null, shortBlock);
-            await dataSets.RecognizeFileAsync(fileId, confirm, ct);
+            await dataSets.RecognizeFileAsync(fileId, confirm: false, ct, shortOnly: true);
             return new RecognitionLaunch(null, null, null);
         }
 
@@ -70,7 +70,7 @@ public class OperationLauncher(
         {
             if (await preflight.CheckAsync(ct) is { } shortBlock)
                 return new RecognitionLaunch(null, null, shortBlock);
-            var source = await dataSets.RecognizePdfSourceAsync(sourceId, confirm, ct);
+            var source = await dataSets.RecognizePdfSourceAsync(sourceId, confirm: false, ct, shortOnly: true);
             return source is null ? null : new RecognitionLaunch(null, source, null);
         }
 
@@ -100,8 +100,11 @@ public class OperationLauncher(
         // модель), и всё это время окно для второй такой же задачи оставалось бы открытым.
         if (await preflight.CheckAsync(ct) is { } blocked) return new RecognitionLaunch(null, null, blocked);
 
+        var admission = plan.GostAdmission
+            ?? throw new InvalidOperationException("Для фонового распознавания требуется допуск.");
+        var payload = GostRecognitionJobPayload.Serialize(admission);
         return new RecognitionLaunch(
-            await jobs.EnqueueAsync(JobKind.RecognizeGostSet, userId, plan.FileId, plan.Title, null, ct),
+            await jobs.EnqueueAsync(JobKind.RecognizeGostSet, userId, plan.FileId, plan.Title, payload, ct),
             null, null);
     }
 }
