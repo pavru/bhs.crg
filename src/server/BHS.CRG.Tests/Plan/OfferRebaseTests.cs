@@ -14,16 +14,17 @@ namespace BHS.CRG.Tests.Plan;
 public class OfferRebaseTests(PlanOnlyHost host)
 {
     [Fact]
-    public async Task Предпросмотр_различает_раздел_и_номер_и_переносит_только_однозначные_наценки()
+    public async Task Предпросмотр_различает_главы_и_строки_и_переносит_только_однозначные_наценки()
     {
         var scene = await NewAsync(host);
         var first = await scene.RevisionAsync(
-            Row("А") with { Number = "13" }, Row("Б", "2"), Row("В", number: "2"), Row("Снятая", number: "9"),
+            Row("А") with { Number = "13" }, Row("Б", "2"), Row("В", number: "2"),
+            Row("Снятая", number: "9") with { RateCode = "ГЭСН 09" },
             Row("Дубль А", "3"), Row("Дубль Б", "3"));
         var target = await scene.RevisionAsync(
             Row("Б", "2", cost: 400m), Row("В", number: "2", cost: 500m),
             Row("А", cost: 300m) with { Number = "28", SourceVolume = 2m, SourceUnit = "10 м" },
-            Row("Добавленная", number: "8", cost: 800m), Row("Спорная", "3", cost: 200m));
+            Row("Добавленная", number: "8", cost: 800m) with { RateCode = "ГЭСН 08" }, Row("Спорная", "3", cost: 200m));
         var offer = await scene.CreateAsync(first);
         var url = Url(offer);
         var lines = offer.GetProperty("lines");

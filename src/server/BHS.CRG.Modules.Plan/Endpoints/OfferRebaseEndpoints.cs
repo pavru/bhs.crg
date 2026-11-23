@@ -87,6 +87,7 @@ public static partial class OfferEndpoints
         offer.Lines.Clear();
         offer.Lines.AddRange(prepared.Lines);
         db.OfferLines.AddRange(prepared.Lines);
+        ApplySectionMarkups(db, offer, prepared.SectionMarkups);
         OfferPricing.Retotal(offer);
         prepared.Target.Freeze(new EstimateFreeze("offer", offer.Label), now);
         await db.SaveChangesAsync(ct);

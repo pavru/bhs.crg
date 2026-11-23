@@ -12,7 +12,7 @@
 
 - [x] 2.1 `GET /api/plan/offers/{id}/rebase-preview` под `plan.offer.edit` и `plan.offer.read`: `added`,
   `removed`, `changed`, `unmatched`, `fingerprint`; себестоимость — только с `plan.estimate.cost` [PLAN-13] [PLAN-11]. Проверка —
-  тест: одна расценка в двух разделах сопоставляется по разделу и номеру; без `plan.estimate.cost` полей
+  тест: одна расценка в двух разделах сопоставляется в пределах главы; без `plan.estimate.cost` полей
   себестоимости нет
 - [x] 2.2 `POST /api/plan/offers/{id}/rebase` под `plan.offer.edit` и `plan.offer.read`, с `If-Match` и отпечатком;
   черновик — на месте, отправленное — новой версией [PLAN-13] [PLAN-12] [AUTH-8]. Проверка — тесты отказов:
@@ -35,3 +35,9 @@
 - [x] 4.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
 - [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+
+## 5. Регрессии ревью PR #2059
+
+- [x] 5.1 Вставка строки с той же расценкой не переносит ручную наценку по порядковому номеру.
+- [x] 5.2 Вставленная глава не наследует чужую наценку. Предпросмотр показывает наценки без пары.
+- [x] 5.3 Отправленный снимок остаётся под исходной редакцией с правами, статусом, датой и покрытием.

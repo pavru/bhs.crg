@@ -79,6 +79,66 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
     }
 
     [Fact]
+    public async Task После_переноса_снимок_остаётся_под_исходной_редакцией_со_своим_покрытием()
+    {
+        var scene = await NewAsync(host);
+        var matched = await EstimateSeed.MatchedRowAsync(host, scene.Site, 100m);
+        var source = await scene.RevisionAsync(
+            matched with { Name = "Кабель" }, matched with { Name = "Лоток" });
+        var offer = await scene.CreateAsync(source);
+        var offerId = offer.GetProperty("id").GetGuid();
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            var line = await db.OfferLines.SingleAsync(l => l.OfferId == offerId && l.Order == 2);
+            db.OfferLines.Remove(line);
+            await db.SaveChangesAsync();
+        }
+        var offerUrl = Url(offer);
+        var sent = await ReadAsync(SendAsync(scene.Manager, HttpMethod.Post, $"{offerUrl}/send", Version(offer),
+            new { sentOn = "2026-11-22" }));
+        var accepted = await ReadAsync(SendAsync(scene.Manager, HttpMethod.Post, $"{offerUrl}/outcome", Version(sent),
+            new { status = "accepted" }));
+        var target = await scene.RevisionAsync(matched with { Name = "Другая работа" });
+        await scene.MakeCurrentAsync(target);
+        var preview = await ReadAsync(scene.Manager.GetAsync($"{offerUrl}/rebase-preview"));
+        await ReadAsync(SendAsync(scene.Manager, HttpMethod.Post, $"{offerUrl}/rebase", Version(accepted),
+            new { revisionId = target, fingerprint = Fingerprint(preview) }));
+
+        var url = $"/api/plan/estimates/{scene.EstimateId}/derivatives";
+        var result = await ReadAsync(scene.Manager.GetAsync(url));
+        var revisions = result.GetProperty("revisions");
+        Assert.Equal(source, revisions[0].GetProperty("revisionId").GetGuid());
+        Assert.Equal(target, revisions[1].GetProperty("revisionId").GetGuid());
+        var history = Assert.Single(revisions[0].GetProperty("offers").GetProperty("items").EnumerateArray());
+        Assert.Equal(offerId, history.GetProperty("id").GetGuid());
+        Assert.Equal(1, history.GetProperty("currentVersion").GetInt32());
+        Assert.Equal("accepted", history.GetProperty("status").GetString());
+        Assert.Equal("2026-11-22", history.GetProperty("sentOn").GetString());
+        Assert.True(history.GetProperty("historical").GetBoolean());
+        Assert.True(history.GetProperty("outdated").GetBoolean());
+        var coverage = history.GetProperty("coverage");
+        Assert.Equal(1, coverage.GetProperty("covered").GetInt32());
+        Assert.Equal(2, coverage.GetProperty("total").GetInt32());
+        Assert.Equal(50m, coverage.GetProperty("percent").GetDecimal());
+        var draft = Assert.Single(revisions[1].GetProperty("offers").GetProperty("items").EnumerateArray());
+        Assert.Equal(offerId, draft.GetProperty("id").GetGuid());
+        Assert.Equal(2, draft.GetProperty("currentVersion").GetInt32());
+        Assert.Equal("draft", draft.GetProperty("status").GetString());
+        Assert.False(draft.GetProperty("historical").GetBoolean());
+        Assert.False(draft.GetProperty("outdated").GetBoolean());
+        Assert.Equal(100m, draft.GetProperty("coverage").GetProperty("percent").GetDecimal());
+        Assert.DoesNotContain("\"money\"", result.GetRawText());
+        Assert.DoesNotContain("\"price\"", result.GetRawText());
+        Assert.DoesNotContain("\"content\"", result.GetRawText());
+
+        var estimator = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);
+        var hidden = await ReadAsync(estimator.GetAsync(url));
+        foreach (var revision in hidden.GetProperty("revisions").EnumerateArray())
+            AssertHidden(revision.GetProperty("offers"), PlanModule.OfferRead);
+    }
+
+    [Fact]
     public async Task Блок_графиков_пуст_у_читателя_до_Plan_19()
     {
         var scene = await NewAsync(host);

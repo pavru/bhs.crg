@@ -15,10 +15,14 @@ public sealed record OfferRebaseChangeDto(OfferRebaseLineDto Before, OfferRebase
 public sealed record OfferRebaseUnmatchedDto(
     IReadOnlyList<OfferRebaseLineDto> Before, IReadOnlyList<OfferRebaseLineDto> After);
 
+public sealed record OfferRebaseSectionMarkupDto(
+    LsrSectionDto Source, decimal Markup, IReadOnlyList<LsrSectionDto> Candidates);
+
 public sealed record OfferRebasePreviewDto(
     string Version, OfferRevisionRef Source, OfferRevisionRef Target, string Fingerprint,
     IReadOnlyList<OfferRebaseLineDto> Added, IReadOnlyList<OfferRebaseLineDto> Removed,
     IReadOnlyList<OfferRebaseChangeDto> Changed, IReadOnlyList<OfferRebaseUnmatchedDto> Unmatched,
+    IReadOnlyList<OfferRebaseSectionMarkupDto> UnmatchedSectionMarkups,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
 public sealed record OfferRebaseResultDto(OfferDto Offer, IReadOnlyList<OfferRebaseLineDto> Removed);

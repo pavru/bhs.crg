@@ -52,6 +52,7 @@ internal sealed record OfferDerivativeScenario(
     }
 
     internal static EstimateRowDraft Row(string name, string section = "1", string number = "1", decimal cost = 100m) =>
-        new(name, LsrSectionCode: section, NumberInSection: number, RateCode: "ГЭСН 01", SourceVolume: 1m,
+        new(name, LsrSectionCode: section, LsrSectionName: $"Раздел {section}", NumberInSection: number,
+            RateCode: "ГЭСН 01", SourceVolume: 1m,
             SourceUnit: "100 м", Total: cost);
 }

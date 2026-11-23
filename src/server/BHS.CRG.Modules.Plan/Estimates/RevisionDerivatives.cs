@@ -16,7 +16,7 @@ internal sealed record RevisionCoverage(int Covered, int Total, decimal? Percent
 
 internal sealed record RevisionDerivative(
     Guid Id, string Number, int CurrentVersion, string Status, DateOnly Date, DateOnly? SentOn,
-    RevisionCoverage Coverage, bool Outdated);
+    RevisionCoverage Coverage, bool Outdated, bool Historical);
 
 internal sealed record RevisionDerivativeBlock(
     string State,
@@ -27,7 +27,7 @@ internal sealed record RevisionDerivativeBlock(
     internal static RevisionDerivativeBlock Hidden(string permission) => new("hidden", null, permission);
 }
 
-/// <summary>Производные редакций для чтения сметы (PLAN-22). В проекции нет колонок с деньгами.</summary>
+/// <summary>Производные редакций для чтения сметы (PLAN-22). Ответ не содержит денег.</summary>
 internal static class RevisionDerivatives
 {
     // Право появится в каталоге с первым адресом графиков (plan-18). До plan-19 данных графиков нет.
@@ -69,16 +69,36 @@ internal static class RevisionDerivatives
         var matched = db.EstimateRows.AsNoTracking().Where(EstimateRowCounts.MatchedWorks);
         var offers = await db.Offers.AsNoTracking()
             .Where(o => o.RevisionId != null && revisionIds.Contains(o.RevisionId.Value))
-            .OrderByDescending(o => o.Date).ThenByDescending(o => o.Year).ThenByDescending(o => o.Sequence)
             .Select(o => new
             {
-                o.RevisionId, o.Id, o.Number, o.CurrentVersion, o.Status, o.Date, o.SentOn,
+                o.RevisionId, o.Id, o.Number, o.Year, o.Sequence, o.CurrentVersion, o.Status, o.Date, o.SentOn,
                 Total = matched.Count(r => r.RevisionId == o.RevisionId),
                 Covered = matched.Count(r => r.RevisionId == o.RevisionId && o.Lines.Any(l => l.RevisionRowId == r.Id)),
             }).ToListAsync(ct);
 
-        return offers.ToLookup(o => o.RevisionId!.Value,
-            o => new RevisionDerivative(o.Id, o.Number, o.CurrentVersion, OfferViews.StatusCode(o.Status), o.Date, o.SentOn,
-                RevisionCoverage.Of(o.Covered, o.Total), o.RevisionId != current));
+        var displayed = offers.Select(o => (Revision: o.RevisionId!.Value, o.Year, o.Sequence,
+            Item: new RevisionDerivative(o.Id, o.Number, o.CurrentVersion, OfferViews.StatusCode(o.Status), o.Date, o.SentOn,
+                RevisionCoverage.Of(o.Covered, o.Total), o.RevisionId != current, Historical: false))).ToList();
+
+        var history = await OfferHistory.ForRevisionsAsync(db, revisionIds, ct);
+        if (history.Count > 0)
+        {
+            var sources = history.Select(o => o.RevisionId).Distinct().ToArray();
+            var rows = await matched.Where(r => sources.Contains(r.RevisionId))
+                .Select(r => new { r.RevisionId, r.Id }).ToListAsync(ct);
+            var byRevision = rows.ToLookup(r => r.RevisionId, r => r.Id);
+            foreach (var old in history)
+            {
+                var eligible = byRevision[old.RevisionId];
+                var coverage = RevisionCoverage.Of(eligible.Count(old.RevisionRows.Contains), eligible.Count());
+                displayed.Add((old.RevisionId, old.Year, old.Sequence,
+                    new(old.Id, old.Number, old.Version, old.Status, old.Date, old.SentOn,
+                        coverage, old.RevisionId != current, Historical: true)));
+            }
+        }
+
+        return displayed.OrderByDescending(o => o.Item.Date).ThenByDescending(o => o.Year)
+            .ThenByDescending(o => o.Sequence).ThenByDescending(o => o.Item.CurrentVersion)
+            .ToLookup(o => o.Revision, o => o.Item);
     }
 }
