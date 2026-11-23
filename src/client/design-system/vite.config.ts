@@ -63,6 +63,7 @@ export default defineConfig({
       work22: resolve(root, 'work22.html'),
       duplicatePayment: resolve(root, 'duplicate-payment.html'),
       paymentRequisites: resolve(root, 'payment-requisites.html'),
+      planOffers: resolve(root, 'plan-offers.html'),
     } },
   },
 });
