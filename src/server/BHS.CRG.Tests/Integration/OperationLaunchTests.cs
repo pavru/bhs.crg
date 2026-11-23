@@ -427,6 +427,31 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Equal((bySource ? sourceId : fileId).ToString(), row.TargetId);
     }
 
+    [Fact]
+    public async Task GostSourceIsRejectedBeforeQueueingWhenTheFileHasAnInvoiceProfile()
+    {
+        var preflight = new FakePreflight(null);
+        using var host = HostWith(preflight);
+        var (client, _) = await AuthorizedClientAsync(host);
+        var (fileId, sourceId) = await SeedGostSourceAsync(host.Services, manuallyEdited: false);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var file = (await db.DataSetFiles.FindAsync(fileId))!;
+        file.SetPreprocessingProfile(PdfProfiles.Invoice);
+        await db.SaveChangesAsync();
+
+        var web = await client.PostAsync($"/api/datasets/sources/{sourceId}/recognize", null);
+        Assert.Equal(HttpStatusCode.BadRequest, web.StatusCode);
+        var mcp = await McpCallAsync(client, "recognize_source", new { sourceId });
+        Assert.True(mcp.GetProperty("isError").GetBoolean());
+        Assert.Contains("Источник не соответствует текущему профилю набора", TextOf(mcp));
+        Assert.Equal(0, preflight.Calls);
+
+        Assert.False(await db.Jobs.AnyAsync(j => j.TargetId == fileId));
+        Assert.False(await db.ActivityRecords.AnyAsync(r =>
+            r.Action == ActivityActions.McpToolCalled.Code && r.After == "recognize_source"));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

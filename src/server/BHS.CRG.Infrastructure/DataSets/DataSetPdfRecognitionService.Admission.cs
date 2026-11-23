@@ -1,4 +1,5 @@
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.DataSets;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,9 @@ public partial class DataSetPdfRecognitionService
 
     private static GostRecognitionAdmission AdmitGostRecognition(DataSetFile file, bool confirm, bool bySource)
     {
+        if (bySource && FindDescriptor(file)?.Kind != PdfProfileKind.Gost)
+            throw new InvalidRequestException("Источник не соответствует текущему профилю набора. Запустите распознавание набора.");
+
         var manual = ParseGrouping(file.Grouping) is { ManuallyEdited: true };
         if (manual && !confirm)
         {
@@ -43,6 +47,16 @@ public partial class DataSetPdfRecognitionService
     {
         if (!await db.DataSetFiles.AnyAsync(f => f.Id == file.Id && f.RecognitionRevision == file.RecognitionRevision, ct))
             throw new DataSetRevisionConflict();
+    }
+
+    private async Task SaveShortRecognitionAsync(DataSetFile file, CancellationToken ct)
+    {
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException ex) when (ex.Entries.Any(e => e.Entity == file))
+        {
+            db.ChangeTracker.Clear();
+            throw new DataSetRevisionConflict(ex);
+        }
     }
 
     private async Task<byte[]> ReadGostRecognitionPdfAsync(DataSetFile file, CancellationToken ct)

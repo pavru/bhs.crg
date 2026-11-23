@@ -138,7 +138,8 @@ public partial class DataSetPdfRecognitionService(
     /// этого поля. Требует file.Sources загруженным.</summary>
     private static PdfProfileDescriptor? FindDescriptor(DataSetFile file) =>
         PdfProfileRegistry.ByProfileMarker(file.PreprocessingProfile)
-        ?? file.Sources.Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null);
+        ?? file.Sources.OrderBy(s => s.Id)
+            .Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null);
 
     private static PdfProfileDescriptor ResolveDescriptor(DataSetFile file) =>
         FindDescriptor(file)

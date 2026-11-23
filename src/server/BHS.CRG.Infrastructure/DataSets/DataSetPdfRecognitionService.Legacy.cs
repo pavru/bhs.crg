@@ -16,8 +16,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 ///
 /// <para>Штатный вход давно по набору: <c>RecognizeFileAsync(fileId)</c> в основном файле. Здесь
 /// лежит прежняя пара по <c>sourceId</c>, сохранённая для существующих call-sites (эндпоинт
-/// <c>POST /sources/{id}/recognize</c>): дискриминатор профиля берётся из маркера ИСТОЧНИКА, а не
-/// из поля набора (issue #44).</para>
+/// <c>POST /sources/{id}/recognize</c>): операция определяется по маркеру источника (issue #44).
+/// Полное ГОСТ-распознавание также сверяет текущий профиль набора.</para>
 ///
 /// <para>Отдельным файлом — чтобы два пути не читались как один: оба зовутся «распознать», но
 /// ходят от разных сущностей, и смешение их в одном списке методов и было главной причиной
@@ -30,7 +30,8 @@ public partial class DataSetPdfRecognitionService
     /// существующих call-sites (эндпоинт POST /sources/{id}/recognize).</summary>
     public async Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
+            .AsNoTrackingWithIdentityResolution().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source is null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
             throw new InvalidRequestException("Источник не относится к PDF-файлу.");

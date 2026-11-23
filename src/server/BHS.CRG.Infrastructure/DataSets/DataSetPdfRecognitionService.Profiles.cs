@@ -74,7 +74,7 @@ public partial class DataSetPdfRecognitionService
         foreach (var lineItems in ProjectionsOf(file.Sources, PdfProfiles.InvoiceLineItemsMarker))
             lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
 
-        await db.SaveChangesAsync(ct);
+        await SaveShortRecognitionAsync(file, ct);
     }
 
     /// <summary>

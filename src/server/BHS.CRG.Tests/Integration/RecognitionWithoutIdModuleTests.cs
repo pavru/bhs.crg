@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
@@ -269,6 +270,35 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         Assert.Equal([RecognitionProfileKind.Invoice], asked.Kinds.Distinct());
     }
 
+    [Fact]
+    public async Task Invoice_recognition_reports_a_conflict_when_its_profile_binding_changes()
+    {
+        var fileId = await SeedPdfAsync(PdfProfiles.Invoice, PdfProfiles.InvoiceHeaderMarker);
+        using var scope = host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<AppDbContext>();
+        var profileId = await db.RecognitionProfiles.Where(p => p.Code == CostsRecognitionProfiles.InvoiceCode)
+            .Select(p => p.Id).SingleAsync();
+        var recognizer = new InvoiceRecognizer(async ct =>
+        {
+            using var edit = host.Services.CreateScope();
+            var dataSets = edit.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>();
+            Assert.True(await dataSets.SetFileRecognitionProfilesAsync(fileId,
+                new Dictionary<string, Guid?> { [nameof(RecognitionProfileKind.Invoice)] = profileId }, ct));
+        });
+        var service = new DataSetPdfRecognitionService(db, services.GetRequiredService<IBlobStorage>(), recognizer,
+            services.GetRequiredService<INotificationService>(), services.GetRequiredService<IRecognitionProfileProvider>(),
+            NullLogger<DataSetPdfRecognitionService>.Instance);
+
+        await Assert.ThrowsAsync<DataSetRevisionConflict>(() => service.RecognizeFileAsync(fileId, confirm: false, default));
+
+        var saved = await db.DataSetFiles.AsNoTracking().SingleAsync(f => f.Id == fileId);
+        Assert.Contains(profileId.ToString(), saved.RecognitionProfiles);
+        Assert.Null(saved.InvoiceRawData);
+        var source = await db.DataSetSources.AsNoTracking().SingleAsync(s => s.FileId == fileId);
+        Assert.Equal(0, source.CachedRowCount);
+    }
+
     /// <summary>
     /// Предикат «это таблица?» ворот НЕ спрашивает: по нему решается, осиротел ли источник таблицы, и
     /// там по ответу удаляются данные. Ответь выключенный модуль «не таблица» — и его выключение
@@ -342,16 +372,19 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         return file.Id;
     }
 
-    private sealed class InvoiceRecognizer : IDocumentRecognizer
+    private sealed class InvoiceRecognizer(Func<CancellationToken, Task>? beforeResult = null) : IDocumentRecognizer
     {
-        public Task<RecognitionResult> RecognizeAsync(
+        public async Task<RecognitionResult> RecognizeAsync(
             byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
-            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default) =>
-            Task.FromResult(new RecognitionResult(new Dictionary<string, string?>
+            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
+        {
+            if (beforeResult is not null) await beforeResult(ct);
+            return new RecognitionResult(new Dictionary<string, string?>
             {
                 ["НомерСчёта"] = "СЧ-17",
                 [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель","Количество":"3"}]""",
-            }, null));
+            }, null);
+        }
     }
 
     /// <summary>Поставщик профилей приложения, который записывает, о каких видах его спросили.</summary>

@@ -10,6 +10,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Jobs;
@@ -157,6 +158,45 @@ public class DataSetRecognitionRevisionTests(IntegrationTestFixture fixture) : I
         Assert.Null(await blobs.GetSizeAsync(original.Part));
         var unusedPart = Assert.Single(blobs.Uploaded.Except(uploadedBeforeResult));
         Assert.Null(await blobs.GetSizeAsync(unusedPart));
+    }
+
+    [Fact]
+    public async Task TableJobReportsARevisionConflictAndKeepsTheNewerGrouping()
+    {
+        var engine = new ControlledRecognizer(pause: true);
+        using var host = HostWith(engine, new RecordingBlobs());
+        var fileId = await SeedAsync(host.Services);
+        Guid jobId;
+        using (var setup = host.Services.CreateScope())
+        {
+            var db = Db(setup);
+            var file = (await db.DataSetFiles.FindAsync(fileId))!;
+            var grouping = GostGroupingSerialization.Parse(file.Grouping)!;
+            var group = Assert.Single(grouping.Groups) with { Tags = [FunctionalTag.GostDocSpecification] };
+            file.SetGrouping(JsonSerializer.Serialize(grouping with { Groups = [group] }));
+            await db.SaveChangesAsync();
+            jobId = await setup.ServiceProvider.GetRequiredService<IJobService>()
+                .EnqueueAsync(JobKind.RecognizeTable, Guid.Empty, fileId, "Распознавание таблицы",
+                    """{"firstPageIndex":0}""", default);
+        }
+
+        using var worker = await StartWorkerAsync(host.Services);
+        Snapshot winner;
+        try
+        {
+            await engine.Entered.WaitAsync(Deadline);
+            using var edit = host.Services.CreateScope();
+            await edit.ServiceProvider.GetRequiredService<IDataSetService>()
+                .ApplyGroupingAsync(fileId, Grouping("Ручная схема"), default);
+            winner = await ReadAsync(host.Services, fileId);
+        }
+        finally
+        {
+            engine.Resume();
+        }
+
+        await AssertFailedAsync(host.Services, jobId, "Набор данных изменился");
+        Assert.Equal(winner, await ReadAsync(host.Services, fileId));
     }
 
     [Fact]
