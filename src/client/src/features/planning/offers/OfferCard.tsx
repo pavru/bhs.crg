@@ -34,14 +34,14 @@ export function OfferCard({ id }: { id: string }) {
   const fromEstimate = typeof state?.estimatePath === 'string' && /^\/(estimates|document-sets)\//.test(state.estimatePath)
     ? state.estimatePath as string : null;
   const target = fromEstimate ?? OFFERS_PATH;
+  const backState = fromEstimate && typeof state?.estimateRevisionId === 'string' ? { revisionId: state.estimateRevisionId } : undefined;
   const refusal = query.isError ? offerRefusal(query.error, 'КП не прочиталось.') : null;
   const data = refusal?.kind === 'forbidden' ? null : query.data;
   async function reload() {
     return (await query.refetch({ throwOnError: true })).data!;
   }
   return <div className="grid min-w-0 grid-cols-1 gap-4">
-    <div><Link to={target} onClick={guardedClick(target)}
-      state={fromEstimate && typeof state?.estimateRevisionId === 'string' ? { revisionId: state.estimateRevisionId } : undefined}
+    <div><Link to={target} state={backState} onClick={guardedClick(target, { state: backState })}
       className="text-body-medium text-primary hover:underline">
       {fromEstimate ? 'К смете' : 'К списку КП'}
     </Link></div>
@@ -67,8 +67,8 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   const tabId = useId();
   const rawVersion = params.get('version');
   const selected = rawVersion && /^\d+$/.test(rawVersion) ? Number(rawVersion) : null;
-  const view = rawVersion !== null ? 'versions' : tab;
   const historical = selected !== null && selected !== offer.currentVersion;
+  const view = historical ? 'versions' : tab;
   const draft = offer.status === 'draft';
   const hidden = costHidden(offer.hidden);
   const showCost = canReadCost && hidden === null;
@@ -77,13 +77,20 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   const close = () => setLayer(null);
   const statusAction = layer === 'send' || layer === 'outcome' || layer === 'next' ? layer : null;
 
-  function showTab(value: Tab) {
+  function showCurrent(value: Tab) {
     setTab(value);
     if (params.has('version')) setParams(previous => {
       const next = new URLSearchParams(previous);
       next.delete('version');
       return next;
     }, { replace: true, state: origin });
+  }
+
+  const showTab = historical ? showCurrent : setTab;
+
+  function openNewDraft() {
+    close();
+    showCurrent('lines');
   }
 
   return <article className="grid min-w-0 grid-cols-1 gap-4" aria-label={`Карточка ${offer.number}`}>
@@ -126,9 +133,10 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
       {view === 'versions' && <OfferVersions offer={offer} selected={selected} onReturn={() => showTab('versions')} />}
     </TabPanel>
     {statusAction && <OfferStatusDialog offer={offer} action={statusAction} reload={reload}
-      allowed={statusAction === 'next' ? canEdit : canSend} onClose={close} onSuccess={close} />}
+      allowed={statusAction === 'next' ? canEdit : canSend} onClose={close} onSuccess={statusAction === 'next' ? openNewDraft : close} />}
     {layer === 'header' && <EditOfferHeaderDialog offer={offer} canEdit={canEdit} reload={reload} onClose={close} />}
-    {layer === 'rebase' && <OfferRebaseDialog offer={offer} allowed={canRead && canEdit} showCost={showCost} reload={reload} onClose={close} />}
+    {layer === 'rebase' && <OfferRebaseDialog offer={offer} allowed={canRead && canEdit} showCost={showCost} reload={reload}
+      onClose={close} onSuccess={openNewDraft} />}
     {layer === 'reprice' && <PriceListRepriceDialog offer={offer} allowed={canRead && canEdit} reload={reload} onClose={close} />}
     {layer === 'print' && canRead && <OfferPrintDialog offer={offer} onClose={close} />}
   </article>;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { offerRefusal, usePriceListReprice, type OfferRefusal } from '@/shared/api/planningOffers';
-import type { Offer, PriceListRepricePreview } from '@/shared/api/planningOfferTypes';
+import type { Offer, OfferPriceSource, PriceListRepricePreview } from '@/shared/api/planningOfferTypes';
 import { formatDate } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { DataGrid } from '@/shared/ui/DataGrid';
@@ -9,6 +9,12 @@ import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { OfferTotals } from '../offers/offerDisplay';
 import { moneyText } from '../offers/offerFormat';
 import type { ReloadOffer } from '../offers/useOfferWriteForm';
+
+function priceAt(price: number | null, source: OfferPriceSource) {
+  if (source.kind === 'none') return 'Нет цены в прайс-листе';
+  return <>{moneyText(price)}{source.validFrom &&
+    <span className="block text-body-small text-on-surface-variant">с {formatDate(source.validFrom)}</span>}</>;
+}
 
 export function PriceListRepriceDialog({ offer, allowed, reload, onClose }: {
   offer: Offer; allowed: boolean; reload: ReloadOffer; onClose: () => void;
@@ -71,9 +77,8 @@ export function PriceListRepriceDialog({ offer, allowed, reload, onClose }: {
       {preview && !blocked && !forbidden && <>
         {preview.changes.length ? <DataGrid rows={preview.changes} rowKey={row => row.lineId} density="compact" columns={[
           { key: 'name', label: 'Вид работы', rowHeader: true, wrap: true, cell: row => row.name },
-          { key: 'previousPrice', label: 'Прежняя цена', align: 'right', cell: row => moneyText(row.previousPrice) },
-          { key: 'newPrice', label: 'Новая цена', align: 'right', cell: row =>
-            row.priceSource.kind === 'none' ? 'Нет цены в прайс-листе' : moneyText(row.price) },
+          { key: 'previousPrice', label: 'Прежняя цена', align: 'right', cell: row => priceAt(row.previousPrice, row.previousPriceSource) },
+          { key: 'newPrice', label: 'Новая цена', align: 'right', cell: row => priceAt(row.price, row.priceSource) },
           { key: 'previousAmount', label: 'Прежняя сумма', align: 'right', cell: row => moneyText(row.previousAmount) },
           { key: 'newAmount', label: 'Новая сумма', align: 'right', cell: row => row.priceSource.kind === 'none' ? '—' : moneyText(row.amount) },
         ]} /> : <p className="text-body-medium">Изменений в строках нет.</p>}

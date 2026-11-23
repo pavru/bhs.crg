@@ -40,6 +40,13 @@ it('показывает покрытие и дату исторического
   expect(screen.queryByText('КП-088')).toBeNull();
 });
 
+it('закрепляет номер версии даже у текущего КП', async () => {
+  rights = ['plan.estimate.read', 'plan.offer.read'];
+  mount([first, second], 'r2');
+  const link = await screen.findByRole('link', { name: 'Открыть КП-088, версия 3' });
+  expect(link.getAttribute('href')).toBe('/offers/o1?version=3');
+});
+
 it.each([true, false])('скрывает любые числа под закрытым блоком КП (серверный hidden %s)', async serverHidden => {
   rights = serverHidden ? ['plan.estimate.read', 'plan.offer.read'] : ['plan.estimate.read'];
   mount([serverHidden ? { ...first, offers: { state: 'hidden', permission: 'plan.offer.read' } } : first]);

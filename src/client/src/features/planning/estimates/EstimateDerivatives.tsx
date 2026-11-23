@@ -52,7 +52,7 @@ export function EstimateDerivatives({ estimateId, revisionId }: { estimateId: st
         : <DataGrid rows={offers.items} rowKey={row => `${row.id}:${row.currentVersion}`} density="compact" columns={[
           { key: 'number', label: 'КП', rowHeader: true, cell: row => <>
             <Link className="text-primary hover:underline focus-ring"
-              to={offerUrl(row.id, row.historical ? row.currentVersion : undefined)}
+              to={offerUrl(row.id, row.currentVersion)}
               state={{ estimatePath: pathname + search, estimateRevisionId: revisionId }}
               aria-label={`Открыть ${row.number}, версия ${row.currentVersion}`}>{row.number}</Link>
             <span className="block text-body-small text-on-surface-variant">Версия {row.currentVersion}{row.historical ? ' · История' : ''}</span>

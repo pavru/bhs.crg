@@ -11,8 +11,8 @@ import { StatusText } from '@/shared/ui/StatusText';
 import { markupText, moneyText } from './offerFormat';
 import type { ReloadOffer } from './useOfferWriteForm';
 
-export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }: {
-  offer: Offer; allowed: boolean; showCost: boolean; reload: ReloadOffer; onClose: () => void;
+export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose, onSuccess }: {
+  offer: Offer; allowed: boolean; showCost: boolean; reload: ReloadOffer; onClose: () => void; onSuccess: () => void;
 }) {
   const [seen, setSeen] = useState(offer);
   const [selected, setSelected] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }:
     try {
       await mutation.mutateAsync({ version: seen.version, command: { type: 'rebase', fingerprint: preview.fingerprint,
         revisionId: preview.target.id } });
-      onClose();
+      onSuccess();
     } catch (error) {
       const next = offerRefusal(error, 'КП не обновлено.');
       setRefusal(next);

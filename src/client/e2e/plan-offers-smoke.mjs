@@ -199,6 +199,41 @@ try {
       assert.equal(updated.status, 'draft');
       assert.equal(updated.currentVersion, draft.currentVersion + 1);
     });
+
+    await check('derivative-links-stay-on-the-shown-version-and-return-to-the-same-revision', async () => {
+      const draft = await callApiOk(manager, 'POST', '/plan/offers', { revisionId: source.id, date: offer.date, markup: 8 });
+      const path = `/plan/offers/${draft.id}`;
+      const sent = await concurrentWrite(manager, 'POST', `${path}/send`, draft.version, { sentOn: offer.date });
+      assert.equal(sent.status, 200, JSON.stringify(sent.data));
+      await manager.goto(`${BASE}/estimates/${estimateId}`);
+      const sourceTab = manager.getByRole('tab', { name: /^Ред\. 1(?:\s|$)/ });
+      await sourceTab.click();
+      const derivatives = manager.getByRole('region', { name: 'КП редакции' });
+      const sentLink = derivatives.getByRole('link', { name: `Открыть ${draft.number}, версия 1`, exact: true });
+      assert((await sentLink.getAttribute('href')).endsWith('?version=1'));
+      const newer = await concurrentWrite(manager, 'POST', `${path}/versions`, sent.data.version);
+      assert.equal(newer.status, 200, JSON.stringify(newer.data));
+      await sentLink.click();
+      await manager.getByRole('heading', { name: 'Версия 1 · только чтение', exact: true }).waitFor();
+      await manager.getByRole('link', { name: 'К смете', exact: true }).click();
+
+      // Реестр производных кеширует ответ, полученный до операции из другого окна.
+      await manager.waitForURL(`**/estimates/${estimateId}`);
+      await manager.reload();
+      await sourceTab.click();
+      const draftLink = derivatives.getByRole('link', { name: `Открыть ${draft.number}, версия 2`, exact: true });
+      assert((await draftLink.getAttribute('href')).endsWith('?version=2'));
+      await draftLink.click();
+      await manager.getByRole('columnheader', { name: 'Цена продажи', exact: true }).waitFor();
+      await tab(manager, 'Наценки').click();
+      assert.equal(new URL(manager.url()).searchParams.get('version'), '2');
+      await manager.getByRole('textbox', { name: 'Наценка КП', exact: true }).fill('19');
+      await manager.getByRole('link', { name: 'К смете', exact: true }).click();
+      await button(manager.getByRole('dialog', { name: 'Несохранённые изменения' }), 'Не сохранять').click();
+      await draftLink.waitFor();
+      assert.equal(await sourceTab.getAttribute('aria-selected'), 'true');
+      assert.equal((await callApiOk(manager, 'GET', path)).markup, 8);
+    });
   }
 
   const estimator = await browser.newPage({ viewport });

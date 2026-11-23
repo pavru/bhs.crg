@@ -184,6 +184,38 @@ describe('КП на живых компонентах', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  it('открывает новый черновик после создания версии с закреплённой ссылкой', async () => {
+    access('plan.offer.edit');
+    const sent = { ...initial, status: 'sent' as const, sentOn: '2026-11-23' };
+    serve(() => sent);
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { ...initial, version: '80', currentVersion: 2 } });
+    mount(<OffersPage />, '/o1?version=1');
+    await screen.findByRole('columnheader', { name: 'Цена продажи' });
+    click('Новая версия…');
+    click('Создать версию');
+    await screen.findByText('Версия 2 · Смета · ред. 1');
+    expect(screen.getByRole('columnheader', { name: 'Цена продажи' })).toBeTruthy();
+  });
+
+  it('показывает даты обеих записей при пересчёте с той же ценой', async () => {
+    access('plan.offer.edit');
+    const offer = { ...initial, source: 'pricelist' as const, revision: null, drift: null, priceListDate: '2026-11-23' };
+    serve(() => offer);
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { version: offer.version, priceListDate: offer.date,
+      previewToken: 'preview', offer: null, money: offer.money, changes: [{
+        lineId: line.id, name: line.name, price: 123, previousPrice: 123, amount: 321, previousAmount: 321,
+        priceSource: { kind: 'pricelist', validFrom: '2026-11-23' },
+        previousPriceSource: { kind: 'pricelist', validFrom: '2026-05-01' },
+      }] } });
+    mount();
+    await screen.findByRole('button', { name: 'Пересчитать по прайс-листу…' });
+    click('Пересчитать по прайс-листу…');
+    click('Показать изменения');
+    const dialog = screen.getByRole('dialog', { name: 'Пересчитать по прайс-листу' });
+    expect(await within(dialog).findByRole('cell', { name: /123.*с 01\.05\.2026/ })).toBeTruthy();
+    expect(within(dialog).getByRole('cell', { name: /123.*с 23\.11\.2026/ })).toBeTruthy();
+  });
+
   it('создаёт черновик из названной редакции и ведёт к ответу сервера', async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: initial });
     const onCreated = vi.fn();
