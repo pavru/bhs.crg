@@ -9,6 +9,8 @@
 // работы в «100 шт» и «100 м», работа с ресурсом-материалом и строка-материал (ФССЦ). Итоги позиций
 // записаны, как их пишет программа: досчёт итогов — забота разбора, а не экранов смет.
 
+import { seedOffer } from './seed-offers.mjs';
+
 /** Единицы измерения: справочник заводит человек; классификатор видов работ появится со следующим запуском. */
 const UNIT_TYPE = 'ЕдиницаИзмерения';
 export const ESTIMATE_NAME = 'ЭОМ корпус 2 (посев)';
@@ -84,8 +86,8 @@ export function estimateXml(extra = false) {
 }
 
 /**
- * Пользователи, справочник единиц и смета с двумя редакциями. Возвращает идентификатор сметы либо `null`,
- * если модуля `plan` в приложении нет, — и говорит об этом вслух: прогон смет на таком стенде отказывает.
+ * Пользователи, справочник единиц, смета с двумя редакциями и черновик КП. Если модуль выключен,
+ * идентификаторов нет и прогон на таком стенде отказывает.
  */
 export async function seedEstimates({ api, findType, ensureUser, apiBase, token, constructionId }) {
   // Модуль выключен — это 501 ворот модуля, и только он. Прочий отказ (500, нет права) — отказ посева: выданный за
@@ -95,7 +97,7 @@ export async function seedEstimates({ api, findType, ensureUser, apiBase, token,
     console.log(`  ! сметы не сеются: модуль plan выключен (${e.message})`);
     return null;
   });
-  if (existing === null) return null;
+  if (existing === null) return {};
 
   // «Сметчик» импортирует и сопоставляет; «Менеджер проекта» читает сметы без себестоимости.
   await ensureUser(process.env.SMOKE_ESTIMATOR_EMAIL || 'smeta@bhs.local', ESTIMATOR_NAME, 'Estimator');
@@ -112,7 +114,7 @@ export async function seedEstimates({ api, findType, ensureUser, apiBase, token,
     await importFile({ api, apiBase, token, form: { constructionId, estimateId: estimate.id }, extra: true });
     console.log(`  + смета «${ESTIMATE_NAME}», ред. 2`);
   }
-  return estimate.id;
+  return { estimateId: estimate.id, offerId: await seedOffer({ api, estimateId: estimate.id }) };
 }
 
 /**
