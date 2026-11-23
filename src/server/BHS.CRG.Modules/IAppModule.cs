@@ -79,6 +79,9 @@ public interface IAppModule
     /// </summary>
     IReadOnlyList<ModuleRecordType> RecordTypes => [];
 
+    /// <summary>Печатные формы собственных типов и права чтения записей (CORE-21).</summary>
+    IReadOnlyList<Printing.ModulePrintForm> PrintForms => [];
+
     /// <summary>
     /// Справочники ядра, которые модуль читает, — названные ролями, и их поля, названные тэгами
     /// (ТЗ TYPE-23, issue #1101): что модулю нужно и что не заработает без каждого.

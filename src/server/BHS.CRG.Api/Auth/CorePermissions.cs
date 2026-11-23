@@ -44,6 +44,8 @@ public static class CorePermissions
     /// <summary>Правка типов и схем (ТЗ CORE-37).</summary>
     public const string TypesEdit = "core.types.edit";
 
+    public const string PrintEdit = "core.print.edit";
+
     /// <summary>Чтение справочника сущностей и общих данных.</summary>
     public const string CatalogRead = "core.catalog.read";
 
@@ -140,6 +142,11 @@ public static class CorePermissions
             "менять типы документов и их схемы в пределах уровня правки",
             "схемы всех типов, включая типы модулей: поля, тэги, печатные формы",
             [TypesRead, "core.nomenclature.edit"]),
+
+        new(PrintEdit,
+            "настраивать шаблоны печатных форм записей модулей",
+            "шаблоны и ассеты записей модулей, общие ассеты и библиотека Typst",
+            [TypesRead]),
 
         new(WorkTypesEdit,
             "вести классификатор видов работ компании",

@@ -101,8 +101,8 @@ public sealed class IdRecordSearch(AppDbContext db) : IRecordSearch
     {
         var asked = await db.Templates.AsNoTracking().Where(t => ids.Contains(t.Id))
             .Join(db.DocumentTypes, t => t.DocumentTypeId, d => d.Id,
-                (t, d) => new { t.Id, t.Name, t.DocumentTypeId, Type = d.Name, d.Kind, d.IsAbstract })
-            .Where(x => x.Kind == DocumentTypeKind.Document && !x.IsAbstract)
+                (t, d) => new { t.Id, t.Name, t.DocumentTypeId, Type = d.Name, d.Kind, d.IsAbstract, d.Module })
+            .Where(x => x.Kind == DocumentTypeKind.Document && !x.IsAbstract && (x.Module == "id" || x.Module == TypeOwner.Core))
             .ToListAsync(ct);
         if (asked.Count == 0) return [];
 

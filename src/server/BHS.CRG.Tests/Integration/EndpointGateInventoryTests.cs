@@ -123,6 +123,7 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> GatedInside = new()
     {
+        ["/api/print"] = "владелец типа и право печати известны из объявления формы. Сторож — RecordPrintTests",
         ["/mcp"] = "право у каждого инструмента, ресурса и промпта MCP (ТЗ AUTH-12.1); адрес один "
             + "на все примитивы, и потребовать на нём можно только вход. Сторож — McpGateInventoryTests",
         ["/api/tables"] = "ключ у каждой таблицы свой — его называет объявление модуля (ТЗ CORE-33, "

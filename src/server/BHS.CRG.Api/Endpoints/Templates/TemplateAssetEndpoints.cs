@@ -30,15 +30,18 @@ public static class TemplateAssetEndpoints
 
     public static void MapTemplateAssetEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/template-assets").RequireAuthorization(AppPolicies.Permission("id.document.read"));
-        var admin = app.MapGroup("/api/template-assets").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
+        var g = app.MapGroup("/api/template-assets").RequireAuthorization(TemplateAccess.Policy(app, edit: false));
+        var admin = app.MapGroup("/api/template-assets").RequireAuthorization(TemplateAccess.Policy(app, edit: true));
 
-        g.MapGet("/", async (TemplateAssetScope scope, Guid? scopeId, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new ListTemplateAssetsQuery(scope, scopeId), ct)));
+        g.MapGet("/", async (TemplateAssetScope scope, Guid? scopeId, HttpContext http, TemplateAccess access,
+            IMediator m, CancellationToken ct) =>
+            await access.ForAssetScopeAsync(http, scope, scopeId, edit: false, ct)
+            ?? Results.Ok(await m.Send(new ListTemplateAssetsQuery(scope, scopeId), ct)));
 
         admin.MapPost("/", async (IFormFile file, TemplateAssetScope scope, Guid? scopeId, string name,
-            IBlobStorage blob, IMediator m, CancellationToken ct) =>
+            HttpContext http, TemplateAccess access, IBlobStorage blob, IMediator m, CancellationToken ct) =>
         {
+            if (await access.ForAssetScopeAsync(http, scope, scopeId, edit: true, ct) is { } refusal) return refusal;
             var ext = Path.GetExtension(file.FileName);
             if (!ExtMap.TryGetValue(ext, out var info))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {ext}" });
@@ -67,8 +70,10 @@ public static class TemplateAssetEndpoints
             return Results.Ok(asset);
         }).DisableAntiforgery();
 
-        admin.MapPut("/{id:guid}", async (Guid id, IFormFile file, IBlobStorage blob, IMediator m, CancellationToken ct) =>
+        admin.MapPut("/{id:guid}", async (Guid id, IFormFile file, HttpContext http, TemplateAccess access,
+            IBlobStorage blob, IMediator m, CancellationToken ct) =>
         {
+            if (await access.ForAssetAsync(http, id, ct) is { } refusal) return refusal;
             var ext = Path.GetExtension(file.FileName);
             if (!ExtMap.TryGetValue(ext, out var info))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {ext}" });
@@ -94,8 +99,9 @@ public static class TemplateAssetEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         }).DisableAntiforgery();
 
-        admin.MapDelete("/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
+        admin.MapDelete("/{id:guid}", async (Guid id, HttpContext http, TemplateAccess access, IMediator m, CancellationToken ct) =>
         {
+            if (await access.ForAssetAsync(http, id, ct) is { } refusal) return refusal;
             await m.Send(new DeleteTemplateAssetCommand(id), ct);
             return Results.NoContent();
         });

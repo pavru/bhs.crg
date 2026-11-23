@@ -128,6 +128,8 @@ public static class ModulePorts
         // обработчики — в StartupTasks. Фабрикой: у каталога два конструктора, и выбирать за нас
         // контейнеру нечего.
         services.AddSingleton(sp => new ModuleTickCatalog(sp.GetRequiredService<ModuleRegistry>()));
+        services.AddScoped<Endpoints.Generation.RecordPrintEndpoint>();
+        services.AddScoped<Endpoints.Templates.TemplateAccess>();
 
         // Разделы модулей для диалога закрытия периода (E1b). Нужен службе закрытия ядра при ЛЮБОМ
         // составе модулей, включая пустой: без модулей перечень пуст, а закрытие работает.

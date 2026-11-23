@@ -10,8 +10,9 @@ const post = vi.fn((..._args: unknown[]) => Promise.resolve());
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: (...args: unknown[]) => post(...args) } }));
 
 const types = [
-  { id: 't-1', name: 'АОСР', kind: 'Document', isAbstract: false },
-  { id: 't-2', name: 'Протокол', kind: 'Document', isAbstract: false },
+  { id: 't-1', name: 'АОСР', kind: 'Document', module: 'id', isAbstract: false },
+  { id: 't-2', name: 'Протокол', kind: 'Document', module: 'core', isAbstract: false },
+  { id: 'offer', name: 'Коммерческое предложение', kind: 'Composite', module: 'plan', isAbstract: false },
 ] as DocumentType[];
 const version = (id: string, typeId: string, extra: Partial<TemplateSummary> = {}): TemplateSummary => ({
   id, documentTypeId: typeId, name: `Шаблон ${typeId}`, parameters: null, comment: null, version: 1,
@@ -20,10 +21,12 @@ const version = (id: string, typeId: string, extra: Partial<TemplateSummary> = {
 const byType: Record<string, TemplateSummary[]> = {
   't-1': [version('a-1', 't-1', { isActive: false, isDefault: false }), version('a-2', 't-1', { version: 2 })],
   't-2': [version('b-1', 't-2')],
+  offer: [version('offer-1', 'offer')],
 };
 
 vi.mock('@/shared/api/documentTypes', () => ({ useListDocumentTypes: () => ({ data: types }) }));
 vi.mock('@/shared/api/templates', () => ({
+  useTemplateTypes: () => ({ data: types }),
   useListTemplates: (typeId?: string) => ({ data: typeId ? byType[typeId] : [], isLoading: false }),
   useTemplatesUsage: () => ({ data: {} }),
   useCreateTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -51,6 +54,11 @@ const shown = (at = '/templates') => render(<MemoryRouter initialEntries={[at]}>
 
 beforeEach(() => { try { localStorage.clear(); } catch { /* память необязательна */ } });
 afterEach(() => { cleanup(); post.mockClear(); });
+
+it('открывает шаблон типа записи модуля', () => {
+  shown('/templates?type=offer');
+  expect(screen.getByTestId('editor').textContent).toBe('offer-1');
+});
 
 /**
  * Страница шаблонов отмечает в «Недавних» только ОТКРЫТЫЙ шаблон (shell-09, Р-6; [UI-35.1]): выбор в списке

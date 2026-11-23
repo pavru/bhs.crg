@@ -60,6 +60,7 @@ public static class AppModuleExtensions
 
         var enabled = codes.Select(c => byCode[c]).ToList();
         var disabled = available.Except(enabled).ToList();
+        var printForms = new Printing.ModulePrintFormCatalog(available);
 
         // Деньги модуля — не в общей таблице объектов (H1, issue #1104). По всей сборке, а не по
         // включённым: тип выключенного модуля уже лежит в базе и читается теми же путями.
@@ -90,7 +91,10 @@ public static class AppModuleExtensions
             Exchange.ModuleContractServices.EnsureOwn(module, services, before);
             // Очереди Главной и их счётчик — парой (shell-08): тем же приёмом, по регистрациям модуля.
             Home.HomeQueueCatalog.EnsureProvider(module, services);
+            Printing.ModulePrintFormCatalog.EnsureProviders(module, services, before);
         }
+
+        services.AddSingleton(printForms);
 
         // Таблицы — из ВСЕЙ сборки, а не из включённых (G1b, issue #1089): таблица выключенного модуля
         // отвечает «модуль выключен». Собирается здесь же, при старте: негодное объявление обязано
@@ -106,6 +110,7 @@ public static class AppModuleExtensions
         services.AddSingleton(new Home.HomeQueueCatalog(available, corePermissions));
 
         var registry = new ModuleRegistry(enabled, disabled);
+        printForms.EnsureEnabledProviders(registry, services);
         services.AddSingleton(registry);
         // Узкий взгляд на состав поставки — для модулей (ТЗ AUTH-19). Тем же объектом, а не второй
         // реализацией: два источника истины о составе модулей разошлись бы на первом же экземпляре,
