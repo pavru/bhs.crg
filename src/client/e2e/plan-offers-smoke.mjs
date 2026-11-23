@@ -95,6 +95,10 @@ try {
       const pdf = await requestDuring(manager, 'POST', printPath, () => button(manager, 'Печать…').click());
       assert.equal(pdf.status(), 200, `Печать КП → ${pdf.status()}`);
       assert.equal((await pdf.body()).subarray(0, 4).toString(), '%PDF');
+      const [download] = await Promise.all([
+        manager.waitForEvent('download'), button(manager, 'Скачать PDF').click(),
+      ]);
+      assert.equal(download.suggestedFilename(), `${offer.number}.pdf`);
       await manager.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
 
       await button(manager, 'Отметить отправленным…').click();

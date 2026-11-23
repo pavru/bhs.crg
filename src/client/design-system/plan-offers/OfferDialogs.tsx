@@ -34,7 +34,7 @@ function RebasePreview({ offer, refreshed }: { offer: Offer; refreshed: boolean 
 
 function PrintPreview({ offer }: { offer: Offer }) {
   return <div className="grid grid-cols-1 gap-3">
-    <p className="text-body-medium text-on-surface-variant">Предлагаемый сценарий · печать по шаблону по умолчанию.</p>
+    <p className="text-body-medium text-on-surface-variant">Печать по шаблону по умолчанию.</p>
     <section className="grid gap-3 rounded-md border border-outline-variant bg-surface p-4" aria-label="Печатная форма">
       <div><h3 className="text-title-large">Коммерческое предложение {offer.number}</h3>
         <p className="text-body-medium">Версия {offer.version} · {offer.sentOn ?? '23.11.2026'} · {offer.customer}</p></div>

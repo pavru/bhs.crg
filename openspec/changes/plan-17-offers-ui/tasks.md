@@ -22,8 +22,8 @@
   отправки ячеек правки нет
 - [x] 2.5 `OfferDriftBanner.tsx`, `OfferRebaseDialog.tsx`: разница из предпросмотра, 409 по отпечатку —
   перечитать [PLAN-13]. Проверка — vitest на 409
-- [ ] 2.6 «Сделать КП» в карточке сметы (`CreateOfferDialog.tsx`) и «Печать» (`plan-15`) [PLAN-10]
-  [PLAN-14]. Проверка — vitest на заведение из редакции
+- [x] 2.6 «Сделать КП» из выбранной редакции (`CreateOfferDialog.tsx`) и «Печать» по шаблону по умолчанию
+  (`plan-15`) [PLAN-10] [PLAN-14]. Проверка — vitest на заведение из редакции и живой ответ PDF.
 - [x] 2.7 Живой прогон `src/client/e2e/plan-offers-smoke.mjs`, посев КП в `e2e/seed.mjs`; вписать в
   `test:e2e:ci` и `e2e/README.md` [PLAN-12]. Проверка — прогон зелёный на стенде
 
