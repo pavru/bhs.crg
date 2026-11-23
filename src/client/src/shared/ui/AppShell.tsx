@@ -2,6 +2,7 @@
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useAccess } from '@/shared/api/access';
+import { useWorkReportActionLabel } from '@/shared/api/workReports';
 import { ActivityCenter } from '@/features/activity/ActivityCenter';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { AccountMenu } from '@/shared/ui/AccountMenu';
@@ -23,7 +24,7 @@ import { PrimaryFab } from '@/shared/ui/PrimaryFab';
 import { PrimaryFabContext, usePrimaryFabState } from '@/shared/ui/primaryFabContext';
 import { FAB_CLEARANCE, snackbarLift } from '@/shared/ui/phoneLayout';
 import { useSnackbarPlace } from '@/shared/ui/snackbarPlace';
-import { primaryActionAt } from '@/shared/ui/paletteActions';
+import { PALETTE_ACTIONS, primaryActionAt } from '@/shared/ui/paletteActions';
 import { SectionPanel, SectionPanelDrawer, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { SuppressSectionPanelContext, useSectionPanel } from '@/shared/ui/sectionPanelSuppress';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
@@ -100,7 +101,10 @@ function Shell() {
   // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
   const { data: access } = useAccess();
   const fabState = usePrimaryFabState();
-  const fab = !wide && !fabState.covered && access ? primaryActionAt(pathname, access) : undefined;
+  const primary = !wide && !fabState.covered && access ? primaryActionAt(pathname, access) : undefined;
+  const reportsLabel = useWorkReportActionLabel(access, paletteOpen || primary?.id === PALETTE_ACTIONS.workReportNew.id);
+  const fab = primary?.id === PALETTE_ACTIONS.workReportNew.id
+    ? (reportsLabel ? { ...primary, label: reportsLabel } : undefined) : primary;
   // Уведомления встают правее рейла и над тем, что стоит у нижнего края. Их поле — вне оболочки,
   // поэтому место — переменными на корне документа, и ставит их одно место, которое знает и рейл, и
   // строку, и кнопку.
@@ -156,7 +160,7 @@ function Shell() {
         </SectionPanelDrawer>
       )}
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} anchorRef={searchRef} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} anchorRef={searchRef} reportsLabel={reportsLabel} />
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Content */}

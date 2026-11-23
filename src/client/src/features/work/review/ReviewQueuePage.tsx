@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useCan } from '@/shared/api/access';
+import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useEmployees } from '@/shared/api/employees';
 import { WORK_REVIEW_REPORT_PERMISSIONS, type ReviewEmptyReason, type ReviewQueuePage as QueuePage, type ReviewQueueRow } from '@/shared/api/work';
@@ -95,6 +96,7 @@ export function ReviewQueuePage() {
   useDocumentTitle('Приёмка');
   const [params, setParams] = useSearchParams();
   const { permission } = useCan();
+  const go = useGuardedNavigate();
   const canReadReports = WORK_REVIEW_REPORT_PERMISSIONS.some(permission);
   const canReadCrew = canReadReports || permission('work.crew.approve');
   const tab = canReadReports && params.get('tab') !== 'crew' ? 'reports' : 'crew';
@@ -209,6 +211,8 @@ export function ReviewQueuePage() {
   return <div ref={scroller} className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4"
     onScroll={event => { if (showReports && !loading) queueScroll = { search: queueSearch, top: event.currentTarget.scrollTop }; }}>
     <PageHeader title="Приёмка" subtitle={data?.boundary.text}
+      actions={permission('work.report.review') && <Button variant="tonal"
+        onClick={() => go('/work-review/entry/new')}>Ввести за сотрудника</Button>}
       badge={!!data?.total && <CountText>Ждут решения · {formatCount(data.total)}</CountText>} />
     <Tabs id="work-review-tabs" aria-label="Разделы приёмки" value={tab} onChange={switchTab}
       items={[

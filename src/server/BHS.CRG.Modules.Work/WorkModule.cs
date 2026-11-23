@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
@@ -155,6 +156,12 @@ public sealed class WorkModule : IAppModule
     /// </summary>
     public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
 
+    public IReadOnlyList<ModuleRoleNeed> Needs =>
+    [
+        new(FunctionalTag.RoleNomenclature, "Выбор материалов в отчёте о работах",
+            "Номенклатуру в строке отчёта не выбрать, пока справочник не настроен."),
+    ];
+
     /// <summary>
     /// Колонки, держащие записи ядра (ТЗ CORE-34.1): назначение держит сотрудника и стройку, отчёт и его строки —
     /// сотрудника, стройку, раздел, вид работы с вариантом, единицу, позицию перечня и номенклатуру.
@@ -214,6 +221,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<CrewInputs>();
         services.AddScoped<CrewGroups>();
         services.AddScoped<ReportViews>();
+        services.AddScoped<ReportEntrySites>();
         services.AddScoped<ReportHistory>();
         services.AddScoped<ReportCorrection>();
         services.AddScoped<ReportJournal>();
@@ -254,6 +262,7 @@ public sealed class WorkModule : IAppModule
         MySitesEndpoint.Map(endpoints);
         ReportEndpoints.Map(endpoints);
         EntryReportEndpoints.Map(endpoints);
+        ReportEntryCatalog.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
         ReportCorrection.Map(endpoints);

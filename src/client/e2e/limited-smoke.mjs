@@ -34,6 +34,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, accountMenu, accountAction } from './harness.mjs';
+import { INSTALLER } from './seed-assignments.mjs';
 
 // Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
 // она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
@@ -268,6 +269,20 @@ await check('employees-read-only-shows-state-without-actions', async () => {
 await check('no-request-was-refused', async () => {
   if (denials.length)
     throw new Error(`запросов с отказом доступа: ${denials.length}\n      ` + denials.join('\n      '));
+});
+
+await check('installer-lands-on-own-reports-with-work-rail', async () => {
+  const installer = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+  try {
+    await login(installer, INSTALLER.email, PASSWORD);
+    await installer.goto(`${BASE}/`);
+    await installer.getByRole('heading', { name: 'Мои отчёты', exact: true }).waitFor();
+    const rail = installer.getByRole('navigation', { name: 'Разделы' });
+    await rail.getByRole('link', { name: 'Работы', exact: true }).waitFor();
+    const names = await rail.getByRole('link').allTextContents();
+    if (names.length !== 2 || !names.includes('Главная') || !names.includes('Работы'))
+      throw new Error(`у монтажника ожидались «Главная» и «Работы», получено: ${names.join(', ')}`);
+  } finally { await installer.close(); }
 });
 
 } finally {

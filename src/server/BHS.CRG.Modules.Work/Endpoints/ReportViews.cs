@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
@@ -52,7 +53,15 @@ public sealed record ReportDto(
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ReportLineDto> Lines, bool Replayed,
     DateTimeOffset? AutoSubmitAt, DateTimeOffset? SubmittedAt, string? SubmittedBy, JsonElement? RequiredMissing,
     bool AlreadySubmitted, bool AcceptWouldMark, IReadOnlyList<ReviewMarkDto> Marks, int PhotosPending,
-    int CurrentVersion, IReadOnlyList<ReportVersionDto> Versions, string View);
+    int CurrentVersion, IReadOnlyList<ReportVersionDto> Versions, string View)
+{
+    public string? ConstructionName { get; init; }
+    public string? TimeZoneId { get; init; }
+    public DateOnly? Today { get; init; }
+    public string? EmployeeName { get; init; }
+    public string? ReturnComment { get; init; }
+    public bool PeriodClosed { get; init; }
+}
 
 /// <summary>
 /// Отчёты в ответах адресов. <c>assignedOnDate</c> считается на чтении, по назначениям <c>work-11</c>, и не хранится:
@@ -61,7 +70,9 @@ public sealed record ReportDto(
 /// <see cref="ReviewMarks.SiteNotAssigned" /> каталога (<c>work-16</c>), а не второй расчёт: поле и пометка не
 /// расходятся.
 /// </summary>
-public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads reads)
+public sealed class ReportViews(
+    WorkDbContext db, IModuleUser user, ReportReads reads, IModuleConstructions constructions,
+    IModuleEmployees employees, IModuleClock clock, ReportPeriods periods)
 {
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
@@ -74,8 +85,18 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
         ReportViewer viewer, IReadOnlyList<Report> reports, CancellationToken ct, bool replayed = false,
         IReadOnlyDictionary<Guid, string>? versions = null)
     {
+        if (reports.Count == 0) return [];
         var marks = await reads.MarksAsync(viewer, [.. reports.Select(r => r.Id)], user.Id, ct);
         var history = await reads.VersionListsAsync(viewer, user.Id, reports, ct);
+        var sites = (await constructions.ListAsync(ct)).ToDictionary(site => site.Id);
+        var today = new Dictionary<Guid, DateOnly?>();
+        foreach (var id in reports.Select(r => r.ConstructionId).Distinct())
+            today[id] = await clock.TodayOnSiteAsync(id, ct);
+        var people = (await employees.GetAsync([.. reports.Select(r => r.EmployeeId).Distinct()], ct) ?? [])
+            .ToDictionary(person => person.Id, person => person.FullName);
+        var boundaries = await periods.CurrentAsync(ct);
+        var returns = await reads.ReturnCommentsAsync(viewer,
+            [.. reports.Where(r => r.Status == ReportStatus.Returned).Select(r => r.Id)], ct);
         return
         [
             .. reports.Select(r =>
@@ -83,7 +104,15 @@ public sealed class ReportViews(WorkDbContext db, IModuleUser user, ReportReads 
                 var codes = marks.GetValueOrDefault(r.Id) ?? [];
                 return Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
                     versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes,
-                    history.GetValueOrDefault(r.Id) ?? []);
+                    history.GetValueOrDefault(r.Id) ?? []) with
+                {
+                    ConstructionName = sites.GetValueOrDefault(r.ConstructionId)?.Name,
+                    TimeZoneId = sites.GetValueOrDefault(r.ConstructionId)?.TimeZoneId,
+                    Today = today[r.ConstructionId],
+                    EmployeeName = people.GetValueOrDefault(r.EmployeeId),
+                    PeriodClosed = ReportPeriods.IsClosed(boundaries, r.ConstructionId, r.Date),
+                    ReturnComment = returns.GetValueOrDefault(r.Id),
+                };
             }),
         ];
     }

@@ -65,9 +65,9 @@ async function managerChecks() {
     assert.equal(await submit.isDisabled(), true);
     await dialog().getByRole('textbox', { name: 'Что исправить' }).fill('Уточните место работ.');
     await submit.click();
-    await page.getByRole('button', { name: 'Принять', exact: true }).waitFor({ state: 'detached' });
+    await dialog().waitFor({ state: 'hidden' });
     await page.getByRole('region', { name: 'Журнал отчёта' }).getByText('Уточните место работ.').waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Принять', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Принять', exact: true, includeHidden: true }).waitFor({ state: 'detached' });
   });
 }
 
@@ -108,7 +108,8 @@ try {
   await clearSession(page);
   await login(page, INSTALLER.email, PASSWORD);
   await check('installer-has-no-review-navigation', async () => {
-    assert.equal(await page.getByRole('link', { name: 'Работы', exact: true }).count(), 0);
+    await page.getByRole('heading', { name: 'Мои отчёты', exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Приёмка', exact: true }).count(), 0);
     await page.goto(queue);
     await page.getByText(/Раздел «Приёмка» недоступен|Раздел недоступен/).waitFor();
     assert.equal(await row(0).count(), 0);

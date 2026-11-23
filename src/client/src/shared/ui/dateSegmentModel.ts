@@ -12,7 +12,7 @@ import type { SegmentModel } from './useSegmentField';
  * @param mask маска видимых точностью сегментов
  * @param fullOrder порядок полной даты языка — для вставки: дату целиком вставляют и в поле месяца
  */
-export function dateSegmentModel(mask: DateMask, fullOrder: DatePart[], precision: DatePrecision): SegmentModel<DatePart> {
+export function dateSegmentModel(mask: DateMask, fullOrder: DatePart[], precision: DatePrecision, today?: string): SegmentModel<DatePart> {
   return {
     order: mask.order,
     sep: mask.sep,
@@ -34,7 +34,7 @@ export function dateSegmentModel(mask: DateMask, fullOrder: DatePart[], precisio
       if (part === 'y') return typed.length === 2 ? fullYear(typed) : null;
       return typed.length === 1 ? '0' + typed : null;
     },
-    step,
+    step: (part, delta, shown) => step(part, delta, shown, today),
     paste: text => parsePasted(text, precision, fullOrder),
     text: s => readSegments(s, precision).kind === 'date' ? mask.order.map(part => s[part]).join(mask.sep) : null,
     problems: SEGMENT_PROBLEMS,
@@ -53,11 +53,11 @@ const SEPARATORS = ['.', '/', '-'];
  * 31.11 — «такой даты нет». Год — в границах календаря; недописанный (1 или 3 цифры) стрелка не
  * трогает, чтобы не стереть набранное.
  */
-function step(part: DatePart, delta: 1 | -1, shown: Segments): string | null {
+function step(part: DatePart, delta: 1 | -1, shown: Segments, today?: string): string | null {
   const cur = shown[part];
   if (part === 'y') {
     if (cur.length === 1 || cur.length === 3) return null;
-    const year = cur === '' ? +companyToday().slice(0, 4) : +(cur.length === 2 ? fullYear(cur) : cur) + delta;
+    const year = cur === '' ? +(today ?? companyToday()).slice(0, 4) : +(cur.length === 2 ? fullYear(cur) : cur) + delta;
     return String(Math.min(MAX_YEAR, Math.max(MIN_YEAR, year)));
   }
   const top = part === 'm' ? 12 : dayTop(shown);

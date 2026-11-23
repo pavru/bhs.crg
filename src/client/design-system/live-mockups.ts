@@ -38,4 +38,18 @@ export const paymentRequisitesMockup: LiveMockup = {
   reference: 'openspec/changes/costs-invoice-payment-requisites/design.md · D4',
 };
 
-export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup];
+const workEntryMockup: LiveMockup = {
+  id: 'work-22-web-entry-ui',
+  title: 'Веб-ввод отчёта · Р3',
+  kind: 'design',
+  entry: 'work22.html',
+  pages: [
+    { path: 'a', title: 'А · Реестр и сетка' },
+    { path: 'b', title: 'Б · Карточки на одной странице' },
+    { path: 'c', title: 'В · Ввод по шагам' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/work-22-web-entry-ui/design.md · Раунд Р3',
+};
+
+export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup];

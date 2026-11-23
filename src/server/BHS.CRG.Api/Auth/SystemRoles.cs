@@ -65,7 +65,7 @@ public static class SystemRoles
         new("Installer", "Монтажник",
             "Подача своих отчётов о работах",
             [
-                "work.report.own", CorePermissions.FilesUse, .. ReferenceReads,
+                "work.report.own", CorePermissions.FilesUse,
                 // Право контракта (PLAN-23, WORK-59): наименования материалов сметы стройки без цен и
                 // количеств — ярус «смета» подсказки в отчёте. Модуль `plan` монтажнику оно не открывает
                 // (AUTH-8.1, D11 зонтика plan-00-epic): признак права контракта строит plan-21, объявляет

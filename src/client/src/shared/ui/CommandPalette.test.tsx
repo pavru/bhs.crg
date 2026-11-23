@@ -37,13 +37,13 @@ function Address() {
   return <output aria-label="адрес">{pathname + search}</output>;
 }
 
-function shown(who: AccessInfo, at = '/') {
+function shown(who: AccessInfo, at = '/', reportsLabel?: string) {
   access = who;
   return render(
     <MemoryRouter initialEntries={[at]}>
       <NavigationGuardProvider>
         <Address />
-        <CommandPalette open onOpenChange={() => {}} />
+        <CommandPalette open onOpenChange={() => {}} reportsLabel={reportsLabel} />
       </NavigationGuardProvider>
     </MemoryRouter>,
   );
@@ -88,6 +88,24 @@ describe('CommandPalette — вид', () => {
 
 /** Командная палитра — один вход в «сделать» и «перейти» (issue #1433). */
 describe('командная палитра', () => {
+  const installer: AccessInfo = {
+    permissions: ['work.report.own'], modules: [{ code: 'work', title: 'Учёт работ', available: true }],
+  };
+
+  it('находит новый отчёт по привычному названию даже с подписью ночной смены', () => {
+    shown(installer, '/', 'Ночная смена 31.10');
+    type('новый отчёт');
+    expect(labels()).toContain('Ночная смена 31.10');
+    fireEvent.keyDown(search(), { key: 'Enter' });
+    expect(address()).toBe('/my-reports?do=work-report-new');
+  });
+
+  it('без назначения действия нового отчёта в палитре нет', () => {
+    shown(installer);
+    type('новый отчёт');
+    expect(labels()).not.toContain('Новый отчёт');
+  });
+
   it('действие ведёт на экран, который его исполнит', () => {
     shown(clerk);
     type('новый счет');

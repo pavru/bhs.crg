@@ -133,8 +133,7 @@ try {
   await check('installer-has-no-assignments-item', async () => {
     await page.goto(`${BASE}/document-sets/${CONSTRUCTION}`, { waitUntil: 'networkidle' });
     await settled(page);
-    // Карточка открыта и пункты нарисованы — иначе «пункта нет» проходило бы и на пустом экране.
-    await page.getByText('Каталог', { exact: true }).first().waitFor({ timeout: 10_000 });
+    await page.getByRole('heading', { name: /Раздел «Стройки» недоступен/ }).waitFor({ timeout: 10_000 });
     for (const role of ['link', 'button'])
       if (await page.getByRole(role, { name: /^Назначения/ }).count()) throw new Error('у «Монтажника» в карточке стройки есть пункт «Назначения»');
   });

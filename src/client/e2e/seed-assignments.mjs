@@ -16,6 +16,7 @@
 export const ASSIGNMENT_PM = { email: process.env.SMOKE_PM_EMAIL || 'pm@bhs.local', name: 'Павел Проектов' };
 export const FOREIGN_PM = { email: 'pm2@bhs.local', name: 'Мария Чужова' };
 export const INSTALLER = { email: 'montazh@bhs.local', name: 'Игорь Монтажов' };
+export const ENTRY_EMPLOYEE = { name: 'Никитин Виктор (ввод отчёта)', number: 'E2E-23' };
 export const CANDIDATES = [
   { name: 'Белов Андрей Сергеевич (посев)', number: 'E2E-11' },
   { name: 'Лаптев Денис Олегович (посев)', number: 'E2E-12' },
@@ -53,6 +54,23 @@ export async function seedAssignments({ api, ensureUser, constructionId }) {
     console.log(`  + связь ${ASSIGNMENT_PM.name} → ${ASSIGNMENT_PM.email}`);
   }
   for (const c of CANDIDATES) await ensureEmployee(c.name, c.number);
+
+  const installer = await ensureEmployee(INSTALLER.name, 'E2E-13');
+  const installerUser = (Array.isArray(users) ? users : users.items ?? [])
+    .find(u => (u.email ?? '').toLowerCase() === INSTALLER.email.toLowerCase());
+  if (installer.account?.state !== 'linked')
+    await api('PUT', `/employees/${installer.id}/account`, { userId: installerUser.id }, { 'If-Match': installer.version });
+  const entryEmployee = await ensureEmployee(ENTRY_EMPLOYEE.name, ENTRY_EMPLOYEE.number);
+  // Оба назначения покрывают вчера и сегодня по стройке независимо от момента запуска CI.
+  const today = new Date(`${site.construction.today}T00:00:00Z`);
+  const dayAt = days => new Date(today.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+  for (const employee of [installer, entryEmployee]) {
+    if (site.items.some(a => a.employeeId === employee.id && a.kind === 'installer'
+      && a.dateFrom <= dayAt(-1) && a.dateTo >= dayAt(0))) continue;
+    await api('POST', '/work/assignments', {
+      employeeId: employee.id, constructionId, kind: 'installer', dateFrom: dayAt(-1), dateTo: dayAt(7),
+    });
+  }
 
   if (!site.items.some(a => a.employeeId === pm.id && a.kind === 'manager')) {
     await api('POST', '/work/assignments', { employeeId: pm.id, constructionId, kind: 'manager', dateFrom: '2026-01-01', dateTo: null });

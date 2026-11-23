@@ -13,10 +13,11 @@ import type { DatePrecision } from '@/shared/api/types';
  */
 export function DateField({
   label, value, onChange, onCommit, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max, density = 'form',
-  fromScan = false,
+  fromScan = false, today,
 }: {
   label: string;
   value: string;
+  today?: string;
   onChange: (iso: string) => void;
   /** Человек закончил с полем — ушёл, изменив значение, Enter или день в календаре: см. `DateInput.onCommit`. */
   onCommit?: (iso: string) => void;
@@ -60,7 +61,7 @@ export function DateField({
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
         <DateInput label={scan.name ?? label} value={value} onChange={iso => { scan.edited(iso !== value); onChange(iso); }} onProblem={setProblem} onIncomplete={onIncomplete} onCommit={onCommit} precision={precision}
-          disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max}
+          disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max} today={today}
           hintId={hint || problem ? hintId : undefined} />
       </div>
     </OutlinedField>

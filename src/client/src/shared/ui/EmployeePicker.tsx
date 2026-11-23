@@ -20,7 +20,7 @@ import { SearchInput } from './SearchInput';
  */
 export function EmployeePicker({
   candidates, selected, onChange, search, onSearch, refused = {}, more = false, limit, missing = null, pending = false,
-  loading = false, disabled = false,
+  loading = false, disabled = false, single = false,
 }: {
   /** `undefined` — ещё не спрошены (период не задан). */
   candidates: AssignmentCandidate[] | undefined;
@@ -39,12 +39,13 @@ export function EmployeePicker({
   /** Первый запрос кандидатов ещё в пути — выдачи нет, но период задан: не «задайте период». */
   loading?: boolean;
   disabled?: boolean;
+  single?: boolean;
 }) {
   const eligible = (candidates ?? []).filter(c => c.eligible);
   const picked = eligible.filter(c => selected.has(c.employeeId)).length;
 
   const toggle = (id: string, on: boolean) => {
-    const next = new Set(selected);
+    const next = new Set(single ? [] : selected);
     if (on) next.add(id); else next.delete(id);
     onChange(next);
   };
@@ -57,7 +58,7 @@ export function EmployeePicker({
   const columns: DataGridColumn<AssignmentCandidate>[] = [
     {
       key: 'pick', label: 'Отметка', width: 'w-14', interactive: true,
-      header: (
+      header: single ? null : (
         <Checkbox aria-label="Отметить всех годных" checked={eligible.length > 0 && picked === eligible.length}
           indeterminate={picked > 0 && picked < eligible.length} disabled={disabled || eligible.length === 0}
           onChange={toggleAll} />

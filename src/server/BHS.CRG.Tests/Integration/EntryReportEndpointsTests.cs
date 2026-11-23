@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -18,6 +21,94 @@ public class EntryReportEndpointsTests(AssignmentHost host) : IAsyncLifetime
     public Task InitializeAsync() => world.SeedAsync();
 
     public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task Ввод_за_сотрудника_видит_только_пересечение_назначений_и_охвата()
+    {
+        var (_, manager) = await world.ManagerAsync("Менеджер стройки А", world.SiteA);
+        var both = await world.EmployeeAsync("Назначен на обе стройки");
+        var outside = await world.EmployeeAsync("Назначен вне охвата");
+        var ended = await world.EmployeeAsync("Закончено до даты");
+        await world.Assignments.AssignedAsync(both, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-12-31");
+        await world.Assignments.AssignedAsync(both, world.SiteB, AssignmentKind.Installer, "2026-10-01", "2026-12-31");
+        await world.Assignments.AssignedAsync(outside, world.SiteB, AssignmentKind.Installer, "2026-10-01", "2026-12-31");
+        await world.Assignments.AssignedAsync(ended, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-11-15");
+        var list = await manager.GetFromJsonAsync<System.Text.Json.JsonElement>($"{Url}/candidates?date={ReportWorld.Day16}");
+        var ids = list.GetProperty("items").EnumerateArray().Select(x => x.GetProperty("employeeId").GetGuid()).ToArray();
+        Assert.Contains(both, ids);
+        Assert.DoesNotContain(outside, ids);
+        Assert.DoesNotContain(ended, ids);
+        var siteList = await manager.GetFromJsonAsync<System.Text.Json.JsonElement>(
+            $"{Url}/candidates/{both}/sites?date={ReportWorld.Day16}");
+        var site = Assert.Single(siteList.GetProperty("items").EnumerateArray());
+        Assert.Equal(world.SiteA, site.GetProperty("id").GetGuid());
+        Assert.NotNull(site.GetProperty("today").GetString());
+        Assert.NotNull(site.GetProperty("suggested").GetProperty("label").GetString());
+        var boundary = siteList.GetProperty("boundary");
+        Assert.Equal(1, boundary.GetProperty("count").GetInt32());
+        var hidden = await manager.GetFromJsonAsync<System.Text.Json.JsonElement>($"{Url}/candidates/{outside}/sites");
+        Assert.Empty(hidden.GetProperty("items").EnumerateArray());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, hidden.GetProperty("employeeName").ValueKind);
+    }
+
+    [Fact]
+    public async Task Справочники_ввода_работают_без_общих_прав_и_не_выдают_чужую_стройку()
+    {
+        var (employee, installer) = await world.InstallerAsync("Назначенный монтажник");
+        await world.Assignments.AssignedAsync(employee, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-12-31");
+        var (_, manager) = await world.ManagerAsync("Менеджер стройки А", world.SiteA);
+        string Catalog(Guid site, string kind) => $"/api/work/entry/sites/{site}/catalog/{kind}?date={ReportWorld.Day16}";
+        Assert.Equal(HttpStatusCode.Forbidden, (await installer.GetAsync("/api/work-types")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await installer.GetAsync($"{Url}/candidates")).StatusCode);
+        var types = await installer.GetFromJsonAsync<System.Text.Json.JsonElement>(Catalog(world.SiteA, "work-types"));
+        Assert.Contains(types.GetProperty("items").EnumerateArray(),
+            t => t.GetProperty("id").GetGuid() == world.WorkTypeNeedsPlace && t.GetProperty("requiresLocation").GetBoolean());
+        var units = await installer.GetFromJsonAsync<System.Text.Json.JsonElement>(Catalog(world.SiteA, "units"));
+        Assert.Contains(units.GetProperty("items").EnumerateArray(), u => u.GetProperty("id").GetGuid() == world.Unit);
+        foreach (var client in new[] { installer, manager })
+        {
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Catalog(world.SiteA, "sections"))).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Catalog(world.SiteA, "materials"))).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(Catalog(world.SiteB, "sections"))).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе()
+    {
+        var seed = new WorkTypeSeed(host);
+        var type = await seed.TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
+        using (var scope = host.Services.CreateScope())
+            await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+        var old = await seed.RecordAsync(type.Id, "Кабель прежний");
+        var current = await seed.RecordAsync(type.Id, "Кабель действующий");
+        var (employee, installer) = await world.InstallerAsync("Назначенный монтажник");
+        await world.Assignments.AssignedAsync(employee, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-12-31");
+
+        var reportId = Guid.NewGuid();
+        var created = await installer.PostAsJsonAsync(ReportEndpoints.Path, new
+        {
+            id = reportId, constructionId = world.SiteA, date = ReportWorld.Day16, shift = "day",
+            lines = new[]
+            {
+                new { id = Guid.NewGuid(), workTypeId = world.WorkType, unitId = world.Unit, volume = 1,
+                    materials = new[] { new { nomenclatureId = old.Id } } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        await seed.ArchiveAsync(old.Id);
+
+        var path = $"/api/work/entry/sites/{world.SiteA}/catalog/materials";
+        var choices = await installer.GetFromJsonAsync<JsonElement>($"{path}?date={ReportWorld.Day16}&q=Кабель");
+        Assert.Equal(current.Id, Assert.Single(choices.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Empty(choices.GetProperty("selected").EnumerateArray());
+
+        var withSelected = await installer.GetFromJsonAsync<JsonElement>($"{path}?reportId={reportId}&q=Кабель");
+        Assert.Equal(current.Id, Assert.Single(withSelected.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid());
+        var saved = Assert.Single(withSelected.GetProperty("selected").EnumerateArray());
+        Assert.Equal(old.Id, saved.GetProperty("id").GetGuid());
+        Assert.True(saved.GetProperty("archived").GetBoolean());
+    }
 
     /// <summary>
     /// Менеджер стройки А вводит черновик Петрова на стройке А — отчёт Петрова, <c>enteredBy</c> — менеджер, и Петров

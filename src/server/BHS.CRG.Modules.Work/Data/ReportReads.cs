@@ -76,6 +76,18 @@ public sealed partial class ReportReads(WorkDbContext db)
     public Task<Report?> FindAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Full(Visible(viewer)).FirstOrDefaultAsync(r => r.Id == id, ct);
 
+    internal async Task<Dictionary<Guid, string?>> ReturnCommentsAsync(
+        ReportViewer viewer, Guid[] reportIds, CancellationToken ct)
+    {
+        if (reportIds.Length == 0) return [];
+        var visible = Visible(viewer).Where(r => reportIds.Contains(r.Id)).Select(r => r.Id);
+        var entries = db.Set<ReportJournalEntry>().AsNoTracking()
+            .Where(e => e.Kind == ReportJournalKinds.Returned && visible.Contains(e.ReportId));
+        return await entries.GroupBy(e => e.ReportId)
+            .Select(g => new { Id = g.Key, Comment = g.OrderByDescending(e => e.Seq).Select(e => e.Comment).First() })
+            .ToDictionaryAsync(e => e.Id, e => e.Comment, ct);
+    }
+
     internal Task<Report?> ReviewHeaderAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
         Visible(viewer).FirstOrDefaultAsync(r => r.Id == id, ct);
 
