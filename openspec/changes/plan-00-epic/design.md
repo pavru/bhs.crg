@@ -194,7 +194,7 @@
 | `plan.estimate.cost` | 06 |
 | `plan.offer.read`, `plan.offer.edit`, `plan.offer.send` | 13 |
 | `plan.pricelist.edit` | 14 |
-| `plan.calendar.edit` (решение В-4), `plan.schedule.read`, `plan.schedule.edit` — первый адрес: календарь стройки | 18 |
+| `plan.calendar.edit`, `plan.schedule.read`, `plan.schedule.edit` — первые адреса календарей компании и стройки | 18 |
 | `plan.estimate.materials`, `plan.labor.read`, `plan.estimate.hint` — права контракта | 23 |
 | `costs.totals.read` — право контракта (решение В-3) | 24 |
 | `costs.request.read`, `costs.request.edit` | 26 |
@@ -242,12 +242,14 @@ PR несёт тест состава `/api/account/access` по системн�
 «скрыто правами», «не подключено» — кодом и текстом в ответе. Каталог кодов открыт: change, приносящий
 носитель, дописывает код и расширяет сторож.
 
+Пробел календаря (`plan-18`): `calendar-missing` называет год без календаря компании.
+
 Коды расхождения КП из сметы (`plan-16`): `none` — исходная редакция действующая и новейшая,
 `newer-revision` — есть редакция новее исходной, `current-changed` — действует другая редакция.
 Если оба признака расхождения верны, код — `current-changed`; ответ называет все три редакции.
 
 ### D18. Клиент: макеты до кода
-Новый экран — три макета в Claude (артефакты типа «Design») и выбор владельца (`docs/UI.md`, #1545):
+Новый экран — три макета в живом каталоге BHS.CRG UI и выбор владельца (`docs/UI.md`, #1545):
 
 | Раунд | Что | Change |
 |---|---|---|

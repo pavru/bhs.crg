@@ -71,7 +71,7 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
         foreach (var revision in restricted.GetProperty("revisions").EnumerateArray())
         {
             AssertHidden(revision.GetProperty("offers"), PlanModule.OfferRead);
-            AssertHidden(revision.GetProperty("schedules"), "plan.schedule.read");
+            AssertHidden(revision.GetProperty("schedules"), PlanModule.ScheduleRead);
         }
         Assert.DoesNotContain(offerId.ToString(), restricted.GetRawText());
         var offerReader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.OfferRead);
@@ -143,8 +143,7 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
     {
         var scene = await NewAsync(host);
         await scene.RevisionAsync(Row("Кабель"));
-        // План-18 ещё не регистрирует право в этой сборке. Даём код тестовой роли, как будущему читателю.
-        var scheduler = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead, "plan.schedule.read");
+        var scheduler = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead, PlanModule.ScheduleRead);
         var result = await ReadAsync(scheduler.GetAsync($"/api/plan/estimates/{scene.EstimateId}/derivatives"));
         var revision = Assert.Single(result.GetProperty("revisions").EnumerateArray());
         var schedules = revision.GetProperty("schedules");
