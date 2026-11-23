@@ -49,6 +49,7 @@ public sealed record PostingRowView(
 /// <param name="Refusal">Почему оплатить нельзя при любой дате; тогда расклада нет.</param>
 /// <param name="DateRefusal">Почему нельзя оплатить ЭТОЙ датой; тогда расклада тоже нет.</param>
 /// <param name="Stamp">Отметка расклада — её возвращает запись оплаты.</param>
+/// <param name="RequisiteGaps">Все препятствия по реквизитам. У записанной оплаты список пуст.</param>
 public sealed record PaymentPostingView(
     DateOnly Today,
     DateOnly PaidOn,
@@ -57,6 +58,7 @@ public sealed record PaymentPostingView(
     string? DateRefusal,
     IReadOnlyList<PostingRowView> Rows,
     string Stamp,
+    IReadOnlyList<PaymentRequisiteGap> RequisiteGaps,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RefusalKind = null);
 
 /// <summary>Оплата в ответе счёта.</summary>
@@ -67,8 +69,9 @@ public sealed record PaymentPostingView(
 /// правка не меняет — только исправление; открыты ему лишь текст платёжного документа и отмена оплаты
 /// (правом оплаты и исправления, spec v3.3 п. 1.5).</param>
 /// <param name="Periods">Учётные месяцы счёта — «09.2026», по возрастанию.</param>
+/// <param name="RequisiteGaps">Все препятствия по реквизитам будущей оплаты. У оплаченного список пуст.</param>
 /// <param name="RefusalKind">Род причины <c>Refusal</c> (COST-6.4): <c>amount</c>, <c>discrepancy</c>,
-/// <c>rejected</c> или <c>duplicate</c> (<see cref="Data.PaymentRefusal" />); пусто — оплатить можно. Тем же правилом, что
+/// <c>rejected</c>, <c>duplicate</c> или <c>requisites</c> (<see cref="Data.PaymentRefusal" />); пусто — оплатить можно. Тем же правилом, что
 /// отказ записи оплаты. По нему индикатор видит, что причина уже названа пунктом готовности с
 /// <c>payment</c> в <c>blocks</c>, и не повторяет её.</param>
 public sealed record PaymentView(
@@ -79,10 +82,15 @@ public sealed record PaymentView(
     string? Refusal,
     string? LockedBy,
     IReadOnlyList<string> Periods,
+    IReadOnlyList<PaymentRequisiteGap> RequisiteGaps,
     string? RefusalKind = null,
     IReadOnlyList<InvoiceDuplicateBlocker>? DuplicateBlockers = null,
     string? MoneyRefusal = null,
     string? MoneyRefusalKind = null);
+
+/// <summary>Отказ записи новой оплаты с теми же препятствиями, что в карточке и предпросмотре.</summary>
+public sealed record PaymentRequisiteRefusal(
+    string Error, string RefusalKind, IReadOnlyList<PaymentRequisiteGap> RequisiteGaps);
 
 public sealed record InvoiceDuplicateBlocker(
     Guid Id, Guid SupplierId, string Number, DateOnly IssuedOn, decimal? Total, bool Paid, DateOnly? PaidOn,

@@ -358,7 +358,7 @@ public sealed partial class InvoiceDesk(
 
     private async Task<(InvoiceView View, InvoiceReadiness Readiness)> ReadAsync(Invoice invoice, CancellationToken ct)
     {
-        var (lines, parts, known, records, names, tolerance, allocation, lost, readiness) =
+        var (lines, parts, known, records, names, tolerance, allocation, lost, readiness, paymentRequisites) =
             await snapshots.OfAsync(invoice, ct);
         var type = await targets.StatesAsync(ReferenceTarget.DocumentType, [invoice.DocumentTypeId], ct);
         string? State(Guid? id) => id is { } key ? InvoiceReferencesView.Of(records[key]) : null;
@@ -386,7 +386,7 @@ public sealed partial class InvoiceDesk(
         return (InvoiceViews.Of(invoice, db.VersionOf(invoice),
             [.. duplicates.Select(match => InvoiceViews.Duplicate(match.Other, match.Confirmed))],
             twins.Of(invoice.TrustedFingerprint, organizations, user.Id), lines, names, allocation,
-            await PaymentAsync(invoice, lines, parts, known, tolerance, blockers, ct),
+            await PaymentAsync(invoice, lines, parts, known, tolerance, blockers, paymentRequisites, ct),
             new InvoiceReferencesView(State(invoice.SupplierId), State(invoice.PayerId),
                 InvoiceReferencesView.Of(type[invoice.DocumentTypeId]),
                 Side(invoice.SupplierId)?.DisplayName, Side(invoice.PayerId)?.DisplayName,
@@ -410,15 +410,16 @@ public sealed partial class InvoiceDesk(
     /// </summary>
     private async Task<PaymentView> PaymentAsync(
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts,
-        AllocationPlaces known, decimal tolerance, IReadOnlyList<InvoiceDuplicateBlocker> blockers, CancellationToken ct)
+        AllocationPlaces known, decimal tolerance, IReadOnlyList<InvoiceDuplicateBlocker> blockers,
+        IReadOnlyList<PaymentRequisiteGap> requisiteGaps, CancellationToken ct)
     {
         var balance = PaymentPosting.Balance(lines.Select(InvoiceAllocations.Line), parts, invoice.Total, tolerance);
 
         if (invoice.Payment != InvoicePaymentState.Paid)
         {
             var duplicate = blockers.Count > 0;
-            return new PaymentView(false, null, null, null, PaymentRefusal.Text(invoice, balance, duplicate), null, [],
-                PaymentRefusal.Of(invoice, balance, duplicate), blockers,
+            return new PaymentView(false, null, null, null, PaymentRefusal.Text(invoice, balance, duplicate, requisiteGaps),
+                null, [], requisiteGaps, PaymentRefusal.Of(invoice, balance, duplicate, requisiteGaps), blockers,
                 duplicate ? PaymentRefusal.Text(invoice, balance) : null,
                 duplicate ? PaymentRefusal.Of(invoice, balance) : null);
         }
@@ -432,6 +433,6 @@ public sealed partial class InvoiceDesk(
         // Замок стройки возможен, только когда доли есть, — а тогда места уже прочитаны.
         return new PaymentView(true, invoice.PaidOn, invoice.PaymentDocument, invoice.PaidAt, null,
             locked is null ? null : PaymentViews.Text(locked, known), [.. months.Select(m => PaymentViews.Month(m.Month))],
-            DuplicateBlockers: blockers);
+            [], DuplicateBlockers: blockers);
     }
 }
