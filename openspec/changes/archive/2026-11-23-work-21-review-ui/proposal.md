@@ -1,6 +1,6 @@
 # Proposal: очередь приёмки и карточка отчёта
 
-Дочерний change зонтика `work-00-epic`, общая архитектура — `../work-00-epic/design.md` (D11, D15, D17).
+Дочерний change зонтика `work-00-epic`, общая архитектура — `../../work-00-epic/design.md` (D11, D15, D17).
 
 ## Why
 

@@ -29,9 +29,10 @@
 
 ## 3. Ссылка в карточку и документы
 
-- [ ] 3.1 `RecordRoutesTests` — каталог с `WorkModule`; запись `ОтчётМонтажника` в `RECORD_ROUTES` —
-  если карточка `work-21` уже слита, иначе её вносит `work-21` [CORE-33]. Проверка — `RecordRoutesTests`
-  зелёный; `recordRoutes.test.ts` зелёный
+- [ ] 3.1 `RecordRoutesTests` — каталог с `WorkModule`. Добавить `ОтчётМонтажника` в `RECORD_ROUTES`
+  с переходом на `/work-review/{reportId}` [CORE-33] [WORK-30]. Карточка слита в PR #2046. Переход
+  и проверка из строки `work.reports` переданы из Work-21, задачи 3.8, 23.11.2026. Проверка —
+  `RecordRoutesTests` и `recordRoutes.test.ts` зелёные, строка таблицы открывает карточку отчёта.
 - [ ] 3.2 `docs/USER_GUIDE.md` — таблицы «Учёта работ»: что видит монтажник, менеджер и руководитель;
   черновики наличием; содержание — `cd docs/tools && npm run toc` [WORK-39] [WORK-54]. Проверка —
   проверка содержания в «Frontend» зелёная
