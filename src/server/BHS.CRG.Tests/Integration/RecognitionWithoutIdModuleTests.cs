@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
@@ -191,6 +192,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         var fileId = await SeedPdfAsync(PdfProfiles.GostTitleBlock);
 
         await AssertNamesModuleAsync(await client.PostAsync($"/api/datasets/files/{fileId}/recognize", null));
+        await AssertMcpNamesModuleAsync(client, "recognize_dataset", new { datasetId = fileId });
 
         using var scope = host.Services.CreateScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Jobs
@@ -217,6 +219,7 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         }
 
         await AssertNamesModuleAsync(await client.PostAsync($"/api/datasets/sources/{sourceId}/recognize", null));
+        await AssertMcpNamesModuleAsync(client, "recognize_source", new { sourceId });
         await AssertNamesModuleAsync(await client.PutAsJsonAsync($"/api/datasets/files/{fileId}/grouping", new
         {
             groups = new[] { new { kind = "Document", code = "A1", name = "Лист", pageIndices = new[] { 0 } } },
@@ -225,6 +228,15 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         using var after = host.Services.CreateScope();
         Assert.False(await after.ServiceProvider.GetRequiredService<AppDbContext>().Jobs.AnyAsync(j => j.TargetId == fileId));
         Assert.Equal(blobsBefore, after.ServiceProvider.GetRequiredService<FakeBlobStorage>().Uploads);
+    }
+
+    private static async Task AssertMcpNamesModuleAsync(HttpClient client, string tool, object arguments)
+    {
+        var result = await McpTestClient.CallAsync(client, "tools/call", new { name = tool, arguments });
+        Assert.True(result.GetProperty("isError").GetBoolean());
+        var message = Assert.Single(result.GetProperty("content").EnumerateArray()).GetProperty("text").GetString();
+        Assert.Contains("Исполнительная документация", message);
+        Assert.Contains("выключен", message);
     }
 
     /// <summary>
@@ -256,6 +268,35 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         Assert.Contains("СЧ-17", sources.Single(s => s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker).CachedData);
         Assert.Contains("Кабель", sources.Single(s => s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker).CachedData);
         Assert.Equal([RecognitionProfileKind.Invoice], asked.Kinds.Distinct());
+    }
+
+    [Fact]
+    public async Task Invoice_recognition_reports_a_conflict_when_its_profile_binding_changes()
+    {
+        var fileId = await SeedPdfAsync(PdfProfiles.Invoice, PdfProfiles.InvoiceHeaderMarker);
+        using var scope = host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<AppDbContext>();
+        var profileId = await db.RecognitionProfiles.Where(p => p.Code == CostsRecognitionProfiles.InvoiceCode)
+            .Select(p => p.Id).SingleAsync();
+        var recognizer = new InvoiceRecognizer(async ct =>
+        {
+            using var edit = host.Services.CreateScope();
+            var dataSets = edit.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>();
+            Assert.True(await dataSets.SetFileRecognitionProfilesAsync(fileId,
+                new Dictionary<string, Guid?> { [nameof(RecognitionProfileKind.Invoice)] = profileId }, ct));
+        });
+        var service = new DataSetPdfRecognitionService(db, services.GetRequiredService<IBlobStorage>(), recognizer,
+            services.GetRequiredService<INotificationService>(), services.GetRequiredService<IRecognitionProfileProvider>(),
+            NullLogger<DataSetPdfRecognitionService>.Instance);
+
+        await Assert.ThrowsAsync<DataSetRevisionConflict>(() => service.RecognizeFileAsync(fileId, confirm: false, default));
+
+        var saved = await db.DataSetFiles.AsNoTracking().SingleAsync(f => f.Id == fileId);
+        Assert.Contains(profileId.ToString(), saved.RecognitionProfiles);
+        Assert.Null(saved.InvoiceRawData);
+        var source = await db.DataSetSources.AsNoTracking().SingleAsync(s => s.FileId == fileId);
+        Assert.Equal(0, source.CachedRowCount);
     }
 
     /// <summary>
@@ -331,16 +372,19 @@ public class RecognitionWithoutIdModuleTests(CostsOnlyHost host)
         return file.Id;
     }
 
-    private sealed class InvoiceRecognizer : IDocumentRecognizer
+    private sealed class InvoiceRecognizer(Func<CancellationToken, Task>? beforeResult = null) : IDocumentRecognizer
     {
-        public Task<RecognitionResult> RecognizeAsync(
+        public async Task<RecognitionResult> RecognizeAsync(
             byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
-            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default) =>
-            Task.FromResult(new RecognitionResult(new Dictionary<string, string?>
+            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
+        {
+            if (beforeResult is not null) await beforeResult(ct);
+            return new RecognitionResult(new Dictionary<string, string?>
             {
                 ["НомерСчёта"] = "СЧ-17",
                 [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель","Количество":"3"}]""",
-            }, null));
+            }, null);
+        }
     }
 
     /// <summary>Поставщик профилей приложения, который записывает, о каких видах его спросили.</summary>

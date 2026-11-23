@@ -72,10 +72,12 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
                 new Dictionary<string, Guid> { [nameof(RecognitionProfileKind.Invoice)] = hereInvoice }));
             file.SetGrouping(GroupingWith(hereTable));
         });
+        var acceptedRevision = (await FileRefsAsync(fileId)).Revision;
         var report = await ImportAsync(copy);
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
-        var (profiles, grouping) = await FileRefsAsync(fileId);
+        var (profiles, grouping, revision) = await FileRefsAsync(fileId);
+        Assert.NotEqual(acceptedRevision, revision);
         Assert.Contains(copiedInvoice.ToString(), profiles);
         Assert.Contains(copiedTable.ToString(), grouping);
         Assert.DoesNotContain(hereInvoice.ToString(), profiles);
@@ -304,12 +306,12 @@ public class RestoreRecognitionProfileNamesakeTests(RestoreModuleTypesHost host)
         return file.Id;
     }
 
-    private async Task<(string Profiles, string Grouping)> FileRefsAsync(Guid fileId)
+    private async Task<(string Profiles, string Grouping, Guid Revision)> FileRefsAsync(Guid fileId)
     {
         using var scope = host.Services.CreateScope();
         var file = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<DataSetFile>()
             .AsNoTracking().SingleAsync(f => f.Id == fileId);
-        return (file.RecognitionProfiles ?? "", file.Grouping ?? "");
+        return (file.RecognitionProfiles ?? "", file.Grouping ?? "", file.RecognitionRevision);
     }
 
     private static string GroupingWith(Guid profileId, bool upper = false) => $$"""

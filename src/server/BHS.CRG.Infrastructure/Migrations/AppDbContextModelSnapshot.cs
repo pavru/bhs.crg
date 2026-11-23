@@ -406,6 +406,10 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<string>("RecognitionProfiles")
                         .HasColumnType("jsonb");
 
+                    b.Property<Guid>("RecognitionRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Scope")
                         .IsRequired()
                         .HasMaxLength(32)

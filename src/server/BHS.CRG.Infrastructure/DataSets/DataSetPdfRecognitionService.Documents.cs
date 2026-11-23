@@ -141,7 +141,7 @@ public partial class DataSetPdfRecognitionService
         // Если пользователь УЖЕ создал источник-проекцию этой таблицы — обновляем его кэш (ре-распознавание).
         foreach (var projection in ProjectionsOf(file.Sources, $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}"))
             projection.UpdateCache(schemaJson, rows.Count, dataJson);
-        await db.SaveChangesAsync(ct);
+        await SaveShortRecognitionAsync(file, ct);
 
         // Ноль строк на ЯВНОМ вызове — предупреждение, а не отчёт об успехе (issue #803). Постранично
         // по альбому пустой результат законен: лист без штампа бывает. Здесь человек сам указал, что

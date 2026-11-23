@@ -265,7 +265,7 @@ public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, str
 /// <c>DataSetFile</c>, и задача с идентификатором ИСТОЧНИКА падала с «DataSetFile … not found» —
 /// после честного 202 с номером задачи (issue #898). Работа ГОСТ-профиля и по смыслу принадлежит
 /// набору: группировка живёт на нём, источников распознавание не создаёт.</summary>
-public record RecognizePlan(bool Background, string Title, Guid FileId);
+public record RecognizePlan(bool Background, string Title, Guid FileId, GostRecognitionAdmission? GostAdmission = null);
 
 /// <summary>
 /// Новая группировка ВСЕХ страниц — целиком заменяет предыдущую (ручную или автоматическую).

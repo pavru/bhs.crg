@@ -232,7 +232,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            await Assert.ThrowsAsync<ConflictException>(() => svc.RecognizePdfSourceAsync(sourceId, confirm: false, default));
+            await Assert.ThrowsAsync<ManualGroupingConflict>(() => svc.RecognizePdfSourceAsync(sourceId, confirm: false, default));
         }
     }
 
