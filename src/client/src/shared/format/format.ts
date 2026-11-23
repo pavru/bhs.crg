@@ -200,9 +200,9 @@ export function formatCount(value: number): string {
 }
 
 /** Произвольное число с пределом знаков после запятой — для ячейки таблицы, чей смысл экран не знает. */
-export function formatNumber(value: number, maxFractionDigits = 2): string {
-  const key = `number:${maxFractionDigits}`;
-  return (numbers.get(key) ?? numberFormat(key, { maximumFractionDigits: maxFractionDigits })).format(value);
+export function formatNumber(value: number, maxFractionDigits = 2, useGrouping = true): string {
+  const key = `number:${maxFractionDigits}:${useGrouping}`;
+  return (numbers.get(key) ?? numberFormat(key, { maximumFractionDigits: maxFractionDigits, useGrouping })).format(value);
 }
 
 /**
@@ -343,8 +343,8 @@ export function formatDateTime(value: DateLike): string {
 }
 
 /** День и время без года — для ленты недавнего: «05.10, 14:32». */
-export function formatDayTime(value: DateLike): string {
-  return render(value, 'daytime', DAY_TIME);
+export function formatDayTime(value: DateLike, timeZone?: string): string {
+  return timeZone ? render(value, `daytime:${timeZone}`, { ...DAY_TIME, timeZone }) : render(value, 'daytime', DAY_TIME);
 }
 
 /**

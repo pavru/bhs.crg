@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY, useReviewCard, type ReviewFullCard } from '@/shared/api/workReview';
-import { formatDate, formatDateTime, formatLocale, formatNumber } from '@/shared/format/format';
+import { formatDate, formatDateTime, formatDayTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -22,11 +22,6 @@ import { ReturnDialog } from './ReturnDialog';
 import { reviewMarkStyle } from './reviewMarks';
 
 const notFound = 'Отчёт не найден: его нет, или он вне ваших строек';
-
-function draftTime(at: string, zone: string | null) {
-  return zone ? new Intl.DateTimeFormat(formatLocale(), { timeZone: zone,
-    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(at)) : formatDateTime(at);
-}
 
 export function ReportCard() {
   useDocumentTitle('Карточка отчёта');
@@ -64,7 +59,8 @@ export function ReportCard() {
         </Banner> : data?.status === 'draft' ? <>
           <PageHeader title={data.employeeName} subtitle={data.constructionName} />
           <StatusText>Черновик</StatusText>
-          {data.autoSubmitAt && <p className="text-body-medium">Автоподача {draftTime(data.autoSubmitAt, data.timeZoneId)}
+          {data.autoSubmitAt && <p className="text-body-medium">Автоподача {data.timeZoneId
+            ? formatDayTime(data.autoSubmitAt, data.timeZoneId) : formatDateTime(data.autoSubmitAt)}
             {data.timeZoneId && ' по времени стройки'}</p>}
         </> : data && <ReportContent key={`${id}:${data.viewedVersion}`} card={data} onVersion={choose}
           onStored={updateAfterWrite} onReread={async () => {

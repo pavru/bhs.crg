@@ -143,6 +143,11 @@ for(const state of ['Default','Empty','Unavailable'])add('DataGridValue',`State=
 add('EditGrid','State=Default',{columns:columns.map(c=>({...c,cell:(row:Record<string,unknown>)=>el('TextField',{label:c.label,density:'cell',value:String(row[c.key]),onChange:noop})})),rows,rowKey:(r:{id:string})=>r.id},undefined,640);
 for(const state of ['Default','Empty','Pending','Missing'])add('EmployeePicker',`State=${state}`,{candidates:state==='Empty'?[]:[{employeeId:'a',name:'Иван Петров',personnelNumber:'125',eligible:true},{employeeId:'b',name:'Анна Смирнова',personnelNumber:'126',eligible:false,reason:'Уже назначена'}],selected:new Set(['a']),search:'',onSearch:noop,onChange:noop,pending:state==='Pending',missing:state==='Missing'?'Нет доступа к сотрудникам':null},undefined,700);
 for(const state of ['Default','Empty'])add('Timeline',`State=${state}`,{today:'2026-11-21',rows:state==='Empty'?[]:['primary','secondary','outline','muted'].map((tone,i)=>({key:String(i),label:['Кабельные трассы','Щиты','Светильники','Проверка'][i],from:'2026-11-16',to:'2026-12-05',tone})),nameLabel:'Работы','aria-label':'Периоды работ'},undefined,900);
+add('JournalFeed', 'State=Default', { entries: [
+  { sequence: 1, title: 'Отчёт создан', author: 'Ирина Иванова', executor: 'Пётр Петров', serverTime: '2026-11-23T00:00:00Z' },
+  { sequence: 2, title: 'Возвращён на правку', author: 'Анна Соколова', serverTime: '2026-11-23T01:00:00Z', note: 'Уточните место работ.' },
+] }, undefined, 440);
+add('JournalFeed', 'State=Empty', { entries: [] }, undefined, 440);
 const body=el('TextField',{label:'Наименование',value:'Электромонтажные работы',onChange:noop});
 const footer=el('ModalButtons',{},[el('ModalExit',{key:'exit'}),el('ModalPrimary',{key:'save',onClick:noop},'Сохранить')]);
 for(const state of ['Default','Wide','Busy','Dirty','Acknowledge'])add('Modal',`State=${state}`,{open:true,onOpenChange:noop,title:'Редактирование документа',wide:state==='Wide',busy:state==='Busy',isDirty:state==='Dirty',acknowledge:state==='Acknowledge'?'Понятно':undefined,footer:state==='Acknowledge'?undefined:footer},body,800);

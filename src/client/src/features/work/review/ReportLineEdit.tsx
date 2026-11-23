@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { editReviewReport, type ReviewFullCard } from '@/shared/api/workReview';
-import { formatLocale } from '@/shared/format/format';
+import { formatLocale, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
@@ -14,10 +14,7 @@ export function ReportLineEdit({ card, onClose, onSaved }: {
   card: ReviewFullCard; onClose: () => void; onSaved: () => void;
 }) {
   const [original] = useState(card);
-  const [rows, setRows] = useState(() => {
-    const numbers = new Intl.NumberFormat(formatLocale(), { maximumFractionDigits: 4, useGrouping: false });
-    return original.report.lines.map(line => ({ ...line, amount: numbers.format(line.volume) }));
-  });
+  const [rows, setRows] = useState(() => original.report.lines.map(line => ({ ...line, amount: formatNumber(line.volume, 4, false) })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attempt = useRef<{ payload: string; changeId: string } | null>(null);
