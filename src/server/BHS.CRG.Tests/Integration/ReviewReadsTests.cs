@@ -48,12 +48,12 @@ public class ReviewReadsTests(AssignmentHost host) : IAsyncLifetime
         Assert.Empty(probe.Sql);
     }
 
-    /// <summary>Все счётчики — одна агрегация, пометки страницы — один запрос, а не по запросу на код.</summary>
+    /// <summary>Все счётчики — одна агрегация, число и сотрудники — один запрос, пометки страницы — один запрос.</summary>
     [Fact]
     public async Task Очередь_считает_пометки_одной_агрегацией()
     {
-        var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
-        var (_, sidorov) = await world.Reports.InstallerAsync("Сидоров Семён Семёнович");
+        var (petrovId, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
+        var (sidorovId, sidorov) = await world.Reports.InstallerAsync("Сидоров Семён Семёнович");
         await world.SubmittedAsync(petrov, Guid.NewGuid(), world.SiteA);
         await world.SubmittedAsync(sidorov, Guid.NewGuid(), world.SiteA);
         var probe = new Commands();
@@ -65,7 +65,8 @@ public class ReviewReadsTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(2, page.Total);
         Assert.Equal(2, page.Counts[ReviewMarks.SiteNotAssigned]);
         Assert.Single(page.Items);
-        Assert.Equal(4, probe.Sql.Count); // агрегация, total, страница, флаги
+        Assert.Equal(new[] { petrovId, sidorovId }.Order(), page.PendingEmployeeIds.Order());
+        Assert.Equal(4, probe.Sql.Count); // агрегация, число и сотрудники, страница, флаги
         Assert.Single(probe.Sql, sql => sql.Contains("GROUP BY", StringComparison.OrdinalIgnoreCase));
     }
 

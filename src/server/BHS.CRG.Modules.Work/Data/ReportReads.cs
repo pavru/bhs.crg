@@ -307,7 +307,8 @@ public sealed partial class ReportReads(WorkDbContext db)
             { Has: { } has } => chosen.Where(has(sources)),
             _ => chosen.Where(_ => false),
         };
-        var total = await selected.CountAsync(ct);
+        // Число по отбору — независимый подзапрос, общий для всех сотрудников в охвате.
+        var summary = await pending.Select(r => new { r.EmployeeId, Total = selected.Count() }).Distinct().ToListAsync(ct);
         var page = await selected.OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).Skip(offset).Take(limit)
             .Select(r => new
             {
@@ -316,13 +317,12 @@ public sealed partial class ReportReads(WorkDbContext db)
             })
             .ToListAsync(ct);
         var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
-        var pendingEmployees = await pending.Select(r => r.EmployeeId).Distinct().ToListAsync(ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
                     p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
             ],
-            total, counts, pendingEmployees);
+            summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
     }
 
     /// <summary>
