@@ -1,4 +1,4 @@
-// Живой прогон очереди Work-21. Два отчёта и менеджера стройки заводит e2e/seed.mjs.
+// Живой прогон очереди и карточки Work-21. Два отчёта и менеджера стройки заводит e2e/seed.mjs.
 import assert from 'node:assert/strict';
 import { BASE, callApi, clearSession, createChecks, launchBrowser, login } from './harness.mjs';
 import { ASSIGNMENT_PM, FOREIGN_PM, INSTALLER } from './seed-assignments.mjs';
@@ -13,8 +13,10 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 const { check, summarize } = createChecks();
 const queue = `${BASE}/work-review?constructionId=${encodeURIComponent(CONSTRUCTION)}`;
 const row = index => page.getByRole('row').filter({ hasText: REVIEW_REPORTS[index].name });
+const direct = index => `${BASE}/work-review/${REVIEW_REPORTS[index].id}`;
+const dialog = () => page.getByRole('dialog');
 
-try {
+async function managerChecks() {
   await login(page, ASSIGNMENT_PM.email, PASSWORD);
   await check('review-navigation-and-queue', async () => {
     await page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name: 'Работы' }).click();
@@ -43,13 +45,43 @@ try {
     await row(1).waitFor();
   });
 
-  await clearSession(page);
+  await check('review-manager-opens-card-and-accepts', async () => {
+    await page.goto(queue);
+    await row(0).getByRole('link', { name: /Открыть отчёт/ }).click();
+    await page.getByRole('heading', { name: REVIEW_REPORTS[0].name }).waitFor();
+    await page.getByRole('button', { name: 'Принять', exact: true }).click();
+    await dialog().getByRole('button', { name: 'Принять', exact: true }).click();
+    await page.getByText('Принят', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'К очереди приёмки' }).click();
+    assert.equal(new URL(page.url()).searchParams.get('constructionId'), CONSTRUCTION);
+    await row(1).waitFor();
+    await row(0).waitFor({ state: 'detached' });
+  });
+
+  await check('review-manager-returns-with-comment', async () => {
+    await row(1).getByRole('link', { name: /Открыть отчёт/ }).click();
+    await page.getByRole('button', { name: 'Вернуть', exact: true }).click();
+    const submit = dialog().getByRole('button', { name: 'Вернуть', exact: true });
+    assert.equal(await submit.isDisabled(), true);
+    await dialog().getByRole('textbox', { name: 'Что исправить' }).fill('Уточните место работ.');
+    await submit.click();
+    await page.getByRole('button', { name: 'Принять', exact: true }).waitFor({ state: 'detached' });
+    await page.getByRole('region', { name: 'Журнал отчёта' }).getByText('Уточните место работ.').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Принять', exact: true }).count(), 0);
+  });
+}
+
+try {
   await login(page, FOREIGN_PM.email, PASSWORD);
   await check('review-queue-empty-for-foreign-manager', async () => {
     await page.goto(queue);
     await page.getByText('Учётная запись не связана с сотрудником', { exact: true }).waitFor();
     assert.equal(await row(0).count(), 0);
     assert.equal(await row(1).count(), 0);
+  });
+  await check('review-foreign-card-has-same-404', async () => {
+    await page.goto(direct(0));
+    await page.getByText('Отчёт не найден: его нет, или он вне ваших строек', { exact: true }).waitFor();
   });
 
   await clearSession(page);
@@ -65,6 +97,13 @@ try {
     await row(0).waitFor({ state: 'detached' });
     await row(1).waitFor();
   });
+  await check('review-executive-card-is-read-only', async () => {
+    await page.goto(direct(1));
+    await page.getByRole('heading', { name: REVIEW_REPORTS[1].name }).waitFor();
+    await page.getByRole('heading', { name: 'Журнал' }).waitFor();
+    for (const name of ['Принять', 'Вернуть', 'Действия отчёта'])
+      assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0);
+  });
 
   await clearSession(page);
   await login(page, INSTALLER.email, PASSWORD);
@@ -75,6 +114,8 @@ try {
     assert.equal(await row(0).count(), 0);
     assert.equal(await row(1).count(), 0);
   });
+  await clearSession(page);
+  await managerChecks();
 } finally {
   await browser.close();
 }

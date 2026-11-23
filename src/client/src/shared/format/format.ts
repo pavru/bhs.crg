@@ -343,8 +343,8 @@ export function formatDateTime(value: DateLike): string {
 }
 
 /** День и время без года — для ленты недавнего: «05.10, 14:32». */
-export function formatDayTime(value: DateLike): string {
-  return render(value, 'daytime', DAY_TIME);
+export function formatDayTime(value: DateLike, timeZone?: string): string {
+  return timeZone ? render(value, `daytime:${timeZone}`, { ...DAY_TIME, timeZone }) : render(value, 'daytime', DAY_TIME);
 }
 
 /**

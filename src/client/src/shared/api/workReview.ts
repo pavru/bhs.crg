@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { ReviewQueuePage, WorkMark } from './work';
+import type { ReviewAction, ReviewQueuePage, WorkLinePhoto, WorkMark } from './work';
 
 export interface ReviewQueueFilters {
   constructionId?: string;
@@ -59,4 +59,122 @@ export function acceptWorkReport(id: string, version: string, changeId: string) 
 export function returnWorkReport(id: string, version: string, changeId: string, comment: string) {
   return apiClient.post<ReviewDecisionResult>(`/work/reports/${id}/return`, { changeId, comment },
     { headers: { 'If-Match': version } }).then(response => response.data);
+}
+
+export interface ReviewReportLine {
+  id: string;
+  workTypeId: string;
+  variantId: string | null;
+  volume: number;
+  unitId: string;
+  sectionId: string | null;
+  location: string | null;
+  comment: string | null;
+  isCrew: boolean;
+  details: unknown;
+  materials: { nomenclatureId: string; note: string | null }[];
+  participants: string[];
+  photos: (WorkLinePhoto & { versionUrl?: string })[];
+  crewRole: string | null;
+}
+
+export interface ReviewReportVersion {
+  number: number;
+  reason: string;
+  author: { name: string };
+  at: string;
+}
+
+export interface ReviewReport {
+  id: string;
+  status: Exclude<ReviewDecisionResult['status'], 'draft'>;
+  employeeId: string;
+  constructionId: string;
+  date: string;
+  shift: 'day' | 'night';
+  hours: number | null;
+  note: string | null;
+  version: string;
+  lines: ReviewReportLine[];
+  marks: WorkMark[];
+  acceptWouldMark: boolean;
+  currentVersion: number;
+  versions: ReviewReportVersion[];
+}
+
+interface ReviewCardHeader {
+  id: string;
+  employeeName: string;
+  constructionName: string;
+  timeZoneId: string | null;
+  actions: ReviewAction[];
+}
+
+export interface ReviewFullCard extends ReviewCardHeader {
+  status: ReviewReport['status'];
+  report: ReviewReport;
+  viewedVersion: number;
+  atClosingVersion: number | null;
+  workTypes: Record<string, string>;
+  workVariants: Record<string, string>;
+  units: Record<string, string>;
+  sections: Record<string, string>;
+}
+
+export type ReviewCardData = ReviewFullCard | (ReviewCardHeader & { status: 'draft'; autoSubmitAt: string | null });
+export const REVIEW_CARD_KEY = ['work', 'review-card'] as const;
+export const REVIEW_JOURNAL_KEY = ['work', 'review-journal'] as const;
+
+export function useReviewCard(id: string, number: number | undefined) {
+  return useQuery({
+    queryKey: [...REVIEW_CARD_KEY, id, number],
+    queryFn: ({ signal }) => apiClient.get<ReviewCardData>(`/work/review/reports/${encodeURIComponent(id)}`,
+      { params: { number }, signal }).then(response => response.data),
+    retry: (count, error) => (error as { response?: { status?: number } })?.response?.status !== 404 && count < 2,
+    refetchInterval: ({ state }) => {
+      const status = (state.error as { response?: { status?: number } } | null)?.response?.status;
+      return state.data?.status === 'draft' && status !== 403 && status !== 404 ? 15_000 : false;
+    },
+  });
+}
+
+export function editReviewReport(report: ReviewReport, changeId: string, lines: Pick<ReviewReportLine, 'id' | 'volume' | 'location'>[]) {
+  const { id, employeeId, constructionId, date, shift, hours, note, version } = report;
+  return apiClient.put<ReviewDecisionResult>(`/work/entry/reports/${id}`, {
+    id, employeeId, constructionId, date, shift, hours, note, changeId,
+    lines: report.lines.map((line, index) => ({
+      id: line.id, workTypeId: line.workTypeId, variantId: line.variantId, unitId: line.unitId, sectionId: line.sectionId,
+      comment: line.comment, isCrew: line.isCrew, details: line.details, materials: line.materials,
+      participants: line.participants, crewRole: line.crewRole, volume: lines[index].volume, location: lines[index].location,
+    })),
+  }, { headers: { 'If-Match': version } }).then(response => response.data);
+}
+
+export interface ReviewJournalEntry {
+  seq: number;
+  kind: string;
+  author: { name: string };
+  executor: { name: string };
+  enteredFor: boolean;
+  deviceTime: string | null;
+  serverTime: string;
+  comment: string | null;
+}
+
+export function useReviewJournal(id: string) {
+  return useQuery({
+    queryKey: [...REVIEW_JOURNAL_KEY, id],
+    queryFn: ({ signal }) => apiClient.get<{ items: ReviewJournalEntry[] }>(`/work/reports/${id}/journal`, { signal })
+      .then(response => response.data.items),
+  });
+}
+
+export function useReviewPhoto(photo: ReviewReportLine['photos'][number], report: string, number: number, preview: boolean) {
+  const params = photo.versionUrl ? { reportId: report, number } : undefined;
+  return useQuery({
+    queryKey: ['work', 'review-photo', photo.id, params, preview],
+    queryFn: ({ signal }) => apiClient.get<Blob>(`/work/photos/${photo.id}${preview ? '/preview' : ''}`,
+      { params, responseType: 'blob', signal }).then(response => response.data),
+    staleTime: 60_000,
+  });
 }

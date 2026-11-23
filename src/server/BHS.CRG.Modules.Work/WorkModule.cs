@@ -250,6 +250,7 @@ public sealed class WorkModule : IAppModule
         ReportReviewEndpoints.Map(endpoints);
         ReportCorrection.Map(endpoints);
         ReviewQueue.Map(endpoints);
+        ReviewCard.Map(endpoints);
         CrewCandidates.Map(endpoints);
         CrewGroups.Map(endpoints);
         PhotoEndpoints.Map(endpoints);

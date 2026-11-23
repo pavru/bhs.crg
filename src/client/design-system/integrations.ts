@@ -10,6 +10,8 @@ export const integrations: Record<string, { purpose: string; examples: string[] 
   LocaleProvider: { purpose: 'Общий язык форматирования чисел, дат и сегментного ввода.', examples: ['DateField', 'Calendar', 'DateRange'] },
   NavigationGuardProvider: { purpose: 'Объединяет охрану переходов и несохранённые изменения.', examples: ['LeaveGuardDialog', 'DetailHeader'] },
   PinnedPagesProvider: { purpose: 'Состояние закреплённых страниц и их порядка.', examples: ['PinnedGroup', 'PinnedLink'] },
+  PhotoGallery: { purpose: 'Окно просмотра с перелистыванием. В карточке приёмки открывается по превью строки и запрашивает выбранный снимок.', examples: ['Modal', 'IconButton'] },
+  PhotoImage: { purpose: 'Превью и полный снимок в карточке приёмки. Объектный адрес создаётся из полученного файла и освобождается при закрытии.', examples: ['Modal'] },
   ProtectedRoute: { purpose: 'Граница маршрута для вошедшего пользователя.', examples: ['NoAccessPage'] },
   RequireAccess: { purpose: 'Граница доступа по правам и модулям.', examples: ['NoAccessPage'] },
   SnackbarProvider: { purpose: 'Очередь временных уведомлений и портальная область показа.', examples: ['Snackbar'] },
