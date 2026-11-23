@@ -32,7 +32,7 @@
   Проверка — тест зелёный; возврат `PackageReference` на MediatR делает его красным
 - [x] 3.2 Тест времени жизни: два одновременных запроса к пишущему адресу получают разные `DbContext`
   (D5). Проверка — тест зелёный; без `ServiceLifetime.Scoped` — красный (проверено руками, отмечено в PR)
-- [ ] 3.3 Тест «генератор нашёл все обработчики»: реализации `IRequestHandler<,>` / `IRequestHandler<>`
+- [x] 3.3 Тест «генератор нашёл все обработчики»: реализации `IRequestHandler<,>` / `IRequestHandler<>`
   по отражению совпадают с зарегистрированными (D5). Проверка — тест зелёный; обработчик в
   незаявленной сборке делает его красным. Обновлён точный ключ ArchiveReadInventory для обёрнутого в ValueTask чтения без изменения назначения, числа чтений и связанных живых проверок
 
@@ -44,9 +44,9 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `bash scripts/backend-tests.sh` — весь backend двумя потоками, как в CI, зелёный
+- [x] 5.1 `bash scripts/backend-tests.sh` — весь backend двумя потоками, как в CI, зелёный
 - [x] 5.2 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~MediatRLicense|FullyQualifiedName~Mediator|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 5.3 Все живые прогоны CI на PR зелёные (условие «Готово» из issue)
+- [x] 5.3 Все живые прогоны CI на PR зелёные (условие «Готово» из issue)
 - [x] 5.4 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся)
 - [x] 5.5 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 5.6 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
