@@ -45,7 +45,11 @@ try {
       await button(page, 'К отчётам').click();
       await heading(page, 'Мои отчёты').waitFor();
       await page.getByRole('row').filter({ hasText: site.name }).getByText(/Подастся .* по времени стройки/).first().waitFor();
-      await button(page, site.suggested.label).click();
+      await page.keyboard.press('Control+k');
+      const search = page.getByRole('textbox', { name: 'Поиск и действия' });
+      await search.fill('Новый отчёт');
+      await page.getByRole('option', { name: new RegExp(`^${RegExp.escape(site.suggested.label)}`) }).waitFor();
+      await search.press('Enter');
       await button(page, 'Создать черновик').click();
       await page.getByText('На эту смену отчёт уже есть.').waitFor();
       await button(page, 'Открыть').click();

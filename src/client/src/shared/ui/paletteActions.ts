@@ -48,7 +48,7 @@ export const RECORD_PARAM = 'record';
 
 export const PALETTE_ACTIONS = {
   workReportNew: {
-    id: 'work-report-new', label: 'Новый отчёт', words: 'создать завести отчёт о работах',
+    id: 'work-report-new', label: 'Новый отчёт', words: 'новый создать завести отчёт о работах',
     icon: NoteAdd, to: '/my-reports', permission: 'work.report.own', primary: true,
   },
   invoiceNew: {

@@ -423,6 +423,11 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Plan/Endpoints/NomenclatureSearchEndpoints.cs|var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, query, Limit + 1, ct)"] =
             Choice("поиск позиции в окне материала сметы (plan-09): тот же поиск ядра, что у счетов, архивных нет, их число названо",
                 nameof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests.Поиск_номенклатуры_находит_живую_архивную_не_предлагает_и_закрыт_правом_правки)),
+        ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, q, Limit + 1, ct);"] =
+            Choice("номенклатура для строки отчёта (work-22): новые ссылки выбираются из действующих позиций",
+                nameof(EntryReportEndpointsTests.Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе)),
+        ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var selected = ids.Length == 0 ? [] : await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct) ?? [];"] =
+            Shown("номенклатура сохранённых строк доступного отчёта (work-22): признак в selected[].archived"),
         ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchListEndpoints.cs|: (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [.. matches.Select(m => m.NomenclatureId).Distinct()], ct)"] =
             Shown("список запомненных ресурсов (plan-08): названия уже стоящих позиций, архивная помечена «archived»"),
         ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =

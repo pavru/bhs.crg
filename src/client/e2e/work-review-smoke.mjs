@@ -65,9 +65,9 @@ async function managerChecks() {
     assert.equal(await submit.isDisabled(), true);
     await dialog().getByRole('textbox', { name: 'Что исправить' }).fill('Уточните место работ.');
     await submit.click();
-    await page.getByRole('button', { name: 'Принять', exact: true }).waitFor({ state: 'detached' });
+    await dialog().waitFor({ state: 'hidden' });
     await page.getByRole('region', { name: 'Журнал отчёта' }).getByText('Уточните место работ.').waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Принять', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Принять', exact: true, includeHidden: true }).waitFor({ state: 'detached' });
   });
 }
 
