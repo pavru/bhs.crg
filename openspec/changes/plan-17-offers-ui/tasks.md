@@ -29,13 +29,13 @@
 
 ## 3. PR 2: прайс-лист, КП без сметы, производные
 
-- [ ] 3.1 `shared/api/planningPriceList.ts`, `features/planning/pricelist/PriceListPage.tsx`: действующая
+- [x] 3.1 `shared/api/planningPriceList.ts`, `features/planning/pricelist/PriceListPage.tsx`: действующая
   цена, история, правка с `If-Match` [PLAN-10.1]. Проверка — vitest: без `plan.pricelist.edit` действий нет
-- [ ] 3.2 `PriceListOfferDialog.tsx`: пометка `no-price`, итог «неполный» [PLAN-10.1]. Проверка — vitest
-- [ ] 3.3 `features/planning/estimates/EstimateDerivatives.tsx`: КП по редакциям, включая прошлые
+- [x] 3.2 `PriceListOfferDialog.tsx`: пометка `no-price`, итог «неполный» [PLAN-10.1]. Проверка — vitest
+- [x] 3.3 `features/planning/estimates/EstimateDerivatives.tsx`: КП по редакциям, включая прошлые
   отправленные версии, покрытие и «устарело». Блок графиков — по текущему ответу сервера, данные
   появятся с Plan-19. Проверка — vitest: `hidden` без чисел и с названием права [PLAN-22].
-- [ ] 3.4 `docs/USER_GUIDE.md`: КП из сметы и по прайс-листу, наценки, статусы и версии, «смета
+- [x] 3.4 `docs/USER_GUIDE.md`: КП из сметы и по прайс-листу, наценки, статусы и версии, «смета
   изменилась», прайс-лист; `cd docs/tools && npm run toc` [PLAN-10]–[PLAN-13]. Проверка — проверка
   содержания в «Frontend» зелёная
 
@@ -43,7 +43,7 @@
 
 - [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~BHS.CRG.Tests.Plan.Offer|FullyQualifiedName~BHS.CRG.Tests.Plan.PriceList|FullyQualifiedName~RevisionDerivatives"` — профильные тесты КП, печати, прайс-листа и производных зелёные
 - [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm test` и `npm run ui:ratchet` — зелёные, без роста
+- [x] 4.3 `cd src/client && npm test` и `npm run ui:ratchet` — зелёные, без роста
 - [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [x] 4.5 Живой прогон под ролями: `node e2e/plan-offers-smoke.mjs` — «Менеджер проекта» делает и отправляет
   КП; «Сметчик» не видит раздела КП и цен продажи

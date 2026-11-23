@@ -1,6 +1,7 @@
 // Plan-17. Живая дверь КП из первой синтетической редакции: права, версия записи, печать и история.
 import assert from 'node:assert/strict';
-import { BASE, callApi, callApiOk, createChecks, launchBrowser, login, settled } from './harness.mjs';
+import { BASE, EMAIL, PASSWORD, callApi, callApiOk, createChecks, launchBrowser, login, settled } from './harness.mjs';
+import { PRICE_EDITOR_EMAIL, checkPriceList, preparePriceChecks } from './plan-price-list-checks.mjs';
 
 const estimateId = process.env.SMOKE_ESTIMATE_ID;
 const seedId = process.env.SMOKE_OFFER_ID;
@@ -162,6 +163,15 @@ try {
       assert.notEqual(updated.revision.id, source.id);
       assert.equal(updated.currentVersion, 2);
       assert.equal(updated.status, 'draft');
+      await manager.goto(`${BASE}/estimates/${estimateId}`);
+      await manager.getByRole('tab', { name: /^Ред\. 1(?:\s|$)/ }).click();
+      const derivatives = manager.getByRole('region', { name: 'КП редакции' });
+      const old = derivatives.getByRole('link', { name: `Открыть ${updated.number}, версия 1` });
+      assert((await old.getAttribute('href')).endsWith('?version=1'));
+      await old.click();
+      await manager.getByRole('heading', { name: 'Версия 1 · только чтение', exact: true }).waitFor();
+      await manager.getByRole('link', { name: 'К смете', exact: true }).click();
+      await old.waitFor();
     });
 
     await check('manager-must-review-again-if-rebase-preview-is-for-concurrently-sent-version', async () => {
@@ -202,6 +212,9 @@ try {
     assert(!await estimator.getByTestId('section-panel').getByRole('link', { name: 'Коммерческие предложения' }).count());
     assert(!await button(estimator, 'Сделать КП…').count());
     assert(!await estimator.getByRole('columnheader', { name: 'Цена продажи' }).count());
+    const derivatives = estimator.getByRole('region', { name: 'КП редакции' });
+    await derivatives.getByText('plan.offer.read', { exact: true }).waitFor();
+    assert(!/\d/.test(await derivatives.innerText()), 'В скрытом блоке КП видны числа.');
     assert.equal((await callApi(estimator, 'GET', '/plan/offers')).status, 403);
     assert.equal((await callApi(estimator, 'GET', `/plan/offers/${seedId}`)).status, 403);
     const requests = [];
@@ -215,6 +228,15 @@ try {
     assert(!await estimator.getByRole('columnheader', { name: 'Цена продажи' }).count());
     return true;
   });
+
+  const admin = await browser.newPage({ viewport });
+  await login(admin, EMAIL, PASSWORD);
+  const fixtures = await preparePriceChecks(admin, password);
+  await admin.close();
+  const editor = await browser.newPage({ viewport });
+  editor.on('pageerror', error => errors.push(error.message));
+  await login(editor, PRICE_EDITOR_EMAIL, password);
+  await checkPriceList({ check, manager, editor, fixtures, constructionId: estimate.constructionId, concurrentWrite });
 
   await check('no-browser-errors', () => assert.deepEqual(errors, []));
   process.exitCode = summarize('Коммерческие предложения');

@@ -19,12 +19,13 @@ import { OfferPrintDialog } from './OfferPrintDialog';
 import { OfferRebaseDialog } from './OfferRebaseDialog';
 import { OfferStatusActions, OfferStatusDialog, type StatusAction } from './OfferStatusActions';
 import { OfferVersions } from './OfferVersions';
+import { PriceListRepriceDialog } from '../pricelist/PriceListRepriceDialog';
 import { OfferStatusText, OfferTotals } from './offerDisplay';
 import { moneyText, OFFERS_PATH, sourceLabel } from './offerFormat';
 import type { ReloadOffer } from './useOfferWriteForm';
 
 type Tab = 'lines' | 'markups' | 'versions';
-type Layer = StatusAction | 'header' | 'print' | 'rebase';
+type Layer = StatusAction | 'header' | 'print' | 'rebase' | 'reprice';
 
 export function OfferCard({ id }: { id: string }) {
   const query = useOffer(id);
@@ -39,7 +40,9 @@ export function OfferCard({ id }: { id: string }) {
     return (await query.refetch({ throwOnError: true })).data!;
   }
   return <div className="grid min-w-0 grid-cols-1 gap-4">
-    <div><Link to={target} onClick={guardedClick(target)} className="text-body-medium text-primary hover:underline">
+    <div><Link to={target} onClick={guardedClick(target)}
+      state={fromEstimate && typeof state?.estimateRevisionId === 'string' ? { revisionId: state.estimateRevisionId } : undefined}
+      className="text-body-medium text-primary hover:underline">
       {fromEstimate ? 'К смете' : 'К списку КП'}
     </Link></div>
     {refusal && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>{refusal.message}</Banner>}
@@ -58,6 +61,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   const sites = useConstructionDirectory(canReadSites);
   const [tab, setTab] = useState<Tab>('lines');
   const [params, setParams] = useSearchParams();
+  const { state: origin } = useLocation();
   const [layer, setLayer] = useState<Layer | null>(null);
   const [markupsDirty, setMarkupsDirty] = useState(false);
   const tabId = useId();
@@ -79,7 +83,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
       const next = new URLSearchParams(previous);
       next.delete('version');
       return next;
-    }, { replace: true });
+    }, { replace: true, state: origin });
   }
 
   return <article className="grid min-w-0 grid-cols-1 gap-4" aria-label={`Карточка ${offer.number}`}>
@@ -111,7 +115,10 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
         <OfferLines lines={offer.lines} showCost={showCost} />
         <OfferTotals money={offer.money} vat={offer.vat} />
         {showCost && offer.cost && <p className="text-body-medium">Себестоимость {moneyText(offer.cost.total)} · маржа {moneyText(offer.cost.margin)}</p>}
-        {draft && canEdit && !markupsDirty && <div><Button variant="outlined" onClick={() => setLayer('header')}>Изменить дату и НДС…</Button></div>}
+        {draft && canEdit && !markupsDirty && <div className="flex flex-wrap gap-2">
+          <Button variant="outlined" onClick={() => setLayer('header')}>Изменить дату и НДС…</Button>
+          {canRead && offer.source === 'pricelist' && <Button variant="outlined" onClick={() => setLayer('reprice')}>Пересчитать по прайс-листу…</Button>}
+        </div>}
       </div>}
       {(view === 'markups' || markupsDirty) && <div hidden={view !== 'markups'}>
         <OfferMarkups offer={offer} mayEdit={canEdit && !historical} reload={reload} onDirty={setMarkupsDirty} />
@@ -122,6 +129,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
       allowed={statusAction === 'next' ? canEdit : canSend} onClose={close} onSuccess={close} />}
     {layer === 'header' && <EditOfferHeaderDialog offer={offer} canEdit={canEdit} reload={reload} onClose={close} />}
     {layer === 'rebase' && <OfferRebaseDialog offer={offer} allowed={canRead && canEdit} showCost={showCost} reload={reload} onClose={close} />}
+    {layer === 'reprice' && <PriceListRepriceDialog offer={offer} allowed={canRead && canEdit} reload={reload} onClose={close} />}
     {layer === 'print' && canRead && <OfferPrintDialog offer={offer} onClose={close} />}
   </article>;
 }

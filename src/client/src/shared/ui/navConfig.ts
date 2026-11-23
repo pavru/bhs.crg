@@ -176,6 +176,8 @@ export const workNav: NavItem[] = [
     permission: 'plan.estimate.read', rail: 'plan' },
   { to: '/offers',          label: 'Коммерческие предложения', icon: Description, module: 'plan',
     permission: 'plan.offer.read', rail: 'plan' },
+  { to: '/price-list',      label: 'Прайс-лист',          icon: ReceiptLong, module: 'plan',
+    permission: 'plan.offer.read', rail: 'plan' },
   // Запомненные сопоставления смет (plan-09, ответ П1): справочник модуля — им исправляют неверно запомненное.
   { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },
