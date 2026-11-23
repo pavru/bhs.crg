@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { apiClient } from './client';
-import { QK, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
+import { QK, seenBy, useInvoiceWrite, type InvoiceView, type PaymentRefusalKind, type PaymentRequisiteGap } from './invoices';
 
 /**
  * Оплата счёта (задача C5, issue #1082, ТЗ COST-4, COST-9, COST-16).
@@ -37,11 +38,27 @@ export interface PaymentPosting {
   total: number | null;
   /** Почему оплатить нельзя при любой дате; расклада тогда нет. */
   refusal: string | null;
+  refusalKind?: PaymentRefusalKind | null;
+  /** При отказе содержит все препятствия по реквизитам, в записанном раскладе пуст. */
+  requisiteGaps?: PaymentRequisiteGap[];
   /** Почему нельзя оплатить этой датой; расклада тогда тоже нет. */
   dateRefusal: string | null;
   rows: PostingRow[];
   /** Отметка расклада — её возвращает запись оплаты (`seen`). */
   stamp: string;
+}
+
+interface PaymentRequisiteRefusal {
+  error: string;
+  refusalKind: 'amount' | 'requisites';
+  requisiteGaps: PaymentRequisiteGap[];
+}
+
+export function paymentRequisiteRefusal(error: unknown): PaymentRequisiteRefusal | undefined {
+  if (!isAxiosError<PaymentRequisiteRefusal>(error) || error.response?.status !== 400) return;
+  const data = error.response.data;
+  if ((data?.refusalKind === 'requisites' || data?.refusalKind === 'amount') && Array.isArray(data.requisiteGaps))
+    return data;
 }
 
 /**

@@ -9,10 +9,10 @@ import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
-import type { InvoiceView } from '@/shared/api/invoices';
+import { useFreshInvoice, type InvoiceView } from '@/shared/api/invoices';
 import {
   useCancelPayment, useDescribePayment, useFirstPaymentPreview, usePayInvoice, usePaymentPreview,
-  usePostedPayment,
+  usePostedPayment, paymentRequisiteRefusal,
   type PaymentPosting,
 } from '@/shared/api/invoicePayment';
 import { K, asInput } from './invoiceFields';
@@ -20,7 +20,7 @@ import { formatDate, formatMoney } from '@/shared/format/format';
 import { PaymentPostingTable } from './PaymentPostingTable';
 import { PAY_ENTRY, changedRows, paidToast, payLabel } from './paymentPosting';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { mayMarkPaid, payHold } from './invoicePrimary';
+import { mayMarkPaid } from './invoicePrimary';
 
 /**
  * Оплата счёта в форме (задача C5, issue #1082): отметка, расклад по периодам, отмена — и полоса
@@ -46,15 +46,14 @@ function invoiceTitle(view: InvoiceView): string {
  * <p>Окна оплаты у кнопки своего нет (ревью PR #1786): его держит форма, одно на оба входа, — иначе два
  * пути к одному окну жили бы каждый со своей копией условий.</p>
  */
-export function InvoicePayButton({ view, dirty, onPay }: {
+export function InvoicePayButton({ view, hold, onPay }: {
   view: InvoiceView;
-  /** В форме есть несохранённое — в шапке ИЛИ в строках (D-10.7): оплата считается по сохранённому счёту. */
-  dirty: boolean;
+  /** Причина недоступности по сохранённому счёту и состоянию записи, общая со сводкой. */
+  hold: string | null;
   onPay: () => void;
 }) {
   const can = useCan();
   if (!mayMarkPaid(view, can.permission('costs.invoice.pay'))) return null;
-  const hold = payHold(dirty, view.payment.refusal);
   return (
     <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={hold !== null}
       title={hold ?? undefined} onClick={onPay}>
@@ -154,6 +153,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
   const toast = useSnackbar();
   const preview = usePaymentPreview();
   const pay = usePayInvoice();
+  const refreshInvoice = useFreshInvoice();
   // Первый вопрос — без даты: «сегодня» называет сервер. Пока ответ не пришёл, поле даты пустое — а
   // не сегодняшнее число браузера: его часы могут стоять в другом поясе, чем часы компании.
   const first = useFirstPaymentPreview(view.id);
@@ -194,7 +194,12 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
 
   const fresh = posting !== null && !preview.isPending && posting.paidOn === paidOn && failed === null;
   const duplicateRefusal = view.payment.refusalKind === 'duplicate' ? view.payment.refusal : null;
-  const payable = fresh && !posting.refusal && !posting.dateRefusal && !duplicateRefusal;
+  // После 409 карточка может обновиться, даже если остался старый расклад или повторный запрос отказал.
+  const reason = view.payment.requisiteGaps?.length ? view.payment : posting;
+  const requisiteGaps = reason?.requisiteGaps ?? [];
+  const refusal = reason?.refusal ?? duplicateRefusal;
+  const refusalKind = reason?.refusalKind ?? view.payment.refusalKind;
+  const payable = fresh && !refusal && !posting.dateRefusal && !requisiteGaps.length;
 
   async function submit() {
     if (!posting || !payable) return;
@@ -206,22 +211,37 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
       toast.success(paidToast(paidOn, posting.rows));
       onDone();
     } catch (e) {
-      // После 409 сервер заново объясняет отказ или возвращает изменившийся расклад.
       setError(apiError(e, 'Оплата не записана.'));
+      const requisites = paymentRequisiteRefusal(e);
+      if (requisites) {
+        // Даже если повторный запрос не ответит, уже полученный отказ блокирует запись и называет поля.
+        setAsked({ ...posting, refusal: requisites.error, refusalKind: requisites.refusalKind,
+          requisiteGaps: requisites.requisiteGaps, rows: [], stamp: '' });
+        await Promise.allSettled([ask(paidOn, posting), refreshInvoice(view.id)]);
+      }
+      // После 409 хук записи перечитывает счёт, а диалог обновляет расклад для выбранной даты.
       if (isConflict(e)) await ask(paidOn, posting);
     }
   }
 
   // Отказ, не зависящий от даты: заполнять нечего — только причина.
-  const refusal = posting?.refusal ?? duplicateRefusal;
-  if (refusal)
+  if (refusal || requisiteGaps.length)
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
         acknowledge="Понятно">
-        <p role="alert" className="text-body-medium text-on-surface">
-          Оплатить нельзя: {refusal}.
-          {refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
-        </p>
+        <div role="alert" className="space-y-2 text-body-medium text-on-surface">
+          {refusal && !(requisiteGaps.length && (refusalKind === 'requisites' || refusalKind === 'amount')) && (
+            <p>Оплатить нельзя: {refusal}.{refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}</p>
+          )}
+          {requisiteGaps.length > 0 && (
+            <>
+              <p>Заполните реквизиты оплаты.</p>
+              <ul className="list-disc pl-5">
+                {requisiteGaps.map(gap => <li key={gap.field}>{gap.label}</li>)}
+              </ul>
+            </>
+          )}
+        </div>
       </Modal>
     );
 

@@ -85,12 +85,12 @@ const inLines = (ordinals: number[]) => `${ordinals.length === 1 ? 'строки
  *
  * @returns `null` — сказать не о чем.
  */
-export function lostSummary(view: InvoiceView): LostSummary | null {
+export function lostSummary(view: InvoiceView, { omitSupplier = false } = {}): LostSummary | null {
   const places: string[] = [];
   let count = 0;
 
   const references = view.references;
-  if (references?.supplier === 'lost') { places.push('поставщик'); count++; }
+  if (!omitSupplier && references?.supplier === 'lost') { places.push('поставщик'); count++; }
   if (references?.payer === 'lost') { places.push('плательщик'); count++; }
   if (references?.documentType === 'lost') { places.push('тип счёта'); count++; }
 

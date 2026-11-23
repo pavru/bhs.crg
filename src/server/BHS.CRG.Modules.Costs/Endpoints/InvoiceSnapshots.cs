@@ -16,7 +16,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed record InvoiceSnapshot(
     IReadOnlyList<InvoiceLine> Lines, IReadOnlyList<InvoiceAllocation> Parts, AllocationPlaces Known,
     IReadOnlyDictionary<Guid, ReferenceState> Records, IReadOnlyDictionary<Guid, string?>? Names,
-    decimal Tolerance, InvoiceAllocationRead Allocation, IReadOnlySet<Guid> Lost, InvoiceReadiness Readiness);
+    decimal Tolerance, InvoiceAllocationRead Allocation, IReadOnlySet<Guid> Lost, InvoiceReadiness Readiness,
+    IReadOnlyList<PaymentRequisiteGap> PaymentRequisites);
 
 /// <summary>
 /// Снимки счетов для готовности (issue #1291, #1292) — одному счёту и пачке, <b>одним кодом</b>.
@@ -89,8 +90,12 @@ public sealed class InvoiceSnapshots(
             IReadOnlyList<InvoiceLine> own = [.. linesOf[invoice.Id]];
             IReadOnlyList<InvoiceAllocation> shares = [.. partsOf[invoice.Id]];
             var allocation = InvoiceAllocations.Read(invoice, own.Select(InvoiceAllocations.Line), shares, known, tolerance);
+            var supplier = InvoicePaymentRequisites.SupplierOf(invoice);
+            var paymentRequisites = invoice.Payment == InvoicePaymentState.Paid
+                ? []
+                : InvoicePaymentRequisites.Find(invoice, supplier is { } id ? records[id] : ReferenceState.Lost);
             return new InvoiceSnapshot(own, shares, known, records, names, tolerance, allocation, lost,
-                InvoiceReadiness.Of(invoice, own, names, lost, allocation.Summary));
+                InvoiceReadiness.Of(invoice, own, names, lost, allocation.Summary, paymentRequisites), paymentRequisites);
         });
     }
 }

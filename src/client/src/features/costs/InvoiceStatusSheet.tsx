@@ -70,6 +70,11 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   // По нему видно, что лист снят: содержимое уходит из документа вместе с ним.
   const body = useRef<HTMLParagraphElement>(null);
+  const runAndClose = (action: StatusAction) => {
+    const node = body.current;
+    onClose();
+    afterClose(node, () => run(action), () => mounted.current);
+  };
   const count = status.count > 0 ? `${status.count} ${ruPlural(status.count, 'замечание', 'замечания', 'замечаний')} · ` : '';
   return (
     <SideSheet variant="modal" open={open} onClose={onClose} title="Состояние счёта">
@@ -93,7 +98,18 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
             </h3>
             <ul>
               {items.map(item => (
-                <li key={item.key}><StatusRow item={item} run={action => { const node = body.current; onClose(); afterClose(node, () => run(action), () => mounted.current); }} /></li>
+                <li key={item.key}>
+                  {item.requisiteRows ? (
+                    <section aria-label={item.text} data-testid={`status-item-${item.key}`}>
+                      <h4 className="px-4 pt-2 text-title-small">{item.text}</h4>
+                      <ul className="px-2">
+                        {item.requisiteRows.map(row => <li key={row.key}>
+                          <StatusRow item={row} run={runAndClose} testId={`status-requisite-${row.key}`} />
+                        </li>)}
+                      </ul>
+                    </section>
+                  ) : <StatusRow item={item} run={runAndClose} />}
+                </li>
               ))}
             </ul>
           </section>
@@ -103,7 +119,9 @@ export function InvoiceStatusSheet({ open, onClose, status, saving, savedAt, onA
   );
 }
 
-function StatusRow({ item, run }: { item: StatusItem; run: (action: StatusAction) => void }) {
+function StatusRow({ item, run, testId = `status-item-${item.key}` }: {
+  item: StatusItem; run: (action: StatusAction) => void; testId?: string;
+}) {
   const icon = LEVEL_ICON[item.level];
   const [action, ...more] = item.actions;
   // Одно действие справа; «Открыть» двойника при удалении справа и «Показать на скане» у меток при «Всё верно»
@@ -116,7 +134,7 @@ function StatusRow({ item, run }: { item: StatusItem; run: (action: StatusAction
     </span>
   ) : undefined;
   const content = {
-    icon: icon.icon, iconTone: icon.tone, 'data-testid': `status-item-${item.key}`, title: item.text, supporting,
+    icon: icon.icon, iconTone: icon.tone, 'data-testid': testId, title: item.text, supporting,
     headline: <span className="whitespace-normal break-words">{item.text}</span>,
     action: action
       ? <Button variant="text" title={action.short ? action.label : undefined} onClick={() => run(action)}>{action.short ?? action.label}</Button>

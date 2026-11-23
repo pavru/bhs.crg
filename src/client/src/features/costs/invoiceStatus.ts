@@ -7,6 +7,7 @@ import { FIELD_LABEL, K, REJECTED, VAT_MODE_MARK, asInput, duplicateLabel, sameF
 import { modeProof, vatModeOf } from './invoiceVat';
 import { DRAFT, type DeleteReason } from './invoiceDelete';
 import { readinessItems, type ReadinessTarget } from './invoiceReadiness';
+import { matchesPaymentGap, paymentRefusalStatus, paymentRequisiteGroup } from './invoicePaymentStatus';
 import { PART_ORDER, partOfTarget } from './invoiceParts';
 import { lostSummary } from './lostReferences';
 import { failureNote, hasRecognitionNotes, shortReason, unusedLinesNote } from './recognition';
@@ -79,6 +80,8 @@ export interface StatusItem {
   /** Имя пункта во фразе индикатора, когда он худший «Мешает работе»: «Не распознан», «Счёт удалён». */
   name?: string;
   blocks?: StatusBlock[];
+  /** Препятствия отдельных полей внутри одного замечания об оплате. */
+  requisiteRows?: StatusItem[];
   /** Первое — действие пункта в перечне; banner берёт до двух. Пусто — пункт не ведёт. */
   actions: StatusAction[];
   /** Почему действия нет — подсказкой у пункта (нет права). */
@@ -211,9 +214,9 @@ function gapText(kind: string, label: string): string {
  * Где первое удалённое место счёта — туда ведёт пункт удалённых записей. Порядок — порядок формы: шапка,
  * строки, разноска.
  */
-function lostPlace(view: InvoiceView): StatusPlace {
+function lostPlace(view: InvoiceView, omitSupplier: boolean): StatusPlace {
   const refs = view.references;
-  if (refs?.supplier === 'lost') return { place: 'field', key: K.supplier };
+  if (!omitSupplier && refs?.supplier === 'lost') return { place: 'field', key: K.supplier };
   if (refs?.payer === 'lost') return { place: 'field', key: K.payer };
   const line = view.lines.find(l => (l.nomenclatureLost && l.nomenclatureIssue !== 'moved')
     || l.allocation.parts.some(p => p.targetLost || (p.targetIssue?.endsWith('-lost') ?? false)));
@@ -247,6 +250,9 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   const closed = view.payment.lockedBy !== null;
   const editable = can.edit && !gone;
   const state = asInput(view.requisites[K.state]);
+  const payment = view.payment;
+  const requisiteGaps = gone || payment.paid || state === REJECTED ? [] : payment.requisiteGaps ?? [];
+  const supplierInGroup = requisiteGaps.some(gap => gap.field === K.supplier && gap.kind === 'lost');
   const running = !gone && recognition?.state === 'running';
 
   // ── Мешает работе ──────────────────────────────────────────────────────────────────────────────────
@@ -294,11 +300,11 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
 
   // Удалённые записи справочников (issue #1184): сводкой «в N местах», ведёт к первому.
-  const lost = lostSummary(view);
+  const lost = lostSummary(view, { omitSupplier: supplierInGroup });
   if (lost) {
     // Без права правки удалённую запись не заменить: работы, которой она «мешает», у человека нет (ревью PR #1792).
     const locked = gone ? 'gone' : closed && !form.correcting ? (can.correctable ? 'correct' : 'closed') : !editable ? 'read' : null;
-    const place = lostPlace(view);
+    const place = lostPlace(view, supplierInGroup);
     if (lost.count > 0)
       add({
         key: 'lost', level: locked === null ? 'blocking' : 'info', name: 'Удалённые записи',
@@ -325,12 +331,12 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
   // Перечень готовности — сервера (#1291); запертому и удалённому его нет: «Разобран» откажет замок.
   const gaps = closed || gone ? null : view.readiness?.gaps ?? null;
   const readiness = gaps === null ? null : readinessItems(view, { edit: editable, allocate: can.allocate }) ?? [];
-  let payNamed = false;
+  if (requisiteGaps.length) add(paymentRequisiteGroup(requisiteGaps, gaps ?? [], editable && !closed));
   gaps?.forEach((gap, index) => {
+    if (requisiteGaps.some(required => matchesPaymentGap(required, gap))) return;
     const item = readiness![index];
     // Старый сервер `blocks` не присылает — пункт готовности мешает «Разобран» всегда.
     const blocks: StatusBlock[] = (gap.blocks ?? ['parsed']).map(b => (b === 'payment' ? 'pay' : 'parsed'));
-    if (blocks.includes('pay')) payNamed = true;
     add({
       key: `gap:${item.id}`, level: 'gate', text: gapText(gap.kind, gap.label), blocks,
       actions: item.target ? [{ kind: 'goto', label: gotoLabel(item.target, (gap.lines?.length ?? 0) > 1), place: item.target }] : [],
@@ -338,27 +344,14 @@ export function statusOf({ view, recognition, recognitionUnread, form }: StatusI
     });
   });
 
-  // Отказ оплаты, который не назван пунктом готовности (сервер пометил бы его `payment`), — своим пунктом.
-  // У черновика «нет суммы» называет пункт поля «Итого» (сумма обязательна для «Разобран»); здесь остаются
-  // разобранный и запертый счёт без перечня готовности — например разобранный без суммы до обновления (Э3).
-  const payment = view.payment;
-  const duplicate = payment.refusalKind === 'duplicate';
-  const moneyRefusal = duplicate ? payment.moneyRefusal : payment.refusal;
-  const moneyKind = duplicate ? payment.moneyRefusalKind : payment.refusalKind;
-  const payItem = can.pay && !payment.paid && !!moneyRefusal && moneyKind !== 'rejected' && !payNamed && !gone;
-  if (payItem)
-    add({
-      key: 'pay-refusal', level: 'gate', text: `Оплатить нельзя: ${moneyRefusal}`, blocks: ['pay'],
-      actions: moneyKind === 'amount' && !closed
-        ? [{ kind: 'goto', label: 'К полю', place: { place: 'field', key: K.total } }] : [],
-    });
+  const refusal = paymentRefusalStatus(payment, requisiteGaps, gaps ?? [], { visible: can.pay && !gone, closed });
+  if (refusal.item) add(refusal.item);
 
   // Расхождение сверх допуска у счёта, о котором готовность молчит (разобран — после понижения допуска или
   // правки суммы; оплачен): прежде его называла сводка разноски, теперь — этот пункт, если не назвал другой.
   // Без суммы к оплате (нуль — не сумма) сверять не с чем: о ней говорит поле «Итого» (`reconciled`, D5).
   const alloc = view.allocation;
-  const discrepancyNamed = (gaps?.some(gap => gap.kind === 'total') ?? false)
-    || (payItem && moneyKind === 'discrepancy');
+  const discrepancyNamed = refusal.discrepancy || gaps?.some(gap => gap.kind === 'total');
   if (!gone && !discrepancyNamed && alloc.reconciled && !alloc.withinTolerance && alloc.discrepancy !== null
     && view.lines.length > 0 && state !== REJECTED)
     add({

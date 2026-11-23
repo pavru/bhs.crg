@@ -43,6 +43,7 @@ import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLand
 import { statusItems, untilStatus } from './invoice-status.mjs';
 import { paidSaveChecks } from './invoice-paid-save-checks.mjs';
 import { duplicatePaymentCheck } from './invoice-payment-duplicates.mjs';
+import { paymentRequisitesCheck, paymentRequisitesRace } from './invoice-payment-requisites.mjs';
 
 
 const browser = await launchBrowser();
@@ -159,6 +160,17 @@ await check('refusal-is-shown-instead-of-the-form', async () => {
 
 await check('duplicate-arrives-after-preview-and-review-confirms-one-pair',
   () => duplicatePaymentCheck(page, { api, invoice, open, site, number: `ОПЛ-Д-${stamp}` }));
+
+await check('required-fields-group-and-pay-after-saving-without-payer',
+  () => paymentRequisitesCheck(page, { api, organization: organizations[0], number: `ОПЛ-Р-${stamp}` }));
+for (const expectedStatus of [400, 409]) {
+  await check(`required-fields-refresh-after-${expectedStatus}`,
+    () => paymentRequisitesRace(page, { api, invoice, open, expectedStatus, number: `ОПЛ-Р${expectedStatus}-${stamp}` }));
+}
+await check('required-fields-from-card-when-preview-is-unavailable-after-409',
+  () => paymentRequisitesRace(page, {
+    api, invoice, open, expectedStatus: 409, previewUnavailable: true, number: `ОПЛ-Р503-${stamp}`,
+  }));
 
 // ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок и Tab ведут по форме ────────
 const calendarNumber = `ОПЛ-К-${stamp}`;

@@ -21,6 +21,9 @@ public static class PaymentRefusal
 
     public const string Duplicate = "duplicate";
 
+    /// <summary>Отсутствует номер, дата или действительная ссылка на поставщика.</summary>
+    public const string Requisites = "requisites";
+
     /// <summary>
     /// Род причины, по которой НЕОПЛАЧЕННЫЙ счёт оплатить нельзя; <c>null</c> — можно. Одним местом для ответа
     /// оплаты (<c>payment.refusalKind</c>) и готовности (пометка «мешает оплате»): порядок «отклонён раньше
@@ -31,22 +34,28 @@ public static class PaymentRefusal
         invoice.State == InvoiceState.Rejected ? Rejected
         : PaymentPosting.RefusalKind(invoice, discrepancy, withinTolerance);
 
-    /// <inheritdoc cref="Of(Invoice, decimal?, bool)" />
-    public static string? Of(Invoice invoice, AllocationBalance balance, bool hasDuplicate = false) =>
-        invoice.State != InvoiceState.Rejected && hasDuplicate
-            ? Duplicate
-            : Of(invoice, balance.Discrepancy, balance.WithinTolerance);
+    /// <summary>Основное препятствие новой оплаты с учётом дублей и реквизитов.</summary>
+    public static string? Of(
+        Invoice invoice, AllocationBalance balance, bool hasDuplicate = false,
+        IReadOnlyList<PaymentRequisiteGap>? requisiteGaps = null) =>
+        invoice.State == InvoiceState.Rejected ? Rejected
+        : hasDuplicate ? Duplicate
+        : requisiteGaps?.Any(gap => gap.Field != InvoiceRequisites.TotalKey) == true ? Requisites
+        : PaymentPosting.RefusalKind(invoice, balance);
 
     /// <summary>
     /// Та же причина словами — по роду, а не второй цепочкой условий: причина, добавленная в текст и
     /// забытая в роде, дала бы клиенту отказ без рода, то есть «оплатить можно».
     /// </summary>
-    public static string? Text(Invoice invoice, AllocationBalance balance, bool hasDuplicate = false) =>
-        Of(invoice, balance, hasDuplicate) switch
+    public static string? Text(
+        Invoice invoice, AllocationBalance balance, bool hasDuplicate = false,
+        IReadOnlyList<PaymentRequisiteGap>? requisiteGaps = null) =>
+        Of(invoice, balance, hasDuplicate, requisiteGaps) switch
     {
         null => null,
         Rejected => "счёт отклонён",
         Duplicate => "есть неподтверждённое совпадение по поставщику, номеру и дате счёта",
+        Requisites => string.Join(" · ", requisiteGaps!.Select(gap => gap.Label)),
         _ => PaymentPosting.Refusal(invoice, balance),
     };
 }
