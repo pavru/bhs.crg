@@ -79,6 +79,8 @@ export interface ReviewQueueRow {
   photosPending: number;
 }
 
+export const WORK_REVIEW_REPORT_PERMISSIONS = ['work.report.review', 'work.report.read'] as const;
+
 export interface CrewLine {
   id: string;
   reportId: string;

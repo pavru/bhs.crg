@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { useCan } from '@/shared/api/access';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useEmployees } from '@/shared/api/employees';
-import type { ReviewEmptyReason, ReviewQueuePage as QueuePage, ReviewQueueRow } from '@/shared/api/work';
+import { WORK_REVIEW_REPORT_PERMISSIONS, type ReviewEmptyReason, type ReviewQueuePage as QueuePage, type ReviewQueueRow } from '@/shared/api/work';
 import { REVIEW_QUEUE_LIMIT, useReviewQueue, useReviewSites, type ReviewQueueFilters } from '@/shared/api/workReview';
 import { formatCount, formatDate, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -94,11 +94,13 @@ function QueuePager({ data, loading, onChange }: { data: QueuePage; loading: boo
 export function ReviewQueuePage() {
   useDocumentTitle('Приёмка');
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'crew' ? 'crew' : 'reports';
+  const { permission } = useCan();
+  const canReadReports = WORK_REVIEW_REPORT_PERMISSIONS.some(permission);
+  const canReadCrew = canReadReports || permission('work.crew.approve');
+  const tab = canReadReports && params.get('tab') !== 'crew' ? 'reports' : 'crew';
   const showReports = tab === 'reports';
   const written = useRef(params);
   useEffect(() => { written.current = params; }, [params]);
-  const { permission } = useCan();
   const filters: ReviewQueueFilters = {
     constructionId: params.get('constructionId') || undefined,
     employeeId: params.get('employeeId') || undefined,
@@ -166,6 +168,8 @@ export function ReviewQueuePage() {
   const resetButton = <Button variant="text" onClick={reset}>Сбросить отбор</Button>;
   const gridIcon = <Icon icon={Assignment} size={24} />;
 
+  if (!canReadCrew) return null;
+
   const reports = <>
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-56 min-w-0 max-w-full">
@@ -207,9 +211,12 @@ export function ReviewQueuePage() {
     <PageHeader title="Приёмка" subtitle={data?.boundary.text}
       badge={!!data?.total && <CountText>Ждут решения · {formatCount(data.total)}</CountText>} />
     <Tabs id="work-review-tabs" aria-label="Разделы приёмки" value={tab} onChange={switchTab}
-      items={[{ value: 'reports', label: 'Отчёты' }, { value: 'crew', label: 'Сверка бригад', icon: Group }]} />
+      items={[
+        ...(canReadReports ? [{ value: 'reports' as const, label: 'Отчёты' }] : []),
+        { value: 'crew', label: 'Сверка бригад', icon: Group },
+      ]} />
     <TabPanel id="work-review-tabs" value={tab} className="space-y-4">
-      {showReports ? reports : <CrewReconciliationPanel />}
+      {showReports ? reports : <CrewReconciliationPanel canReadReports={canReadReports} />}
     </TabPanel>
   </div>;
 }

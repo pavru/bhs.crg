@@ -2,12 +2,16 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { apiClient } from '@/shared/api/client';
-import type { CrewGroup, CrewGroupsPage } from '@/shared/api/work';
+import { WORK_REVIEW_REPORT_PERMISSIONS, type CrewGroup, type CrewGroupsPage } from '@/shared/api/work';
+import { setFormatLocale } from '@/shared/format/format';
+import { RequireAccess } from '@/shared/ui/ProtectedRoute';
 import { ReviewQueuePage } from '../review/ReviewQueuePage';
+import { ReportCard } from '../review/ReportCard';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: {} }) }));
 
 const group: CrewGroup = {
   id: 'group-1', constructionId: 'site-1', date: '2026-11-21', shift: 'night', workTypeId: 'type-1',
@@ -22,6 +26,7 @@ const group: CrewGroup = {
 };
 
 let crewPage: CrewGroupsPage;
+let permissions: string[];
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
@@ -31,6 +36,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  permissions = ['work.report.read', 'work.crew.approve'];
   crewPage = {
     items: [group], constructions: [{ id: 'site-1', name: 'Терминал' }],
     workTypes: { 'type-1': 'Прокладка кабеля' }, workVariants: { 'variant-1': 'В лотке' }, units: { m: 'м' },
@@ -39,18 +45,30 @@ beforeEach(() => {
   vi.mocked(apiClient.post).mockReset();
   vi.mocked(apiClient.get).mockImplementation(async path => {
     if (path === '/work/crew-groups') return { data: crewPage };
-    if (path === '/account/access') return { data: { permissions: ['work.report.read'], modules: [] } };
+    if (path === '/account/access') return { data: { permissions, modules: [{ code: 'work', available: true }] } };
     if (path === '/work/review/queue') return { data: { items: [], limit: 50, offset: 0, total: 0, counts: {},
       boundary: { code: 'all', text: 'все стройки', sites: null }, reason: 'nothing-pending' } };
     throw new Error(`Неожиданный адрес ${path}`);
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setFormatLocale('ru-RU');
+});
 
-function mount(search = '?tab=crew') {
+function mount(search = '?tab=crew', report = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}>
-    <MemoryRouter initialEntries={[`/work-review${search}`]}><ReviewQueuePage /></MemoryRouter>
+    <MemoryRouter initialEntries={[`/work-review${report ? '/report-1' : ''}${search}`]}>
+      <Routes>
+        <Route element={<RequireAccess />}>
+          <Route path="work-review" element={<ReviewQueuePage />} />
+        </Route>
+        <Route element={<RequireAccess additionalPermission={[...WORK_REVIEW_REPORT_PERMISSIONS]} />}>
+          <Route path="work-review/:reportId" element={<ReportCard />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
   </QueryClientProvider>);
 }
 
@@ -84,6 +102,7 @@ describe('сверка бригад', () => {
   });
 
   it('показывает прежний итог и расхождение из ответа, скрывает действие без approve', async () => {
+    permissions = ['work.report.read'];
     crewPage.items = [{ ...group, state: 'stale', total: 120, unitId: 'm', actions: [],
       approvedByName: 'Менеджер', approvedAt: '2026-11-21T10:15:00Z' }];
     mount();
@@ -93,6 +112,26 @@ describe('сверка бригад', () => {
     expect(screen.getByText('Не подали отчёт · 2')).toBeTruthy();
     expect(screen.getByText('В лотке')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Утвердить итог' })).toBeNull();
+  });
+
+  it.each(['', '?tab=crew'])('право утверждения открывает только сверку по адресу /work-review%s', async search => {
+    permissions = ['work.crew.approve'];
+    mount(search);
+    expect(await screen.findByRole('heading', { name: 'Прокладка кабеля' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Сверка бригад' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Утвердить итог' })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Отчёты' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Открыть отчёт/ })).toBeNull();
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain('/work/review/queue');
+  });
+
+  it('право утверждения не открывает карточку по прямой ссылке', async () => {
+    permissions = ['work.crew.approve'];
+    mount('?tab=crew', true);
+    expect(await screen.findByRole('heading', { name: 'Раздел «Приёмка» недоступен' })).toBeTruthy();
+    expect(screen.getByText('work.report.review')).toBeTruthy();
+    expect(screen.getByText('work.report.read')).toBeTruthy();
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain('/work/review/reports/report-1');
   });
 
   it.each([
@@ -115,6 +154,23 @@ describe('сверка бригад', () => {
     expect(apiClient.post).toHaveBeenCalledWith('/work/crew-groups/group-1/approve', { total }, { headers: { 'If-Match': '10' } });
     expect(screen.getByText(/Итог · .* м · Менеджер/)).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('читает вставленный объём с разделителем тысяч в локали отображения', async () => {
+    setFormatLocale('en-US');
+    crewPage.items = [{ ...group, lines: [{ ...group.lines[0], volume: 1234 }, group.lines[1]] }];
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: { ...group, version: '11', total: 1234, unitId: 'm', state: 'approved', actions: [] },
+    });
+    mount();
+    const volume = (await screen.findByRole('cell', { name: '1,234' })).textContent;
+    const dialog = await openApproval();
+    await choose(dialog, 'Указать свой объём');
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Свой объём, м' }), { target: { value: volume } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Утвердить итог' }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
+      '/work/crew-groups/group-1/approve', { total: 1234 }, { headers: { 'If-Match': '10' } },
+    ));
   });
 
   it('после отказа по версии перечитывает список и даёт принять решение заново', async () => {

@@ -23,11 +23,12 @@ const states: Record<CrewGroup['state'], { text: string; tone: StatusTone }> = {
   stale: { text: 'Требует решения', tone: 'warning' },
 };
 
-function CrewGroupSection({ group, page, title, shift, onApprove }: {
+function CrewGroupSection({ group, page, title, shift, canReadReports, onApprove }: {
   group: CrewGroup;
   page: CrewGroupsPage;
   title: string;
   shift: string;
+  canReadReports: boolean;
   onApprove: () => void;
 }) {
   const label = useId();
@@ -61,16 +62,16 @@ function CrewGroupSection({ group, page, title, shift, onApprove }: {
           {group.approvedAt && ` · ${formatDateTime(group.approvedAt)}`}
         </p>}
       </div>
-      {group.actions.includes('approve') && <Button variant="filled" onClick={onApprove}>Утвердить итог</Button>}
+      {group.actions.includes('approve') && <Button variant="tonal" onClick={onApprove}>Утвердить итог</Button>}
     </div>
-    {group.lines.length > 0 ? <DataGrid columns={columns} rows={group.lines} rowKey={line => line.id} density="compact"
-      onRowOpen={line => navigate(reportPath(line))}
-      rowLink={line => ({ to: reportPath(line), label: `Открыть отчёт · ${line.fullName}` })} />
+    {group.lines.length > 0 ? <DataGrid columns={columns} rows={group.lines} rowKey={line => line.id}
+      onRowOpen={canReadReports ? line => navigate(reportPath(line)) : undefined}
+      rowLink={canReadReports ? line => ({ to: reportPath(line), label: `Открыть отчёт · ${line.fullName}` }) : undefined} />
       : <p className="text-body-medium text-on-surface-variant">Нет поданных строк</p>}
   </section>;
 }
 
-export function CrewReconciliationPanel() {
+export function CrewReconciliationPanel({ canReadReports }: { canReadReports: boolean }) {
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<CrewGroup | null>(null);
   const filters = {
@@ -127,7 +128,7 @@ export function CrewReconciliationPanel() {
     </Banner>}
     {!loading && !query.isError && page && (page.items.length > 0
       ? page.items.map(group => <CrewGroupSection key={group.id} group={group} page={page} title={title(group)}
-        shift={shift(group)} onApprove={() => setSelected(group)} />)
+        shift={shift(group)} canReadReports={canReadReports} onApprove={() => setSelected(group)} />)
       : <EmptyState icon={<Icon icon={Group} size={24} />} title="Нет групп сверки"
         description={page.constructions.length > 0 ? 'Измените стройку или период.' : undefined} />)}
     {selected && page && <CrewApprovalDialog group={selected} work={title(selected)} shift={shift(selected)}

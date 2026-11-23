@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CrewGroup } from '@/shared/api/work';
 import { approveCrewGroup } from '@/shared/api/workCrew';
-import { formatNumber } from '@/shared/format/format';
+import { formatLocale, formatNumber } from '@/shared/format/format';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ModalBanner } from '@/shared/ui/ModalBanner';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -28,7 +28,7 @@ export function CrewApprovalDialog({ group, work, shift, units, onClose, onAppro
   const unitIds = [...new Set(group.lines.map(line => line.unitId))];
   const unit = units[unitIds[0]] ?? '';
   const mixed = unitIds.length > 1;
-  const total = choice === CUSTOM ? parseNumber(custom, 'ru-RU') : group.lines.find(line => line.id === choice)?.volume;
+  const total = choice === CUSTOM ? parseNumber(custom, formatLocale()) : group.lines.find(line => line.id === choice)?.volume;
   const valid = total != null && total >= 0;
 
   async function approve() {
