@@ -331,13 +331,14 @@ export function InvoiceForm({
     setEditing(false);
   }
 
+  const paymentHold = payHold(unsaved, view.payment.refusal, queue.saving);
   const primary: SummaryPrimary | null = model === 'edit'
     ? { kind: 'parsed', hold: queue.saving ? 'Счёт сохраняется — подождите' : null, loading: queue.saving || state.isPending,
       onClick: () => void finishEdit() }
     : kind === 'parsed'
     ? { kind, hold: parsedHold(readiness, unsaved, queue.saving), loading: state.isPending, onClick: () => void parse() }
     : kind === 'pay'
-      ? { kind, hold: payHold(unsaved, view.payment.refusal, queue.saving), onClick: () => setPaying(true) }
+      ? { kind, hold: paymentHold, onClick: () => setPaying(true) }
       : kind === 'check'
         ? { kind, hold: checkable?.ready ? null : 'Назовите причину и измените счёт — тогда исправление можно проверить', onClick: () => checkable?.check() }
         : null;
@@ -507,7 +508,7 @@ export function InvoiceForm({
                   </Button>
                 </span>
               )}
-              {!gone && kind !== 'pay' && <InvoicePayButton view={view} dirty={unsaved} onPay={() => setPaying(true)} />}
+              {!gone && kind !== 'pay' && <InvoicePayButton view={view} hold={paymentHold} onPay={() => setPaying(true)} />}
             </>}>
             <BlockFields block={terms} {...fieldProps} />
             {!gone && <InvoicePayment view={view} />}
