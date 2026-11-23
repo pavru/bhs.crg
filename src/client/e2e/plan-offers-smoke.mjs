@@ -28,14 +28,14 @@ async function requestDuring(page, method, path, action) {
   return response;
 }
 
-async function concurrentMarkups(page, id, version, markup) {
-  return page.evaluate(async ({ id, version, markup }) => {
+async function concurrentWrite(page, method, path, version, body) {
+  return page.evaluate(async ({ method, path, version, body }) => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-    const response = await fetch(`/api/plan/offers/${id}/markups`, { method: 'PUT',
+    const response = await fetch(`/api${path}`, { method,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'If-Match': version },
-      body: JSON.stringify({ markup, sections: [], lines: [] }) });
+      body: JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
-  }, { id, version, markup });
+  }, { method, path, version, body });
 }
 
 try {
@@ -73,7 +73,7 @@ try {
       await tab(manager, 'Наценки').click();
       const markup = manager.getByRole('textbox', { name: 'Наценка КП', exact: true });
       await markup.fill('17');
-      const raced = await concurrentMarkups(manager, offer.id, offer.version, 11);
+      const raced = await concurrentWrite(manager, 'PUT', `${offerPath}/markups`, offer.version, { markup: 11, sections: [], lines: [] });
       assert.equal(raced.status, 200, JSON.stringify(raced.data));
       const stale = await requestDuring(manager, 'PUT', `${offerPath}/markups`, () => button(manager, 'Сохранить наценки').click());
       const rejected = await checkedResponse(stale, 409);
@@ -90,10 +90,18 @@ try {
     });
 
     await check('manager-prints-and-downloads-default-form', async () => {
+      await tab(manager, 'Наценки').click();
+      const print = button(manager, 'Печать…');
+      await manager.getByRole('textbox', { name: 'Наценка КП', exact: true }).fill('18');
+      await manager.getByText('Сохраните или отмените правки наценок, чтобы печатать или изменять КП.').waitFor();
+      assert(await print.isDisabled(), 'Печать доступна при несохранённых наценках.');
       await tab(manager, 'Строки и итог').click();
+      assert(await print.isDisabled(), 'Печать снова доступна после смены вкладки.');
+      await button(manager, 'К наценкам').click();
+      await button(manager, 'Отменить правки').click();
       const printPath = `/print/${encodeURIComponent('КоммерческоеПредложение')}/${offer.id}/preview`;
       try {
-        const pdf = await requestDuring(manager, 'POST', printPath, () => button(manager, 'Печать…').click());
+        const pdf = await requestDuring(manager, 'POST', printPath, () => print.click());
         assert.equal(pdf.status(), 200, `Печать КП → ${pdf.status()}`);
         assert.equal((await pdf.body()).subarray(0, 4).toString(), '%PDF');
         const [download] = await Promise.all([
@@ -128,8 +136,23 @@ try {
       return true;
     });
 
+    await check('manager-returns-from-history-without-discarding-input', async () => {
+      await button(manager, 'К текущей версии').click();
+      await tab(manager, 'Наценки').click();
+      const markup = manager.getByRole('textbox', { name: 'Наценка КП', exact: true });
+      await markup.fill('19');
+      await tab(manager, 'Версии').click();
+      await manager.getByRole('link', { name: 'Открыть версию 1', exact: true }).click();
+      await manager.getByRole('heading', { name: 'Версия 1 · только чтение', exact: true }).waitFor();
+      await button(manager, 'К текущей версии').click();
+      await manager.getByRole('link', { name: 'Открыть версию 1', exact: true }).waitFor();
+      assert(!await manager.getByRole('dialog').count(), 'Внутри карточки открылся диалог ухода.');
+      await tab(manager, 'Наценки').click();
+      assert.equal(await markup.inputValue(), '19');
+      await button(manager, 'Отменить правки').click();
+    });
+
     await check('manager-rebases-draft-only-after-preview', async () => {
-      await manager.getByRole('link', { name: 'К текущей версии', exact: true }).click();
       await button(manager, 'Обновить по смете…').click();
       const rebaseDialog = manager.getByRole('dialog', { name: 'Обновить КП по смете' });
       await rebaseDialog.getByText(/Редакция 1 → редакция/).waitFor();
@@ -139,6 +162,32 @@ try {
       assert.notEqual(updated.revision.id, source.id);
       assert.equal(updated.currentVersion, 2);
       assert.equal(updated.status, 'draft');
+    });
+
+    await check('manager-must-review-again-if-rebase-preview-is-for-concurrently-sent-version', async () => {
+      const draft = await callApiOk(manager, 'POST', '/plan/offers', { revisionId: source.id, date: offer.date, markup: 8 });
+      const path = `/plan/offers/${draft.id}`;
+      await manager.goto(`${BASE}/offers/${draft.id}`);
+      await button(manager, 'Обновить по смете…').waitFor();
+      const sent = await concurrentWrite(manager, 'POST', `${path}/send`, draft.version, { sentOn: offer.date });
+      assert.equal(sent.status, 200, JSON.stringify(sent.data));
+      const preview = await requestDuring(manager, 'GET', `${path}/rebase-preview`, () => button(manager, 'Обновить по смете…').click());
+      assert.equal((await (await checkedResponse(preview, 200)).json()).version, sent.data.version);
+      const dialog = manager.getByRole('dialog', { name: 'Обновить КП по смете' });
+      await dialog.getByText(/КП тем временем изменилось/).waitFor();
+      assert(await button(dialog, 'Обновить черновик').isDisabled());
+      await button(dialog, 'Перечитать КП и разницу').click();
+      await dialog.getByText(/Отправленная версия останется в истории/).waitFor();
+      const before = await callApiOk(manager, 'GET', path);
+      assert.equal(before.status, 'sent');
+      assert.equal(before.currentVersion, draft.currentVersion);
+      const rebased = await requestDuring(manager, 'POST', `${path}/rebase`, () =>
+        button(dialog, 'Создать черновик по новой редакции').click());
+      const reply = await checkedResponse(rebased, 200);
+      assert.equal(await reply.request().headerValue('if-match'), sent.data.version);
+      const { offer: updated } = await reply.json();
+      assert.equal(updated.status, 'draft');
+      assert.equal(updated.currentVersion, draft.currentVersion + 1);
     });
   }
 

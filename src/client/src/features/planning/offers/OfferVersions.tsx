@@ -1,27 +1,24 @@
-import { Link } from 'react-router';
 import { offerRefusal, useOfferVersions } from '@/shared/api/planningOffers';
 import type { Offer, OfferVersion } from '@/shared/api/planningOfferTypes';
 import { formatDate, formatDateTime } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
+import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { SnapshotLines } from './OfferLines';
 import { OfferStatusText, OfferTotals } from './offerDisplay';
 import { markupText, moneyText, offerUrl } from './offerFormat';
 
-export function OfferVersions({ offer, selected }: { offer: Offer; selected: number | null }) {
+export function OfferVersions({ offer, selected, onReturn }: { offer: Offer; selected: number | null; onReturn: () => void }) {
   const query = useOfferVersions(offer.id, true);
-  const guardedClick = useGuardedNavClick();
   if (query.isError) return <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>
     {offerRefusal(query.error, 'Версии КП не прочитались.').message}
   </Banner>;
   if (!query.data) return <p role="status" className="text-body-medium">Читаем версии КП…</p>;
 
-  const currentUrl = offerUrl(offer.id);
   if (selected !== null && selected !== offer.currentVersion) {
     const version = query.data.find(item => item.number === selected);
     return <section className="grid min-w-0 grid-cols-1 gap-3">
-      <div><Link className="text-primary underline" to={currentUrl} onClick={guardedClick(currentUrl)}>К текущей версии</Link></div>
+      <div><Button variant="text" onClick={onReturn}>К текущей версии</Button></div>
       {version ? <OldVersion version={version} /> : <Banner tone="warning">Версия {selected} не найдена.</Banner>}
     </section>;
   }

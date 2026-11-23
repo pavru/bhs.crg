@@ -85,7 +85,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   return <article className="grid min-w-0 grid-cols-1 gap-4" aria-label={`Карточка ${offer.number}`}>
     <PageHeader title={offer.number} subtitle={historical ? site ?? undefined : subtitle}
       actions={!historical && <div className="flex flex-wrap gap-2">
-        {canRead && <Button variant="outlined" onClick={() => setLayer('print')}>Печать…</Button>}
+        {canRead && <Button variant="outlined" disabled={markupsDirty} onClick={() => setLayer('print')}>Печать…</Button>}
         <OfferStatusActions offer={offer} canEdit={canEdit} canSend={canSend} disabled={markupsDirty} onOpen={setLayer} />
       </div>} />
     {!historical && <>
@@ -95,8 +95,8 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
         {offer.sentOn && <span>Отправлено {formatDate(offer.sentOn)}</span>}
       </div>
       {offer.drift && <OfferDriftBanner drift={offer.drift} onOpen={canRead && canEdit && !markupsDirty ? () => setLayer('rebase') : undefined} />}
-      {markupsDirty && view !== 'markups' && <Banner tone="info" actions={[{ label: 'К наценкам', onClick: () => showTab('markups') }]}>
-        Сохраните или отмените правки наценок перед изменением КП.
+      {markupsDirty && <Banner tone="info" actions={view !== 'markups' ? [{ label: 'К наценкам', onClick: () => showTab('markups') }] : undefined}>
+        Сохраните или отмените правки наценок, чтобы печатать или изменять КП.
       </Banner>}
     </>}
     <Tabs id={tabId} variant="primary" aria-label="Карточка КП" value={view} onChange={showTab} items={[
@@ -116,7 +116,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
       {(view === 'markups' || markupsDirty) && <div hidden={view !== 'markups'}>
         <OfferMarkups offer={offer} mayEdit={canEdit && !historical} reload={reload} onDirty={setMarkupsDirty} />
       </div>}
-      {view === 'versions' && <OfferVersions offer={offer} selected={selected} />}
+      {view === 'versions' && <OfferVersions offer={offer} selected={selected} onReturn={() => showTab('versions')} />}
     </TabPanel>
     {statusAction && <OfferStatusDialog offer={offer} action={statusAction} reload={reload}
       allowed={statusAction === 'next' ? canEdit : canSend} onClose={close} onSuccess={close} />}

@@ -14,23 +14,25 @@ import type { ReloadOffer } from './useOfferWriteForm';
 export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }: {
   offer: Offer; allowed: boolean; showCost: boolean; reload: ReloadOffer; onClose: () => void;
 }) {
+  const [seen, setSeen] = useState(offer);
   const [selected, setSelected] = useState<string | null>(null);
   const [replacement, setReplacement] = useState<OfferRebasePreview | null>(null);
   const [refusal, setRefusal] = useState<OfferRefusal | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const targets = [offer.drift?.current, offer.drift?.latest, replacement?.target].filter((item, index, all) =>
-    item && item.id !== offer.revision?.id && all.findIndex(candidate => candidate?.id === item.id) === index);
+  const targets = [seen.drift?.current, seen.drift?.latest, replacement?.target].filter((item, index, all) =>
+    item && item.id !== seen.revision?.id && all.findIndex(candidate => candidate?.id === item.id) === index);
   // Сервер без явной цели берёт действующую редакцию. Она может совпадать с источником КП.
-  const revisionId = selected ?? targets[0]?.id;
+  const revisionId = targets.find(item => item?.id === selected)?.id ?? targets[0]?.id;
   const query = useQuery({
-    queryKey: ['planning', 'offer-rebase', offer.id, revisionId],
+    queryKey: ['planning', 'offer-rebase', offer.id, seen.version, revisionId],
     queryFn: ({ signal }) => readOfferPreview(offer.id, revisionId, signal),
     enabled: allowed && !!revisionId, gcTime: 0, retry: false, refetchOnWindowFocus: false,
   });
   const mutation = useWriteOffer(offer.id);
   const preview = replacement ?? query.data;
-  const conflict = refusal?.kind === 'conflict';
+  const versionChanged = offer.version !== seen.version || (preview != null && preview.version !== seen.version);
+  const conflict = refusal?.kind === 'conflict' || versionChanged;
   const queryRefusal = query.isError ? offerRefusal(query.error, 'Разница по смете не прочиталась.') : null;
   const forbidden = refusal?.kind === 'forbidden' || queryRefusal?.kind === 'forbidden' || !allowed;
   const valid = preview && preview.target.id !== preview.source.id && !forbidden && !conflict && !query.isFetching && !queryRefusal;
@@ -39,7 +41,7 @@ export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }:
   async function confirm() {
     if (!valid || !preview || busy) return;
     try {
-      await mutation.mutateAsync({ version: preview.version, command: { type: 'rebase', fingerprint: preview.fingerprint,
+      await mutation.mutateAsync({ version: seen.version, command: { type: 'rebase', fingerprint: preview.fingerprint,
         revisionId: preview.target.id } });
       onClose();
     } catch (error) {
@@ -52,8 +54,9 @@ export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }:
   async function refresh() {
     setReloading(true);
     try {
-      await reload();
-      await query.refetch({ throwOnError: true });
+      const fresh = await reload();
+      if (fresh.version === seen.version && revisionId) await query.refetch({ throwOnError: true });
+      setSeen(fresh);
       setReplacement(null);
       setRefusal(null);
       setReviewed(true);
@@ -67,7 +70,7 @@ export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }:
 
   return <Modal open wide title="Обновить КП по смете" nothingToLose busy={busy} onOpenChange={open => { if (!open) onClose(); }}
     footer={<><ModalExit>Отмена</ModalExit>{!forbidden && <ModalPrimary disabled={!valid} onClick={() => void confirm()}>
-      {offer.status === 'draft' ? 'Обновить черновик' : 'Создать черновик по новой редакции'}
+      {seen.status === 'draft' ? 'Обновить черновик' : 'Создать черновик по новой редакции'}
     </ModalPrimary>}</>}>
     <div className="grid min-w-0 grid-cols-1 gap-3">
       {targets.length > 1 && !forbidden && <Select label="Целевая редакция" value={replacement?.target.id ?? revisionId ?? ''} disabled={busy}
@@ -77,14 +80,15 @@ export function OfferRebaseDialog({ offer, allowed, showCost, reload, onClose }:
       {forbidden ? <Banner tone="error">Для предпросмотра и обновления нужны чтение и правка КП.</Banner>
         : <>
           {queryRefusal && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>{queryRefusal.message}</Banner>}
-          {refusal && <Banner tone={refusal.kind === 'preview-changed' ? 'warning' : 'error'} actions={conflict ? [{
+          {(refusal || versionChanged) && <Banner tone={!conflict && refusal?.kind === 'preview-changed' ? 'warning' : 'error'} actions={conflict ? [{
             label: 'Перечитать КП и разницу', onClick: () => void refresh(), loading: reloading,
-          }] : undefined}>{refusal.message}</Banner>}
-          {reviewed && !refusal && <Banner tone="info">КП и разница перечитаны. Проверьте изменения и подтвердите ещё раз.</Banner>}
+          }] : undefined}>{versionChanged ? 'КП тем временем изменилось. Перечитайте его и проверьте разницу.' : refusal?.message}</Banner>}
+          {reviewed && preview && !query.isFetching && !queryRefusal && !refusal && !versionChanged &&
+            <Banner tone="info">КП и разница перечитаны. Проверьте изменения и подтвердите ещё раз.</Banner>}
           {!revisionId && <p className="text-body-medium">Других редакций для сравнения пока нет.</p>}
           {revisionId && query.isPending && <p role="status" className="text-body-medium">Сравниваем редакции…</p>}
-          {preview && <>
-            <p className="text-body-medium">Редакция {preview.source.number} → редакция {preview.target.number}. {offer.status === 'draft'
+          {preview && !versionChanged && <>
+            <p className="text-body-medium">Редакция {preview.source.number} → редакция {preview.target.number}. {seen.status === 'draft'
               ? 'Обновится текущий черновик.' : 'Отправленная версия останется в истории. Откроется новый черновик.'}</p>
             <RebaseDifference preview={preview} showCost={showCost} />
           </>}

@@ -18,6 +18,7 @@ interface Scope {
   key: string;
   id: string;
   name: string;
+  chapter?: string;
   kind: 'section' | 'line';
   own: number | null;
   effective: string;
@@ -25,12 +26,17 @@ interface Scope {
 
 const generalKey = 'offer';
 
+function scopeLabel(row: Scope) {
+  return row.chapter ? `${row.name}, глава ${row.chapter}` : row.name;
+}
+
 function scopesOf(offer: Offer): Scope[] {
   return [
     ...offer.sections.map((row): Scope => ({ key: JSON.stringify(['section', row.code, row.name]), id: row.code,
       name: row.name ? `${row.code} · ${row.name}` : row.code, kind: 'section', own: row.markup, effective: '' })),
     ...offer.lines.map((row): Scope => ({ key: `line:${row.id}`, id: row.id,
       name: row.number ? `${row.number} · ${row.name}` : row.name, kind: 'line', own: row.ownMarkup,
+      chapter: [row.lsrSection?.code, row.lsrSection?.name].filter(Boolean).join(' · '),
       effective: `${markupText(row.markup.value)} · ${MARKUP_LABELS[row.markup.level]}` })),
   ];
 }
@@ -83,10 +89,11 @@ export function OfferMarkups({ offer, mayEdit, reload, onDirty }: {
 
   const columns: EditGridColumn<Scope>[] = [
     { key: 'position', label: 'Позиция', rowHeader: true, cell: row => <>{row.name}
-      <span className="block text-body-small text-on-surface-variant">{row.kind === 'section' ? 'Глава' : 'Строка'}</span></> },
+      <span className="block text-body-small text-on-surface-variant">{row.kind === 'section' ? 'Глава' :
+        row.chapter ? `Глава ${row.chapter}` : 'Строка'}</span></> },
     { key: 'own', label: 'Своя наценка, %', width: 'w-32', align: 'right', cell: row => editable
       ? <NumberInput value={edits[row.key]?.text ?? formatInput(row.own)}
-        label={`Своя наценка: ${row.name}`} onChange={text => change(row.key, row.name, text)} disabled={disabled} />
+        label={`Своя наценка: ${scopeLabel(row)}`} onChange={text => change(row.key, scopeLabel(row), text)} disabled={disabled} />
       : markupText(row.own) },
     { key: 'effective', label: 'Действующая наценка', cell: row => row.effective || '—' },
   ];

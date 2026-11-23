@@ -91,7 +91,7 @@ describe('КП на живых компонентах', () => {
     await screen.findByRole('heading', { name: initial.number });
     tab('Наценки');
     fireEvent.change(markup(), { target: { value: '17,5' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Своя наценка: 4.1 · Лоток' }), { target: { value: '0' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Своя наценка: 4.1 · Лоток, глава 01 · Сети' }), { target: { value: '0' } });
     click('Сохранить наценки');
     await screen.findByText(/КП тем временем изменили/);
     expect(markup().value).toBe('17,5');
@@ -107,6 +107,26 @@ describe('КП на живых компонентах', () => {
     await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith('/plan/offers/o1/markups', {
       markup: 17.5, sections: [{ code: '01', markup: 30 }], lines: [{ lineId: 'l1', markup: 0 }],
     }, { headers: { 'If-Match': '80' } }));
+  });
+
+  it('различает одноимённые строки по главе в таблице и при сохранении', async () => {
+    access('plan.offer.edit');
+    const secondLine = { ...line, id: 'l2', order: 2, lsrSection: { code: '02', name: 'Освещение' } };
+    const offer = { ...initial, lines: [line, secondLine] };
+    serve(() => offer);
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: offer });
+    mount();
+    await screen.findByRole('heading', { name: initial.number });
+    tab('Наценки');
+    const networks = screen.getByRole('rowheader', { name: /4\.1 · Лоток.*Глава 01 · Сети/ }).closest('tr')!;
+    const lighting = screen.getByRole('rowheader', { name: /4\.1 · Лоток.*Глава 02 · Освещение/ }).closest('tr')!;
+    expect(within(networks).getByRole('textbox', { name: 'Своя наценка: 4.1 · Лоток, глава 01 · Сети' })).toBeTruthy();
+    fireEvent.change(within(lighting).getByRole('textbox', { name: 'Своя наценка: 4.1 · Лоток, глава 02 · Освещение' }),
+      { target: { value: '12' } });
+    click('Сохранить наценки');
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/plan/offers/o1/markups',
+      { markup: 10, sections: [{ code: '01', markup: 20 }], lines: [{ lineId: 'l2', markup: 12 }] },
+      { headers: { 'If-Match': '79' } }));
   });
 
   it('отправленное КП не имеет ячеек правки, а счётчик новой версии не заменяет историю', async () => {
