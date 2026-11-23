@@ -2,6 +2,7 @@
 
 import { seedAssignments } from './seed-assignments.mjs';
 import { seedReview } from './seed-review.mjs';
+import { seedSummary } from './seed-summary.mjs';
 
 /**
  * Сотрудники и их учётные записи (work-01, ТЗ WORK-47): справочник и двое с учётными записями того же
@@ -33,5 +34,8 @@ export async function ensureEmployees({ api, findType, ensureUser, constructionI
     console.log(`  + сотрудник ${e.name}`);
   }
   // Назначения (work-12) — на справочнике, который только что заведён: без него адрес назначений отвечает 409.
-  if (await seedAssignments({ api, ensureUser, constructionId })) await seedReview({ api, ensureUser, constructionId });
+  if (await seedAssignments({ api, ensureUser, constructionId })) {
+    await seedReview({ api, ensureUser, constructionId });
+    return seedSummary({ api, constructionId });
+  }
 }

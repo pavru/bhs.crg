@@ -188,6 +188,8 @@ export const workNav: NavItem[] = [
     permission: 'work.report.own', rail: 'work', entry: WORK_ENTRY_RANK.myReports },
   { to: '/work-review',     label: 'Приёмка', icon: Assignment, module: 'work',
     permission: [...WORK_REVIEW_REPORT_PERMISSIONS, 'work.crew.approve'], rail: 'work', entry: WORK_ENTRY_RANK.review },
+  { to: '/work-summary',    label: 'Сводка', icon: TableChart, module: 'work',
+    permission: [...WORK_REVIEW_REPORT_PERMISSIONS], rail: 'work' },
 ];
 
 /**

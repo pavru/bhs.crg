@@ -80,4 +80,20 @@ const planCalendarsMockup: LiveMockup = {
   reference: 'openspec/changes/archive/2026-11-24-plan-18-calendars/design.md · Раунд П4',
 };
 
-export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup];
+const workSummaryMockup: LiveMockup = {
+  id: 'work-23-summary',
+  title: 'Сводка · Р5',
+  kind: 'design',
+  entry: 'work23.html',
+  pages: [
+    { path: 'a', title: 'А · Компактный календарь', width: 1280 },
+    { path: 'b', title: 'Б · Статусы словами', width: 1280 },
+    { path: 'c', title: 'В · Календарь и подробности', width: 1280 },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/work-23-summary/design.md · Раунд Р5',
+};
+
+export const liveMockups = [
+  duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup, workSummaryMockup,
+];

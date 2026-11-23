@@ -49,6 +49,7 @@ import { PriceListPage } from '@/features/planning/pricelist/PriceListPage';
 import { CompanyCalendarPage } from '@/features/planning/calendars/CompanyCalendarPage';
 import { RateMatchesPage } from '@/features/planning/estimates/RateMatchesPage';
 import { ReviewQueuePage } from '@/features/work/review/ReviewQueuePage';
+import { SummaryPage } from '@/features/work/summary/SummaryPage';
 import { MyReportsPage } from '@/features/work/entry/MyReportsPage';
 import { ReportForm } from '@/features/work/entry/ReportForm';
 import { ReportCard } from '@/features/work/review/ReportCard';
@@ -160,6 +161,7 @@ function AppRoutes() {
             <Route path="production-calendar" element={<CompanyCalendarPage />} />
             <Route path="rate-matches" element={<RateMatchesPage />} />
             <Route path="work-review" element={<ReviewQueuePage />} />
+            <Route path="work-summary" element={<SummaryPage />} />
             <Route path="my-reports" element={<MyReportsPage />} />
             <Route path="my-reports/:reportId" element={<ReportForm mode="own" />} />
             <Route path="reconciliations" element={<ReconciliationsPage />} />

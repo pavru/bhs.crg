@@ -917,7 +917,7 @@ async function main() {
 
   // Сотрудники и учётные записи того же ФИО (work-01) и назначения стройки (work-12) — свои файлы: посев и так у
   // порога размера.
-  await ensureEmployees({ api, findType, ensureUser, constructionId });
+  const summaryDay = await ensureEmployees({ api, findType, ensureUser, constructionId });
 
   console.log('\nПосев готов. Переменные прогонов:');
   console.log([`SMOKE_CONSTRUCTION_ID=${constructionId}`, `SMOKE_SET_ID=${setId}`, `SMOKE_INSTANCE_ID=${aosrInstanceId}`,
@@ -932,7 +932,7 @@ async function main() {
      */
     `SMOKE_UNION_TYPE=${NAME.unionType}`, `SMOKE_WORKS_UNION_TYPE=${NAME.worksUnionType}`,
     `SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`, `SMOKE_DATASET_FILE=${NAME.datasetFile}`,
-    `SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`,
+    `SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`, ...(summaryDay ? [`SMOKE_SUMMARY_DAY=${summaryDay}`] : []),
     // Смета — только когда модуль plan включён; без неё прогон смет отказывает, а не проходит пустым.
     ...(estimateId ? [`SMOKE_ESTIMATE_ID=${estimateId}`] : []), ...(offerId ? [`SMOKE_OFFER_ID=${offerId}`] : [])].join('\n'));
   // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а

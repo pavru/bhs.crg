@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
 import type { ReviewCardData, ReviewFullCard } from '@/shared/api/workReview';
+import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { ReportCard } from './ReportCard';
 
@@ -48,6 +49,7 @@ function mount(search = '') {
       </Routes></NavigationGuardProvider>
     </MemoryRouter>
   </QueryClientProvider>);
+  return queryClient;
 }
 
 async function openDecision(label: string) {
@@ -124,6 +126,19 @@ it('требует комментарий и перечитывает карто
   fireEvent.click(dialog.getByRole('button', { name: 'Закрыть' }));
   expect(await screen.findByText('Принят', { exact: true })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Принять' })).toBeNull();
+});
+
+it.each([
+  ['Принять', 'accepted'], ['Вернуть', 'returned'],
+] as const)('после решения «%s» помечает кэш сводки устаревшим', async (label, status) => {
+  vi.mocked(apiClient.post).mockResolvedValue({ data: { id: card.id, status, version: 'v2' } });
+  const queryClient = mount();
+  const summary = [...WORK_SUMMARY_KEY, { from: '2026-11-23', to: '2026-11-23', construction: 's1', offset: 0 }];
+  queryClient.setQueryData(summary, { rows: [] });
+  const dialog = await openDecision(label);
+  if (label === 'Вернуть') fireEvent.change(dialog.getByRole('textbox', { name: 'Что исправить' }), { target: { value: 'Уточните место' } });
+  fireEvent.click(dialog.getByRole('button', { name: label }));
+  await waitFor(() => expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(true));
 });
 
 it('правит объём с версией чтения и сохраняет прочие поля строки и ссылки на фото', async () => {
