@@ -21,12 +21,15 @@ public static class ReviewCard
     private static Task<IResult> GetAsync(
         Guid id, int? number, IModuleReaders readers, ManagerSites sites, ReportHistory history, ReportPeriods periods,
         ReportPeople people, IModuleConstructions constructions, IModuleWorkTypes workTypes, IModuleUnits units,
-        CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+        IModuleEmployees employees, CancellationToken ct) => ReportRefusals.RunAsync(async () =>
     {
         var reader = await readers.ForRequestAsync(ct);
         var manager = reader.Allows(WorkModule.ReportReview) ? await sites.ReachAsync(reader, ct) : null;
         var reach = reader.Allows(WorkModule.ReportRead) ? ModuleReach.All : manager!;
-        var card = await history.ReadCardAsync(ReportViewer.Of(reach), id, number, ct);
+        var own = reach.Kind == ModuleReachKind.Sites && reader.Allows(WorkModule.ReportOwn) && reader.UserId is { } account
+            ? (await employees.OfAccountAsync(account, ct))?.Id
+            : null;
+        var card = await history.ReadCardAsync(ReportViewer.Of(reach, alsoOwn: own), id, number, ct);
         var report = card.Header;
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var site = (await constructions.ListAsync(ct)).FirstOrDefault(c => c.Id == report.ConstructionId);

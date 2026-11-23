@@ -9,9 +9,12 @@ namespace BHS.CRG.Modules.Work.Tables;
 
 internal sealed record WorkTableAccess(ReportViewer Viewer, Guid? EmployeeId, Guid UserId)
 {
-    internal ModuleTableOutcome Outcome => Viewer.Reach is { Kind: ModuleReachKind.Sites, Sites.Count: 0 }
-        ? new(WorkTables.NotAssigned, Reason: WorkTables.NotAssigned)
-        : ModuleTableOutcome.Of(Viewer.Reach);
+    internal ModuleTableOutcome Outcome => Viewer.Reach switch
+    {
+        { Kind: ModuleReachKind.Sites, Sites.Count: 0 } => new(WorkTables.NotAssigned, Reason: WorkTables.NotAssigned),
+        { Kind: ModuleReachKind.Sites } reach when Viewer.EmployeeId.HasValue => new(WorkTables.OwnAndSites, reach.Sites.Count),
+        var reach => ModuleTableOutcome.Of(reach),
+    };
 }
 
 internal sealed class WorkTableReaders(ManagerSites managerSites, IModuleEmployees employees)
@@ -21,15 +24,19 @@ internal sealed class WorkTableReaders(ManagerSites managerSites, IModuleEmploye
         var userId = reader.UserId ?? throw new ConflictException(
             $"Таблицы отчётов читаются только по правам человека ({reader.SystemReason}).");
         var employee = await employees.OfAccountAsync(userId, ct);
+        var own = reader.Allows(WorkModule.ReportOwn) ? employee?.Id : null;
         ReportViewer viewer;
         if (reader.Allows(WorkModule.ReportRead) || reader.Allows(WorkModule.SitesAll))
             viewer = ReportViewer.Of(ModuleReach.All);
         else if (reader.Allows(WorkModule.ReportReview))
-            viewer = ReportViewer.Of(ModuleReach.OfSites(employee is null ? [] : await managerSites.OfEmployeeAsync(employee, ct: ct)));
-        else if (reader.Allows(WorkModule.ReportOwn) && employee is not null)
-            viewer = ReportViewer.Own(employee.Id);
+        {
+            var reach = ModuleReach.OfSites(employee is null ? [] : await managerSites.OfEmployeeAsync(employee, ct: ct));
+            viewer = own is { } employeeId && reach.Sites.Count == 0
+                ? ReportViewer.Own(employeeId)
+                : ReportViewer.Of(reach, alsoOwn: own);
+        }
         else
-            viewer = ReportViewer.Of(ModuleReach.Own);
+            viewer = ReportViewer.Of(ModuleReach.Own, own);
         return new(viewer, employee?.Id, userId);
     }
 }

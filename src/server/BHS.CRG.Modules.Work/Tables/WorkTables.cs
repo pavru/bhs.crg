@@ -12,6 +12,7 @@ internal static class WorkTables
     internal const string Section = "Раздел", WorkType = "ВидРаботы", Variant = "Вариант", Volume = "Объём";
     internal const string Unit = "Единица", Location = "Место", IsCrew = "Бригада";
     internal const string NotAssigned = "not-assigned";
+    internal const string OwnAndSites = "own-and-sites";
 
     internal static readonly IReadOnlyDictionary<ReportShift, string> Shifts = new Dictionary<ReportShift, string>
     {
@@ -27,11 +28,12 @@ internal static class WorkTables
         [ReportStatus.Returned] = "Возвращён",
     };
 
-    private static readonly IReadOnlyList<ModuleTableBoundary> Boundaries =
+    private static IReadOnlyList<ModuleTableBoundary> Boundaries(string draftNotice) =>
     [
         new("own", "Ваши отчёты"),
-        new("sites", $"Отчёты ваших строек ({ModuleTableBoundary.SitesPlace}). Черновики других сотрудников видны без содержимого до подачи"),
-        new("all", "Все отчёты. Черновики других сотрудников видны без содержимого до подачи"),
+        new("sites", $"Отчёты ваших строек ({ModuleTableBoundary.SitesPlace}). {draftNotice}"),
+        new(OwnAndSites, $"Ваши отчёты и отчёты ваших строек ({ModuleTableBoundary.SitesPlace}). {draftNotice}"),
+        new("all", $"Все отчёты. {draftNotice}"),
         new(NotAssigned, "Отчёты ваших строек (0). Вы не назначены ни на одну стройку"),
     ];
 
@@ -57,7 +59,8 @@ internal static class WorkTables
     ];
 
     internal static readonly ModuleTable Reports = new(
-        "reports", "Отчёты монтажников", "отчёт", WorkModule.ModuleCode, ModuleTableIsolation.PerUser, Boundaries,
+        "reports", "Отчёты монтажников", "отчёт", WorkModule.ModuleCode, ModuleTableIsolation.PerUser,
+        Boundaries("Черновики других сотрудников видны без содержимого до подачи"),
         [
             .. ReportHeader, StatusColumn,
             new(Hours, "Часы", Number),
@@ -71,6 +74,7 @@ internal static class WorkTables
         MissingRowIsNotFound: true);
 
     internal static readonly ModuleTable Lines = new(
-        "lines", "Строки работы", "строка работы", WorkModule.ModuleCode, ModuleTableIsolation.PerUser, Boundaries,
+        "lines", "Строки работы", "строка работы", WorkModule.ModuleCode, ModuleTableIsolation.PerUser,
+        Boundaries("Строки чужих черновиков появляются после подачи"),
         [.. ReportHeader, .. LineColumns, StatusColumn], typeof(LineTableRows), MissingRowIsNotFound: true);
 }

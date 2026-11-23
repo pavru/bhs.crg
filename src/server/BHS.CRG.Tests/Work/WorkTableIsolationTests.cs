@@ -5,6 +5,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Tests.Integration;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +74,7 @@ public class WorkTableIsolationTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(2, text.Count(value => value == "Место А"));
         Assert.DoesNotContain("Место Б", text);
         Assert.Contains(text, cell => cell?.Contains("Отчёты ваших строек (1)") == true);
+        Assert.Contains(text, cell => cell?.Contains("Строки чужих черновиков появляются после подачи") == true);
 
         foreach (var (marker, count) in new[] { (ReportsMarker, 1), (LinesMarker, 2) })
         {
@@ -87,6 +89,55 @@ public class WorkTableIsolationTests(AssignmentHost host) : IAsyncLifetime
             Assert.All(rows.EnumerateArray(), r => Assert.Equal("Монтажник А", r.GetProperty("Сотрудник").GetString()));
             Assert.Equal("Ваши отчёты", snapshot.GetProperty("boundary").GetString());
         }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Права_на_свои_отчёты_и_стройки_складываются_без_повторов(bool assigned)
+    {
+        var employeeType = await world.Assignments.DirectoryAsync();
+        var siteA = await world.Assignments.SiteAsync("Стройка А");
+        var siteB = await world.Assignments.SiteAsync("Стройка Б");
+        var me = await world.Assignments.EmployeeAsync(employeeType, "Монтажник и менеджер");
+        var other = await world.Assignments.EmployeeAsync(employeeType, "Другой монтажник");
+        var (user, client) = await world.Assignments.UserAsync("Монтажник и менеджер", WorkModule.ReportOwn,
+            WorkModule.ReportReview, CorePermissions.DataSetsRead);
+        using var reader = client;
+        await world.Assignments.LinkAsync(me, user);
+        if (assigned) await world.Assignments.AssignedAsync(me, siteA, AssignmentKind.Manager, "2026-01-01", null);
+
+        var (type, unit, _) = await world.ClassifierAsync();
+        var ownOutside = await world.ReportAsync(me, siteB, type, unit, "Место Б своё", 7, true, 10);
+        var ownOverlap = await world.ReportAsync(me, siteA, type, unit, "Место А своё", 3, false, 20);
+        var inScope = await world.ReportAsync(other, siteA, type, unit, "Место А чужое", 4, true, 40);
+        var outside = await world.ReportAsync(other, siteB, type, unit, "Место Б чужое", 9, true, 100);
+        var expected = assigned ? new[] { ownOutside, ownOverlap, inScope } : new[] { ownOutside, ownOverlap };
+
+        var reports = await reader.GetFromJsonAsync<JsonElement>($"{Reports}?totals=Часы");
+        var lines = await reader.GetFromJsonAsync<JsonElement>($"{Lines}?totals=Объём");
+        Assert.Equal(expected.Select(r => r.Id).Order(), reports.GetProperty("keys").EnumerateArray().Select(k => k.GetGuid()).Order());
+        Assert.Equal(expected.Select(r => r.Lines[0].Id).Order(), lines.GetProperty("keys").EnumerateArray().Select(k => k.GetGuid()).Order());
+        Assert.Equal(assigned ? 14 : 10, reports.GetProperty("totals").GetProperty("Часы").GetProperty("sum").GetDecimal());
+        Assert.Equal(assigned ? 70 : 30, lines.GetProperty("totals").GetProperty("Объём").GetProperty("sum").GetDecimal());
+
+        var boundary = assigned ? "Ваши отчёты и отчёты ваших строек (1)" : "Ваши отчёты";
+        foreach (var table in new[] { reports, lines })
+        {
+            Assert.Equal(expected.Length, table.GetProperty("count").GetInt32());
+            Assert.Equal(assigned ? "own-and-sites" : "own", table.GetProperty("boundaryOutcome").GetString());
+            Assert.StartsWith(boundary, table.GetProperty("boundary").GetString());
+            Assert.Equal(JsonValueKind.Null, table.GetProperty("reason").ValueKind);
+        }
+
+        var snapshot = await SnapshotAsync(reader, await SourceAsync(LinesMarker));
+        Assert.Equal(lines.GetProperty("boundary").GetString(), snapshot.GetProperty("boundary").GetString());
+        Assert.Equal(expected.Length, snapshot.GetProperty("rows").GetArrayLength());
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"{Reports}?row={outside.Id}")).StatusCode);
+        var card = await reader.GetFromJsonAsync<JsonElement>($"/api/work/review/reports/{ownOutside.Id}");
+        Assert.Equal(ownOutside.Id, card.GetProperty("id").GetGuid());
+        Assert.Empty(card.GetProperty("actions").EnumerateArray());
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/work/review/reports/{outside.Id}")).StatusCode);
     }
 
     [Fact]
