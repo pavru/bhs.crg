@@ -1,3 +1,4 @@
+import { WORK_REVIEW_REPORT_PERMISSIONS } from '@/shared/api/work';
 import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Engineering, Group, HistoryIcon, Home, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
 
 /**
@@ -177,7 +178,7 @@ export const workNav: NavItem[] = [
   { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },
   { to: '/work-review',     label: 'Приёмка', icon: Assignment, module: 'work',
-    permission: ['work.report.review', 'work.report.read'], rail: 'work', entry: WORK_ENTRY_RANK.review },
+    permission: [...WORK_REVIEW_REPORT_PERMISSIONS, 'work.crew.approve'], rail: 'work', entry: WORK_ENTRY_RANK.review },
 ];
 
 /**

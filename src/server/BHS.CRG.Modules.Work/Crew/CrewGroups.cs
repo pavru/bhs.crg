@@ -14,7 +14,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Work.Crew;
 
 internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleReaders readers, ManagerSites managers,
-    IModuleEmployees employees, IModuleUnits units, ReportJournal journal, ReportPeople people, TimeProvider time)
+    IModuleEmployees employees, IModuleUnits units, IModuleConstructions constructions, IModuleWorkTypes workTypes,
+    ReportJournal journal, ReportPeople people, TimeProvider time)
 {
     private const string Path = "/api/work/crew-groups";
     private const string NotFound = "Группа сверки не найдена.";
@@ -38,18 +39,37 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
     {
         if (from > to) throw new InvalidRequestException("Начало периода (from) позже его конца (to).");
         var (viewer, approves) = await AccessAsync(ct);
-        var query = reads.CrewGroups(viewer.Reach);
+        var scope = reads.CrewGroups(viewer.Reach);
+        var query = scope;
         if (constructionId is { } site) query = query.Where(g => g.ConstructionId == site);
         if (from is { } start) query = query.Where(g => g.Date >= start);
         if (to is { } end) query = query.Where(g => g.Date <= end);
-        var items = await ReadAsync(query, viewer, approves, ct);
-        return Results.Ok(new { items });
+        var (items, groups, lines) = await ReadAsync(query, viewer, approves, ct);
+        // Варианты отбора не исчезают, когда выбранная стройка или период исключили её группы из списка.
+        var scopeSiteIds = await scope.Select(g => g.ConstructionId).Distinct().ToArrayAsync(ct);
+        var siteIds = scopeSiteIds.Union(groups.Select(g => g.ConstructionId)).ToArray();
+        var sites = siteIds.Length == 0 ? [] : await constructions.ListAsync(ct);
+        var siteNames = sites.Where(s => siteIds.Contains(s.Id)).ToDictionary(s => s.Id, s => s.Name);
+        var types = groups.Count == 0 ? [] : await workTypes.GetAsync([.. groups.Select(g => g.WorkTypeId).Distinct()], ct) ?? [];
+        var variantIds = lines.Select(l => l.VariantId).ToHashSet();
+        var unitIds = lines.Select(l => l.UnitId).Concat(groups.Where(g => g.UnitId.HasValue).Select(g => g.UnitId!.Value))
+            .Distinct().ToArray();
+        var measures = unitIds.Length == 0 ? [] : await units.GetAsync(unitIds, ct) ?? [];
+        return Results.Ok(new
+        {
+            items,
+            constructions = siteIds.Select(id => new { id, name = siteNames.GetValueOrDefault(id) ?? $"Стройка · {id}" })
+                .OrderBy(s => s.name, StringComparer.CurrentCulture).ToArray(),
+            workTypes = types.ToDictionary(t => t.Id, t => t.DisplayName),
+            workVariants = types.SelectMany(t => t.Variants).Where(v => variantIds.Contains(v.Id)).ToDictionary(v => v.Id, v => v.Name),
+            units = measures.ToDictionary(u => u.Id, u => u.Name),
+        });
     }
 
     private async Task<IResult> OneAsync(Guid id, CancellationToken ct)
     {
         var (viewer, approves) = await AccessAsync(ct);
-        var rows = await ReadAsync(reads.CrewGroups(viewer.Reach).Where(g => g.Id == id), viewer, approves, ct);
+        var (rows, _, _) = await ReadAsync(reads.CrewGroups(viewer.Reach).Where(g => g.Id == id), viewer, approves, ct);
         return Results.Ok(rows.SingleOrDefault() ?? throw new NotFoundException(NotFound));
     }
 
@@ -62,21 +82,23 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         return (viewer, approves ? managed : null);
     }
 
-    private async Task<List<object>> ReadAsync(
+    private async Task<(List<object> Items, List<CrewGroupRecord> Groups, IReadOnlyList<CrewGroupLine> Lines)> ReadAsync(
         IQueryable<CrewGroupRecord> query, ReportViewer viewer, ModuleReach? approves, CancellationToken ct)
     {
         // Версия и строки ответа должны описывать одну редакцию группы.
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var groups = await query.AsNoTracking().OrderByDescending(g => g.Date).ThenBy(g => g.ConstructionId)
             .ThenBy(g => g.Shift).ThenBy(g => g.WorkTypeId).ToListAsync(ct);
-        if (groups.Count == 0) return [];
-        var lines = (await reads.CrewLinesAsync(viewer, query, ct)).ToLookup(l => l.GroupId);
+        if (groups.Count == 0) return ([], [], []);
+        var lines = await reads.CrewLinesAsync(viewer, query, ct);
+        var byGroup = lines.ToLookup(l => l.GroupId);
         var submitted = (await reads.CrewSubmittedEmployeesAsync(viewer, query, ct)).ToLookup(s => s.GroupId, s => s.EmployeeId);
         await tx.CommitAsync(ct);
 
-        var names = await NamesAsync(lines.SelectMany(g => g), ct);
-        return groups.Select(g => View(g, lines[g.Id].ToList(), Unsubmitted(lines[g.Id], submitted[g.Id]),
+        var names = await NamesAsync(lines, ct);
+        var items = groups.Select(g => View(g, byGroup[g.Id].ToList(), Unsubmitted(byGroup[g.Id], submitted[g.Id]),
             approves?.Covers(g.ConstructionId, own: false) == true, names)).ToList();
+        return (items, groups, lines);
     }
 
     private async Task<IResult> ApproveAsync(Guid id, Approval body, HttpRequest request, CancellationToken ct)

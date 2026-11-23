@@ -30,12 +30,13 @@
 
 ## 2. PR 2: панель «Сверка бригад» (макеты Р4)
 
-- [ ] 2.1 Выбор владельца по макетам Р4 (или Р4б) вписан в `design.md`. Проверка — ссылка на выбранный
+- [x] 2.1 Выбор владельца по макетам Р4 (или Р4б) вписан в `design.md`. Проверка — ссылка на выбранный
   макет в разделе «Состав PR»
-- [ ] 2.2 `src/client/src/features/work/crew/CrewReconciliationPanel.tsx` на `DataGrid`: подсветка по
-  `mismatch`, выбор итога из строк или ввод своего в `Modal`, кнопка только при `approve` в `actions`
+- [x] 2.2 Вкладка «Сверка бригад» в «Приёмке»: `src/client/src/features/work/crew/CrewReconciliationPanel.tsx`
+  на `DataGrid`, названия из ответа списка, подсветка по `mismatch`, выбор итога из строк или ввод своего
+  в `Modal`, кнопка только при `approve` в `actions`
   [WORK-18]. Проверка — vitest: без `approve` кнопки нет; `stale` показан как «требует решения»
-- [ ] 2.3 `docs/USER_GUIDE.md` — глава «Сверка бригад»; содержание — `cd docs/tools && npm run toc`
+- [x] 2.3 `docs/USER_GUIDE.md` — глава «Сверка бригад»; содержание — `cd docs/tools && npm run toc`
   [WORK-18]. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация

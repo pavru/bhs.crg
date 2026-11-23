@@ -29,9 +29,10 @@ export function ProtectedRoute() {
  *
  * ⚠️ Чем закрыт раздел, спрашивается у `navConfig` — там же, откуда берётся меню. Отдельный список
  * «маршрут → право» был бы вторым описанием того же, и разошёлся бы он молча: пункт исчез из меню,
- * а маршрут остался открытым (или наоборот — пункт виден, а вход закрыт).
+ * а маршрут остался открытым (или наоборот — пункт виден, а вход закрыт). У вложенного адреса
+ * может быть дополнительное право, когда пункт ведёт к нескольким разным операциям.
  */
-export function RequireAccess() {
+export function RequireAccess({ additionalPermission }: { additionalPermission?: NavItem['permission'] }) {
   const { user } = useAuth();
   const { data: access, isPending } = useAccess();
   const { pathname } = useLocation();
@@ -46,9 +47,10 @@ export function RequireAccess() {
   if (!item) return <Outlet />;
 
   const info = access ?? NO_ACCESS;
-  return allowed(item, info)
-    ? <Outlet />
-    : <NoAccessPage what={item.label} missing={missingFor(item, info)} />;
+  const denied = [item, { permission: additionalPermission }].find(gate => !allowed(gate, info));
+  return denied
+    ? <NoAccessPage what={item.label} missing={missingFor(denied, info)} />
+    : <Outlet />;
 }
 
 /** Раздел, которому принадлежит адрес: самое длинное совпадение по границе сегмента. */
