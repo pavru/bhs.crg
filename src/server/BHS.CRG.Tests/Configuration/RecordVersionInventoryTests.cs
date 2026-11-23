@@ -41,7 +41,7 @@ public class RecordVersionInventoryTests
             ["BHS.CRG.Modules.Plan/Offers/OfferLifecycle.cs"] =
                 "единственная запись истории вместе с открытием следующего черновика; версия родителя защищена xmin (plan-13)",
             ["BHS.CRG.Modules.Plan/Endpoints/OfferHistory.cs"] =
-                "адрес чтения истории: снимки отправленных версий под правом чтения КП, не источник итогов (plan-13)",
+                "отправленные снимки и их метаданные под сметой по plan.offer.read, не источник итогов (plan-13, plan-16)",
         },
         ["WaybillVersion"] = new Dictionary<string, string>
         {

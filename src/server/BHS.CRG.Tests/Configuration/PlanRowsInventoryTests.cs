@@ -38,6 +38,8 @@ public class PlanRowsInventoryTests
             "строка ОДНОЙ редакции, чей материал сопоставляют или подбирают ему похожие (plan-08), — не план стройки",
         [$"{Module}/Endpoints/EstimateViews.cs"] =
             "счётчики и итог ОДНОЙ редакции в ответе сметы (строк, не сопоставлено, итог под правом) — не план стройки",
+        [$"{Module}/Estimates/RevisionDerivatives.cs"] =
+            "покрытие производной по строкам её редакции, без объёмов и цен — не план стройки",
         [$"{Module}/Endpoints/RevisionSectionsEndpoints.cs"] =
             "разделы ЛСР ОДНОЙ редакции со счётчиками для показа (plan-31) — не план стройки",
         [$"{Module}/Endpoints/RevisionMaterialsEndpoints.cs"] =

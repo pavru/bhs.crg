@@ -67,7 +67,8 @@ internal static class OfferViews
         var cost = await user.HasAsync(PlanModule.EstimateCost, ct);
         var bases = cost && offer.RevisionId is { } revision ? await desk.BaseTotalsAsync(revision, ct) : null;
         var customers = await desk.CustomersAsync([offer.CustomerId], ct);
-        var revisions = await RevisionsAsync(db, [offer.RevisionId], ct);
+        var revisions = await OfferDrift.ReadAsync(db, [offer.RevisionId], ct);
+        var revisionState = offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null;
 
         var sectionMarkups = offer.SectionMarkups.ToDictionary(s => s.SectionCode, s => s.Markup, StringComparer.Ordinal);
         var lines = offer.Lines.OrderBy(l => l.Order).Select(l =>
@@ -100,13 +101,14 @@ internal static class OfferViews
 
         return new OfferDto(
             offer.Id, offer.Number, offer.Date, StatusCode(offer.Status), offer.CurrentVersion, offer.SentOn, Text(version),
-            offer.ConstructionId, Customer(offer.CustomerId, customers), offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
+            offer.ConstructionId, Customer(offer.CustomerId, customers), revisionState?.Source,
             new OfferVatDto(VatCode(offer.VatMode), offer.VatRate), offer.Markup, sections,
             Money(offer), lines, OfferRequisites.Customer(offer),
             offer.CreatedAt, offer.CreatedByName, offer.ChangedAt, total,
             cost || offer.RevisionId is null ? null : [new HiddenPart("cost", PlanModule.EstimateCost, PlanModule.EstimateCostGives)])
         {
             PriceListDate = offer.PriceListDate,
+            Drift = revisionState is null ? null : OfferDrift.Of(revisionState),
         };
     }
 
@@ -137,13 +139,20 @@ internal static class OfferViews
         if (more) page.RemoveAt(page.Count - 1);
 
         var customers = await desk.CustomersAsync(page.Select(p => p.Offer.CustomerId), ct);
-        var revisions = await RevisionsAsync(db, page.Select(p => p.Offer.RevisionId), ct);
-        var items = page.Select(p => new OfferListItemDto(
-            p.Offer.Id, p.Offer.Number, p.Offer.Date, StatusCode(p.Offer.Status), p.Offer.CurrentVersion, p.Offer.SentOn, Text(p.Version),
-            p.Offer.ConstructionId, Customer(p.Offer.CustomerId, customers),
-            p.Offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null,
-            new OfferVatDto(VatCode(p.Offer.VatMode), p.Offer.VatRate),
-            new OfferMoneyDto(p.Offer.LinesTotal, p.Offer.VatAmount, p.Offer.Total, p.Incomplete), p.Offer.ChangedAt)).ToList();
+        var revisions = await OfferDrift.ReadAsync(db, page.Select(p => p.Offer.RevisionId), ct);
+        var items = page.Select(p =>
+        {
+            var offer = p.Offer;
+            var revisionState = offer.RevisionId is { } r ? revisions.GetValueOrDefault(r) : null;
+            return new OfferListItemDto(
+                offer.Id, offer.Number, offer.Date, StatusCode(offer.Status), offer.CurrentVersion, offer.SentOn, Text(p.Version),
+                offer.ConstructionId, Customer(offer.CustomerId, customers), revisionState?.Source,
+                new OfferVatDto(VatCode(offer.VatMode), offer.VatRate),
+                new OfferMoneyDto(offer.LinesTotal, offer.VatAmount, offer.Total, p.Incomplete), offer.ChangedAt)
+            {
+                Drift = revisionState is null ? null : OfferDrift.Of(revisionState),
+            };
+        }).ToList();
 
         var last = page.Count > 0 ? page[^1].Offer : null;
         return new OfferListDto(items, more && last is not null
@@ -208,19 +217,6 @@ internal static class OfferViews
         if (known?.GetValueOrDefault(customer) is { } found) return new(customer, found.DisplayName, found.Archived, Lost: false);
         // Справочник не назначен — назвать нечем, но и «потеряна» сказать нельзя: не знаем.
         return new(customer, null, Archived: false, Lost: known is not null);
-    }
-
-    private static async Task<Dictionary<Guid, OfferRevisionDto>> RevisionsAsync(
-        PlanDbContext db, IEnumerable<Guid?> ids, CancellationToken ct)
-    {
-        var wanted = ids.OfType<Guid>().Distinct().ToList();
-        if (wanted.Count == 0) return [];
-        return await (
-                from r in db.EstimateRevisions.AsNoTracking()
-                join e in db.Estimates.AsNoTracking() on r.EstimateId equals e.Id
-                where wanted.Contains(r.Id)
-                select new OfferRevisionDto(r.Id, r.Number, e.Id, e.Name))
-            .ToDictionaryAsync(r => r.Id, ct);
     }
 
     private static string Text(uint version) => version.ToString(CultureInfo.InvariantCulture);

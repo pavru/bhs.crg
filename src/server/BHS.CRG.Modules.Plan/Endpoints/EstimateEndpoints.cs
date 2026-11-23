@@ -1,5 +1,6 @@
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Estimates;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +34,7 @@ public static class EstimateEndpoints
 
         estimates.MapGet("/", ListAsync).RequireAuthorization(read);
         estimates.MapGet("/{id:guid}", GetAsync).RequireAuthorization(read);
+        estimates.MapGet("/{id:guid}/derivatives", RevisionDerivatives.GetAsync).RequireAuthorization(read);
         estimates.MapPost("/", CreateAsync).RequireAuthorization(edit);
         estimates.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(edit);
         estimates.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);

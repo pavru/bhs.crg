@@ -37,6 +37,9 @@ public sealed class OfferActions : IModuleActivityActions
     public static readonly ModuleActivityAction NewVersion =
         new("plan.offer.version", "Новая версия КП создана", PlanModule.OfferRead);
 
+    public static readonly ModuleActivityAction Rebased =
+        new("plan.offer.rebased", "КП обновлено по другой редакции сметы", PlanModule.OfferRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, CreatedFromPriceList, RepricedFromPriceList, Changed, Markups, Deleted, Sent, Outcome, NewVersion];
+        [Created, CreatedFromPriceList, RepricedFromPriceList, Changed, Markups, Deleted, Sent, Outcome, NewVersion, Rebased];
 }

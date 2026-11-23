@@ -44,6 +44,8 @@ public static partial class OfferEndpoints
         offers.MapPost("/{id:guid}/outcome", OutcomeAsync).RequireAuthorization(send);
         offers.MapPost("/{id:guid}/versions", NextVersionAsync).RequireAuthorization(edit);
         offers.MapGet("/{id:guid}/versions", OfferHistory.ReadAsync).RequireAuthorization(read);
+        offers.MapGet("/{id:guid}/rebase-preview", RebasePreviewAsync).RequireAuthorization(edit, read);
+        offers.MapPost("/{id:guid}/rebase", RebaseAsync).RequireAuthorization(edit, read);
     }
 
     private static async Task<IResult> ListAsync(
@@ -135,6 +137,19 @@ public static partial class OfferEndpoints
 
         var before = Markups(offer);
         offer.ChangeMarkup(markup, clock.UtcNow());
+        ApplySectionMarkups(db, offer, sections);
+        foreach (var line in offer.Lines) line.ChangeMarkup(lines.TryGetValue(line.Id, out var own) ? own : null);
+
+        var bases = offer.RevisionId is { } revision ? await desk.BaseTotalsAsync(revision, ct) : [];
+        OfferPricing.Reprice(offer, bases);
+        await db.SaveChangesAsync(ct);
+
+        await log.RecordAsync(OfferActions.Markups, offer.Id.ToString(), offer.Label, before, Markups(offer), ct);
+        return Results.Ok(await OfferViews.OneAsync(db, desk, user, id, ct));
+    }
+
+    private static void ApplySectionMarkups(PlanDbContext db, Offer offer, IReadOnlyDictionary<string, decimal> sections)
+    {
         foreach (var stale in offer.SectionMarkups.Where(s => !sections.ContainsKey(s.SectionCode)).ToList())
         {
             offer.SectionMarkups.Remove(stale);
@@ -145,14 +160,6 @@ public static partial class OfferEndpoints
             if (offer.SectionMarkups.FirstOrDefault(s => s.SectionCode == code) is { } existing) existing.Change(value);
             else offer.SectionMarkups.Add(OfferSectionMarkup.Create(offer.Id, code, value));
         }
-        foreach (var line in offer.Lines) line.ChangeMarkup(lines.TryGetValue(line.Id, out var own) ? own : null);
-
-        var bases = offer.RevisionId is { } revision ? await desk.BaseTotalsAsync(revision, ct) : [];
-        OfferPricing.Reprice(offer, bases);
-        await db.SaveChangesAsync(ct);
-
-        await log.RecordAsync(OfferActions.Markups, offer.Id.ToString(), offer.Label, before, Markups(offer), ct);
-        return Results.Ok(await OfferViews.OneAsync(db, desk, user, id, ct));
     }
 
     /// <summary>

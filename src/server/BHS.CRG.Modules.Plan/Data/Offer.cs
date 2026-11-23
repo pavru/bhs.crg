@@ -190,6 +190,13 @@ public sealed class Offer
         ChangedAt = now;
     }
 
+    internal void ChangeRevision(Guid revisionId, DateTimeOffset now)
+    {
+        EnsureDraft();
+        RevisionId = revisionId;
+        ChangedAt = now;
+    }
+
     internal void EnsureDraft()
     {
         if (Status != OfferStatus.Draft)
