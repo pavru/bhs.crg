@@ -153,16 +153,12 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// </summary>
     [Fact]
     public async Task Plan_permissions_are_declared_with_explanations_and_reach_the_database() =>
-        // Десять из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
-        // вместе с первым адресом или контрактом, который оно открывает; сметы — первая дверь модуля,
-        // себестоимость закрывает модель сметы (06), права контракта — части «Плановых работ» (23), чтение и правка КП —
-        // адреса и отправка КП (13), правка прайс-листа — его адреса (14). Остальные приходят своими change (календарь и
-        // графики — 18). Список назван здесь
-        // нарочно: право, добавленное без своего change, обязано столкнуться с этой строкой и с объяснением
-        // рядом с ней.
+        // По D12 зонтика каждое право появляется с первым адресом или контрактом.
+        // Права календаря компании и графиков открывают адреса календарей (18).
         await ModuleOnlyChecks.DeclaredAndStoredAsync(host, PlanModule.ModuleCode,
-            [PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint, PlanModule.EstimateMaterials,
-             PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend, PlanModule.PriceListEdit], "id", "costs", "work");
+            [PlanModule.CalendarEdit, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint,
+             PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead,
+             PlanModule.OfferSend, PlanModule.PriceListEdit, PlanModule.ScheduleEdit, PlanModule.ScheduleRead], "id", "costs", "work");
 
     /// <summary>
     /// Права модуля либо стоят на двери, либо названы здесь как ещё не носящие ни одной (зеркало
@@ -214,11 +210,13 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// правилом (<c>ModuleAccess</c>), это сверяет <c>AccountAccessTests.Module_flag_matches_the_module_gate</c>.</para>
     /// </summary>
     [Theory]
-    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateHint,
-        PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend, PlanModule.PriceListEdit)]
+    [InlineData(SystemRoles.Admin, true, PlanModule.CalendarEdit, PlanModule.EstimateCost, PlanModule.EstimateEdit,
+        PlanModule.EstimateHint, PlanModule.EstimateMaterials, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit,
+        PlanModule.OfferRead, PlanModule.OfferSend, PlanModule.PriceListEdit, PlanModule.ScheduleEdit, PlanModule.ScheduleRead)]
     [InlineData("Estimator", true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
-    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit, PlanModule.OfferRead, PlanModule.OfferSend, PlanModule.PriceListEdit)]
-    [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead, PlanModule.OfferRead)]
+    [InlineData("ProjectManager", true, PlanModule.EstimateRead, PlanModule.LaborRead, PlanModule.OfferEdit,
+        PlanModule.OfferRead, PlanModule.OfferSend, PlanModule.PriceListEdit, PlanModule.ScheduleEdit, PlanModule.ScheduleRead)]
+    [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead, PlanModule.OfferRead, PlanModule.ScheduleRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("Accountant", false)]
     [InlineData("Installer", false, PlanModule.EstimateHint)]
