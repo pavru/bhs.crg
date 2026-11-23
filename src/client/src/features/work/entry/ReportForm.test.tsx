@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
-import type { EntrySites, WorkReport } from '@/shared/api/workReports';
+import { reportQuery, type EntrySites, type ReportMode, type WorkReport } from '@/shared/api/workReports';
 import { ReportForm } from './ReportForm';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
@@ -38,10 +38,11 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function mount(id: string) {
-  render(<QueryClientProvider client={new QueryClient()}>
-    <MemoryRouter initialEntries={[`/my-reports/${id}`]}>
-      <Routes><Route path="/my-reports/:reportId" element={<ReportForm mode="own" />} /></Routes>
+function mount(id: string, mode: ReportMode = 'own', client = new QueryClient()) {
+  const path = mode === 'own' ? '/my-reports' : '/work-review/entry';
+  render(<QueryClientProvider client={client}>
+    <MemoryRouter initialEntries={[`${path}/${id}`]}>
+      <Routes><Route path={`${path}/:reportId`} element={<ReportForm mode={mode} />} /></Routes>
     </MemoryRouter>
   </QueryClientProvider>);
 }
@@ -63,6 +64,86 @@ it('при отказе 409 сохраняет выбранную смену и 
     { headers: { 'If-Match': '2' } }));
   const body = vi.mocked(apiClient.put).mock.lastCall?.[1] as { lines: unknown[] };
   expect(body.lines[0]).not.toHaveProperty('photos');
+});
+
+it('перечитывает ещё свежую карточку из кэша и разблокирует возвращённый отчёт', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
+  client.setQueryData(reportQuery('own', report.id).queryKey, { ...report, status: 'submitted' });
+  current = { ...report, status: 'returned', version: '2', returnComment: 'Уточните дату смены.' };
+  mount(report.id, 'own', client);
+  expect(screen.getByText('Подан')).toBeTruthy();
+  expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(await screen.findByText('Уточните дату смены.')).toBeTruthy();
+  expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it('фоновое чтение не меняет основу If-Match, пока есть локальная правка', async () => {
+  const client = new QueryClient();
+  mount(report.id, 'own', client);
+  fireEvent.click(await screen.findByRole('tab', { name: 'Ночь' }));
+  current = { ...report, status: 'returned', version: '2' };
+  await act(() => client.refetchQueries({ queryKey: reportQuery('own', report.id).queryKey }));
+  expect(screen.getByRole('tab', { name: 'Ночь' }).getAttribute('aria-selected')).toBe('true');
+  vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Отчёт тем временем изменили');
+  expect(apiClient.put).toHaveBeenCalledWith('/work/reports/r1', expect.objectContaining({ shift: 'night' }),
+    { headers: { 'If-Match': '1' } });
+});
+
+it('подбирает сотрудника и его стройки на дату смены и переносит эту дату в новый отчёт', async () => {
+  const date = '2026-10-29';
+  vi.mocked(apiClient.get).mockImplementation(async (path, config) => {
+    if (path === '/work/entry/reports/candidates') {
+      const items = config?.params.date === date
+        ? [{ employeeId: 'e1', name: 'Петров', eligible: true, personnelNumber: null,
+          reason: null, assigned: null, account: { state: 'none' } }] : [];
+      return { data: { items, more: false, limit: 100 } };
+    }
+    return { data: sites };
+  });
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Запись недоступна'));
+  mount('new', 'entry');
+  const field = within(screen.getByRole('group', { name: 'Дата смены' }));
+  expect(screen.queryByRole('checkbox', { name: 'Отметить: Петров' })).toBeNull();
+  fireEvent.paste(field.getByRole('textbox', { name: 'day' }), { clipboardData: { getData: () => date } });
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Отметить: Петров' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/work/entry/reports/candidates/e1/sites',
+    expect.objectContaining({ params: { date } })));
+  fireEvent.click(await screen.findByRole('button', { name: 'Создать черновик' }));
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/work/entry/reports', expect.objectContaining({
+    employeeId: 'e1', constructionId: 'site-a', date, shift: 'night',
+  })));
+});
+
+it('после потерянного ответа повторяет создание с тем же ID и сохраняет дату и смену отдельной правкой', async () => {
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Ответ потерян'));
+  mount('new');
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Создать черновик' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+  await screen.findByRole('alert');
+  const attempt = vi.mocked(apiClient.post).mock.lastCall?.[1] as { id: string };
+  current = { ...report, id: attempt.id, shift: 'night' };
+  vi.mocked(apiClient.post).mockResolvedValueOnce({ data: current });
+  const date = '2026-10-30';
+  const field = within(screen.getByRole('group', { name: 'Дата смены' }));
+  fireEvent.paste(field.getByRole('textbox', { name: 'day' }), { clipboardData: { getData: () => date } });
+  fireEvent.click(screen.getByRole('tab', { name: 'День' }));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Создать черновик' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+  expect(await screen.findByText('Черновик уже создан. Новые значения ещё не сохранены.')).toBeTruthy();
+  expect(apiClient.post).toHaveBeenLastCalledWith('/work/reports', expect.objectContaining({ id: attempt.id, date, shift: 'day' }));
+  expect(screen.getByRole('tab', { name: 'День' }).getAttribute('aria-selected')).toBe('true');
+  expect((screen.getByRole('button', { name: 'Подать отчёт' }) as HTMLButtonElement).disabled).toBe(true);
+  vi.mocked(apiClient.put).mockImplementationOnce(async () => {
+    current = { ...current, date, shift: 'day', version: '2' };
+    return { data: current };
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith(`/work/reports/${attempt.id}`,
+    expect.objectContaining({ date, shift: 'day' }), { headers: { 'If-Match': '1' } }));
+  expect(await screen.findByRole('heading', { name: /30\.10\.2026 · день/ })).toBeTruthy();
 });
 
 it('использует предложенную ночную смену, показывает границу и даёт открыть совпавший отчёт', async () => {

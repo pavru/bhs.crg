@@ -57,11 +57,11 @@ export function useWorkReportActionLabel(access: AccessInfo | undefined, active:
   return sites.data?.items[0]?.suggested.label;
 }
 
-export function useEntryCandidates(q: string) {
+export function useEntryCandidates(q: string, date?: string) {
   return useQuery({
-    queryKey: ['work', 'entry-candidates', q],
+    queryKey: ['work', 'entry-candidates', q, date],
     queryFn: ({ signal }) => apiClient.get<{ items: AssignmentCandidate[]; limit: number; more: boolean }>(
-      '/work/entry/reports/candidates', { params: { q }, signal }).then(r => r.data),
+      '/work/entry/reports/candidates', { params: { q, date }, signal }).then(r => r.data),
   });
 }
 

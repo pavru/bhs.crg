@@ -24,8 +24,8 @@ import { assignmentReason, automaticSubmission, reportFailure, reportShifts, rep
 const root = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review/entry';
 const backTo = (mode: ReportMode) => mode === 'own' ? '/my-reports' : '/work-review';
 const headerOf = (row: WorkReport): ReportHeader => ({ constructionId: row.constructionId, date: row.date, shift: row.shift });
-const suggestionOf = (site?: EntrySite): ReportHeader => ({
-  constructionId: site?.id ?? '', date: site?.suggested.date ?? '', shift: site?.suggested.shift ?? 'day',
+const suggestionOf = (site?: EntrySite, date?: string): ReportHeader => ({
+  constructionId: site?.id ?? '', date: date ?? site?.suggested.date ?? '', shift: site?.suggested.shift ?? 'day',
 });
 type Employee = { id: string; name: string };
 
@@ -36,19 +36,20 @@ export function ReportForm({ mode }: { mode: ReportMode }) {
 
 function NewReport({ mode }: { mode: ReportMode }) {
   const [employee, setEmployee] = useState<Employee>();
+  const [date, setDate] = useState('');
   const go = useGuardedNavigate();
-  const sites = useQuery(entrySitesQuery(mode, employee?.id));
+  const sites = useQuery(entrySitesQuery(mode, employee?.id, date || undefined));
   if (mode === 'entry' && !employee) return <div className="h-full space-y-4 overflow-auto p-4 md:px-6">
     <PageHeader title="Ввести за сотрудника" icon={<IconButton icon={ArrowBack} label="К приёмке" onClick={() => go(backTo(mode))} />} />
-    <EntryEmployeePicker onPick={setEmployee} />
+    <EntryEmployeePicker date={date} onDate={setDate} onPick={setEmployee} />
   </div>;
   if (!sites.data) return <ReportLoading mode={mode} error={sites.error} retry={() => void sites.refetch()} />;
-  return <Editor mode={mode} employee={employee} recommended={sites.data.items[0]}
+  return <Editor mode={mode} employee={employee} recommended={sites.data.items[0]} requestedDate={date || undefined}
     onPickAnother={employee ? () => setEmployee(undefined) : undefined} />;
 }
 
 function ExistingReport({ mode, id }: { mode: ReportMode; id: string }) {
-  const report = useQuery({ ...reportQuery(mode, id), retry: false });
+  const report = useQuery({ ...reportQuery(mode, id), retry: false, refetchOnMount: 'always' });
   if (!report.data) return <ReportLoading mode={mode} error={report.error} retry={() => void report.refetch()} />;
   return <Editor mode={mode} initial={report.data} employee={{ id: report.data.employeeId, name: report.data.employeeName ?? 'Сотрудник' }} />;
 }
@@ -63,8 +64,9 @@ function ReportLoading({ mode, error, retry }: { mode: ReportMode; error: unknow
   </div>;
 }
 
-function Editor({ mode, initial, employee, recommended, onPickAnother }: {
-  mode: ReportMode; initial?: WorkReport; employee?: Employee; recommended?: EntrySite; onPickAnother?: () => void;
+function Editor({ mode, initial, employee, recommended, requestedDate, onPickAnother }: {
+  mode: ReportMode; initial?: WorkReport; employee?: Employee; recommended?: EntrySite; requestedDate?: string;
+  onPickAnother?: () => void;
 }) {
   const { user } = useAuth();
   const cache = useQueryClient();
@@ -72,7 +74,8 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
   const go = useGuardedNavigate();
   const guardedLeave = useGuardedLeave();
   const [saved, setSaved] = useState(initial);
-  const [baseline, setBaseline] = useState(() => initial ? headerOf(initial) : suggestionOf(recommended));
+  const [observed, setObserved] = useState(initial);
+  const [baseline, setBaseline] = useState(() => initial ? headerOf(initial) : suggestionOf(recommended, requestedDate));
   const [header, setHeader] = useState(baseline);
   const [incomplete, setIncomplete] = useState<string | null>(null);
   const [failure, setFailure] = useState<ReturnType<typeof reportFailure>>();
@@ -80,7 +83,7 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
   const protocol = useRef<{ key: string; id: string } | null>(null);
   const [newId] = useState(newUuid);
   const sites = useQuery(entrySitesQuery(mode, employee?.id, header.date || undefined));
-  const defaultSites = useQuery(entrySitesQuery(mode, employee?.id));
+  const defaultSites = useQuery(entrySitesQuery(mode, employee?.id, requestedDate));
   const choices = sites.data?.items ?? [];
   const currentSite = choices.find(site => site.id === header.constructionId);
   const today = currentSite?.today ?? defaultSites.data?.items.find(site => site.id === header.constructionId)?.today
@@ -96,13 +99,24 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
   const selectable = saved && !choices.some(site => site.id === saved.constructionId)
     ? [...choices, { id: saved.constructionId, name: saved.constructionName ?? 'Стройка недоступна' }] : choices;
 
-  function accept(row: WorkReport) {
+  // Пока человек правит шапку, её основа и If-Match остаются одной серверной версией.
+  if (initial && initial !== observed && !dirty && !busy && !failure?.stale) {
+    const next = headerOf(initial);
+    setObserved(initial);
+    setSaved(initial);
+    setBaseline(next);
+    setHeader(next);
+  }
+
+  async function accept(row: WorkReport, nextHeader = headerOf(row)) {
+    const { queryKey } = reportQuery(mode, row.id);
+    await cache.cancelQueries({ queryKey, exact: true });
     setSaved(row);
     setBaseline(headerOf(row));
-    setHeader(headerOf(row));
+    setHeader(nextHeader);
     setFailure(undefined);
     protocol.current = null;
-    cache.setQueryData(reportQuery(mode, row.id).queryKey, row);
+    cache.setQueryData(queryKey, row);
     void cache.invalidateQueries({ queryKey: ownReportsKey });
     void cache.invalidateQueries({ queryKey: ['work', 'review-queue'] });
   }
@@ -119,8 +133,10 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
       const row = saved
         ? await updateWorkReport(mode, saved, header, changeId(JSON.stringify([saved.version, header])))
         : await createWorkReport(mode, newId, mode === 'entry' ? employee?.id ?? null : null, header);
-      accept(row);
-      if (!saved && redirect) navigate(`${root(mode)}/${row.id}`, { replace: true });
+      const needsSave = !saved && (row.constructionId !== header.constructionId || row.date !== header.date || row.shift !== header.shift);
+      await accept(row, needsSave ? header : undefined);
+      if (needsSave) return false;
+      if (!initial && redirect) navigate(`${root(mode)}/${row.id}`, { replace: true });
       return true;
     } catch (error) {
       setFailure(reportFailure(error, 'Не удалось сохранить отчёт.'));
@@ -132,7 +148,9 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
     if (!saved || dirty || locked || busy || failure?.stale) return;
     setBusy('submit');
     try {
-      accept(await submitWorkReport(mode, saved, changeId(`submit/${saved.version}`)));
+      const row = await submitWorkReport(mode, saved, changeId(`submit/${saved.version}`));
+      await accept(row);
+      if (!initial) navigate(`${root(mode)}/${row.id}`, { replace: true });
     } catch (error) { setFailure(reportFailure(error, 'Не удалось подать отчёт.')); }
     finally { setBusy(undefined); }
   }
@@ -164,12 +182,13 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
       subtitle={mode === 'entry' ? `Вводит ${saved?.enteredBy?.name ?? user?.displayName ?? 'менеджер'} за сотрудника: ${saved?.employeeName ?? employee?.name ?? ''}`
         : saved?.constructionName}
       icon={<IconButton icon={ArrowBack} label="К отчётам" onClick={() => go(backTo(mode))} />} />
-    {onPickAnother && <Button variant="text" onClick={() => goBackToEmployee()}>Выбрать другого сотрудника</Button>}
+    {onPickAnother && !saved && <Button variant="text" onClick={() => goBackToEmployee()}>Выбрать другого сотрудника</Button>}
     {saved && <p className="text-body-medium text-on-surface-variant">
       {reportStatuses[saved.status]}{automaticSubmission(saved) && ` · ${automaticSubmission(saved)}`}
     </p>}
     {saved?.returnComment && <Banner tone="warning">{saved.returnComment}</Banner>}
     {saved?.periodClosed && <Banner tone="info">Период закрыт.</Banner>}
+    {saved && !initial && dirty && <Banner tone="info">Черновик уже создан. Новые значения ещё не сохранены.</Banner>}
     {saved?.status === 'submitted' && !saved.periodClosed && <Banner tone="info">
       Изменения строк будут видны менеджеру как правка после подачи.
     </Banner>}
@@ -187,7 +206,7 @@ function Editor({ mode, initial, employee, recommended, onPickAnother }: {
           onChange={id => {
             const site = choices.find(item => item.id === id);
             if (site) setHeader(!saved && header.date === baseline.date && header.shift === baseline.shift
-              ? suggestionOf(site) : { ...header, constructionId: id });
+              ? suggestionOf(site, requestedDate) : { ...header, constructionId: id });
           }} />
         <ShiftDateHeader date={header.date} shift={header.shift} today={today} locked={locked} busy={!!busy}
           lockReason={saved?.status === 'submitted' && !saved.periodClosed ? 'Смена меняется только после возврата' : undefined}
