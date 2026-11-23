@@ -2,7 +2,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Recent;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Templates;
 
@@ -33,7 +33,7 @@ public class TemplateHandlers(
     /// <summary>Отказ гонки двух новых версий одного шаблона (#1922).</summary>
     public const string ChangedMeanwhileMessage = "Шаблон тем временем изменили — откройте его заново.";
 
-    public async Task<Template> Handle(CreateTemplateCommand cmd, CancellationToken ct)
+    public async ValueTask<Template> Handle(CreateTemplateCommand cmd, CancellationToken ct)
     {
         // Стандартные импорты (systemlib + typeblocks) вставляем ТОЛЬКО при создании шаблона (issue #353):
         // дальше шаблон компилируется дословно, поэтому импорты обязаны жить в его содержимом.
@@ -46,7 +46,7 @@ public class TemplateHandlers(
         return template;
     }
 
-    public async Task<TemplateMutationResult> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
+    public async ValueTask<TemplateMutationResult> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
     {
         var source = (await repo.FindAsync(t => t.Id == cmd.Id, ct)).SingleOrDefault()
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
@@ -133,7 +133,7 @@ public class TemplateHandlers(
 
     // Простое сохранение (issue #360, Ctrl+S): правит содержимое активной версии на месте, без
     // новой версии и без дублирования ассетов (та же версия). Бросает, если версия не активна.
-    public async Task<TemplateMutationResult> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
+    public async ValueTask<TemplateMutationResult> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
     {
         var template = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
@@ -146,7 +146,7 @@ public class TemplateHandlers(
         return new TemplateMutationResult(template, reset);
     }
 
-    public async Task<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
+    public async ValueTask<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
     {
         var source = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
@@ -218,7 +218,7 @@ public class TemplateHandlers(
         return assets.Count;
     }
 
-    public async Task Handle(DeleteTemplateCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteTemplateCommand cmd, CancellationToken ct)
     {
         var t = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
 
@@ -254,9 +254,10 @@ public class TemplateHandlers(
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         // Сменился шаблон документов без выбора — их PDF напечатан прежним (issue #362, #1401).
         await invalidator.OnFallbackMayHaveChangedAsync(t.DocumentTypeId, fallbackBefore, ct);
+        return Unit.Value;
     }
 
-    public async Task<IReadOnlyDictionary<Guid, TemplateUsage>> Handle(GetTemplatesUsageQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyDictionary<Guid, TemplateUsage>> Handle(GetTemplatesUsageQuery q, CancellationToken ct)
     {
         var docs = await objRepo.GetDocumentsOfTypeAsync(q.DocumentTypeId, ct);
         // Проходим версии типа один раз, накапливая пины по templateId (+ примеры имён). Нужны одни
@@ -276,19 +277,19 @@ public class TemplateHandlers(
     /// что у генерации, а не первая попавшаяся действующая строка.
     /// <para>Читаются только действующие версии: возраст шаблона приходит отдельным запросом без
     /// текстов, а Typst каждой исторической версии ответу не нужен.</para></summary>
-    public Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
-        => Generation.TemplateChoice.FallbackAsync(q.DocumentTypeId, repo, names, ct);
+    public ValueTask<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
+        => new ValueTask<Template?>(Generation.TemplateChoice.FallbackAsync(q.DocumentTypeId, repo, names, ct));
 
     /// <summary>Шаблоны типа в порядке запасного выбора (D6, [ID-3]): тогда «первый действующий» формы
     /// генерации на клиенте — тот же, что возьмёт сервер. Без текстов (issue #1972): версий много, а
     /// текст нужен одной — его отдаёт <see cref="GetTemplateContentQuery"/>.</summary>
-    public async Task<IReadOnlyList<TemplateSummary>> Handle(ListTemplatesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<TemplateSummary>> Handle(ListTemplatesQuery q, CancellationToken ct)
         => Generation.TemplateChoice.Order(await names.SummariesAsync(q.DocumentTypeId, ct), firstCreated: null);
 
-    public Task<string?> Handle(GetTemplateContentQuery q, CancellationToken ct)
-        => names.ContentAsync(q.Id, ct);
+    public ValueTask<string?> Handle(GetTemplateContentQuery q, CancellationToken ct)
+        => new ValueTask<string?>(names.ContentAsync(q.Id, ct));
 
-    public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
+    public async ValueTask<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {
         var template = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"Template {cmd.Id} not found");
@@ -298,7 +299,7 @@ public class TemplateHandlers(
         return template;
     }
 
-    public async Task<TemplateMutationResult> Handle(SetTemplateDefaultCommand cmd, CancellationToken ct)
+    public async ValueTask<TemplateMutationResult> Handle(SetTemplateDefaultCommand cmd, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         var target = all.FirstOrDefault(t => t.Id == cmd.Id)
@@ -325,10 +326,10 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
     IRequestHandler<ReplaceTemplateAssetCommand, TemplateAsset>,
     IRequestHandler<DeleteTemplateAssetCommand>
 {
-    public Task<IReadOnlyList<TemplateAsset>> Handle(ListTemplateAssetsQuery q, CancellationToken ct)
-        => repo.FindAsync(a => a.Scope == q.Scope && a.ScopeId == q.ScopeId, ct);
+    public ValueTask<IReadOnlyList<TemplateAsset>> Handle(ListTemplateAssetsQuery q, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<TemplateAsset>>(repo.FindAsync(a => a.Scope == q.Scope && a.ScopeId == q.ScopeId, ct));
 
-    public async Task<TemplateAsset> Handle(CreateTemplateAssetCommand cmd, CancellationToken ct)
+    public async ValueTask<TemplateAsset> Handle(CreateTemplateAssetCommand cmd, CancellationToken ct)
     {
         // Адрес проверяет то же до загрузки файла; здесь — сторож для любого другого отправителя (D2).
         if (cmd.Kind == TemplateAssetKind.Image && !TemplateAsset.IsValidImageName(cmd.Name))
@@ -340,7 +341,7 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
         return asset;
     }
 
-    public async Task<TemplateAsset> Handle(ReplaceTemplateAssetCommand cmd, CancellationToken ct)
+    public async ValueTask<TemplateAsset> Handle(ReplaceTemplateAssetCommand cmd, CancellationToken ct)
     {
         var asset = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"TemplateAsset {cmd.Id} not found");
@@ -354,10 +355,11 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
     // ассет давал бы ложные срабатывания в обе стороны (динамическое имя не найдёт, случайное
     // совпадение подстроки — ложно заблокирует) — хуже честного "Typst сам укажет на ошибку при
     // следующей генерации" (TypstGenerator пробрасывает stderr компилятора как текст исключения).
-    public async Task Handle(DeleteTemplateAssetCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteTemplateAssetCommand cmd, CancellationToken ct)
     {
         var asset = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(asset);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 }

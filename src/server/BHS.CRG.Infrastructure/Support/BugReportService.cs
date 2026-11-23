@@ -14,7 +14,7 @@ namespace BHS.CRG.Infrastructure.Support;
 /// <summary>
 /// Приём сообщений об ошибках и их разбор администратором (issue #834).
 ///
-/// Живёт в Infrastructure, а не в MediatR-обработчике Application, по одной причине: и адресат
+/// Живёт в Infrastructure, а не в Mediator-обработчике Application, по одной причине: и адресат
 /// уведомления («все администраторы»), и подпись автора («кто прислал») читаются из таблиц Identity,
 /// а до них дотягивается только этот слой. Тот же приём, что у <c>UpdateNotifier</c>.
 /// </summary>

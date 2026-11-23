@@ -1,5 +1,5 @@
 using BHS.CRG.Application.DataSets;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -10,7 +10,7 @@ namespace BHS.CRG.Application.Generation;
 ///
 /// Сам прогон живёт в <see cref="IInstanceResolutionValidator"/>: пакетным вызывающим (сверка по
 /// комплекту) нужно читать справочники схемы один раз на прогон, а не на документ (issue #628), и
-/// через запрос MediatR такое не передашь.
+/// через запрос Mediator такое не передашь.
 /// </summary>
 public record ValidateInstanceResolutionQuery(Guid InstanceId, DataAccess Access)
     : IRequest<IReadOnlyList<ResolutionDiagnostic>>;
@@ -18,6 +18,6 @@ public record ValidateInstanceResolutionQuery(Guid InstanceId, DataAccess Access
 public class ValidateInstanceResolutionHandler(IInstanceResolutionValidator validator)
     : IRequestHandler<ValidateInstanceResolutionQuery, IReadOnlyList<ResolutionDiagnostic>>
 {
-    public async Task<IReadOnlyList<ResolutionDiagnostic>> Handle(ValidateInstanceResolutionQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<ResolutionDiagnostic>> Handle(ValidateInstanceResolutionQuery q, CancellationToken ct)
         => await validator.ValidateAsync(q.InstanceId, await validator.LoadCatalogAsync(ct), q.Access, ct);
 }

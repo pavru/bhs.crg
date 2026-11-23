@@ -3,7 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Objects;
 
@@ -45,15 +45,21 @@ public sealed class ScopeDeletionHandlers(
     IRequestHandler<DeleteDocumentSetCommand>,
     IRequestHandler<PurgeHeldScopeCommand, PurgedScope>
 {
-    public Task Handle(DeleteConstructionCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Construction, cmd.Id, Plain, ct);
-
-    public Task Handle(DeleteSectionCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Section, cmd.Id, Plain, ct);
-
-    public Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct) =>
-        DeleteAsync(CatalogScope.Set, cmd.Id, Plain, ct);
-
+    public async ValueTask<Unit> Handle(DeleteConstructionCommand cmd, CancellationToken ct)
+    {
+        await DeleteAsync(CatalogScope.Construction, cmd.Id, Plain, ct);
+        return Unit.Value;
+    }
+    public async ValueTask<Unit> Handle(DeleteSectionCommand cmd, CancellationToken ct)
+    {
+        await DeleteAsync(CatalogScope.Section, cmd.Id, Plain, ct);
+        return Unit.Value;
+    }
+    public async ValueTask<Unit> Handle(DeleteDocumentSetCommand cmd, CancellationToken ct)
+    {
+        await DeleteAsync(CatalogScope.Set, cmd.Id, Plain, ct);
+        return Unit.Value;
+    }
     /// <summary>Обычное удаление: любые держатели в модулях — отказ, терять нечего.</summary>
     private bool Plain(ScopeCascadePlan plan, string what)
     {
@@ -61,7 +67,7 @@ public sealed class ScopeDeletionHandlers(
         return true;
     }
 
-    public async Task<PurgedScope> Handle(PurgeHeldScopeCommand cmd, CancellationToken ct)
+    public async ValueTask<PurgedScope> Handle(PurgeHeldScopeCommand cmd, CancellationToken ct)
     {
         var (name, plan, release) = await DeleteAsync(
             cmd.Level, cmd.Id, (found, what) => cascade.EnsureReleasable(found, what, cmd.References), ct);

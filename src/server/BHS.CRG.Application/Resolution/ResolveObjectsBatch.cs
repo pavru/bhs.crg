@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Resolution;
 
@@ -28,7 +28,7 @@ public record ResolveObjectsBatchQuery(CatalogScope Scope, Guid? ScopeId, IReadO
 public class ResolveObjectsBatchHandler(IObjectResolver resolver, IRepository<DomainObject> repo)
     : IRequestHandler<ResolveObjectsBatchQuery, IReadOnlyList<ObjectResolveResult?>>
 {
-    public async Task<IReadOnlyList<ObjectResolveResult?>> Handle(ResolveObjectsBatchQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<ObjectResolveResult?>> Handle(ResolveObjectsBatchQuery q, CancellationToken ct)
     {
         if (q.Items.Count == 0) return [];
 

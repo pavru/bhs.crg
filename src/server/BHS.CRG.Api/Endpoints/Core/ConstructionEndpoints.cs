@@ -8,7 +8,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Modules;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

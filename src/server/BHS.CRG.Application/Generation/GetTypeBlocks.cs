@@ -1,6 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -38,7 +38,7 @@ public record GetTypeBlocksQuery : IRequest<TypeBlocksView>;
 public class GetTypeBlocksHandler(IRepository<DocumentType> docTypeRepo)
     : IRequestHandler<GetTypeBlocksQuery, TypeBlocksView>
 {
-    public async Task<TypeBlocksView> Handle(GetTypeBlocksQuery q, CancellationToken ct)
+    public async ValueTask<TypeBlocksView> Handle(GetTypeBlocksQuery q, CancellationToken ct)
     {
         var types = await docTypeRepo.GetAllAsync(ct);
         var built = TypstPreambleBuilder.BuildWithDiagnostics(types);
@@ -66,7 +66,7 @@ public record CountTemplatesUsingTypeCodeQuery(string Code) : IRequest<int>;
 public class CountTemplatesUsingTypeCodeHandler(IRepository<Domain.Templates.Template> templateRepo)
     : IRequestHandler<CountTemplatesUsingTypeCodeQuery, int>
 {
-    public async Task<int> Handle(CountTemplatesUsingTypeCodeQuery q, CancellationToken ct)
+    public async ValueTask<int> Handle(CountTemplatesUsingTypeCodeQuery q, CancellationToken ct)
     {
         if (!TypstPreambleBuilder.IsTypstIdentifier(q.Code)) return 0;
 

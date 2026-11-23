@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 

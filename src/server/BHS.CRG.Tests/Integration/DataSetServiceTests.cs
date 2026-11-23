@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.DataSets;
@@ -28,7 +28,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
     {
         var code = $"DS_TEST_{Guid.NewGuid():N}";
         using var scope = fixture.Services.CreateScope();
-        var m = scope.ServiceProvider.GetRequiredService<MediatR.IMediator>();
+        var m = scope.ServiceProvider.GetRequiredService<Mediator.IMediator>();
         var dt = await m.Send(new CreateDocumentTypeCommand(
             code, code, DocumentTypeKind.Composite, null, JsonDocument.Parse(@"{""fields"":[]}")));
         return dt.Id;
@@ -187,7 +187,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         {
             var (_, src) = await UploadCsvWithSourceAsync(scope);
             srcId = src.Id;
-            var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+            var entry = await scope.ServiceProvider.GetRequiredService<Mediator.IMediator>().Send(
                 new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                     BHS.CRG.Domain.Catalog.CatalogScope.System, null));
             await Svc(scope).CreateBindingAsync(
@@ -204,7 +204,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var typeId = await CreateDocumentTypeAsync();
         using var scope = fixture.Services.CreateScope();
         var (_, src) = await UploadCsvWithSourceAsync(scope);
-        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+        var entry = await scope.ServiceProvider.GetRequiredService<Mediator.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
 
@@ -228,7 +228,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var scope = fixture.Services.CreateScope();
         var svc = Svc(scope);
         var (_, src) = await UploadCsvWithSourceAsync(scope);
-        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+        var entry = await scope.ServiceProvider.GetRequiredService<Mediator.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
         await svc.CreateBindingAsync(new CreateBindingInput(entry.Id, src.Id, null, new() { ["Поле"] = "A" }), default);
@@ -261,7 +261,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var (_, src) = await UploadCsvWithSourceAsync(scope);
         await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, discriminator: null, byIdColumn: null, default);
 
-        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+        var entry = await scope.ServiceProvider.GetRequiredService<Mediator.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
         // Своя привязка без явного маппинга — эффективный маппинг берётся с материализации источника.

@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Objects;
@@ -8,7 +8,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Domain.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -49,7 +49,7 @@ public class DocumentTypeHandlers(
     /// пустоту там, где были данные. Ровно так и разъехался живой реестр исполнительной
     /// документации, с которого началась issue.</para>
     /// </summary>
-    public async Task<MigrateFieldKeyResult> Handle(MigrateFieldKeyCommand cmd, CancellationToken ct)
+    public async ValueTask<MigrateFieldKeyResult> Handle(MigrateFieldKeyCommand cmd, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(cmd.OldKey) || string.IsNullOrWhiteSpace(cmd.NewKey) || cmd.OldKey == cmd.NewKey)
             return new MigrateFieldKeyResult(0, 0, 0);
@@ -93,7 +93,7 @@ public class DocumentTypeHandlers(
         return new MigrateFieldKeyResult(migrated, holders.Bindings, holders.Templates);
     }
 
-    public async Task<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
     {
         var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)
             ?? throw new NotFoundException($"Instance {q.InstanceId} not found");
@@ -112,7 +112,7 @@ public class DocumentTypeHandlers(
             .ToList();
     }
 
-    public async Task<ApplyAuditFixesResult> Handle(ApplyAuditFixesCommand cmd, CancellationToken ct)
+    public async ValueTask<ApplyAuditFixesResult> Handle(ApplyAuditFixesCommand cmd, CancellationToken ct)
     {
         var outcomes = new List<AuditFixOutcome>();
         var touched = false;
@@ -197,7 +197,7 @@ public class DocumentTypeHandlers(
         return true;
     }
 
-    public async Task<DocumentTypeAuditReport> Handle(AuditDocumentTypeQuery q, CancellationToken ct)
+    public async ValueTask<DocumentTypeAuditReport> Handle(AuditDocumentTypeQuery q, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         var byId = all.ToDictionary(t => t.Id);
@@ -244,7 +244,7 @@ public class DocumentTypeHandlers(
         return new(q.TypeId, type.Name, instances.Count, findings);
     }
 
-    public async Task<DocumentType> Handle(CreateDocumentTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(CreateDocumentTypeCommand cmd, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         EnsureUnique(all, cmd.Name, cmd.Code, excludeId: null);
@@ -274,7 +274,7 @@ public class DocumentTypeHandlers(
     /// заведённый человеком, мог оказаться не у того владельца, и чинить это правкой базы руками —
     /// не починка.
     /// </summary>
-    public async Task<DocumentType> Handle(SetDocumentTypeOwnerCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(SetDocumentTypeOwnerCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -336,7 +336,7 @@ public class DocumentTypeHandlers(
             "типа — то есть неописуемым, хотя сам никуда не делся.");
     }
 
-    public async Task<DocumentType> Handle(UpdateDocumentTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(UpdateDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -397,7 +397,7 @@ public class DocumentTypeHandlers(
         }
     }
 
-    public async Task<DocumentType> Handle(UpdateDocumentTypeSchemaCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(UpdateDocumentTypeSchemaCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -462,7 +462,7 @@ public class DocumentTypeHandlers(
         if (messages.Count > 0) throw new ConflictException(string.Join(" ", messages));
     }
 
-    public async Task<DocumentType> Handle(SetDocumentTypeAbstractCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(SetDocumentTypeAbstractCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -472,7 +472,7 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    public async Task<DocumentType> Handle(SetDocumentTypeAllowsProxyCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(SetDocumentTypeAllowsProxyCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -482,7 +482,7 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    public async Task<DocumentType> Handle(SetDocumentTypeGroupCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType> Handle(SetDocumentTypeGroupCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
@@ -494,7 +494,7 @@ public class DocumentTypeHandlers(
 
     // issue #57: удаление типа не проверяло использование. Проверки вынесены в ComputeUsageAsync —
     // общий источник для guard'а удаления И проактивного показа (issue #275), чтобы не разъехались.
-    public async Task Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         var all = await repo.GetAllAsync(ct);
@@ -505,9 +505,10 @@ public class DocumentTypeHandlers(
 
         repo.Remove(dt);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public async Task<DocumentTypeUsage> Handle(GetDocumentTypeUsageQuery q, CancellationToken ct)
+    public async ValueTask<DocumentTypeUsage> Handle(GetDocumentTypeUsageQuery q, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();
         return await ComputeUsageAsync(dt, await repo.GetAllAsync(ct), ct);
@@ -578,12 +579,12 @@ public class DocumentTypeHandlers(
         return new DocumentTypeUsage(reasons);
     }
 
-    public async Task<IReadOnlyList<DocumentType>> Handle(ListDocumentTypesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<DocumentType>> Handle(ListDocumentTypesQuery q, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         return q.Kind is null ? all : all.Where(x => x.Kind == q.Kind).ToList();
     }
 
-    public Task<DocumentType?> Handle(GetDocumentTypeQuery q, CancellationToken ct)
-        => repo.GetByIdAsync(q.Id, ct);
+    public ValueTask<DocumentType?> Handle(GetDocumentTypeQuery q, CancellationToken ct)
+        => new ValueTask<DocumentType?>(repo.GetByIdAsync(q.Id, ct));
 }

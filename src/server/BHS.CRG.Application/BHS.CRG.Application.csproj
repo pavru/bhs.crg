@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Domain\BHS.CRG.Domain.csproj" />
@@ -7,9 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <!-- Диапазон, а не точная версия: с 13.0 MediatR под коммерческой лицензией (issue #1405, DEV_NOTES
-         «Поставка»). Граница видна там, где версию правят, а транзитивная ≥ 13 даёт NU1608 до тестов. -->
-    <PackageReference Include="MediatR" Version="[12.5.0,13.0)" />
+    <PackageReference Include="Mediator.Abstractions" Version="3.0.2" />
   </ItemGroup>
 
   <PropertyGroup>

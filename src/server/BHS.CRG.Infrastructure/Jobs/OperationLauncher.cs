@@ -4,7 +4,7 @@ using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Jobs;
-using MediatR;
+using Mediator;
 using System.Text.Json;
 
 namespace BHS.CRG.Infrastructure.Jobs;

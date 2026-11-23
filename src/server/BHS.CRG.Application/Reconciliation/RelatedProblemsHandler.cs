@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 
@@ -18,7 +18,7 @@ public class RelatedProblemsHandler(
     IRepository<AgentObservation> observationRepo,
     IMediator mediator) : IRequestHandler<GetRelatedProblemsQuery, RelatedProblems>
 {
-    public async Task<RelatedProblems> Handle(GetRelatedProblemsQuery q, CancellationToken ct)
+    public async ValueTask<RelatedProblems> Handle(GetRelatedProblemsQuery q, CancellationToken ct)
     {
         var ids = await attribution.ReconciliationIdsForAsync(q.Scope, q.ScopeId, ct);
 

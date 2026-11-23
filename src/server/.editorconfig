@@ -1,0 +1,4 @@
+root = false
+
+[BHS.CRG.{Api,Application,Infrastructure,Tests}/**.cs]
+dotnet_diagnostic.CA2012.severity = warning

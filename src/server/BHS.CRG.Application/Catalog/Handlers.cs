@@ -2,7 +2,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Catalog;
 
@@ -13,7 +13,7 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
     IRequestHandler<GetCatalogEntityQuery, CatalogEntity?>,
     IRequestHandler<ListCatalogEntitiesQuery, IReadOnlyList<CatalogEntity>>
 {
-    public async Task<CatalogEntity> Handle(CreateCatalogEntityCommand cmd, CancellationToken ct)
+    public async ValueTask<CatalogEntity> Handle(CreateCatalogEntityCommand cmd, CancellationToken ct)
     {
         var entity = CatalogEntity.Create(cmd.EntityType, cmd.DisplayName, cmd.Data, cmd.OwnerId);
         await repo.AddAsync(entity, ct);
@@ -21,7 +21,7 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
         return entity;
     }
 
-    public async Task<CatalogEntity> Handle(UpdateCatalogEntityCommand cmd, CancellationToken ct)
+    public async ValueTask<CatalogEntity> Handle(UpdateCatalogEntityCommand cmd, CancellationToken ct)
     {
         var entity = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"CatalogEntity {cmd.Id} not found");
@@ -31,24 +31,25 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
         return entity;
     }
 
-    public async Task Handle(DeleteCatalogEntityCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteCatalogEntityCommand cmd, CancellationToken ct)
     {
         var entity = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"CatalogEntity {cmd.Id} not found");
         repo.Remove(entity);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
-    public Task<CatalogEntity?> Handle(GetCatalogEntityQuery query, CancellationToken ct)
-        => repo.GetByIdAsync(query.Id, ct);
+    public ValueTask<CatalogEntity?> Handle(GetCatalogEntityQuery query, CancellationToken ct)
+        => new ValueTask<CatalogEntity?>(repo.GetByIdAsync(query.Id, ct));
 
-    public Task<IReadOnlyList<CatalogEntity>> Handle(ListCatalogEntitiesQuery query, CancellationToken ct)
+    public ValueTask<IReadOnlyList<CatalogEntity>> Handle(ListCatalogEntitiesQuery query, CancellationToken ct)
     {
         var type = query.EntityType;
         var owner = query.OwnerId;
-        return repo.FindAsync(e =>
+        return new ValueTask<IReadOnlyList<CatalogEntity>>(repo.FindAsync(e =>
             (type == null || e.EntityType == type) &&
-            (owner == null || e.OwnerId == owner), ct);
+            (owner == null || e.OwnerId == owner), ct));
     }
 }
 
@@ -59,10 +60,10 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
     IRequestHandler<SetPrimitiveTypeGroupCommand, PrimitiveType>,
     IRequestHandler<DeletePrimitiveTypeCommand>
 {
-    public Task<IReadOnlyList<PrimitiveType>> Handle(ListPrimitiveTypesQuery _, CancellationToken ct)
-        => repo.GetAllAsync(ct);
+    public ValueTask<IReadOnlyList<PrimitiveType>> Handle(ListPrimitiveTypesQuery _, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<PrimitiveType>>(repo.GetAllAsync(ct));
 
-    public async Task<PrimitiveType> Handle(CreatePrimitiveTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<PrimitiveType> Handle(CreatePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         await EnsureCodeUniqueAsync(cmd.Code, excludeId: null, ct);
         var pt = PrimitiveType.Create(cmd.Name, cmd.Code.Trim(), cmd.BaseType, cmd.Description, cmd.Constraints, cmd.AllowedTags);
@@ -71,7 +72,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
         return pt;
     }
 
-    public async Task<PrimitiveType> Handle(UpdatePrimitiveTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<PrimitiveType> Handle(UpdatePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
@@ -91,7 +92,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
             throw new InvalidRequestException($"Тип поля с кодом «{code.Trim()}» уже существует.");
     }
 
-    public async Task<PrimitiveType> Handle(SetPrimitiveTypeGroupCommand cmd, CancellationToken ct)
+    public async ValueTask<PrimitiveType> Handle(SetPrimitiveTypeGroupCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
@@ -103,7 +104,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
 
     // issue #269 (по образцу EnumType #59): удаление типа поля, используемого в схеме какого-либо типа
     // документа, оставило бы поле с висячим typeId. Проверяем перед удалением.
-    public async Task Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
@@ -114,6 +115,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
                 $"Нельзя удалить тип поля — используется в схеме: {string.Join(", ", usedIn.Select(t => t.Name))}.");
         repo.Remove(pt);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 }
 
@@ -124,10 +126,10 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
     IRequestHandler<SetEnumTypeGroupCommand, EnumType>,
     IRequestHandler<DeleteEnumTypeCommand>
 {
-    public Task<IReadOnlyList<EnumType>> Handle(ListEnumTypesQuery _, CancellationToken ct)
-        => repo.GetAllAsync(ct);
+    public ValueTask<IReadOnlyList<EnumType>> Handle(ListEnumTypesQuery _, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<EnumType>>(repo.GetAllAsync(ct));
 
-    public async Task<EnumType> Handle(CreateEnumTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<EnumType> Handle(CreateEnumTypeCommand cmd, CancellationToken ct)
     {
         await EnsureCodeUniqueAsync(cmd.Code, excludeId: null, ct);
         var et = EnumType.Create(cmd.Name, cmd.Code.Trim(), cmd.Description, cmd.Values);
@@ -136,7 +138,7 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
         return et;
     }
 
-    public async Task<EnumType> Handle(UpdateEnumTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<EnumType> Handle(UpdateEnumTypeCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
@@ -156,7 +158,7 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
             throw new InvalidRequestException($"Тип перечисления с кодом «{code.Trim()}» уже существует.");
     }
 
-    public async Task<EnumType> Handle(SetEnumTypeGroupCommand cmd, CancellationToken ct)
+    public async ValueTask<EnumType> Handle(SetEnumTypeGroupCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
@@ -169,7 +171,7 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
     // issue #59 (по прецеденту issue #57 — та же класса бага у DocumentType): удаление типа
     // перечисления, используемого в схеме какого-либо типа документа, оставляло бы enum-поле с
     // висячим typeId — резолв вариантов молча пропадал бы. Проверяем перед удалением.
-    public async Task Handle(DeleteEnumTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteEnumTypeCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
@@ -180,5 +182,6 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
                 $"Нельзя удалить тип перечисления — используется в схеме: {string.Join(", ", usedIn.Select(t => t.Name))}.");
         repo.Remove(et);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 }

@@ -6,7 +6,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Тэг сокращённого названия организации действующим установкам (issue #1473): правило исполняется
@@ -231,7 +233,7 @@ public class OrganizationShortNameTests(IntegrationTestFixture host)
         var twice = await Assert.ThrowsAsync<ConflictException>(() => mediator.Send(new CreateDocumentTypeCommand(
             $"Дважды {mark}", $"Дважды{mark}", DocumentTypeKind.Composite, null, JsonDocument.Parse("""
                 {"fields":[{"key":"Сокращённое","type":"string","tags":["org.shortName"]},{"key":"Краткое","type":"string","tags":["org.shortName"]}]}
-                """))));
+                """))).AsTask());
         Assert.Contains("Сокращённое название организации", twice.Message);
     }
 

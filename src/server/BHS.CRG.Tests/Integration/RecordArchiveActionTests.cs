@@ -8,7 +8,7 @@ using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Domain.Catalog;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;

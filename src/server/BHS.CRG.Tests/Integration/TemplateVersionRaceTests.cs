@@ -8,7 +8,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Tests.Support;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;

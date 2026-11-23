@@ -1,14 +1,16 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 [Collection("Integration")]
 public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -128,7 +130,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         var refusal = await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new UpdateDocumentTypeCommand(child.Id, "Дочерний", "CHILD_T", parent.Id)));
+            Mediator(scope2).Send(new UpdateDocumentTypeCommand(child.Id, "Дочерний", "CHILD_T", parent.Id)).AsTask());
 
         Assert.Contains("НомерАкта", refusal.Message);
     }
@@ -147,7 +149,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         using var scope2 = fixture.Services.CreateScope();
         // Trying to set child as parent of parent → cycle
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new UpdateDocumentTypeCommand(parent.Id, "Родитель", "PAR", child.Id)));
+            Mediator(scope2).Send(new UpdateDocumentTypeCommand(parent.Id, "Родитель", "PAR", child.Id)).AsTask());
     }
 
     // ── SetAbstract ───────────────────────────────────────────────────────────
@@ -179,7 +181,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(parent.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(parent.Id)).AsTask());
     }
 
     // issue #57: удаление типа не проверяло использование — ниже тесты на каждую из добавленных проверок.
@@ -240,7 +242,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -253,7 +255,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -267,7 +269,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -281,7 +283,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -294,7 +296,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -313,7 +315,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)).AsTask());
     }
 
     [Fact]
@@ -329,7 +331,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            Mediator(scope2).Send(new DeleteDocumentTypeCommand(composite.Id)));
+            Mediator(scope2).Send(new DeleteDocumentTypeCommand(composite.Id)).AsTask());
         Assert.Contains("Договор", ex.Message);
     }
 

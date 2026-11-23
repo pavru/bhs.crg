@@ -4,7 +4,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Common;
 using BHS.CRG.Application.Objects.FieldSuggestions;
 using BHS.CRG.Domain.Catalog;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Core;
 

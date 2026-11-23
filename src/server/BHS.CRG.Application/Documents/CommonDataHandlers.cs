@@ -1,11 +1,11 @@
-﻿using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -38,7 +38,7 @@ public partial class CommonDataHandlers(
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
-    public async Task<DomainObject> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         // Запись общих данных — DomainObject БЕЗ документной фасеты (issue #84).
         var type = await typeRepo.GetByIdAsync(cmd.CompositeTypeId, ct)
@@ -92,7 +92,7 @@ public partial class CommonDataHandlers(
             (archived?.ScopeLevel ?? cmd.Scope).ToString());
     }
 
-    public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         await EnsureCommonPathAsync(entry, ct);
@@ -136,10 +136,12 @@ public partial class CommonDataHandlers(
             TypeStorageRules.EnsureCommonPathAllowed(type, CommonPathAction.Update);
     }
 
-    public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct) =>
+    public async ValueTask<Unit> Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct)
+    {
         await DeleteAsync(cmd.Id, found => { found.EnsureNone("запись", forcedExit: true); return null; }, ct);
-
-    public async Task<PurgedRecord> Handle(PurgeHeldRecordCommand cmd, CancellationToken ct)
+        return Unit.Value;
+    }
+    public async ValueTask<PurgedRecord> Handle(PurgeHeldRecordCommand cmd, CancellationToken ct)
     {
         var (entry, release) = await DeleteAsync(
             cmd.Id, found => found.EnsureOnlyDormant("запись", cmd.References), ct);
@@ -214,10 +216,10 @@ public partial class CommonDataHandlers(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
     }
 
-    public async Task<DomainObject?> Handle(GetCommonDataEntryQuery q, CancellationToken ct)
+    public async ValueTask<DomainObject?> Handle(GetCommonDataEntryQuery q, CancellationToken ct)
         => await repo.GetByIdAsync(q.Id, ct);
 
-    public async Task<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
     {
         var scope = q.Scope;
         var scopeId = q.ScopeId;
@@ -240,19 +242,19 @@ public partial class CommonDataHandlers(
     /// много. Ленивое создание профиля уровня здесь НЕ трогается — оно про открытие общих данных
     /// уровня, а этот запрос отбирает по виду и названию и об уровнях не спрашивает.
     /// </summary>
-    public async Task<ChoiceCandidates> Handle(SearchCommonDataForChoiceQuery q, CancellationToken ct)
+    public async ValueTask<ChoiceCandidates> Handle(SearchCommonDataForChoiceQuery q, CancellationToken ct)
         => await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);
 
-    public async Task<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);
 
-    public async Task<IReadOnlyList<CommonDataFieldValue>> Handle(CommonDataFieldValuesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<CommonDataFieldValue>> Handle(CommonDataFieldValuesQuery q, CancellationToken ct)
         => await objects.FieldValuesAsync(q.TypeIds, q.FieldKey, q.For, q.PartKey, q.Ids, ct);
 
-    public async Task<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<Guid>> Handle(ArchivedAmongQuery q, CancellationToken ct)
         => [.. (await objects.ArchivedAmongAsync(q.Ids, ct)).Select(a => a.Id)];
 
-    public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
+    public async ValueTask<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new NotFoundException("DocumentSet not found");
@@ -274,7 +276,7 @@ public partial class CommonDataHandlers(
         return Project(relevant);
     }
 
-    public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
+    public async ValueTask<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForScopeQuery q, CancellationToken ct)
     {
         // Разрешаем родительскую цепочку скопа: Set→Section→Construction→System (issue #82).

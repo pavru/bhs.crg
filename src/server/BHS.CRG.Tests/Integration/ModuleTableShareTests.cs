@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.DataSets;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

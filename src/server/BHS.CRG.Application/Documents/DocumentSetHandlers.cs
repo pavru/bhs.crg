@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
@@ -6,7 +6,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Application.Templates;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -42,7 +42,7 @@ public class DocumentSetHandlers(
     IRequestHandler<SetDocumentTemplatesCommand, DomainObject>,
     IRequestHandler<SetDocumentTemplateParamsCommand, DomainObject>
 {
-    public async Task<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
     {
         // Раздел приходит ТЕЛОМ запроса (issue #960), а не сегментом адреса, и потому может не
         // прийти вовсе. Два разных отказа, а не один: пустой ключ — это «поле забыли» (400),
@@ -61,7 +61,7 @@ public class DocumentSetHandlers(
         return set;
     }
 
-    public async Task<DocumentSet> Handle(RenameDocumentSetCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentSet> Handle(RenameDocumentSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         set.Rename(cmd.Name);
@@ -74,10 +74,10 @@ public class DocumentSetHandlers(
     // висит на оси (Set, этот Id), принадлежит комплекту, а каскада базы на него нет — уносит
     // IScopeCascade.
 
-    public Task<DocumentSet?> Handle(GetDocumentSetQuery q, CancellationToken ct)
-        => setRepo.GetByIdAsync(q.Id, ct);
+    public ValueTask<DocumentSet?> Handle(GetDocumentSetQuery q, CancellationToken ct)
+        => new ValueTask<DocumentSet?>(setRepo.GetByIdAsync(q.Id, ct));
 
-    public async Task<IReadOnlyList<DomainObject>> Handle(ListAvailableInstancesQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<DomainObject>> Handle(ListAvailableInstancesQuery q, CancellationToken ct)
     {
         // Доступны документы всей стройки: сначала поднимаемся от комплекта к ней, потом спускаемся
         // обратно ко всем её комплектам. Спуск — общий (issue #625), своей копии здесь больше нет.
@@ -88,7 +88,7 @@ public class DocumentSetHandlers(
         return await objRepo.GetDocumentsInSetsAsync(setIds, ct);
     }
 
-    public async Task<DomainObject> Handle(AddDocumentToSetCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(AddDocumentToSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.DocumentSetId, ct)
             ?? throw new NotFoundException();
@@ -111,7 +111,7 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public async Task<DocumentSet> Handle(ReorderDocumentInstancesCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentSet> Handle(ReorderDocumentInstancesCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.SetId, ct) ?? throw new NotFoundException();
         var docs = await objRepo.GetSetDocumentsAsync(cmd.SetId, tracked: true, ct);
@@ -125,7 +125,7 @@ public class DocumentSetHandlers(
         return set;
     }
 
-    public async Task<DomainObject> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         obj.Rename(cmd.Name);
@@ -134,7 +134,7 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public async Task Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // issue #71/#269: удаление объекта, на который ссылаются (базовый экземпляр "_baseRef" или
@@ -147,11 +147,12 @@ public class DocumentSetHandlers(
         (await holders.FindAsync([cmd.Id], ct)).EnsureNone("документ"); // данные модулей, issue #1094
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
     // issue #283 (фаза B): дубль в ТОТ ЖЕ комплект. Ссылки/_baseRef валидны в том же scope —
     // сохраняем как есть (cross-set скраб — отдельные команды copy/move). Свежий черновик без PDF.
-    public async Task<DomainObject> Handle(DuplicateDocumentInstanceCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(DuplicateDocumentInstanceCommand cmd, CancellationToken ct)
     {
         var source = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         if (!source.IsDocument) throw new ConflictException("Дублировать можно только документ комплекта.");
@@ -176,7 +177,7 @@ public class DocumentSetHandlers(
 
     // issue #283 (фаза C): копирование в ДРУГОЙ комплект. Оригинал остаётся (входящий guard не нужен —
     // referrer'ы всё ещё указывают на живой оригинал; guard только для move, фаза D).
-    public async Task<CopyResult> Handle(CopyDocumentToSetCommand cmd, CancellationToken ct)
+    public async ValueTask<CopyResult> Handle(CopyDocumentToSetCommand cmd, CancellationToken ct)
     {
         var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
         var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
@@ -197,7 +198,7 @@ public class DocumentSetHandlers(
         return new CopyResult(clone, warnings);
     }
 
-    public async Task<IReadOnlyList<CopyWarning>> Handle(PreviewCopyDocumentQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<CopyWarning>> Handle(PreviewCopyDocumentQuery q, CancellationToken ct)
     {
         var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
         var (_, warnings) = await BuildCopyPlanAsync(source, targetSet, q.Strategy, ct);
@@ -207,7 +208,7 @@ public class DocumentSetHandlers(
     // issue #283 (фаза D): перенос в другой комплект. Входящий guard (как удаление #269): если на
     // документ ссылаются — блокируем (в исходном комплекте ссылка повиснет). Тот же скраб исходящих,
     // что и copy; PDF сбрасываются (контекст резолва сменился).
-    public async Task<CopyResult> Handle(MoveDocumentToSetCommand cmd, CancellationToken ct)
+    public async ValueTask<CopyResult> Handle(MoveDocumentToSetCommand cmd, CancellationToken ct)
     {
         // Блокировка строки — ДО первого чтения документа (issue #1232): значения переписываются по
         // его снимку, и реквизиты, сохранённые формой между чтением и записью, перенос стёр бы. До
@@ -241,7 +242,7 @@ public class DocumentSetHandlers(
         return new CopyResult(source, warnings);
     }
 
-    public async Task<MovePreview> Handle(PreviewMoveDocumentQuery q, CancellationToken ct)
+    public async ValueTask<MovePreview> Handle(PreviewMoveDocumentQuery q, CancellationToken ct)
     {
         var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
         var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, refIndex, source.Id, ct);
@@ -340,7 +341,7 @@ public class DocumentSetHandlers(
             .ToHashSet();
     }
 
-    public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         // Охрана записи (issue #957) — ДО сброса в черновик: отказ, который «почти сохранил»
@@ -355,7 +356,7 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public async Task<DomainObject> Handle(UpdatePluginDataCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(UpdatePluginDataCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft();
@@ -366,10 +367,10 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public Task<DomainObject?> Handle(GetDocumentInstanceQuery q, CancellationToken ct)
-        => objRepo.GetByIdAsync(q.Id, ct);
+    public ValueTask<DomainObject?> Handle(GetDocumentInstanceQuery q, CancellationToken ct)
+        => new ValueTask<DomainObject?>(objRepo.GetByIdAsync(q.Id, ct));
 
-    public async Task<DomainObject> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         DocumentTemplateRefs.CheckId(cmd.TemplateId, await TypeTemplatesAsync(obj, ct));
@@ -381,7 +382,7 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public async Task<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var ids = DocumentTemplateRefs.CheckedIds(cmd.TemplateIds, obj.TemplateIds, await TypeTemplatesAsync(obj, ct));
@@ -393,7 +394,7 @@ public class DocumentSetHandlers(
         return obj;
     }
 
-    public async Task<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
+    public async ValueTask<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var overrides = DocumentTemplateRefs.CheckedParams(cmd.Params, obj.TemplateParams, await TypeTemplatesAsync(obj, ct));

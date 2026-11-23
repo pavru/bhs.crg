@@ -10,11 +10,13 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Правка записи общих данных называет версию, по которой собрана (issue #1214).
@@ -49,7 +51,7 @@ public class RecordVersionTests(IntegrationTestFixture fixture) : IAsyncLifetime
         (await M(s).Send(new GetCommonDataEntryQuery(id)))!);
 
     private Task<DomainObject> UpdateAsync(Guid id, string name, string seen) => InScopeAsync(s =>
-        M(s).Send(new UpdateCommonDataEntryCommand(id, name, J("{'Адрес':'Тверь'}"), TestAccess.All, seen)));
+        M(s).Send(new UpdateCommonDataEntryCommand(id, name, J("{'Адрес':'Тверь'}"), TestAccess.All, seen)).AsTask());
 
     private static Task<HttpResponseMessage> PutAsync(HttpClient client, Guid id, string name, string? seen)
     {

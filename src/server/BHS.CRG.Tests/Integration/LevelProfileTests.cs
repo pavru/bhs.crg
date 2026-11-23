@@ -4,10 +4,12 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>Профиль уровня (issue #258): амбиентный инжект data.уровень.* + ленивое создание объекта.</summary>
 [Collection("Integration")]
@@ -121,7 +123,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var scope = fixture.Services.CreateScope();
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
         var ex = await Assert.ThrowsAsync<ConflictException>(
-            () => m.Send(new DeleteDocumentTypeCommand(profType)));
+            () => m.Send(new DeleteDocumentTypeCommand(profType)).AsTask());
         Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -136,7 +138,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var profileId = list.First(o => o.CompositeTypeId == profType).Id;
 
         var ex = await Assert.ThrowsAsync<ConflictException>(
-            () => m.Send(new DeleteCommonDataEntryCommand(profileId)));
+            () => m.Send(new DeleteCommonDataEntryCommand(profileId)).AsTask());
         Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

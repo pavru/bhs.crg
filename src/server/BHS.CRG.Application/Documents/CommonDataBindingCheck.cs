@@ -6,7 +6,7 @@ using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -36,7 +36,7 @@ public class CheckCommonDataBindingsHandler(
     IRepository<DocumentType> docTypeRepo,
     IDataSetResolver dataSetResolver) : IRequestHandler<CheckCommonDataBindingsQuery, BindingCheckResult>
 {
-    public async Task<BindingCheckResult> Handle(CheckCommonDataBindingsQuery q, CancellationToken ct)
+    public async ValueTask<BindingCheckResult> Handle(CheckCommonDataBindingsQuery q, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();
 

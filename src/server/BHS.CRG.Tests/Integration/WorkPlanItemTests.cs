@@ -5,11 +5,13 @@ using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Перечень работ стройки: таблица, ключ и правила CORE-11 (ТЗ CORE-10, CORE-11, CORE-13, issue #964).
@@ -145,7 +147,7 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var scope = fixture.Services.CreateScope();
         var refusal = await Assert.ThrowsAsync<RecordHeldException>(() => new WorkPlanItemHandlers(
                 scope.ServiceProvider.GetRequiredService<IRepository<WorkPlanItem>>(), referrer)
-            .Handle(new DeleteWorkPlanItemCommand(item.Id), default));
+            .Handle(new DeleteWorkPlanItemCommand(item.Id), default).AsTask());
 
         Assert.Contains("позиции смет: 3", refusal.Message);
         // Спросили ровно про эту позицию, а не «про всё вообще».
@@ -230,13 +232,13 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
         var refusal = await Assert.ThrowsAsync<ConflictException>(
-            () => mediator.Send(new DeleteCommonDataEntryCommand(workType)));
+            () => mediator.Send(new DeleteCommonDataEntryCommand(workType)).AsTask());
         Assert.Contains("перечень работ, позиций: 1", refusal.Message);
 
         // Единица измерения — тот же случай: без неё позиция означала бы «сколько-то чего-то».
         Assert.Contains("перечень работ",
             (await Assert.ThrowsAsync<ConflictException>(
-                () => mediator.Send(new DeleteCommonDataEntryCommand(unit)))).Message);
+                () => mediator.Send(new DeleteCommonDataEntryCommand(unit)).AsTask())).Message);
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────
@@ -367,7 +369,7 @@ public class WorkPlanItemTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var s = fixture.Services.CreateScope();
         var refusal = await Assert.ThrowsAsync<ConflictException>(
             () => s.ServiceProvider.GetRequiredService<IMediator>()
-                .Send(new DeleteConstructionCommand(construction)));
+                .Send(new DeleteConstructionCommand(construction)).AsTask());
         Assert.Contains("перечень работ ДРУГИХ строек", refusal.Message);
         Assert.Contains("позиций: 1", refusal.Message);
         _ = section;

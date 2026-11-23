@@ -1,6 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Catalog;
 

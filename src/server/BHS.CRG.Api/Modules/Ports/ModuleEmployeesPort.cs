@@ -5,7 +5,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using RecordsFor = BHS.CRG.Application.Documents.RecordsFor;
 

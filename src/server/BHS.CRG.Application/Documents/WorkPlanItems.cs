@@ -1,7 +1,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -20,7 +20,7 @@ public sealed class WorkPlanItemHandlers(
     IRepository<WorkPlanItem> repo, IRecordHolders holders)
     : IRequestHandler<DeleteWorkPlanItemCommand>
 {
-    public async Task Handle(DeleteWorkPlanItemCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteWorkPlanItemCommand cmd, CancellationToken ct)
     {
         var item = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
 
@@ -31,5 +31,6 @@ public sealed class WorkPlanItemHandlers(
 
         repo.Remove(item);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 }

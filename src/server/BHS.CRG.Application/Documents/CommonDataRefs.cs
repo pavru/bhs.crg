@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 

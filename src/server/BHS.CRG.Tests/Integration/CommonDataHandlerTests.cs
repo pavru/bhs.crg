@@ -4,10 +4,12 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 [Collection("Integration")]
 public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -185,7 +187,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
 
         using (var scope = fixture.Services.CreateScope())
             await Assert.ThrowsAsync<ConflictException>(
-                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId)));
+                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId)).AsTask());
 
         using (var scope = fixture.Services.CreateScope())
             await Mediator(scope).Send(new DeleteCommonDataEntryCommand(childId));
@@ -219,7 +221,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
 
         using (var scope = fixture.Services.CreateScope())
             await Assert.ThrowsAsync<ConflictException>(
-                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(targetId)));
+                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(targetId)).AsTask());
 
         // Удаляем ссылающегося — цель освобождается.
         using (var scope = fixture.Services.CreateScope())

@@ -3,7 +3,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Modules.Ports;
-using MediatR;
+using Mediator;
 using RecordsFor = BHS.CRG.Application.Documents.RecordsFor;
 
 namespace BHS.CRG.Api.Modules.Ports;

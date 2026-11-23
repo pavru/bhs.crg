@@ -69,7 +69,7 @@ public class InvoiceOrganizationShortNameTests(InvoiceLineHost host) : InvoiceLi
         }
 
         using var write = host.Services.CreateScope();
-        var mediator = write.ServiceProvider.GetRequiredService<MediatR.IMediator>();
+        var mediator = write.ServiceProvider.GetRequiredService<Mediator.IMediator>();
         var created = await mediator.Send(new BHS.CRG.Application.Documents.CreateCommonDataEntryCommand(full, typeId,
             JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, string> { [ShortKey] = shortName })),
             BHS.CRG.Domain.Catalog.CatalogScope.System, null));

@@ -1,9 +1,11 @@
 using System.Text.Json;
 using BHS.CRG.Application.Catalog;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 [Collection("Integration")]
 public class CatalogHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -82,7 +84,7 @@ public class CatalogHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var scope = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<NotFoundException>(() =>
             Mediator(scope).Send(
-                new UpdateCatalogEntityCommand(Guid.NewGuid(), "X", Json("{}"))));
+                new UpdateCatalogEntityCommand(Guid.NewGuid(), "X", Json("{}"))).AsTask());
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

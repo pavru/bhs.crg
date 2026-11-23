@@ -4,7 +4,7 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
 

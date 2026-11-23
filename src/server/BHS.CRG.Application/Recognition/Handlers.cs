@@ -1,6 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Recognition;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Recognition;
 
@@ -24,21 +24,21 @@ public class RecognitionProfileHandlers(
     IRequestHandler<ResetRecognitionProfileCommand, RecognitionProfileDto>,
     IRequestHandler<DeleteRecognitionProfileCommand>
 {
-    public async Task<IReadOnlyList<RecognitionProfileDto>> Handle(ListRecognitionProfilesQuery _, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<RecognitionProfileDto>> Handle(ListRecognitionProfilesQuery _, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         return [.. all.Where(catalog.IsAvailable)
             .OrderByDescending(p => p.IsBuiltIn).ThenBy(p => p.Name).Select(ToDto)];
     }
 
-    public Task<IReadOnlyList<RecognitionKindInfo>> Handle(ListRecognitionKindsQuery _, CancellationToken ct)
-        => Task.FromResult(provider.ListKinds());
+    public ValueTask<IReadOnlyList<RecognitionKindInfo>> Handle(ListRecognitionKindsQuery _, CancellationToken ct)
+        => new ValueTask<IReadOnlyList<RecognitionKindInfo>>(Task.FromResult(provider.ListKinds()));
 
     /// <summary>
     /// Дополнение общего списка: то, что он отсеял. Вместе они дают все строки базы — профиль не может
     /// выпасть из обоих и стать невидимым совсем.
     /// </summary>
-    public async Task<IReadOnlyList<HiddenRecognitionProfileDto>> Handle(
+    public async ValueTask<IReadOnlyList<HiddenRecognitionProfileDto>> Handle(
         ListHiddenRecognitionProfilesQuery _, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
@@ -51,7 +51,7 @@ public class RecognitionProfileHandlers(
                 provider.DescribeKind(x.Profile.Kind).Label, x.Owner?.Code, x.Owner?.Title))];
     }
 
-    public async Task<RecognitionProfileDto> Handle(CreateRecognitionProfileCommand cmd, CancellationToken ct)
+    public async ValueTask<RecognitionProfileDto> Handle(CreateRecognitionProfileCommand cmd, CancellationToken ct)
     {
         if (!Enum.TryParse<RecognitionProfileKind>(cmd.Kind, out var kind))
             throw new InvalidRequestException($"Неизвестный вид профиля «{cmd.Kind}».");
@@ -70,7 +70,7 @@ public class RecognitionProfileHandlers(
         return ToDto(profile);
     }
 
-    public async Task<RecognitionProfileDto> Handle(UpdateRecognitionProfileCommand cmd, CancellationToken ct)
+    public async ValueTask<RecognitionProfileDto> Handle(UpdateRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
@@ -87,7 +87,7 @@ public class RecognitionProfileHandlers(
         return ToDto(profile);
     }
 
-    public async Task<RecognitionProfileDto> Handle(ResetRecognitionProfileCommand cmd, CancellationToken ct)
+    public async ValueTask<RecognitionProfileDto> Handle(ResetRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
@@ -106,7 +106,7 @@ public class RecognitionProfileHandlers(
         return ToDto(restored);
     }
 
-    public async Task Handle(DeleteRecognitionProfileCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
@@ -117,6 +117,7 @@ public class RecognitionProfileHandlers(
                 "Используйте «Сбросить к заводским».");
         repo.Remove(profile);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
     private static void Validate(

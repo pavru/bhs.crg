@@ -3,10 +3,12 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Имя документа качества уникально в своей области (issue #588).
@@ -37,7 +39,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
 
     private Task<QualityDocument> CreateAsync(Guid typeId, string name, CatalogScope scope, Guid? scopeId)
         => InScopeAsync(m => m.Send(new CreateQualityDocumentCommand(
-            typeId, name, JsonDocument.Parse("{}"), scope, scopeId, QualityDocSource.Manual, null, null, null)));
+            typeId, name, JsonDocument.Parse("{}"), scope, scopeId, QualityDocSource.Manual, null, null, null)).AsTask());
 
     [Fact]
     public async Task SameNameInSameScope_IsRejected()
@@ -84,7 +86,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         var doc = await CreateAsync(typeId, name, CatalogScope.System, null);
 
         var updated = await InScopeAsync(m => m.Send(new UpdateQualityDocumentCommand(
-            doc.Id, typeId, name, JsonDocument.Parse("""{"Продукция":"Выключатели"}"""))));
+            doc.Id, typeId, name, JsonDocument.Parse("""{"Продукция":"Выключатели"}"""))).AsTask());
 
         Assert.Equal(name, updated.DisplayName);
     }
@@ -113,7 +115,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         }
 
         var updated = await InScopeAsync(m => m.Send(new UpdateQualityDocumentCommand(
-            second.Id, typeId, name, JsonDocument.Parse("""{"Продукция":"Выключатели AV-6"}"""))));
+            second.Id, typeId, name, JsonDocument.Parse("""{"Продукция":"Выключатели AV-6"}"""))).AsTask());
 
         Assert.Equal(name, updated.DisplayName);
         Assert.NotEqual(first.Id, updated.Id);
@@ -129,6 +131,6 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         var doc = await CreateAsync(typeId, second, CatalogScope.System, null);
 
         await Assert.ThrowsAsync<ConflictException>(() => InScopeAsync(
-            m => m.Send(new UpdateQualityDocumentCommand(doc.Id, typeId, first, JsonDocument.Parse("{}")))));
+            m => m.Send(new UpdateQualityDocumentCommand(doc.Id, typeId, first, JsonDocument.Parse("{}"))).AsTask()));
     }
 }

@@ -4,7 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -131,7 +131,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     /// </summary>
     private static readonly HashSet<string> TargetedKinds = new(StringComparer.Ordinal) { "complex" };
 
-    public async Task<DocumentType?> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
+    public async ValueTask<DocumentType?> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
         Validate(spec, tags);

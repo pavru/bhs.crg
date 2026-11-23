@@ -1,10 +1,10 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Reconciliation;
 
@@ -45,7 +45,7 @@ public class ObservationHandlers(
     IRequestHandler<RetractObservationCommand, AgentObservation?>,
     IRequestHandler<DeleteObservationCommand>
 {
-    public async Task<IReadOnlyList<AgentObservation>> Handle(ListObservationsQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<AgentObservation>> Handle(ListObservationsQuery q, CancellationToken ct)
     {
         var items = await repo.FindAsync(o =>
             (!q.Scope.HasValue || o.Scope == q.Scope.Value) &&
@@ -62,7 +62,7 @@ public class ObservationHandlers(
             .ThenBy(o => o.Id)];
     }
 
-    public async Task<AgentObservation> Handle(ReportObservationCommand cmd, CancellationToken ct)
+    public async ValueTask<AgentObservation> Handle(ReportObservationCommand cmd, CancellationToken ct)
     {
         var existing = await FindByKeyAsync(cmd.Scope, cmd.ScopeId, cmd.Key, ct);
 
@@ -93,7 +93,7 @@ public class ObservationHandlers(
         return observation;
     }
 
-    public async Task<AgentObservation> Handle(ReviewObservationCommand cmd, CancellationToken ct)
+    public async ValueTask<AgentObservation> Handle(ReviewObservationCommand cmd, CancellationToken ct)
     {
         var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         observation.Review(cmd.Status, cmd.Note, cmd.ReviewedBy);
@@ -102,7 +102,7 @@ public class ObservationHandlers(
         return observation;
     }
 
-    public async Task<AgentObservation?> Handle(RetractObservationCommand cmd, CancellationToken ct)
+    public async ValueTask<AgentObservation?> Handle(RetractObservationCommand cmd, CancellationToken ct)
     {
         var observation = await FindByKeyAsync(cmd.Scope, cmd.ScopeId, cmd.Key, ct);
         if (observation is null) return null; // отзывать нечего — не ошибка, состояние уже такое
@@ -113,11 +113,12 @@ public class ObservationHandlers(
         return observation;
     }
 
-    public async Task Handle(DeleteObservationCommand cmd, CancellationToken ct)
+    public async ValueTask<Unit> Handle(DeleteObservationCommand cmd, CancellationToken ct)
     {
         var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(observation);
         await repo.SaveChangesAsync(ct);
+        return Unit.Value;
     }
 
     /// <summary>

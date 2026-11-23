@@ -9,10 +9,12 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Каскад доменов instance-ссылки (issue #733): не найдя цель среди документов комплекта, резолвер
@@ -60,7 +62,7 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
         string? scanBlobPath = null, string? scanFileName = null, string? scanMimeType = null)
         => M(scope).Send(new CreateQualityDocumentCommand(
             typeId, name, J(requisites), scope_, scopeId, QualityDocSource.Manual,
-            scanBlobPath, scanFileName, scanMimeType));
+            scanBlobPath, scanFileName, scanMimeType)).AsTask();
 
     /// <summary>Документ комплекта, чьи реквизиты несут instance-ссылку на <paramref name="targetId"/>.</summary>
     private async Task<Guid> DocRefencingAsync(Seed seed, Guid targetId)

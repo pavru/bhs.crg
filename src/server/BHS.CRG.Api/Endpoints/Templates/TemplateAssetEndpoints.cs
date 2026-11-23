@@ -1,10 +1,10 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Templates;
-using MediatR;
+using Mediator;
 
 using BHS.CRG.Api.Endpoints.Common;
 

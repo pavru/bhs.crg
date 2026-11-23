@@ -1,6 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -45,7 +45,7 @@ public sealed record EmployeeDirectoryOutcome(Guid? TypeId, bool Created, string
 public sealed class CreateEmployeeDirectoryHandler(IRepository<DocumentType> types, IMediator mediator)
     : IRequestHandler<CreateEmployeeDirectoryCommand, EmployeeDirectoryOutcome>
 {
-    public async Task<EmployeeDirectoryOutcome> Handle(CreateEmployeeDirectoryCommand cmd, CancellationToken ct)
+    public async ValueTask<EmployeeDirectoryOutcome> Handle(CreateEmployeeDirectoryCommand cmd, CancellationToken ct)
     {
         var all = await types.GetAllAsync(ct);
         if (Find(all, CoreRecordTypes.EmployeeCode) is { } existing)

@@ -1,10 +1,12 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Tests.Generation;
+
+// AsTask: callbacks и проверки исключений требуют Task; ValueTask потребляется один раз.
 
 /// <summary>
 /// Просмотрщик собранных блоков (issue #770): отдаёт те же файлы, что уходят в Typst, и — с #772 —
@@ -30,7 +32,7 @@ public class GetTypeBlocksHandlerTests
             $$"""{"typstRenders":[{"name":"осн","fnName":{{JsonSerializer.Serialize(fn)}},"block":{{JsonSerializer.Serialize(block)}}}]}"""), TypeOwner.Core, TypeVisibility.Shared);
 
     private static Task<TypeBlocksView> Handle(params DocumentType[] types) =>
-        new GetTypeBlocksHandler(new FakeTypeRepo(types)).Handle(new GetTypeBlocksQuery(), default);
+        new GetTypeBlocksHandler(new FakeTypeRepo(types)).Handle(new GetTypeBlocksQuery(), default).AsTask();
 
     [Fact]
     public async Task Returns_EntrypointAndModule_WithBlockCount()

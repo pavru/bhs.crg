@@ -2,7 +2,7 @@ using System.Security.Claims;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.Persistence;
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

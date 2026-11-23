@@ -88,7 +88,7 @@ public partial class ArchiveReadInventoryTests
         @"\.DomainObjects\b" + NotWrite + @"|Set<DomainObject>\(\)" + NotWrite + @"|\bdomain_objects\b",
         RegexOptions.Compiled);
 
-    /// <summary>Запросы MediatR, отдающие записи общих данных.</summary>
+    /// <summary>Запросы Mediator, отдающие записи общих данных.</summary>
     private static readonly Regex Query = new(
         "new (?:ListCommonDataEntriesQuery|ResolveCommonDataForSetQuery|ResolveCommonDataForScopeQuery|" +
         @"SearchCommonDataForChoiceQuery|CommonDataRefsByIdsQuery|GetCommonDataEntryQuery)\(",

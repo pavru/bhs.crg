@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.QualityDocs;
 
@@ -26,7 +26,7 @@ public class SuggestLinksHandler(
 {
     private const double Threshold = 0.6;
 
-    public async Task<IReadOnlyList<LinkSuggestion>> Handle(SuggestLinksQuery q, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<LinkSuggestion>> Handle(SuggestLinksQuery q, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(q.SetId, ct);
         if (set is null) return [];

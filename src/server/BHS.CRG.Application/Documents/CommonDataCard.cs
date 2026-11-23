@@ -5,7 +5,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
-using MediatR;
+using Mediator;
 
 namespace BHS.CRG.Application.Documents;
 
@@ -89,7 +89,7 @@ public sealed class CommonDataCardHandler(
 {
     private const string BaseRef = "_baseRef";
 
-    public async Task<CommonDataCard?> Handle(CommonDataCardQuery q, CancellationToken ct)
+    public async ValueTask<CommonDataCard?> Handle(CommonDataCardQuery q, CancellationToken ct)
     {
         // Вид — до чтения данных: запись чужого вида или документ не читаются вовсе.
         if ((await objects.RefsAmongAsync([q.Id], ct)).FirstOrDefault() is not { } head

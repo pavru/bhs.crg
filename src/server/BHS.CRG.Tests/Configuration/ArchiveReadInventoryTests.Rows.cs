@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Tests.Integration;
+using BHS.CRG.Tests.Integration;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -137,7 +137,7 @@ public partial class ArchiveReadInventoryTests
             Seen("удаление записи по идентификатору, обычное и принудительное (issue #1187): архивную удалять можно"),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var relevant = await repo.FindAsync(e => e.Facet == null &&"] =
             ByPurpose("списки комплекта и цепочки уровней: отбор по назначению запроса", nameof(ArchiveReadPurposeTests.Список_комплекта_скрывает_архив_в_выборе_и_показывает_в_показе), nameof(ArchiveReadPurposeTests.Список_цепочки_уровней_скрывает_архив_в_выборе_и_показывает_в_показе)).X(2),
-        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|=> objRepo.GetByIdAsync(q.Id, ct);"] =
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|=> new ValueTask<DomainObject?>(objRepo.GetByIdAsync(q.Id, ct));"] =
             Documents("документ по идентификатору"),
         ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|return await objRepo.GetDocumentsInSetsAsync(setIds, ct);"] =
             Documents("документы комплекта"),
