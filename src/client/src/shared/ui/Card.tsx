@@ -120,7 +120,7 @@ export function Card(props: CardProps) {
   // Цель кликабельной карточки — поверх всей карточки; фокус рисует карточка, слой нажатия — сама цель.
   const target = 'absolute inset-0 rounded-md state-layer cursor-pointer focus:outline-none';
   const head = !!(title || icon);
-  const body = flush ? 'flex flex-col' : `flex flex-col gap-3 px-4 pb-4 text-body-medium text-on-surface-variant ${head ? '' : 'pt-4'}`;
+  const body = flush ? 'flex flex-col' : 'flex flex-col gap-3 px-4 pt-4 pb-4 text-body-medium text-on-surface-variant';
   return (
     <div className={look} data-testid={testId} data-dragging={dragged || undefined} {...drag}>
       {head && (

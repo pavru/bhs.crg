@@ -10,8 +10,10 @@
 // оплате» обязательных нет ([COST-9]). Этот случай — в `invoiceParts.test.ts`; здесь раскрывают метка со скана и
 // отгрузка раньше даты счёта.
 
+import assert from 'node:assert/strict';
 import { invoiceOpened } from './invoice-save.mjs';
 import { clickAt } from './harness.mjs';
+import { checkFieldSpacing } from './section-field-spacing-checks.mjs';
 
 /** Размеры из задачи 1.2 change: ноутбук и 125 % на 1280. */
 const SIZES = [[1366, 768], [1024, 768]];
@@ -42,6 +44,62 @@ async function shownOpen(page, h, id, why) {
     throw new Error(`«Сроки и оплата» открыта свёрнутой, хотя ${why}`);
 }
 
+async function invoicePartSpacing(page) {
+  for (const [title, role, name] of [
+    ['Кто и сколько', 'combobox', /^Поставщик/],
+    [TERMS, 'group', 'Дата отгрузки'],
+    ['Ещё', 'textbox', 'Основание'],
+  ]) {
+    const part = page.getByRole('region', { name: title, exact: true });
+    const header = part.getByRole('heading', { name: title, exact: true }).locator('..');
+    const toggle = header.getByRole('button', { name: new RegExp(`^(Свернуть|Развернуть) «${title}»$`) });
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    const field = part.getByRole(role, { name });
+    await field.waitFor();
+    await checkFieldSpacing(header, field);
+    await toggle.click();
+    assert.ok(await toggle.evaluate(button => {
+      const body = document.getElementById(button.getAttribute('aria-controls'));
+      return button.getAttribute('aria-expanded') === 'false' && body?.hidden && !body.getClientRects().length;
+    }), `свёрнутое тело «${title}» занимает место или потеряло связь с шапкой`);
+  }
+}
+
+async function useTermsUnderWrappedHeader(page, part, pay) {
+  const toggle = expanded => part.getByRole('button', { name: `${expanded ? 'Свернуть' : 'Развернуть'} «${TERMS}»` });
+  const header = part.getByRole('heading', { name: TERMS, exact: true }).locator('..');
+  const date = part.getByRole('group', { name: 'Дата отгрузки', exact: true });
+  await date.evaluate(element => element.scrollIntoView({ block: 'center' }));
+  const label = await checkFieldSpacing(header, date);
+  await page.mouse.click(label.left + label.width / 2, label.top + label.height / 4);
+  assert.equal(await toggle(true).count(), 1, 'щелчок по верхней половине подписи свернул часть');
+
+  await pay.focus();
+  await page.keyboard.press('Tab');
+  const day = date.getByRole('textbox', { name: 'день', exact: true });
+  assert.ok(await day.evaluate(element => element === document.activeElement), 'Tab не перевёл фокус в дату');
+  await checkFieldSpacing(header, date);
+  await page.keyboard.press('0');
+  await page.keyboard.press('5');
+  assert.equal(await day.inputValue(), '05', 'ввод дня не дошёл до поля');
+  assert.equal(await toggle(true).count(), 1, 'ввод даты свернул часть');
+
+  await date.getByRole('button', { name: 'Открыть календарь' }).click();
+  const calendar = page.getByRole('grid', { name: 'Календарь', exact: true });
+  await calendar.waitFor();
+  assert.equal(await toggle(true).count(), 1, 'календарь свернул часть');
+  await page.keyboard.press('Escape');
+  await calendar.waitFor({ state: 'hidden' });
+
+  const deferral = part.getByRole('textbox', { name: 'Отсрочка, дней', exact: true });
+  await deferral.fill('12');
+  await toggle(true).click();
+  await deferral.waitFor({ state: 'hidden' });
+  await toggle(false).click();
+  assert.equal(await deferral.inputValue(), '12', 'свёртка потеряла правку');
+  await checkFieldSpacing(header, date);
+}
+
 export async function invoiceTermsCollapseChecks(page, check, h) {
   const was = page.viewportSize();
   const made = {};
@@ -61,6 +119,11 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
       })).id;
     });
     if (!made.early) return;
+
+    await check('первое поле трёх частей счёта ниже шапки; скрытое тело не занимает места', async () => {
+      await openAsIs(page, h, made.plain);
+      await invoicePartSpacing(page);
+    });
 
     for (const [width, height] of SIZES) {
       await check(`«Сроки и оплата» ${width}×${height}: срок не определён — свёрнута строкой, «Внести оплату…» в шапке`, async () => {
@@ -105,7 +168,7 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
       // сужается — форме остаётся не меньше 720, — поэтому часть сужают руками: проверяется, кому достаётся
       // щелчок, когда строка действий лежит над растянутой целью шапки. Сужается сама часть — её `@container`, —
       // а не обёртки карточки: прогон не зависит от того, как `Card` устроен внутри.
-      await check(`«Сроки и оплата» ${width}×${height}: в узкой части щелчок мимо действий переключает часть, по действию — нет`, async () => {
+      await check(`«Сроки и оплата» ${width}×${height}: шапка 400 px, её действия и поля работают раздельно`, async () => {
         await page.setViewportSize({ width, height });
         await openAsIs(page, h, made.plain);
         const part = page.getByRole('region', { name: TERMS, exact: true });
@@ -133,6 +196,7 @@ export async function invoiceTermsCollapseChecks(page, check, h) {
         await h.named('окно оплаты не закрылось', () => payment.waitFor({ state: 'hidden', timeout: 5_000 }));
         if (!await part.getByRole('button', { name: `Свернуть «${TERMS}»` }).count())
           throw new Error('кнопка оплаты в узкой части переключила часть');
+        await useTermsUnderWrappedHeader(page, part, pay);
       });
 
       await check(`«Сроки и оплата» ${width}×${height}: метка со скана и отгрузка раньше счёта — часть раскрыта`, async () => {

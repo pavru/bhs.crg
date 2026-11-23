@@ -16,7 +16,7 @@ import { clickAt, expandInvoiceParts, takePanels, setPanels, underRoute, unroute
 import { invoiceStatusChecks } from './invoice-status-checks.mjs';
 import { invoiceScanMarkChecks } from './invoice-scan-mark-checks.mjs';
 import { invoiceListScrollChecks } from './invoice-list-scroll-checks.mjs';
-import { statusOpen } from './invoice-status.mjs';
+import { inStatusSheet, statusOpen } from './invoice-status.mjs';
 import { saveState, untilSaveState } from './invoice-save.mjs';
 
 /** Размеры из D10 зонтика: ноутбук, ноутбук с панелями браузера, браузер не на весь экран, 125 % на 1280. */
@@ -112,15 +112,21 @@ export async function invoiceScreenLayoutChecks(page, check, h) {
 
         // Перенесённые из 3.4 (PR 1): пять полей первого этапа — в окне на 1366×650, таблица строк без
         // прокрутки вбок на 1366×768.
-        if (width === 1366 && height === 650)
+        if (width === 1366 && height === 650) {
+          const who = page.getByRole('region', { name: 'Кто и сколько', exact: true });
           for (const name of FIRST_STAGE) {
             // У поля с меткой «со скана» подпись с припиской для диктора ([UI-88], 11 D-11.4): она в `<label>` отдельным
             // блоком `sr-only`, и в тексте подписи пробела перед ней нет — имя то же, хвост свой.
             const label = new RegExp(`^${name}\\s?(\\(со скана, не проверено\\))?$`);
-            const field = await box(page.getByLabel(label).first(), `поля «${name}»`);
+            const field = await box(who.getByLabel(label).first(), `поля «${name}»`);
             if (field.y < head.y + head.height - 1 || field.y + field.height > height + 1)
               throw new Error(`поле «${name}» первого этапа вне окна на 1366×650`);
           }
+          await inStatusSheet(page, async sheet => {
+            await sheet.getByTestId('status-item-recognition-failed').waitFor();
+            await sheet.getByTestId(`status-item-duplicate:${invoice.twinId}`).waitFor();
+          });
+        }
         if (width === 1366 && height === 768) {
           await expandInvoiceParts(page);
           const sideways = await page.getByRole('table', { name: 'Строки счёта' }).evaluate(table => {

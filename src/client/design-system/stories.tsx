@@ -51,6 +51,41 @@ add('Chip','Selected=false, State=Assist',{icon:glyphs.Add,onClick:noop},'Доб
 for(const tone of ['neutral','primary','success','warning','error','quiet'])add('StatusText',`Tone=${tone}`,{tone},'На проверке');
 for(const tone of ['info','success','warning','error'])for(const actions of [false,true])add('Banner',`Tone=${tone}, Actions=${actions}`,{tone,actions:actions?[{label:'Повторить',onClick:noop}]:[]},'Результат обработки документов',500);
 for(const variant of ['outlined','filled','elevated'])for(const state of ['Static','Interactive','Hover','Focus','Dragged','DropTarget','Invalid'])add('Card',`Variant=${variant}, State=${state}`,{variant,title:'Документы стройки',onClick:state==='Static'?undefined:noop,dragged:state==='Dragged',dropTarget:state==='DropTarget',invalid:state==='Invalid'},'Комплект исполнительной документации',360,state);
+
+const cardDate = () => el('DateField', { label: 'Дата документа', value: '', onChange: noop });
+const cardText = (props: StoryProps = {}) => el('TextField', {
+  label: 'Наименование', value: '', onChange: noop, ...props,
+});
+const cardSelect = () => el('Select', {
+  label: 'Тип документа', value: 'act', onValueChange: noop,
+}, [el('SelectItem', { value: 'act' }, 'Акт'), el('SelectItem', { value: 'log' }, 'Журнал')]);
+const formTitle = 'Реквизиты документа';
+for (const variant of ['outlined', 'filled', 'elevated']) {
+  add('Card', `Variant=${variant}, Composition=DateFirst`, { variant, title: formTitle },
+    [cardDate(), cardText(), cardSelect()], 480);
+}
+add('Card', 'Variant=outlined, Composition=TextFirst', { title: formTitle }, [cardText(), cardDate()], 480);
+add('Card', 'Variant=outlined, Composition=SelectFirst', { title: formTitle }, [cardSelect(), cardText()], 480);
+add('Card', 'Variant=outlined, Composition=TextBeforeFields', { title: formTitle }, [
+  el('p', {}, 'Реквизиты попадут в заголовок документа.'),
+  cardDate(),
+], 480);
+add('Card', 'Variant=outlined, Composition=FieldFeedback', { title: formTitle }, [
+  cardText({ label: 'Номер', value: 'А-', error: 'Допишите номер документа' }),
+  cardText({ hint: 'Наименование появится в реестре' }),
+  cardText({ label: 'Код', value: 'ACT', readOnly: true }),
+  cardText({ label: 'Краткое имя', value: 'Акт', density: 'dense' }),
+], 480);
+add('Card', 'Variant=outlined, Composition=ReadOnlyFirst', { title: formTitle }, [
+  cardText({ label: 'Код', value: 'ACT', readOnly: true }), cardDate(),
+], 480);
+add('Card', 'Variant=outlined, Composition=WithoutHeader', {}, cardDate(), 480);
+add('Card', 'Variant=outlined, Composition=WithoutBody', { title: formTitle }, undefined, 480);
+add('Card', 'Variant=outlined, Composition=FlushForm', { flush: true }, [
+  el('h3', { className: 'flex items-center min-h-14 px-4 text-title-medium' }, formTitle),
+  el('div', { className: 'p-4' }, cardDate()),
+], 480);
+
 for(const count of [undefined,1,99,125])add('Badge',`Count=${count??'Dot'}`,{count});
 for(const onContainer of [false,true,'secondary'])for(const disabled of [false,true])add('CountText',`Container=${onContainer}, Disabled=${disabled}`,{onContainer,disabled},'24');
 for(const state of ['Default','Selected','Hover','Focus','Disabled','TwoLine','WithIcon']){
