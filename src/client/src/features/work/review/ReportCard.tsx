@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY, useReviewCard, type ReviewFullCard } from '@/shared/api/workReview';
 import { formatDate, formatDateTime, formatDayTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -10,6 +10,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { Icon } from '@/shared/ui/Icon';
 import { Assignment, MoreVert } from '@/shared/ui/icons';
 import { Menu, MenuItem } from '@/shared/ui/Menu';
+import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
@@ -32,7 +33,7 @@ export function ReportCard() {
   const number = selected === null ? undefined : Number(selected);
   const card = useReviewCard(id, number);
   const data = card.data;
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const back = new URLSearchParams(params);
   back.delete('number');

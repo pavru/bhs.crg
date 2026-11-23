@@ -131,6 +131,10 @@ export function useReviewCard(id: string, number: number | undefined) {
     queryFn: ({ signal }) => apiClient.get<ReviewCardData>(`/work/review/reports/${encodeURIComponent(id)}`,
       { params: { number }, signal }).then(response => response.data),
     retry: (count, error) => (error as { response?: { status?: number } })?.response?.status !== 404 && count < 2,
+    refetchInterval: ({ state }) => {
+      const status = (state.error as { response?: { status?: number } } | null)?.response?.status;
+      return state.data?.status === 'draft' && status !== 403 && status !== 404 ? 15_000 : false;
+    },
   });
 }
 

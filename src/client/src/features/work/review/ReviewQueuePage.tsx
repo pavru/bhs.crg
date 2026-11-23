@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useCan } from '@/shared/api/access';
 import { useConstructionDirectory } from '@/shared/api/constructions';
@@ -32,6 +32,7 @@ const emptyTitle: Record<ReviewEmptyReason, string> = {
 
 type Option = { id: string; name: string };
 const filterKeys = ['constructionId', 'employeeId', 'from', 'to', 'mark'] as const;
+let queueScroll: { search: string; top: number } | undefined;
 
 function namedOptions(directory: Option[], ids: Array<string | undefined>, fallback: string) {
   const names = new Map(directory.map(item => [item.id, item.name]));
@@ -106,6 +107,9 @@ export function ReviewQueuePage() {
   const query = useReviewQueue({ ...filters, offset, limit: REVIEW_QUEUE_LIMIT });
   const data = query.data;
   const loading = query.isPending || query.isPlaceholderData;
+  const scroller = useRef<HTMLDivElement>(null);
+  const restoreScroll = useRef(true);
+  const search = params.toString();
   const allSites = data?.boundary.code === 'all' && permission('core.constructions.read');
   const needsOwnSites = !!data && !allSites && data.boundary.sites !== 0;
   const useCoreEmployees = !!data && !data.employees && permission('core.employees.read');
@@ -124,6 +128,12 @@ export function ReviewQueuePage() {
   const directoryFailed = (allSites && siteDirectory.isError) || (needsOwnSites && ownSites.isError)
     || (useCoreEmployees && employeeDirectory.isError);
 
+  useLayoutEffect(() => {
+    if (loading || !restoreScroll.current || !scroller.current) return;
+    restoreScroll.current = false;
+    if (queueScroll?.search === search) scroller.current.scrollTop = queueScroll.top;
+  }, [loading, search]);
+
   // DateRange может поправить границы в том же событии, в котором меняется соседний отбор.
   function update(changes: Partial<Record<(typeof filterKeys)[number] | 'offset', string>>) {
     const next = new URLSearchParams(written.current);
@@ -138,7 +148,8 @@ export function ReviewQueuePage() {
   const resetButton = <Button variant="text" onClick={reset}>Сбросить отбор</Button>;
   const gridIcon = <Icon icon={Assignment} size={24} />;
 
-  return <div className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4">
+  return <div ref={scroller} className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4"
+    onScroll={event => { if (!loading) queueScroll = { search, top: event.currentTarget.scrollTop }; }}>
     <PageHeader title="Приёмка" subtitle={data?.boundary.text}
       badge={!!data?.total && <CountText>Ждут решения · {formatCount(data.total)}</CountText>} />
     <div className="flex flex-wrap items-end gap-3">
@@ -169,7 +180,7 @@ export function ReviewQueuePage() {
       {data?.reason && !loading && <EmptyState icon={gridIcon} title={emptyTitle[data.reason]}
         action={data.reason === 'filtered-out' && <Button variant="filled" onClick={reset}>Сбросить отбор</Button>} />}
       {data && !data.reason && (data.items.length > 0 ? <>
-        <QueueGrid data={data} sites={sites} employees={employees} search={params.size ? `?${params}` : ''} />
+        <QueueGrid data={data} sites={sites} employees={employees} search={search ? `?${search}` : ''} />
         <QueuePager data={data} loading={loading} onChange={next => update({ offset: next ? String(next) : '' })} />
       </> : !loading && <EmptyState icon={gridIcon} title="На этой странице нет отчётов"
         action={<Button variant="tonal" onClick={() => update({ offset: '' })}>К началу очереди</Button>} />)}

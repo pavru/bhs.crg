@@ -31,7 +31,7 @@ export function ReportLines({ card }: { card: ReviewFullCard }) {
       </span>
       {line.comment && <span className="block whitespace-pre-wrap text-body-small">{line.comment}</span>}
     </> },
-    { key: 'volume', label: 'Объём', align: 'right', cell: line => `${formatNumber(line.volume)} ${card.units[line.unitId] ?? ''}`.trim() },
+    { key: 'volume', label: 'Объём', align: 'right', cell: line => `${formatNumber(line.volume, 4)} ${card.units[line.unitId] ?? ''}`.trim() },
     { key: 'photos', label: 'Фото', wrap: true, interactive: true, cell: line => {
       const stored = line.photos.filter(photo => photo.state === 'stored');
       const pending = line.photos.length - stored.length;

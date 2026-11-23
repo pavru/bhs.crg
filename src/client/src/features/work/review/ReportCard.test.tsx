@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
 import type { ReviewCardData, ReviewFullCard } from '@/shared/api/workReview';
+import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { ReportCard } from './ReportCard';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
@@ -35,13 +36,16 @@ beforeEach(() => {
     data: path.endsWith('/journal') ? { items: [] } : read(config?.params?.number),
   }));
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 function mount(search = '') {
   const queryClient = new QueryClient();
   render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={[`/work-review/r1${search}`]}>
-      <Routes><Route path="work-review/:reportId" element={<ReportCard />} /></Routes>
+      <NavigationGuardProvider><Routes>
+        <Route path="work-review/:reportId" element={<ReportCard />} />
+        <Route path="work-review" element={<h1>Очередь</h1>} />
+      </Routes></NavigationGuardProvider>
     </MemoryRouter>
   </QueryClientProvider>);
 }
@@ -58,12 +62,30 @@ it('показывает один текст для 404', async () => {
 });
 
 it('оставляет карточку с пустыми actions для чтения, с работами и недогруженным фото', async () => {
-  read = () => ({ ...card, actions: [] });
+  read = () => ({ ...card, actions: [], report: { ...card.report, lines: [{ ...card.report.lines[0], volume: 0.0001 }] } });
   mount();
   expect(await screen.findByText('Прокладка кабеля')).toBeTruthy();
   expect(screen.getByText('фото не загружены: 1')).toBeTruthy();
+  expect(screen.getByText('0,0001 м')).toBeTruthy();
   expect(screen.getByText(/☾ ночь.*8 ч/)).toBeTruthy();
   for (const name of ['Принять', 'Вернуть', 'Действия отчёта']) expect(screen.queryByRole('button', { name })).toBeNull();
+});
+
+it('перечитывает открытый черновик после автоподачи и останавливает опрос после подачи', async () => {
+  vi.useFakeTimers();
+  read = () => ({ id: card.id, employeeName: card.employeeName, constructionName: card.constructionName,
+    actions: [], timeZoneId: card.timeZoneId, status: 'draft', autoSubmitAt: '2026-11-22T14:00:00Z' });
+  mount();
+  await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+  expect(screen.getByText('Черновик')).toBeTruthy();
+  read = () => card;
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_020); });
+  expect(screen.getByText('Прокладка кабеля')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Принять' })).toBeTruthy();
+  const cardRequests = () => vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === '/work/review/reports/r1').length;
+  expect(cardRequests()).toBe(2);
+  await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+  expect(cardRequests()).toBe(2);
 });
 
 it('показывает время автоподачи черновика по часам стройки и не запрашивает журнал', async () => {
@@ -119,6 +141,24 @@ it('правит объём с версией чтения и сохраняет
     changeId: expect.any(String), lines: [expect.objectContaining({ id: 'l1', volume: 15, details: { cond: 'Наружная' } })],
   }), { headers: { 'If-Match': 'v1' } });
   expect(vi.mocked(apiClient.put).mock.calls[0][1]).toMatchObject({ lines: [expect.not.objectContaining({ photos: expect.anything() })] });
+});
+
+it('перед уходом с правками даёт остаться, затем уйти без сохранения', async () => {
+  mount('?constructionId=s1');
+  fireEvent.keyDown(await screen.findByRole('button', { name: 'Действия отчёта' }), { key: 'Enter' });
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Править строки' }));
+  const location = screen.getByRole<HTMLInputElement>('textbox', { name: 'Место строки 1' });
+  fireEvent.change(location, { target: { value: 'На втором этаже' } });
+  const back = screen.getByRole('button', { name: 'К очереди приёмки' });
+  fireEvent.click(back);
+  let dialog = within(await screen.findByRole('dialog', { name: 'Несохранённые изменения' }));
+  fireEvent.click(dialog.getByRole('button', { name: 'Отмена' }));
+  expect(location.value).toBe('На втором этаже');
+  fireEvent.click(back);
+  dialog = within(await screen.findByRole('dialog', { name: 'Несохранённые изменения' }));
+  fireEvent.click(dialog.getByRole('button', { name: 'Не сохранять' }));
+  expect(await screen.findByRole('heading', { name: 'Очередь' })).toBeTruthy();
+  expect(apiClient.put).not.toHaveBeenCalled();
 });
 
 it.each([[undefined, 'Версия 3 · действующая'], [1, 'Версия 1 · на момент закрытия'], [2, 'Версия 2']])(

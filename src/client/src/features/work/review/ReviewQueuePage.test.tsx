@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { apiClient } from '@/shared/api/client';
 import type { ReviewQueuePage as QueueData, ReviewQueueRow } from '@/shared/api/work';
 import type { ReviewQueueRequest } from '@/shared/api/workReview';
@@ -28,10 +28,18 @@ function page(override: Partial<QueueData> = {}): QueueData {
   };
 }
 
+function TestCard() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>Вернуться в очередь</button>;
+}
+
 function mount(search = '') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={queryClient}>
-    <MemoryRouter initialEntries={[`/work-review${search}`]}><ReviewQueuePage /></MemoryRouter>
+    <MemoryRouter initialEntries={[`/work-review${search}`]}><Routes>
+      <Route path="work-review" element={<ReviewQueuePage />} />
+      <Route path="work-review/:reportId" element={<TestCard />} />
+    </Routes></MemoryRouter>
   </QueryClientProvider>);
 }
 
@@ -63,6 +71,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('очередь приёмки', () => {
+  it('при возврате из карточки восстанавливает прокрутку очереди с прежним отбором', async () => {
+    const { container } = mount('?constructionId=site-1&offset=50');
+    const report = await screen.findByRole('link', { name: /Открыть отчёт/ });
+    const before = container.firstElementChild as HTMLDivElement;
+    before.scrollTop = 624;
+    fireEvent.scroll(before);
+    fireEvent.click(report);
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуться в очередь' }));
+    expect(await screen.findByRole('link', { name: /Открыть отчёт/ })).toBeTruthy();
+    expect(container.firstElementChild).not.toBe(before);
+    expect(container.firstElementChild?.scrollTop).toBe(624);
+    expect(queueCalls().at(-1)).toMatchObject({ constructionId: 'site-1', offset: 50 });
+  });
+
   it('показывает границу, ночную смену и текст пометки из ответа, нулевой чип скрыт', async () => {
     mount();
     expect(await screen.findByText('отчёты ваших строек (2)')).toBeTruthy();
