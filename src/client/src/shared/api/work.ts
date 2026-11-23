@@ -174,6 +174,7 @@ export interface WorkLinePhoto {
   id: string;
   state: WorkPhotoState;
   canDeliver?: boolean;
+  originalName?: string;
 }
 
 /**
@@ -182,6 +183,7 @@ export interface WorkLinePhoto {
  */
 export interface WorkLinePhotoRef {
   id: string;
+  originalName?: string;
 }
 
 /**

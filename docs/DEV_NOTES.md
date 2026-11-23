@@ -6714,8 +6714,10 @@ POST   /api/work/reports/{id}/return        { comment, changeId?, deviceTime? } 
                                     закрытия. Состав отчёта и его версия при доставке сохраняются.
 GET    /api/work/photos/limits             → { count, megabytes, maxBytes, countText, sizeText } из
                                     настроек Work. Открыт для work.report.own или work.report.review.
-                                    Действующий отчёт у фото в состоянии pending даёт canDeliver,
-                                    в том числе при закрытом периоде. Исторический снимок неизменен.
+                                    Имя исходного файла originalName передаётся при объявлении фото
+                                    вместе с id и возвращается для досылки. Действующий отчёт у фото
+                                    в состоянии pending даёт canDeliver, в том числе при закрытом
+                                    периоде. Исторический снимок неизменен.
 POST   /api/work/reports/{id}/correction   { reason, constructionId, date, shift?, hours?, note?,
                                     lines } + If-Match → отчёт. Для закрытого дня стройки,
                                     work.report.review в охвате менеджера. Правка хранит прежнее

@@ -192,6 +192,11 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("line_id");
 
+                    b.Property<string>("OriginalName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("original_name");
+
                     b.Property<string>("PreviewBlobPath")
                         .HasColumnType("text")
                         .HasColumnName("preview_blob_path");

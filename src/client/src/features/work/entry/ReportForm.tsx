@@ -184,7 +184,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
         ? await updateWorkReport(mode, saved, input, changeId(JSON.stringify([saved.version, input])))
         : await createWorkReport(mode, newId, mode === 'entry' ? employee?.id ?? null : null, first?.input ?? input);
       const fresh = contentsOf(row);
-      const replay = first ? rebaseContents(first.contents, contents, fresh) : undefined;
+      const replay = first ? rebaseContents(first.contents, contents, fresh, reportLocked(row)) : undefined;
       const nextContents = replay?.contents ?? fresh;
       const serverHeader = headerOf(row);
       const mergedHeader = first ? rebaseHeader(first.header, header, serverHeader) : serverHeader;
@@ -225,7 +225,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     const next = headerOf(row);
     const mergedHeader = rebaseHeader(baseline, header, next);
     const keyLocked = reportKeyLocked(row);
-    const rebased = rebaseContents(savedContents, contents, contentsOf(row));
+    const rebased = rebaseContents(savedContents, contents, contentsOf(row), reportLocked(row));
     await accept(row, keyLocked ? next : mergedHeader, rebased.contents);
     setHeaderRestored(keyLocked && (!!incomplete || !sameContent(mergedHeader, next)));
     if (keyLocked) setIncomplete(null);
@@ -263,9 +263,11 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
   }
 
   return <div className="h-full min-w-0 space-y-4 overflow-auto px-4 py-4 md:px-6">
-    <LeaveGuard active={dirty || !!busy || pendingFiles} save={locked || pendingFiles ? undefined : () => save(false)} saving={!!busy}
+    <LeaveGuard active={dirty || !!busy || pendingFiles} save={!locked && dirty ? () => save(false) : undefined} saving={!!busy}
       saveBlocked={formProblem ?? (failure?.stale ? 'Сначала перечитайте отчёт.' : undefined)}
-      message={pendingFiles ? 'Часть файлов ещё не доставлена. Если уйти, их придётся выбрать заново.'
+      message={pendingFiles && dirty
+        ? 'Сохранение запишет правки и список фото. Недоставленные файлы можно будет выбрать заново. При уходе без сохранения правки и новые объявления фото будут потеряны.'
+        : pendingFiles ? 'Часть файлов ещё не доставлена. Если уйти, их придётся выбрать заново.'
         : 'Сохранить изменения отчёта перед уходом?'} />
     <PageHeader title={saved ? `${formatDatePrecise(saved.date)} · ${reportShifts[saved.shift]}` : 'Новый отчёт'}
       subtitle={mode === 'entry' ? `Вводит ${saved?.enteredBy?.name ?? user?.displayName ?? 'менеджер'} за сотрудника: ${saved?.employeeName ?? employee?.name ?? ''}`

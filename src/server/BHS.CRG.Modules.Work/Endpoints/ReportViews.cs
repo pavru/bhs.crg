@@ -13,6 +13,8 @@ public sealed record ReportMaterialDto(Guid NomenclatureId, string? Note);
 /// </summary>
 public sealed record ReportPhotoDto(Guid Id, string State)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginalName { get; init; }
     // Только ответ с действующим состоянием периода даёт разрешение на досылку.
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? CanDeliver { get; init; }
@@ -177,6 +179,7 @@ public sealed class ReportViews(
             [.. l.Participants.Select(p => p.EmployeeId)],
             [.. l.Photos.OrderBy(p => p.DeclaredAt).ThenBy(p => p.Id).Select(p => new ReportPhotoDto(p.Id, LinePhoto.StateCode(p.State))
             {
+                OriginalName = p.OriginalName,
                 CanDeliver = p.State == LinePhotoState.Pending ? canDeliver?.Invoke(p) : null,
             })],
             l.CrewRole);

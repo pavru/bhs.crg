@@ -56,6 +56,7 @@ async function submitWhilePhotosUpload(page, path) {
       const pending = await callApiOk(page, 'GET', path);
       assert.equal(pending.photosPending, 2);
       assert.equal(pending.status, 'submitted');
+      assert.deepEqual(pending.lines.flatMap(line => line.photos.map(photo => photo.originalName)).sort(), [...names].sort());
       assert.equal(await page.getByText('Загружается', { exact: true }).count(), 2);
 
       release.resolve();

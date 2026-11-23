@@ -27,6 +27,40 @@ public class PhotoUploadTests(AssignmentHost host) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
+    public async Task При_повторном_открытии_имена_файлов_остаются_у_своих_идентификаторов()
+    {
+        var (_, installer) = await world.Reports.InstallerAsync("Монтажник");
+        var (report, line, arrived, waiting, legacy) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var created = await installer.PostAsJsonAsync(ReportEndpoints.Path, new
+        {
+            id = report, constructionId = world.Reports.SiteA, date = ReportWorld.Day16, shift = "day", hours = 8,
+            lines = new[] { new
+            {
+                id = line, workTypeId = world.Reports.WorkType, unitId = world.Reports.Unit, volume = 1m,
+                photos = new object[]
+                {
+                    new { id = arrived, originalName = "крепёж.jpg" },
+                    new { id = waiting, originalName = @"C:\фото\трасса.jpg" },
+                    new { id = legacy },
+                },
+            } },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var declared = await ReportWorld.JsonAsync(created);
+        Assert.Equal(HttpStatusCode.OK,
+            (await PhotoWorld.UploadAsync(installer, report, line, arrived, PhotoWorld.Shot())).StatusCode);
+        var read = await installer.GetFromJsonAsync<JsonElement>($"{ReportEndpoints.Path}/{report}");
+        Assert.Equal(ReviewWorld.Version(declared), ReviewWorld.Version(read));
+        var photos = read.GetProperty("lines")[0].GetProperty("photos").EnumerateArray()
+            .ToDictionary(photo => photo.GetProperty("id").GetGuid());
+        Assert.Equal("stored", photos[arrived].GetProperty("state").GetString());
+        Assert.Equal("крепёж.jpg", photos[arrived].GetProperty("originalName").GetString());
+        Assert.Equal("pending", photos[waiting].GetProperty("state").GetString());
+        Assert.Equal("трасса.jpg", photos[waiting].GetProperty("originalName").GetString());
+        Assert.False(photos[legacy].TryGetProperty("originalName", out _));
+    }
+
+    [Fact]
     public async Task Пределы_ввода_читаются_из_текущих_настроек_Work()
     {
         var (_, installer) = await world.Reports.InstallerAsync("Монтажник");

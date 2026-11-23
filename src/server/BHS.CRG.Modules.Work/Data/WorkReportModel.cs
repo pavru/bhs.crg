@@ -113,6 +113,7 @@ internal static class WorkReportModel
         // Фото строки (work-17): путь файла — колонкой, её объявляет WorkModule.Files (копия и вес копии).
         var photo = builder.Entity<LinePhoto>();
         photo.ToTable("line_photos");
+        photo.Property(p => p.OriginalName).HasColumnName("original_name").HasMaxLength(LinePhoto.OriginalNameLimit);
         photo.HasKey(p => p.Id);
         photo.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
         photo.Property(p => p.LineId).HasColumnName("line_id");

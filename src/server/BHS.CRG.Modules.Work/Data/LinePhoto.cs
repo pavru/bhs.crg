@@ -31,6 +31,8 @@ public enum LinePhotoState
 /// </summary>
 public sealed class LinePhoto : IIsolatedRecord
 {
+    public const int OriginalNameLimit = 255;
+
     private LinePhoto() { }
 
     /// <summary>Идентификатор — от клиента (ТЗ MOB-15).</summary>
@@ -39,6 +41,9 @@ public sealed class LinePhoto : IIsolatedRecord
     public Guid LineId { get; private set; }
 
     public LinePhotoState State { get; private set; }
+
+    /// <summary>Имя исходного файла, объявленное при сохранении строки. Подсказка для досылки.</summary>
+    public string? OriginalName { get; private set; }
 
     /// <summary>Путь сжатого снимка в хранилище модуля; у ждущего — <c>null</c>.</summary>
     public string? BlobPath { get; private set; }
@@ -81,11 +86,11 @@ public sealed class LinePhoto : IIsolatedRecord
     public long? StoredSeq { get; private set; }
 
     /// <summary>Фото, названное строкой при сохранении, — ждёт файла.</summary>
-    public static LinePhoto Declared(Guid id, Guid lineId, DateTimeOffset now, Guid? closingId = null) =>
+    public static LinePhoto Declared(Guid id, Guid lineId, DateTimeOffset now, Guid? closingId = null, string? originalName = null) =>
         new()
         {
             Id = id, LineId = lineId, State = LinePhotoState.Pending, DeclaredAt = Stamp(now),
-            DeclaredInClosingId = closingId ?? Guid.Empty,
+            DeclaredInClosingId = closingId ?? Guid.Empty, OriginalName = originalName,
         };
 
     /// <summary>Фото, файл которого пришёл, а строка его не называла (правка, ТЗ WORK-11).</summary>

@@ -31,7 +31,7 @@ export function LinePhotos({ lineId, photos, declared, controls, add }: {
   const { transfers, queue } = uploads;
   const limits = useWorkPhotoLimits(!locked || declared.some(photo => photo.canDeliver));
   const [notice, setNotice] = useState<string[]>([]);
-  const [gallery, setGallery] = useState<number | null>(null);
+  const [gallery, setGallery] = useState<{ photos: WorkLinePhoto[]; index: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const replacement = useRef<string | null>(null);
   const stored = photos.filter(photo => photo.state === 'stored' || transfers[photo.id]?.state === 'stored');
@@ -56,7 +56,7 @@ export function LinePhotos({ lineId, photos, declared, controls, add }: {
     setNotice([...invalid.map(file => `${file.name}: ${sizeText}`), ...(good.length > free ? [countText] : [])]);
     if (items.length === 0) return;
     queue(items);
-    if (!id) add(items.map(item => ({ id: item.id, state: 'pending' })));
+    if (!id) add(items.map(({ id, file }) => ({ id, originalName: file.name, state: 'pending' })));
   }
 
   return <section aria-label="Фото строки" className="mt-4 space-y-2">
@@ -86,11 +86,12 @@ export function LinePhotos({ lineId, photos, declared, controls, add }: {
         const transfer = transfers[photo.id];
         const saved = byId.get(photo.id);
         const ready = photo.state === 'stored' || transfer?.state === 'stored';
-        const name = transfer?.name ?? `Фото ${index + 1}`;
+        const name = transfer?.name ?? photo.originalName ?? `Фото ${index + 1}`;
         const canSend = !disabled && saved?.canDeliver && !ready && transfer?.state !== 'uploading' && transfer?.state !== 'waiting';
         const retryFile = transfer?.state === 'error' ? transfer.file : undefined;
         return <li key={photo.id} className="flex max-w-64 flex-col items-start gap-1 rounded-md border border-outline-variant p-2">
-          {ready ? <Button variant="text" aria-label={`Открыть фото: ${name}`} onClick={() => setGallery(stored.indexOf(photo))}>
+          {ready ? <Button variant="text" aria-label={`Открыть фото: ${name}`}
+            onClick={() => setGallery({ photos: stored, index: stored.indexOf(photo) })}>
             <ReportPhotoFile photo={photo} preview label="" />
           </Button> : transfer?.state === 'error' ? <div role="alert" className="text-body-small text-error">{transfer.message}</div>
             : <div role="status"><StatusText tone="neutral">{transfer?.state === 'uploading' ? 'Загружается'
@@ -109,8 +110,8 @@ export function LinePhotos({ lineId, photos, declared, controls, add }: {
         </li>;
       })}
     </ul>
-    {gallery !== null && stored.length > 0 && <PhotoGallery fullScreen title="Фото строки" count={stored.length} initialIndex={gallery}
-      onClose={() => setGallery(null)} renderPhoto={index => <ReportPhotoFile key={stored[index].id} photo={stored[index]}
+    {gallery && <PhotoGallery fullScreen title="Фото строки" count={gallery.photos.length} initialIndex={gallery.index}
+      onClose={() => setGallery(null)} renderPhoto={index => <ReportPhotoFile key={gallery.photos[index].id} photo={gallery.photos[index]}
         preview={false} label={`Фото ${index + 1}`} />} />}
   </section>;
 }

@@ -35,3 +35,17 @@ it('keeps the crew flag when another author added a participant while it was bei
   expect(result.contents.lines[0]).toMatchObject({ isCrew: true, participants: ['remote'] });
   expect(result.conflicts).toEqual([expect.stringContaining('признак бригады')]);
 });
+
+it('keeps late server photo states and names while replaying a local removal by ID', () => {
+  const base: DraftLine = { ...line, photos: [{ id: 'removed', state: 'pending' }, { id: 'kept', state: 'pending' }] };
+  const local = { ...base, photos: [base.photos[1]] };
+  const fresh: DraftLine = { ...base, photos: [
+    { id: 'removed', state: 'pending', canDeliver: true },
+    { id: 'kept', state: 'stored', originalName: 'Снимок.jpg' },
+    { id: 'remote', state: 'pending' },
+  ] };
+  expect(rebaseContents(contents(base), contents(local), contents(fresh)).contents.lines[0].photos).toEqual(fresh.photos.slice(1));
+  const locked = rebaseContents(contents(base), contents(local), contents(fresh), true);
+  expect(locked.contents.lines[0].photos).toEqual(fresh.photos);
+  expect(locked.conflicts).toHaveLength(1);
+});

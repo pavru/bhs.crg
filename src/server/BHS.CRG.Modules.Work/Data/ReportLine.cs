@@ -75,14 +75,15 @@ public sealed class ReportLine : IIsolatedRecord
     /// <c>null</c> — перечень не прислан, фото не трогаются: правка без знания о фото их не теряет. Возвращает снятые —
     /// их файлы удаляются после фиксации, ссылка уходит первой.
     /// </summary>
-    public IReadOnlyList<LinePhoto> ApplyPhotos(IReadOnlyList<Guid>? named, DateTimeOffset now, Guid? closingId = null)
+    public IReadOnlyList<LinePhoto> ApplyPhotos(IReadOnlyList<ReportPhotoValues>? named, DateTimeOffset now, Guid? closingId = null)
     {
         if (named is null) return [];
-        var keep = named.ToHashSet();
+        var keep = named.Select(p => p.Id).ToHashSet();
         var removed = Photos.Where(p => !keep.Contains(p.Id)).ToList();
         Photos.RemoveAll(p => !keep.Contains(p.Id));
         var have = Photos.Select(p => p.Id).ToHashSet();
-        Photos.AddRange(named.Distinct().Where(id => !have.Contains(id)).Select(id => LinePhoto.Declared(id, Id, now, closingId)));
+        Photos.AddRange(named.Where(p => !have.Contains(p.Id))
+            .Select(p => LinePhoto.Declared(p.Id, Id, now, closingId, p.OriginalName)));
         return removed;
     }
 
@@ -138,11 +139,13 @@ public sealed class ReportLine : IIsolatedRecord
 /// <summary>Материал строки во входе: ссылка на номенклатуру обязательна, текст — только в примечании (ТЗ WORK-50).</summary>
 public sealed record ReportMaterialValues(Guid? NomenclatureId, string? Note);
 
+public sealed record ReportPhotoValues(Guid Id, string? OriginalName);
+
 /// <summary>Значения строки, разобранные из запроса, — то, что проверяют правила и что принимает строка.</summary>
 public sealed record ReportLineValues(
     Guid Id, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, string? Details,
-    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<Guid>? Photos = null,
+    IReadOnlyList<ReportMaterialValues> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<ReportPhotoValues>? Photos = null,
     string? CrewRole = null)
 {
     /// <summary>Ключ позиции перечня строки на стройке.</summary>
