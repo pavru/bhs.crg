@@ -2,10 +2,21 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { apiClient } from './client';
 import type { DocumentType, Template, TemplateSummary } from './types';
 
+export interface TemplateType extends DocumentType {
+  printRequisites?: {
+    fields: { path: string[]; title: string; type: string }[];
+    customFieldsKey?: string | null;
+    excludedCustomKeys?: string[] | null;
+    excludedRootCustomKeys?: string[] | null;
+  } | null;
+}
+
 export function useTemplateTypes() {
   return useQuery({
     queryKey: ['template-types'],
-    queryFn: () => apiClient.get<DocumentType[]>('/templates/types').then(r => r.data),
+    staleTime: 0,
+    queryFn: () => apiClient.get<{ type: DocumentType; printRequisites?: TemplateType['printRequisites'] }[]>('/templates/types')
+      .then(r => r.data.map(({ type, printRequisites }): TemplateType => ({ ...type, printRequisites }))),
   });
 }
 

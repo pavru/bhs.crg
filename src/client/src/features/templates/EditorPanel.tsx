@@ -14,12 +14,11 @@ import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
 import type { Template, TemplateSummary, DocumentType } from '@/shared/api/types';
-import { resolveEffectiveFields } from '@/shared/api/schema';
-import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault, useTemplateContent } from '@/shared/api/templates';
+import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault, useTemplateContent, type TemplateType } from '@/shared/api/templates';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
-import { flattenFields } from './templateBlank';
+import { requisiteSnippet, templateRequisites } from './templateBlank';
 import type { NewVersionPlan } from './groupTemplates';
 import type * as monacoEditor from 'monaco-editor';
 import { apiError, isConflict } from '@/shared/utils/apiError';
@@ -30,11 +29,10 @@ import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/
 // ─── Requisite picker ─────────────────────────────────────────────────────────
 
 function RequisitePicker({ docType, allDocTypes, onInsert }: {
-  docType: DocumentType; allDocTypes: DocumentType[];
+  docType: TemplateType; allDocTypes: DocumentType[];
   onInsert: (snippet: string) => void;
 }) {
-  const topFields = resolveEffectiveFields(docType, allDocTypes);
-  const fields = flattenFields(topFields, allDocTypes);
+  const fields = templateRequisites(docType, allDocTypes);
   // Вставка — после закрытия меню: фокус в редактор ставит она, а не Radix на кнопку ([UI-51]).
   const chosen = useRef<string | null>(null);
 
@@ -49,12 +47,12 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
         </button>
       }
       onCloseAutoFocus={e => {
-        const path = chosen.current;
+        const snippet = chosen.current;
         // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам (подсказку на нём гасит `Menu`).
-        if (path == null) return;
+        if (snippet == null) return;
         chosen.current = null;
         e.preventDefault();
-        onInsert(`#get("${path}")`);
+        onInsert(snippet);
       }}>
       <MenuLabel>Реквизиты · {docType.name}</MenuLabel>
       <MenuSeparator />
@@ -67,9 +65,9 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
         );
         // Составное поле — заголовок группы: выбрать его нечего, стрелки его перешагивают.
         return f.type === 'complex'
-          ? <MenuLabel key={f.path} style={pad}>{path} {f.title}</MenuLabel>
-          : <MenuItem key={f.path} style={pad} description={f.title} trailing={f.type}
-              onSelect={() => { chosen.current = f.path; }}>{path}</MenuItem>;
+          ? <MenuLabel key={JSON.stringify(f.segments)} style={pad}>{path} {f.title}</MenuLabel>
+          : <MenuItem key={JSON.stringify(f.segments)} style={pad} description={f.title} trailing={f.type}
+              onSelect={() => { chosen.current = requisiteSnippet(docType, f); }}>{path}</MenuItem>;
       })}
     </Menu>
   );
@@ -129,7 +127,7 @@ function NewVersionDialog({ plan, saving, error, onCancel, onConfirm }: {
 
 interface EditorPanelProps {
   template: TemplateSummary;
-  docType: DocumentType;
+  docType: TemplateType;
   allDocTypes: DocumentType[];
   onSaved: (updated: Template) => void;
   /**

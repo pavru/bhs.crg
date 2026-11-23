@@ -28,18 +28,19 @@
 
 ## 2. PR 2: форма КП
 
-- [ ] 2.1 `Modules.Plan/Printing/OfferPrintContext.cs`: шапка, стройка, заказчик, строки с ценой продажи,
+- [x] 2.1 `Modules.Plan/Printing/OfferPrintContext.cs`: шапка, стройка, заказчик, строки с ценой продажи,
   итог, НДС по режиму КП (решение В-9), номер и дата версии; без себестоимости и наценки [PLAN-14]
   [PLAN-11]. Проверка — `OfferPrintTests`: у держателя `plan.estimate.cost` в контексте нет `cost` и `markup`
-- [ ] 2.2 Объявить форму КП в `PlanModule.PrintForms` (право `plan.offer.read`); ядро заводит её шаблон
+- [x] 2.2 Объявить форму КП в `PlanModule.PrintForms` (право `plan.offer.read`); ядро заводит её шаблон
   по умолчанию после проекции типов, если у типа шаблона нет [PLAN-14]. Проверка — `PlanOnlyHostTests`: КП печатается без
-  `id` (генератор подменён, проверяется контекст)
-- [ ] 2.3 `docs/USER_GUIDE.md`: печать КП и где правится шаблон; `npm run toc`. Проверка — проверка
+  `id` (генератор подменён, проверяется контекст); `OfferPrintTests`: сохранённый шаблон компилируется
+  после вставки `money.total` и поля из `conditions`
+- [x] 2.3 `docs/USER_GUIDE.md`: печать КП и где правится шаблон; `npm run toc`. Проверка — проверка
   содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecordPrint|FullyQualifiedName~ModulePrintForm|FullyQualifiedName~OfferPrint|FullyQualifiedName~Generat|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~PlanOnlyHost"` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RecordPrint|FullyQualifiedName~ModulePrintForm|FullyQualifiedName~OfferPrint|FullyQualifiedName~Generat|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~PlanOnlyHost"` — зелёный
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useEffect, useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { DocumentType, TemplateSummary } from '@/shared/api/types';
+import type { TemplateType } from '@/shared/api/templates';
 import type { NewVersionPlan } from './groupTemplates';
 
 /**
@@ -150,6 +151,50 @@ describe('EditorPanel: «Реквизит»', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     expect(executeEdits).toHaveBeenCalledWith('insert-requisite', [expect.objectContaining({ text: '#get("object.name")' })]);
     expect(document.activeElement).toBe(screen.getByTestId('editor'));
+  });
+
+  it('для формы КП меню вставляет пути из печатного контекста', async () => {
+    const offerType: TemplateType = {
+      ...docType, name: 'Коммерческое предложение',
+      schema: { fields: [
+        { key: 'Итого', title: 'Системный итог', type: 'number' },
+        { key: 'Наценка', title: 'Наценка', type: 'number' },
+        { key: 'Примечание', title: 'Примечание', type: 'string' },
+        { key: 'ГрафикОплаты', title: 'График оплаты', type: 'complex', typeId: 'schedule' },
+        { key: 'Получатель', title: 'Получатель', type: 'complex', typeId: 'recipient' },
+      ] },
+      printRequisites: {
+        fields: [{ path: ['money', 'total'], title: 'Итого к оплате', type: 'number' }],
+        customFieldsKey: 'conditions', excludedCustomKeys: ['Наценка'], excludedRootCustomKeys: ['Итого'],
+      },
+    };
+    const schedule = { ...docType, id: 'schedule', schema: { fields: [
+      { key: 'Итого', title: 'Итого по графику', type: 'number' },
+      { key: 'Наценка', title: 'Наценка', type: 'number' },
+    ] } };
+    const recipient = { ...docType, id: 'recipient', schema: { fields: [
+      { key: 'Название', title: 'Название получателя', type: 'string' },
+    ] } };
+    render(<EditorPanel template={template(true)} docType={offerType} allDocTypes={[offerType, schedule, recipient]} onSaved={vi.fn()} versionPlan={NO_RETIRE} />);
+    await openPicker();
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map(item => item.querySelector('code')?.textContent)).toEqual([
+      'money.total', 'conditions.Примечание', 'conditions.ГрафикОплаты.Итого', 'conditions.Получатель.Название',
+    ]);
+    await act(async () => { fireEvent.keyDown(items[0], { key: 'Enter' }); }); await act(tick);
+    expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
+      text: '#{ import "systemlib.typ": print-field; print-field(("money", "total",)) }',
+    })]);
+    await openPicker();
+    await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[1], { key: 'Enter' }); }); await act(tick);
+    expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
+      text: '#{ import "systemlib.typ": print-field; print-field(("conditions", "Примечание",)) }',
+    })]);
+    await openPicker();
+    await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[2], { key: 'Enter' }); }); await act(tick);
+    expect(executeEdits).toHaveBeenLastCalledWith('insert-requisite', [expect.objectContaining({
+      text: '#{ import "systemlib.typ": print-field; print-field(("conditions", "ГрафикОплаты", "Итого",)) }',
+    })]);
   });
 
   it('Esc закрывает меню без вставки, фокус — на «Реквизит», и его подсказка не открывается сама', async () => {

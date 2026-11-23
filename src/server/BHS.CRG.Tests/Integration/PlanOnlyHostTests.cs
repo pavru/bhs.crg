@@ -2,12 +2,16 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Tests.Plan;
 using BHS.CRG.Tests.Support;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -91,6 +95,29 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var response = await host.CreateClient().GetAsync("/api/plan/estimates");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Offer_template_can_be_opened_and_saved_without_id()
+    {
+        await EstimateSeed.ClassifierAsync(host);
+        var editor = await GrantedSignIn.WithPermissionsAsync(host, CorePermissions.PrintEdit);
+        var types = await editor.GetFromJsonAsync<JsonElement>("/api/templates/types");
+        var option = Assert.Single(types.EnumerateArray());
+        var type = option.GetProperty("type");
+        Assert.Equal(PlanRecordTypes.OfferCode, type.GetProperty("code").GetString());
+        var requisites = option.GetProperty("printRequisites");
+        Assert.Equal("conditions", requisites.GetProperty("customFieldsKey").GetString());
+        Assert.Contains(requisites.GetProperty("fields").EnumerateArray(),
+            field => field.GetProperty("path").EnumerateArray().Select(p => p.GetString()).SequenceEqual(["money", "total"]));
+        var typeId = type.GetProperty("id").GetGuid();
+        var active = await editor.GetFromJsonAsync<JsonElement>($"/api/templates/active?documentTypeId={typeId}");
+        Assert.True(active.GetProperty("isDefault").GetBoolean());
+        var templateId = active.GetProperty("id").GetGuid();
+        var sourceUrl = $"/api/templates/{templateId}/content";
+        var content = (await editor.GetFromJsonAsync<JsonElement>(sourceUrl)).GetProperty("content").GetString();
+        Assert.Contains("Коммерческое предложение", content);
+        (await editor.PutAsJsonAsync(sourceUrl, new { content })).EnsureSuccessStatusCode();
     }
 
     /// <summary>
@@ -267,4 +294,26 @@ public sealed class PlanOnlyHost : ModuleOnlyHost
     protected override string DatabaseSuffix => "plan";
 
     protected override IReadOnlyList<string> SchemasDroppedBeforeStart => [PlanDbContext.SchemaName];
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureServices(services => services.AddSingleton<IDocumentGeneratorFactory, PlanOnlyPrintStub>());
+    }
+}
+
+internal sealed class PlanOnlyPrintStub : IDocumentGeneratorFactory, IDocumentGenerator
+{
+    internal GenerationRequest? LastRequest { get; private set; }
+
+    public IDocumentGenerator Create(OutputFormat format) => this;
+
+    public Task<byte[]> GenerateAsync(GenerationRequest request, CancellationToken ct = default)
+    {
+        LastRequest = request;
+        return Task.FromResult("%PDF"u8.ToArray());
+    }
+
+    public Task<byte[]> DebugBundleAsync(GenerationRequest request, BundleNotes notes, CancellationToken ct = default) =>
+        throw new NotSupportedException("Эта подмена проверяет запрос к генератору PDF.");
 }

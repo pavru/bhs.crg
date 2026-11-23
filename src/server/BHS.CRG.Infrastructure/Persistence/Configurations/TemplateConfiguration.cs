@@ -6,6 +6,8 @@ namespace BHS.CRG.Infrastructure.Persistence.Configurations;
 
 public class TemplateConfiguration : IEntityTypeConfiguration<Template>
 {
+    internal const string PrimaryKey = "PK_templates";
+
     /// <summary>У шаблона — типа и названия — не больше одной действующей версии (D3).</summary>
     public const string OneActiveIndex = "UX_templates_one_active";
 
@@ -15,7 +17,7 @@ public class TemplateConfiguration : IEntityTypeConfiguration<Template>
     public void Configure(EntityTypeBuilder<Template> b)
     {
         b.ToTable("templates");
-        b.HasKey(e => e.Id);
+        b.HasKey(e => e.Id).HasName(PrimaryKey);
         b.Property(e => e.Name).HasMaxLength(Template.NameMaxLength).IsRequired();
         b.Property(e => e.Content).IsRequired();
         b.Property(e => e.Parameters).HasColumnType("jsonb");

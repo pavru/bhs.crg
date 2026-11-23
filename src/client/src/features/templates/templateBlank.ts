@@ -1,32 +1,59 @@
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import type { DocumentType } from '@/shared/api/types';
-interface FlatField { path: string; title: string; type: string; depth: number; }
+import type { TemplateType } from '@/shared/api/templates';
+interface FlatField { path: string; segments: string[]; title: string; type: string; depth: number; }
 
-export function flattenFields(
+function flattenFields(
   fields: ReturnType<typeof resolveEffectiveFields>,
   allDocTypes: DocumentType[],
-  prefix = '',
+  prefix: string[] = [],
   depth = 0,
   visited = new Set<string>(),
 ): FlatField[] {
   const result: FlatField[] = [];
   for (const f of fields) {
-    const path = prefix ? `${prefix}.${f.key}` : f.key;
-    result.push({ path, title: f.title, type: f.type, depth });
+    const segments = [...prefix, f.key];
+    result.push({ path: segments.join('.'), segments, title: f.title, type: f.type, depth });
     if (f.type === 'complex' && f.typeId && !visited.has(f.typeId)) {
       const subType = allDocTypes.find(dt => dt.id === f.typeId);
       if (subType) {
         const sub = resolveEffectiveFields(subType, allDocTypes);
-        result.push(...flattenFields(sub, allDocTypes, path, depth + 1, new Set([...visited, f.typeId])));
+        result.push(...flattenFields(sub, allDocTypes, segments, depth + 1, new Set([...visited, f.typeId])));
       }
     }
   }
   return result;
 }
 
-export function buildBlankTypst(name: string, docType: DocumentType, allDocTypes: DocumentType[]): string {
-  const topFields = resolveEffectiveFields(docType, allDocTypes);
-  const fields = flattenFields(topFields, allDocTypes);
+export function templateRequisites(docType: TemplateType, allDocTypes: DocumentType[]): FlatField[] {
+  const requisites = docType.printRequisites;
+  const fields = flattenFields(resolveEffectiveFields(docType, allDocTypes), allDocTypes);
+  if (!requisites) return fields;
+
+  const declared = requisites.fields.map(({ path, title, type }) =>
+    ({ path: path.join('.'), segments: path, title, type, depth: 0 }));
+  const customFieldsKey = requisites.customFieldsKey;
+  if (!customFieldsKey) return declared;
+
+  const excluded = new Set(requisites.excludedCustomKeys?.map(key => key.toUpperCase()));
+  const excludedRoot = new Set(requisites.excludedRootCustomKeys?.map(key => key.toUpperCase()));
+  const custom = fields.filter(field => !excludedRoot.has(field.segments[0].toUpperCase())
+      && field.segments.every(key => !excluded.has(key.toUpperCase())))
+    .map(field => {
+      const segments = [customFieldsKey, ...field.segments];
+      return { ...field, path: segments.join('.'), segments };
+    });
+  return [...declared, ...custom];
+}
+
+export function requisiteSnippet(docType: TemplateType, field: FlatField): string {
+  if (!docType.printRequisites) return `#get(${JSON.stringify(field.path)})`;
+  const keys = field.segments.map(segment => JSON.stringify(segment)).join(', ');
+  return `#{ import "systemlib.typ": print-field; print-field((${keys},)) }`;
+}
+
+export function buildBlankTypst(name: string, docType: TemplateType, allDocTypes: DocumentType[]): string {
+  const fields = templateRequisites(docType, allDocTypes);
   const scalarFields = fields.filter(f => f.type !== 'complex' && f.depth === 0);
   const fieldLines = fields
     .map(f => {
@@ -36,6 +63,18 @@ export function buildBlankTypst(name: string, docType: DocumentType, allDocTypes
       return `//   ${'  '.repeat(f.depth)}${f.path.padEnd(width)}${f.title} (${f.type})`;
     })
     .join('\n');
+  if (docType.printRequisites) {
+    const example = scalarFields[0];
+    return `#import "systemlib.typ": *
+#import "typeblocks.typ": *
+
+// Доступные реквизиты печатной формы
+${fieldLines}
+
+= #(${JSON.stringify(name)})
+${example ? requisiteSnippet(docType, example) : ''}
+`;
+  }
   // First scalar field to use in the title example
   const firstField = scalarFields[0]?.path ?? 'Наименование';
 
