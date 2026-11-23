@@ -14,6 +14,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
 import { attachmentKey } from './attachmentRows';
 import { EstimateAttachments } from './EstimateAttachments';
+import { EstimateOfferAction } from './EstimateOfferAction';
 import { KIND_LABEL, latestRevision, visibleRevisions } from './estimateRows';
 import { ImportDialog } from './ImportDialog';
 import { openingOf, type RevisionOpening } from './importReport';
@@ -228,6 +229,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
         </Button>
       )}
       <MakeCurrentDialog estimateId={estimate.id} revision={asked} onClose={() => setAsked(null)} />
+      <EstimateOfferAction key={revision.id} estimateName={estimate.name} revision={revision} />
     </div>
   );
 }

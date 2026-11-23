@@ -38,6 +38,7 @@ export const SUITE_SECONDS = {
   'table-saved-views': 15,
   'field-mapping': 8,
   'planning-estimates': 10,
+  'plan-offers': 14,
   // Назначения (work-12) — замер на своём стенде, до первого прогона CI.
   'work-assignments': 12,
   'work-review': 12,

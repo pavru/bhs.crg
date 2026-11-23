@@ -52,4 +52,18 @@ const workEntryMockup: LiveMockup = {
   reference: 'openspec/changes/work-22-web-entry-ui/design.md · Раунд Р3',
 };
 
-export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup];
+export const planOffersMockup: LiveMockup = {
+  id: 'plan-17-offers-ui',
+  title: 'П3 · Коммерческие предложения и прайс-лист',
+  kind: 'design',
+  entry: 'plan-offers.html',
+  pages: [
+    { path: 'page', title: 'А · Карточка на всю страницу' },
+    { path: 'split', title: 'Б · Реестр и карточка рядом' },
+    { path: 'sections', title: 'В · Карточка по разделам' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/plan-17-offers-ui/design.md',
+};
+
+export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup];
