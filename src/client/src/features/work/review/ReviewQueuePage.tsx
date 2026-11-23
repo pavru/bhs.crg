@@ -15,11 +15,13 @@ import { DateRange } from '@/shared/ui/DateRange';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Icon } from '@/shared/ui/Icon';
-import { Assignment, ChevronLeft, ChevronRight } from '@/shared/ui/icons';
+import { Assignment, ChevronLeft, ChevronRight, Group } from '@/shared/ui/icons';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { StatusText } from '@/shared/ui/StatusText';
+import { Tabs, TabPanel } from '@/shared/ui/Tabs';
 import { apiError } from '@/shared/utils/apiError';
+import { CrewReconciliationPanel } from '../crew/CrewReconciliationPanel';
 import { reviewMarkStyle, useReviewMarkFilters } from './reviewMarks';
 
 const emptyTitle: Record<ReviewEmptyReason, string> = {
@@ -92,6 +94,8 @@ function QueuePager({ data, loading, onChange }: { data: QueuePage; loading: boo
 export function ReviewQueuePage() {
   useDocumentTitle('Приёмка');
   const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'crew' ? 'crew' : 'reports';
+  const showReports = tab === 'reports';
   const written = useRef(params);
   useEffect(() => { written.current = params; }, [params]);
   const { permission } = useCan();
@@ -104,12 +108,15 @@ export function ReviewQueuePage() {
   };
   const requestedOffset = Number(params.get('offset'));
   const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 && requestedOffset <= 2_147_483_647 ? requestedOffset : 0;
-  const query = useReviewQueue({ ...filters, offset, limit: REVIEW_QUEUE_LIMIT });
-  const data = query.data;
-  const loading = query.isPending || query.isPlaceholderData;
+  const query = useReviewQueue({ ...filters, offset, limit: REVIEW_QUEUE_LIMIT }, showReports);
+  const data = showReports ? query.data : undefined;
+  const loading = showReports && (query.isPending || query.isPlaceholderData);
   const scroller = useRef<HTMLDivElement>(null);
   const restoreScroll = useRef(true);
   const search = params.toString();
+  const queueParams = new URLSearchParams(params);
+  for (const key of ['tab', 'crewConstructionId', 'crewFrom', 'crewTo']) queueParams.delete(key);
+  const queueSearch = queueParams.toString();
   const allSites = data?.boundary.code === 'all' && permission('core.constructions.read');
   const needsOwnSites = !!data && !allSites && data.boundary.sites !== 0;
   const useCoreEmployees = !!data && !data.employees && permission('core.employees.read');
@@ -123,16 +130,27 @@ export function ReviewQueuePage() {
     .map(item => ({ id: item.id, name: item.displayName })),
     [filters.employeeId, ...rows.map(row => row.employeeId)], 'Сотрудник');
   const { constructionId, employeeId, from, to } = filters;
-  const markFilters = useReviewMarkFilters(data, { constructionId, employeeId, from, to }, !loading);
+  const markFilters = useReviewMarkFilters(data, { constructionId, employeeId, from, to }, showReports && !loading);
   const hasFilters = filterKeys.some(key => !!filters[key]);
   const directoryFailed = (allSites && siteDirectory.isError) || (needsOwnSites && ownSites.isError)
     || (useCoreEmployees && employeeDirectory.isError);
 
   useLayoutEffect(() => {
-    if (loading || !restoreScroll.current || !scroller.current) return;
+    restoreScroll.current = true;
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [tab]);
+
+  useLayoutEffect(() => {
+    if (!showReports || loading || !restoreScroll.current || !scroller.current) return;
     restoreScroll.current = false;
-    if (queueScroll?.search === search) scroller.current.scrollTop = queueScroll.top;
-  }, [loading, search]);
+    if (queueScroll?.search === queueSearch) scroller.current.scrollTop = queueScroll.top;
+  }, [showReports, loading, queueSearch]);
+
+  function switchTab(nextTab: 'reports' | 'crew') {
+    const next = new URLSearchParams(params);
+    if (nextTab === 'crew') next.set('tab', 'crew'); else next.delete('tab');
+    setParams(next, { replace: true });
+  }
 
   // DateRange может поправить границы в том же событии, в котором меняется соседний отбор.
   function update(changes: Partial<Record<(typeof filterKeys)[number] | 'offset', string>>) {
@@ -148,10 +166,7 @@ export function ReviewQueuePage() {
   const resetButton = <Button variant="text" onClick={reset}>Сбросить отбор</Button>;
   const gridIcon = <Icon icon={Assignment} size={24} />;
 
-  return <div ref={scroller} className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4"
-    onScroll={event => { if (!loading) queueScroll = { search, top: event.currentTarget.scrollTop }; }}>
-    <PageHeader title="Приёмка" subtitle={data?.boundary.text}
-      badge={!!data?.total && <CountText>Ждут решения · {formatCount(data.total)}</CountText>} />
+  const reports = <>
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-56 min-w-0 max-w-full">
         <Choice label="Стройка" any="Все стройки в охвате" value={constructionId} options={sites}
@@ -185,5 +200,16 @@ export function ReviewQueuePage() {
       </> : !loading && <EmptyState icon={gridIcon} title="На этой странице нет отчётов"
         action={<Button variant="tonal" onClick={() => update({ offset: '' })}>К началу очереди</Button>} />)}
     </div>
+  </>;
+
+  return <div ref={scroller} className="h-full min-w-0 overflow-auto px-6 py-4 space-y-4"
+    onScroll={event => { if (showReports && !loading) queueScroll = { search: queueSearch, top: event.currentTarget.scrollTop }; }}>
+    <PageHeader title="Приёмка" subtitle={data?.boundary.text}
+      badge={!!data?.total && <CountText>Ждут решения · {formatCount(data.total)}</CountText>} />
+    <Tabs id="work-review-tabs" aria-label="Разделы приёмки" value={tab} onChange={switchTab}
+      items={[{ value: 'reports', label: 'Отчёты' }, { value: 'crew', label: 'Сверка бригад', icon: Group }]} />
+    <TabPanel id="work-review-tabs" value={tab} className="space-y-4">
+      {showReports ? reports : <CrewReconciliationPanel />}
+    </TabPanel>
   </div>;
 }

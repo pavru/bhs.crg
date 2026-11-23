@@ -79,6 +79,44 @@ export interface ReviewQueueRow {
   photosPending: number;
 }
 
+export interface CrewLine {
+  id: string;
+  reportId: string;
+  employeeId: string;
+  fullName: string;
+  variantId: string | null;
+  volume: number;
+  unitId: string;
+  crewRole: 'lead' | 'member';
+}
+
+export interface CrewGroup {
+  id: string;
+  constructionId: string;
+  date: string;
+  shift: 'day' | 'night';
+  workTypeId: string;
+  version: string;
+  state: 'pending' | 'approved' | 'stale';
+  mismatch: boolean;
+  total: number | null;
+  unitId: string | null;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  unsubmitted: number;
+  actions: string[];
+  lines: CrewLine[];
+}
+
+export interface CrewGroupsPage {
+  items: CrewGroup[];
+  constructions: { id: string; name: string }[];
+  workTypes: Record<string, string>;
+  workVariants: Record<string, string>;
+  units: Record<string, string>;
+}
+
 /** Ответ `GET /api/work/review/queue`. */
 export interface ReviewQueuePage {
   items: ReviewQueueRow[];
