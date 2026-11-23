@@ -383,6 +383,8 @@ public partial class ArchiveReadInventoryTests
             Shown("справочник статей: названия стоящих частей, проверка новой части и экран справочника — признак в ответе"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceSnapshots.cs|var records = await targets.StatesAsync(ReferenceTarget.Record,"] =
             Shown("состояние ссылок счёта и черновиков списка: «в архиве» у сторон, строк и частей разноски"),
+        ["BHS.CRG.Modules.Costs/Endpoints/PaymentEndpoints.cs|? (await targets.StatesAsync(ReferenceTarget.Record, [id], ct))[id]"] =
+            Seen("предпросмотр и запись оплаты проверяют уже выбранного поставщика: архивный допустим, потерянный мешает оплате"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceDesk.cs|: await catalog.RefsAsync(CostsDirectories.Organization, parties, ct);"] =
             Shown("названия сторон счёта — уже стоящих, признак рядом, из состояния ссылок; и поставщики двойников «того же файла» (COST-6.7) — признак в ответе, sameFile[].supplierArchived"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceSameFile.cs|: await catalog.RefsAsync(CostsDirectories.Organization, found.Suppliers, ct);"] =

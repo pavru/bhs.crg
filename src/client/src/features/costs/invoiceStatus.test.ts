@@ -49,6 +49,68 @@ const DISCREPANCY: InvoiceReadinessGap = {
   kind: 'total', label: 'сумма строк расходится с суммой к оплате на 38400.50', field: 'Итого', blocks: ['parsed', 'payment'],
 };
 
+describe('Реквизиты оплаты (#2040)', () => {
+  const requisiteGaps: NonNullable<PaymentView['requisiteGaps']> = [
+    { field: 'Поставщик', kind: 'lost', label: 'Поставщик удалён' },
+    { field: 'Номер', kind: 'missing', label: 'Не указан номер' },
+    { field: 'Дата', kind: 'missing', label: 'Не указана дата' },
+    { field: 'Итого', kind: 'missing', label: 'Не указана сумма к оплате' },
+  ];
+  const payment = { refusal: 'заполните реквизиты', refusalKind: 'requisites' as const, requisiteGaps };
+  const group = (items: ReturnType<typeof statusOf>['items']) => items.find(i => i.key === 'payment-requisites');
+
+  it('считает четыре реквизита одним замечанием и оставляет плательщика только для разбора', () => {
+    const gaps: InvoiceReadinessGap[] = requisiteGaps.map(gap => ({
+      kind: gap.kind === 'lost' ? 'reference' : 'field', field: gap.field, label: gap.label, blocks: ['parsed', 'payment'],
+    }));
+    gaps.push({ kind: 'field', field: 'Плательщик', label: 'плательщик', blocks: ['parsed'] });
+    const saved = view({ gaps, payment, references: { supplier: 'lost', payer: null, documentType: 'present' } });
+    const result = statusOf(input(saved));
+    expect(result.count).toBe(2);
+    const rows = group(result.items)?.requisiteRows;
+    expect(rows?.map(row => row.text)).toEqual(requisiteGaps.map(gap => gap.label));
+    expect(rows?.map(row => row.blocks)).toEqual(requisiteGaps.map(() => ['parsed', 'pay']));
+    expect(rows?.map(row => row.actions[0])).toEqual(requisiteGaps.map(gap => expect.objectContaining({
+      kind: 'goto', place: { place: 'field', key: gap.field },
+    })));
+    expect(result.items.map(row => row.key)).toEqual(['payment-requisites', 'gap:field:Плательщик']);
+    expect(result.items[1].blocks).toEqual(['parsed']);
+  });
+
+  it.each(['requisites', 'amount'] as const)('показывает %s у разобранного без списка готовности', refusalKind => {
+    const gap = refusalKind === 'amount' ? requisiteGaps[3] : requisiteGaps[1];
+    const saved = view({ state: 'Разобран', gaps: null, payment: { ...payment, refusalKind, requisiteGaps: [gap] } });
+    const result = statusOf(input(saved));
+    expect(result.count).toBe(1);
+    expect(group(result.items)?.requisiteRows).toEqual([expect.objectContaining({ text: gap.label, blocks: ['pay'] })]);
+    expect(mayMarkPaid(saved, true)).toBe(true);
+    expect(primaryOf(saved, CAN, { gone: false, correcting: false })).toBe('pay');
+  });
+
+  it('объясняет запрет при чтении и даёт переход только с правом вводить счета', () => {
+    const rows = statusOf(input(view({ payment }), { can: { ...CAN, edit: false, pay: false } })).items;
+    expect(group(rows)?.requisiteRows).toHaveLength(4);
+    expect(group(rows)?.requisiteRows?.every(row => row.actions.length === 0 && row.why)).toBe(true);
+  });
+
+  it('показывает реквизиты под дублем и отдельное денежное расхождение', () => {
+    const saved = view({ state: 'Разобран', gaps: null, payment: {
+      ...payment, refusalKind: 'duplicate', requisiteGaps: [requisiteGaps[0]],
+      moneyRefusal: 'расходится сумма', moneyRefusalKind: 'discrepancy',
+    } });
+    const items = statusOf(input(saved)).items;
+    expect(group(items)?.requisiteRows?.[0].text).toBe('Поставщик удалён');
+    expect(items.find(i => i.key === 'pay-refusal')?.text).toContain('расходится сумма');
+    expect(mayMarkPaid(saved, true)).toBe(false);
+  });
+
+  it('принимает старый ответ без перечня реквизитов', () => {
+    const items = statusOf(input(view({ payment: { refusal: 'нет суммы', refusalKind: 'amount' } }))).items;
+    expect(group(items)).toBeUndefined();
+    expect(items.find(i => i.key === 'pay-refusal')?.text).toContain('нет суммы');
+  });
+});
+
 describe('Блокировка по совпадению реквизитов', () => {
   const blocker = {
     id: 'twin', number: 'СЧ-7', issuedOn: '2026-10-03', total: 100, supplierId: 'supplier',

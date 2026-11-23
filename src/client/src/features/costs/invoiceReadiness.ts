@@ -120,7 +120,8 @@ export function goTo(target: ReadinessTarget, root: ParentNode = document): bool
   if (!place) return false;
 
   place.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  place.querySelector<HTMLElement>('input:not([readonly]):not([disabled]), button:not([disabled]), select, textarea')
-    ?.focus({ preventScroll: true });
+  const field = place.querySelector<HTMLElement>('input:not([readonly]):not([disabled]), button:not([disabled]), select, textarea')
+    ?? place.querySelector<HTMLElement>('input[readonly]:not([disabled])');
+  field?.focus({ preventScroll: true });
   return true;
 }

@@ -269,6 +269,14 @@ export interface InvoiceLineTotals {
  * Оплата в ответе счёта (C5, issue #1082). Всё здесь — слова и решения сервера: форма не выводит
  * «заперт» из границ периодов и «оплатить нельзя» из сверки сумм своей формулой.
  */
+export type PaymentRefusalKind = 'amount' | 'discrepancy' | 'rejected' | 'duplicate' | 'requisites';
+
+export interface PaymentRequisiteGap {
+  field: string;
+  kind: 'missing' | 'lost';
+  label: string;
+}
+
 export interface PaymentView {
   paid: boolean;
   paidOn: string | null;
@@ -284,10 +292,12 @@ export interface PaymentView {
   periods: string[];
   /**
    * Род причины `refusal` (COST-6.4): `amount` — нет суммы к оплате, `discrepancy` — сумма строк не
-   * сходится, `rejected` — счёт отклонён; `null` — оплатить можно. По нему видно, что причина уже названа
-   * пунктом готовности с `payment` в `blocks`. Старый сервер поля не присылает.
+   * сходится, `rejected` — счёт отклонён, `duplicate` — блокирующее совпадение, `requisites` — пробел
+   * в реквизитах. `null` — оплатить можно. Старый сервер поля не присылает.
    */
-  refusalKind?: 'amount' | 'discrepancy' | 'rejected' | 'duplicate' | null;
+  refusalKind?: PaymentRefusalKind | null;
+  /** Полный перечень препятствий по реквизитам, в том числе у старого разобранного счёта. */
+  requisiteGaps?: PaymentRequisiteGap[];
   duplicateBlockers?: InvoiceDuplicateBlocker[] | null;
   moneyRefusal?: string | null;
   moneyRefusalKind?: 'amount' | 'discrepancy' | null;

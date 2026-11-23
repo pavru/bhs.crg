@@ -1,4 +1,5 @@
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -36,7 +37,13 @@ public static class PaymentEndpoints
 
         group.MapGet("/paid", PostedAsync).RequireAuthorization(AppPolicies.Permission("costs.invoice.read"));
         group.MapPost("/paid/preview", PreviewAsync).RequireAuthorization(AppPolicies.Permission(Pay));
-        group.MapPost("/paid", PayAsync).RequireAuthorization(AppPolicies.Permission(Pay));
+        group.MapPost("/paid", PayAsync).RequireAuthorization(AppPolicies.Permission(Pay))
+            .AddEndpointFilter(async (context, next) =>
+            {
+                try { return await next(context); }
+                catch (PaymentRequisiteException error) { return TypedResults.BadRequest(error.Response); }
+            })
+            .Produces<PaymentRequisiteRefusal>(StatusCodes.Status400BadRequest);
         group.MapPut("/paid", DescribeAsync).RequireAuthorization(AppPolicies.Permission(Pay));
         group.MapPost("/unpaid", CancelAsync).RequireAuthorization(AppPolicies.Permission(Pay));
         group.MapPost("/duplicate-confirmations", InvoiceDuplicateEndpoints.ConfirmAsync)
@@ -51,7 +58,8 @@ public static class PaymentEndpoints
     /// </summary>
     private static async Task<Ok<PaymentPostingView>> PreviewAsync(
         Guid id, PaymentPreviewRequest body, CostsDbContext db, AllocationPlacesSource places,
-        IModulePeriods periods, IModuleClock clock, IModuleSettings settings, CancellationToken ct)
+        IModulePeriods periods, IModuleClock clock, IModuleSettings settings, IModuleReferenceTargets targets,
+        CancellationToken ct)
     {
         var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
         if (invoice.Payment == InvoicePaymentState.Paid)
@@ -60,8 +68,10 @@ public static class PaymentEndpoints
                 "оплаты и новой отметкой.");
 
         var today = await clock.TodayAsync(ct);
+        var requisiteGaps = await RequisitesAsync(invoice, targets, ct);
         return TypedResults.Ok(await PostingAsync(db, places, invoice, body.PaidOn ?? today, today,
-            PostedBefore.None, await periods.BoundariesAsync(ct), await settings.GetAsync(CostsSettings.AllocationTolerance, ct), ct));
+            PostedBefore.None, await periods.BoundariesAsync(ct), await settings.GetAsync(CostsSettings.AllocationTolerance, ct),
+            requisiteGaps, ct));
     }
 
     /// <summary>Записанный расклад оплаченного счёта — той же функцией и в том же виде, что предпросмотр.</summary>
@@ -79,7 +89,7 @@ public static class PaymentEndpoints
         var before = PaymentPosting.Before(invoice, parts, PaymentPosting.Balance(
             await InvoiceLineEndpoints.StoredLinesAsync(db, invoice, ct), parts, invoice.Total, tolerance));
         return TypedResults.Ok(await PostingAsync(db, places, invoice, paidOn, await clock.TodayAsync(ct),
-            before, await periods.BoundariesAsync(ct), tolerance, ct));
+            before, await periods.BoundariesAsync(ct), tolerance, [], ct));
     }
 
     /// <summary>
@@ -91,7 +101,7 @@ public static class PaymentEndpoints
     /// </summary>
     private static async Task<Ok<InvoiceView>> PayAsync(
         Guid id, PaymentRequest body, CostsDbContext db, InvoiceDesk desk, AllocationPlacesSource places,
-        IModuleClock clock, IModuleUser user, IModuleActivityLog log, CancellationToken ct)
+        IModuleClock clock, IModuleUser user, IModuleActivityLog log, IModuleReferenceTargets targets, CancellationToken ct)
     {
         if (body.PaidOn is not { } paidOn)
             throw new InvalidRequestException("Дата платежа не названа. Оплата — это «когда», и без даты у неё нет учётного периода.");
@@ -115,11 +125,17 @@ public static class PaymentEndpoints
                     $"{InvoiceEndpoints.Label(invoice)} уже оплачен {invoice.PaidOn:dd.MM.yyyy}. Дату меняют отменой " +
                     "оплаты и новой отметкой.");
 
-            var posting = await PostingAsync(db, places, invoice, paidOn, today, PostedBefore.None, write.Boundaries, tolerance, ct);
+            var requisiteGaps = await RequisitesAsync(invoice, targets, ct);
+            var posting = await PostingAsync(db, places, invoice, paidOn, today, PostedBefore.None, write.Boundaries,
+                tolerance, requisiteGaps, ct);
+            var label = InvoiceEndpoints.Label(invoice);
             if (posting.RefusalKind == PaymentRefusal.Duplicate)
-                throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: оплатить нельзя — {posting.Refusal}.");
+                throw new ConflictException($"{label}: оплатить нельзя — {posting.Refusal}.");
+            if (posting.RefusalKind is PaymentRefusal.Requisites or PaymentRefusal.Amount)
+                throw new PaymentRequisiteException(new($"{label}: оплатить нельзя — {posting.Refusal}.",
+                    posting.RefusalKind, posting.RequisiteGaps));
             if ((posting.Refusal ?? posting.DateRefusal) is { } why)
-                throw new InvalidRequestException($"{InvoiceEndpoints.Label(invoice)}: оплатить нельзя — {why}.");
+                throw new InvalidRequestException($"{label}: оплатить нельзя — {why}.");
             if (posting.Stamp != seen)
                 throw new ConflictException(
                     $"{InvoiceEndpoints.Label(invoice)}: расклад оплаты изменился, пока диалог был открыт, — закрыли " +
@@ -215,20 +231,22 @@ public static class PaymentEndpoints
     /// </summary>
     private static async Task<PaymentPostingView> PostingAsync(
         CostsDbContext db, AllocationPlacesSource places, Invoice invoice, DateOnly paidOn, DateOnly today,
-        PostedBefore kept, PeriodBoundaries boundaries, decimal tolerance, CancellationToken ct)
+        PostedBefore kept, PeriodBoundaries boundaries, decimal tolerance, IReadOnlyList<PaymentRequisiteGap> requisiteGaps,
+        CancellationToken ct)
     {
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => l.InvoiceId == invoice.Id).ToListAsync(ct);
         var parts = await db.InvoiceAllocations.AsNoTracking().Where(a => a.InvoiceId == invoice.Id).ToListAsync(ct);
         var math = lines.Select(InvoiceAllocations.Line).ToList();
 
         var duplicate = await InvoiceDuplicates.BlocksPaymentAsync(db, invoice, ct);
-        var refusal = PaymentRefusal.Text(invoice, PaymentPosting.Balance(math, parts, invoice.Total, tolerance), duplicate);
+        var balance = PaymentPosting.Balance(math, parts, invoice.Total, tolerance);
+        var kind = PaymentRefusal.Of(invoice, balance, duplicate, requisiteGaps);
+        var refusal = PaymentRefusal.Text(invoice, balance, duplicate, requisiteGaps);
         var late = paidOn > today
             ? $"дата платежа {paidOn:dd.MM.yyyy} в будущем: сегодня {today:dd.MM.yyyy}"
             : null;
         if (refusal is not null || late is not null)
-            return new PaymentPostingView(today, paidOn, invoice.Total, refusal, late, [], string.Empty,
-                duplicate ? PaymentRefusal.Duplicate : null);
+            return new PaymentPostingView(today, paidOn, invoice.Total, refusal, late, [], string.Empty, requisiteGaps, kind);
 
         var total = invoice.Total!.Value;
         var plan = PaymentPosting.Plan(paidOn, total, math, parts, kept, boundaries, tolerance);
@@ -236,7 +254,21 @@ public static class PaymentEndpoints
 
         return new PaymentPostingView(today, paidOn, total, null, null,
             PaymentViews.Rows(plan, lines.ToDictionary(l => l.Id, l => l.Ordinal), known, boundaries),
-            PaymentViews.Stamp(plan, total, InvoiceAllocations.Stamp(parts)));
+            PaymentViews.Stamp(plan, total, InvoiceAllocations.Stamp(parts)), requisiteGaps);
+    }
+
+    private static async Task<IReadOnlyList<PaymentRequisiteGap>> RequisitesAsync(
+        Invoice invoice, IModuleReferenceTargets targets, CancellationToken ct)
+    {
+        var state = InvoicePaymentRequisites.SupplierOf(invoice) is { } id
+            ? (await targets.StatesAsync(ReferenceTarget.Record, [id], ct))[id]
+            : ReferenceState.Lost;
+        return InvoicePaymentRequisites.Find(invoice, state);
+    }
+
+    private sealed class PaymentRequisiteException(PaymentRequisiteRefusal response) : InvalidRequestException(response.Error)
+    {
+        public PaymentRequisiteRefusal Response { get; } = response;
     }
 
     private static void EnsurePaid(Invoice invoice)

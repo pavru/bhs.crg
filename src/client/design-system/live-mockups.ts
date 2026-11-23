@@ -24,4 +24,18 @@ export const duplicatePaymentMockup: LiveMockup = {
   reference: 'openspec/changes/costs-invoice-duplicate-payment-block/design.md · D5',
 };
 
-export const liveMockups = [duplicatePaymentMockup];
+export const paymentRequisitesMockup: LiveMockup = {
+  id: 'costs-invoice-payment-requisites',
+  title: 'Счёт · Обязательные реквизиты оплаты',
+  kind: 'design',
+  entry: 'payment-requisites.html',
+  pages: [
+    { path: 'items', title: 'А · Отдельные пункты' },
+    { path: 'group', title: 'Б · Одна группа реквизитов' },
+    { path: 'inline', title: 'В · Перечень рядом с первой частью' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/costs-invoice-payment-requisites/design.md · D4',
+};
+
+export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup];

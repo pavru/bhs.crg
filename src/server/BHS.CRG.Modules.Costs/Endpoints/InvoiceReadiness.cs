@@ -19,9 +19,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// цены уже с НДС: «сверху» поставлено зря), <c>null</c> — не объясняет. Подсказка, не решение: режим сам
 /// не меняется никогда. Пункту с признаком место у флажка режима, а не у «Суммы к оплате».</param>
 /// <param name="Blocks">Чему пункт мешает (COST-6.4): <c>parsed</c> — всегда, <c>payment</c> — только у
-/// неоплаченного счёта и только у пункта, который чинит ту же причину, по которой откажет оплата
-/// (<see cref="PaymentRefusal.Of(Invoice, decimal?, bool)" />). По нему индикатор называет одно
-/// расхождение одним пунктом, а не пунктом и причиной отказа оплаты рядом.</param>
+/// неоплаченного счёта у пункта, который совпадает с реквизитом оплаты или чинит денежное расхождение.
+/// По нему индикатор объединяет препятствия оплате и разбору.</param>
 public sealed record InvoiceReadinessGap(
     string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null, string? VatExplains = null,
     IReadOnlyList<string>? Blocks = null);
@@ -61,8 +60,8 @@ public sealed class InvoiceReadiness
     private readonly List<(InvoiceReadinessGap Gap, int Group)> _gaps = [];
     private readonly List<(string Text, bool Conflict)> _refusals = [];
 
-    /// <summary>Род отказа оплаты; <c>null</c> — оплатить можно либо вопрос не стоит (счёт оплачен).</summary>
-    private string? _payment;
+    private IReadOnlyList<PaymentRequisiteGap> _paymentRequisites = [];
+    private bool _paymentDiscrepancy;
 
     /// <summary>Шаг «Разобран» — ему мешает каждый пункт.</summary>
     public const string Parsed = "parsed";
@@ -74,19 +73,11 @@ public sealed class InvoiceReadiness
     public IReadOnlyList<InvoiceReadinessGap> Gaps =>
         [.. _gaps.Select(g => g.Gap with { Blocks = BlocksPayment(g.Gap) ? [Parsed, Payment] : [Parsed] })];
 
-    /// <summary>
-    /// Мешает ли пункт оплате. Род причины берётся у правила оплаты, а не списком видов: правило меняется,
-    /// и список молча отстал бы (design D2).
-    ///
-    /// <para>Род <c>amount</c> чинит пункт пустого поля «Итого»: сумма к оплате обязательна для «Разобран»,
-    /// и нуль для неё — не сумма (<see cref="InvoiceRequisites.NoTotal" />, change
-    /// <c>costs-invoice-screen-01-parsed-amount</c>). Расхождения (<c>total</c>) при таком роде не бывает:
-    /// без суммы готовность его не ставит (<see cref="Allocation" />), так что пункт у «Итого» один.</para>
-    /// </summary>
-    private bool BlocksPayment(InvoiceReadinessGap gap) => _payment switch
+    private bool BlocksPayment(InvoiceReadinessGap gap) => gap.Kind switch
     {
-        PaymentRefusal.Discrepancy => gap.Kind == "total",
-        PaymentRefusal.Amount => gap.Kind == "field" && gap.Field == InvoiceRequisites.TotalKey,
+        "total" => _paymentDiscrepancy,
+        "field" => _paymentRequisites.Any(payment => payment.Field == gap.Field && payment.Kind == "missing"),
+        "reference" => _paymentRequisites.Any(payment => payment.Field == gap.Field && payment.Kind == "lost"),
         _ => false,
     };
 
@@ -100,14 +91,14 @@ public sealed class InvoiceReadiness
     /// <param name="lost">Записи ядра, которых нет вовсе, — по обратному опросу.</param>
     public static InvoiceReadiness Of(
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyDictionary<Guid, string?>? names,
-        IReadOnlySet<Guid> lost, AllocationSummaryView allocation)
+        IReadOnlySet<Guid> lost, AllocationSummaryView allocation, IReadOnlyList<PaymentRequisiteGap> paymentRequisites)
     {
         // Оплаченному «мешает оплате» не ставится: вопрос об оплате у него не стоит.
         var found = new InvoiceReadiness
         {
-            _payment = invoice.Payment == InvoicePaymentState.Paid
-                ? null
-                : PaymentRefusal.Of(invoice, allocation.Discrepancy, allocation.WithinTolerance),
+            _paymentRequisites = paymentRequisites,
+            _paymentDiscrepancy = invoice.Payment != InvoicePaymentState.Paid &&
+                PaymentRefusal.Of(invoice, allocation.Discrepancy, allocation.WithinTolerance) == PaymentRefusal.Discrepancy,
         };
         var label = InvoiceEndpoints.Label(invoice);
 
