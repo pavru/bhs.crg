@@ -14,6 +14,8 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Modules;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -294,6 +296,34 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         var refusal = await Assert.ThrowsAsync<ConflictException>(() => isolated.CreateBindingAsync(
             new CreateBindingInput(document, sourceId, "Таблица", null), default));
 
+        Assert.Contains("печатная форма", refusal.Message);
+        Assert.Contains("после подписи", refusal.Message);
+    }
+
+    [Theory]
+    [InlineData("system:table:work.reports")]
+    [InlineData("system:table:work.lines")]
+    public async Task Набор_работ_объявлен_с_изоляцией_и_закрыт_для_печатной_формы(string marker)
+    {
+        _ = fixture.CreateClient();
+        using var scope = fixture.Services.CreateScope();
+        var registry = scope.ServiceProvider.GetRequiredService<SystemDataProviderRegistry>();
+        var provider = Assert.Single(registry.All, p => p.Handles(marker));
+        Assert.Equal("work", provider.Declaration.Module);
+        Assert.Equal("work", provider.Declaration.Requires);
+        Assert.Equal(SystemDataSetIsolation.PerUser, provider.Declaration.Isolation);
+
+        // Источник из установки с включённым work может остаться в базе после выключения модуля.
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var file = DataSetFile.CreateSystem("Работы", CatalogScope.System, null);
+        var source = file.AddSource("Работы", marker, "[]", 0);
+        db.DataSetFiles.Add(file);
+        await db.SaveChangesAsync();
+        var document = await SeedDocumentAsync(scope);
+
+        var binding = scope.ServiceProvider.GetRequiredService<DataSetBindingService>();
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => binding.CreateBindingAsync(
+            new CreateBindingInput(document, source.Id, "Таблица", null), default));
         Assert.Contains("печатная форма", refusal.Message);
         Assert.Contains("после подписи", refusal.Message);
     }

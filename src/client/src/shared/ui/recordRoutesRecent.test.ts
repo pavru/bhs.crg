@@ -3,8 +3,8 @@ import { RECORD_GROUPS } from './paletteRecords';
 import { RECORD_ROUTES } from './recordRoutes';
 
 /**
- * Перепись «Недавних» (shell-08, задача 4.4; ТЗ UI-35): каждый экран записи из `RECORD_ROUTES` отмечает
- * открытие (`useRecentTouch`), и отмечает только тип, у которого экран есть. Забытая отметка — запись,
+ * Перепись «Недавних» (shell-08, задача 4.4; ТЗ UI-35): каждый тип с экраном и группой поиска отмечает
+ * открытие (`useRecentTouch`). Забытая отметка — запись,
  * которую человек открывает каждый день, а «Недавние» о ней молчат.
  */
 const sources = import.meta.glob<string>(['/src/**/*.{ts,tsx}', '!/src/**/*.test.*'], { query: '?raw', import: 'default' });
@@ -25,9 +25,11 @@ function touchedTypes(): Promise<Set<string>> {
 const SCAN_TIMEOUT = 20_000;
 
 describe('«Недавние»: отметка открытия', () => {
-  it('каждый тип из RECORD_ROUTES отмечается экраном записи', async () => {
+  it('каждый тип с экраном и группой поиска отмечается экраном записи', async () => {
     const marked = await touchedTypes();
-    for (const type of Object.keys(RECORD_ROUTES)) expect(marked.has(type), type).toBe(true);
+    for (const { recordType } of RECORD_GROUPS) {
+      if (Object.hasOwn(RECORD_ROUTES, recordType)) expect(marked.has(recordType), recordType).toBe(true);
+    }
   }, SCAN_TIMEOUT);
 
   // Обратная сторона: отметка типа, которого Главная не рисует, копилась бы на сервере и вытесняла бы

@@ -150,6 +150,7 @@ export interface TableData extends TableDeclaration {
   doubts?: { column: string; label: string; reason: string }[] | null;
   /** Код применившегося исхода отбора (`own`, `sites`, `all`…); граница его — в `boundary`. */
   boundaryOutcome?: string | null;
+  reason?: string | null;
 }
 
 /**

@@ -39,7 +39,8 @@ public record DataSetParseResult(
     /// Виды колонок — у набора, чей поставщик их объявляет (таблица модуля, G1c). null — видов нет
     /// (файл, распознавание), и отбор сравнивает по догадке, как прежде.
     /// </summary>
-    DataSetColumnTypes? Types = null
+    DataSetColumnTypes? Types = null,
+    string? Reason = null
 );
 
 /// <summary>

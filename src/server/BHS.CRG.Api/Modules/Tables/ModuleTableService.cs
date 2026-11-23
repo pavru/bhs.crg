@@ -102,6 +102,9 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
             if (page.Keys.Any(k => k != row))
                 throw new InvalidOperationException(
                     $"Служба строк таблицы «{table.Title}» на запрос строки «{row}» отдала другие строки.");
+
+            if (table.MissingRowIsNotFound && page.Keys.Count == 0)
+                return (null, columns, new(StatusCodes.Status404NotFound, "Такой строки нет."));
         }
 
         // Подпись смысла — только колонке, объявленной зависящей от отбора, и только открытой: служба
@@ -122,6 +125,7 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
         {
             Boundary = boundary,
             BoundaryOutcome = outcome,
+            Reason = page.Outcome?.Reason,
             Count = page.Count,
             Offset = request.Offset,
             Limit = request.Limit,

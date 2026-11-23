@@ -42,7 +42,8 @@ public sealed record ModuleTableBoundary(string Code, string Text)
 /// <param name="Code">Код исхода из объявления таблицы (<see cref="ModuleTable.Boundaries" />).</param>
 /// <param name="Sites">Сколько строек в охвате — для места <see cref="ModuleTableBoundary.SitesPlace" />;
 /// null — исход стройками не считается.</param>
-public sealed record ModuleTableOutcome(string Code, int? Sites = null)
+/// <param name="Reason">Машиночитаемая причина пустого охвата, если она есть.</param>
+public sealed record ModuleTableOutcome(string Code, int? Sites = null, string? Reason = null)
 {
     /// <summary>Исход по охвату читателя: код охвата и, у охвата по стройкам, их число.</summary>
     public static ModuleTableOutcome Of(Access.ModuleReach reach) =>

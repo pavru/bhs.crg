@@ -665,6 +665,7 @@ export interface DataSetPreview {
    * источник не опубликованный: его границу задаёт сам файл.
    */
   boundary?: string | null;
+  reason?: string | null;
 }
 
 // ─── Dataset filter / transform types ─────────────────────────────────────────

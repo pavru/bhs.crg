@@ -53,4 +53,4 @@ public interface IDataSetRowLoader
 public record LoadedRows(
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows, int RawRowCount,
     IReadOnlyList<DataSetColumnInfo>? Columns = null, string? Warning = null,
-    string? Boundary = null);
+    string? Boundary = null, string? Reason = null);

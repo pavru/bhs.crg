@@ -3,6 +3,7 @@ using BHS.CRG.Api.Search;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Search;
 using BHS.CRG.Modules.Tables;
+using BHS.CRG.Modules.Work;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -25,7 +26,7 @@ public class RecordRoutesTests
     {
         // Экран записи нужен строке таблицы и найденному палитрой (shell-05): тип — либо у таблицы модуля,
         // либо у группы поиска записей.
-        var declared = new ModuleTableCatalog([new CostsModule()]).All
+        var declared = new ModuleTableCatalog([new CostsModule(), new WorkModule()]).All
             .Select(e => e.Table.RecordType).Where(t => t is not null)
             .Concat(CoreRecordSearch.Declared.Select(g => g.RecordType))
             .Append(CostsRecordSearch.Declared.RecordType)

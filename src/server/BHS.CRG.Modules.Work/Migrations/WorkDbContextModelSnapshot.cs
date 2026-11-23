@@ -361,6 +361,9 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.HasIndex("ConstructionId", "Date")
                         .HasDatabaseName("ix_reports_site");
 
+                    b.HasIndex("EmployeeId", "Date")
+                        .HasDatabaseName("ix_reports_employee_date");
+
                     b.HasIndex("Status", "WindowEndsAt")
                         .HasDatabaseName("ix_reports_window");
 

@@ -120,7 +120,7 @@ public sealed class ModuleTableDataProvider(ModuleTableEntry entry, ModuleTableS
         // Граница применившегося исхода — та же строка, что у экрана и выгрузки: набор и MCP подписывают
         // данные ею, а не первой объявленной (ТЗ CORE-24.3).
         return new DataSetParseResult(columns, rows, warning is null ? null : Capitalize(warning),
-            Boundary: table.Boundary, Types: types);
+            Boundary: table.Boundary, Types: types, Reason: table.Reason);
     }
 
     private static IReadOnlyDictionary<string, string?> Strings(

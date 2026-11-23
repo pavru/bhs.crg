@@ -8,6 +8,8 @@ using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Review;
 using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Submission;
+using BHS.CRG.Modules.Work.Tables;
+using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -165,6 +167,8 @@ public sealed class WorkModule : IAppModule
     /// </summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => WorkRecordTypes.All;
 
+    public IReadOnlyList<ModuleTable> Tables => [WorkTables.Reports, WorkTables.Lines];
+
     /// <summary>
     /// Файлы модуля (ТЗ WORK-35, CORE-26; <c>work-17</c>): снимок и превью фото строки — оба едут в копию. Превью
     /// перестраивать после восстановления пришлось бы отдельным путём, которого нет, а весит оно мало.
@@ -199,6 +203,10 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
+        services.AddScoped<WorkTableReaders>();
+        services.AddScoped<WorkTableNames>();
+        services.AddScoped<ReportTableRows>();
+        services.AddScoped<LineTableRows>();
         services.AddScoped<ReportPeriods>();
         services.AddScoped<IModuleClosingReport, WorkClosingReport>();
         services.AddScoped<ReportWriter>();

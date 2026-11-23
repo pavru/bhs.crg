@@ -101,6 +101,21 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
             Assert.NotNull(await scope.ServiceProvider.GetRequiredService<AppDbContext>().SavedTableViews.FindAsync(kept));
     }
 
+    [Fact]
+    public async Task Без_модуля_работ_кандидатов_нет_и_таблица_называет_причину()
+    {
+        using var client = await AdminAsync();
+        var table = await client.GetFromJsonAsync<JsonElement>("/api/tables/work.reports");
+        Assert.Equal(TableColumnReasons.ModuleOff, table.GetProperty("state").GetString());
+        Assert.Empty(table.GetProperty("rows").EnumerateArray());
+        Assert.All(table.GetProperty("columns").EnumerateArray(), c =>
+            Assert.Equal("модуль «Учёт работ» выключен", c.GetProperty("reason").GetString()));
+
+        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/datasets/system-candidates?scope=System");
+        Assert.DoesNotContain(candidates.EnumerateArray(), item =>
+            item.GetProperty("sheetOrPath").GetString()!.StartsWith("system:table:work.", StringComparison.Ordinal));
+    }
+
     private async Task<HttpClient> AdminAsync()
     {
         var email = $"tables_{Guid.NewGuid():N}@test.local";
