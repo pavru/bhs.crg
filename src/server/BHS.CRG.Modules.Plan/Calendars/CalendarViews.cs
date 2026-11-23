@@ -28,15 +28,7 @@ internal static class CalendarViews
         Days(calendar.Days.Select(d => (d.Date, d.Kind))), version);
 
     public static CalendarDayDto[] Days(IEnumerable<(DateOnly Date, CalendarDayKind Kind)> days) =>
-        days.OrderBy(d => d.Date).Select(d => new CalendarDayDto(d.Date, Kind(d.Kind))).ToArray();
-
-    public static string Kind(CalendarDayKind kind) => kind switch
-    {
-        CalendarDayKind.Holiday => "holiday",
-        CalendarDayKind.Working => "working",
-        CalendarDayKind.Short => "short",
-        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
-    };
+        days.OrderBy(d => d.Date).Select(d => new CalendarDayDto(d.Date, d.Kind.ToString().ToLowerInvariant())).ToArray();
 
     public static Dictionary<DateOnly, CalendarDayKind> ReadDays(IReadOnlyList<CalendarDayInput?>? days, int? year = null)
     {
