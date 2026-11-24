@@ -282,6 +282,9 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<DistributionReader>();
         services.AddScoped<DistributionWriter>();
         services.AddScoped<CalendarStore>();
+        services.AddScoped<Schedules.ScheduleBuilder>();
+        services.AddScoped<Schedules.ScheduleViews>();
+        services.AddScoped<Schedules.ScheduleWorkEditor>();
         // Контракт «Плановые работы» (plan-23): потребители берут его портом IModuleContracts.
         services.AddModuleContract<IPlannedWorks, PlannedWorksProvider>(ModuleCode);
     }
@@ -315,6 +318,7 @@ public sealed class PlanModule : IAppModule
         OfferEndpoints.Map(endpoints);
         PriceListEndpoints.Map(endpoints);
         CalendarEndpoints.Map(endpoints);
+        ScheduleEndpoints.Map(endpoints);
     }
 
     /// <summary>

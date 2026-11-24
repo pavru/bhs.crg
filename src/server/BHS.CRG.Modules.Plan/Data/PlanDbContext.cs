@@ -3,6 +3,7 @@ using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Plan.Calendars;
 using BHS.CRG.Modules.Plan.Distribution;
+using BHS.CRG.Modules.Plan.Schedules;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -68,6 +69,21 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     public DbSet<Estimate> Estimates => Set<Estimate>();
 
     public DbSet<EstimateRevision> EstimateRevisions => Set<EstimateRevision>();
+    internal DbSet<Schedule> Schedules => Set<Schedule>();
+    internal DbSet<ScheduleWork> ScheduleWorks => Set<ScheduleWork>();
+    internal DbSet<ScheduleWorkAssignee> ScheduleWorkAssignees => Set<ScheduleWorkAssignee>();
+    internal string VersionOf(Schedule schedule) => Version(schedule);
+    internal string VersionOf(ScheduleWork work) => Version(work);
+
+    // Распределение и построение берут один замок; правка сопоставления обновляет ту же строку редакции.
+    internal Task LockRevisionAsync(Guid id, CancellationToken ct) =>
+        Database.ExecuteSqlAsync($"SELECT id FROM plan.estimate_revisions WHERE id = {id} FOR UPDATE", ct);
+
+    internal Task LockScheduleSiteAsync(Guid constructionId, CancellationToken ct)
+    {
+        var key = $"plan:schedules:{constructionId}";
+        return Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
+    }
 
     /// <summary>
     /// Строки редакций. ⚠️ Строки для СУММ плана читаются только через <see cref="PlanRows.Current" />:
@@ -288,5 +304,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         OfferVersion.Map(builder);
         PriceListEntry.Map(builder);
         CalendarModel.Configure(builder);
+        ScheduleModel.Configure(builder);
     }
 }

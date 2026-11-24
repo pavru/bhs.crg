@@ -1810,6 +1810,149 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("volume_statement_lines", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.Schedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreationKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("creation_key");
+
+                    b.Property<string>("DistributionFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("distribution_fingerprint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("Unmapped")
+                        .HasColumnType("integer")
+                        .HasColumnName("unmapped");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevisionId");
+
+                    b.HasIndex("ConstructionId", "CreationKey")
+                        .IsUnique();
+
+                    b.ToTable("schedules", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly?>("End")
+                        .HasColumnType("date")
+                        .HasColumnName("ends_on");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("PlanItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_item_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.Property<Guid?>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.Property<Guid?>("SourceRowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_row_id");
+
+                    b.Property<DateOnly?>("Start")
+                        .HasColumnType("date")
+                        .HasColumnName("starts_on");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<decimal?>("Volume")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("volume");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanItemId");
+
+                    b.HasIndex("SectionId");
+
+                    b.HasIndex("SourceRowId");
+
+                    b.HasIndex("ScheduleId", "SourceRowId", "SectionId")
+                        .IsUnique()
+                        .HasFilter("source_row_id IS NOT NULL");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("ScheduleId", "SourceRowId", "SectionId"), false);
+
+                    b.ToTable("schedule_works", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWorkAssignee", b =>
+                {
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.HasKey("WorkId", "EmployeeId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("schedule_work_assignees", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.CalendarDay", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Plan.Calendars.CalendarYear", null)
@@ -2030,6 +2173,37 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.HasOne("BHS.CRG.Modules.Plan.Data.VolumeStatement", null)
                         .WithMany("Lines")
                         .HasForeignKey("StatementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.Schedule", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Schedules.Schedule", null)
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRow", null)
+                        .WithMany()
+                        .HasForeignKey("SourceRowId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWorkAssignee", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", null)
+                        .WithMany()
+                        .HasForeignKey("WorkId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
