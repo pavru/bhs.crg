@@ -14,6 +14,7 @@ internal sealed class ScheduleWorkEditor(
     internal async Task<ScheduleWorkDto> AddAsync(Guid id, ScheduleManualWork input, CancellationToken ct)
     {
         if (input.Work is null) throw new InvalidRequestException("Заполните поля работы.");
+        ScheduleWork.ValidateDetails(input.Work.Volume, input.Work.Start, input.Work.End);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var schedule = await schedules.LockAsync(id, ct);
         var workType = (await types.GetAsync([input.WorkTypeId], ct))?.SingleOrDefault()
@@ -87,7 +88,7 @@ internal sealed class ScheduleWorkEditor(
             if (!known.TryGetValue(id, out var employee))
                 throw new InvalidRequestException($"Сотрудник {id} не найден в справочнике.");
             if (employee.Archived)
-                throw new InvalidRequestException($"«{employee.FullName}»: запись в архиве.");
+                throw new InvalidRequestException($"Поле «Исполнители» содержит архивного сотрудника «{employee.FullName}». Эта запись в архиве.");
         }
         return wanted;
     }

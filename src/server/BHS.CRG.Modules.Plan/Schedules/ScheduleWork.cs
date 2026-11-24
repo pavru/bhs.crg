@@ -25,12 +25,17 @@ internal sealed class ScheduleWork
             Name = name, Volume = volume, UpdatedAt = DateTimeOffset.UtcNow,
         };
 
-    internal void Edit(decimal? volume, DateOnly? start, DateOnly? end)
+    internal static void ValidateDetails(decimal? volume, DateOnly? start, DateOnly? end)
     {
         if (volume is <= -1_000_000_000_000m or >= 1_000_000_000_000m || (volume is { } v && decimal.Round(v, 6) != v))
             throw new InvalidRequestException("Объём работы должен содержать до двенадцати целых и шести дробных знаков.");
         if (start > end)
             throw new InvalidRequestException("Окончание работы не может быть раньше начала.");
+    }
+
+    internal void Edit(decimal? volume, DateOnly? start, DateOnly? end)
+    {
+        ValidateDetails(volume, start, end);
         Volume = volume;
         Start = start;
         End = end;

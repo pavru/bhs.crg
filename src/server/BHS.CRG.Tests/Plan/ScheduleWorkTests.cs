@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Support;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Plan.OfferDerivativeScenario;
 using static BHS.CRG.Tests.Plan.ScheduleScenario;
@@ -16,6 +18,31 @@ namespace BHS.CRG.Tests.Plan;
 [Collection(PlanOnlyCollection.Name)]
 public class ScheduleWorkTests(PlanOnlyHost host)
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Отказ_в_создании_ручной_работы_по_датам_или_объёму_не_создаёт_позицию(bool invalidDates)
+    {
+        var scene = await CreateAsync(host);
+        var schedule = await scene.BuildAsync();
+        var classifier = await EstimateSeed.ClassifierAsync(host);
+        var work = new
+        {
+            volume = invalidDates ? 10m : 0.0000001m,
+            start = "2026-12-04",
+            end = invalidDates ? "2026-12-01" : "2026-12-04",
+        };
+        using var refused = await scene.Editor.PostAsJsonAsync($"{ScheduleUrl(schedule)}/works",
+            new { workTypeId = classifier.WorkType, sectionId = scene.Site.Section, work });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains(invalidDates ? "Окончание работы" : "Объём работы", await refused.Content.ReadAsStringAsync());
+
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.WorkPlanItems.AnyAsync(p => p.ConstructionId == scene.Site.Construction));
+        Assert.Empty(Works(await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)))));
+    }
+
     [Fact]
     public async Task Ручная_работа_берёт_позицию_из_ядра_и_правится_только_с_версией_и_правом()
     {
@@ -71,7 +98,9 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         Assert.Equal(employeeId, Assert.Single(kept.GetProperty("employeeIds").EnumerateArray()).GetGuid());
         using var refused = await scene.Editor.PostAsJsonAsync(forms, body);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-        Assert.Contains("запись в архиве", await refused.Content.ReadAsStringAsync());
+        var error = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("Исполнители", error);
+        Assert.Contains("запись в архиве", error);
         Assert.Single(Works(await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)))));
     }
 
