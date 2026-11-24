@@ -44,6 +44,7 @@ export const SUITE_SECONDS = {
   'work-review': 12,
   'work-entry': 12,
   'work-summary': 12,
+  work: 20,
 };
 
 /**

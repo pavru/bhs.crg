@@ -826,6 +826,15 @@ jobs:
           done
           echo "сервер не поднялся за две минуты"; tail -n 50 ${{ runner.temp }}/api.log; exit 1
 
+      - name: Посев отчётов для прогона ролей Work
+        working-directory: src/client
+        env:
+          SEED_API: http://localhost:5055
+        run: |
+          set -o pipefail
+          node e2e/seed.mjs --work | tee ${{ runner.temp }}/seed-work.out
+          grep '^SMOKE_WORK_' ${{ runner.temp }}/seed-work.out >> "$GITHUB_ENV"
+
       # Прогоны идут по СОБРАННОМУ клиенту, а не по dev-серверу: проверять надо то, что поедет
       # в продакшн. Прокси на API у preview свой — адрес берётся из API_TARGET.
       - name: Запуск клиента

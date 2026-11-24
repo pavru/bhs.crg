@@ -26,6 +26,7 @@ import { seedInvoices } from './seed-invoices.mjs';
 import { ensureEmployees } from './seed-employees.mjs';
 import { seedEstimates } from './seed-estimates.mjs';
 import { ensurePreviewTemplate } from './seed-preview.mjs';
+import { seedWork } from './seed-work.mjs';
 
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
@@ -92,9 +93,7 @@ async function ensureAdmin() {
  * обязана открываться ему только для чтения). «Снабженца» заводит посев счетов (`seed-invoices.mjs`).
  */
 async function ensureUser(email = USER_EMAIL, displayName = 'Пётр Петров', role = 'User') {
-  const users = await api('GET', '/users');
-  const list = Array.isArray(users) ? users : users.items ?? [];
-  if (list.some(u => (u.email ?? '').toLowerCase() === email.toLowerCase())) return;
+  if ((await api('GET', '/users')).some(u => (u.email ?? '').toLowerCase() === email.toLowerCase())) return;
   // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
   await api('POST', '/users', { email, displayName, password: USER_PASSWORD, roles: [role] });
   console.log(`  + пользователь ${email}`);
@@ -947,4 +946,5 @@ async function main() {
   // проигнорировали. Один факт — одно место, и это место `ci.yml`.
 }
 
-main().catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });
+(process.argv.includes('--work') ? waitForApi().then(ensureAdmin).then(() => seedWork({ api, apiBase: API, ensureUser, login,
+  password: USER_PASSWORD, engineerEmail: USER_EMAIL })) : main()).catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });

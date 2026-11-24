@@ -5,13 +5,15 @@
 - [ ] 1.1 Хост `WorkIsolationViolationTests` на своей базе с модулем `work` и вторым хостом, где
   параметр доступа подменён на «все» [STG-6] [WORK-40]. Проверка — оба хоста поднимаются; подмена
   видна в ответе границы выдачи
-- [ ] 1.2 Перепись мест хранения: каждая сущность `WorkDbContext.Model` заполняется меткой или названа
+- [x] 1.2 Перепись мест хранения: каждая сущность `WorkDbContext.Model` заполняется меткой или названа
   «не несёт отчёта» с причиной [STG-6] [WORK-39]. Проверка — пробная сущность без метки роняет тест с
   её названием
 - [ ] 1.3 Поиск метки вне схемы `work`: текстовые и `jsonb` колонки ядра, метаданные вложений, тексты
   уведомлений и журнала действий [STG-6] [WORK-39]. Проверка — пробная запись метки в журнал действий
   роняет тест с таблицей и колонкой
-- [ ] 1.4 Сплошной обход под А и под менеджером без назначений: `GET` группы `/api/work` из
+
+  Пункт ждёт реализации и архива отдельного исправительного change, согласованного 24.11.2026.
+- [x] 1.4 Сплошной обход под А и под менеджером без назначений: `GET` группы `/api/work` из
   `EndpointDataSource` с подстановкой идентификаторов отчёта Б; таблицы с поиском и выгрузкой; наборы и
   источник; MCP `list_datasets`, `get_dataset`, `get_source`, `get_rows`; фото; `/api/notifications`;
   `/api/activity` [WORK-39] [WORK-40]. Проверка — чужая карточка и фото — 404, а не 403; адрес с
@@ -25,7 +27,7 @@
 
 ## 2. Посев и живой прогон
 
-- [ ] 2.1 `e2e/seed-work.mjs` с вызовом из `seed.mjs`:
+- [x] 2.1 `e2e/seed-work.mjs` с вызовом из `seed.mjs --work` после перезапуска сервера:
   - монтажники А и Б со связью, монтажник без связи;
   - менеджер с назначением и менеджер без назначений;
   - руководитель, инженер ИД;
@@ -34,7 +36,7 @@
   - строки `SMOKE_WORK_*`.
 
   [STG-6] Проверка — повторный посев ничего не задваивает; `seed.mjs` не перерос базовый уровень
-- [ ] 2.2 `e2e/work-smoke.mjs` под каждым сиденьем со списком экранов, записанным руками [STG-6]
+- [x] 2.2 `e2e/work-smoke.mjs` под каждым сиденьем со списком экранов, записанным руками [STG-6]
   [WORK-39]:
   - монтажник А видит свои отчёты, а чужая карточка отвечает страницей «Отчёт не найден…»;
   - у монтажника без связи — причина из `employee: null`;
@@ -44,17 +46,18 @@
   - последняя проверка — ни одного 403 на видимое действие.
 
   Проверка — каждая проверка ломалась намеренно и краснела (порядок `e2e/README.md`)
-- [ ] 2.3 Прогон `work` вписан в `test:e2e:ci` (`package.json`), раздел прогона и сидений — в
+- [x] 2.3 Прогон `work` вписан в `test:e2e:ci` (`package.json`), раздел прогона и сидений — в
   `e2e/README.md` [STG-6]. Проверка — `suites.test.mjs` зелёный
-- [ ] 2.4 `ci.yml:550` и `:602`: `Modules__Enabled: id,costs,work`; имена работ не меняются. Проверка —
-  весь список живых прогонов зелёный под включённым `work`
+- [x] 2.4 `ci.yml`: второй шаг посева после перезапуска; оба запуска с `Modules__Enabled: id,costs,plan,work`,
+  имена работ не меняются. Проверка — весь список живых прогонов зелёный под включённым `work`
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkIsolationViolation|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~McpGateInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 Живой прогон под ролями модуля: `MSYS_NO_PATHCONV=1 node e2e/work-smoke.mjs` на стенде с
-  `Modules__Enabled=id,costs,work` после `node e2e/seed.mjs` — зелёный; затем весь список
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkIsolationViolation|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~McpGateInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 Живой прогон под ролями модуля: `MSYS_NO_PATHCONV=1 node e2e/work-smoke.mjs` на стенде с
+  `Modules__Enabled=id,costs,plan,work` после общего посева, перезапуска и `node e2e/seed.mjs --work` —
+  зелёный; затем весь список
   `npm run test:e2e:ci`
