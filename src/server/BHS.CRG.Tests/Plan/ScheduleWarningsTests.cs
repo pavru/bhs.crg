@@ -12,6 +12,24 @@ namespace BHS.CRG.Tests.Plan;
 public class ScheduleWarningsTests(PlanOnlyHost host)
 {
     [Fact]
+    public async Task Пересекающиеся_длинные_задержки_называют_каждый_пробел_один_раз()
+    {
+        var scene = await CreateAsync(host);
+        var schedule = await scene.BuildAsync();
+        var first = await scene.ManualAsync(schedule, "2150-01-01", "2150-01-01");
+        var second = await scene.ManualAsync(schedule, "2150-02-01", "2150-02-01");
+        var target = await scene.ManualAsync(schedule, "2151-06-01", "2151-06-02");
+        await ReadAsync(scene.LinkAsync(schedule, first, target, lag: 600), HttpStatusCode.Created);
+        await ReadAsync(scene.LinkAsync(schedule, second, target, lag: 580), HttpStatusCode.Created);
+
+        var view = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)));
+        var work = Assert.Single(Works(view), w => Id(w) == Id(target));
+        Assert.Equal(new[] { 2150, 2151, 2152 }, Warnings(work).Where(w => Code(w) == "calendar-missing")
+            .Select(w => w.GetProperty("year").GetInt32()));
+        Assert.Equal(2, Warnings(work).Count(w => Code(w) == "starts-before-predecessor"));
+    }
+
+    [Fact]
     public async Task Отрицательная_задержка_учитывает_субботу_стройки_и_праздник_компании()
     {
         var scene = await CreateAsync(host);

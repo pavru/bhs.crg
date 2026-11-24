@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Integration;
@@ -210,5 +211,26 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
         Assert.Equal("hidden", block.GetProperty("state").GetString());
         Assert.Equal(permission, block.GetProperty("permission").GetString());
         Assert.Equal(2, block.EnumerateObject().Count());
+    }
+
+    [Fact]
+    public async Task В_производных_дата_построения_соответствует_поясу_стройки()
+    {
+        var scene = await ScheduleScenario.CreateAsync(host);
+        await new WorkTypeSeed(host).SendAsync(new SetConstructionTimeZoneCommand(scene.Site.Construction, "Asia/Vladivostok"));
+        var revision = await scene.RevisionAsync(Row("Работа"));
+        var schedule = await scene.BuildAsync(revision);
+        var scheduleId = ScheduleScenario.Id(schedule);
+        var builtAt = new DateTimeOffset(2026, 11, 24, 15, 30, 0, TimeSpan.Zero);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            await db.Database.ExecuteSqlAsync($"UPDATE plan.schedules SET created_at = {builtAt} WHERE id = {scheduleId}");
+        }
+
+        var answer = await ReadAsync(scene.Editor.GetAsync($"/api/plan/estimates/{scene.Estimate}/derivatives"));
+        var source = Assert.Single(answer.GetProperty("revisions").EnumerateArray());
+        var derivative = Assert.Single(source.GetProperty("schedules").GetProperty("items").EnumerateArray());
+        Assert.Equal("2026-11-25", derivative.GetProperty("date").GetString());
     }
 }

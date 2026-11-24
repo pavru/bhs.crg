@@ -1,5 +1,4 @@
 using System.Globalization;
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Calendars;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Endpoints;
@@ -15,6 +14,12 @@ internal sealed record ScheduleRelation(
 
 internal static class ScheduleWarnings
 {
+    private sealed record GapRange(Guid WorkId, int First, int Last, Guid? LinkId = null)
+    {
+        internal static GapRange Between(Guid work, DateOnly a, DateOnly b, Guid? link = null) =>
+            new(work, Math.Min(a.Year, b.Year), Math.Max(a.Year, b.Year), link);
+    }
+
     internal static Task<List<ScheduleRelation>> RelationsAsync(PlanDbContext db, Guid scheduleId, CancellationToken ct) =>
         (from link in db.ScheduleLinks.AsNoTracking()
          join predecessor in db.ScheduleWorks.AsNoTracking() on link.PredecessorId equals predecessor.Id
@@ -34,50 +39,57 @@ internal static class ScheduleWarnings
             return works.Select(w => NoDates(w.Id)).ToList();
 
         var calendar = await WorkingDays.LoadAsync(db, schedule.ConstructionId, ct);
+        var gapRanges = new List<GapRange>();
         foreach (var work in works)
         {
             if (work.Start is null || work.End is null)
                 warnings.Add(NoDates(work.Id));
-            if (work.End is { } end && !calendar.IsWorking(end).Value)
+            if (work.End is { } end && !calendar.IsWorkingDay(end))
                 warnings.Add(new(ScheduleMarks.EndsOnDayOff, "Окончание работы приходится на выходной.", work.Id));
             if ((work.Start ?? work.End) is { } first)
-                warnings.AddRange(calendar.GapsBetween(first, work.End ?? first)
-                    .Select(gap => ScheduleMarks.MissingCalendar(work.Id, gap)));
+                gapRanges.Add(GapRange.Between(work.Id, first, work.End ?? first));
         }
 
-        var thresholds = new Dictionary<(DateOnly, int), CalendarCalculation<DateOnly>?>();
+        var thresholds = new Dictionary<(DateOnly, int), DateOnly?>();
         foreach (var relation in relations)
         {
             if (relation.Predecessor.End is not { } end || relation.Successor.Start is not { } start) continue;
             var key = (end, relation.Link.Lag);
             if (!thresholds.TryGetValue(key, out var due))
-                thresholds[key] = due = Threshold(calendar, end, relation.Link.Lag);
+                thresholds[key] = due = calendar.ShiftWorkingDays(end, relation.Link.Lag);
+            // Сдвиг за пределы DateOnly позже любой даты при положительной задержке.
+            var early = due is { } threshold ? start < threshold : relation.Link.Lag > 0;
             var affected = new[] { relation.Predecessor, relation.Successor };
             foreach (var work in affected.Where(w => w.ScheduleId == schedule.Id))
             {
-                if (due is not null)
-                    warnings.AddRange(due.Gaps.Select(gap => ScheduleMarks.MissingCalendar(work.Id, gap, relation.Link.Id)));
-                if (due is not null ? start < due.Value : relation.Link.Lag > 0)
-                    warnings.Add(new(ScheduleMarks.StartsBeforePredecessor, Violation(relation, due?.Value),
+                if (due is { } date)
+                    gapRanges.Add(GapRange.Between(work.Id, end, date, relation.Link.Id));
+                if (early)
+                    warnings.Add(new(ScheduleMarks.StartsBeforePredecessor, Violation(relation, due),
                         work.Id, relation.Link.Id));
             }
         }
-        return warnings.DistinctBy(w => (w.Code, w.WorkId, w.Code == CalendarGap.MissingCode ? null : w.LinkId, w.Year)).ToList();
+        AddCalendarGaps(calendar, gapRanges, warnings);
+        return warnings;
     }
 
     private static ScheduleWarning NoDates(Guid id) =>
         new(ScheduleMarks.NoDates, "У работы не назначены все даты.", id);
 
-    private static CalendarCalculation<DateOnly>? Threshold(WorkingDays calendar, DateOnly end, int lag)
+    private static void AddCalendarGaps(WorkingDays calendar, List<GapRange> ranges, List<ScheduleWarning> warnings)
     {
-        try
+        foreach (var work in ranges.GroupBy(r => r.WorkId))
         {
-            return calendar.AddWorkingDays(end, lag);
-        }
-        catch (InvalidRequestException)
-        {
-            // Сдвиг за пределы DateOnly всегда позже (положительный) либо раньше (отрицательный) любой даты.
-            return null;
+            // Пересечения сроков и задержек обходятся один раз на работу, независимо от числа её связей.
+            var coveredUntil = 0;
+            foreach (var range in work.OrderBy(r => r.First))
+            {
+                var first = Math.Max(coveredUntil + 1, range.First);
+                if (first > range.Last) continue;
+                warnings.AddRange(calendar.GapsInYears(first, range.Last)
+                    .Select(gap => ScheduleMarks.MissingCalendar(work.Key, gap, range.LinkId)));
+                coveredUntil = range.Last;
+            }
         }
     }
 
