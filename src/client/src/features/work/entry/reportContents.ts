@@ -2,8 +2,9 @@ import type { ReportHeader, ReportInput, WorkReport, WorkReportLine } from '@/sh
 import { formatInput } from '@/shared/format/format';
 import { newUuid } from '@/shared/utils/localId';
 import { parseNumber } from '@/shared/utils/parseNumber';
+import { detailValues } from '../reportDetails';
 
-export type DraftLine = Omit<WorkReportLine, 'volume'> & { volume: string };
+export type DraftLine = Omit<WorkReportLine, 'volume' | 'missingFields'> & { volume: string };
 export type ReportContents = { hours: string; lines: DraftLine[] };
 
 // formatInput использует запятую без группировки независимо от языка показа.
@@ -74,8 +75,15 @@ export function rebaseContents(base: ReportContents, local: ReportContents, fres
     if (!previous || !edited) { lines.push(edited ?? line); continue; }
     const number = lines.length + 1;
     const changed = Object.entries(edited).filter(([key, value]) => key !== 'materials' && key !== 'participants' && key !== 'photos'
+      && key !== 'details'
       && !sameContent(previous[key as keyof DraftLine], value));
     const merged = { ...line, ...Object.fromEntries(changed) };
+    if (!sameContent(previous.details, edited.details)) {
+      const entries = (details: unknown) => Object.entries(detailValues(details));
+      merged.details = Object.fromEntries(rebaseList(entries(previous.details), entries(edited.details), entries(line.details),
+        ([key]) => key, () => conflicts.push(
+          `Строка ${number}: поле заказчика изменили одновременно. Сохранено состояние сервера.`)));
+    }
     merged.materials = rebaseList(previous.materials, edited.materials, line.materials, item => item.nomenclatureId, item => {
       const action = item?.note?.trim() ? `Ваше примечание: «${item.note.trim()}».`
         : item ? 'Вы оставили примечание пустым.' : 'Вы убрали материал.';

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Database, Delete, Description } from '@/shared/ui/icons';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
@@ -6,6 +6,8 @@ import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
+import { RefPickerModal } from './RefPickerModal';
+import { ReferenceCatalogContext } from './referenceCatalog';
 import { BROKEN_LABEL, BrokenRefChip, BrokenRefNote } from './BrokenRef';
 import { IconButton } from '@/shared/ui/Button';
 import { DocumentStatusText } from './DocumentStatusText';
@@ -100,6 +102,8 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
   const [pickerOpen, setPickerOpen] = useState(false);
   const items = (Array.isArray(value) ? value : []).filter(isFieldRef);
   const linkedInstanceIds = new Set(items.map(r => r.instanceId).filter(Boolean));
+  const scopedCatalog = useContext(ReferenceCatalogContext);
+  const linkedCatalogIds = new Set(items.flatMap(ref => ref.$ref === 'catalog' && ref.entryId ? [ref.entryId] : []));
 
   // Метки битых ссылок адресуют строку номером и считаются по СОХРАНЁННОМУ состоянию (issue #759):
   // тот же учёт происхождения, что в редакторе массива, и тот же признак сброса — факт сохранения,
@@ -115,7 +119,8 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
   };
 
   function addRef(ref: FieldRef) {
-    if (ref.instanceId && linkedInstanceIds.has(ref.instanceId)) return;
+    if ((ref.instanceId && linkedInstanceIds.has(ref.instanceId))
+      || (scopedCatalog && ref.entryId && linkedCatalogIds.has(ref.entryId))) return;
     onChange([...items, ref]);
     setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
   }
@@ -182,10 +187,14 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
           })}
         </div>
       )}
-      <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
-        field={field} allDocTypes={allDocTypes}
-        otherInstances={otherInstances.filter(i => !linkedInstanceIds.has(i.id))}
-        setId={setId} onSelect={addRef} />
+      {scopedCatalog
+        ? <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen} allDocTypes={allDocTypes}
+          compositeType={allDocTypes.find(type => type.id === field.typeId) ?? null}
+          excludedCatalogIds={linkedCatalogIds} onSelect={addRef} />
+        : <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
+          field={field} allDocTypes={allDocTypes}
+          otherInstances={otherInstances.filter(i => !linkedInstanceIds.has(i.id))}
+          setId={setId} onSelect={addRef} />}
     </div>
   );
 }

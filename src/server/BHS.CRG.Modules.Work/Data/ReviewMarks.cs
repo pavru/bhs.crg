@@ -25,7 +25,7 @@ public sealed record ReviewMarkDto(string Code, string Text);
 /// <param name="Source">Из каких данных пометка считается. Код без источника не регистрируется: пометку, за которой
 /// нет данных, нельзя отличить от «таких отчётов нет».</param>
 /// <param name="Has">Предикат отчёта для запроса — им считаются и пометки строки, и счётчик по всему отбору.
-/// <c>null</c> — данных ещё нет, и пометка честно равна нулю: источник названо в <paramref name="Source" />.</param>
+/// <c>null</c> — вычисляется по действующей схеме в памяти или источник ещё не подключён.</param>
 public sealed record ReviewMark(
     string Code, string Text, string Source, Func<ReviewMarkSources, Expression<Func<Report, bool>>>? Has)
 {
@@ -34,7 +34,7 @@ public sealed record ReviewMark(
 
 /// <summary>
 /// Каталог пометок очереди приёмки (ТЗ WORK-28, MOB-21, WORK-34; change <c>work-16-review</c>) — один, на сервере, и
-/// открыт для дописывания: <c>accepted-changed</c> и <c>fields-missing</c> добавят <c>work-19</c> и <c>work-24</c>.
+/// открыт для дописывания.
 ///
 /// <para><b>Пометка считается запросом, а не на клиенте.</b> Счётчики очереди — по всему отбору, а не по странице:
 /// предикат одной пометки даёт и её строки, и её число. Клиент знает только коды (<c>WORK_MARK_CODES</c> в
@@ -53,6 +53,7 @@ public static class ReviewMarks
     public const string CrewMismatch = "crew-mismatch";
     public const string AcceptedChanged = "accepted-changed";
     public const string PhotosPending = "photos-pending";
+    public const string FieldsMissing = "fields-missing";
     public const string LateDelivery = "late-delivery";
 
     /// <summary>Все пометки — в порядке, в котором их показывает очередь.</summary>
@@ -96,9 +97,11 @@ public static class ReviewMarks
                               && (x.Kind == ReportJournalKinds.Accepted || x.Kind == ReportJournalKinds.Returned)))),
         new(LateDelivery, "поздняя доставка",
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
+        new(FieldsMissing, "не заполнены поля",
+            "поля заказчика с признаком «нужно к приёмке» в действующей схеме (work-24)", null),
     ];
 
-    /// <summary>Пометки, у которых есть данные, — по порядку каталога.</summary>
+    /// <summary>Пометки, которые считаются в запросе базы, — по порядку каталога.</summary>
     public static IReadOnlyList<ReviewMark> Counted { get; } = [.. All.Where(m => m.Has is not null)];
 
     /// <summary>
@@ -117,10 +120,16 @@ public static class ReviewMarks
     /// Пометки отчёта для ответа — по порядку каталога. У <see cref="PhotosPending" /> текст с числом: «фото не загружены:
     /// 2» — сколько ждут, а не только что ждут.
     /// </summary>
-    public static IReadOnlyList<ReviewMarkDto> Dtos(IReadOnlyCollection<string> codes, int photosPending) =>
+    public static IReadOnlyList<ReviewMarkDto> Dtos(
+        IReadOnlyCollection<string> codes, int photosPending, int missingFields = 0) =>
     [
-        .. All.Where(m => codes.Contains(m.Code))
-            .Select(m => m.Code == PhotosPending ? new ReviewMarkDto(m.Code, $"{m.Text}: {photosPending}") : m.Dto),
+        .. All.Where(m => m.Code == FieldsMissing ? missingFields > 0 : codes.Contains(m.Code))
+            .Select(m => m.Code switch
+            {
+                PhotosPending => new ReviewMarkDto(m.Code, $"{m.Text}: {photosPending}"),
+                FieldsMissing => new ReviewMarkDto(m.Code, $"{m.Text}: {missingFields}"),
+                _ => m.Dto,
+            }),
     ];
 
     /// <summary>Пометка по коду; неизвестный код — <c>null</c>.</summary>

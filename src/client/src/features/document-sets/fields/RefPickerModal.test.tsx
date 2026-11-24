@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
 import { RefPickerModal } from './RefPickerModal';
 
@@ -22,7 +23,9 @@ const TYPE = { id: 't1', name: 'Организация', schema: '[]' } as unkno
 
 function show() {
   const onSelect = vi.fn();
-  render(<RefPickerModal open onOpenChange={() => {}} compositeType={TYPE} allDocTypes={[TYPE]} setId="s1" onSelect={onSelect} />);
+  render(<QueryClientProvider client={new QueryClient()}>
+    <RefPickerModal open onOpenChange={() => {}} compositeType={TYPE} allDocTypes={[TYPE]} setId="s1" onSelect={onSelect} />
+  </QueryClientProvider>);
   return { onSelect, search: screen.getByRole('combobox') };
 }
 

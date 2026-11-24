@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Renditions;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Storage;
 using BHS.CRG.Modules;
@@ -93,6 +94,8 @@ public static class ModulePorts
         services.AddScoped<IModuleConstructions, ModuleConstructionsPort>();
         services.AddScoped<IModuleReferenceTargets, ModuleReferenceTargetsPort>();
         services.AddScoped<IModuleTypes, ModuleTypesPort>();
+        services.AddSingleton<IDocumentTypeCapabilities, DocumentTypeCapabilities>();
+        services.AddScoped<IModuleAcceptanceFields, ModuleAcceptanceFieldsPort>();
         services.AddScoped<IModuleWriteGuard, ModuleWriteGuardPort>();
         // Распознавание для модулей (issue #1077): профиль модуля, движки и запрос — ядра.
         services.AddScoped<IModuleRecognition, ModuleRecognitionPort>();

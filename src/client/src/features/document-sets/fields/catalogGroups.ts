@@ -17,10 +17,11 @@ import type { CommonDataEntry, CatalogScope } from '@/shared/api/types';
  */
 const SCOPE_ORDER: CatalogScope[] = ['Set', 'Section', 'Construction', 'System'];
 
-export type ScopeGroup = { scope: CatalogScope; entries: CommonDataEntry[] };
+type ScopedEntry = Pick<CommonDataEntry, 'scope'>;
+export type ScopeGroup<T extends ScopedEntry = CommonDataEntry> = { scope: CatalogScope; entries: T[] };
 
-export function useScopeGroups(entries: CommonDataEntry[], searching: boolean) {
-  const groups: ScopeGroup[] = SCOPE_ORDER
+export function useScopeGroups<T extends ScopedEntry>(entries: T[], searching: boolean) {
+  const groups: ScopeGroup<T>[] = SCOPE_ORDER
     .map(scope => ({ scope, entries: entries.filter(e => e.scope === scope) }))
     .filter(g => g.entries.length > 0);
 

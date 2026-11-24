@@ -4,8 +4,9 @@ import type { EnumOptionDef, EnumTypeDef } from './types';
 
 const QK = 'enumTypes';
 
-export function useListEnumTypes() {
+export function useListEnumTypes(enabled = true) {
   return useQuery<EnumTypeDef[]>({
+    enabled,
     queryKey: [QK],
     queryFn: () => apiClient.get('/enum-types').then(r => r.data),
   });

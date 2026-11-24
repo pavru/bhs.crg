@@ -20,10 +20,11 @@ internal static class ReportEntryCatalog
             .RequireAuthorization(AppPolicies.AnyPermission(WorkModule.ReportOwn, WorkModule.ReportReview));
 
     private static Task<IResult> GetAsync(
-        Guid siteId, string kind, DateOnly? date, Guid? reportId, string? q, IModuleReaders readers,
+        Guid siteId, string kind, DateOnly? date, Guid? reportId, string? q, Guid? typeId, bool? union, bool? archived,
+        IModuleReaders readers,
         IModuleUser user, IModuleEmployees employees, ManagerSites managers, ReportEntrySites entry,
         ReportReads reports, IModuleConstructions constructions, IModuleWorkTypes types, IModuleUnits units,
-        IModuleCatalog catalog, CancellationToken ct) => ReportRefusals.RunAsync(async () =>
+        IModuleCatalog catalog, IModuleAcceptanceFields fields, CancellationToken ct) => ReportRefusals.RunAsync(async () =>
     {
         var reader = await readers.ForRequestAsync(ct);
         var reach = reader.Allows(WorkModule.ReportReview)
@@ -54,9 +55,18 @@ internal static class ReportEntryCatalog
             "work-types" => await WorkTypesAsync(types, q, lines, ct),
             "units" => await UnitsAsync(units, q, lines, ct),
             "materials" => await MaterialsAsync(catalog, q, lines, ct),
+            "field-references" when typeId is { } target =>
+                await FieldReferencesAsync(fields, siteId, target, union == true, archived == true, q, ct),
             _ => Results.NotFound(),
         };
     });
+
+    private static async Task<IResult> FieldReferencesAsync(IModuleAcceptanceFields fields,
+        Guid siteId, Guid target, bool union, bool archived, string? query, CancellationToken ct)
+        => await fields.ChoicesAsync(WorkModule.ModuleCode, WorkRecordTypes.LineDetailsCode,
+            siteId, target, union, archived, query, Limit, ct) is { } choices
+            ? Results.Ok(choices)
+            : throw new NotFoundException("Тип ссылки отсутствует в схеме сведений строки.");
 
     private static async Task<IResult> WorkTypesAsync(IModuleWorkTypes types, string? q, ReportLine[] lines, CancellationToken ct)
     {

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using BHS.CRG.Modules.Ports;
 using System.Linq.Expressions;
@@ -306,8 +307,10 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// отчётам охвата, независимо от отбора и страницы.
     /// </summary>
     public async Task<ReviewQueueRead> QueueAsync(
-        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct)
+        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct,
+        ModuleAcceptanceSchema? acceptance = null)
     {
+        await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var sources = Sources(userId);
         var pending = Visible(viewer).AsNoTracking().Where(r => r.Status == ReportStatus.Submitted);
         var chosen = pending;
@@ -320,10 +323,14 @@ public sealed partial class ReportReads(WorkDbContext db)
         var counted = await chosen.GroupBy(_ => 1).Select(ReviewMarks.Counts(sources)).FirstOrDefaultAsync(ct);
         var counts = ReviewMarks.All.ToDictionary(m => m.Code, _ => 0);
         for (var i = 0; i < ReviewMarks.Counted.Count; i++) counts[ReviewMarks.Counted[i].Code] = counted?[i] ?? 0;
+        var missingFields = await CountMissingFieldsAsync(chosen, acceptance, ct);
+        counts[ReviewMarks.FieldsMissing] = missingFields.Count;
 
+        var missingIds = missingFields.Keys.ToArray();
         var selected = filter.Mark switch
         {
             null => chosen,
+            { Code: ReviewMarks.FieldsMissing } => chosen.Where(r => missingIds.Contains(r.Id)),
             { Has: { } has } => chosen.Where(has(sources)),
             _ => chosen.Where(_ => false),
         };
@@ -340,9 +347,26 @@ public sealed partial class ReportReads(WorkDbContext db)
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
-                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending)),
+                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending,
+                    missingFields.GetValueOrDefault(p.Report.Id))),
             ],
             summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
+    }
+
+    private static async Task<Dictionary<Guid, int>> CountMissingFieldsAsync(
+        IQueryable<Report> chosen, ModuleAcceptanceSchema? acceptance, CancellationToken ct)
+    {
+        var counts = new Dictionary<Guid, int>();
+        if (acceptance is not { HasFields: true }) return counts;
+
+        var details = chosen.SelectMany(report => report.Lines, (report, line) => new { report.Id, line.Details });
+        await foreach (var line in details.AsAsyncEnumerable().WithCancellation(ct))
+        {
+            using var data = System.Text.Json.JsonDocument.Parse(line.Details);
+            var missing = acceptance.Missing(data.RootElement).Count;
+            if (missing > 0) counts[line.Id] = counts.GetValueOrDefault(line.Id) + missing;
+        }
+        return counts;
     }
 
     /// <summary>

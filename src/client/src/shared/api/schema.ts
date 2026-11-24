@@ -27,6 +27,8 @@ export interface SchemaField {
   /** Set when type === 'enum'. List of allowed string values. */
   options?: string[];
   required: boolean;
+  /** Пустое поле отмечается в приёмке, сохраняя возможность принять отчёт. */
+  forAcceptance?: boolean;
   /** Pre-filled value for new entries. For 'array' fields use [] as default. */
   defaultValue?: unknown;
   /** Functional tags binding this field to hard-coded behaviour (registry: GET /api/tags). */
@@ -184,6 +186,7 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
     typeId: f.typeId,
     options: f.options,
     required: f.required ?? false,
+    forAcceptance: f.forAcceptance,
     defaultValue: f.defaultValue,
     tags: f.tags,
     computed: f.computed,
@@ -277,7 +280,7 @@ export function resolveEffectiveFields(
  * строкой.</p>
  */
 export function inheritanceDistance(
-  childId: string, parentId: string, allDocTypes: DocumentType[],
+  childId: string, parentId: string, allDocTypes: readonly Pick<DocumentType, 'id' | 'parentId'>[],
 ): number | null {
   const visited = new Set<string>();
   let current: string | undefined = childId;
@@ -292,7 +295,7 @@ export function inheritanceDistance(
 }
 
 /** Returns true if childId equals parentId or has parentId anywhere in its ancestor chain. */
-export function isSubtypeOf(childId: string, parentId: string, allDocTypes: DocumentType[]): boolean {
+export function isSubtypeOf(childId: string, parentId: string, allDocTypes: readonly Pick<DocumentType, 'id' | 'parentId'>[]): boolean {
   return inheritanceDistance(childId, parentId, allDocTypes) !== null;
 }
 
@@ -446,9 +449,9 @@ export type UnionSource = 'value' | 'document';
 
 export function placeInUnion(
   entryTypeId: string, unionType: DocumentType, allDocTypes: DocumentType[],
-  source: UnionSource = 'value',
+  source: UnionSource = 'value', ancestry: readonly Pick<DocumentType, 'id' | 'parentId'>[] = allDocTypes,
 ): UnionPlacement {
-  if (source === 'value' && inheritanceDistance(entryTypeId, unionType.id, allDocTypes) !== null) {
+  if (source === 'value' && inheritanceDistance(entryTypeId, unionType.id, ancestry) !== null) {
     return { kind: 'self' };
   }
 
@@ -456,7 +459,7 @@ export function placeInUnion(
     source === 'document' ? f.type === 'doc-ref' : (f.type === 'complex' || f.type === 'doc-ref');
   const matches = resolveEffectiveFields(unionType, allDocTypes)
     .filter(f => accepts(f) && !!f.typeId)
-    .map(f => ({ key: f.key, distance: inheritanceDistance(entryTypeId, f.typeId!, allDocTypes) }))
+    .map(f => ({ key: f.key, distance: inheritanceDistance(entryTypeId, f.typeId!, ancestry) }))
     .filter((m): m is { key: string; distance: number } => m.distance !== null);
 
   if (matches.length === 0) return { kind: 'none' };

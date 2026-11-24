@@ -63,6 +63,8 @@ export function returnWorkReport(id: string, version: string, changeId: string, 
     { headers: { 'If-Match': version } }).then(response => response.data);
 }
 
+export interface MissingAcceptanceField { key: string; title: string }
+
 export interface ReviewReportLine {
   id: string;
   workTypeId: string;
@@ -74,6 +76,7 @@ export interface ReviewReportLine {
   comment: string | null;
   isCrew: boolean;
   details: unknown;
+  missingFields?: MissingAcceptanceField[];
   materials: { nomenclatureId: string; note: string | null }[];
   participants: string[];
   photos: (WorkLinePhoto & { versionUrl?: string })[];
@@ -99,6 +102,7 @@ export interface ReviewReport {
   version: string;
   lines: ReviewReportLine[];
   marks: WorkMark[];
+  missingFieldsCount?: number;
   acceptWouldMark: boolean;
   currentVersion: number;
   versions: ReviewReportVersion[];
@@ -140,13 +144,15 @@ export function useReviewCard(id: string, number: number | undefined) {
   });
 }
 
-export function editReviewReport(report: ReviewReport, changeId: string, lines: Pick<ReviewReportLine, 'id' | 'volume' | 'location'>[]) {
+export function editReviewReport(
+  report: ReviewReport, changeId: string, lines: Pick<ReviewReportLine, 'id' | 'volume' | 'location' | 'details'>[],
+) {
   const { id, employeeId, constructionId, date, shift, hours, note, version } = report;
   return apiClient.put<ReviewDecisionResult>(`/work/entry/reports/${id}`, {
     id, employeeId, constructionId, date, shift, hours, note, changeId,
     lines: report.lines.map((line, index) => ({
       id: line.id, workTypeId: line.workTypeId, variantId: line.variantId, unitId: line.unitId, sectionId: line.sectionId,
-      comment: line.comment, isCrew: line.isCrew, details: line.details, materials: line.materials,
+      comment: line.comment, isCrew: line.isCrew, details: lines[index].details, materials: line.materials,
       participants: line.participants, crewRole: line.crewRole, volume: lines[index].volume, location: lines[index].location,
     })),
   }, { headers: { 'If-Match': version } }).then(response => response.data);

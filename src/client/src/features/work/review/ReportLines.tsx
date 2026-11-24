@@ -30,6 +30,12 @@ export function ReportLines({ card }: { card: ReviewFullCard }) {
         {[line.sectionId && card.sections[line.sectionId], line.location].filter(Boolean).join(' · ')}
       </span>
       {line.comment && <span className="block whitespace-pre-wrap text-body-small">{line.comment}</span>}
+      {!!line.missingFields?.length && <div className="mt-1">
+        <StatusText tone="warning">Нужно к приёмке</StatusText>
+        <ul className="list-disc ps-5 text-body-small">
+          {line.missingFields.map(field => <li key={field.key}>{field.title}</li>)}
+        </ul>
+      </div>}
     </> },
     { key: 'volume', label: 'Объём', align: 'right', cell: line => `${formatNumber(line.volume, 4)} ${card.units[line.unitId] ?? ''}`.trim() },
     { key: 'photos', label: 'Фото', wrap: true, interactive: true, cell: line => {

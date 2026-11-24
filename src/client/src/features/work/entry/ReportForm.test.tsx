@@ -49,6 +49,7 @@ beforeEach(() => {
   current = report;
   materialReason = null;
   vi.mocked(apiClient.get).mockImplementation(async path => {
+    if (path === '/work/line-details-schema') return { data: { fields: [] } };
     if (path === '/work/photos/limits') return { data: { count: 5, megabytes: 15, maxBytes: 15 * 1024 * 1024,
       countText: 'Не больше 5 фото на строку.', sizeText: 'Фото больше 15 МБ.' } };
     if (path.endsWith('/preview')) return new Promise(() => {});
@@ -76,6 +77,30 @@ function mount(id: string, mode: ReportMode = 'own', client = new QueryClient())
 }
 
 const button = (name: string) => screen.getByRole('button', { name });
+
+it('показывает подсказку по ответу сервера и сохраняет введённое поле заказчика', async () => {
+  const get = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, config) => path === '/work/line-details-schema'
+    ? Promise.resolve({ data: { fields: [
+      { key: 'act', title: 'Номер акта', forAcceptance: true },
+      { key: 'other', title: 'Другое поле', forAcceptance: true },
+    ], types: [], enumTypes: [], primitiveTypes: [] } })
+    : get(path, config));
+  current = { ...report, lines: [{ ...report.lines[0], missingFields: [{ key: 'act', title: 'Номер акта' }] }] };
+  vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => {
+    expect(input).toMatchObject({ lines: [expect.objectContaining({ details: { act: 'А-17' } })] });
+    current = { ...current, version: '2', lines: [{ ...current.lines[0], details: { act: 'А-17' }, missingFields: [] }] };
+    return { data: current };
+  });
+  mount('r1');
+  const marked = await screen.findByRole('textbox', { name: 'Номер акта' }, { timeout: 5000 });
+  const other = screen.getByRole('textbox', { name: 'Другое поле' });
+  expect(document.getElementById(marked.getAttribute('aria-describedby')!)?.textContent).toBe('Нужно к приёмке');
+  expect(other.hasAttribute('aria-describedby')).toBe(false);
+  fireEvent.change(marked, { target: { value: 'А-17' } });
+  fireEvent.click(button('Сохранить'));
+  await waitFor(() => expect(screen.queryByText('Нужно к приёмке')).toBeNull(), { timeout: 3000 });
+}, 15000);
 
 async function pickPhotoForNewReport(file: File) {
   mount('new');

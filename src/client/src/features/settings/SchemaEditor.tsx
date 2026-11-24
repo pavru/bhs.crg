@@ -292,6 +292,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         <div className={showJson ? 'hidden' : undefined}>
             <GroupedFieldsEditor
               fields={fields}
+              acceptanceFields={docType.acceptanceFields}
               onFieldsChange={f => { setFields(f); setDirty(true); }}
               groups={groups}
               onGroupsChange={g => { setGroups(g); setDirty(true); }}

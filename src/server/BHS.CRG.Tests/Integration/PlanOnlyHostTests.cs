@@ -51,6 +51,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
 
         foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/work/assignments", "work"),
                      ("/api/work/reports", "work"), ("/api/work/entry/reports", "work"), ("/api/work/review/queue", "work"),
+                     ("/api/work/line-details-schema", "work"),
                      ("/api/work/summary?from=2026-10-01&to=2026-10-31", "work"),
                      ($"/api/work/photos/{Guid.NewGuid()}", "work") })
         {
@@ -65,6 +66,11 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var accept = await client.PostAsync($"/api/work/reports/{Guid.NewGuid()}/accept", null);
         Assert.Equal(HttpStatusCode.NotImplemented, accept.StatusCode);
         Assert.Equal("work", (await accept.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("module").GetString());
+        var edit = await client.PutAsJsonAsync($"/api/work/reports/{Guid.NewGuid()}", new
+        {
+            lines = new[] { new { details = new { act = "А-17" } } },
+        });
+        Assert.Equal(HttpStatusCode.NotImplemented, edit.StatusCode);
     }
 
     /// <summary>

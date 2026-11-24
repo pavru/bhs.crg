@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { catalogLabels, materialName, useCrewCandidates, useEntryCatalog,
   type EntryCatalogScope, type MaterialOption, type WorkTypeOption } from '@/shared/api/workEntryCatalog';
 import type { RequiredReportField } from '@/shared/api/workReports';
+import type { MissingAcceptanceField } from '@/shared/api/workReview';
 import { Banner } from '@/shared/ui/Banner';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -14,6 +15,7 @@ import { WorkVariantPicker } from '@/shared/ui/WorkTypePicker';
 import { apiError } from '@/shared/utils/apiError';
 import type { DraftLine } from './reportContents';
 import { missingForId, requiredFieldTitle } from './reportPresentation';
+import { ReportCustomerFields } from '../ReportCustomerFields';
 
 interface LineEditorProps {
   scope: EntryCatalogScope;
@@ -23,9 +25,10 @@ interface LineEditorProps {
   onChange: (changes: Partial<DraftLine>) => void;
 }
 
-export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, onChange, pickedMaterials, onPickMaterial }:
+export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, missingFields, onChange, onDetailChange, pickedMaterials, onPickMaterial }:
   LineEditorProps & { type?: WorkTypeOption; errors?: RequiredReportField[];
-    pickedMaterials: Record<string, MaterialOption>; onPickMaterial: (material: MaterialOption) => void }) {
+    missingFields?: MissingAcceptanceField[]; pickedMaterials: Record<string, MaterialOption>;
+    onPickMaterial: (material: MaterialOption) => void; onDetailChange: (key: string, value: unknown) => void }) {
   const sections = useEntryCatalog(scope, 'sections', '', siteReady);
   const sectionItems = sections.data?.items ?? [];
   const missingSection = line.sectionId && !sectionItems.some(item => item.id === line.sectionId);
@@ -57,6 +60,8 @@ export function ReportLineDetails({ scope, line, siteReady, type, disabled, erro
       missing={!line.materials.length && !!errors?.some(item => item.field === 'materials')}
       picked={pickedMaterials} onPick={onPickMaterial} />
     <CrewFields scope={scope} line={line} siteReady={siteReady} disabled={disabled} onChange={onChange} />
+    <ReportCustomerFields details={line.details} missingFields={missingFields} disabled={disabled}
+      scope={scope} onChange={onDetailChange} />
   </div>;
 }
 

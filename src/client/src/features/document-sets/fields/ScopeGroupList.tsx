@@ -14,15 +14,15 @@ import type { ScopeGroup } from './catalogGroups';
  * подписанный заголовком ([UI-87], Р7): кнопка внутри listbox была бы его запрещённым ребёнком. Стрелки поля
  * поиска заголовков не касаются — они ходят по вариантам раскрытых групп.</p>
  */
-export function ScopeGroupList({
+export function ScopeGroupList<T extends Pick<CommonDataEntry, 'scope' | 'id' | 'displayName'>>({
   groups, isExpanded, toggle, isActive, onHover, onSelect, optionIdOf, listboxIdOf, hintOf, maxHeight = 'max-h-64',
 }: {
-  groups: ScopeGroup[];
+  groups: ScopeGroup<T>[];
   isExpanded: (scope: CatalogScope) => boolean;
   toggle: (scope: CatalogScope) => void;
-  isActive?: (entry: CommonDataEntry) => boolean;
-  onHover?: (entry: CommonDataEntry) => void;
-  onSelect: (entry: CommonDataEntry) => void;
+  isActive?: (entry: T) => boolean;
+  onHover?: (entry: T) => void;
+  onSelect: (entry: T) => void;
   /**
    * Идентификатор строки как ОПЦИИ клавиатурного списка. Его наличие и означает, что вызывающий
    * такой список ведёт: строки — варианты `ListOption` в listbox группы, а поле поиска адресует активный
@@ -32,11 +32,11 @@ export function ScopeGroupList({
    * невыбранных опций, между которыми некуда перейти: ни активного элемента, ни стрелок — так это и выглядело
    * бы в «Выбрать документ…», где никакой навигации нет.</p>
    */
-  optionIdOf?: (entry: CommonDataEntry) => string | undefined;
+  optionIdOf?: (entry: T) => string | undefined;
   /** Идентификатор listbox группы — на него показывает `aria-controls` поля поиска. Нужен вместе с `optionIdOf`. */
   listboxIdOf?: (scope: CatalogScope) => string;
   /** Правая метка строки — например «куда ляжет» для union'а. */
-  hintOf?: (entry: CommonDataEntry) => string | null;
+  hintOf?: (entry: T) => string | null;
   maxHeight?: string;
 }) {
   const ids = useId();

@@ -61,6 +61,9 @@ public partial class ArchiveReadInventoryTests
             Documents("документы комплекта"),
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|var instance = await instanceRepo.GetByIdAsync(instanceId, ct);"] =
             Documents("документ по идентификатору"),
+        ["BHS.CRG.Api/Modules/Ports/ModuleAcceptanceFieldsPort.cs|var rows = await db.DomainObjects.AsNoTracking()"] =
+            ByPurpose("выбор ссылки в отчёте скрывает архивные записи; отдельный список архива показывает только их",
+                nameof(WorkReportAcceptanceFieldsTests.Ссылки_выбираются_из_семьи_поля_в_охвате_отчёта_без_общих_прав)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));"] =
             ByPurpose("назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),"] =

@@ -79,7 +79,8 @@ public static class WorkRecordTypes
         Group: Group,
         Storage: ModuleStorage.ModuleTable,
         SkipWhenBlocked: true,
-        Kind: ModuleTypeKind.Composite);
+        Kind: ModuleTypeKind.Composite,
+        AcceptanceFields: true);
 
     /// <summary>Всё, что объявляет модуль. Порядок значения не имеет — ядро проецирует каждый.</summary>
     public static readonly IReadOnlyList<ModuleRecordType> All = [Report, LineDetails];

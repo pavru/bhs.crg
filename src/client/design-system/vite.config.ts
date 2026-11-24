@@ -62,6 +62,7 @@ export default defineConfig({
       work21: resolve(root, 'work21.html'),
       work22: resolve(root, 'work22.html'),
       work23: resolve(root, 'work23.html'),
+      work24: resolve(root, 'work24.html'),
       duplicatePayment: resolve(root, 'duplicate-payment.html'),
       paymentRequisites: resolve(root, 'payment-requisites.html'),
       planOffers: resolve(root, 'plan-offers.html'),

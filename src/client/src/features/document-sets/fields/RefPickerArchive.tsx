@@ -2,7 +2,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Archive, Unarchive } from '@/shared/ui/icons';
 import { useSetCommonDataArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
-import type { CommonDataEntry } from '@/shared/api/types';
+import type { ReferenceCatalogEntry } from './referenceCatalog';
 import { Button } from '@/shared/ui/Button';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ARCHIVED_WORD } from '@/shared/ui/archive';
@@ -34,21 +34,21 @@ export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKee
  * <p>Без права вести общие данные кнопки нет, а текст говорит, к кому идти: отключённая кнопка без
  * объяснения — кнопка в никуда.</p>
  */
-export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
-  entries: CommonDataEntry[];
+export function RefPickerArchive<T extends ReferenceCatalogEntry>({ entries, onReturned, selectsAtOnce }: {
+  entries: T[];
   /** Запись возвращена из архива — её можно выбирать как действующую. */
-  onReturned: (entry: CommonDataEntry) => void;
+  onReturned: (entry: T) => void;
   /**
    * Встанет ли запись в поле сразу после возврата. Нет — впереди ещё вопрос (вариант union'а), и
    * кнопка зовётся «Вернуть из архива»: возврат необратим для всех, а выбор может не состояться.
    */
-  selectsAtOnce: (entry: CommonDataEntry) => boolean;
+  selectsAtOnce: (entry: T) => boolean;
 }) {
   const unarchive = useSetCommonDataArchive();
   const canReturn = useCan().permission('core.catalog.edit');
   const toast = useSnackbar();
 
-  async function giveBack(entry: CommonDataEntry) {
+  async function giveBack(entry: T) {
     try {
       await unarchive.mutateAsync({ id: entry.id, archived: false });
     } catch (e) {

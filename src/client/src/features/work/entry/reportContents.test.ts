@@ -16,6 +16,15 @@ it('combines independent additions and removals by material and participant ID',
   expect(result.conflicts).toEqual([]);
 });
 
+it('keeps independent customer-field edits and reports a conflict on the same field', () => {
+  const base = { ...line, details: { act: 'A-1', test: null } };
+  const local = { ...base, details: { act: 'A-2', test: 'T-1' } };
+  const fresh = { ...base, details: { act: 'A-3', test: null, note: 'Чужое дополнение' } };
+
+  const result = rebaseContents(contents(base), contents(local), contents(fresh));
+  expect(result.contents.lines[0].details).toEqual({ act: 'A-3', test: 'T-1', note: 'Чужое дополнение' });
+  expect(result.conflicts).toEqual([expect.stringContaining('поле заказчика изменили одновременно')]);
+});
 it('keeps the current material on a concurrent note edit and reports the local note', () => {
   const local = { ...line, materials: [material('base', 'локальное примечание')] };
   const fresh = { ...line, materials: [material('base', 'серверное примечание')] };

@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Delete, DragIndicator, FunctionIcon, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LockIcon, Memory, Warning } from '@/shared/ui/icons';
+import { Add, Delete, DragIndicator, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LockIcon, Memory, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -18,6 +18,7 @@ import { useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCod
 import { chipTagEntries, tagsForKind, withoutFlagTag } from '@/shared/api/suggestable';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { ComputedFieldEditor } from './ComputedFieldEditor';
+import { ComputedFieldFlag, RequiredFieldFlag } from './FieldFlags';
 import { moveItem } from '@/shared/utils/moveItem';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -73,6 +74,7 @@ interface FieldCardProps {
   autoFocus?: boolean;
   /** Курсор поставлен — контейнеру пора забыть о добавлении (иначе фокус вернётся при перерисовке). */
   onAutoFocused?: () => void;
+  acceptanceFlag?: React.ReactNode;
   open: boolean;
   onToggleOpen: () => void;
   onChange: (patch: Partial<SchemaField>) => void;
@@ -98,7 +100,7 @@ function SchemaFieldKinds_isComputable(type: string): boolean { return COMPUTABL
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
   field, reg, keyConflict, persistedKeys, siblingFields, otherKeys, onKeyRename, autoFocus, onAutoFocused,
-  open, onToggleOpen, onChange, onRemove,
+  acceptanceFlag, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
@@ -215,6 +217,7 @@ export function FieldCard({
           <StatusText>{fieldTypeSummary(field, reg)}</StatusText>
           {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         </button>
+        {acceptanceFlag}
       </div>
       {open && (
       <div className="px-3 pb-3 pt-2 border-t border-outline-variant space-y-2">
@@ -247,19 +250,7 @@ export function FieldCard({
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
         </Tooltip>
-        {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
-        {field.computed ? (
-          <Tooltip content="Расчётное поле — значение вычисляется формулой">
-            <span className="flex items-center justify-center gap-1 text-label-small text-primary">
-              <Icon icon={FunctionIcon} size={18} /> вычисл.
-            </span>
-          </Tooltip>
-        ) : (
-          <label className="flex items-center justify-center gap-1.5 cursor-pointer">
-            <Checkbox checked={field.required} onChange={required => onChange({ required })} />
-            <span className="text-body-small text-on-surface-variant">да</span>
-          </label>
-        )}
+        <RequiredFieldFlag field={field} onChange={onChange} />
         {/* Actions */}
         <div className="flex items-center justify-end gap-0.5">
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
@@ -300,15 +291,7 @@ export function FieldCard({
           формулой при генерации; «обязательное»/«по умолчанию» скрываются. */}
       {SchemaFieldKinds_isComputable(field.type) && (
         <>
-          <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <Checkbox checked={!!field.computed}
-              onChange={on => onChange(on
-                ? { computed: true, required: false, defaultValue: undefined }
-                : { computed: undefined, expression: undefined })} />
-            <span className="text-body-small text-on-surface-variant flex items-center gap-1">
-              <Icon icon={FunctionIcon} size={18} className="text-primary" /> Вычисляемое (формула)
-            </span>
-          </label>
+          <ComputedFieldFlag field={field} onChange={onChange} />
           {/* Подсказка по введённому ранее (issue #1533): флажок, причина вместо него или ничего. */}
           <SuggestFlag field={field} onChange={onChange} />
           {field.computed && (

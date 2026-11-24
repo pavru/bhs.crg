@@ -14,6 +14,7 @@ import { WorkCatalogPicker } from '@/shared/ui/WorkCatalogPicker';
 import { WorkTypePicker } from '@/shared/ui/WorkTypePicker';
 import { LinePhotos, type ReportPhotos } from './LinePhotos';
 import { ReportLineDetails } from './ReportLineDetails';
+import { withDetailValue } from '../reportDetails';
 import { emptyLine, type DraftLine } from './reportContents';
 import { missingForId } from './reportPresentation';
 
@@ -124,7 +125,10 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
       <div ref={details} key={expandedLine.id}>
         <ReportLineDetails scope={scope} siteReady={siteReady} line={expandedLine}
           type={typeOf(expandedLine.workTypeId)} disabled={disabled} errors={errors?.filter(error => error.lineId === expandedLine.id)}
+          missingFields={savedLines?.find(line => line.id === expandedLine.id)?.missingFields}
           pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
+          onDetailChange={(key, value) => onChange(current => current.map(line => line.id === expandedLine.id
+            ? { ...line, details: withDetailValue(line.details, key, value) } : line))}
           onChange={changes => update(expandedLine, changes)} />
         <LinePhotos lineId={expandedLine.id} photos={expandedLine.photos}
           declared={savedLines?.find(line => line.id === expandedLine.id)?.photos ?? []} controls={photos}

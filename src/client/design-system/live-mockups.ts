@@ -94,6 +94,21 @@ const workSummaryMockup: LiveMockup = {
   reference: 'openspec/changes/work-23-summary/design.md · Раунд Р5',
 };
 
+const workCustomerFieldsMockup: LiveMockup = {
+  id: 'work-24-customer-fields',
+  title: 'Поля заказчика · Нужно к приёмке',
+  kind: 'design',
+  entry: 'work24.html',
+  pages: [
+    { path: 'a', title: 'А · Пометки рядом с полями' },
+    { path: 'b', title: 'Б · Отдельная группа полей' },
+    { path: 'c', title: 'В · Переход к незаполненным' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/work-24-customer-fields/design.md',
+};
+
 export const liveMockups = [
-  duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup, workSummaryMockup,
+  duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
+  workSummaryMockup, workCustomerFieldsMockup,
 ];

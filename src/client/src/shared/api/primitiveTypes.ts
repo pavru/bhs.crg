@@ -4,8 +4,9 @@ import type { FieldConstraints, PrimitiveTypeDef } from './types';
 
 const QK = 'primitiveTypes';
 
-export function useListPrimitiveTypes() {
+export function useListPrimitiveTypes(enabled = true) {
   return useQuery<PrimitiveTypeDef[]>({
+    enabled,
     queryKey: [QK],
     queryFn: () => apiClient.get('/primitive-types').then(r => r.data),
   });

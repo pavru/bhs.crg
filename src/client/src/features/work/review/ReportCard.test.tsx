@@ -34,7 +34,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   read = () => card;
   vi.mocked(apiClient.get).mockImplementation(async (path, config) => ({
-    data: path.endsWith('/journal') ? { items: [] } : read(config?.params?.number),
+    data: path === '/work/line-details-schema' ? { fields: [] }
+      : path.endsWith('/journal') ? { items: [] } : read(config?.params?.number),
   }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -71,6 +72,16 @@ it('оставляет карточку с пустыми actions для чте�
   expect(screen.getByText('0,0001 м')).toBeTruthy();
   expect(screen.getByText(/☾ ночь.*8 ч/)).toBeTruthy();
   for (const name of ['Принять', 'Вернуть', 'Действия отчёта']) expect(screen.queryByRole('button', { name })).toBeNull();
+});
+
+it('называет незаполненные поля из строки ответа и оставляет доступной приёмку', async () => {
+  read = () => ({ ...card, report: { ...card.report, lines: [{
+    ...card.report.lines[0], details: { act: 'Локальное значение не задаёт пометку' },
+    missingFields: [{ key: 'act', title: 'Номер акта' }],
+  }] } });
+  mount();
+  expect(await screen.findByText('Номер акта')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Принять' })).toBeTruthy();
 });
 
 it('перечитывает открытый черновик после автоподачи и останавливает опрос после подачи', async () => {

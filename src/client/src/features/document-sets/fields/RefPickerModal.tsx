@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useKeyScroll } from '@/shared/ui/useKeyScroll';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { apiError } from '@/shared/utils/apiError';
+import { Banner } from '@/shared/ui/Banner';
 import { Description, FileCopy } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
-  CommonDataEntry, DocumentInstance, DocumentType, FieldRef, CatalogScope,
+  DocumentInstance, DocumentType, FieldRef, CatalogScope,
 } from '@/shared/api/types';
 import {
   resolveEffectiveFields, isSubtypeOf, isUnionType, placeInUnion,
@@ -19,6 +23,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { DocumentStatusText } from './DocumentStatusText';
 import { TextField } from '@/shared/ui/TextField';
 import { ListOption } from '@/shared/ui/ListOption';
+import { ReferenceCatalogContext, type ReferenceCatalogEntry } from './referenceCatalog';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -38,7 +43,7 @@ function instanceLabel(inst: DocumentInstance, dt: DocumentType): string {
 }
 
 /** Устойчивое «пока пусто»: инлайновый `= []` давал бы новый массив на каждый рендер. */
-const NO_ENTRIES: CommonDataEntry[] = [];
+const NO_ENTRIES: ReferenceCatalogEntry[] = [];
 
 /** Значение поля-источника отсутствует: null/undefined, пустая строка, пустой объект или массив. */
 function isBlank(v: unknown): boolean {
@@ -67,6 +72,7 @@ interface RefPickerModalProps {
   scopeId?: string | null;
   otherInstances?: DocumentInstance[];
   allDocTypes: DocumentType[];
+  excludedCatalogIds?: ReadonlySet<string>;
   /**
    * Вызывающий умеет класть значение в ключ варианта union'а (issue #747) — и только тогда пикер
    * предлагает записи типов-ВАРИАНТОВ, а не только самого составного типа, и документы комплекта
@@ -104,36 +110,53 @@ export function RefPickerModal(props: RefPickerModalProps) {
 function RefPickerModalBody({
   onOpenChange, compositeType,
   setId, scope, scopeId,
-  otherInstances = [], allDocTypes, unionAware = false, current, onSelect,
+  otherInstances = [], allDocTypes, unionAware = false, current, onSelect, excludedCatalogIds,
 }: RefPickerModalProps) {
   const [search, setSearch] = useState('');
   const currentArchived = useIsArchivedRef(current);
+  const scopedCatalog = useContext(ReferenceCatalogContext);
+  const query = search.trim().toLowerCase();
+  const searching = query.length > 0;
+  const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
+  const debounced = useDebouncedValue(query, 250);
+  const target = compositeType?.id;
+  const loadScoped = (archived: boolean) => ({
+    queryKey: [...(scopedCatalog?.key ?? []), target, unionMode, archived, debounced],
+    enabled: !!scopedCatalog && !!target && (!archived || searching),
+    queryFn: ({ signal }: { signal: AbortSignal }) => scopedCatalog!.load(target!, unionMode, archived, debounced, signal),
+  });
+  const scopedLive = useQuery(loadScoped(false));
+  const scopedArchive = useQuery(loadScoped(true));
+  const pending = !!scopedCatalog && !!target && (query !== debounced || scopedLive.isPending);
+  const failed = !!scopedCatalog && !!target && scopedLive.isError;
+  const ancestry = [...allDocTypes, ...(scopedLive.data?.types ?? []), ...(scopedArchive.data?.types ?? [])];
 
   // Единый резолв всей цепочки скопов (issue #82): комплект-контекст → (Set, setId), иначе (scope, scopeId).
   // for-scope сам поднимается по родителям (Раздел→Стройка→Система), поэтому объекты более широких
   // уровней видны из раздел/строечных контекстов (раньше запасной путь их пропускал).
   const effScope: CatalogScope | undefined = setId ? 'Set' : scope;
   const effScopeId = setId ?? scopeId;
-  const { data: catalogEntries = [] } = useCommonDataForScope({
-    scope: effScope, scopeId: effScopeId, purpose: 'choice', enabled: !!effScope,
+  const { data: commonEntries = NO_ENTRIES } = useCommonDataForScope({
+    scope: effScope, scopeId: effScopeId, purpose: 'choice', enabled: !!effScope && !scopedCatalog,
   });
 
   // Union-режим (issue #747): кандидат подходит, если его тип годится САМОМУ union'у или любому его
   // варианту. Куда ляжет кандидат, считаем здесь же и несём до onSelect — второй раз тот же вопрос
   // задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
-  const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
-  const searching = search.trim().length > 0;
   // Архив читаем ТОЛЬКО при набранном запросе и отдельным чтением «на показ» (issue #1185): список
   // на выбор архивных не несёт и нести не должен, а раздел «В архиве» отвечает на «не нашёл».
   // Сервер отдаёт одни архивные: весь список уровня ради нескольких записей был бы вторым тяжёлым
   // запросом на первое же нажатие клавиши (ревью PR #1229).
-  const { data: shownEntries = NO_ENTRIES } = useCommonDataForScope({
-    scope: effScope, scopeId: effScopeId, purpose: 'display', archivedOnly: true, enabled: !!effScope && searching,
+  const { data: commonArchive = NO_ENTRIES } = useCommonDataForScope({
+    scope: effScope, scopeId: effScopeId, purpose: 'display', archivedOnly: true, enabled: !!effScope && searching && !scopedCatalog,
   });
   // Запрос ОДИН на все три раздела. Пока их было два, каталог фильтровался нетримленной строкой, а
   // остальное — тримленной: «аоср » с хвостовым пробелом опустошал каталог, оставив документы, и
   // клавиатурный порядок молча перестраивался под другой список.
-  const query = search.trim().toLowerCase();
+  const catalogEntries = scopedCatalog
+    ? (pending || failed ? NO_ENTRIES : scopedLive.data?.items ?? NO_ENTRIES) : commonEntries;
+  const shownEntries = scopedCatalog
+    ? (pending ? NO_ENTRIES : scopedArchive.data?.items ?? NO_ENTRIES) : commonArchive;
   /**
    * Размещения считаем по ТИПУ и заранее, а не по кандидату и лениво.
    *
@@ -162,7 +185,7 @@ function RefPickerModalBody({
   const placementsFor = (typeIds: string[], source: UnionSource) =>
     new Map<string, UnionPlacement>(
       unionMode
-        ? [...new Set(typeIds)].map(id => [id, placeInUnion(id, compositeType!, allDocTypes, source)] as const)
+        ? [...new Set(typeIds)].map(id => [id, placeInUnion(id, compositeType!, allDocTypes, source, ancestry)] as const)
         : [],
     );
   const valuePlacements = placementsFor(catalogEntries.map(e => e.compositeTypeId), 'value');
@@ -170,14 +193,15 @@ function RefPickerModalBody({
   /** Тип поля-источника среди записей каталога может и не встретиться — тогда считаем на месте. */
   const placementOf = (typeId: string, source: UnionSource = 'value'): UnionPlacement => {
     const table = source === 'document' ? docPlacements : valuePlacements;
-    return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source);
+    return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source, ancestry);
   };
 
-  const fitsQuery = (e: CommonDataEntry) => {
+  const fitsQuery = (e: ReferenceCatalogEntry) => {
+    if (excludedCatalogIds?.has(e.id)) return false;
     if (compositeType) {
       const fits = unionMode
         ? placementOf(e.compositeTypeId).kind !== 'none'
-        : isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes);
+        : isSubtypeOf(e.compositeTypeId, compositeType.id, ancestry);
       if (!fits) return false;
     }
     return e.displayName.toLowerCase().includes(query);
@@ -208,7 +232,7 @@ function RefPickerModalBody({
 
   const { groups, isExpanded, toggle, visible } = useScopeGroups(filtered, searching);
 
-  const refOfEntry = (entry: CommonDataEntry): FieldRef => ({
+  const refOfEntry = (entry: ReferenceCatalogEntry): FieldRef => ({
     $ref: 'catalog',
     entryId: entry.id,
     displayName: entry.displayName,
@@ -281,7 +305,7 @@ function RefPickerModalBody({
   // Плоский список навигируемых опций (issue #107 F5): видимые (в раскрытых группах) записи
   // каталога + документы целиком + поля-источники — в порядке отображения. Стрелки/Enter ходят по ним.
   type RpOption =
-    | { type: 'catalog'; entry: CommonDataEntry }
+    | { type: 'catalog'; entry: ReferenceCatalogEntry }
     | { type: 'instance'; inst: DocumentInstance; dt: DocumentType; label: string; placement: UnionPlacement }
     | { type: 'field'; inst: DocumentInstance; dt: DocumentType; field: SchemaField;
         label: string; filled: boolean; placement: UnionPlacement };
@@ -477,7 +501,14 @@ function RefPickerModalBody({
         {/* Считаем по КАНДИДАТАМ, а не по навигируемым опциям: опции — это записи РАСКРЫТЫХ групп,
             и стоило свернуть единственную группу, как под её же заголовком «Комплект 3» появлялось
             «Подходящих записей нет». Свёрнутая группа — это спрятано, а не пусто. */}
-        {filtered.length === 0 && instanceCandidates.length === 0 && fieldCandidates.length === 0 && (
+        {pending && <p role="status" className="text-body-medium">Загрузка…</p>}
+        {failed && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void scopedLive.refetch() }]}>
+          {apiError(scopedLive.error, 'Не удалось открыть справочник.')}
+        </Banner>}
+        {!pending && !failed && scopedLive.data?.more && <p className="text-body-small text-on-surface-variant">
+          Уточните поиск, чтобы увидеть другие записи.
+        </p>}
+        {!pending && !failed && filtered.length === 0 && instanceCandidates.length === 0 && fieldCandidates.length === 0 && (
           <p className="text-body-medium text-on-surface-variant text-center py-4">
             {emptyState.title}
             <br />

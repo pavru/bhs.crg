@@ -3,6 +3,7 @@ import { apiClient } from './client';
 import { TYPEBLOCKS_KEY } from './typstUserLib';
 import type { DocumentType, DocumentTypeKind } from './types';
 import type { TypstRender } from './schema';
+import { reportDetailsSchemaKey } from './workReports';
 
 /** Проблема сборки Typst-блоков (issue #309, фаза 2). Глобальна: `typeId` — где живёт блок. */
 export interface TypstBlockProblem {
@@ -223,6 +224,7 @@ export function useUpdateDocumentTypeSchema() {
       apiClient.put<DocumentType>(`/document-types/${id}/schema`, { schema }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['document-types'] });
+      qc.invalidateQueries({ queryKey: reportDetailsSchemaKey });
       // Typst-блоки живут в схеме, а собранный typeblocks.typ показывается отдельным экраном
       // (issue #770). Без сброса он остался бы дореформенным до истечения таймера — экран
       // противоречил бы редактору, из которого только что сохранили.
