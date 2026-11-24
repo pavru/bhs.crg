@@ -32,7 +32,7 @@ namespace BHS.CRG.Tests.Integration;
 /// прибитые к 20:00 31.10.2026 по Москве — во Владивостоке в этот миг уже 01.11. Заменяются часы порта, а не
 /// приложения: по часам приложения живёт срок входа (как у <see cref="InvoiceClockHost" />).
 /// </summary>
-public sealed class AssignmentHost : ModuleOnlyHost
+public class AssignmentHost : ModuleOnlyHost
 {
     /// <summary>
     /// Коллекция классов назначений: хост у них ОДИН и база одна, поэтому классы идут друг за другом. Хост на
