@@ -90,6 +90,8 @@ public class RecordVersionInventoryTests
     {
         ["BHS.CRG.Modules.Work/WorkReferences.cs"] =
             "справочные ссылки снимка, автора и закрытия; удаление записи ядра не меняет историю",
+        ["BHS.CRG.Modules.Work/WorkModule.cs"] =
+            "объявление пути вложений в снимках для резервного копирования; журнал версий не меняется",
         ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =
             "справочные ссылки исторического снимка и автора: историю удаление записи ядра не меняет",
         ["BHS.CRG.Modules.Plan/PlanReferences.cs"] =

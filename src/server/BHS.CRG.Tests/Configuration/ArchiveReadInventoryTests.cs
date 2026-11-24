@@ -275,7 +275,7 @@ public partial class ArchiveReadInventoryTests
                 typeof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests), typeof(BHS.CRG.Tests.Plan.ResourceMatchingTests),
                 typeof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests), typeof(BHS.CRG.Tests.Plan.OfferEndpointsTests),
                 typeof(OrganizationShortNamePortTests),
-                typeof(EmployeeAccountLinkTests), typeof(EntryReportEndpointsTests) }
+                typeof(EmployeeAccountLinkTests), typeof(EntryReportEndpointsTests), typeof(WorkReportAcceptanceFieldsTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
@@ -287,8 +287,7 @@ public partial class ArchiveReadInventoryTests
             if (row.Kind is Kind.Choice or Kind.ByPurpose && row.Probes.Length == 0)
                 wrong.Add($"{key}\n    выбор без живого теста: решение принято, но ничем не проверено");
             foreach (var probe in row.Probes.Where(p => !probes.Contains(p)))
-                wrong.Add($"{key}\n    живого теста «{probe}» нет ни в ArchiveReadPurposeTests, ни в LevelProfileTests, " +
-                    "ни в InvoiceArchiveTests, ни в SupplierMatchTests");
+                wrong.Add($"{key}\n    живой тест «{probe}» отсутствует в перечне проверочных классов");
         }
 
         Assert.True(wrong.Count == 0, "Перепись мест чтения неполна:\n" + string.Join("\n", wrong));
