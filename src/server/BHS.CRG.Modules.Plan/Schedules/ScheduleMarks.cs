@@ -7,6 +7,7 @@ internal static class ScheduleMarks
 {
     internal const string DistributionChanged = "distribution-changed";
     internal const string StartsBeforePredecessor = "starts-before-predecessor";
+    internal const string LagOutOfRange = "lag-out-of-range";
     internal const string EndsOnDayOff = "ends-on-day-off";
     internal const string NoDates = "no-dates";
 

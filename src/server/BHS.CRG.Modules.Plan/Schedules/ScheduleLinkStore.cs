@@ -7,10 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Plan.Schedules;
 
 internal sealed class ScheduleLinkRefusal(
-    string code, string message, IReadOnlyList<ScheduleCycleWork>? cycle = null) : InvalidRequestException(message)
+    string code, string message, IReadOnlyList<ScheduleWorkRef>? cycle = null) : InvalidRequestException(message)
 {
     internal string Code => code;
-    internal IReadOnlyList<ScheduleCycleWork>? Cycle => cycle;
+    internal IReadOnlyList<ScheduleWorkRef>? Cycle => cycle;
 }
 
 internal sealed class ScheduleLinkStore(PlanDbContext db, ScheduleBuilder schedules)
@@ -79,12 +79,29 @@ internal sealed class ScheduleLinkStore(PlanDbContext db, ScheduleBuilder schedu
         return link;
     }
 
-    private async Task<List<ScheduleCycleWork>> NameCycleAsync(IReadOnlyList<Guid> cycle, CancellationToken ct)
+    internal static async Task<IReadOnlyList<ScheduleRemovedLink>> RemovedWithWorksAsync(
+        PlanDbContext db, Guid[] workIds, CancellationToken ct)
+    {
+        if (workIds.Length == 0) return [];
+        return await (from link in db.ScheduleLinks.AsNoTracking()
+            where workIds.Contains(link.PredecessorId) || workIds.Contains(link.SuccessorId)
+            join predecessor in db.ScheduleWorks on link.PredecessorId equals predecessor.Id
+            join predecessorSchedule in db.Schedules on predecessor.ScheduleId equals predecessorSchedule.Id
+            join successor in db.ScheduleWorks on link.SuccessorId equals successor.Id
+            join successorSchedule in db.Schedules on successor.ScheduleId equals successorSchedule.Id
+            orderby link.Id
+            select new ScheduleRemovedLink(link.Id,
+                new ScheduleWorkRef(predecessor.Id, predecessor.Name, predecessorSchedule.Id, predecessorSchedule.Name),
+                new ScheduleWorkRef(successor.Id, successor.Name, successorSchedule.Id, successorSchedule.Name),
+                link.Kind, link.Lag)).ToListAsync(ct);
+    }
+
+    private async Task<List<ScheduleWorkRef>> NameCycleAsync(IReadOnlyList<Guid> cycle, CancellationToken ct)
     {
         var works = await (from work in db.ScheduleWorks
             join schedule in db.Schedules on work.ScheduleId equals schedule.Id
             where cycle.Contains(work.Id)
-            select new ScheduleCycleWork(work.Id, work.Name, schedule.Id, schedule.Name)).ToDictionaryAsync(w => w.Id, ct);
+            select new ScheduleWorkRef(work.Id, work.Name, schedule.Id, schedule.Name)).ToDictionaryAsync(w => w.Id, ct);
         return cycle.Select(id => works[id]).ToList();
     }
 

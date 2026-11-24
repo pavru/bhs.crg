@@ -135,14 +135,18 @@ internal sealed class ScheduleBuilder(
         }
 
         var removed = existing.Values.ToList();
+        var removedLinks = await ScheduleLinkStore.RemovedWithWorksAsync(db, removed.Select(w => w.Id).ToArray(), ct);
         var version = db.VersionOf(schedule);
-        var fingerprint = ScheduleSource.Hash($"{schedule.Id:N}:{version}:{source.Fingerprint}");
+        // Каскад из соседнего графика может убрать связь без изменения версии этого графика.
+        var linkStamp = string.Concat(removedLinks.Select(l =>
+            FormattableString.Invariant($":{l.Id:N}:{l.Predecessor.Id:N}:{l.Successor.Id:N}:{l.Kind}:{l.Lag}")));
+        var fingerprint = ScheduleSource.Hash($"{schedule.Id:N}:{version}:{source.Fingerprint}{linkStamp}");
         var preview = new SchedulePreview(version, fingerprint,
             added.Select(p => new ScheduleDifference(null, p.RowId, p.Item.SectionId, p.Name, p.Volume)).ToList(),
             removed.Select(w => new ScheduleDifference(w.Id, w.SourceRowId!.Value, w.SectionId, w.Name, w.Volume)).ToList(),
             changed.Select(c => new ScheduleVolumeChange(c.Work.Id, c.Part.RowId, c.Part.Item.SectionId,
                 c.Part.Name, c.Work.Volume, c.Part.Volume)).ToList(),
-            new ScheduleSkipped(source.Unmapped));
+            new ScheduleSkipped(source.Unmapped), removedLinks);
         return new Prepared(source, preview, added, removed, changed);
     }
 }

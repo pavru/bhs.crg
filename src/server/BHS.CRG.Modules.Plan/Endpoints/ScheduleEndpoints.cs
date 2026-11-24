@@ -55,7 +55,7 @@ internal static class ScheduleEndpoints
         var (view, preview) = await builder.RebuildAsync(id, input.Fingerprint, request, ct);
         return view is not null ? Results.Ok(view) : Results.Conflict(new
         {
-            error = "Распределение изменилось после предпросмотра. Сверьте новую разницу и подтвердите ещё раз.",
+            error = "Данные для перестроения изменились после предпросмотра. Сверьте новую разницу и подтвердите ещё раз.",
             preview,
         });
     }

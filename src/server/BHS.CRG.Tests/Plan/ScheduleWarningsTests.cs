@@ -11,6 +11,32 @@ namespace BHS.CRG.Tests.Plan;
 [Collection(PlanOnlyCollection.Name)]
 public class ScheduleWarningsTests(PlanOnlyHost host)
 {
+    [Theory]
+    [InlineData(int.MaxValue, "2026-12-04")]
+    [InlineData(int.MinValue, null)]
+    public async Task Задержка_вне_диапазона_дат_видна_у_обеих_работ(int lag, string? start)
+    {
+        var scene = await CreateAsync(host);
+        var first = await scene.BuildAsync();
+        var second = await scene.BuildAsync(name: "Общестрой");
+        var predecessor = await scene.ManualAsync(first, "2026-12-01", "2026-12-03");
+        var successor = await scene.ManualAsync(second, start, start);
+        var link = await ReadAsync(scene.LinkAsync(second, predecessor, successor, lag: lag), HttpStatusCode.Created);
+
+        foreach (var (schedule, work) in new[] { (first, predecessor), (second, successor) })
+        {
+            var view = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)));
+            var warning = Assert.Single(Warnings(view), w => Code(w) == "lag-out-of-range");
+            Assert.Equal(Id(work), GuidOrNull(warning, "workId"));
+            Assert.Equal(Id(link), GuidOrNull(warning, "linkId"));
+            Assert.DoesNotContain(Warnings(view), w => Code(w) == "starts-before-predecessor");
+            var shown = Assert.Single(Works(view));
+            Assert.Contains(Warnings(shown), w => Code(w) == "lag-out-of-range");
+            Assert.Equal(work.GetProperty("start").GetString(), shown.GetProperty("start").GetString());
+            Assert.Equal(Version(work), Version(shown));
+        }
+    }
+
     [Fact]
     public async Task Пересекающиеся_длинные_задержки_называют_каждый_пробел_один_раз()
     {

@@ -8,7 +8,8 @@ internal sealed record ScheduleManualWork(Guid WorkTypeId, Guid? SectionId, Sche
 internal sealed record ScheduleRebuildRequest(string? Fingerprint);
 internal sealed record ScheduleLinkInput(Guid PredecessorId, Guid SuccessorId, string? Kind, int Lag);
 internal sealed record ScheduleLinkDto(Guid Id, Guid PredecessorId, Guid SuccessorId, string Kind, int Lag, string Version);
-internal sealed record ScheduleCycleWork(Guid Id, string Name, Guid ScheduleId, string ScheduleName);
+internal sealed record ScheduleWorkRef(Guid Id, string Name, Guid ScheduleId, string ScheduleName);
+internal sealed record ScheduleRemovedLink(Guid Id, ScheduleWorkRef Predecessor, ScheduleWorkRef Successor, string Kind, int Lag);
 
 internal sealed record ScheduleMark(string Code, string Text);
 internal sealed record ScheduleWarning(string Code, string Text, Guid WorkId, Guid? LinkId = null, int? Year = null);
@@ -28,4 +29,4 @@ internal sealed record ScheduleVolumeChange(
     Guid WorkId, Guid RowId, Guid? SectionId, string Name, decimal? Before, decimal? After);
 internal sealed record SchedulePreview(string Version, string Fingerprint,
     IReadOnlyList<ScheduleDifference> Added, IReadOnlyList<ScheduleDifference> Removed,
-    IReadOnlyList<ScheduleVolumeChange> Changed, ScheduleSkipped Skipped);
+    IReadOnlyList<ScheduleVolumeChange> Changed, ScheduleSkipped Skipped, IReadOnlyList<ScheduleRemovedLink> RemovedLinks);

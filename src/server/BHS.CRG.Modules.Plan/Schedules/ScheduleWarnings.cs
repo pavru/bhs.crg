@@ -35,7 +35,7 @@ internal static class ScheduleWarnings
     {
         if (works.Count == 0) return [];
         var warnings = new List<ScheduleWarning>();
-        if (works.All(w => w.Start is null && w.End is null))
+        if (works.All(w => w.Start is null && w.End is null) && !relations.Any(r => r.Predecessor.End.HasValue))
             return works.Select(w => NoDates(w.Id)).ToList();
 
         var calendar = await WorkingDays.LoadAsync(db, schedule.ConstructionId, ct);
@@ -53,19 +53,22 @@ internal static class ScheduleWarnings
         var thresholds = new Dictionary<(DateOnly, int), DateOnly?>();
         foreach (var relation in relations)
         {
-            if (relation.Predecessor.End is not { } end || relation.Successor.Start is not { } start) continue;
+            if (relation.Predecessor.End is not { } end) continue;
             var key = (end, relation.Link.Lag);
             if (!thresholds.TryGetValue(key, out var due))
                 thresholds[key] = due = calendar.ShiftWorkingDays(end, relation.Link.Lag);
-            // Сдвиг за пределы DateOnly позже любой даты при положительной задержке.
-            var early = due is { } threshold ? start < threshold : relation.Link.Lag > 0;
             var affected = new[] { relation.Predecessor, relation.Successor };
             foreach (var work in affected.Where(w => w.ScheduleId == schedule.Id))
             {
-                if (due is { } date)
-                    gapRanges.Add(GapRange.Between(work.Id, end, date, relation.Link.Id));
-                if (early)
-                    warnings.Add(new(ScheduleMarks.StartsBeforePredecessor, Violation(relation, due),
+                if (due is not { } date)
+                {
+                    warnings.Add(new(ScheduleMarks.LagOutOfRange, OutOfRange(relation), work.Id, relation.Link.Id));
+                    continue;
+                }
+                if (relation.Successor.Start is not { } start) continue;
+                gapRanges.Add(GapRange.Between(work.Id, end, date, relation.Link.Id));
+                if (start < date)
+                    warnings.Add(new(ScheduleMarks.StartsBeforePredecessor, Violation(relation, date),
                         work.Id, relation.Link.Id));
             }
         }
@@ -93,8 +96,9 @@ internal static class ScheduleWarnings
         }
     }
 
-    private static string Violation(ScheduleRelation relation, DateOnly? due) =>
-        due is { } date
-            ? $"«{relation.Successor.Name}»: начало раньше {date:dd.MM.yyyy} по связи с «{relation.Predecessor.Name}»."
-            : $"«{relation.Successor.Name}»: задержка после «{relation.Predecessor.Name}» выходит за пределы календаря.";
+    private static string Violation(ScheduleRelation relation, DateOnly due) =>
+        $"«{relation.Successor.Name}»: начало раньше {due:dd.MM.yyyy} по связи с «{relation.Predecessor.Name}».";
+
+    private static string OutOfRange(ScheduleRelation relation) =>
+        $"Задержка по связи «{relation.Predecessor.Name}» → «{relation.Successor.Name}» выходит за пределы календарных дат.";
 }
