@@ -8,8 +8,6 @@ namespace BHS.CRG.Modules.Plan.Schedules;
 
 internal sealed class ScheduleViews(PlanDbContext db, IModulePlanItems items)
 {
-    internal const string DistributionChanged = "distribution-changed";
-
     internal async Task<Schedule> LoadAsync(Guid id, CancellationToken ct) =>
         await db.Schedules.SingleOrDefaultAsync(s => s.Id == id, ct)
         ?? throw new NotFoundException("График не найден.");
@@ -27,17 +25,21 @@ internal sealed class ScheduleViews(PlanDbContext db, IModulePlanItems items)
         var employees = assignees.ToLookup(a => a.WorkId, a => a.EmployeeId);
         var positions = (await items.GetAsync(works.Select(w => w.PlanItemId).Distinct().ToArray(), ct))
             .ToDictionary(p => p.Id, p => p.Key);
+        var relations = await ScheduleWarnings.RelationsAsync(db, schedule.Id, ct);
+        var warnings = await ScheduleWarnings.ReadAsync(db, schedule, works, relations, ct);
+        var byWork = warnings.ToLookup(w => w.WorkId);
         return new(schedule.Id, schedule.ConstructionId, schedule.RevisionId, schedule.Name, db.VersionOf(schedule),
             new ScheduleSkipped(schedule.Unmapped), IsDistributionChanged(schedule, source)
-                ? [new ScheduleMark(DistributionChanged, "Распределение изменено после построения.")]
-                : [],
-            works.Select(w => Work(w, positions[w.PlanItemId], [.. employees[w.Id]])).ToList());
+                ? [ScheduleMarks.ChangedDistribution] : [],
+            works.Select(w => Work(w, positions[w.PlanItemId], [.. employees[w.Id]], [.. byWork[w.Id]])).ToList(),
+            relations.Select(r => r.View).ToList(), warnings);
     }
 
     internal static bool IsDistributionChanged(Schedule schedule, ScheduleSource? source) =>
         source is not null && source.Fingerprint != schedule.DistributionFingerprint;
 
-    internal ScheduleWorkDto Work(ScheduleWork work, PlanItemKey item, IReadOnlyList<Guid> employees) =>
+    internal ScheduleWorkDto Work(ScheduleWork work, PlanItemKey item, IReadOnlyList<Guid> employees,
+        IReadOnlyList<ScheduleWarning>? warnings = null) =>
         new(work.Id, work.PlanItemId, item.WorkTypeId, item.UnitId, work.SourceRowId, work.SectionId, work.Name,
-            work.Volume, work.Start, work.End, employees, work.SourceRowId is null, db.VersionOf(work));
+            work.Volume, work.Start, work.End, employees, work.SourceRowId is null, db.VersionOf(work), warnings);
 }

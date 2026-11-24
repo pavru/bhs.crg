@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
@@ -102,6 +103,13 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         Assert.Contains("Исполнители", error);
         Assert.Contains("запись в архиве", error);
         Assert.Single(Works(await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)))));
+
+        var personnel = await GrantedSignIn.WithPermissionsAsync(host, CorePermissions.EmployeesEdit);
+        var current = (await new WorkTypeSeed(host).SendAsync(new GetCommonDataEntryQuery(employeeId)))!;
+        using var occupied = await personnel.SendAsync(RateMatchFlow.With(HttpMethod.Delete,
+            $"/api/employees/{employeeId}", current.Version));
+        Assert.Equal(HttpStatusCode.Conflict, occupied.StatusCode);
+        Assert.Contains("исполнители работ графиков", await occupied.Content.ReadAsStringAsync());
     }
 
     internal static async Task<Guid> EmployeeAsync(PlanOnlyHost host)
