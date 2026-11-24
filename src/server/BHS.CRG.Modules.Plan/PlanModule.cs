@@ -209,7 +209,11 @@ public sealed class PlanModule : IAppModule
     public IReadOnlyList<ModuleRecordType> RecordTypes => PlanRecordTypes.All;
 
     public IReadOnlyList<ModulePrintForm> PrintForms =>
-        [new(PlanRecordTypes.OfferCode, PlanRecordTypes.Offer.Name, OfferRead, OfferPrintTemplate.Default, OfferPrintContext.Requisites)];
+    [
+        new(PlanRecordTypes.OfferCode, PlanRecordTypes.Offer.Name, OfferRead, OfferPrintTemplate.Default, OfferPrintContext.Requisites),
+        new(PlanRecordTypes.ScheduleCode, PlanRecordTypes.Schedule.Name, ScheduleRead,
+            ScheduleWorksPrintTemplate.Default, ScheduleWorksPrintContext.Requisites),
+    ];
 
     /// <summary>Тэг наценки КП (ТЗ TYPE-17): объявлен модулем, на экземпляре без планирования его нет.</summary>
     public IReadOnlyList<ModuleTag> Tags => PlanRecordTypes.Tags;
@@ -269,6 +273,7 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, OfferActions>();
         services.AddScoped<Offers.OfferDesk>();
         services.AddKeyedScoped<IModulePrintContext, OfferPrintContext>(PlanRecordTypes.OfferCode);
+        services.AddKeyedScoped<IModulePrintContext, ScheduleWorksPrintContext>(PlanRecordTypes.ScheduleCode);
         services.AddScoped<Offers.OfferLifecycle>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();

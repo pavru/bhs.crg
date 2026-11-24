@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Exchange;
@@ -14,6 +15,7 @@ using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using UglyToad.PdfPig;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -110,7 +112,8 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         await EstimateSeed.ClassifierAsync(host);
         var editor = await GrantedSignIn.WithPermissionsAsync(host, CorePermissions.PrintEdit);
         var types = await editor.GetFromJsonAsync<JsonElement>("/api/templates/types");
-        var option = Assert.Single(types.EnumerateArray());
+        var option = Assert.Single(types.EnumerateArray(),
+            item => item.GetProperty("type").GetProperty("code").GetString() == PlanRecordTypes.OfferCode);
         var type = option.GetProperty("type");
         Assert.Equal(PlanRecordTypes.OfferCode, type.GetProperty("code").GetString());
         var requisites = option.GetProperty("printRequisites");
@@ -125,6 +128,61 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var content = (await editor.GetFromJsonAsync<JsonElement>(sourceUrl)).GetProperty("content").GetString();
         Assert.Contains("Коммерческое предложение", content);
         (await editor.PutAsJsonAsync(sourceUrl, new { content })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Schedule_reader_prints_the_saved_works_with_the_default_template()
+    {
+        var scene = await ScheduleScenario.CreateAsync(host);
+        using var editor = scene.Editor;
+        var schedule = await scene.BuildAsync(name: "Проверка списка работ");
+        var classifier = await EstimateSeed.ClassifierAsync(host);
+        var employee = await ScheduleWorkTests.EmployeeAsync(host, "Алина Воронова");
+        var work = await OfferDerivativeScenario.ReadAsync(editor.PostAsJsonAsync(
+            $"{ScheduleScenario.ScheduleUrl(schedule)}/works",
+            new { workTypeId = classifier.WorkType, sectionId = scene.Site.Section, work = new
+            {
+                start = "2098-12-01", end = "2098-12-04", volume = 12.75m, employeeIds = new[] { employee },
+            } }));
+        var id = ScheduleScenario.Id(schedule);
+        var path = $"/api/print/{PlanRecordTypes.ScheduleCode}/{id}";
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
+        using var editOnly = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleEdit);
+        using var denied = await editOnly.PostAsync(path, null);
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        using var missing = await reader.PostAsync($"/api/print/{PlanRecordTypes.ScheduleCode}/{Guid.NewGuid()}/preview", null);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        using var preview = await reader.PostAsync(path + "/preview", null);
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        Assert.Equal("application/pdf", preview.Content.Headers.ContentType?.MediaType);
+        Assert.Null(preview.Content.Headers.ContentDisposition);
+        using var download = await reader.PostAsync(path, null);
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal("attachment", download.Content.Headers.ContentDisposition?.DispositionType);
+
+        var capture = Assert.IsType<PlanOnlyPrintStub>(host.Services.GetRequiredService<IDocumentGeneratorFactory>());
+        var request = Assert.IsType<GenerationRequest>(capture.LastRequest);
+        var body = JsonSerializer.SerializeToElement(request.Context.Data);
+        var printedWork = Assert.Single(body.GetProperty("works").EnumerateArray());
+        var assignee = Assert.Single(work.GetProperty("assignees").EnumerateArray()).GetProperty("name").GetString()!;
+        Assert.Equal("Проверка списка работ", body.GetProperty("name").GetString());
+        Assert.Equal("ЭОМ-1", printedWork.GetProperty("section").GetString());
+        Assert.Equal(12.75m, printedWork.GetProperty("volume").GetDecimal());
+        Assert.Equal("м", printedWork.GetProperty("unit").GetString());
+        Assert.Equal(assignee, Assert.Single(printedWork.GetProperty("assignees").EnumerateArray()).GetString());
+        Assert.Equal(work.GetProperty("durationWorkingDays").GetInt32(), printedWork.GetProperty("durationWorkingDays").GetInt32());
+        Assert.Contains(printedWork.GetProperty("warnings").EnumerateArray(), warning => warning.GetString()!.Contains("2098"));
+        Assert.DoesNotContain("employeeIds", printedWork.EnumerateObject().Select(property => property.Name));
+
+        var pdf = await host.Services.GetRequiredService<TypstGenerator>().GenerateAsync(request);
+        using var document = PdfDocument.Open(pdf);
+        var printed = string.Join(" ", document.GetPages().SelectMany(page => page.GetWords()).Select(word => word.Text));
+        Assert.Contains("Прокладка кабеля", printed);
+        Assert.Contains("01.12.2098", printed);
+        Assert.Contains("04.12.2098", printed);
+        Assert.Contains("12,75", printed);
+        Assert.Contains(assignee, printed);
     }
 
     /// <summary>

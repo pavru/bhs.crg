@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { apiError } from '@/shared/utils/apiError';
+import { apiError, withBlobErrorBody } from '@/shared/utils/apiError';
 import { apiClient } from './client';
 import type { Schedule, ScheduleCreate, ScheduleLinkInput, ScheduleRebuildPreview, ScheduleSummary, ScheduleWorkInput,
   ScheduleWorkRef } from './planningScheduleTypes';
@@ -9,6 +9,12 @@ export const scheduleKey = ['planning', 'schedules'] as const;
 const siteKey = (constructionId: string) => [...scheduleKey, constructionId] as const;
 const detailKey = (constructionId: string, id: string) => [...siteKey(constructionId), id] as const;
 const match = (version: string) => ({ headers: { 'If-Match': version } });
+
+export async function previewSchedulePrint(id: string, signal?: AbortSignal) {
+  const path = `/print/${encodeURIComponent('ГрафикСтройки')}/${id}/preview`;
+  const response = await withBlobErrorBody(apiClient.post<Blob>(path, undefined, { signal, responseType: 'blob' }));
+  return response.data;
+}
 
 function rereadAfterDeleteRefusal(client: QueryClient, constructionId: string, error: unknown) {
   const status = (error as { response?: { status?: number } } | null)?.response?.status;
