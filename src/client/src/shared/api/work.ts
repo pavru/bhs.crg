@@ -28,6 +28,20 @@ export const WORK_MARK_CODES = [
 
 export type WorkMarkCode = (typeof WORK_MARK_CODES)[number];
 
+/** Коды SummaryStates сервера. Состав и порядок сверяет SummaryStateCatalogTests. */
+export const WORK_SUMMARY_STATES = [
+  'report',
+  'zero-hours',
+  'draft',
+  'not-received',
+  'not-assigned',
+  'not-employed',
+  'window-open',
+  'future',
+] as const;
+
+export type WorkSummaryState = (typeof WORK_SUMMARY_STATES)[number];
+
 /** Пометка отчёта: код — для отбора, текст — для человека. */
 export interface WorkMark {
   code: string;

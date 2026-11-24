@@ -51,6 +51,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
 
         foreach (var (path, module) in new[] { ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/work/assignments", "work"),
                      ("/api/work/reports", "work"), ("/api/work/entry/reports", "work"), ("/api/work/review/queue", "work"),
+                     ("/api/work/summary?from=2026-10-01&to=2026-10-31", "work"),
                      ($"/api/work/photos/{Guid.NewGuid()}", "work") })
         {
             var response = await client.GetAsync(path);

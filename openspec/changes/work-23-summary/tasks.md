@@ -2,23 +2,23 @@
 
 ## 1. PR 1: адрес сводки
 
-- [ ] 1.1 `Summary/SummaryStates.cs` и `WORK_SUMMARY_STATES` в `src/client/src/shared/api/work.ts`
+- [x] 1.1 `Summary/SummaryStates.cs` и `WORK_SUMMARY_STATES` в `src/client/src/shared/api/work.ts`
   [WORK-29]. Проверка — `Work/SummaryStateCatalogTests` зелёный; лишний код на клиенте его роняет
-- [ ] 1.2 `Summary/SummaryLayout.cs` — раскладка «сотрудник × стройка», сутки и «будущий день» по поясу
+- [x] 1.2 `Summary/SummaryLayout.cs` — раскладка «сотрудник × стройка», сутки и «будущий день» по поясу
   стройки, «окно открыто» правилом `work-15` [WORK-29] [WORK-8] [WORK-54]. Проверка —
   `Work/SummaryLayoutTests`: «не поступал» ≠ «не назначен», Владивосток в 20:00 по Москве, две смены
   в сутках, `not-employed`, `zero-hours`
-- [ ] 1.3 `Summary/SummaryEndpoints.cs` — `GET /api/work/summary`: период до 31 дня, отбор по стройке,
+- [x] 1.3 `Summary/SummaryEndpoints.cs` — `GET /api/work/summary`: период до 31 дня, отбор по стройке,
   чтение изолированным методом с параметром доступа, `boundary`, `boundaryOutcome`, `reason:
   not-assigned`, `contact: { state: 'not-tracked' }` [WORK-29] [WORK-39] [WORK-40] [CORE-24.3].
   Проверка — `Work/SummaryEndpointTests`: чужая стройка — 404, 32 дня — 400, «Руководитель» видит все
-  стройки
-- [ ] 1.4 Ворота: «любое из» `work.report.review`, `work.report.read`, отказ выключенного модуля
+  стройки, при совмещённых правах на стройке вне менеджерского охвата видны только свои отчёты
+- [x] 1.4 Ворота: «любое из» `work.report.review`, `work.report.read`, отказ выключенного модуля
   [AUTH-8] [AUTH-9]. Проверка — `EndpointGateInventoryTests` зелёный; монтажник — 403; хост без
   `work` — 501
-- [ ] 1.5 Запись `draft` без содержимого [WORK-54]. Проверка — тест сериализации: у `draft` нет полей
+- [x] 1.5 Запись `draft` без содержимого [WORK-54]. Проверка — тест сериализации: у `draft` нет полей
   часов и идентификатора отчёта
-- [ ] 1.6 Замер ответа на посеве 200 строк × 31 день; число — в описании PR [WORK-29]. Проверка — ответ
+- [x] 1.6 Замер ответа на посеве 200 строк × 31 день; число — в описании PR [WORK-29]. Проверка — ответ
   меньше 1 МБ или заведена постраничность по строкам
 
 ## 2. Макеты
@@ -49,9 +49,9 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Summary|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Summary|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
 - [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
 - [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста (`table` — 0)
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 4.5 Живой прогон под ролями модуля: `node e2e/work-summary-smoke.mjs` — «Менеджер проекта» видит
   свою стройку, «Руководитель» — все, «Монтажник» пункта не видит
