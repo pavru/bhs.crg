@@ -48,7 +48,7 @@ public sealed partial class WorkIsolationViolationTests
             var notices = await ReviewWorld.BellAsync(manager);
             Assert.Contains(notices, notice => notice.Message.Contains("Стройка Б", StringComparison.Ordinal));
             Assert.DoesNotContain(notices, notice => notice.Message.Contains(marker, StringComparison.Ordinal));
-            await ArchiveReportAsync(b, manager);
+            await ArchiveReportAsync(b, manager, a, unassigned, executive);
         }
 
         using var scope = testHost.Services.CreateScope();
@@ -80,10 +80,12 @@ public sealed partial class WorkIsolationViolationTests
         await transaction.RollbackAsync();
     }
 
-    private async Task ArchiveReportAsync(HttpClient owner, HttpClient manager)
+    private async Task ArchiveReportAsync(HttpClient owner, HttpClient manager, HttpClient installer,
+        HttpClient unassigned, HttpClient executive)
     {
         var path = $"{ReportEndpoints.Path}/{reportB}";
         var report = await owner.GetFromJsonAsync<JsonElement>(path);
+        var original = await owner.GetByteArrayAsync($"/api/work/photos/{photoB}");
         using var accepted = await ReviewWorld.AcceptAsync(manager, reportB, ReviewWorld.Version(report));
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var version = ReviewWorld.Version(await ReportWorld.JsonAsync(accepted));
@@ -99,15 +101,50 @@ public sealed partial class WorkIsolationViolationTests
                 reason = "Уточнены часы в синтетическом отчёте",
                 lines = new[] { new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = 100m,
                     location = marker, comment = marker, details = new { work25 = marker }, isCrew = true, crewRole = "lead",
-                    materials = report.GetProperty("lines")[0].GetProperty("materials") } },
+                    materials = report.GetProperty("lines")[0].GetProperty("materials"), photos = new[] { new { id = retainedPhotoB } } } },
             };
             using var corrected = await manager.SendAsync(AssignmentWorld.Versioned(HttpMethod.Post, $"{path}/correction", version, changed));
-            Assert.Equal(2, (await ExpectJsonAsync(corrected, $"{path}/correction")).GetProperty("currentVersion").GetInt32());
-            await CheckResponseAsync(owner, $"{path}?view=at-closing", Ok, marker, canReadReport: true);
+            var current = await ExpectJsonAsync(corrected, $"{path}/correction");
+            Assert.Equal(2, current.GetProperty("currentVersion").GetInt32());
+            Assert.Equal(9m, current.GetProperty("hours").GetDecimal());
+            var currentPhoto = Assert.Single(current.GetProperty("lines")[0].GetProperty("photos").EnumerateArray());
+            Assert.Equal(retainedPhotoB, currentPhoto.GetProperty("id").GetGuid());
+
+            await CheckArchivedReadAsync(owner, installer, unassigned, executive, original);
         }
         finally
         {
             testHost.ClosureTime = null;
+        }
+    }
+
+    private async Task CheckArchivedReadAsync(HttpClient owner, HttpClient installer, HttpClient unassigned,
+        HttpClient executive, byte[] original)
+    {
+        var ownHistory = $"{ReportEndpoints.Path}/{reportB}?view=at-closing";
+        var reviewHistory = $"/api/work/review/reports/{reportB}?number=1";
+        await CheckResponseAsync(installer, ownHistory, Missing);
+        await CheckResponseAsync(installer, reviewHistory, Closed);
+        await CheckResponseAsync(unassigned, reviewHistory, Missing);
+
+        var snapshot = await owner.GetFromJsonAsync<JsonElement>(ownHistory);
+        Assert.Equal("at-closing", snapshot.GetProperty("view").GetString());
+        Assert.Equal(8m, snapshot.GetProperty("hours").GetDecimal());
+        var card = await executive.GetFromJsonAsync<JsonElement>(reviewHistory);
+        Assert.Equal(1, card.GetProperty("viewedVersion").GetInt32());
+        var archived = card.GetProperty("report");
+        Assert.Equal(8m, archived.GetProperty("hours").GetDecimal());
+        var photo = Assert.Single(archived.GetProperty("lines")[0].GetProperty("photos").EnumerateArray(),
+            entry => entry.GetProperty("id").GetGuid() == photoB);
+        var url = Assert.IsType<string>(photo.GetProperty("versionUrl").GetString());
+        await CheckResponseAsync(executive, $"/api/work/photos/{photoB}", Missing);
+        Assert.Equal(original, await executive.GetByteArrayAsync(url));
+        var preview = $"/api/work/photos/{photoB}/preview?reportId={reportB}&number=1";
+        await CheckResponseAsync(executive, preview, Ok, canReadReport: true);
+        foreach (var archiveUrl in new[] { url, preview })
+        {
+            await CheckResponseAsync(installer, archiveUrl, Missing);
+            await CheckResponseAsync(unassigned, archiveUrl, Missing);
         }
     }
 

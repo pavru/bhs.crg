@@ -117,11 +117,13 @@ public sealed partial class WorkIsolationViolationTests
         Assert.True(response.StatusCode == status, $"{path}: ожидался {(int)status}, получен {(int)response.StatusCode}. {content}");
         if (signal is not null)
             Assert.True(content.Contains(signal, StringComparison.OrdinalIgnoreCase), $"{path}: ответ не содержит контрольное значение.");
-        if (!canReadReport)
-        {
-            Assert.False(content.Contains(marker, StringComparison.Ordinal), $"{path}: в ответе есть метка отчёта Б.");
-            Assert.False(content.Contains(reportB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть отчёт Б.");
-            Assert.False(content.Contains(lineB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть строка отчёта Б.");
-        }
+        if (!canReadReport) AssertReportNotDisclosed(content, path);
+    }
+
+    private void AssertReportNotDisclosed(string content, string path)
+    {
+        Assert.False(content.Contains(marker, StringComparison.Ordinal), $"{path}: в ответе есть метка отчёта Б.");
+        Assert.False(content.Contains(reportB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть отчёт Б.");
+        Assert.False(content.Contains(lineB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть строка отчёта Б.");
     }
 }

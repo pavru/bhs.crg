@@ -26,10 +26,36 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
     private readonly string marker = $"Work25-{Guid.NewGuid():N}";
     private readonly Guid reportA = Guid.NewGuid();
     private readonly Guid reportB = Guid.NewGuid();
+    private readonly Guid lineA = Guid.NewGuid();
     private readonly Guid lineB = Guid.NewGuid();
     private readonly Guid photoB = Guid.NewGuid();
+    private readonly Guid retainedPhotoB = Guid.NewGuid();
     private Guid employeeB;
     private Guid groupB;
+
+    [Fact]
+    public async Task Сегодня_вычисляется_по_поясу_стройки_на_границе_суток()
+    {
+        await world.Assignments.ResetAsync();
+        var directory = await world.Assignments.DirectoryAsync();
+        var site = await world.Assignments.SiteAsync("Восточная стройка", "Asia/Vladivostok");
+        var employee = await world.Assignments.EmployeeAsync(directory, "Монтажник");
+        var (account, client) = await world.Assignments.UserAsync("Монтажник", WorkModule.ReportOwn);
+        using (client)
+        {
+            await world.Assignments.LinkAsync(employee, account);
+            await world.Assignments.AssignedAsync(employee, site, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
+
+            // Часы порта в AssignmentHost стоят на 31 октября по Москве и 1 ноября по Владивостоку.
+            var access = await client.GetFromJsonAsync<JsonElement>("/api/account/access");
+            Assert.Equal("Europe/Moscow", access.GetProperty("company").GetProperty("timeZone").GetString());
+            var sites = await client.GetFromJsonAsync<JsonElement>("/api/work/sites/mine");
+            var row = Assert.Single(sites.GetProperty("items").EnumerateArray());
+            Assert.Equal(site, row.GetProperty("id").GetGuid());
+            Assert.Equal("Asia/Vladivostok", row.GetProperty("timeZoneId").GetString());
+            Assert.Equal("2026-11-01", row.GetProperty("today").GetString());
+        }
+    }
 
     [Fact]
     public async Task Отчёт_виден_только_в_охвате_читающей_роли()
@@ -84,7 +110,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         var (_, executive) = await world.Assignments.UserAsync("Руководитель", WorkModule.ReportRead, CorePermissions.DataSetsRead);
         await world.Assignments.AssignedAsync(ownerId, world.SiteB, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
         await world.Assignments.AssignedAsync(installerId, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
-        var own = await CrewWorld.CreateAsync(installer, world.Draft(reportA, world.SiteA, location: "Участок А", volume: 7));
+        var own = await CrewWorld.CreateAsync(installer, world.Draft(reportA, world.SiteA, lineId: lineA, location: "Участок А", volume: 7));
         await CrewWorld.SubmitAsync(installer, reportA, own);
         var draft = await CrewWorld.CreateAsync(owner, new
         {
@@ -94,12 +120,15 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
                 new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = 100m, isCrew = true,
                     crewRole = "lead", location = marker, comment = marker, details = new { work25 = marker },
                     materials = new[] { new { nomenclatureId = material, note = marker } },
-                    photos = new[] { new { id = photoB, originalName = $"{marker}.jpg" } } },
+                    photos = new[] { new { id = photoB, originalName = $"{marker}-1.jpg" },
+                        new { id = retainedPhotoB, originalName = $"{marker}-2.jpg" } } },
             },
         });
         await CrewWorld.SubmitAsync(owner, reportB, draft);
         using var upload = await PhotoWorld.UploadAsync(owner, reportB, lineB, photoB, PhotoWorld.Shot());
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        using var retained = await PhotoWorld.UploadAsync(owner, reportB, lineB, retainedPhotoB, PhotoWorld.Shot());
+        Assert.Equal(HttpStatusCode.OK, retained.StatusCode);
         var crew = await executive.GetFromJsonAsync<JsonElement>($"{CrewWorld.Path}?constructionId={world.SiteB}");
         groupB = Assert.Single(crew.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid();
         return (installer, owner, manager, unassigned, executive);
@@ -140,37 +169,52 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
     {
         foreach (var client in new[] { installer, unassigned, executive })
             await CheckResponseAsync(client, "/api/tables", HttpStatusCode.OK, "work.reports");
-        foreach (var (table, total, ownValue, fullValue) in new[]
+        foreach (var (table, total, ownValue, fullValue, ownKey, foreignKey, column, signal) in new[]
         {
-            (WorkTableWorld.Reports, "Часы", 8, 16),
-            (WorkTableWorld.Lines, "Объём", 7, 107),
+            (WorkTableWorld.Reports, "Часы", 8, 16, reportA, reportB, "Сотрудник", "Монтажник Б"),
+            (WorkTableWorld.Lines, "Объём", 7, 107, lineA, lineB, "Место", marker),
         })
         {
             var path = $"{table}?totals={Uri.EscapeDataString(total)}";
-            await CheckTableAsync(installer, path, 1, "own", total, ownValue);
+            var own = await CheckTableAsync(installer, path, 1, "own", total, ownValue);
+            Assert.Equal(ownKey, Assert.Single(own.GetProperty("keys").EnumerateArray()).GetGuid());
+            AssertReportNotDisclosed(own.GetRawText(), path);
             var none = await CheckTableAsync(unassigned, path, 0, "not-assigned", total, null);
             Assert.Equal("not-assigned", none.GetProperty("reason").GetString());
-            await CheckTableAsync(executive, path, 2, "all", total, fullValue);
+            Assert.Empty(none.GetProperty("keys").EnumerateArray());
+            AssertReportNotDisclosed(none.GetRawText(), path);
+            var all = await CheckTableAsync(executive, path, 2, "all", total, fullValue);
+            Assert.Equal(new[] { ownKey, foreignKey }.Order(), all.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid()).Order());
 
-            var key = table == WorkTableWorld.Reports ? reportB : lineB;
-            await CheckResponseAsync(installer, $"{table}?row={key}", HttpStatusCode.NotFound);
-            await CheckResponseAsync(unassigned, $"{table}?row={key}", HttpStatusCode.NotFound);
-            await CheckResponseAsync(executive, $"{table}?row={key}", HttpStatusCode.OK, key.ToString(), canReadReport: true);
+            await CheckResponseAsync(installer, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
+            await CheckResponseAsync(unassigned, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
+            await CheckResponseAsync(executive, $"{table}?row={foreignKey}", HttpStatusCode.OK,
+                foreignKey.ToString(), canReadReport: true);
+            await CheckQueryAndExportAsync(table, column, signal, foreignKey, installer, unassigned, executive);
         }
+    }
 
-        var lines = WorkTableWorld.Lines;
+    private async Task CheckQueryAndExportAsync(string table, string column, string signal, Guid foreignKey,
+        HttpClient installer, HttpClient unassigned, HttpClient executive)
+    {
+        var filter = JsonSerializer.Serialize(new { type = "condition", column, op = "contains", value = signal });
         foreach (var (client, count) in new[] { (installer, 0), (unassigned, 0), (executive, 1) })
         {
-            var filter = JsonSerializer.Serialize(new { type = "condition", column = "Место", op = "contains", value = marker });
-            using var query = await client.PostAsJsonAsync($"{lines}/query", new { filter });
-            var body = await ExpectJsonAsync(query, $"{lines}/query");
+            using var query = await client.PostAsJsonAsync($"{table}/query", new { filter });
+            var body = await ExpectJsonAsync(query, $"{table}/query");
             Assert.Equal(count, body.GetProperty("count").GetInt32());
-            using var export = await client.PostAsJsonAsync($"{lines}/export", new { columns = new[] { "Место" } });
+            var keys = body.GetProperty("keys").EnumerateArray();
+            if (count == 1)
+                Assert.Equal(foreignKey, Assert.Single(keys).GetGuid());
+            else
+                AssertReportNotDisclosed(body.GetRawText(), $"{table}/query");
+
+            using var export = await client.PostAsJsonAsync($"{table}/export", new { columns = new[] { column } });
             Assert.Equal(HttpStatusCode.OK, export.StatusCode);
             using var workbook = new XSSFWorkbook(await export.Content.ReadAsStreamAsync());
             var sheet = workbook.GetSheetAt(0);
             Assert.Equal(count, Enumerable.Range(0, sheet.LastRowNum + 1)
-                .Count(row => sheet.GetRow(row)?.GetCell(0)?.ToString() == marker));
+                .Count(row => sheet.GetRow(row)?.GetCell(0)?.ToString() == signal));
         }
     }
 
@@ -199,27 +243,29 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
             var reference = await ExpectJsonAsync(published, $"{table}/dataset");
             var fileId = reference.GetProperty("fileId").GetGuid();
             var sourceId = reference.GetProperty("sourceId").GetGuid();
+            var (column, signal) = key == WorkTableWorld.LinesMarker ? ("Место", marker) : ("Сотрудник", "Монтажник Б");
             foreach (var (client, count) in new[] { (installer, 1), (unassigned, 0), (executive, 2) })
             {
-                await CheckResponseAsync(client, "/api/datasets/system-candidates?scope=System", HttpStatusCode.OK, key,
-                    canReadReport: count == 2);
-                await CheckResponseAsync(client, "/api/datasets/files?scope=System", HttpStatusCode.OK, fileId.ToString(), canReadReport: count == 2);
-                await CheckResponseAsync(client, $"/api/datasets/files/{fileId}/sources", HttpStatusCode.OK, sourceId.ToString(), canReadReport: count == 2);
+                await CheckSourceMetadataAsync(client, fileId, sourceId, key, count, column, signal);
                 var preview = $"/api/datasets/sources/{sourceId}/preview?maxRows=20";
                 using var response = await client.GetAsync(preview);
                 var rows = (await ExpectJsonAsync(response, preview)).GetProperty("rows");
                 Assert.Equal(count, rows.GetArrayLength());
-                var signal = key == WorkTableWorld.LinesMarker ? marker : "Монтажник Б";
                 Assert.Equal(count == 2, rows.EnumerateArray().Any(row => row.EnumerateArray()
                     .Any(cell => cell.ValueKind == JsonValueKind.String && cell.GetString() == signal)));
                 await CheckResponseAsync(client, $"/api/datasets/sources/{sourceId}/export?format=csv", HttpStatusCode.OK,
                     count == 2 ? signal : null, canReadReport: count == 2);
 
-                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString());
-                await McpAsync(client, "get_dataset", new { datasetId = fileId }, sourceId.ToString());
-                var detail = await McpAsync(client, "get_source", new { sourceId }, sourceId.ToString());
+                var canReadReport = count == 2;
+                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport);
+                var dataset = await McpAsync(client, "get_dataset", new { datasetId = fileId }, sourceId.ToString(), canReadReport);
+                var source = Assert.Single(dataset.GetProperty("sources").EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
+                Assert.Equal(count, source.GetProperty("rawRowCount").GetInt32());
+                var detail = await McpAsync(client, "get_source", new { sourceId }, sourceId.ToString(), canReadReport);
                 Assert.Equal(count, detail.GetProperty("rowCount").GetInt32());
-                var snapshot = await McpAsync(client, "get_rows", new { sourceId }, "totalRows");
+                Assert.Equal(count, detail.GetProperty("rawRowCount").GetInt32());
+                CheckSourceSamples(detail.GetProperty("columns"), column, signal, canReadReport);
+                var snapshot = await McpAsync(client, "get_rows", new { sourceId }, "totalRows", canReadReport);
                 Assert.Equal(count, snapshot.GetProperty("totalRows").GetInt32());
                 Assert.Equal(count == 2, snapshot.GetProperty("rows").EnumerateArray().Any(row => row.EnumerateObject()
                     .Any(cell => cell.Value.ValueKind == JsonValueKind.String && cell.Value.GetString() == signal)));
@@ -227,11 +273,52 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         }
     }
 
-    private static async Task<JsonElement> McpAsync(HttpClient client, string name, object arguments, string signal)
+    private async Task CheckSourceMetadataAsync(HttpClient client, Guid fileId, Guid sourceId, string key, int count,
+        string column, string signal)
+    {
+        const string list = "/api/datasets/files?scope=System";
+        var files = await ReadMetadataAsync(list);
+        var file = Assert.Single(files.EnumerateArray(), row => row.GetProperty("id").GetGuid() == fileId);
+        AssertSourceCount(file.GetProperty("sources"));
+        AssertSourceCount(await ReadMetadataAsync($"/api/datasets/files/{fileId}/sources"));
+
+        foreach (var path in new[] { "/api/datasets/system-candidates?scope=System", $"/api/datasets/files/{fileId}/source-candidates" })
+        {
+            var candidates = await ReadMetadataAsync(path);
+            var selected = Assert.Single(candidates.EnumerateArray(), row => row.GetProperty("sheetOrPath").GetString() == key);
+            Assert.Equal(count, selected.GetProperty("rowCount").GetInt32());
+        }
+
+        void AssertSourceCount(JsonElement entries)
+        {
+            var source = Assert.Single(entries.EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
+            Assert.Equal(count, source.GetProperty("cachedRowCount").GetInt32());
+            using var schema = JsonDocument.Parse(source.GetProperty("cachedSchema").GetString()!);
+            CheckSourceSamples(schema.RootElement, column, signal, count == 2);
+        }
+
+        async Task<JsonElement> ReadMetadataAsync(string path)
+        {
+            using var response = await client.GetAsync(path);
+            var json = await ExpectJsonAsync(response, path);
+            if (count != 2) AssertReportNotDisclosed(json.GetRawText(), path);
+            return json;
+        }
+    }
+
+    private static void CheckSourceSamples(JsonElement columns, string key, string signal, bool canReadReport)
+    {
+        var column = Assert.Single(columns.EnumerateArray(), entry => entry.GetProperty("name").GetString() == key);
+        var values = column.GetProperty("sampleValues").EnumerateArray().Select(value => value.GetString());
+        Assert.Equal(canReadReport, values.Contains(signal, StringComparer.Ordinal));
+    }
+
+    private async Task<JsonElement> McpAsync(HttpClient client, string name, object arguments, string signal, bool canReadReport)
     {
         var result = await McpTestClient.CallAsync(client, "tools/call", new { name, arguments });
         var content = Assert.Single(result.GetProperty("content").EnumerateArray()).GetProperty("text").GetString()!;
         Assert.Contains(signal, content, StringComparison.Ordinal);
+        if (!canReadReport) AssertReportNotDisclosed(content, name);
         using var document = JsonDocument.Parse(content);
         return document.RootElement.Clone();
     }
