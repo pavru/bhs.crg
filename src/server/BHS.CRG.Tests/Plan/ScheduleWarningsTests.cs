@@ -87,11 +87,17 @@ public class ScheduleWarningsTests(PlanOnlyHost host)
         Assert.Equal(Id(broken), GuidOrNull(second, "linkId"));
         Assert.Contains("03.12.2026", first.GetProperty("text").GetString());
         var seenEarly = Assert.Single(Works(receiving), w => Id(w) == Id(early));
+        Assert.Equal(2, early.GetProperty("durationWorkingDays").GetInt32());
+        Assert.Equal(2, seenEarly.GetProperty("durationWorkingDays").GetInt32());
         Assert.Contains(Warnings(seenEarly), w => Code(w) == "starts-before-predecessor");
         Assert.Contains(Warnings(seenEarly), w => Code(w) == "ends-on-day-off");
-        Assert.Empty(Warnings(Assert.Single(Works(receiving), w => Id(w) == Id(onTime))));
+        var seenOnTime = Assert.Single(Works(receiving), w => Id(w) == Id(onTime));
+        Assert.Equal(2, seenOnTime.GetProperty("durationWorkingDays").GetInt32());
+        Assert.Empty(Warnings(seenOnTime));
 
-        var gaps = Warnings(Assert.Single(Works(receiving), w => Id(w) == Id(missing)));
+        var seenMissing = Assert.Single(Works(receiving), w => Id(w) == Id(missing));
+        Assert.Equal(JsonValueKind.Null, seenMissing.GetProperty("durationWorkingDays").ValueKind);
+        var gaps = Warnings(seenMissing);
         Assert.Contains(gaps, w => Code(w) == "no-dates");
         var gap = Assert.Single(gaps, w => Code(w) == "calendar-missing");
         Assert.Equal(2035, gap.GetProperty("year").GetInt32());

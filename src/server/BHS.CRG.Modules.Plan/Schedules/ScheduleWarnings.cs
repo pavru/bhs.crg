@@ -29,16 +29,14 @@ internal static class ScheduleWarnings
          select new ScheduleRelation(link, predecessor, successor, EF.Property<uint>(link, PlanDbContext.RowVersion)))
         .ToListAsync(ct);
 
-    internal static async Task<IReadOnlyList<ScheduleWarning>> ReadAsync(
-        PlanDbContext db, Schedule schedule, IReadOnlyList<ScheduleWork> works,
-        IReadOnlyList<ScheduleRelation> relations, CancellationToken ct)
+    internal static IReadOnlyList<ScheduleWarning> Read(
+        Guid scheduleId, IReadOnlyList<ScheduleWork> works, IReadOnlyList<ScheduleRelation> relations,
+        WorkingDays? calendar)
     {
-        if (works.Count == 0) return [];
-        var warnings = new List<ScheduleWarning>();
-        if (works.All(w => w.Start is null && w.End is null) && !relations.Any(r => r.Predecessor.End.HasValue))
+        if (calendar is null)
             return works.Select(w => NoDates(w.Id)).ToList();
 
-        var calendar = await WorkingDays.LoadAsync(db, schedule.ConstructionId, ct);
+        var warnings = new List<ScheduleWarning>();
         var gapRanges = new List<GapRange>();
         foreach (var work in works)
         {
@@ -58,7 +56,7 @@ internal static class ScheduleWarnings
             if (!thresholds.TryGetValue(key, out var due))
                 thresholds[key] = due = calendar.ShiftWorkingDays(end, relation.Link.Lag);
             var affected = new[] { relation.Predecessor, relation.Successor };
-            foreach (var work in affected.Where(w => w.ScheduleId == schedule.Id))
+            foreach (var work in affected.Where(w => w.ScheduleId == scheduleId))
             {
                 if (due is not { } date)
                 {

@@ -67,6 +67,7 @@ export default defineConfig({
       paymentRequisites: resolve(root, 'payment-requisites.html'),
       planOffers: resolve(root, 'plan-offers.html'),
       planCalendars: resolve(root, 'plan-calendars.html'),
+      planSchedules: resolve(root, 'plan-schedules.html'),
     } },
   },
 });

@@ -20,7 +20,7 @@ import { SearchInput } from './SearchInput';
  */
 export function EmployeePicker({
   candidates, selected, onChange, search, onSearch, refused = {}, more = false, limit, missing = null, pending = false,
-  loading = false, disabled = false, single = false,
+  loading = false, disabled = false, single = false, searchPlaceholder = 'Найти по ФИО или табельному номеру',
 }: {
   /** `undefined` — ещё не спрошены (период не задан). */
   candidates: AssignmentCandidate[] | undefined;
@@ -40,6 +40,7 @@ export function EmployeePicker({
   loading?: boolean;
   disabled?: boolean;
   single?: boolean;
+  searchPlaceholder?: string;
 }) {
   const eligible = (candidates ?? []).filter(c => c.eligible);
   const picked = eligible.filter(c => selected.has(c.employeeId)).length;
@@ -84,7 +85,7 @@ export function EmployeePicker({
 
   return (
     <div className="space-y-3">
-      <SearchInput value={search} onChange={onSearch} placeholder="Найти по ФИО или табельному номеру"
+      <SearchInput value={search} onChange={onSearch} placeholder={searchPlaceholder}
         ariaLabel="Найти сотрудника" />
       {missing ? (
         <p role="alert" className="text-body-medium text-error">{missing}</p>
