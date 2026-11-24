@@ -125,8 +125,8 @@ public sealed class ReportReview(
             await activity.RecordAsync(ReportActions.Accepted, report, executor, before: "подан", after: "принят", site);
         else
         {
-            await activity.RecordAsync(ReportActions.Returned, report, executor, before: "подан", after: comment!, site);
-            if (recipient is { } userId) await notice.PublishAsync(userId, report, site, comment!, actor.Name);
+            await activity.RecordAsync(ReportActions.Returned, report, executor, before: "подан", after: "возвращён", site);
+            if (recipient is { } userId) await notice.PublishAsync(userId, report, site);
         }
         return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
     }

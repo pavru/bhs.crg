@@ -101,7 +101,7 @@ function AddEntryBindingPanel({
                    * самом пункте: подсказку у пункта списка видно не везде.
                    */
                   <SelectItem key={s.id} value={s.id} disabled={f.format === 'System'}>
-                    {s.name} · {s.cachedRowCount} строк
+                    {s.name}{s.cachedRowCount == null ? '' : ` · ${s.cachedRowCount} строк`}
                     {f.format === 'System' ? ' — отбор по правам: к записи не привязывается' : ''}
                   </SelectItem>
                 ))}

@@ -39,7 +39,10 @@ public class DataSetSource : Entity
     public string? ColumnExpressions { get; private set; }
     /// <summary>JSON-кэш колонок: [{name, sampleValues[]}]. Заполняется при загрузке файла.</summary>
     public string CachedSchema { get; private set; } = "[]";
+    /// <summary>Число строк изолированного источника вычисляют при чтении. В БД и в копии поле целое.</summary>
+    public const int UnstoredRowCount = -1;
     public int CachedRowCount { get; private set; }
+    public int? KnownCachedRowCount() => CachedRowCount == UnstoredRowCount ? null : CachedRowCount;
     /// <summary>
     /// JSON-массив полных распознанных строк (только для PDF — распознавание через vision-LLM
     /// дорого/недетерминированно, в отличие от остальных форматов не перепарсивается на каждый

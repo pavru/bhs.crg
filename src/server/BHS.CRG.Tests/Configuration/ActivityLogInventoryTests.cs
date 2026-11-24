@@ -38,6 +38,8 @@ public class ActivityLogInventoryTests
     {
         ["BHS.CRG.Infrastructure/Activity/ActivityLog.cs"] =
             "сама служба журнала — единственный путь записи и чтения (ТЗ CORE-28)",
+        ["BHS.CRG.Infrastructure/Persistence/WorkContentMaintenance.cs"] =
+            "Work-30: при старте и восстановлении заменяет только After двух прежних действий фиксированными статусами",
         ["BHS.CRG.Infrastructure/Persistence/AppDbContext.cs"] =
             "объявление набора и отказ на правку/удаление записи: там же, где единственная точка сохранения",
         ["BHS.CRG.Infrastructure/Persistence/Configurations/ActivityRecordConfiguration.cs"] =

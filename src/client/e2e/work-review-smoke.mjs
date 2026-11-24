@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { BASE, callApi, clearSession, createChecks, launchBrowser, login } from './harness.mjs';
 import { ASSIGNMENT_PM, FOREIGN_PM, INSTALLER } from './seed-assignments.mjs';
-import { REVIEW_READER_EMAIL, REVIEW_REPORTS } from './seed-review.mjs';
+import { REVIEW_READER_EMAIL, REVIEW_REPORTS, REVIEW_RETURN_RECIPIENT_EMAIL } from './seed-review.mjs';
 
 const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID;
@@ -15,6 +15,8 @@ const queue = `${BASE}/work-review?constructionId=${encodeURIComponent(CONSTRUCT
 const row = index => page.getByRole('row').filter({ hasText: REVIEW_REPORTS[index].name });
 const direct = index => `${BASE}/work-review/${REVIEW_REPORTS[index].id}`;
 const dialog = () => page.getByRole('dialog');
+const returnedReport = `${BASE}/my-reports/${REVIEW_REPORTS[1].id}`;
+const returnComment = 'Уточните место работ.';
 
 async function managerChecks() {
   await login(page, ASSIGNMENT_PM.email, PASSWORD);
@@ -63,10 +65,10 @@ async function managerChecks() {
     await page.getByRole('button', { name: 'Вернуть', exact: true }).click();
     const submit = dialog().getByRole('button', { name: 'Вернуть', exact: true });
     assert.equal(await submit.isDisabled(), true);
-    await dialog().getByRole('textbox', { name: 'Что исправить' }).fill('Уточните место работ.');
+    await dialog().getByRole('textbox', { name: 'Что исправить' }).fill(returnComment);
     await submit.click();
     await dialog().waitFor({ state: 'hidden' });
-    await page.getByRole('region', { name: 'Журнал отчёта' }).getByText('Уточните место работ.').waitFor();
+    await page.getByRole('region', { name: 'Журнал отчёта' }).getByText(returnComment).waitFor();
     await page.getByRole('button', { name: 'Принять', exact: true, includeHidden: true }).waitFor({ state: 'detached' });
   });
 }
@@ -117,6 +119,29 @@ try {
   });
   await clearSession(page);
   await managerChecks();
+
+  await clearSession(page);
+  await login(page, REVIEW_RETURN_RECIPIENT_EMAIL, PASSWORD);
+  await check('review-return-notification-opens-own-report', async () => {
+    await page.getByRole('button', { name: /Уведомления.*новых уведомлений: [1-9]/ }).click();
+    const bell = page.getByRole('region', { name: 'Уведомления', exact: true });
+    await bell.getByText(/Отчёт за .* возвращён/).waitFor();
+    assert.equal(await bell.getByText(returnComment, { exact: true }).count(), 0);
+    await bell.getByRole('button', { name: 'Открыть отчёт', exact: true }).click();
+    await page.waitForURL(returnedReport);
+    await page.getByText(returnComment, { exact: true }).waitFor();
+  });
+
+  await clearSession(page);
+  await login(page, INSTALLER.email, PASSWORD);
+  await check('review-return-notification-and-report-are-private', async () => {
+    const notifications = await callApi(page, 'GET', '/notifications');
+    assert.equal(notifications.status, 200);
+    assert.equal(notifications.body.items.some(item => item.linkUrl === new URL(returnedReport).pathname), false);
+    await page.goto(returnedReport);
+    await page.getByText(/Отчёт не найден/).waitFor();
+    assert.equal(await page.getByText(returnComment, { exact: true }).count(), 0);
+  });
 } finally {
   await browser.close();
 }

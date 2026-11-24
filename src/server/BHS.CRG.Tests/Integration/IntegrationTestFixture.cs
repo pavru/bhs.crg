@@ -65,9 +65,11 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
     /// видно никак: тесты зелёные, просто медленные.
     /// </summary>
     internal static readonly string TestConnectionString =
+        // BHS_TEST_PORT позволяет прогону создать отдельный контейнер, сохраняя стандартный порт CI.
         // Include Error Detail — чтобы отказ базы называл, что именно сцепилось: без него взаимная
         // блокировка из #928 пришла с «Detail redacted», и обе стороны пришлось вычислять по журналу.
-        "Host=127.0.0.1;Port=5433;Username=postgres;Password=xxsystem;Include Error Detail=true;Database="
+        "Host=127.0.0.1;Port=" + (int.TryParse(Environment.GetEnvironmentVariable("BHS_TEST_PORT"), out var port) ? port : 5433)
+        + ";Username=postgres;Password=xxsystem;Include Error Detail=true;Database="
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     /// <summary>

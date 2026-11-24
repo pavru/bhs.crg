@@ -487,7 +487,7 @@ export interface DataSetSource {
   /** Только для XML: JSON-массив ColumnExprDef[]. Null — авто-определение колонок (легаси). */
   columnExpressions: string | null;
   cachedSchema: string; // JSON of {name, sampleValues}[]
-  cachedRowCount: number;
+  cachedRowCount: number | null;
   /** Обработка (Filter/Transformation/Sort) — своя, независимая. Применение шаблона обработки
    *  копирует его значения сюда единожды (не живая ссылка). */
   rowFilter: RowFilterDef | null;
@@ -628,7 +628,7 @@ export interface DataSetBindingSource {
   name: string;
   sheetOrPath: string;
   cachedSchema: string;
-  cachedRowCount: number;
+  cachedRowCount: number | null;
   file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'>;
   materializeTypeId: string | null;
   materializeMapping: Record<string, string> | null;

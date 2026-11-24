@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 
 export const REVIEW_READER_EMAIL = process.env.SMOKE_READER_EMAIL || 'ruk@bhs.local';
+export const REVIEW_RETURN_RECIPIENT_EMAIL = 'work-review-recipient@bhs.local';
 
 export const REVIEW_REPORTS = [
   { id: '187f44ed-6fc5-4234-9b24-e270df33a052', name: 'Крылов Максим Игоревич (посев)', number: 'E2E-21', shift: 'day' },
@@ -10,12 +11,18 @@ export const REVIEW_REPORTS = [
 
 export async function seedReview({ api, ensureUser, constructionId }) {
   await ensureUser(REVIEW_READER_EMAIL, 'Роман Руководителев', 'Executive');
+  await ensureUser(REVIEW_RETURN_RECIPIENT_EMAIL, REVIEW_REPORTS[1].name, 'Installer');
+  const recipient = (await api('GET', '/users')).find(user => user.email === REVIEW_RETURN_RECIPIENT_EMAIL);
+  if (!recipient) throw new Error('Не найдена учётная запись получателя уведомления Work-30.');
   const { construction } = await api('GET', `/work/assignments?constructionId=${constructionId}`);
   if (!construction.today) throw new Error('У стройки посева нет текущей даты для отчётов Work-21.');
   const employees = await api('GET', '/employees');
   for (const report of REVIEW_REPORTS) {
     const employee = employees.find(item => item.displayName === report.name)
       ?? await api('POST', '/employees', { displayName: report.name, data: JSON.stringify({ ТабельныйНомер: report.number }) });
+    if (report.id === REVIEW_REPORTS[1].id && employee.account?.userId !== recipient.id) {
+      await api('PUT', `/employees/${employee.id}/account`, { userId: recipient.id }, { 'If-Match': employee.version });
+    }
     const path = `/work/entry/reports/${report.id}`;
     const body = { id: report.id, employeeId: employee.id, constructionId, date: construction.today, shift: report.shift, hours: 8, lines: [] };
     let current = await api('GET', path).catch(error => {

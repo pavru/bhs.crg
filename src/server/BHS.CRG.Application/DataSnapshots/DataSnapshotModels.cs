@@ -35,7 +35,7 @@ public record DatasetDetail(
 /// листов, ради навигационной выдачи.</param>
 /// <param name="Warning">Оговорка к данным (issue #661) — см. <see cref="SourceDetail"/>.</param>
 public record SourceSummary(
-    Guid Id, string Name, DataOrigin Origin, int RawRowCount, bool Filtered, bool Stale,
+    Guid Id, string Name, DataOrigin Origin, int? RawRowCount, bool Filtered, bool Stale,
     IReadOnlyList<string> Columns, SheetAnchor? Sheet, string? Warning = null);
 
 /// <param name="StaleReason">Почему данные считаются устаревшими — чтобы агент мог решить сам,
@@ -70,7 +70,7 @@ public record SourceSummary(
 /// одном поле агент перестал бы различать «данных нет» и «данные неполны».</param>
 public record SourceDetail(
     Guid Id, Guid DatasetId, string DatasetName, string Name,
-    DataOrigin Origin, int? RowCount, int RawRowCount, bool Filtered,
+    DataOrigin Origin, int? RowCount, int? RawRowCount, bool Filtered,
     bool Stale, string? StaleReason,
     DateTimeOffset UpdatedAt, string? RowsHash, string? RowsError,
     IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet, string? Warning = null,

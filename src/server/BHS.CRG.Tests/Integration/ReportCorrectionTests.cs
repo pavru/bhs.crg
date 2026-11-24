@@ -87,8 +87,17 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal("Объём по акту", history[0].GetProperty("reason").GetString());
         Assert.Equal("Менеджер стройки", history[0].GetProperty("author").GetProperty("name").GetString());
         Assert.NotEqual(default, history[0].GetProperty("at").GetDateTimeOffset());
-        Assert.Equal(2, (await period.Review.EntriesAsync(id)).Count(e => e.Kind == ReportJournalKinds.Corrected));
-        Assert.Equal(2, (await period.Review.CoreRecordsAsync(ReportActions.Corrected.Code, id)).Count);
+        var entries = (await period.Review.EntriesAsync(id)).Where(e => e.Kind == ReportJournalKinds.Corrected).ToArray();
+        Assert.Equal(2, entries.Length);
+        Assert.All(entries, e => Assert.Equal("Объём по акту", e.Comment));
+        var audits = await period.Review.CoreRecordsAsync(ReportActions.Corrected.Code, id);
+        Assert.Equal(2, audits.Count);
+        Assert.All(audits, a =>
+        {
+            Assert.Equal("исправлен", a.After);
+            Assert.Equal("Менеджер стройки", a.ActorName);
+            Assert.Equal(id.ToString(), a.TargetId);
+        });
 
         var historical = $"{Reports}/{id}?view=at-closing";
         var atClosing = await installer.GetFromJsonAsync<JsonElement>(historical);

@@ -46,10 +46,10 @@ public class ReviewActionsTests(AssignmentHost host) : IAsyncLifetime
 
     /// <summary>
     /// Подан → возвращён → подан: комментарий остаётся в журнале, и отчёт снова ждёт приёмки. Колокольчик монтажника
-    /// получает уведомление с комментарием, соседнего монтажника — нет.
+    /// получает ссылку на свой отчёт, соседнего монтажника не уведомляют.
     /// </summary>
     [Fact]
-    public async Task Подан_возвращён_подан()
+    public async Task ReturnNotice_Подан_возвращён_подан()
     {
         var (_, petrov) = await world.Reports.InstallerAsync("Петров Пётр Петрович");
         var (_, sidorov) = await world.Reports.InstallerAsync("Сидоров Семён Семёнович");
@@ -65,13 +65,23 @@ public class ReviewActionsTests(AssignmentHost host) : IAsyncLifetime
         var entry = Assert.Single(await world.EntriesAsync(id), e => e.Kind == ReportJournalKinds.Returned);
         Assert.Equal("Уточните объём по оси 4", entry.Comment);
         Assert.Contains(await world.Reports.ChangesAsync(id), c => c.Kind == ReportChangeKind.Returned);
-        Assert.Equal("Уточните объём по оси 4", Assert.Single(await world.CoreRecordsAsync(ReportActions.Returned.Code, id)).After);
-        var bell = Assert.Single(await ReviewWorld.BellAsync(petrov));
-        Assert.Equal("Отчёт за 16.11 возвращён", bell.Title);
-        Assert.Contains("Уточните объём по оси 4", bell.Message);
-        Assert.Contains("Иванова Ирина Ивановна", bell.Message);
+        var audit = Assert.Single(await world.CoreRecordsAsync(ReportActions.Returned.Code, id));
+        Assert.Equal("подан", audit.Before);
+        Assert.Equal("возвращён", audit.After);
+        Assert.Equal(entry.AuthorName, audit.ActorName);
+        Assert.Equal(id.ToString(), audit.TargetId);
+        using var notificationResponse = await petrov.GetAsync("/api/notifications");
+        var notifications = await ReportWorld.JsonAsync(notificationResponse);
+        var bell = Assert.Single(notifications.GetProperty("items").EnumerateArray());
+        Assert.Equal("Отчёт за 16.11 возвращён", bell.GetProperty("title").GetString());
+        Assert.DoesNotContain(entry.Comment!, bell.GetProperty("message").GetString()!);
+        Assert.Equal($"/my-reports/{id}", bell.GetProperty("linkUrl").GetString());
         Assert.Empty(await ReviewWorld.BellAsync(sidorov));
         Assert.Empty(await ReviewWorld.BellAsync(manager));
+        using var own = await petrov.GetAsync($"{Url}/{id}");
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        using var other = await sidorov.GetAsync($"{Url}/{id}");
+        Assert.Equal(HttpStatusCode.NotFound, other.StatusCode);
 
         var again = await SubmissionTests.SubmitAsync(petrov, $"{Url}/{id}", ReviewWorld.Version(body), DateTimeOffset.UtcNow);
 
@@ -301,7 +311,7 @@ public class ReviewActionsTests(AssignmentHost host) : IAsyncLifetime
     /// колокольчик менеджера пуст.
     /// </summary>
     [Fact]
-    public async Task Возврат_без_учётной_записи()
+    public async Task ReturnNotice_Возврат_без_учётной_записи()
     {
         var (_, manager) = await world.Reports.ManagerAsync("Иванова Ирина Ивановна", world.SiteA);
         var petrov = await world.Reports.EmployeeAsync("Петров Пётр Петрович");

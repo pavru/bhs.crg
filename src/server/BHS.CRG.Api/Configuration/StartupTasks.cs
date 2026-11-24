@@ -52,6 +52,7 @@ internal static class StartupTasks
         if (migrating && db.Database.GetDbConnection() is Npgsql.NpgsqlConnection npgsql)
             npgsql.Notice += (_, e) => app.Logger.LogInformation("Миграция: {Notice}", e.Notice.MessageText);
         await db.Database.MigrateAsync();
+        await WorkContentMaintenance.AtStartupAsync(db, app.Logger);
 
         if (migrating)
         {
