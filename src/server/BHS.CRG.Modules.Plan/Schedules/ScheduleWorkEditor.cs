@@ -55,7 +55,7 @@ internal sealed class ScheduleWorkEditor(
         return views.Work(work, position.Key, employeeIds);
     }
 
-    internal async Task DeleteAsync(Guid id, Guid workId, HttpRequest request, CancellationToken ct)
+    internal async Task DeleteWorkAsync(Guid id, Guid workId, HttpRequest request, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var schedule = await schedules.LockAsync(id, ct);

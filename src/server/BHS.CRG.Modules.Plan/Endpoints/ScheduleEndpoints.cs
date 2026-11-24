@@ -28,7 +28,7 @@ internal static class ScheduleEndpoints
 
     private static async Task<IResult> ListAsync(Guid constructionId, PlanDbContext db, CancellationToken ct)
     {
-        var schedules = await db.Schedules.AsNoTracking().Where(s => s.ConstructionId == constructionId)
+        var schedules = await db.Schedules.Where(s => s.ConstructionId == constructionId)
             .OrderBy(s => s.Name).ThenBy(s => s.Id).ToListAsync(ct);
         return Results.Ok(schedules.Select(s => new ScheduleSummary(s.Id, s.ConstructionId, s.RevisionId, s.Name,
             db.VersionOf(s))).ToList());
@@ -69,7 +69,7 @@ internal static class ScheduleEndpoints
     private static async Task<IResult> DeleteWorkAsync(
         Guid id, Guid workId, HttpRequest request, ScheduleWorkEditor editor, CancellationToken ct)
     {
-        await editor.DeleteAsync(id, workId, request, ct);
+        await editor.DeleteWorkAsync(id, workId, request, ct);
         return Results.NoContent();
     }
 }

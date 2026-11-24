@@ -30,7 +30,11 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         Assert.True(work.GetProperty("manual").GetBoolean());
         Assert.Equal(await EstimateSeed.PlanItemAsync(host, scene.Site), GuidOrNull(work, "planItemId"));
         var selected = await ReadAsync(scene.Editor.GetAsync($"{Root}?constructionId={scene.Site.Construction}"));
-        Assert.Equal(Id(schedule), Id(Assert.Single(selected.EnumerateArray())));
+        var listing = Assert.Single(selected.EnumerateArray());
+        var opened = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(schedule)));
+        Assert.Equal(Id(schedule), Id(listing));
+        Assert.Equal(Version(opened), Version(listing));
+        Assert.NotEqual(Version(schedule), Version(listing));
 
         var path = WorkUrl(schedule, work);
         var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
