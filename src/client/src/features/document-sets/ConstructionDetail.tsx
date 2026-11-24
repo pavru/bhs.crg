@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
+import { useGuardedLeave, useGuardedNavClick, useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Delete, Edit, Layers } from '@/shared/ui/icons';
 import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
@@ -31,6 +32,9 @@ export function ConstructionDetail() {
 
   const { constructionId } = useParams<{ constructionId: string }>();
   const navigate = useNavigate();
+  const guardedNavigate = useGuardedNavigate();
+  const guardedClick = useGuardedNavClick();
+  const guardDeparture = useGuardedLeave();
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   // «Недавние» Главной: стройка отмечается, когда прочитана.
   useRecentTouch('Стройка', construction?.id);
@@ -57,6 +61,8 @@ export function ConstructionDetail() {
   const renameConstruction = useRenameConstruction();
   const deleteConstruction = useDeleteConstruction();
 
+  const openAddSection = () => guardDeparture(() => setAddSectionOpen(true));
+
   async function handleAddSection(e: React.FormEvent) {
     e.preventDefault();
     setSectionError('');
@@ -79,7 +85,8 @@ export function ConstructionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-body-small text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" onClick={guardedClick('/document-sets')}
+        className="text-body-small text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       {/* Прямая ссылка на неизбранную стройку (#1218): открыта полностью, а крошка ведёт в список,
           где её нет, — строка говорит почему. */}
       <NotFavoriteNote constructionId={constructionId!} />
@@ -98,14 +105,14 @@ export function ConstructionDetail() {
           <NavItem key={s.id} icon={Layers} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
             progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
-            onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
+            onClick={() => guardedNavigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
         );
       })}
       {canEdit && (
         // Действие в колонке — кнопка text, а не строка (Р4 md3-18): строка цвета primary читалась бы выбранной.
         // pl-1 и отступ кнопки со знаком (12) дают знаку те же 16 от края, что у знаков строк.
         <div className="pl-1 py-1">
-          <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+          <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={openAddSection}>Добавить раздел</Button>
         </div>
       )}
       {panels.ownNav('Эта стройка')}
@@ -118,10 +125,10 @@ export function ConstructionDetail() {
     <>
       <FavoriteStar id={construction.id} />
       {canEdit && <>
-        <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+        <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={openAddSection}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
           { key: 'rename', label: 'Переименовать', icon: Edit, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
-          { key: 'delete', label: 'Удалить стройку', icon: Delete, danger: true, onSelect: () => setDeleteConfirm(true) },
+          { key: 'delete', label: 'Удалить стройку', icon: Delete, danger: true, onSelect: () => guardDeparture(() => setDeleteConfirm(true)) },
         ]} />
       </>}
     </>

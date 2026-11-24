@@ -1,5 +1,6 @@
-import { Database, Engineering, Group, Table, TableChart, type IconDef } from './icons';
+import { Database, DateRange, Engineering, Group, Table, TableChart, type IconDef } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
+import { CALENDAR_READ } from '@/shared/api/planningCalendars';
 import { allowed } from './navAccess';
 import { pageOwners, railSections, workNav, type NavItem, type PageOwner, type RailId } from './navConfig';
 
@@ -50,6 +51,8 @@ export const constructionPanels: ConstructionPanel[] = [
   // там видны его сметы.
   { id: 'estimates', label: 'Сметы', icon: TableChart, block: 'work', levels: BOTH, module: 'plan',
     permission: 'plan.estimate.read' },
+  { id: 'schedule', label: 'График', icon: DateRange, block: 'work', levels: ['construction'], module: 'plan',
+    permission: [...CALENDAR_READ] },
   { id: 'catalog', label: 'Каталог', icon: Database, block: 'own', levels: BOTH },
   // Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не объявило,
   // пункта нет, как и в главном меню; открытая по ссылке панель получает плашку.

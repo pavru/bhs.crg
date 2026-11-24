@@ -46,6 +46,7 @@ import { TablePage } from '@/features/tables/TablePage';
 import { EstimatesPage } from '@/features/planning/estimates/EstimatesPage';
 import { OffersPage } from '@/features/planning/offers/OffersPage';
 import { PriceListPage } from '@/features/planning/pricelist/PriceListPage';
+import { CompanyCalendarPage } from '@/features/planning/calendars/CompanyCalendarPage';
 import { RateMatchesPage } from '@/features/planning/estimates/RateMatchesPage';
 import { ReviewQueuePage } from '@/features/work/review/ReviewQueuePage';
 import { MyReportsPage } from '@/features/work/entry/MyReportsPage';
@@ -156,6 +157,7 @@ function AppRoutes() {
             <Route path="estimates/*" element={<EstimatesPage />} />
             <Route path="offers/*" element={<OffersPage />} />
             <Route path="price-list" element={<PriceListPage />} />
+            <Route path="production-calendar" element={<CompanyCalendarPage />} />
             <Route path="rate-matches" element={<RateMatchesPage />} />
             <Route path="work-review" element={<ReviewQueuePage />} />
             <Route path="my-reports" element={<MyReportsPage />} />
