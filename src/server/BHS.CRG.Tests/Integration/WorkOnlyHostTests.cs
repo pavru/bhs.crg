@@ -49,6 +49,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
                  {
                      ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/plan/estimates", "plan"),
                      ("/api/plan/calendars/company/2027", "plan"),
+                     ("/api/plan/schedules", "plan"),
                  })
         {
             Assert.Contains(module, registry.Disabled.Select(m => m.Code));

@@ -36,6 +36,11 @@ public static class PlanReferences
 
     public static IReadOnlyList<ModuleReference> All =>
     [
+        ModuleReference.Holding("schedules", "construction_id", ReferenceTarget.Construction, "графики производства работ"),
+        ModuleReference.Remembering("schedules", "creation_key", target: null, "ключ повтора создания графика"),
+        ModuleReference.Holding("schedule_works", "section_id", ReferenceTarget.Section, "работы графиков"),
+        ModuleReference.Holding("schedule_works", "plan_item_id", ReferenceTarget.WorkPlanItem, "работы графиков"),
+        ModuleReference.Holding("schedule_work_assignees", "employee_id", ReferenceTarget.Record, "исполнители работ графиков"),
         ModuleReference.Holding("construction_calendars", "construction_id", ReferenceTarget.Construction,
             "настройки календаря этой стройки"),
         ModuleReference.Remembering("construction_calendar_days", "construction_id", target: null,
