@@ -1,6 +1,6 @@
 # Proposal: сводка «сотрудник × стройка × день»
 
-Дочерний change зонтика `work-00-epic`, общая архитектура — `../work-00-epic/design.md` (D4, D8, D15, D17).
+Дочерний change зонтика `work-00-epic`, общая архитектура — [work-00-epic](../../work-00-epic/design.md) (D4, D8, D15, D17).
 
 ## Why
 
