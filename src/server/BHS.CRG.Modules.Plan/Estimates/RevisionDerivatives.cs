@@ -30,19 +30,20 @@ internal sealed record RevisionDerivativeBlock(
 /// <summary>Производные редакций для чтения сметы (PLAN-22). Ответ не содержит денег.</summary>
 internal static class RevisionDerivatives
 {
-    public static async Task<IResult> GetAsync(Guid id, PlanDbContext db, IModuleUser user, CancellationToken ct)
+    public static async Task<IResult> GetAsync(Guid id, PlanDbContext db, IModuleUser user, IModuleClock clock, CancellationToken ct)
     {
         var canReadOffers = await user.HasAsync(PlanModule.OfferRead, ct);
-        var schedules = await user.HasAsync(PlanModule.ScheduleRead, ct)
-            ? RevisionDerivativeBlock.Visible([])
-            : RevisionDerivativeBlock.Hidden(PlanModule.ScheduleRead);
+        var canReadSchedules = await user.HasAsync(PlanModule.ScheduleRead, ct);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var estimate = await db.Estimates.AsNoTracking().Where(e => e.Id == id)
-            .Select(e => new { e.Id, e.CurrentRevisionId }).SingleOrDefaultAsync(ct) ?? throw EstimateViews.NotFound();
+            .Select(e => new { e.Id, e.ConstructionId, e.CurrentRevisionId }).SingleOrDefaultAsync(ct)
+            ?? throw EstimateViews.NotFound();
         var revisions = await db.EstimateRevisions.AsNoTracking().Where(r => r.EstimateId == id)
             .OrderBy(r => r.Number).Select(r => new { r.Id, r.Number }).ToListAsync(ct);
-        var offers = canReadOffers
-            ? await OffersAsync(db, revisions.Select(r => r.Id).ToArray(), estimate.CurrentRevisionId, ct)
+        var revisionIds = revisions.Select(r => r.Id).ToArray();
+        var offers = canReadOffers ? await OffersAsync(db, revisionIds, estimate.CurrentRevisionId, ct) : null;
+        var schedules = canReadSchedules
+            ? await SchedulesAsync(db, clock, revisionIds, estimate.ConstructionId, estimate.CurrentRevisionId, ct)
             : null;
 
         return Results.Ok(new
@@ -55,9 +56,38 @@ internal static class RevisionDerivatives
                 offers = offers is null
                     ? RevisionDerivativeBlock.Hidden(PlanModule.OfferRead)
                     : RevisionDerivativeBlock.Visible(offers[r.Id].ToList()),
-                schedules,
+                schedules = schedules is null
+                    ? RevisionDerivativeBlock.Hidden(PlanModule.ScheduleRead)
+                    : RevisionDerivativeBlock.Visible(schedules[r.Id].ToList()),
             }).ToList(),
         });
+    }
+
+    private static async Task<ILookup<Guid, RevisionDerivative>> SchedulesAsync(
+        PlanDbContext db, IModuleClock clock, Guid[] revisionIds, Guid constructionId, Guid? current, CancellationToken ct)
+    {
+        var matched = db.EstimateRows.AsNoTracking().Where(EstimateRowCounts.MatchedWorks);
+        var schedules = await db.Schedules.AsNoTracking()
+            .Where(s => s.RevisionId != null && revisionIds.Contains(s.RevisionId.Value))
+            .OrderByDescending(s => s.CreatedAt).ThenBy(s => s.Id)
+            .Select(s => new
+            {
+                s.Id, s.Name, s.CreatedAt, s.RevisionId,
+                Total = matched.Count(r => r.RevisionId == s.RevisionId),
+                Covered = matched.Count(r => r.RevisionId == s.RevisionId &&
+                    db.ScheduleWorks.Any(w => w.ScheduleId == s.Id && w.SourceRowId == r.Id)),
+            }).ToListAsync(ct);
+        // Поля блока Plan-16 используются существующим экраном. У графика один текущий экземпляр.
+        var displayed = new List<(Guid RevisionId, RevisionDerivative Item)>(schedules.Count);
+        foreach (var schedule in schedules)
+        {
+            var date = await clock.SiteDateOfAsync(constructionId, schedule.CreatedAt, ct)
+                       ?? DateOnly.FromDateTime(schedule.CreatedAt.UtcDateTime);
+            displayed.Add((schedule.RevisionId!.Value, new RevisionDerivative(
+                schedule.Id, schedule.Name, CurrentVersion: 1, "Построен", date, SentOn: null,
+                RevisionCoverage.Of(schedule.Covered, schedule.Total), schedule.RevisionId != current, Historical: false)));
+        }
+        return displayed.ToLookup(s => s.RevisionId, s => s.Item);
     }
 
     private static async Task<ILookup<Guid, RevisionDerivative>> OffersAsync(

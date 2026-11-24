@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Integration;
@@ -139,7 +140,7 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
     }
 
     [Fact]
-    public async Task Блок_графиков_пуст_у_читателя_до_Plan_19()
+    public async Task Блок_графиков_без_производных_возвращает_пустой_список()
     {
         var scene = await NewAsync(host);
         await scene.RevisionAsync(Row("Кабель"));
@@ -152,10 +153,84 @@ public class RevisionDerivativesTests(PlanOnlyHost host)
         AssertHidden(revision.GetProperty("offers"), PlanModule.OfferRead);
     }
 
+    [Fact]
+    public async Task Графики_по_редакциям_считают_строки_один_раз_и_следуют_правам_чтения()
+    {
+        var scene = await ScheduleScenario.CreateAsync(host);
+        var extraSection = await DistributionFlow.SectionAsync(host, scene.Site.Construction, "Вторая секция");
+        var work = await EstimateSeed.MatchedRowAsync(host, scene.Site, 1400m);
+        var first = await scene.RevisionAsync(work, work with { Name = "Удалённая работа" },
+            Row("Без вида"), Row("Материал") with { Kind = EstimateRowKind.Material });
+        var rows = await DistributionFlow.RowIdsAsync(host, first);
+        await DistributionFlow.LinesAsync(scene.Editor, first,
+            DistributionFlow.Line(rows[0], "plan", (scene.Site.Section, 700m), (extraSection, 500m)));
+        var old = await scene.BuildAsync(first, "Основной график");
+        var deletedWork = Assert.Single(ScheduleScenario.Works(old),
+            w => ScheduleScenario.GuidOrNull(w, "sourceRowId") == rows[1]);
+        using var removed = await scene.Editor.SendAsync(RateMatchFlow.With(HttpMethod.Delete,
+            ScheduleScenario.WorkUrl(old, deletedWork), Version(deletedWork)));
+        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        await scene.ManualAsync(old);
+
+        var second = await scene.RevisionAsync(work);
+        var revisionScene = new OfferDerivativeScenario(host, scene.Site, scene.Estimate, scene.Editor);
+        await revisionScene.MakeCurrentAsync(second);
+        var current = await scene.BuildAsync(second, "Действующий график");
+        var url = $"/api/plan/estimates/{scene.Estimate}/derivatives";
+        var answer = await ReadAsync(scene.Editor.GetAsync(url));
+        var revisions = answer.GetProperty("revisions");
+        var shown = Assert.Single(revisions[0].GetProperty("schedules").GetProperty("items").EnumerateArray());
+        Assert.Equal(ScheduleScenario.Id(old), ScheduleScenario.Id(shown));
+        Assert.Equal("Основной график", shown.GetProperty("number").GetString());
+        Assert.True(shown.GetProperty("outdated").GetBoolean());
+        var coverage = shown.GetProperty("coverage");
+        Assert.Equal(1, coverage.GetProperty("covered").GetInt32());
+        Assert.Equal(2, coverage.GetProperty("total").GetInt32());
+        Assert.Equal(50m, coverage.GetProperty("percent").GetDecimal());
+        var latest = Assert.Single(revisions[1].GetProperty("schedules").GetProperty("items").EnumerateArray());
+        Assert.Equal(ScheduleScenario.Id(current), ScheduleScenario.Id(latest));
+        Assert.False(latest.GetProperty("outdated").GetBoolean());
+        Assert.Equal(100m, latest.GetProperty("coverage").GetProperty("percent").GetDecimal());
+        AssertHidden(revisions[0].GetProperty("offers"), PlanModule.OfferRead);
+        Assert.DoesNotContain("cost", answer.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("price", answer.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("volume", answer.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("money", answer.GetRawText(), StringComparison.OrdinalIgnoreCase);
+
+        var estimator = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);
+        var restricted = await ReadAsync(estimator.GetAsync(url));
+        foreach (var revision in restricted.GetProperty("revisions").EnumerateArray())
+            AssertHidden(revision.GetProperty("schedules"), PlanModule.ScheduleRead);
+        Assert.DoesNotContain(ScheduleScenario.Id(old).ToString(), restricted.GetRawText());
+        var scheduler = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
+        Assert.Equal(HttpStatusCode.Forbidden, (await scheduler.GetAsync(url)).StatusCode);
+    }
+
     private static void AssertHidden(JsonElement block, string permission)
     {
         Assert.Equal("hidden", block.GetProperty("state").GetString());
         Assert.Equal(permission, block.GetProperty("permission").GetString());
         Assert.Equal(2, block.EnumerateObject().Count());
+    }
+
+    [Fact]
+    public async Task В_производных_дата_построения_соответствует_поясу_стройки()
+    {
+        var scene = await ScheduleScenario.CreateAsync(host);
+        await new WorkTypeSeed(host).SendAsync(new SetConstructionTimeZoneCommand(scene.Site.Construction, "Asia/Vladivostok"));
+        var revision = await scene.RevisionAsync(Row("Работа"));
+        var schedule = await scene.BuildAsync(revision);
+        var scheduleId = ScheduleScenario.Id(schedule);
+        var builtAt = new DateTimeOffset(2026, 11, 24, 15, 30, 0, TimeSpan.Zero);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            await db.Database.ExecuteSqlAsync($"UPDATE plan.schedules SET created_at = {builtAt} WHERE id = {scheduleId}");
+        }
+
+        var answer = await ReadAsync(scene.Editor.GetAsync($"/api/plan/estimates/{scene.Estimate}/derivatives"));
+        var source = Assert.Single(answer.GetProperty("revisions").EnumerateArray());
+        var derivative = Assert.Single(source.GetProperty("schedules").GetProperty("items").EnumerateArray());
+        Assert.Equal("2026-11-25", derivative.GetProperty("date").GetString());
     }
 }

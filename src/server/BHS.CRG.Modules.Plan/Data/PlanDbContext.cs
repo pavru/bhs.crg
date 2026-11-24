@@ -72,8 +72,10 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     internal DbSet<Schedule> Schedules => Set<Schedule>();
     internal DbSet<ScheduleWork> ScheduleWorks => Set<ScheduleWork>();
     internal DbSet<ScheduleWorkAssignee> ScheduleWorkAssignees => Set<ScheduleWorkAssignee>();
+    internal DbSet<ScheduleLink> ScheduleLinks => Set<ScheduleLink>();
     internal string VersionOf(Schedule schedule) => Version(schedule);
     internal string VersionOf(ScheduleWork work) => Version(work);
+    internal string VersionOf(ScheduleLink link) => Version(link);
 
     // Распределение и построение берут один замок; правка сопоставления обновляет ту же строку редакции.
     internal Task LockRevisionAsync(Guid id, CancellationToken ct) =>
@@ -305,5 +307,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         PriceListEntry.Map(builder);
         CalendarModel.Configure(builder);
         ScheduleModel.Configure(builder);
+        ScheduleModel.ConfigureLinks(builder);
     }
 }

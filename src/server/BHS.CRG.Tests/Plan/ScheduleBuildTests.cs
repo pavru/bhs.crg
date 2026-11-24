@@ -60,6 +60,60 @@ public class ScheduleBuildTests(PlanOnlyHost host)
     }
 
     [Fact]
+    public async Task Предпросмотр_показывает_удаляемые_межграфиковые_связи_и_сверяет_их_перед_записью()
+    {
+        var scene = await CreateAsync(host);
+        var row = await EstimateSeed.MatchedRowAsync(host, scene.Site, 100m);
+        var revision = await scene.RevisionAsync(row);
+        var rowId = Assert.Single(await DistributionFlow.RowIdsAsync(host, revision));
+        await DistributionFlow.LinesAsync(scene.Editor, revision,
+            DistributionFlow.Line(rowId, "plan", (scene.Site.Section, 100m)));
+        var schedule = await scene.BuildAsync(revision);
+        var removedWork = Assert.Single(Works(schedule));
+        var other = await scene.BuildAsync(name: "Общестрой");
+        var before = await scene.ManualAsync(other);
+        var after = await scene.ManualAsync(other);
+        var incoming = await ReadAsync(scene.LinkAsync(schedule, before, removedWork, lag: -2), HttpStatusCode.Created);
+        var outgoing = await ReadAsync(scene.LinkAsync(other, removedWork, after), HttpStatusCode.Created);
+
+        var nextSection = await DistributionFlow.SectionAsync(host, scene.Site.Construction, "ЭОМ-2");
+        await DistributionFlow.LinesAsync(scene.Editor, revision,
+            DistributionFlow.Line(rowId, "plan", (nextSection, 100m)));
+        var url = ScheduleUrl(schedule);
+        var preview = await ReadAsync(scene.Editor.GetAsync($"{url}/rebuild-preview"));
+        var links = preview.GetProperty("removedLinks").EnumerateArray().ToDictionary(Id);
+        Assert.Equal(2, links.Count);
+        var reported = links[Id(incoming)];
+        Assert.Equal(-2, reported.GetProperty("lag").GetInt32());
+        Assert.Equal("fs", reported.GetProperty("kind").GetString());
+        var predecessor = reported.GetProperty("predecessor");
+        Assert.Equal(Id(before), Id(predecessor));
+        Assert.Equal(Id(other), predecessor.GetProperty("scheduleId").GetGuid());
+        Assert.Equal("Общестрой", predecessor.GetProperty("scheduleName").GetString());
+        var successor = links[Id(outgoing)].GetProperty("successor");
+        Assert.Equal(Id(after), Id(successor));
+        Assert.Equal(Id(other), successor.GetProperty("scheduleId").GetGuid());
+
+        using var deleted = await scene.Editor.SendAsync(RateMatchFlow.With(HttpMethod.Delete, WorkUrl(other, before), Version(before)));
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        var conflict = await ReadAsync(SendAsync(scene.Editor, HttpMethod.Post, $"{url}/rebuild", Version(preview),
+            new { fingerprint = Fingerprint(preview) }), HttpStatusCode.Conflict);
+        var fresh = conflict.GetProperty("preview");
+        Assert.Equal(Version(preview), Version(fresh));
+        Assert.NotEqual(Fingerprint(preview), Fingerprint(fresh));
+        Assert.Equal(Id(outgoing), Id(Assert.Single(fresh.GetProperty("removedLinks").EnumerateArray())));
+        var stored = await ReadAsync(scene.Editor.GetAsync(url));
+        Assert.Equal(Id(removedWork), Id(Assert.Single(Works(stored))));
+        Assert.Equal(Id(outgoing), Id(Assert.Single(stored.GetProperty("links").EnumerateArray())));
+
+        var rebuilt = await ReadAsync(SendAsync(scene.Editor, HttpMethod.Post, $"{url}/rebuild", Version(fresh),
+            new { fingerprint = Fingerprint(fresh) }));
+        Assert.Equal(nextSection, GuidOrNull(Assert.Single(Works(rebuilt)), "sectionId"));
+        Assert.Empty(rebuilt.GetProperty("links").EnumerateArray());
+        Assert.Empty((await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(other)))).GetProperty("links").EnumerateArray());
+    }
+
+    [Fact]
     public async Task Перестроение_сверяет_версию_и_отпечаток_и_сохраняет_совпавшую_работу()
     {
         var scene = await CreateAsync(host);
