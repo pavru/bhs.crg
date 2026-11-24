@@ -64,7 +64,7 @@ npm --prefix src/client run ui:catalog
 ## П4 — календари компании и стройки (plan-18)
 
 [Три варианта](http://127.0.0.1:5200/?section=mockups&project=plan-18-calendars&page=quarter) ·
-[Разбор и выбор владельца](../../openspec/changes/plan-18-calendars/design.md#раунд-п4).
+[Разбор и выбор владельца](../../openspec/changes/archive/2026-11-24-plan-18-calendars/design.md#раунд-п4).
 Вариант Б показывает три месяца выбранного квартала и подробности дня рядом. На всех листах
 переключатель открывает календарь компании или график стройки. Данные демонстрационные.
 
