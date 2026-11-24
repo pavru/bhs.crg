@@ -80,6 +80,20 @@ const planCalendarsMockup: LiveMockup = {
   reference: 'openspec/changes/archive/2026-11-24-plan-18-calendars/design.md · Раунд П4',
 };
 
+const planSchedulesMockup: LiveMockup = {
+  id: 'plan-20-schedule-ui',
+  title: 'П4 · Графики стройки',
+  kind: 'design',
+  entry: 'plan-schedules.html',
+  pages: [
+    { path: 'a', title: 'А · Рабочая таблица', width: 1440 },
+    { path: 'b', title: 'Б · Список и карточка работы', width: 1440 },
+    { path: 'c', title: 'В · Работы по разделам', width: 1440 },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/plan-20-schedule-ui/design.md · Раунд П4',
+};
+
 const workSummaryMockup: LiveMockup = {
   id: 'work-23-summary',
   title: 'Сводка · Р5',
@@ -110,5 +124,5 @@ const workCustomerFieldsMockup: LiveMockup = {
 
 export const liveMockups = [
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
-  workSummaryMockup, workCustomerFieldsMockup,
+  planSchedulesMockup, workSummaryMockup, workCustomerFieldsMockup,
 ];

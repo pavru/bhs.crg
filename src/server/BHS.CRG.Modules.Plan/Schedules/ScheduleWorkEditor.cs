@@ -32,8 +32,9 @@ internal sealed class ScheduleWorkEditor(
         db.ScheduleWorkAssignees.AddRange(employeeIds.Select(e => new ScheduleWorkAssignee(work.Id, e)));
         schedule.Touch();
         await db.SaveChangesAsync(ct);
+        var view = await views.ReadWorkAsync(schedule, work, key, employeeIds, ct);
         await transaction.CommitAsync(ct);
-        return views.Work(work, key, employeeIds);
+        return view;
     }
 
     internal async Task<ScheduleWorkDto> EditAsync(
@@ -52,8 +53,9 @@ internal sealed class ScheduleWorkEditor(
             .Select(e => new ScheduleWorkAssignee(workId, e)));
         schedule.Touch();
         await db.SaveChangesAsync(ct);
+        var view = await views.ReadWorkAsync(schedule, work, position.Key, employeeIds, ct);
         await transaction.CommitAsync(ct);
-        return views.Work(work, position.Key, employeeIds);
+        return view;
     }
 
     internal async Task DeleteWorkAsync(Guid id, Guid workId, HttpRequest request, CancellationToken ct)
