@@ -31,11 +31,11 @@ internal sealed record ScheduleScenario(PlanOnlyHost Host, EstimateSeed.Site Sit
     internal Task<JsonElement> BuildAsync(Guid? revision = null, string name = "Электромонтаж") =>
         ReadAsync(Editor.PostAsJsonAsync(Root, Creation(revision, name)), HttpStatusCode.Created);
 
-    internal async Task<JsonElement> ManualAsync(JsonElement schedule, string? start = null, string? end = null)
+    internal async Task<JsonElement> ManualAsync(JsonElement schedule, string? start = null, string? end = null, Guid? sectionId = null)
     {
         var classifier = await EstimateSeed.ClassifierAsync(Host);
         return await ReadAsync(Editor.PostAsJsonAsync($"{ScheduleUrl(schedule)}/works",
-            new { workTypeId = classifier.WorkType, work = new { volume = 1m, start, end } }));
+            new { workTypeId = classifier.WorkType, sectionId, work = new { volume = 1m, start, end } }));
     }
 
     internal Task<HttpResponseMessage> LinkAsync(

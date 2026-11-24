@@ -49,32 +49,27 @@ function CalendarPlot({ constructionId, scheduleId, firstDate, rows, links, warn
   const arrows = links.flatMap<{ id: string; path: string; label: string | null }>(link => {
     const predecessor = positions.get(link.predecessorId);
     const successor = positions.get(link.successorId);
-    if (predecessor?.range && successor?.range) {
-      const x = predecessor.range.end * TRACK_DAY - 2;
-      const end = successor.range.start * TRACK_DAY + 2;
-      const bend = successor.center - ROW_HEIGHT / 2;
-      return [{ id: link.id, path: `M ${x} ${predecessor.center} h 8 V ${bend} H ${end - 8} V ${successor.center} H ${end}`,
-        label: null }];
-    }
-    const incoming = !!successor?.range;
-    const local = incoming ? successor : predecessor;
-    if (!local?.range) return [];
-    const other = incoming ? predecessor : successor;
-    const otherRef = incoming ? link.predecessor : link.successor;
-    const otherGraph = otherRef && otherRef.scheduleId !== scheduleId;
-    const side = otherGraph ? (incoming ? 'left' : 'right') : periodSide(other?.work, start);
-    if (!side) return [];
+    if (!predecessor?.range && !successor?.range) return [];
 
-    const edge = side === 'left' ? 2 : TRACK_WIDTH - 2;
-    const bar = side === 'left' ? local.range.start * TRACK_DAY + 2 : local.range.end * TRACK_DAY - 2;
-    const track = local.center - 16;
-    const path = incoming
-      ? `M ${edge} ${track} H ${bar} V ${local.center}`
-      : `M ${bar} ${local.center} V ${track} H ${edge}`;
-    const predecessorName = predecessor?.work.name ?? `${link.predecessor?.scheduleName} · ${link.predecessor?.name}`;
-    const successorName = successor?.work.name ?? `${link.successor?.scheduleName} · ${link.successor?.name}`;
-    const context = otherGraph ? 'связь между графиками' : side === 'left' ? 'работа до периода' : 'работа после периода';
-    return [{ id: link.id, path, label: `${predecessorName} → ${successorName} (${context})` }];
+    const remotePredecessor = link.predecessor?.scheduleId !== scheduleId ? link.predecessor : undefined;
+    const remoteSuccessor = link.successor?.scheduleId !== scheduleId ? link.successor : undefined;
+    const source = dependencyEndpoint(predecessor, start, 'end')
+      ?? (remotePredecessor && successor ? boundary('left', successor.center) : null);
+    const target = dependencyEndpoint(successor, start, 'start')
+      ?? (remoteSuccessor && predecessor ? boundary('right', predecessor.center) : null);
+    if (!source || !target) return [];
+
+    const depart = Math.min(TRACK_WIDTH - 2, source.x + (source.side === 'right' ? -8 : 8));
+    const approach = Math.max(2, target.x + (target.side === 'left' ? 8 : -8));
+    const track = target.y - (target.side ? 5 : ROW_HEIGHT / 2);
+    const path = `M ${source.x} ${source.y} H ${depart} V ${track} H ${approach} V ${target.y} H ${target.x}`;
+    const context = remotePredecessor || remoteSuccessor ? 'связь между графиками' : [
+      source.side && `окончание ${source.side === 'left' ? 'до' : 'после'} периода`,
+      target.side && `начало ${target.side === 'left' ? 'до' : 'после'} периода`,
+    ].filter(Boolean).join(', ');
+    const predecessorName = remotePredecessor ? `${remotePredecessor.scheduleName} · ${remotePredecessor.name}` : predecessor?.work.name;
+    const successorName = remoteSuccessor ? `${remoteSuccessor.scheduleName} · ${remoteSuccessor.name}` : successor?.work.name;
+    return [{ id: link.id, path, label: context ? `${predecessorName} → ${successorName} (${context})` : null }];
   });
   const boundaryArrows = arrows.filter(arrow => arrow.label !== null);
 
@@ -153,8 +148,17 @@ function CalendarPlot({ constructionId, scheduleId, firstDate, rows, links, warn
   </div>;
 }
 
-function periodSide(work: ScheduleWork | undefined, from: number) {
-  if (!work?.start || !work.end) return null;
-  if (dayOf(work.end) < from) return 'left';
-  return dayOf(work.start) >= from + RANGE_DAYS ? 'right' : null;
+function boundary(side: 'left' | 'right', center: number) {
+  return { x: side === 'left' ? 2 : TRACK_WIDTH - 2, y: center - 16, side };
+}
+
+function dependencyEndpoint(position: { work: ScheduleWork; center: number } | undefined, from: number, endpoint: 'start' | 'end') {
+  if (!position) return null;
+  const { start, end } = position.work;
+  if (!start || !end) return null;
+  const day = dayOf(endpoint === 'start' ? start : end) - from;
+  if (day < 0) return boundary('left', position.center);
+  if (day >= RANGE_DAYS) return boundary('right', position.center);
+  const x = endpoint === 'start' ? day * TRACK_DAY + 2 : (day + 1) * TRACK_DAY - 2;
+  return { x, y: position.center, side: null };
 }

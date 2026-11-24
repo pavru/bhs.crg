@@ -86,6 +86,7 @@ export interface ScheduleWorkRef {
   name: string;
   scheduleId: string;
   scheduleName: string;
+  sectionId: string | null;
 }
 
 interface ScheduleDifference {

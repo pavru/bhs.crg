@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { apiClient } from '@/shared/api/client';
 import type { Schedule, ScheduleLink, ScheduleRebuildPreview, ScheduleWarning, ScheduleWork } from '@/shared/api/planningScheduleTypes';
 import { LocaleContext } from '@/shared/hooks/useLocale';
+import { NARROW } from '@/shared/hooks/useMedia';
 import { SchedulesPanel } from './SchedulesPanel';
 
 let permissions: string[];
@@ -38,8 +39,8 @@ const preview: ScheduleRebuildPreview = {
   version: '3', fingerprint: 'seen', added: [], changed: [], removed: [], skipped: { unmapped: 4 },
   removedLinks: [{
     id: 'l1', kind: 'fs', lag: -2,
-    predecessor: { id: 'other', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой' },
-    successor: { id: 'w2', name: 'Прокладка кабеля', scheduleId: 'graph', scheduleName: 'Электромонтаж' },
+    predecessor: { id: 'other', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой', sectionId: null },
+    successor: { id: 'w2', name: 'Прокладка кабеля', scheduleId: 'graph', scheduleName: 'Электромонтаж', sectionId: null },
   }],
 };
 let live: Schedule;
@@ -57,7 +58,9 @@ beforeEach(() => {
   live = view;
   showsPreview = preview;
   vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
-    if (url === '/constructions/site') return { data: { id: 'site', sections: [{ id: 'section', name: 'Корпус 1' }] } };
+    if (url === '/constructions/site') return { data: { id: 'site', sections: [
+      { id: 'section', name: 'Корпус 1' }, { id: 'section2', name: 'Корпус 2' },
+    ] } };
     if (url === '/plan/schedules') return { data: [live] };
     if (url === schedulePath) return { data: live };
     if (url === `${schedulePath}/rebuild-preview`) return { data: showsPreview };
@@ -92,10 +95,14 @@ async function choose(field: string, option: string) {
   fireEvent.click(await screen.findByRole('option', { name: option }));
 }
 
-function wideViewport() {
+function matchViewport(media: string) {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query === '(min-width: 1280px)', addEventListener: () => {}, removeEventListener: () => {},
+    matches: query === media, addEventListener: () => {}, removeEventListener: () => {},
   }));
+}
+
+function wideViewport() {
+  matchViewport('(min-width: 1280px)');
 }
 
 function linkWith(predecessorId: string, successorId = 'w2'): ScheduleLink {
@@ -107,8 +114,12 @@ async function openPredecessors() {
   return screen.findByRole('dialog', { name: 'Предшественники · Прокладка кабеля' });
 }
 
-async function linkAction(name: string, predecessor = 'Монтаж лотков') {
+async function openLinkActions(predecessor: string) {
   fireEvent.keyDown(await screen.findByRole('button', { name: `Действия связи с «${predecessor}»` }), { key: 'Enter' });
+}
+
+async function linkAction(name: string, predecessor = 'Монтаж лотков · По стройке в целом') {
+  await openLinkActions(predecessor);
   fireEvent.click(await screen.findByRole('menuitem', { name }));
 }
 
@@ -134,11 +145,11 @@ describe('график стройки', () => {
 
   it('показывает custom-reader связанную работу соседнего графика без правки и запросов соседних графиков', async () => {
     live = { ...view, links: [{ ...linkWith('foundation'),
-      predecessor: { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой' },
+      predecessor: { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой', sectionId: 'section' },
     }] };
     mount();
     const modal = await openPredecessors();
-    expect(within(modal).getByText('Подготовка основания')).toBeTruthy();
+    await within(modal).findByText('Подготовка основания · Корпус 1');
     expect(within(modal).getByText('Общестрой')).toBeTruthy();
     expect(within(modal).queryByRole('combobox')).toBeNull();
     expect(within(modal).queryByRole('button', { name: /Действия связи|Сохранить связь/ })).toBeNull();
@@ -307,11 +318,34 @@ describe('график стройки', () => {
     mount();
     await screen.findByRole('heading', { name: 'Электромонтаж' });
     fireEvent.click(screen.getByRole('tab', { name: 'Диаграмма' }));
-    await screen.findByText('Монтаж лотков → Прокладка кабеля (работа после периода)');
+    await screen.findByText('Монтаж лотков → Прокладка кабеля (начало после периода)');
     const diagram = () => screen.getByLabelText('Сроки работ по рабочему календарю стройки');
     expect(diagram().querySelector('[marker-end]')).toBeTruthy();
     click('Следующий период');
-    await screen.findByText('Монтаж лотков → Прокладка кабеля (работа до периода)');
+    await screen.findByText('Монтаж лотков → Прокладка кабеля (окончание до периода)');
+    expect(diagram().querySelector('[marker-end]')).toBeTruthy();
+  });
+
+  it('подписывает стрелку у границы по фактическим датам, когда обе полосы видны частично', async () => {
+    wideViewport();
+    live = { ...view, links: [linkWith('w1')], works: [
+      { ...view.works[0], end: '2027-01-08' },
+      { ...view.works[1], start: '2026-12-20', end: '2027-01-12' },
+    ] };
+    const previousGet = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url, config) =>
+      url === '/plan/calendars/constructions/site/non-working-days'
+        ? { data: { ...config?.params, nonWorkingDays: [], gaps: [] } } : previousGet(url, config));
+    mount();
+    await screen.findByRole('heading', { name: 'Электромонтаж' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Диаграмма' }));
+    await screen.findByText('Монтаж лотков → Прокладка кабеля (окончание после периода)');
+    const diagram = () => screen.getByLabelText('Сроки работ по рабочему календарю стройки');
+    expect(within(diagram()).getAllByRole('button')).toHaveLength(2);
+    expect(diagram().querySelector('[marker-end]')).toBeTruthy();
+    click('Следующий период');
+    await screen.findByText('Монтаж лотков → Прокладка кабеля (начало до периода)');
+    expect(within(diagram()).getAllByRole('button')).toHaveLength(2);
     expect(diagram().querySelector('[marker-end]')).toBeTruthy();
   });
 
@@ -330,22 +364,28 @@ describe('график стройки', () => {
 
   it('выбирает предшественника из соседнего графика и показывает все три работы цикла', async () => {
     permissions = [reader, editor];
+    live = { ...view, works: [view.works[0],
+      { ...view.works[1], sectionId: 'section' },
+      { ...view.works[2], name: view.works[1].name, sectionId: 'section2' },
+    ] };
     const civil = { ...view, id: 'civil', name: 'Общестрой', works: [makeWork('foundation', 'Подготовка основания')] };
     const previousGet = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation(async (url, config) => {
-      if (url === '/plan/schedules') return { data: [view, civil] };
+      if (url === '/plan/schedules') return { data: [live, civil] };
       if (url === '/plan/schedules/civil') return { data: civil };
       return previousGet(url, config);
     });
     vi.mocked(apiClient.post).mockRejectedValueOnce({ response: { status: 422, data: {
       code: 'schedule-cycle', error: 'Связь замыкает цикл работ.', cycle: [
-        { id: 'w2', name: 'Прокладка кабеля', scheduleId: 'graph', scheduleName: 'Электромонтаж' },
-        { id: 'w3', name: 'Установка щитов', scheduleId: 'graph', scheduleName: 'Электромонтаж' },
-        { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой' },
+        { id: 'w2', name: 'Прокладка кабеля', scheduleId: 'graph', scheduleName: 'Электромонтаж', sectionId: 'section' },
+        { id: 'w3', name: 'Прокладка кабеля', scheduleId: 'graph', scheduleName: 'Электромонтаж', sectionId: 'section2' },
+        { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой', sectionId: null },
       ],
     } } });
     mount();
-    const modal = await openPredecessors();
+    const row = await screen.findByRole('row', { name: /Прокладка кабеля.*Корпус 1/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Предшественники: Прокладка кабеля' }));
+    const modal = await screen.findByRole('dialog', { name: 'Предшественники · Прокладка кабеля' });
     await choose('График предшественника', 'Общестрой');
     await waitFor(() => expect((screen.getByRole('combobox', { name: 'Предшественник' }) as HTMLButtonElement).disabled).toBe(false));
     await choose('Предшественник', 'Подготовка основания');
@@ -353,7 +393,8 @@ describe('график стройки', () => {
     click('Сохранить связь');
     await within(modal).findByText('Связь замыкает цикл работ.');
     expect(within(modal).getAllByRole('listitem').map(node => node.textContent)).toEqual([
-      'Прокладка кабеля · Электромонтаж', 'Установка щитов · Электромонтаж', 'Подготовка основания · Общестрой',
+      'Прокладка кабеля · Корпус 1 · Электромонтаж', 'Прокладка кабеля · Корпус 2 · Электромонтаж',
+      'Подготовка основания · По стройке в целом · Общестрой',
     ]);
     expect(apiClient.post).toHaveBeenCalledWith(`${schedulePath}/links`, {
       predecessorId: 'foundation', successorId: 'w2', lag: -2, kind: 'fs',
@@ -378,7 +419,8 @@ describe('график стройки', () => {
     if (changed === 'lag') {
       fireEvent.change(screen.getByRole('textbox', { name: 'Задержка' }), { target: { value: '-2' } });
       live = { ...live, links: [{ ...link, version: '6', predecessorId: 'foundation',
-        predecessor: { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой' } }] };
+        predecessor: { id: 'foundation', name: 'Подготовка основания', scheduleId: 'civil', scheduleName: 'Общестрой',
+          sectionId: null } }] };
     } else {
       await choose('Предшественник', 'Установка щитов');
       live = { ...live, links: [{ ...link, version: '6', lag: 4 }] };
@@ -392,6 +434,58 @@ describe('график стройки', () => {
       predecessorId: changed === 'lag' ? 'foundation' : 'w3', successorId: 'w2', kind: 'fs',
       lag: changed === 'lag' ? -2 : 4,
     }, { headers: { 'If-Match': '6' } }));
+  });
+
+  it('различает одноимённых предшественников и защищает ввод при смене связи', async () => {
+    permissions = [reader, editor];
+    live = { ...view, works: [
+      { ...view.works[0], sectionId: 'section' }, view.works[1],
+      { ...view.works[2], name: view.works[0].name, sectionId: 'section2' },
+    ], links: [linkWith('w1'), { ...linkWith('w3'), id: 'l2' }] };
+    let refuseSave: (error: unknown) => void = () => {};
+    vi.mocked(apiClient.put).mockImplementationOnce(() => new Promise((_resolve, reject) => { refuseSave = reject; }));
+    mount();
+    const modal = await openPredecessors();
+    const first = 'Монтаж лотков · Корпус 1';
+    const second = 'Монтаж лотков · Корпус 2';
+    await within(modal).findByRole('rowheader', { name: first });
+    expect(within(modal).getByRole('rowheader', { name: second })).toBeTruthy();
+    await linkAction('Изменить', first);
+    const lag = screen.getByRole('textbox', { name: 'Задержка' }) as HTMLInputElement;
+    fireEvent.change(lag, { target: { value: '7' } });
+
+    async function expectLocked() {
+      await openLinkActions(second);
+      const edit = await screen.findByRole('menuitem', { name: /^Изменить/ });
+      expect(edit.getAttribute('aria-disabled')).toBe('true');
+      expect(screen.getByRole('menuitem', { name: /^Удалить/ }).getAttribute('aria-disabled')).toBe('true');
+      fireEvent.click(edit);
+      expect(lag.value).toBe('7');
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    }
+
+    await expectLocked();
+    click('Сохранить связь');
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith(`${schedulePath}/links/l1`, expect.anything(), expect.anything()));
+    await expectLocked();
+    refuseSave({ response: { status: 409 } });
+    await screen.findByRole('button', { name: 'Перечитать график' });
+    expect(lag.value).toBe('7');
+    click('Отменить правку');
+    await linkAction('Удалить', second);
+    expect(screen.getByRole('dialog', { name: `Удалить связь с «${second}»?` })).toBeTruthy();
+  });
+
+  it('показывает сохранение связи в шапке узкого окна', async () => {
+    permissions = [reader, editor];
+    matchViewport(NARROW);
+    mount();
+    const dialog = within(await openPredecessors());
+    const close = dialog.getByRole('button', { name: 'Закрыть' });
+    const save = await dialog.findByRole('button', { name: 'Сохранить связь' });
+    expect(close.parentElement?.contains(save)).toBe(true);
+    expect(close.parentElement?.contains(dialog.getByRole('textbox', { name: 'Задержка' }))).toBe(false);
   });
 
   it('перечитывает связь после отказа удаления, повтор подтверждает свежую версию', async () => {

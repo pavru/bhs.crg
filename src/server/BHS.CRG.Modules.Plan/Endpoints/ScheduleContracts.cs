@@ -10,7 +10,7 @@ internal sealed record ScheduleLinkInput(Guid PredecessorId, Guid SuccessorId, s
 internal sealed record ScheduleLinkDto(Guid Id, Guid PredecessorId, Guid SuccessorId, string Kind, int Lag, string Version,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkRef? Predecessor = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkRef? Successor = null);
-internal sealed record ScheduleWorkRef(Guid Id, string Name, Guid ScheduleId, string ScheduleName);
+internal sealed record ScheduleWorkRef(Guid Id, string Name, Guid ScheduleId, string ScheduleName, Guid? SectionId);
 internal sealed record ScheduleRemovedLink(Guid Id, ScheduleWorkRef Predecessor, ScheduleWorkRef Successor, string Kind, int Lag);
 
 internal sealed record ScheduleMark(string Code, string Text);

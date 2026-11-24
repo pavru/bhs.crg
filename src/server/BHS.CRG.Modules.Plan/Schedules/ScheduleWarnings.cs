@@ -12,8 +12,8 @@ internal sealed record ScheduleRelation(
 {
     internal ScheduleLinkDto View => ScheduleLinkStore.View(Link, RowVersion.ToString(CultureInfo.InvariantCulture)) with
     {
-        Predecessor = new(Predecessor.Id, Predecessor.Name, Predecessor.ScheduleId, PredecessorScheduleName),
-        Successor = new(Successor.Id, Successor.Name, Successor.ScheduleId, SuccessorScheduleName),
+        Predecessor = new(Predecessor.Id, Predecessor.Name, Predecessor.ScheduleId, PredecessorScheduleName, Predecessor.SectionId),
+        Successor = new(Successor.Id, Successor.Name, Successor.ScheduleId, SuccessorScheduleName, Successor.SectionId),
     };
 }
 

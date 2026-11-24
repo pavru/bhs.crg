@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Delete, Edit } from '@/shared/ui/icons';
-import { Modal, ModalButtons, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -45,10 +45,17 @@ export function ScheduleLinksDialog({ schedule, work, sections, canEdit, reload,
   const dirty = predecessorChanged || lagChanged;
   const refusal = write.error ? scheduleRefusal(write.error, 'Связь не сохранилась.') : null;
   const stale = !!editing && refusal?.kind === 'conflict';
-  const busy = write.isPending || reloading;
+  const busy = write.isPending || reloading || remove.isPending;
+  const rowLocked = busy || dirty;
+  const rowHint = busy ? 'Дождитесь завершения операции.' : dirty ? 'Сначала сохраните или сбросьте ввод.' : undefined;
+
+  function workLabel(item: { name: string; sectionId: string | null }) {
+    return `${item.name} · ${sectionName(item.sectionId, sections)}`;
+  }
 
   function predecessorName(link: ScheduleLink) {
-    return link.predecessor?.name ?? schedule.works.find(item => item.id === link.predecessorId)?.name ?? 'Работа другого графика';
+    const predecessor = link.predecessor ?? schedule.works.find(item => item.id === link.predecessorId);
+    return predecessor ? workLabel(predecessor) : 'Работа другого графика';
   }
 
   function clear() {
@@ -61,6 +68,7 @@ export function ScheduleLinksDialog({ schedule, work, sections, canEdit, reload,
   }
 
   function choose(link: ScheduleLink) {
+    if (rowLocked) return;
     setEditing(link);
     setGraphId(link.predecessor?.scheduleId ?? schedule.id);
     setPredecessorId(link.predecessorId);
@@ -112,15 +120,20 @@ export function ScheduleLinksDialog({ schedule, work, sections, canEdit, reload,
   if (canEdit) columns.push({
     key: 'actions', label: 'Действия', cell: link => <RowActionsMenu ariaLabel={`Действия связи с «${predecessorName(link)}»`}
       actions={[
-        { key: 'edit', label: 'Изменить', icon: Edit, onSelect: () => choose(link) },
-        { key: 'delete', label: 'Удалить', icon: Delete, danger: true, onSelect: () => setDeleting(link) },
+        { key: 'edit', label: 'Изменить', icon: Edit, disabled: rowLocked, hint: rowHint, onSelect: () => choose(link) },
+        { key: 'delete', label: 'Удалить', icon: Delete, danger: true, disabled: rowLocked, hint: rowHint,
+          onSelect: () => { if (!rowLocked) setDeleting(link); } },
       ]} />,
   });
 
   return <>
     <Modal open wide title={`Предшественники · ${work.name}`} busy={busy}
       isDirty={dirty} onOpenChange={open => { if (!open) onClose(); }}
-      footer={<ModalButtons><ModalExit>Закрыть</ModalExit></ModalButtons>}>
+      footer={<ModalButtons>
+        <ModalExit>Закрыть</ModalExit>
+        {canEdit && <ModalPrimary disabled={!dirty || !valid || stale} loading={write.isPending}
+          onClick={() => void save()}>Сохранить связь</ModalPrimary>}
+      </ModalButtons>}>
       <div className="grid min-w-0 grid-cols-1 gap-4">
         <DataGrid rows={links} columns={columns} rowKey={link => link.id} density="compact" rowOpen={link => link.id === editing?.id} />
         {canEdit && <>
@@ -149,8 +162,9 @@ export function ScheduleLinksDialog({ schedule, work, sections, canEdit, reload,
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-48 max-w-full"><NumberInput label="Задержка" unit="раб. дн." value={lag}
               onChange={setLag} disabled={busy} /></div>
-            <Button variant="filled" disabled={!dirty || !valid || stale || reloading} loading={write.isPending} onClick={() => void save()}>Сохранить связь</Button>
-            {editing && <Button variant="text" disabled={busy} onClick={clear}>Отменить правку</Button>}
+            {(editing || dirty) && <Button variant="text" disabled={busy} onClick={clear}>
+              {editing ? 'Отменить правку' : 'Сбросить ввод'}
+            </Button>}
           </div>
           {validLag === null && <p className="text-body-medium text-error">Введите целое число рабочих дней со знаком или без знака.</p>}
         </>}
@@ -159,7 +173,7 @@ export function ScheduleLinksDialog({ schedule, work, sections, canEdit, reload,
         ] : undefined}><div>
           <p>{refusal.message}</p>
           {refusal.kind === 'cycle' && <ol className="list-decimal pl-5">
-            {refusal.cycle.map((item, index) => <li key={`${item.id}/${index}`}>{item.name} · {item.scheduleName}</li>)}
+            {refusal.cycle.map((item, index) => <li key={`${item.id}/${index}`}>{workLabel(item)} · {item.scheduleName}</li>)}
           </ol>}
         </div></Banner>}
         {review && <p role="status" className="text-body-medium">{review}</p>}
