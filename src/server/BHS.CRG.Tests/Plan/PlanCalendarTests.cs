@@ -134,4 +134,69 @@ public class PlanCalendarTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
         Assert.Contains("настройки календаря этой стройки", (await refused.Content.ReadFromJsonAsync<JsonElement>()).ToString());
     }
+
+    [Fact]
+    public async Task Нерабочие_дни_учитывают_неделю_стройки_праздники_переносы_и_исключения()
+    {
+        const int year = 2162;
+        var site = await EstimateSeed.SiteAsync(host, "Стройка с диаграммой");
+        using var companyEditor = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.CalendarEdit);
+        using var manager = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead, PlanModule.ScheduleEdit);
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
+        await CalendarRequests.SaveCompanyAsync(companyEditor, year, "0",
+            new { date = "2162-06-05", kind = "holiday" }, new { date = "2162-06-06", kind = "short" });
+        var url = CalendarRequests.Construction(site.Construction);
+        var extraDayOff = new { date = "2162-06-07", kind = "holiday" };
+        var settings = new { workingWeek = 63, shifts = 2, days = new[] { extraDayOff } };
+        using var firstWrite = await CalendarRequests.PutAsync(manager, url, "0", settings);
+        var saved = await CalendarRequests.ReadAsync(firstWrite);
+        var range = CalendarRequests.NonWorkingDays(site.Construction, "2162-06-04", "2162-06-12");
+        var first = await reader.GetFromJsonAsync<JsonElement>(range);
+        Assert.Equal(new[] { "2162-06-05", "2162-06-07" }, Dates(first));
+        Assert.Empty(first.GetProperty("gaps").EnumerateArray());
+        using var secondWrite = await CalendarRequests.PutAsync(manager, url, CalendarRequests.Version(saved),
+            settings with { days = [extraDayOff, new { date = "2162-06-05", kind = "working" }] });
+        await CalendarRequests.ReadAsync(secondWrite);
+        Assert.Equal(new[] { "2162-06-07" }, Dates(await reader.GetFromJsonAsync<JsonElement>(range)));
+
+        using var denied = await companyEditor.GetAsync(range);
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
+    public async Task Нерабочие_дни_называют_пробел_и_проверяют_диапазон_и_стройку()
+    {
+        var site = await EstimateSeed.SiteAsync(host, "Стройка без года календаря");
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
+        var missing = await reader.GetFromJsonAsync<JsonElement>(
+            CalendarRequests.NonWorkingDays(site.Construction, "2163-01-01", "2163-01-07"));
+        var gap = Assert.Single(missing.GetProperty("gaps").EnumerateArray());
+        Assert.Equal("calendar-missing", gap.GetProperty("code").GetString());
+        Assert.Equal(2163, gap.GetProperty("year").GetInt32());
+        Assert.Equal(2, Dates(missing).Length);
+
+        foreach (var (from, to) in new[] { ("2163-01-07", "2163-01-01"), ("2163-01-01", "2164-01-02") })
+        {
+            using var response = await reader.GetAsync(CalendarRequests.NonWorkingDays(site.Construction, from, to));
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        using var unknown = await reader.GetAsync(CalendarRequests.NonWorkingDays(Guid.NewGuid(), "2163-01-01", "2163-01-07"));
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    private static string?[] Dates(JsonElement result) =>
+        result.GetProperty("nonWorkingDays").EnumerateArray().Select(date => date.GetString()).ToArray();
+}
+
+[Collection("Integration")]
+public class PlanCalendarWithoutModuleTests(IntegrationTestFixture fixture)
+{
+    [Fact]
+    public async Task Нерабочие_дни_за_воротами_модуля()
+    {
+        using var client = fixture.CreateClient();
+        using var response = await client.GetAsync(CalendarRequests.NonWorkingDays(Guid.NewGuid(), "2163-01-01", "2163-01-07"));
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Equal("plan", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("module").GetString());
+    }
 }

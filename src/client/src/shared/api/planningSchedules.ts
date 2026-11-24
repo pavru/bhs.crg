@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiError } from '@/shared/utils/apiError';
 import { apiClient } from './client';
-import type { Schedule, ScheduleCreate, ScheduleRebuildPreview, ScheduleSummary, ScheduleWorkInput,
+import type { Schedule, ScheduleCreate, ScheduleLinkInput, ScheduleRebuildPreview, ScheduleSummary, ScheduleWorkInput,
   ScheduleWorkRef } from './planningScheduleTypes';
 
 const PATH = '/plan/schedules';
@@ -23,10 +23,34 @@ export function useSchedules(constructionId: string, enabled: boolean) {
   });
 }
 
-export function useSchedule(constructionId: string, id: string) {
+export function useSchedule(constructionId: string, id: string, enabled = true) {
   return useQuery({
     queryKey: detailKey(constructionId, id),
     queryFn: ({ signal }) => apiClient.get<Schedule>(`${PATH}/${id}`, { signal }).then(r => r.data),
+    enabled,
+  });
+}
+
+type LinkWrite =
+  | { kind: 'add'; input: ScheduleLinkInput }
+  | { kind: 'edit'; id: string; version: string; input: ScheduleLinkInput }
+  | { kind: 'delete'; id: string; version: string };
+
+export function useWriteScheduleLink(constructionId: string, id: string) {
+  const client = useQueryClient();
+  const path = `${PATH}/${id}/links`;
+  return useMutation({
+    mutationFn: async (write: LinkWrite) => {
+      if (write.kind === 'add') {
+        await apiClient.post(path, write.input);
+      } else if (write.kind === 'edit') {
+        await apiClient.put(`${path}/${write.id}`, write.input, match(write.version));
+      } else {
+        await apiClient.delete(`${path}/${write.id}`, match(write.version));
+      }
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: siteKey(constructionId) }),
+    onError: (error, write) => write.kind === 'delete' ? rereadAfterDeleteRefusal(client, constructionId, error) : undefined,
   });
 }
 

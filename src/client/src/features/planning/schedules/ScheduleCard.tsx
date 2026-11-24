@@ -1,18 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCan } from '@/shared/api/access';
 import { useGetConstruction } from '@/shared/api/constructions';
 import { SCHEDULE_EDIT } from '@/shared/api/planningCalendars';
 import { scheduleRefusal, useSchedule, useWriteScheduleWork } from '@/shared/api/planningSchedules';
 import type { Schedule, ScheduleWarning, ScheduleWork } from '@/shared/api/planningScheduleTypes';
 import { useLocale } from '@/shared/hooks/useLocale';
+import { useMedia } from '@/shared/hooks/useMedia';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { ManualScheduleWorkDialog } from './ManualScheduleWorkDialog';
 import { RebuildByDistributionDialog } from './RebuildByDistributionDialog';
 import { ScheduleEmployeeDialog } from './ScheduleEmployeeDialog';
+import { ScheduleGantt } from './ScheduleGantt';
+import { ScheduleLinksDialog } from './ScheduleLinksDialog';
 import { ScheduleWorksGrid } from './ScheduleWorksGrid';
 import { skippedText, warningFilters, type ScheduleSection } from './scheduleDisplay';
 import { draftChanged, draftOf, keepEdits, workInput, type WorkDraft } from './workDraft';
@@ -20,6 +24,8 @@ import { draftChanged, draftOf, keepEdits, workInput, type WorkDraft } from './w
 const ALL_SECTIONS = 'all';
 const WHOLE_SITE = 'whole-site';
 const STALE = 'Работу тем временем изменили. Перечитайте график. Ваш ввод сохранён.';
+const VIEW_ID = 'schedule-view';
+type View = 'list' | 'gantt';
 
 export function ScheduleCard({ constructionId, id }: { constructionId: string; id: string }) {
   const site = useGetConstruction(constructionId);
@@ -43,6 +49,11 @@ function ScheduleContents({ schedule, sections, reload }: {
   const canReadEmployees = can.permission('core.employees.read');
   const canReadCatalog = can.permission('core.catalog.read');
   const [locale] = useLocale();
+  const wide = useMedia('(min-width: 1280px)');
+  const [view, setView] = useState<View>('list');
+  const visibleView = wide ? view : 'list';
+  const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
+  const table = useRef<HTMLDivElement>(null);
   const [section, setSection] = useState(ALL_SECTIONS);
   const [warningCode, setWarningCode] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ baseline: ScheduleWork; draft: WorkDraft; locale: string } | null>(null);
@@ -52,6 +63,7 @@ function ScheduleContents({ schedule, sections, reload }: {
   const [review, setReview] = useState('');
   const [dialog, setDialog] = useState<'rebuild' | 'add' | 'employees' | null>(null);
   const [deleting, setDeleting] = useState<ScheduleWork | null>(null);
+  const [linkWorkId, setLinkWorkId] = useState<string | null>(null);
   const write = useWriteScheduleWork(schedule.constructionId, schedule.id);
   const pending = write.isPending;
   const input = edit ? workInput(edit.draft, edit.locale, edit.baseline) : null;
@@ -59,6 +71,15 @@ function ScheduleContents({ schedule, sections, reload }: {
   const dirty = !!edit && (draftChanged(draftOf(edit.baseline, edit.locale), edit.draft) || invalid.start || invalid.end);
   const refusal = edit && write.error ? scheduleRefusal(write.error, 'Работа не сохранилась.') : null;
   const stale = refusal?.kind === 'conflict' || refused !== null;
+
+  useEffect(() => {
+    if (!selectedWorkId || visibleView !== 'list') return;
+    const row = [...(table.current?.querySelectorAll<HTMLElement>('[data-schedule-work-id]') ?? [])]
+      .find(item => item.dataset.scheduleWorkId === selectedWorkId);
+    if (!row) return;
+    row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    (row.querySelector<HTMLElement>('button, [tabindex="0"]') ?? table.current)?.focus({ preventScroll: true });
+  }, [selectedWorkId, visibleView]);
 
   function start(work: ScheduleWork) {
     if (edit) return;
@@ -130,6 +151,18 @@ function ScheduleContents({ schedule, sections, reload }: {
   const calendarGaps = [...new Set(group.flatMap(work => warnings.get(work.id) ?? [])
     .filter(warning => warning.code === 'calendar-missing').map(warning => warning.text))];
   const distribution = schedule.marks.find(mark => mark.code === 'distribution-changed');
+  const linkWork = schedule.works.find(work => work.id === linkWorkId);
+  const viewBody = visibleView === 'gantt' ? <ScheduleGantt constructionId={schedule.constructionId} scheduleId={schedule.id} rows={rows}
+    links={schedule.links} warnings={warnings} onOpen={workId => { setSelectedWorkId(workId); setView('list'); }} />
+    : <div ref={table} tabIndex={-1} className="min-w-0">
+      <ScheduleWorksGrid rows={rows} sections={sections} warnings={warnings} links={schedule.links}
+        canEdit={canEdit} canReadEmployees={canReadEmployees}
+        editingId={canEdit ? edit?.baseline.id ?? null : null} draft={canEdit ? edit?.draft ?? null : null}
+        selectedWorkId={selectedWorkId} busy={pending || rereading} onOpen={start} onChange={change}
+        onIncomplete={(field, hasError) => setInvalid(current => current[field] === hasError ? current : { ...current, [field]: hasError })}
+        onEmployees={() => setDialog('employees')} onLinks={work => setLinkWorkId(work.id)}
+        onDelete={work => { write.reset(); setDeleting(work); }} />
+    </div>;
 
   return <div className="grid min-w-0 grid-cols-1 gap-4">
     <LeaveGuard active={canEdit && dirty} saving={pending} save={save}
@@ -142,6 +175,9 @@ function ScheduleContents({ schedule, sections, reload }: {
       {canEdit && canReadCatalog && <Button variant="outlined" disabled={!!edit || pending} onClick={() => setDialog('add')}>
         Добавить работу
       </Button>}
+      {wide && <Tabs<View> id={VIEW_ID} aria-label="Вид графика" variant="segmented" value={visibleView}
+        items={[{ value: 'list', label: 'Список' }, { value: 'gantt', label: 'Диаграмма', disabled: !!edit }]}
+        onChange={setView} />}
     </div>
     {canEdit && !canReadCatalog && <p className="text-body-medium text-on-surface-variant">
       Для добавления работы нужно право чтения классификатора видов работ.
@@ -169,11 +205,7 @@ function ScheduleContents({ schedule, sections, reload }: {
         </Button>)}
       </div>}
     </div>
-    <ScheduleWorksGrid rows={rows} sections={sections} warnings={warnings} canEdit={canEdit} canReadEmployees={canReadEmployees}
-      editingId={canEdit ? edit?.baseline.id ?? null : null} draft={canEdit ? edit?.draft ?? null : null}
-      busy={pending || rereading} onOpen={start} onChange={change}
-      onIncomplete={(field, hasError) => setInvalid(current => current[field] === hasError ? current : { ...current, [field]: hasError })}
-      onEmployees={() => setDialog('employees')} onDelete={work => { write.reset(); setDeleting(work); }} />
+    {wide ? <TabPanel id={VIEW_ID} value={visibleView}>{viewBody}</TabPanel> : viewBody}
     {canEdit && edit && <>
       {!canReadEmployees && <p className="text-body-medium text-on-surface-variant">
         Для выбора исполнителей нужно право чтения справочника сотрудников.
@@ -195,6 +227,8 @@ function ScheduleContents({ schedule, sections, reload }: {
     {canEdit && canReadEmployees && edit && dialog === 'employees' && <ScheduleEmployeeDialog
       ids={edit.draft.employeeIds} assignees={edit.draft.assignees} onClose={() => setDialog(null)}
       onChoice={(employeeIds, assignees) => { change({ employeeIds, assignees }); setDialog(null); }} />}
+    {linkWork && <ScheduleLinksDialog key={linkWork.id} schedule={schedule} work={linkWork} sections={sections}
+      canEdit={canEdit} reload={reload} onClose={() => setLinkWorkId(null)} />}
     {canEdit && deleting && <ConfirmDialog open title={`Удалить работу «${deleting.name}»?`}
       description="Связи этой работы с другими работами тоже будут удалены."
       confirmLabel="Удалить работу" onOpenChange={open => { if (!open) setDeleting(null); }}
