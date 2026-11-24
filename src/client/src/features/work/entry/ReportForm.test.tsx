@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
 import { reportQuery, type EntrySites, type ReportInput, type ReportMode, type WorkReport } from '@/shared/api/workReports';
+import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { formatLocale, setFormatLocale } from '@/shared/format/format';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { SnackbarCtx } from '@/shared/ui/Snackbar';
@@ -331,6 +332,21 @@ it('при вводе за сотрудника подбирает бригад�
   expect(apiClient.get).toHaveBeenCalledWith('/work/entry/sites/site-a/crew-candidates',
     expect.objectContaining({ params: { date: report.date } }));
   expect(apiClient.get).not.toHaveBeenCalledWith('/work/constructions/site-a/crew-candidates', expect.anything());
+});
+
+it.each(['Сохранить', 'Подать отчёт'])('после действия «%s» обновляет кэш сводки менеджера', async action => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
+  const summaryKey = [...WORK_SUMMARY_KEY, { from: report.date, to: report.date, offset: 0 }];
+  client.setQueryData(summaryKey, { rows: [] });
+  mount(report.id, 'entry', client);
+  const submit = action === 'Подать отчёт';
+  const write = vi.mocked(submit ? apiClient.post : apiClient.put);
+  write.mockResolvedValueOnce({ data: { ...report, version: '2', status: submit ? 'submitted' : 'draft', hours: 7 } });
+  const control = await screen.findByRole('button', { name: action });
+  if (!submit) fireEvent.change(screen.getByRole('textbox', { name: 'Часы за смену' }), { target: { value: '7' } });
+
+  fireEvent.click(control);
+  await waitFor(() => expect(client.getQueryState(summaryKey)?.isInvalidated).toBe(true));
 });
 
 it('показывает причину пустого ответа справочника материалов', async () => {

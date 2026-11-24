@@ -108,6 +108,20 @@ describe('сводка Work-23', () => {
     expect(params()).toBe(requested);
   });
 
+  it('на узком экране смена дня сохраняет выбранную строку', async () => {
+    narrow = true;
+    answer.rows.push({ ...row, employeeId: 'other', employeeName: 'Денис Белов' });
+    mount();
+    const table = await screen.findByRole('table');
+    const [, second] = within(table).getAllByRole('group');
+    const details = within(screen.getByRole('region', { name: 'Подробности клетки' }));
+    act(() => second.focus());
+    expect(details.getByRole('heading').textContent).toContain('Денис Белов · 31.10.2026');
+    fireEvent.click(screen.getByRole('button', { name: 'Предыдущий день' }));
+    expect(details.getByRole('heading').textContent).toContain('Денис Белов · 30.10.2026');
+    expect(details.getByText(/7 ч/)).toBeTruthy();
+  });
+
   it('стрелки выбирают клетки без отчётов, а в Tab остаётся только выбранная клетка и её действия', async () => {
     answer.rows.push({ ...row, employeeId: 'other', employeeName: 'Денис Белов', cells: [
       [{ state: 'not-assigned', shift: 'day' }], [{ state: 'not-received', shift: 'day' }], [{ state: 'future', shift: 'day' }],

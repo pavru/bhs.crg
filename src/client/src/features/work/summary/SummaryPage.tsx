@@ -38,10 +38,17 @@ function moveCell(event: KeyboardEvent<HTMLDivElement>) {
   const [row, column] = coordinates.split(':').map(Number);
   const [rows, columns] = arrowStep[event.key];
   const next = event.currentTarget.querySelector<HTMLElement>(`[data-summary-cell="${row + rows}:${column + columns}"]`);
-  if (next) {
-    event.preventDefault();
-    next.focus();
-  }
+  if (!next) return;
+  event.preventDefault();
+  next.focus();
+
+  // Браузер видит границы прокрутки, но не перекрытие закреплёнными колонками.
+  const table = next.closest('table');
+  const pinned = table?.querySelectorAll('thead th[data-pin]');
+  const lastPinned = pinned?.item(pinned.length - 1);
+  if (!lastPinned || !table?.parentElement) return;
+  const overlap = Math.ceil(lastPinned.getBoundingClientRect().right - next.getBoundingClientRect().left);
+  if (overlap > 0) table.parentElement.scrollLeft -= overlap;
 }
 
 function month(today?: string) {
@@ -61,10 +68,10 @@ function SummaryGrid({ rows, days, today, reportRoute }: {
   const preferredDay = today && days.includes(today) ? today : days[0];
   const day = days.includes(chosenDay) ? chosenDay : preferredDay;
   const shown = narrow ? [day] : days;
-  const active = selected && shown.includes(selected.day) && rows.some(row => rowKey(row) === selected.row)
-    ? selected : { row: rowKey(rows[0]), day: narrow ? day : days[0] };
-  const activeRow = rows.find(row => rowKey(row) === active.row)!;
-  const entries = activeRow.cells[days.indexOf(active.day)];
+  const activeRow = rows.find(row => rowKey(row) === selected?.row) ?? rows[0];
+  const activeRowKey = rowKey(activeRow);
+  const activeDay = narrow ? day : selected && days.includes(selected.day) ? selected.day : days[0];
+  const entries = activeRow.cells[days.indexOf(activeDay)];
   const columns: DataGridColumn<SummaryRow>[] = [
     { key: 'employeeName', label: 'Сотрудник', width: 'w-28 md:w-48', rowHeader: true, wrap: true },
     { key: 'constructionName', label: 'Стройка', width: 'w-24 md:w-40', wrap: true },
@@ -76,7 +83,7 @@ function SummaryGrid({ rows, days, today, reportRoute }: {
           const key = rowKey(row);
           return <SummaryCell entries={row.cells[index]} timeZone={row.timeZoneId} reportRoute={reportRoute}
             context={`${row.employeeName} · ${row.constructionName} · ${formatDate(date)}`}
-            selected={active.row === key && active.day === date} rowId={key} date={date} position={`${rowIndex}:${column}`}
+            selected={activeRowKey === key && activeDay === date} rowId={key} date={date} position={`${rowIndex}:${column}`}
             keyboardHelp={keyboardHelp} onSelect={select} />;
         },
       };
@@ -85,7 +92,7 @@ function SummaryGrid({ rows, days, today, reportRoute }: {
   const details = <section aria-label="Подробности клетки">
     <Card>
       <div>
-        <h2 className="text-title-medium text-on-surface">{activeRow.employeeName} · {formatDate(active.day)}</h2>
+        <h2 className="text-title-medium text-on-surface">{activeRow.employeeName} · {formatDate(activeDay)}</h2>
         <p className="text-body-small">{activeRow.constructionName}
           {activeRow.contact.state === 'not-tracked' && ' · Связь с устройством не отслеживается'}</p>
       </div>
