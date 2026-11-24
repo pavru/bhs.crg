@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY, useReviewCard, type ReviewFullCard } from '@/shared/api/workReview';
 import { CREW_GROUPS_KEY } from '@/shared/api/workCrew';
+import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { formatDate, formatDateTime, formatDayTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -50,6 +51,7 @@ export function ReportCard() {
     void queryClient.invalidateQueries({ queryKey: [...REVIEW_JOURNAL_KEY, id] });
     void queryClient.invalidateQueries({ queryKey: REVIEW_QUEUE_KEY });
     void queryClient.invalidateQueries({ queryKey: CREW_GROUPS_KEY });
+    void queryClient.invalidateQueries({ queryKey: WORK_SUMMARY_KEY });
   }
 
   const missing = (card.error as { response?: { status?: number } } | null)?.response?.status === 404;

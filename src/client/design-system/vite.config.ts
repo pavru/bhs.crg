@@ -61,6 +61,7 @@ export default defineConfig({
       mockup: resolve(root, 'mockup.html'), work12: resolve(root, 'work12.html'), work19: resolve(root, 'work19.html'),
       work21: resolve(root, 'work21.html'),
       work22: resolve(root, 'work22.html'),
+      work23: resolve(root, 'work23.html'),
       duplicatePayment: resolve(root, 'duplicate-payment.html'),
       paymentRequisites: resolve(root, 'payment-requisites.html'),
       planOffers: resolve(root, 'plan-offers.html'),

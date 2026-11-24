@@ -6,6 +6,7 @@ import {
   createWorkReport, entrySitesQuery, ownReportsKey, reportQuery, submitWorkReport, updateWorkReport,
   type EntrySite, type ReportHeader, type ReportInput, type ReportMode, type RequiredReportField, type WorkReport,
 } from '@/shared/api/workReports';
+import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { formatDatePrecise } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { Banner } from '@/shared/ui/Banner';
@@ -162,6 +163,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     cache.setQueryData(queryKey, row);
     void cache.invalidateQueries({ queryKey: ownReportsKey });
     void cache.invalidateQueries({ queryKey: ['work', 'review-queue'] });
+    void cache.invalidateQueries({ queryKey: WORK_SUMMARY_KEY });
   }
 
   function changeId(key: string) {

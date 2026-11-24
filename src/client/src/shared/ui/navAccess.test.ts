@@ -33,6 +33,14 @@ describe('навигация по правам', () => {
     expect(allowed(review, access(['work.report.own'], [work]))).toBe(false);
     expect(allowed(review, access(['work.report.read'], [{ ...work, available: false }]))).toBe(false);
   });
+  it('Сводка открыта менеджеру и руководителю при включённом учёте работ', () => {
+    const summary = workNav.find(item => item.to === '/work-summary')!;
+    const work = { code: 'work', available: true };
+    expect(allowed(summary, access(['work.report.review'], [work]))).toBe(true);
+    expect(allowed(summary, access(['work.report.read'], [work]))).toBe(true);
+    expect(allowed(summary, access(['work.report.own', 'work.crew.approve'], [work]))).toBe(false);
+    expect(allowed(summary, access(['work.report.read'], [{ ...work, available: false }]))).toBe(false);
+  });
 
   it('администратор без права на типы не видит раздела типов', () => {
     // Все права администратора, КРОМЕ права на типы. Имени роли здесь нет — и в этом суть.
