@@ -58,6 +58,8 @@ public class PlanRowsInventoryTests
             "строки ОДНОЙ редакции, из которой сделано КП (plan-13): перенос в КП и базы наценки — не план стройки",
         [$"{Module}/Distribution/DistributionCarryOver.cs"] =
             "строки редакции-источника при переносе распределения (plan-10) — не план стройки",
+        [$"{Module}/Schedules/ScheduleSource.cs"] =
+            "работы графика строятся по строкам выбранной редакции, включая прежнюю, без сумм плана стройки",
     };
 
     private static readonly Regex Rows = new(

@@ -2,23 +2,22 @@
 
 ## 0. Условие
 
-- [ ] 0.1 Ответ владельца на В-14 (шапка графика — запись модуля или документ общего типа) вписан в
-  `docs/tz/50-планирование.md`; при «документ» — сначала порт записи документа модуля в общую таблицу,
-  `design.md` правится. Проверка — в `design.md` нет «решение В-14»
+- [x] 0.1 Сверены `PLAN-Q22`, раздел решений ТЗ и В-14 зонтика: шапка графика — запись модуля.
+  `proposal.md`, `design.md` и дельта описывают принятое хранение.
 
 ## 1. PR 1: работы и построение
 
-- [ ] 1.1 `Schedules/Schedule.cs`, `ScheduleWork.cs`, исполнители; миграция `Schedules` (`--context
+- [x] 1.1 `Schedules/Schedule.cs`, `ScheduleWork.cs`, исполнители; миграция `Schedules` (`--context
   PlanDbContext`); ссылки `CORE-34.1` на позицию, стройку, раздел, сотрудника [PLAN-Q7] [PLAN-16].
   Проверка — `ModuleReferenceInventoryTests` зелёный; новая ссылка на архивного сотрудника — отказ
-- [ ] 1.2 `ScheduleBuilder.cs`: работы по частям распределения и остатку, позиции портом `plan-04`,
+- [x] 1.2 `ScheduleBuilder.cs`: работы по частям распределения и остатку, позиции портом `plan-04`,
   `skipped.unmapped`, фиксация редакции, ключ построения [PLAN-15] [PLAN-5] [CORE-12]. Проверка — тесты:
   700 + 500 + 200 — три работы; 17 несопоставленных названы; повтор — тот же график; правка
   зафиксированной редакции — отказ с названием графика
-- [ ] 1.3 Пометка `distribution-changed`, предпросмотр и перестроение с `If-Match` и отпечатком; сроки
+- [x] 1.3 Пометка `distribution-changed`, предпросмотр и перестроение с `If-Match` и отпечатком; сроки
   совпавших частей сохраняются [PLAN-15]. Проверка — тест: перенос 100 м даёт пометку; устаревший
   отпечаток — 409
-- [ ] 1.4 Адреса графика и работ: построение, чтение, ручная работа, правка работы с `If-Match` [PLAN-15]
+- [x] 1.4 Адреса графика и работ: построение, чтение, ручная работа, правка работы с `If-Match` [PLAN-15]
   [PLAN-16] [AUTH-8]. Проверка — тесты отказов: без заголовка 400, устаревшая 409, только чтение — 403,
   модуль выключен — отказ; `RecordWriteGuardCoverageTests` и `EndpointGateInventoryTests` зелёные
 
@@ -39,6 +38,6 @@
 ## 3. Верификация
 
 - [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Schedule|FullyQualifiedName~CycleCheck|FullyQualifiedName~RevisionDerivatives|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~ModuleReferenceInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

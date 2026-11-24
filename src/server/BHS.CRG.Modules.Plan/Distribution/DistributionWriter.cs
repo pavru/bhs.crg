@@ -27,6 +27,7 @@ internal sealed class DistributionWriter(
 {
     public async Task<DistributionWriteDto> RulesAsync(Guid revisionId, string seen, RuleWrite write, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var place = await PrepareAsync(revisionId, seen, ct);
         var rows = await RowsAsync(revisionId, ct);
         var key = new LsrKey(write.LsrSectionCode);
@@ -58,6 +59,7 @@ internal sealed class DistributionWriter(
         else if (write.Target is { } added) db.DistributionRules.Add(DistributionRule.Create(revisionId, write.LsrSectionCode, added));
 
         var head = await SaveAsync(place, ct);
+        await transaction.CommitAsync(ct);
         var section = own[0].LsrSectionName is { Length: > 0 } name ? $"раздел ЛСР «{name}»" : "строки вне разделов ЛСР";
         var cleared = dropped.Count > 0
             ? "; сняты части строк " + string.Join(", ", dropped.Select(id => rows[id]).OrderBy(r => r.Order).Select(LineFacts.NumberOf))
@@ -71,6 +73,7 @@ internal sealed class DistributionWriter(
 
     public async Task<DistributionWriteDto> LinesAsync(Guid revisionId, string seen, IReadOnlyList<LineWrite> lines, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var place = await PrepareAsync(revisionId, seen, ct);
         var rows = await RowsAsync(revisionId, ct);
         var touched = lines.Select(l => l.RowId).ToHashSet();
@@ -79,6 +82,7 @@ internal sealed class DistributionWriter(
         Apply(place, rows, parts, lines);
 
         var head = await SaveAsync(place, ct);
+        await transaction.CommitAsync(ct);
         await log.RecordAsync(EstimateActions.DistributionLines, revisionId.ToString(), Label(place),
             PreviousText(place, rows, previous, touched), LinesText(place, rows, lines), ct);
         return await ResultAsync(place, head, new DistributionPreviousDto(null, previous), ct);
@@ -91,6 +95,7 @@ internal sealed class DistributionWriter(
     public async Task<DistributionWriteDto> DecideAsync(
         Guid revisionId, Guid itemId, string seen, CarryOverDecision decision, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var place = await PrepareAsync(revisionId, seen, ct);
         var item = await db.CarryOverItems.FirstOrDefaultAsync(i => i.Id == itemId && i.RevisionId == revisionId, ct)
             ?? throw new NotFoundException("Позиции отчёта переноса нет — перечитайте распределение.");
@@ -134,6 +139,7 @@ internal sealed class DistributionWriter(
         }, DateTimeOffset.UtcNow);
 
         var head = await SaveAsync(place, ct);
+        await transaction.CommitAsync(ct);
         await log.RecordAsync(EstimateActions.DistributionCarryOver, revisionId.ToString(), Label(place),
             $"{DistributionReader.CategoryCode(item.Category)}: строка {item.Number ?? item.NumberInSection} «{item.Name ?? item.LsrSectionName}»",
             after, ct);
@@ -143,6 +149,7 @@ internal sealed class DistributionWriter(
     /// <summary>Редакция, её смета и версия: смета на разделе — 400, устаревшая версия — 409 с тем, кто изменил.</summary>
     private async Task<DistributionPlace> PrepareAsync(Guid revisionId, string seen, CancellationToken ct)
     {
+        await db.LockRevisionAsync(revisionId, ct);
         var place = await DistributionPlace.LoadAsync(db, constructions, revisionId, ct);
         if (place.OnSection is { } onSection) throw onSection;
         if (seen != db.VersionOf(place.Head))
