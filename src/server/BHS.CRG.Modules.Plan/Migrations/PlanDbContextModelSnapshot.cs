@@ -1868,6 +1868,47 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("schedules", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("Lag")
+                        .HasColumnType("integer")
+                        .HasColumnName("lag");
+
+                    b.Property<Guid>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<Guid>("SuccessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("successor_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SuccessorId");
+
+                    b.HasIndex("PredecessorId", "SuccessorId")
+                        .IsUnique();
+
+                    b.ToTable("schedule_links", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2183,6 +2224,21 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .WithMany()
                         .HasForeignKey("RevisionId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleLink", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", null)
+                        .WithMany()
+                        .HasForeignKey("SuccessorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Schedules.ScheduleWork", b =>

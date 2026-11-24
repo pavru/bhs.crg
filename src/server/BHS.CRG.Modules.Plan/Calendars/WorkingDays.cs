@@ -6,7 +6,9 @@ namespace BHS.CRG.Modules.Plan.Calendars;
 
 public sealed record CalendarGap(int Year)
 {
-    public string Code => "calendar-missing";
+    internal const string MissingCode = "calendar-missing";
+
+    public string Code => MissingCode;
     public string Text => $"Календарь компании на {Year} год не заполнен.";
 }
 
@@ -41,7 +43,7 @@ public sealed class WorkingDays
     }
 
     public CalendarCalculation<bool> IsWorking(DateOnly date) =>
-        new(IsWorkingDay(date), Gaps(date, date));
+        new(IsWorkingDay(date), GapsBetween(date, date));
 
     public CalendarCalculation<decimal> HoursPerShift(DateOnly date)
     {
@@ -51,7 +53,7 @@ public sealed class WorkingDays
             CalendarDayKind.Holiday => 0,
             CalendarDayKind.Short => Math.Max(0, hours - 1),
             _ => hours,
-        }, Gaps(date, date));
+        }, GapsBetween(date, date));
     }
 
     /// <summary>Дни считаются со следующей или предыдущей даты. Нулевой шаг сохраняет дату.</summary>
@@ -69,7 +71,7 @@ public sealed class WorkingDays
             available--;
             if (IsWorkingDay(day)) remaining--;
         }
-        return new(day, Gaps(date, day));
+        return new(day, GapsBetween(date, day));
     }
 
     /// <summary>Длительность включает обе границы. Работа в один рабочий день имеет длительность 1.</summary>
@@ -80,7 +82,7 @@ public sealed class WorkingDays
         for (var number = start.DayNumber; number <= end.DayNumber; number++)
             if (IsWorkingDay(DateOnly.FromDayNumber(number))) days++;
 
-        return new(days, Gaps(start, end));
+        return new(days, GapsBetween(start, end));
     }
 
     private bool IsWorkingDay(DateOnly date) => EffectiveKind(date) != CalendarDayKind.Holiday;
@@ -94,7 +96,7 @@ public sealed class WorkingDays
         return CalendarWeek.Contains(week, date) ? CalendarDayKind.Working : CalendarDayKind.Holiday;
     }
 
-    private IReadOnlyList<CalendarGap> Gaps(DateOnly first, DateOnly second)
+    internal IReadOnlyList<CalendarGap> GapsBetween(DateOnly first, DateOnly second)
     {
         var min = Math.Min(first.Year, second.Year);
         var max = Math.Max(first.Year, second.Year);

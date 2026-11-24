@@ -24,6 +24,9 @@ internal static class ScheduleEndpoints
         group.MapPost("/{id:guid}/works", AddWorkAsync).RequireAuthorization(edit);
         group.MapPut("/{id:guid}/works/{workId:guid}", EditWorkAsync).RequireAuthorization(edit);
         group.MapDelete("/{id:guid}/works/{workId:guid}", DeleteWorkAsync).RequireAuthorization(edit);
+        group.MapPost("/{id:guid}/links", AddLinkAsync).RequireAuthorization(edit);
+        group.MapPut("/{id:guid}/links/{linkId:guid}", EditLinkAsync).RequireAuthorization(edit);
+        group.MapDelete("/{id:guid}/links/{linkId:guid}", DeleteLinkAsync).RequireAuthorization(edit);
     }
 
     private static async Task<IResult> ListAsync(Guid constructionId, PlanDbContext db, CancellationToken ct)
@@ -70,6 +73,37 @@ internal static class ScheduleEndpoints
         Guid id, Guid workId, HttpRequest request, ScheduleWorkEditor editor, CancellationToken ct)
     {
         await editor.DeleteWorkAsync(id, workId, request, ct);
+        return Results.NoContent();
+    }
+
+    private static Task<IResult> AddLinkAsync(
+        Guid id, ScheduleLinkInput input, HttpRequest request, ScheduleLinkStore links, CancellationToken ct) =>
+        SaveLinkAsync(id, null, input, request, links, ct);
+
+    private static Task<IResult> EditLinkAsync(
+        Guid id, Guid linkId, ScheduleLinkInput input, HttpRequest request, ScheduleLinkStore links, CancellationToken ct) =>
+        SaveLinkAsync(id, linkId, input, request, links, ct);
+
+    private static async Task<IResult> SaveLinkAsync(
+        Guid id, Guid? linkId, ScheduleLinkInput input, HttpRequest request, ScheduleLinkStore links, CancellationToken ct)
+    {
+        try
+        {
+            var link = await links.WriteAsync(id, linkId, input, request, ct);
+            return linkId.HasValue
+                ? Results.Ok(link)
+                : Results.Created($"{Root}/{id}", link);
+        }
+        catch (ScheduleLinkRefusal refusal)
+        {
+            return Results.UnprocessableEntity(new { refusal.Code, error = refusal.Message, refusal.Cycle });
+        }
+    }
+
+    private static async Task<IResult> DeleteLinkAsync(
+        Guid id, Guid linkId, HttpRequest request, ScheduleLinkStore links, CancellationToken ct)
+    {
+        await links.DeleteLinkAsync(id, linkId, request, ct);
         return Results.NoContent();
     }
 }

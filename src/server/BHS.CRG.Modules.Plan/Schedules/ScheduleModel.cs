@@ -5,6 +5,22 @@ namespace BHS.CRG.Modules.Plan.Schedules;
 
 internal static class ScheduleModel
 {
+    internal static void ConfigureLinks(ModelBuilder builder)
+    {
+        var link = builder.Entity<ScheduleLink>();
+        link.ToTable("schedule_links");
+        link.HasKey(l => l.Id);
+        link.Property(l => l.Id).HasColumnName("id");
+        link.Property(l => l.PredecessorId).HasColumnName("predecessor_id");
+        link.Property(l => l.SuccessorId).HasColumnName("successor_id");
+        link.Property(l => l.Kind).HasColumnName("kind").HasMaxLength(2);
+        link.Property(l => l.Lag).HasColumnName("lag");
+        link.Property<uint>(PlanDbContext.RowVersion).IsRowVersion();
+        link.HasOne<ScheduleWork>().WithMany().HasForeignKey(l => l.PredecessorId).OnDelete(DeleteBehavior.Cascade);
+        link.HasOne<ScheduleWork>().WithMany().HasForeignKey(l => l.SuccessorId).OnDelete(DeleteBehavior.Cascade);
+        link.HasIndex(l => new { l.PredecessorId, l.SuccessorId }).IsUnique();
+    }
+
     public static void Configure(ModelBuilder builder)
     {
         var schedule = builder.Entity<Schedule>();

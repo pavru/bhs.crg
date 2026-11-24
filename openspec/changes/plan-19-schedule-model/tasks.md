@@ -23,21 +23,21 @@
 
 ## 2. PR 2: зависимости и предупреждения
 
-- [ ] 2.1 `ScheduleLink.cs`, миграция `ScheduleLinks`; адреса связей; вид не `fs` — 422; другая стройка —
+- [x] 2.1 `ScheduleLink.cs`, миграция `ScheduleLinks`; адреса связей; вид не `fs` — 422; другая стройка —
   422 [PLAN-16.1]. Проверка — тесты: задержка −2, вид «начало → начало» — отказ, связь на другую стройку — отказ
-- [ ] 2.2 `CycleCheck.cs` по графу связей стройки в одной транзакции с вставкой [PLAN-16.1]. Проверка —
+- [x] 2.2 `CycleCheck.cs` по графу связей стройки в одной транзакции с вставкой [PLAN-16.1]. Проверка —
   тесты: цикл через два графика — отказ с перечнем; две параллельные вставки, замыкающие цикл, — одна отвергнута
-- [ ] 2.3 `ScheduleWarnings.cs`: `starts-before-predecessor` у обеих работ, `ends-on-day-off`,
+- [x] 2.3 `ScheduleWarnings.cs`: `starts-before-predecessor` у обеих работ, `ends-on-day-off`,
   `calendar-missing`, `no-dates`; коды — в каталоге пометок (D17) [PLAN-19] [PLAN-19.1]. Проверка — тесты на
   каждый код по календарю `plan-18`; сроки после чтения не меняются
-- [ ] 2.4 `plan-16`: блок графиков в производных редакции (покрытие, «устарело») [PLAN-22]. Проверка —
+- [x] 2.4 `plan-16`: блок графиков в производных редакции (покрытие, «устарело») [PLAN-22]. Проверка —
   тест `RevisionDerivatives` с графиком
-- [ ] 2.5 `docs/DEV_NOTES.md`: почему работы — записи модуля, почему проверка цикла по стройке и в
+- [x] 2.5 `docs/DEV_NOTES.md`: почему работы — записи модуля, почему проверка цикла по стройке и в
   транзакции. Проверка — ревью PR
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Schedule|FullyQualifiedName~CycleCheck|FullyQualifiedName~RevisionDerivatives|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~ModuleReferenceInventory"` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Schedule|FullyQualifiedName~CycleCheck|FullyQualifiedName~RevisionDerivatives|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~ModuleReferenceInventory"` — зелёный
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

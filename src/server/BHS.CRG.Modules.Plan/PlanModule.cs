@@ -285,6 +285,7 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<Schedules.ScheduleBuilder>();
         services.AddScoped<Schedules.ScheduleViews>();
         services.AddScoped<Schedules.ScheduleWorkEditor>();
+        services.AddScoped<Schedules.ScheduleLinkStore>();
         // Контракт «Плановые работы» (plan-23): потребители берут его портом IModuleContracts.
         services.AddModuleContract<IPlannedWorks, PlannedWorksProvider>(ModuleCode);
     }

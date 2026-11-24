@@ -66,12 +66,12 @@ internal sealed class ScheduleBuilder(
     internal async Task<(ScheduleDto? View, SchedulePreview Preview)> RebuildAsync(
         Guid id, string? fingerprint, HttpRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(fingerprint))
-            throw new InvalidRequestException("Сначала запросите предпросмотр и передайте его «fingerprint».");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var schedule = await LockAsync(id, ct);
         var version = db.VersionOf(schedule);
         EstimateEndpoints.EnsureSeen(request, version, "График", "график");
+        if (string.IsNullOrWhiteSpace(fingerprint))
+            throw new InvalidRequestException("Сначала запросите предпросмотр и передайте его «fingerprint».");
         if (schedule.RevisionId is { } revision) await db.LockRevisionAsync(revision, ct);
         var prepared = await PrepareAsync(schedule, ct);
         if (prepared.Preview.Fingerprint != fingerprint) return (null, prepared.Preview);

@@ -31,6 +31,20 @@ internal sealed record ScheduleScenario(PlanOnlyHost Host, EstimateSeed.Site Sit
     internal Task<JsonElement> BuildAsync(Guid? revision = null, string name = "Электромонтаж") =>
         ReadAsync(Editor.PostAsJsonAsync(Root, Creation(revision, name)), HttpStatusCode.Created);
 
+    internal async Task<JsonElement> ManualAsync(JsonElement schedule, string? start = null, string? end = null)
+    {
+        var classifier = await EstimateSeed.ClassifierAsync(Host);
+        return await ReadAsync(Editor.PostAsJsonAsync($"{ScheduleUrl(schedule)}/works",
+            new { workTypeId = classifier.WorkType, work = new { volume = 1m, start, end } }));
+    }
+
+    internal Task<HttpResponseMessage> LinkAsync(
+        JsonElement schedule, JsonElement from, JsonElement to, string kind = "fs", int lag = 0) =>
+        Editor.PostAsJsonAsync($"{ScheduleUrl(schedule)}/links", Link(from, to, kind, lag));
+
+    internal static object Link(JsonElement from, JsonElement to, string kind = "fs", int lag = 0) =>
+        new { predecessorId = Id(from), successorId = Id(to), kind, lag };
+
     internal static Guid Id(JsonElement result) => result.GetProperty("id").GetGuid();
     internal static string ScheduleUrl(JsonElement schedule) => $"{Root}/{Id(schedule)}";
     internal static string WorkUrl(JsonElement schedule, JsonElement work) => $"{ScheduleUrl(schedule)}/works/{Id(work)}";
