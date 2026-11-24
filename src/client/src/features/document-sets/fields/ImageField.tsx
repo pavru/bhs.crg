@@ -10,6 +10,7 @@ import { checkImageResult } from './checkImageResult';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { TextField } from '@/shared/ui/TextField';
+import { useFieldUploadChange } from './useFieldUploadChange';
 
 /**
  * Предел проверяет СЕРВЕР (issue #534). Клиентская константа была осознанной временной мерой: у
@@ -46,6 +47,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
    */
   const pick = useRef(0);
   const img = normalize(value);
+  const uploadChange = useFieldUploadChange(onChange);
   // Превью держим ровно до того мига, как картинка приехала из хранилища. Сообщает об этом сам
   // загрузчик (issue #858) — раньше момент вычислялся эффектом-наблюдателем «показанное разошлось
   // с превью», то есть по следствию вместо события.
@@ -101,7 +103,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
       // старое значение целиком, и свежий blobPath затирался прежним — замена картинки оставляла на
       // экране старую, а только что загруженная сиротела в хранилище.
       const { width, height, align, fit } = img ?? {};
-      onChange({ ...node, width, height, align, fit });
+      uploadChange.current?.({ ...node, width, height, align, fit });
       // Пишем РЕЗУЛЬТАТ, а не «уменьшено до 2400 px»: пиксели человеку ничего не говорят, вес говорит.
       // Оригинал при этом сохранён — строка сообщает о копии, а не о потере (issue #523).
       setShrunk(storedBytes < sourceBytes

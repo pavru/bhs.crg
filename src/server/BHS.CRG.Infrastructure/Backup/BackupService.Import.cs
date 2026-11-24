@@ -50,9 +50,11 @@ public partial class BackupService
         // Положенное на самом деле: скан, который в архиве был, но записать его не удалось, — всё равно
         // документ без сертификата, и сказать об этом нужно словами документа (ревью PR #1440).
         var restored = new HashSet<string>(StringComparer.Ordinal);
-        // Владелец файла — из копии (ТЗ CORE-37.2): путь, названный в секции модуля, — файл этого модуля,
-        // остальное — файлы ядра. Без этого скан счёта вернулся бы файлом ядра, и модуль его не открыл бы.
+        // Секция задаёт владельца по умолчанию. Если файл принадлежал другому владельцу, копия
+        // хранит владельца из реестра, действовавшего при экспорте (ТЗ CORE-37.2).
         var owners = FileOwners(manifest);
+        foreach (var (path, owner) in manifest.FileOwnerOverrides ?? [])
+            if (owners.ContainsKey(path)) owners[path] = owner;
         int blobsRestored = 0;
         foreach (var entry in blobEntries)
         {
@@ -267,9 +269,7 @@ public partial class BackupService
     }
 
     /// <summary>
-    /// Чьи файлы в архиве (ТЗ CORE-37.2): путь из перечня секции модуля (<see cref="BackupModuleSchema.Files" />)
-    /// — файл этого модуля. Это и есть «владелец рядом с путём»: перечень несёт код модуля, отдельного
-    /// поля в копии владельцу не нужно. У копии без перечня файлов модулей в архиве нет вовсе.
+    /// Владелец по секции модуля, используемый прежними копиями и файлами без переопределения.
     /// </summary>
     private static Dictionary<string, string> FileOwners(BackupManifest manifest)
     {

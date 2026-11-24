@@ -7,6 +7,8 @@ public interface IModuleAcceptanceFields
 {
     Task<ModuleAcceptanceSchema> ReadAsync(string module, string typeCode, CancellationToken ct);
     Task<JsonElement?> FormAsync(string module, string typeCode, CancellationToken ct);
+    Task<JsonElement?> ChoicesAsync(string module, string typeCode, Guid siteId, Guid targetTypeId,
+        bool acceptUnionVariants, bool archived, string? search, int limit, CancellationToken ct);
 }
 
 /// <summary>Один снимок требований к приёмке для чтения отчётов и их строк.</summary>

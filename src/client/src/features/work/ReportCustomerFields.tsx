@@ -6,7 +6,10 @@ import { FileField } from '@/features/document-sets/fields/FileField';
 import { ImageField } from '@/features/document-sets/fields/ImageField';
 import { isLockedField } from '@/features/document-sets/fields/lockedFields';
 import { PrimitiveInput } from '@/features/document-sets/fields/PrimitiveInput';
+import { ReferenceCatalogContext } from '@/features/document-sets/fields/referenceCatalog';
+import { apiClient } from '@/shared/api/client';
 import type { SchemaField } from '@/shared/api/schema';
+import type { EntryCatalogScope } from '@/shared/api/workEntryCatalog';
 import { useReportDetailsSchema } from '@/shared/api/workReports';
 import type { MissingAcceptanceField } from '@/shared/api/workReview';
 import { Banner } from '@/shared/ui/Banner';
@@ -17,12 +20,12 @@ import { detailValues } from './reportDetails';
 
 type DetailsSchema = NonNullable<ReturnType<typeof useReportDetailsSchema>['data']>;
 
-export function ReportCustomerFields({ details, missingFields, disabled, siteId, onChange, title = 'Поля заказчика' }: {
+export function ReportCustomerFields({ details, missingFields, disabled, scope, onChange, title = 'Поля заказчика' }: {
   details: unknown;
   missingFields?: MissingAcceptanceField[];
   disabled: boolean;
-  siteId: string;
-  onChange: (details: Record<string, unknown>) => void;
+  scope: EntryCatalogScope;
+  onChange: (key: string, value: unknown) => void;
   title?: string;
 }) {
   const schema = useReportDetailsSchema();
@@ -35,16 +38,23 @@ export function ReportCustomerFields({ details, missingFields, disabled, siteId,
   const data = schema.data;
   const values = detailValues(details);
   const missing = new Set(missingFields?.map(field => field.key));
-  return <FieldTypeRegistry.Provider value={data}>
+  const { siteId, date, reportId, reportVersion } = scope;
+  return <FieldTypeRegistry.Provider value={data}><ReferenceCatalogContext.Provider value={{
+    key: ['work', 'field-references', siteId, date, reportId, reportVersion],
+    load: (typeId, union, archived, q, signal) => apiClient.get(
+      `/work/entry/sites/${encodeURIComponent(siteId)}/catalog/field-references`,
+      { params: { date, reportId, typeId, union, archived, q }, signal },
+    ).then(response => response.data),
+  }}>
     <fieldset className="space-y-2" disabled={disabled}>
       <legend className="text-label-large">{title}</legend>
       <div className="grid items-start gap-3 md:grid-cols-2">
         {data.fields.map(field => <CustomerField key={field.key} field={field} data={data}
           value={values[field.key]} missing={missing.has(field.key)} disabled={disabled} siteId={siteId}
-          onChange={value => onChange({ ...values, [field.key]: value === '' ? null : value })} />)}
+          onChange={value => onChange(field.key, value)} />)}
       </div>
     </fieldset>
-  </FieldTypeRegistry.Provider>;
+  </ReferenceCatalogContext.Provider></FieldTypeRegistry.Provider>;
 }
 
 function CustomerField({ field, data, value, missing, disabled, siteId, onChange }: {
@@ -77,8 +87,8 @@ function CustomerField({ field, data, value, missing, disabled, siteId, onChange
   switch (field.type) {
     case 'image': control = <ImageField value={value} onChange={onChange} readOnly={readOnly} />; break;
     case 'file': control = <FileField value={value} onChange={onChange} readOnly={readOnly} />; break;
-    case 'complex': control = !readOnly && <ComplexFieldGroup {...props} {...scoped} showValidation={false} />; break;
-    case 'array': control = !readOnly && <ArrayFieldEditor {...props} {...scoped} showValidation={false} />; break;
+    case 'complex': control = !readOnly && <ComplexFieldGroup {...props} {...scoped} docRefMode="work" showValidation={false} />; break;
+    case 'array': control = !readOnly && <ArrayFieldEditor {...props} {...scoped} docRefMode="work" showValidation={false} />; break;
     case 'doc-ref': control = !readOnly && <DocRefCatalogPickerField {...props} {...scoped} />; break;
     case 'doc-array': control = !readOnly && <DocArrayField {...props} otherInstances={[]} />; break;
   }

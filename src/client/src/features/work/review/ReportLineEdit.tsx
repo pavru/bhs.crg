@@ -13,6 +13,7 @@ import { parseNumber } from '@/shared/utils/parseNumber';
 import { workLabel } from './workLabel';
 import { ReportCustomerFields } from '../ReportCustomerFields';
 import { sameContent } from '../entry/reportContents';
+import { withDetailValue } from '../reportDetails';
 
 export function ReportLineEdit({ card, onClose, onSaved }: {
   card: ReviewFullCard; onClose: () => void; onSaved: () => void;
@@ -69,8 +70,10 @@ export function ReportLineEdit({ card, onClose, onSaved }: {
     {error && <Banner tone="error">{error}</Banner>}
     <EditGrid rows={rows} columns={columns} rowKey={row => row.id} label="Строки отчёта" numbered sheet />
     {rows.map((row, index) => <ReportCustomerFields key={row.id} title={`Поля заказчика · строка ${index + 1}`}
-      details={row.details} missingFields={row.missingFields} siteId={card.report.constructionId} disabled={busy}
-      onChange={details => setRows(current => current.map(line => line.id === row.id ? { ...line, details } : line))} />)}
+      details={row.details} missingFields={row.missingFields} disabled={busy}
+      scope={{ siteId: card.report.constructionId, date: card.report.date, mode: 'entry', reportId: card.id, reportVersion: card.report.version }}
+      onChange={(key, value) => setRows(current => current.map(line => line.id === row.id
+        ? { ...line, details: withDetailValue(line.details, key, value) } : line))} />)}
     <div className="flex flex-wrap justify-end gap-2">
       <Button variant="text" onClick={() => leave(onClose)} disabled={busy}>Отмена</Button>
       <Button variant="filled" type="submit" disabled={!valid || !changed} loading={busy}>Сохранить правку</Button>

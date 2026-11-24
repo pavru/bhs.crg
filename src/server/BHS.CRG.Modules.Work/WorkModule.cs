@@ -184,6 +184,9 @@ public sealed class WorkModule : IAppModule
     [
         ModuleFile.Holding("line_photos", "blob_path", "фото строк отчётов"),
         ModuleFile.Holding("line_photos", "preview_blob_path", "превью фото строк отчётов"),
+        ModuleFile.Holding("report_lines", "details", "вложения в сведениях строк отчётов"),
+        ModuleFile.Holding("report_versions", "content", "файлы прежних версий отчётов"),
+        ModuleFile.Remembering("report_journal", "changes", "файлы держат строки и версии, журнал только помнит их пути"),
     ];
 
     /// <summary>Лимиты фото строки (ТЗ WORK-33, <c>work-17</c>).</summary>

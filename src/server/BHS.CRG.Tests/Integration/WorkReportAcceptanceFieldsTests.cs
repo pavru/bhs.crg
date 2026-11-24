@@ -1,9 +1,16 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules;
+using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
@@ -59,6 +66,88 @@ public class WorkReportAcceptanceFieldsTests(AssignmentHost host) : IAsyncLifeti
             kind = "Composite", module = "core", schema = """{"fields":[{"key":"act","title":"Акт","forAcceptance":true}]}""" });
         Assert.Equal(HttpStatusCode.Conflict, open.StatusCode);
         Assert.Contains("нет приёмки", await AssignmentWorld.ErrorAsync(open));
+    }
+
+    [Fact]
+    public async Task Ссылки_выбираются_из_семьи_поля_в_охвате_отчёта_без_общих_прав()
+    {
+        var (admin, type) = await ConfigureAsync();
+        var seed = new WorkTypeSeed(host);
+        var target = await seed.TypeAsync("СсылочнаяЦель", "Цель ссылки");
+        var child = await seed.TypeAsync("СсылочнаяПодцель", "Подтип цели", parentId: target.Id);
+        await AddFieldsAsync(admin, type,
+            new JsonObject { ["key"] = "target", ["type"] = "doc-ref", ["typeId"] = target.Id, ["forAcceptance"] = true },
+            new JsonObject { ["key"] = "targets", ["type"] = "doc-array", ["typeId"] = target.Id, ["forAcceptance"] = true });
+        var siteRecord = await seed.SendAsync(new CreateCommonDataEntryCommand("На стройке", target.Id,
+            JsonDocument.Parse("{}"), CatalogScope.Construction, World.SiteA));
+        var unrelatedSite = await seed.SendAsync(new CreateCommonDataEntryCommand("Чужая стройка", child.Id,
+            JsonDocument.Parse("{}"), CatalogScope.Construction, World.SiteB));
+        var systemRecord = await seed.RecordAsync(child.Id, "Из подтипа");
+        var archive = await seed.RecordAsync(child.Id, "В архиве");
+        await seed.ArchiveAsync(archive.Id);
+        var (_, installer) = await World.InstallerAsync("Монтажник");
+        var (_, manager) = await World.ManagerAsync("Менеджер", World.SiteA);
+        var (id, line) = (Guid.NewGuid(), Guid.NewGuid());
+        var submitted = await period.Review.SubmittedAsync(installer, id, World.SiteA, lineId: line);
+        var url = $"/api/work/entry/sites/{World.SiteA}/catalog/field-references?reportId={id}&typeId={target.Id}";
+        Assert.Equal(HttpStatusCode.Forbidden, (await installer.GetAsync("/api/common-data/for-scope?scope=System&purpose=choice")).StatusCode);
+
+        foreach (var client in new[] { installer, manager })
+        {
+            var page = await client.GetFromJsonAsync<JsonElement>(url);
+            Assert.Equal(new[] { siteRecord.Id, systemRecord.Id }, ChoiceIds(page));
+            Assert.DoesNotContain(unrelatedSite.Id, ChoiceIds(page));
+            Assert.All(page.GetProperty("items").EnumerateArray(), item => Assert.False(item.TryGetProperty("data", out _)));
+            Assert.Equal(new[] { systemRecord.Id }, ChoiceIds(await client.GetFromJsonAsync<JsonElement>(url + "&q=подтипа")));
+            Assert.Equal(new[] { archive.Id }, ChoiceIds(await client.GetFromJsonAsync<JsonElement>(url + "&archived=true")));
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(url.Replace(World.SiteA.ToString(), World.SiteB.ToString()))).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(url.Replace(target.Id.ToString(), World.EmployeeType.ToString()))).StatusCode);
+        }
+
+        using var saved = await ReportWorld.PutAsync(installer, $"{Reports}/{id}", ReviewWorld.Version(submitted),
+            WithDetails(id, World.SiteA, line, new { target = WorkTypeSeed.Ref(siteRecord), targets = new[] { WorkTypeSeed.Ref(systemRecord) } }));
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var report = await ReportWorld.JsonAsync(saved);
+        Assert.DoesNotContain("target", Keys(report));
+        Assert.DoesNotContain("targets", Keys(report));
+    }
+
+    [Fact]
+    public async Task Вложение_сведений_сохраняет_владельца_ядра_и_читается_после_восстановления()
+    {
+        var (admin, type) = await ConfigureAsync();
+        await AddFieldsAsync(admin, type, new JsonObject { ["key"] = "attachment", ["type"] = "file", ["forAcceptance"] = true });
+        var (_, installer) = await World.InstallerAsync("Монтажник");
+        using var scope = host.Services.CreateScope();
+        var blobs = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+        var backup = scope.ServiceProvider.GetRequiredService<BackupService>();
+        var bytes = Encoding.UTF8.GetBytes("Документ в сведениях строки");
+        using var file = new MemoryStream(bytes);
+        var path = await blobs.UploadAsync("act.txt", file, "text/plain");
+        var id = Guid.NewGuid();
+        using var created = await installer.PostAsJsonAsync(Reports, WithDetails(id, World.SiteA, Guid.NewGuid(),
+            new { attachment = new Dictionary<string, object>
+                { ["$type"] = "file", ["blobPath"] = path, ["fileName"] = "act.txt", ["mimeType"] = "text/plain", ["size"] = bytes.Length } }));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var (stream, _) = await backup.ExportAsync(BackupScope.Full);
+        await using var exported = stream;
+        using (var zip = new ZipArchive(exported, ZipArchiveMode.Read, leaveOpen: true))
+        using (var manifestEntry = zip.GetEntry("manifest.json")!.Open())
+        {
+            var manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(manifestEntry);
+            Assert.Contains(path, Assert.Single(manifest!.ModuleData!, section => section.Module == WorkModule.ModuleCode).Files!);
+            Assert.Equal("core", manifest.FileOwnerOverrides![path]);
+            Assert.NotNull(zip.GetEntry($"blobs/{path}"));
+        }
+        exported.Position = 0;
+        await blobs.DeleteAsync(path);
+        var restored = await backup.ImportAsync(exported);
+        Assert.True(restored.Success, string.Join("; ", restored.Warnings));
+        await using var downloaded = await blobs.DownloadAsync(path);
+        using var actual = new MemoryStream();
+        await downloaded.CopyToAsync(actual);
+        Assert.Equal(bytes, actual.ToArray());
     }
 
     [Fact]
@@ -188,6 +277,18 @@ public class WorkReportAcceptanceFieldsTests(AssignmentHost host) : IAsyncLifeti
         using var response = await admin.PutAsJsonAsync($"{Types}/{id}/schema", new { schema = schema.ToJsonString() });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    private static async Task AddFieldsAsync(HttpClient admin, Guid id, params JsonObject[] added)
+    {
+        var type = await admin.GetFromJsonAsync<JsonElement>($"{Types}/{id}");
+        var schema = JsonNode.Parse(type.GetProperty("schema").GetRawText())!.AsObject();
+        foreach (var field in added) schema["fields"]!.AsArray().Add(field);
+        using var response = await admin.PutAsJsonAsync($"{Types}/{id}/schema", new { schema = schema.ToJsonString() });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private static Guid[] ChoiceIds(JsonElement response) => response.GetProperty("items").EnumerateArray()
+        .Select(item => item.GetProperty("id").GetGuid()).ToArray();
 
     private async Task SubmitFilledAsync(HttpClient installer, Guid id, Guid site)
     {

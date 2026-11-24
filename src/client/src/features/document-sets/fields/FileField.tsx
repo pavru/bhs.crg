@@ -11,6 +11,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { Chip } from '@/shared/ui/Chip';
+import { useFieldUploadChange } from './useFieldUploadChange';
 import type { IconDef } from '@/shared/ui/icons';
 
 export interface PrintFormContext {
@@ -167,6 +168,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   const [uploadError, setUploadError] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const attachment = isFileAttachment(value) ? value : null;
+  const uploadChange = useFieldUploadChange(onChange);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -182,7 +184,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
         printForm.onMetaUpdated(updatedFields);
       } else {
         const result = await uploadAttachment(file);
-        onChange(result);
+        uploadChange.current?.(result);
       }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Ошибка загрузки');

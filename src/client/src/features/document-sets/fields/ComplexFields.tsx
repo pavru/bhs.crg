@@ -60,7 +60,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   onChange: (val: unknown[]) => void; showValidation: boolean;
   setId?: string; otherInstances?: DocumentInstance[];
   scope?: CatalogScope; scopeId?: string | null;
-  docRefMode?: 'catalog' | 'instance';
+  docRefMode?: 'catalog' | 'instance' | 'work';
   /** Пути битых ссылок (issue #332) + базовый путь массива — для пометки элементов-ссылок на удалённое. */
   brokenPaths?: Set<string>; basePath?: string;
   /** Отметка времени сохранённого документа: её смена значит «пути диагностики перенумерованы» (#759). */
@@ -460,7 +460,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                         onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v ?? undefined })}
                         setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
                     )
-                  ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
+                  ) : sf.type === 'doc-array' && docRefMode !== 'catalog' ? (
                     <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
                       otherInstances={otherInstances} setId={setId} />
@@ -555,7 +555,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   showValidation: boolean;
   setId?: string; otherInstances?: DocumentInstance[];
   scope?: CatalogScope; scopeId?: string | null;
-  docRefMode?: 'catalog' | 'instance';
+  docRefMode?: 'catalog' | 'instance' | 'work';
   // issue #102: вложенное составное (глубина ≥1) правится в МОДАЛКЕ, а не инлайн — защита от «портянки»/матрёшки.
   nested?: boolean;
   /** Составное поле — ссылка на удалённую запись каталога (issue #332). */
@@ -745,7 +745,7 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
   sf: SchemaField; value: unknown; onChange: (v: unknown) => void;
   allDocTypes: DocumentType[]; showValidation: boolean; setId?: string;
   otherInstances?: DocumentInstance[]; scope?: CatalogScope; scopeId?: string | null;
-  docRefMode?: 'catalog' | 'instance'; primitiveTypes: PrimitiveTypeDef[]; enumTypes?: EnumTypeDef[];
+  docRefMode?: 'catalog' | 'instance' | 'work'; primitiveTypes: PrimitiveTypeDef[]; enumTypes?: EnumTypeDef[];
 }) {
   const primDef = sf.type === 'primitive' ? primitiveTypes.find(pt => pt.id === sf.typeId) : undefined;
   const enumTypeDef = sf.type === 'enum' ? enumTypes.find(et => et.id === sf.typeId) : undefined;
@@ -760,7 +760,7 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
           onChange={v => onChange(v ?? undefined)} otherInstances={otherInstances} setId={setId} />
       : <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={value}
           onChange={v => onChange(v ?? undefined)} setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />;
-  if (sf.type === 'doc-array' && docRefMode === 'instance')
+  if (sf.type === 'doc-array' && docRefMode !== 'catalog')
     return <DocArrayField field={sf} allDocTypes={allDocTypes} value={value}
       onChange={v => onChange(v)} otherInstances={otherInstances} setId={setId} />;
   if (sf.type === 'image') return <ImageField value={value} onChange={v => onChange(v)} />;
@@ -784,7 +784,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: Record<string, unknown>) => void; showValidation: boolean;
   setId?: string; otherInstances?: DocumentInstance[];
-  scope?: CatalogScope; scopeId?: string | null; docRefMode?: 'catalog' | 'instance'; nested?: boolean;
+  scope?: CatalogScope; scopeId?: string | null; docRefMode?: 'catalog' | 'instance' | 'work'; nested?: boolean;
 }) {
   const { primitiveTypes, enumTypes } = useFieldTypeRegistry();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;

@@ -147,6 +147,19 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         return summary;
     }
 
+    private async Task<BackupManifest> WithFileOwnersAsync(BackupManifest manifest, CancellationToken ct)
+    {
+        var sectionOwners = FileOwners(manifest);
+        if (sectionOwners.Count == 0) return manifest;
+
+        var paths = sectionOwners.Keys.ToArray();
+        var registry = await db.BlobRegistry.AsNoTracking().Where(file => paths.Contains(file.Path))
+            .Select(file => new { file.Path, file.Owner }).ToListAsync(ct);
+        var overrides = registry.Where(file => sectionOwners[file.Path] != file.Owner)
+            .ToDictionary(file => file.Path, file => file.Owner, StringComparer.Ordinal);
+        return manifest with { FileOwnerOverrides = overrides.Count == 0 ? null : overrides };
+    }
+
     /// <summary>
     /// Копия одним потоком, без каталога на сервере. Прямого потребителя у этой формы больше нет —
     /// экспорт идёт фоновой задачей в каталог (issue #831), — но она остаётся точкой, на которой
@@ -408,8 +421,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         BackupScope scope, List<string> warnings, DbTransaction tx, CancellationToken ct)
     {
         var manifest = await ReadManifestAsync(scope, warnings, ct);
-        return scope == BackupScope.Full
-            ? manifest with { ModuleData = await modules.ReadAsync(tx, warnings, ct) }
-            : manifest;
+        if (scope != BackupScope.Full) return manifest;
+        var data = await modules.ReadAsync(tx, warnings, ct);
+        return await WithFileOwnersAsync(manifest with { ModuleData = data }, ct);
     }
 }

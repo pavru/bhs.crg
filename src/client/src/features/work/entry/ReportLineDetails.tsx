@@ -25,10 +25,10 @@ interface LineEditorProps {
   onChange: (changes: Partial<DraftLine>) => void;
 }
 
-export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, missingFields, onChange, pickedMaterials, onPickMaterial }:
+export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, missingFields, onChange, onDetailChange, pickedMaterials, onPickMaterial }:
   LineEditorProps & { type?: WorkTypeOption; errors?: RequiredReportField[];
     missingFields?: MissingAcceptanceField[]; pickedMaterials: Record<string, MaterialOption>;
-    onPickMaterial: (material: MaterialOption) => void }) {
+    onPickMaterial: (material: MaterialOption) => void; onDetailChange: (key: string, value: unknown) => void }) {
   const sections = useEntryCatalog(scope, 'sections', '', siteReady);
   const sectionItems = sections.data?.items ?? [];
   const missingSection = line.sectionId && !sectionItems.some(item => item.id === line.sectionId);
@@ -61,7 +61,7 @@ export function ReportLineDetails({ scope, line, siteReady, type, disabled, erro
       picked={pickedMaterials} onPick={onPickMaterial} />
     <CrewFields scope={scope} line={line} siteReady={siteReady} disabled={disabled} onChange={onChange} />
     <ReportCustomerFields details={line.details} missingFields={missingFields} disabled={disabled}
-      siteId={scope.siteId} onChange={details => onChange({ details })} />
+      scope={scope} onChange={onDetailChange} />
   </div>;
 }
 
