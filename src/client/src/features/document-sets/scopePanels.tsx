@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useParams } from 'react-router';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import {
   constructionPanels, panelAt, panelsAt, defaultPanel, type ConstructionPanel, type PanelLevel, type ShownPanel,
@@ -7,9 +7,11 @@ import {
 import { NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { missingFor, allowed } from '@/shared/ui/navAccess';
 import { NoAccessPage } from '@/shared/ui/NoAccessPage';
+import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { EstimatesPanel } from '@/features/planning/estimates/EstimatesPanel';
+import { ConstructionCalendarPanel } from '@/features/planning/calendars/ConstructionCalendarPanel';
 import { AssignmentsPanel } from '@/features/work/assignments/AssignmentsPanel';
 import { CatalogPanel } from './CatalogPanel';
 import { SubscribersResource } from './SubscribersResource';
@@ -27,6 +29,7 @@ export interface PanelScope {
  */
 export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
   estimates: scope => <EstimatesPanel {...scope} />,
+  schedule: ({ constructionId }) => <ConstructionCalendarPanel constructionId={constructionId} />,
   catalog: scope => <CatalogPanel {...scope} />,
   datasets: ({ constructionId, sectionId }) => sectionId
     ? <DataSetsResource scope="Section" scopeId={sectionId} />
@@ -55,7 +58,7 @@ export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
 export function useScopePanels(level: PanelLevel, base: string, scope: PanelScope,
   panels: ConstructionPanel[] = constructionPanels, views = panelViews) {
   const { panel } = useParams<{ panel?: string }>();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const { data, isPending } = useAccess();
   const access = data ?? NO_ACCESS;
   const workspace = useWorkspace();
@@ -64,7 +67,8 @@ export function useScopePanels(level: PanelLevel, base: string, scope: PanelScop
 
   const items = (list: ShownPanel[]) => list.map(p => (
     <NavItem key={p.id} icon={p.icon} label={p.label} active={p.id === active?.id}
-      note={p.outside ? 'вне пространства' : undefined} onClick={() => navigate(`${base}/${p.id}`)} />
+      note={p.outside ? 'вне пространства' : undefined}
+      onClick={() => { if (p.id !== active?.id) navigate(`${base}/${p.id}`); }} />
   ));
 
   let detail: ReactNode = null;

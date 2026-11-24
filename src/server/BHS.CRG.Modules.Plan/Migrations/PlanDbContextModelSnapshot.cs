@@ -23,6 +23,112 @@ namespace BHS.CRG.Modules.Plan.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.CalendarDay", b =>
+                {
+                    b.Property<int>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("kind");
+
+                    b.HasKey("Year", "Date")
+                        .HasName("pk_calendar_days");
+
+                    b.ToTable("calendar_days", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.CalendarYear", b =>
+                {
+                    b.Property<int>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.Property<decimal>("HoursPerShift")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("numeric(4,2)")
+                        .HasColumnName("hours_per_shift");
+
+                    b.Property<string>("ImportFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("import_file_name");
+
+                    b.Property<DateTimeOffset?>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("WorkingWeek")
+                        .HasColumnType("integer")
+                        .HasColumnName("working_week");
+
+                    b.HasKey("Year")
+                        .HasName("pk_calendar_years");
+
+                    b.ToTable("calendar_years", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.ConstructionCalendar", b =>
+                {
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("Shifts")
+                        .HasColumnType("integer")
+                        .HasColumnName("shifts");
+
+                    b.Property<int?>("WorkingWeek")
+                        .HasColumnType("integer")
+                        .HasColumnName("working_week");
+
+                    b.HasKey("ConstructionId")
+                        .HasName("pk_construction_calendars");
+
+                    b.ToTable("construction_calendars", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.ConstructionCalendarDay", b =>
+                {
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("kind");
+
+                    b.HasKey("ConstructionId", "Date")
+                        .HasName("pk_construction_calendar_days");
+
+                    b.ToTable("construction_calendar_days", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.CarryOverItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1704,6 +1810,24 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("volume_statement_lines", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.CalendarDay", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Calendars.CalendarYear", null)
+                        .WithMany("Days")
+                        .HasForeignKey("Year")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.ConstructionCalendarDay", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Calendars.ConstructionCalendar", null)
+                        .WithMany("Days")
+                        .HasForeignKey("ConstructionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.CarryOverItem", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
@@ -1908,6 +2032,16 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasForeignKey("StatementId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.CalendarYear", b =>
+                {
+                    b.Navigation("Days");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Calendars.ConstructionCalendar", b =>
+                {
+                    b.Navigation("Days");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ConjunctureAnalysis", b =>

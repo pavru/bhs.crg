@@ -1,4 +1,5 @@
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Plan.Calendars;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Distribution;
 using BHS.CRG.Modules.Exchange;
@@ -75,6 +76,10 @@ public sealed class PlanModule : IAppModule
 
     public const string PriceListEdit = "plan.pricelist.edit";
 
+    public const string CalendarEdit = "plan.calendar.edit";
+    public const string ScheduleRead = "plan.schedule.read";
+    public const string ScheduleEdit = "plan.schedule.edit";
+
     /// <summary>Почему права контракта не входят в «читать всё»: это выдача другим модулям (D12 зонтика).</summary>
     private static readonly ReadAllMark ContractOut = ReadAllMark.Out("выдача другим модулям: модуль «Планирование» не открывает");
 
@@ -85,11 +90,8 @@ public sealed class PlanModule : IAppModule
     /// <summary>
     /// Права модуля (ТЗ PLAN-23) — каждое с объяснением: галку в редакторе ролей ставит человек.
     ///
-    /// <para>⚠️ Здесь шесть прав из двенадцати по перечню ТЗ, и это правило этапа, а не недоделка
-    /// (D12 зонтика <c>plan-00-epic</c>): право объявляется вместе с первым адресом или контрактом, который
-    /// оно открывает. Объявленное раньше, оно было бы галкой, которая не делает ничего, — а составы
-    /// системных ролей наполнились бы им сразу. Остальные приходят своими change: <c>plan.offer.*</c> —
-    /// 13, <c>plan.pricelist.edit</c> — 14, календарь и графики — 18.</para>
+    /// <para>Право объявляется вместе с первым адресом или контрактом, который оно открывает
+    /// (D12 зонтика <c>plan-00-epic</c>).</para>
     ///
     /// <para><b>Права контракта</b> (<see cref="EstimateMaterials" />, <see cref="LaborRead" />,
     /// <see cref="EstimateHint" />, <c>plan-23</c>) открывают по одной части «Плановых работ» тем, кому
@@ -179,6 +181,21 @@ public sealed class PlanModule : IAppModule
             "заводить, изменять и снимать цены продажи за единицу вида работы с датой начала действия",
             [OfferRead],
             ReadAllMark.Out("правит цены продажи")),
+        new(CalendarEdit,
+            "править производственный календарь компании",
+            "загружать и править рабочую неделю, часы в смене, праздники и переносы на год",
+            [],
+            ReadAllMark.Out("правит календарь компании")),
+        new(ScheduleRead,
+            "видеть графики и календари планирования",
+            "читать производственный календарь компании, календари строек и графики работ",
+            ["core.constructions.read"],
+            ReadAllMark.In),
+        new(ScheduleEdit,
+            "править графики и календари строек",
+            "задавать рабочую неделю, сменность и исключения календаря стройки и править её графики",
+            [ScheduleRead],
+            ReadAllMark.Out("правит графики и календари строек")),
     ];
 
     /// <summary>
@@ -264,6 +281,7 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<DistributionCarryOver>();
         services.AddScoped<DistributionReader>();
         services.AddScoped<DistributionWriter>();
+        services.AddScoped<CalendarStore>();
         // Контракт «Плановые работы» (plan-23): потребители берут его портом IModuleContracts.
         services.AddModuleContract<IPlannedWorks, PlannedWorksProvider>(ModuleCode);
     }
@@ -296,6 +314,7 @@ public sealed class PlanModule : IAppModule
         ConjunctureEndpoints.Map(endpoints);
         OfferEndpoints.Map(endpoints);
         PriceListEndpoints.Map(endpoints);
+        CalendarEndpoints.Map(endpoints);
     }
 
     /// <summary>

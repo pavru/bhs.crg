@@ -66,4 +66,18 @@ export const planOffersMockup: LiveMockup = {
   reference: 'openspec/changes/plan-17-offers-ui/design.md',
 };
 
-export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup];
+const planCalendarsMockup: LiveMockup = {
+  id: 'plan-18-calendars',
+  title: 'П4 · Календари компании и стройки',
+  kind: 'design',
+  entry: 'plan-calendars.html',
+  pages: [
+    { path: 'year', title: 'А · Год целиком' },
+    { path: 'quarter', title: 'Б · Квартал и подробности дня' },
+    { path: 'exceptions', title: 'В · Исключения и обзор года' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/archive/2026-11-24-plan-18-calendars/design.md · Раунд П4',
+};
+
+export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup];

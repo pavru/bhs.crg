@@ -48,6 +48,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         foreach (var (path, module) in new[]
                  {
                      ("/api/quality-docs", "id"), ("/api/costs/invoices", "costs"), ("/api/plan/estimates", "plan"),
+                     ("/api/plan/calendars/company/2027", "plan"),
                  })
         {
             Assert.Contains(module, registry.Disabled.Select(m => m.Code));

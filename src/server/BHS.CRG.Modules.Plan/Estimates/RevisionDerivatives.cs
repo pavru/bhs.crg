@@ -30,15 +30,12 @@ internal sealed record RevisionDerivativeBlock(
 /// <summary>Производные редакций для чтения сметы (PLAN-22). Ответ не содержит денег.</summary>
 internal static class RevisionDerivatives
 {
-    // Право появится в каталоге с первым адресом графиков (plan-18). До plan-19 данных графиков нет.
-    private const string ScheduleRead = "plan.schedule.read";
-
     public static async Task<IResult> GetAsync(Guid id, PlanDbContext db, IModuleUser user, CancellationToken ct)
     {
         var canReadOffers = await user.HasAsync(PlanModule.OfferRead, ct);
-        var schedules = await user.HasAsync(ScheduleRead, ct)
+        var schedules = await user.HasAsync(PlanModule.ScheduleRead, ct)
             ? RevisionDerivativeBlock.Visible([])
-            : RevisionDerivativeBlock.Hidden(ScheduleRead);
+            : RevisionDerivativeBlock.Hidden(PlanModule.ScheduleRead);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var estimate = await db.Estimates.AsNoTracking().Where(e => e.Id == id)
             .Select(e => new { e.Id, e.CurrentRevisionId }).SingleOrDefaultAsync(ct) ?? throw EstimateViews.NotFound();

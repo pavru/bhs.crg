@@ -1,6 +1,7 @@
 using System.Globalization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Plan.Calendars;
 using BHS.CRG.Modules.Plan.Distribution;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -166,6 +167,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     private string Version(object entity) =>
         ((uint)Entry(entity).Property(RowVersion).CurrentValue!).ToString(CultureInfo.InvariantCulture);
 
+    internal string VersionOf(CalendarYear year) => Version(year);
+    internal string VersionOf(ConstructionCalendar calendar) => Version(calendar);
+
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
     {
         try
@@ -200,6 +204,12 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// </summary>
     private ConflictException? Refusal(DbUpdateException e)
     {
+        if ((e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is CalendarYear or CalendarDay)) ||
+            e.InnerException is PostgresException { ConstraintName: CalendarModel.YearKey or CalendarModel.DaysKey })
+            return new ConflictException("Год тем временем изменили. Перечитайте календарь компании и повторите.", e);
+        if ((e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is ConstructionCalendar or ConstructionCalendarDay)) ||
+            e.InnerException is PostgresException { ConstraintName: CalendarModel.ConstructionKey or CalendarModel.ConstructionDaysKey })
+            return new ConflictException("Календарь стройки тем временем изменили. Перечитайте его и повторите.", e);
         if ((e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is PriceListEntry)) ||
             e.InnerException is PostgresException { ConstraintName: PriceListEntry.DateKey })
             return new ConflictException("Цену на эту дату тем временем изменили. Перечитайте прайс-лист и повторите.", e);
@@ -277,5 +287,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         OfferModel.Configure(builder);
         OfferVersion.Map(builder);
         PriceListEntry.Map(builder);
+        CalendarModel.Configure(builder);
     }
 }

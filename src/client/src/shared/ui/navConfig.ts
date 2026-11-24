@@ -1,4 +1,5 @@
 import { WORK_REVIEW_REPORT_PERMISSIONS } from '@/shared/api/work';
+import { CALENDAR_READ } from '@/shared/api/planningCalendars';
 import { Apartment, Assignment, Balance, BarChart, Bookmark, BugReport, Build, Calculate, CalendarCheck, Database, Description, DocumentScanner, Engineering, Group, HistoryIcon, Home, Label, Layers, LinkIcon, LocalShipping, MenuBook, Person, Print, ReceiptLong, Settings, Table, TableChart, VerifiedUser, type FilledIconDef, type IconDef } from './icons';
 
 /**
@@ -178,6 +179,8 @@ export const workNav: NavItem[] = [
     permission: 'plan.offer.read', rail: 'plan' },
   { to: '/price-list',      label: 'Прайс-лист',          icon: ReceiptLong, module: 'plan',
     permission: 'plan.offer.read', rail: 'plan' },
+  { to: '/production-calendar', label: 'Производственный календарь', icon: CalendarCheck, module: 'plan',
+    permission: [...CALENDAR_READ], rail: 'plan' },
   // Запомненные сопоставления смет (plan-09, ответ П1): справочник модуля — им исправляют неверно запомненное.
   { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },
