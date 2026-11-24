@@ -62,8 +62,8 @@ public sealed class ReportHistory(
             ? content.Photos.Where(p => p.StoredInClosingId is { } recorded
                 ? recorded == boundary.Id : p.StoredAt > boundary.At).Select(p => p.Id).ToHashSet()
             : [];
-        var archived = WithPastContent(dto, content, late, selected.Number,
-            selected.Number == atClosing?.Number ? AtClosing : "archived");
+        var archived = await views.WithAcceptanceAsync(WithPastContent(dto, content, late, selected.Number,
+            selected.Number == atClosing?.Number ? AtClosing : "archived"), ct);
         return new(report, archived, selected.Number, atClosing?.Number);
     }
 
@@ -98,7 +98,7 @@ public sealed class ReportHistory(
             .Select(p => p.Id).ToHashSet();
         if (content is null && late.Count == 0) return dto;
 
-        return WithPastContent(dto, content, late, version?.Number, AtClosing);
+        return await views.WithAcceptanceAsync(WithPastContent(dto, content, late, version?.Number, AtClosing), ct);
     }
 
     private static ReportDto WithPastContent(

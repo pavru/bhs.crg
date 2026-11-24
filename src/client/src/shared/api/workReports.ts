@@ -3,6 +3,8 @@ import { apiClient } from './client';
 import { hasModule, hasPermission, type AccessInfo } from './access';
 import type { AssignmentCandidate, WorkLinePhotoRef } from './work';
 import type { ReviewReport, ReviewReportLine } from './workReview';
+import { parseSchemaFields, type SchemaField } from './schema';
+import type { DocumentType, EnumTypeDef, PrimitiveTypeDef } from './types';
 
 export type ReportShift = 'day' | 'night';
 export type ReportMode = 'own' | 'entry';
@@ -68,6 +70,23 @@ export function useEntryCandidates(q: string, date?: string) {
   });
 }
 
+interface LineDetailsSchema {
+  fields: SchemaField[];
+  types: DocumentType[];
+  enumTypes: EnumTypeDef[];
+  primitiveTypes: PrimitiveTypeDef[];
+}
+
+export const reportDetailsSchemaKey = ['work', 'line-details-schema'] as const;
+
+export function useReportDetailsSchema() {
+  return useQuery({
+    queryKey: reportDetailsSchemaKey,
+    queryFn: ({ signal }) => apiClient.get<LineDetailsSchema>('/work/line-details-schema', { signal })
+      .then(({ data }) => ({ ...data, fields: parseSchemaFields({ fields: data.fields }) })),
+  });
+}
+
 export function useOwnReports(enabled: boolean) {
   return useQuery({
     queryKey: ownReportsKey, enabled,
@@ -101,7 +120,7 @@ export interface ReportInput extends ReportHeader {
   hours: number | null;
   note: string | null;
   // Отсутствие photos сохраняет текущий состав фото при записи строк.
-  lines: (Omit<WorkReportLine, 'photos'> & { photos?: WorkLinePhotoRef[] })[];
+  lines: (Omit<WorkReportLine, 'photos' | 'missingFields'> & { photos?: WorkLinePhotoRef[] })[];
 }
 
 export function createWorkReport(mode: ReportMode, id: string, employeeId: string | null, input: ReportInput) {

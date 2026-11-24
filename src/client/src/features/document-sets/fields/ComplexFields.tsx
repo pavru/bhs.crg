@@ -20,9 +20,8 @@ import { SubfieldLabel } from './SubfieldLabel';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { isFieldRef, type CatalogScope, type DocumentInstance, type DocumentType, type EnumTypeDef, type FieldRef, type PrimitiveTypeDef } from '@/shared/api/types';
-import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField } from '@/shared/api/schema';
-import { useListEnumTypes } from '@/shared/api/enumTypes';
+import { useFieldTypeRegistry } from './fieldTypeRegistry';
 import { type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
@@ -146,8 +145,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   // Вынос строки в общие данные (issue #663) — только там, где известно, куда класть запись:
   // редактор документа (есть комплект) либо форма общих данных (есть свой уровень).
   const canExtract = !!compositeType && (!!setId || !!scope);
-  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
-  const { data: enumTypes = [] } = useListEnumTypes();
+  const { primitiveTypes, enumTypes } = useFieldTypeRegistry();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
   const enumDef = (f: SchemaField) => f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
   const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке строки (issue #611)
@@ -569,8 +567,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const [extractOpen, setExtractOpen] = useState(false); // issue #663
   // Внутри окна вложенное раскрывается на месте: окно над окном — только пикер (issue #1384).
   const asWindow = useOwnWindow(nested);
-  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
-  const { data: enumTypes = [] } = useListEnumTypes();
+  const { primitiveTypes, enumTypes } = useFieldTypeRegistry();
   const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке (issue #611)
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
@@ -789,8 +786,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   setId?: string; otherInstances?: DocumentInstance[];
   scope?: CatalogScope; scopeId?: string | null; docRefMode?: 'catalog' | 'instance'; nested?: boolean;
 }) {
-  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
-  const { data: enumTypes = [] } = useListEnumTypes();
+  const { primitiveTypes, enumTypes } = useFieldTypeRegistry();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];

@@ -24,6 +24,7 @@ export const WORK_MARK_CODES = [
   'crew-mismatch',
   'accepted-changed',
   'late-delivery',
+  'fields-missing',
 ] as const;
 
 export type WorkMarkCode = (typeof WORK_MARK_CODES)[number];

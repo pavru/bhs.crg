@@ -13,6 +13,7 @@ const catalog: Record<WorkMarkCode, { label: string; icon: IconDef; tone: Status
   'crew-mismatch': { label: 'расхождение в бригаде', icon: Group, tone: 'warning' },
   'accepted-changed': { label: 'изменение принятого', icon: HistoryIcon, tone: 'warning' },
   'late-delivery': { label: 'поздняя доставка', icon: Schedule, tone: 'neutral' },
+  'fields-missing': { label: 'не заполнены поля', icon: Warning, tone: 'warning' },
 };
 
 function knownMark(code: string): code is WorkMarkCode {

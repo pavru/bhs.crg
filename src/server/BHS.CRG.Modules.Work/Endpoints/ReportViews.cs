@@ -27,7 +27,12 @@ public sealed record ReportLineDto(
     Guid Id, int Position, Guid WorkTypeId, Guid? VariantId, decimal Volume, Guid UnitId, Guid? SectionId,
     string? Location, string? Comment, bool IsCrew, Guid WorkPlanItemId, JsonElement Details,
     IReadOnlyList<ReportMaterialDto> Materials, IReadOnlyList<Guid> Participants, IReadOnlyList<ReportPhotoDto> Photos,
-    string? CrewRole);
+    string? CrewRole)
+{
+    // Снимок версии хранит значения, а пометки рассчитываются при чтении по действующей схеме.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ModuleAcceptanceField>? MissingFields { get; init; }
+}
 
 /// <summary>Кто ввёл отчёт за сотрудника (ТЗ WORK-31): учётная запись и имя снимком на момент заведения.</summary>
 public sealed record ReportEnteredByDto(Guid UserId, string Name);
@@ -67,6 +72,7 @@ public sealed record ReportDto(
     public string? EmployeeName { get; init; }
     public string? ReturnComment { get; init; }
     public bool PeriodClosed { get; init; }
+    public int MissingFieldsCount { get; init; }
 }
 
 /// <summary>
@@ -78,8 +84,13 @@ public sealed record ReportDto(
 /// </summary>
 public sealed class ReportViews(
     WorkDbContext db, IModuleUser user, ReportReads reads, IModuleConstructions constructions,
-    IModuleEmployees employees, IModuleClock clock, ReportPeriods periods)
+    IModuleEmployees employees, IModuleClock clock, ReportPeriods periods, IModuleAcceptanceFields acceptanceFields)
 {
+    private Task<ModuleAcceptanceSchema>? _acceptance;
+
+    private Task<ModuleAcceptanceSchema> ReadAcceptanceAsync(CancellationToken ct) =>
+        _acceptance ??= acceptanceFields.ReadAsync(WorkModule.ModuleCode, WorkRecordTypes.LineDetailsCode, ct);
+
     /// <summary>Отчёт, прочитанный с отслеживанием: версия — его текущая версия строки.</summary>
     public async Task<ReportDto> OneAsync(
         ReportViewer viewer, Report report, bool replayed = false, bool alreadySubmitted = false, CancellationToken ct = default)
@@ -88,7 +99,10 @@ public sealed class ReportViews(
         if (dto.PhotosPending == 0) return dto;
 
         var closing = dto.PeriodClosed ? await periods.ClosingAsync(report, ct) : null;
-        return dto with { Lines = LinesOf(report, p => ReportPeriods.DeliveryAllowed(p, dto.PeriodClosed, closing)) };
+        return await WithAcceptanceAsync(dto with
+        {
+            Lines = LinesOf(report, p => ReportPeriods.DeliveryAllowed(p, dto.PeriodClosed, closing)),
+        }, ct);
     }
 
     /// <param name="versions">Версии отчётов, прочитанных без отслеживания (выдача курсора); не названы — версия
@@ -98,6 +112,7 @@ public sealed class ReportViews(
         IReadOnlyDictionary<Guid, string>? versions = null)
     {
         if (reports.Count == 0) return [];
+        var acceptance = await ReadAcceptanceAsync(ct);
         var marks = await reads.MarksAsync(viewer, [.. reports.Select(r => r.Id)], user.Id, ct);
         var history = await reads.VersionListsAsync(viewer, user.Id, reports, ct);
         var sites = (await constructions.ListAsync(ct)).ToDictionary(site => site.Id);
@@ -114,7 +129,7 @@ public sealed class ReportViews(
             .. reports.Select(r =>
             {
                 var codes = marks.GetValueOrDefault(r.Id) ?? [];
-                return Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
+                return ApplyAcceptance(Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
                     versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes,
                     history.GetValueOrDefault(r.Id) ?? []) with
                 {
@@ -124,9 +139,24 @@ public sealed class ReportViews(
                     EmployeeName = people.GetValueOrDefault(r.EmployeeId),
                     PeriodClosed = ReportPeriods.IsClosed(boundaries, r.ConstructionId, r.Date),
                     ReturnComment = returns.GetValueOrDefault(r.Id),
-                };
+                }, acceptance);
             }),
         ];
+    }
+
+    internal async Task<ReportDto> WithAcceptanceAsync(ReportDto dto, CancellationToken ct) =>
+        ApplyAcceptance(dto, await ReadAcceptanceAsync(ct));
+
+    private static ReportDto ApplyAcceptance(ReportDto dto, ModuleAcceptanceSchema acceptance)
+    {
+        var lines = dto.Lines.Select(line => line with { MissingFields = acceptance.Missing(line.Details) }).ToArray();
+        var count = lines.Sum(line => line.MissingFields!.Count);
+        return dto with
+        {
+            Lines = lines,
+            MissingFieldsCount = count,
+            Marks = ReviewMarks.Dtos(dto.Marks.Select(mark => mark.Code).ToArray(), dto.PhotosPending, count),
+        };
     }
 
     /// <summary>

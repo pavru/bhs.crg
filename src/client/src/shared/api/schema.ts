@@ -27,6 +27,8 @@ export interface SchemaField {
   /** Set when type === 'enum'. List of allowed string values. */
   options?: string[];
   required: boolean;
+  /** Пустое поле отмечается в приёмке, сохраняя возможность принять отчёт. */
+  forAcceptance?: boolean;
   /** Pre-filled value for new entries. For 'array' fields use [] as default. */
   defaultValue?: unknown;
   /** Functional tags binding this field to hard-coded behaviour (registry: GET /api/tags). */
@@ -184,6 +186,7 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
     typeId: f.typeId,
     options: f.options,
     required: f.required ?? false,
+    forAcceptance: f.forAcceptance,
     defaultValue: f.defaultValue,
     tags: f.tags,
     computed: f.computed,

@@ -124,6 +124,7 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
       <div ref={details} key={expandedLine.id}>
         <ReportLineDetails scope={scope} siteReady={siteReady} line={expandedLine}
           type={typeOf(expandedLine.workTypeId)} disabled={disabled} errors={errors?.filter(error => error.lineId === expandedLine.id)}
+          missingFields={savedLines?.find(line => line.id === expandedLine.id)?.missingFields}
           pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
           onChange={changes => update(expandedLine, changes)} />
         <LinePhotos lineId={expandedLine.id} photos={expandedLine.photos}

@@ -16,7 +16,7 @@ public static class DocumentTypeEndpoints
         var g = app.MapGroup("/api/document-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesRead));
         var admin = app.MapGroup("/api/document-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesEdit));
 
-        g.MapGet("/", async (string? kind, IMediator m) =>
+        g.MapGet("/", async (string? kind, IMediator m, IDocumentTypeCapabilities capabilities) =>
         {
             DocumentTypeKind? filter = kind switch
             {
@@ -24,13 +24,14 @@ public static class DocumentTypeEndpoints
                 "Composite" => DocumentTypeKind.Composite,
                 _           => null,
             };
-            return Results.Ok(await m.Send(new ListDocumentTypesQuery(filter)));
+            var types = await m.Send(new ListDocumentTypesQuery(filter));
+            return Results.Ok(types.Select(dt => TypeView(dt, capabilities)));
         });
 
-        g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        g.MapGet("/{id:guid}", async (Guid id, IMediator m, IDocumentTypeCapabilities capabilities) =>
         {
             var dt = await m.Send(new GetDocumentTypeQuery(id));
-            return dt is null ? Results.NotFound() : Results.Ok(dt);
+            return dt is null ? Results.NotFound() : Results.Ok(TypeView(dt, capabilities));
         });
 
         admin.MapPost("/", async (CreateTypeRequest req, ModuleRegistry modules, IMediator m) =>
@@ -142,6 +143,13 @@ public static class DocumentTypeEndpoints
     /// Отказ называет, что можно: список допустимых кодов короткий, и человеку он полезнее, чем
     /// слово «недопустимо».
     /// </summary>
+    private static object TypeView(DocumentType dt, IDocumentTypeCapabilities capabilities) => new
+    {
+        dt.Id, dt.Name, dt.Code, dt.Kind, dt.ParentId, dt.IsAbstract, dt.AllowsProxy, dt.Group,
+        dt.Module, dt.Storage, dt.EditLevel, dt.Visibility, dt.ReadChannels, dt.Schema, dt.PluginBindings,
+        dt.CreatedAt, dt.UpdatedAt, AcceptanceFields = capabilities.SupportsAcceptance(dt),
+    };
+
     private static bool TryOwner(string? module, ModuleRegistry modules,
         out string owner, out IResult refusal)
     {

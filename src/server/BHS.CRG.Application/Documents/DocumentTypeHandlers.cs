@@ -22,7 +22,8 @@ public class DocumentTypeHandlers(
     IDataSetService dataSetService,
     IRecordHolders holders,
     IActivityLog journal,
-    TagCatalog tags) :
+    TagCatalog tags,
+    IDocumentTypeCapabilities capabilities) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
@@ -258,6 +259,8 @@ public class DocumentTypeHandlers(
         var dt = DocumentType.Create(
             cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema,
             cmd.Module, TypeVisibility.Shared, cmd.IsAbstract);
+        // Открытый тип, созданный в редакторе, не объявлен модулем и не поддерживает приёмку.
+        EnsureSchemaEdit(dt, cmd.Schema, cmd.Schema);
         // Ограничения тэгов — ПОСЛЕ построения типа (issue #258, #959): новый тип может сразу нести
         // и ограниченный тэг, и второе поле с одиночным, а кратность считается по цепочке
         // наследования — то есть по типу, а не по одной схеме.
@@ -411,9 +414,7 @@ public class DocumentTypeHandlers(
 
         // Уровень правки (ТЗ CORE-19.1): что администратору можно сделать со схемой ЭТОГО типа.
         // Проверка идёт ДО записи и сравнивает старую схему с новой по полям модуля.
-        if (SchemaEditPolicy.Refusals(dt.Schema, cmd.Schema, dt.EditLevel) is { Count: > 0 } refusals)
-            throw new ConflictException(
-                $"Схему типа «{dt.Name}» так править нельзя: " + string.Join("; ", refusals) + ".");
+        EnsureSchemaEdit(dt, dt.Schema, cmd.Schema);
 
         // Прежнее состояние — ДО правки: после UpdateSchema сравнивать уже не с чем.
         var wasFields = SchemaChangeSummary.Describe(dt.Schema);
@@ -435,6 +436,14 @@ public class DocumentTypeHandlers(
             dt.Id.ToString(), dt.Name, before: wasFields, after: change, ct: ct);
 
         return dt;
+    }
+
+    private void EnsureSchemaEdit(DocumentType type, System.Text.Json.JsonDocument before, System.Text.Json.JsonDocument after)
+    {
+        if (SchemaEditPolicy.Refusals(before, after, type.EditLevel,
+                capabilities.SupportsAcceptance(type)) is { Count: > 0 } refusals)
+            throw new ConflictException(
+                $"Схему типа «{type.Name}» так править нельзя: " + string.Join("; ", refusals) + ".");
     }
 
     /// <summary>

@@ -6,6 +6,7 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard } from './FieldBuilder';
+import { AcceptanceFieldFlag } from './FieldFlags';
 import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 import { StatusText } from '@/shared/ui/StatusText';
 import { Card } from '@/shared/ui/Card';
@@ -20,7 +21,7 @@ import { TextField } from '@/shared/ui/TextField';
  * группы (в конец) / «Без группы» (разгруппировать). Порядок групп — стрелками на шапке группы.
  */
 export function GroupedFieldsEditor({
-  fields, onFieldsChange, groups, onGroupsChange, ungroupedOrder = [], onUngroupedOrderChange, parentEffectiveFields, disabledKeys, persistedKeys, onKeyRename, reg,
+  fields, onFieldsChange, groups, onGroupsChange, ungroupedOrder = [], onUngroupedOrderChange, parentEffectiveFields, disabledKeys, persistedKeys, onKeyRename, reg, acceptanceFields,
 }: {
   fields: SchemaField[];
   onFieldsChange: (f: SchemaField[]) => void;
@@ -36,6 +37,7 @@ export function GroupedFieldsEditor({
   /** Смена ключа сохранённого поля (issue #357) — для миграции данных на сохранении. */
   onKeyRename?: (from: string, to: string) => void;
   reg: FieldRegistries;
+  acceptanceFields?: boolean;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);   // uid только что добавленного поля (issue #526)
@@ -195,6 +197,7 @@ export function GroupedFieldsEditor({
         {lineBefore(own.key) && <DropLine />}
         <FieldCard
           field={own}
+          acceptanceFlag={acceptanceFields && <AcceptanceFieldFlag field={own} onChange={patch => patchOwn(own, patch)} />}
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
           otherKeys={[...(disabledKeys ?? []), ...fields.filter(f => f !== own).map(f => f.key)]}
@@ -249,6 +252,9 @@ export function GroupedFieldsEditor({
 
   return (
     <div className="space-y-3">
+      {acceptanceFields && <div className="me-5 ms-auto w-32 text-center text-label-medium text-on-surface-variant">
+        Нужно к приёмке
+      </div>}
       {/* Без группы (катч-олл) — первой: эти поля идут первыми в формах редактирования (#197) */}
       {(() => {
         const zone = dropZoneProps(null);

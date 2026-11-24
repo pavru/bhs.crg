@@ -25,7 +25,7 @@ public record EnumOptionInfo(string Code, string Label);
 /// следит <c>SchemaEditPolicy</c> на ЛЮБОМ уровне правки.</param>
 public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null,
     JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null, bool Required = false,
-    bool Computed = false, string? Expression = null, bool Locked = false);
+    bool Computed = false, string? Expression = null, bool Locked = false, bool ForAcceptance = false);
 
 /// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
 public static class SchemaFieldKinds
@@ -173,7 +173,9 @@ public static class DocumentTypeSchemaReader
                     ? ep.GetString() : null;
                 // Замок (issue #957) — метка модуля, читается так же, как происхождение поля.
                 var locked = f.TryGetProperty(SchemaFieldLock.Property, out var lk) && lk.ValueKind == JsonValueKind.True;
-                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options, required, computed, expression, locked));
+                var forAcceptance = f.TryGetProperty("forAcceptance", out var fa) && fa.ValueKind == JsonValueKind.True;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options, required, computed,
+                    expression, locked, forAcceptance));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)

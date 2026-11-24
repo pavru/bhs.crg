@@ -11,6 +11,8 @@ import { apiError } from '@/shared/utils/apiError';
 import { newLocalId } from '@/shared/utils/localId';
 import { parseNumber } from '@/shared/utils/parseNumber';
 import { workLabel } from './workLabel';
+import { ReportCustomerFields } from '../ReportCustomerFields';
+import { sameContent } from '../entry/reportContents';
 
 export function ReportLineEdit({ card, onClose, onSaved }: {
   card: ReviewFullCard; onClose: () => void; onSaved: () => void;
@@ -24,12 +26,13 @@ export function ReportLineEdit({ card, onClose, onSaved }: {
   const values = rows.map(row => parseNumber(row.amount, 'ru-RU'));
   const valid = values.every(value => value != null && value >= 0);
   const changed = rows.some((row, i) => values[i] !== original.report.lines[i].volume
-    || (row.location || null) !== original.report.lines[i].location);
+    || (row.location || null) !== original.report.lines[i].location
+    || !sameContent(row.details, original.report.lines[i].details));
   const leave = useGuardedLeave();
 
   async function persist(): Promise<boolean> {
     if (!valid || !changed || busy) return false;
-    const lines = rows.map((row, i) => ({ id: row.id, location: row.location, volume: values[i]! }));
+    const lines = rows.map((row, i) => ({ id: row.id, location: row.location, volume: values[i]!, details: row.details }));
     const payload = JSON.stringify(lines);
     if (attempt.current?.payload !== payload) attempt.current = { payload, changeId: newLocalId() };
     setBusy(true);
@@ -65,6 +68,9 @@ export function ReportLineEdit({ card, onClose, onSaved }: {
   return <form onSubmit={save} className="space-y-3" aria-label="Правка строк отчёта">
     {error && <Banner tone="error">{error}</Banner>}
     <EditGrid rows={rows} columns={columns} rowKey={row => row.id} label="Строки отчёта" numbered sheet />
+    {rows.map((row, index) => <ReportCustomerFields key={row.id} title={`Поля заказчика · строка ${index + 1}`}
+      details={row.details} missingFields={row.missingFields} siteId={card.report.constructionId} disabled={busy}
+      onChange={details => setRows(current => current.map(line => line.id === row.id ? { ...line, details } : line))} />)}
     <div className="flex flex-wrap justify-end gap-2">
       <Button variant="text" onClick={() => leave(onClose)} disabled={busy}>Отмена</Button>
       <Button variant="filled" type="submit" disabled={!valid || !changed} loading={busy}>Сохранить правку</Button>

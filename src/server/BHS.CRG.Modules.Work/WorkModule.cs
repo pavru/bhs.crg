@@ -262,6 +262,7 @@ public sealed class WorkModule : IAppModule
         AssignmentEndpoints.Map(endpoints);
         MySitesEndpoint.Map(endpoints);
         ReportEndpoints.Map(endpoints);
+        ReportDetailsSchema.Map(endpoints);
         EntryReportEndpoints.Map(endpoints);
         ReportEntryCatalog.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);

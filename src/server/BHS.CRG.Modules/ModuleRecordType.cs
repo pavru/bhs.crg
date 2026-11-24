@@ -146,6 +146,7 @@ public enum ModuleStorage
 ///
 /// <para>⚠️ Род, как и носитель, объявляется, но не переносится: у заведённого типа он остаётся тем,
 /// каким тип заведён.</para></param>
+/// <param name="AcceptanceFields">Расширяемый тип поддерживает клиентские поля «нужно к приёмке».</param>
 public sealed record ModuleRecordType(
     string Code,
     string Name,
@@ -154,7 +155,8 @@ public sealed record ModuleRecordType(
     string? Group = null,
     ModuleStorage Storage = ModuleStorage.SharedObject,
     bool SkipWhenBlocked = false,
-    ModuleTypeKind Kind = ModuleTypeKind.Document);
+    ModuleTypeKind Kind = ModuleTypeKind.Document,
+    bool AcceptanceFields = false);
 
 /// <summary>
 /// Род типа модуля (ТЗ TYPE-7). ⚠️ ЗЕРКАЛО доменного <c>DocumentTypeKind</c> — по той же причине и с тем

@@ -76,11 +76,28 @@ public static class SchemaEditPolicy
     /// <summary>
     /// Чем правка запрещена — словами, готовыми к показу человеку. Пусто — правка разрешена.
     /// </summary>
-    public static IReadOnlyList<string> Refusals(JsonDocument before, JsonDocument after, SchemaEditLevel level)
+    public static IReadOnlyList<string> Refusals(
+        JsonDocument before, JsonDocument after, SchemaEditLevel level, bool acceptanceFields = false)
     {
         var problems = new List<string>();
         var old = Snapshot(before);
         var now = Snapshot(after);
+
+        foreach (var field in now.Fields.Values)
+        {
+            old.Fields.TryGetValue(field.Key, out var previous);
+            if (level == SchemaEditLevel.Closed && field.ForAcceptance != (previous?.ForAcceptance ?? false))
+                problems.Add($"у поля «{Name(field)}» нельзя менять признак «нужно к приёмке»: " +
+                             "в закрытом типе администратору остаётся только подпись");
+            else if (!field.ForAcceptance)
+                continue;
+            else if (field.FromModule || previous is { FromModule: true })
+                problems.Add($"у поля модуля «{Name(field)}» нельзя ставить признак «нужно к приёмке»");
+            else if (field.Computed)
+                problems.Add($"у расчётного поля «{Name(field)}» нельзя ставить признак «нужно к приёмке»: его не заполняют");
+            else if (level != SchemaEditLevel.Extendable || !acceptanceFields)
+                problems.Add($"у поля «{Name(field)}» нельзя ставить признак «нужно к приёмке»: у типа нет приёмки");
+        }
 
         // ── Замок: проверяется НА ЛЮБОМ УРОВНЕ, до раннего выхода ─────────────
         //
@@ -224,7 +241,7 @@ public static class SchemaEditPolicy
     private sealed record FieldSnapshot(
         string Key, string Type, string? TypeId, bool Required, string? Title,
         IReadOnlyList<string> Tags, IReadOnlyList<string> Options, bool FromModule,
-        bool Computed, string? Expression, JsonElement? DefaultValue, bool Locked);
+        bool Computed, string? Expression, JsonElement? DefaultValue, bool Locked, bool ForAcceptance);
 
     private sealed record SchemaSnapshot(
         IReadOnlyDictionary<string, FieldSnapshot> Fields, IReadOnlyList<string> Order,
@@ -271,7 +288,8 @@ public static class SchemaEditPolicy
                     f.TryGetProperty("computed", out var cp) && cp.ValueKind == JsonValueKind.True,
                     Str(f, "expression"),
                     Element(f, "defaultValue"),
-                    f.TryGetProperty(SchemaFieldLock.Property, out var lk) && lk.ValueKind == JsonValueKind.True);
+                    f.TryGetProperty(SchemaFieldLock.Property, out var lk) && lk.ValueKind == JsonValueKind.True,
+                    f.TryGetProperty("forAcceptance", out var fa) && fa.ValueKind == JsonValueKind.True);
                 fields[key] = snapshot;
                 order.Add(key);
             }
