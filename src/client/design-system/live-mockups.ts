@@ -77,7 +77,7 @@ const planCalendarsMockup: LiveMockup = {
     { path: 'exceptions', title: 'В · Исключения и обзор года' },
   ],
   aliases: [],
-  reference: 'openspec/changes/plan-18-calendars/design.md · Раунд П4',
+  reference: 'openspec/changes/archive/2026-11-24-plan-18-calendars/design.md · Раунд П4',
 };
 
 export const liveMockups = [duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup];
