@@ -10,6 +10,7 @@ import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { DateField } from '@/shared/ui/DateField';
+import { LeaveGuard } from '@/shared/ui/LeaveGuard';
 import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { apiError, isConflict } from '@/shared/utils/apiError';
@@ -21,6 +22,7 @@ const exceptionColumns: DataGridColumn<CalendarDay>[] = [
   { key: 'date', label: 'Дата', rowHeader: true, cell: day => formatDate(day.date) },
   { key: 'kind', label: 'Вид дня', cell: day => <DayLabel kind={day.kind} fallback="" /> },
 ];
+const inputOf = ({ workingWeek, shifts, days }: ConstructionCalendar): ConstructionCalendarInput => ({ workingWeek, shifts, days });
 
 export function ConstructionCalendarPanel({ constructionId }: { constructionId: string }) {
   const can = useCan();
@@ -30,22 +32,49 @@ export function ConstructionCalendarPanel({ constructionId }: { constructionId: 
     {query.isError && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => { void query.refetch(); } }]}>
       {apiError(query.error, 'Календарь стройки не прочитался.')}
     </Banner>}
-    {query.data && <ConstructionCalendarForm key={`${constructionId}/${query.data.version}`} calendar={query.data}
+    {query.data && <ConstructionCalendarForm key={constructionId} calendar={query.data}
       canEdit={can.permission(SCHEDULE_EDIT)} reload={query.refetch} />}
   </section>;
 }
 
 function ConstructionCalendarForm({ calendar, canEdit, reload }: {
-  calendar: ConstructionCalendar; canEdit: boolean; reload: () => Promise<{ isSuccess: boolean }>;
+  calendar: ConstructionCalendar; canEdit: boolean;
+  reload: () => Promise<{ isSuccess: boolean; data?: ConstructionCalendar }>;
 }) {
-  const [draft, setDraft] = useState<ConstructionCalendarInput>(() => ({
-    workingWeek: calendar.workingWeek, shifts: calendar.shifts, days: calendar.days,
-  }));
+  const [baseline, setBaseline] = useState(calendar);
+  const [draft, setDraft] = useState(() => inputOf(calendar));
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const save = useSaveConstructionCalendar(calendar.constructionId);
   const editingDisabled = save.isPending;
-  const dirty = draft.workingWeek !== calendar.workingWeek || draft.shifts !== calendar.shifts ||
-    JSON.stringify(draft.days) !== JSON.stringify(calendar.days);
+  const dirty = draft.workingWeek !== baseline.workingWeek || draft.shifts !== baseline.shifts ||
+    JSON.stringify(draft.days) !== JSON.stringify(baseline.days);
+  const stale = isConflict(save.error);
+
+  // Обновление фоном меняет только чистую форму. У черновика остаётся версия, с которой его начали.
+  if (calendar.version !== baseline.version && !dirty && !editingDisabled && editingDate === null) {
+    setBaseline(calendar);
+    setDraft(inputOf(calendar));
+  }
+
+  async function saveCalendar() {
+    try {
+      const saved = await save.mutateAsync({ version: baseline.version, input: draft });
+      setBaseline(saved);
+      setDraft(inputOf(saved));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function reloadCalendar() {
+    const result = await reload();
+    if (result.isSuccess && result.data) {
+      setBaseline(result.data);
+      setDraft(inputOf(result.data));
+      save.reset();
+    }
+  }
 
   function updateDay(date: string, kind: CalendarDayKind | null) {
     setDraft(current => ({ ...current, days: replaceDay(current.days, date, kind) }));
@@ -53,13 +82,16 @@ function ConstructionCalendarForm({ calendar, canEdit, reload }: {
   }
 
   return <>
+    <LeaveGuard active={canEdit && dirty} saving={editingDisabled} save={saveCalendar}
+      message="Сохранить изменения календаря стройки перед переходом?"
+      saveBlocked={stale ? SITE_CONFLICT : undefined} />
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-title-large">Календарь стройки</h2>
-      {canEdit && <Button variant="filled" loading={save.isPending} disabled={!dirty || isConflict(save.error)}
-        onClick={() => save.mutate({ version: calendar.version, input: draft })}>Сохранить календарь</Button>}
+      {canEdit && <Button variant="filled" loading={save.isPending} disabled={!dirty || stale}
+        onClick={() => { void saveCalendar(); }}>Сохранить календарь</Button>}
     </div>
     <CalendarWriteRefusal error={save.error} conflict={SITE_CONFLICT}
-      onReload={() => { void reload().then(result => { if (result.isSuccess) save.reset(); }); }} />
+      onReload={() => { void reloadCalendar(); }} />
     <div className="@container min-w-0">
       <div className="grid min-w-0 items-start gap-3 @3xl:grid-cols-2">
         <Card className="min-w-0" title="Рабочая неделя и смены">

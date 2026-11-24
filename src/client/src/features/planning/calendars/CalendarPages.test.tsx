@@ -2,11 +2,13 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
+import { useScopePanels } from '@/features/document-sets/scopePanels';
 import type { CompanyCalendar, ConstructionCalendar } from '@/shared/api/planningCalendars';
 import { LocaleContext } from '@/shared/hooks/useLocale';
+import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { CompanyCalendarPage } from './CompanyCalendarPage';
 import { CompanyWeekDialog } from './CompanyCalendarDialogs';
 import { ConstructionCalendarPanel } from './ConstructionCalendarPanel';
@@ -14,7 +16,11 @@ import { ConstructionCalendarPanel } from './ConstructionCalendarPanel';
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), put: vi.fn() } }));
 vi.mock('@/shared/format/companyDay', () => ({ companyToday: () => '2027-02-20' }));
 let rights: string[];
-vi.mock('@/shared/api/access', () => ({ useCan: () => ({ permission: (code: string) => rights.includes(code) }) }));
+vi.mock('@/shared/api/access', async importOriginal => ({
+  ...await importOriginal<typeof import('@/shared/api/access')>(),
+  useCan: () => ({ permission: (code: string) => rights.includes(code) }),
+  useAccess: () => ({ data: { permissions: rights, modules: [{ code: 'plan', title: 'Планирование', available: true }] }, isPending: false }),
+}));
 
 const company: CompanyCalendar = {
   year: 2027, version: '70', configured: true, workingWeek: 31, hoursPerShift: 8,
@@ -25,10 +31,12 @@ const site: ConstructionCalendar = {
   constructionId: 'site', timeZoneId: 'Asia/Vladivostok', workingWeek: null, shifts: 1, days: [], version: '91',
 };
 
-function mount(child = <CompanyCalendarPage />) {
+function mount(child = <CompanyCalendarPage />, address = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrap = (page: ReactNode) => <QueryClientProvider client={client}>
-    <LocaleContext.Provider value={['ru-RU', () => {}, 'idle']}><MemoryRouter>{page}</MemoryRouter></LocaleContext.Provider>
+    <LocaleContext.Provider value={['ru-RU', () => {}, 'idle']}>
+      <MemoryRouter initialEntries={[address]}><NavigationGuardProvider>{page}</NavigationGuardProvider></MemoryRouter>
+    </LocaleContext.Provider>
   </QueryClientProvider>;
   const view = render(wrap(child));
   return (page: ReactNode) => view.rerender(wrap(page));
@@ -60,16 +68,21 @@ it('чтение показывает исключение без действи
   expect(screen.queryByRole('button', { name: 'Сохранить день' })).toBeNull();
 });
 
-it('правка дня называет считанную версию и предлагает перечитать год после 409', async () => {
+it('правка дня называет считанную версию и показывает 409 после выбора соседней даты', async () => {
   rights = ['plan.calendar.edit'];
   vi.mocked(apiClient.get).mockResolvedValueOnce({ data: company }).mockResolvedValue({
     data: { ...company, version: '71', days: [{ date: '2027-02-20', kind: 'working' }] },
   });
-  vi.mocked(apiClient.put).mockRejectedValue({ response: { status: 409 } });
+  let rejectSave!: (error: unknown) => void;
+  vi.mocked(apiClient.put).mockImplementation(() => new Promise((_, reject) => { rejectSave = reject; }));
   mount();
   await screen.findByRole('combobox', { name: 'Вид дня' });
   choose('Вид дня', 'Нерабочий день');
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить день' }));
+  await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: /21 .*феврал/i }));
+  expect(screen.getByRole('heading', { name: '21.02.2027' })).toBeTruthy();
+  await act(async () => { rejectSave({ response: { status: 409 } }); });
   await screen.findByText('Год тем временем изменили. Перечитайте календарь.');
   expect(apiClient.put).toHaveBeenCalledWith('/plan/calendars/company/2027', {
     workingWeek: 31, hoursPerShift: 8, days: [{ date: '2027-02-20', kind: 'holiday' }],
@@ -77,6 +90,35 @@ it('правка дня называет считанную версию и пр
   expect((screen.getByRole('button', { name: 'Сохранить день' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Перечитать' }));
   await screen.findByRole('button', { name: /20 .*феврал.*Рабочий выходной/i });
+});
+
+function ConstructionPanels() {
+  const panels = useScopePanels('construction', '/sites/site', { constructionId: 'site' }, undefined, {
+    schedule: ({ constructionId }) => <ConstructionCalendarPanel constructionId={constructionId} />,
+    catalog: () => <p>Карточка каталога</p>,
+  });
+  return <>{panels.workNav}{panels.ownNav('Эта стройка')}{panels.detail}</>;
+}
+
+it('переход в другую панель стройки предлагает сохранить черновик и ждёт ответа', async () => {
+  rights = ['plan.schedule.read', 'plan.schedule.edit'];
+  vi.mocked(apiClient.get).mockResolvedValue({ data: site });
+  let finish!: (answer: { data: ConstructionCalendar }) => void;
+  vi.mocked(apiClient.put).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  mount(<Routes><Route path="/sites/site/:panel" element={<ConstructionPanels />} /></Routes>, '/sites/site/schedule');
+  await screen.findByRole('heading', { name: 'Календарь стройки' });
+  choose('Смен в день', '2');
+  fireEvent.click(screen.getByRole('button', { name: 'Каталог' }));
+  await screen.findByRole('dialog', { name: 'Несохранённые изменения' });
+  fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(screen.getByRole('combobox', { name: 'Смен в день' }).textContent).toContain('2');
+  fireEvent.click(screen.getByRole('button', { name: 'Каталог' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Сохранить и перейти' }));
+  await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/plan/calendars/constructions/site',
+    { workingWeek: null, shifts: 2, days: [] }, { headers: { 'If-Match': '91' } }));
+  expect(screen.queryByText('Карточка каталога')).toBeNull();
+  await act(async () => { finish({ data: { ...site, version: '92', shifts: 2 } }); });
+  await screen.findByText('Карточка каталога');
 });
 
 it('сохраняет рабочую неделю и сменность стройки с одной версией прочитанного календаря', async () => {

@@ -29,26 +29,39 @@ export function CompanyCalendarPage() {
   const [year, setYear] = useState(() => Number(companyToday().slice(0, 4)));
   const [open, setOpen] = useState<'settings' | 'import' | null>(null);
   const query = useCompanyCalendar(year, CALENDAR_READ.some(can.permission));
+  const saveDay = useSaveCompanyCalendar(year);
   const calendar = query.data;
 
+  function moveYear(offset: number) {
+    saveDay.reset();
+    setYear(current => current + offset);
+  }
+
   function reload() {
-    void query.refetch().then(result => { if (result.isSuccess) setOpen(null); });
+    void query.refetch().then(result => {
+      if (result.isSuccess) {
+        saveDay.reset();
+        setOpen(null);
+      }
+    });
   }
 
   return <div className="h-full overflow-auto">
     <section className="mx-auto grid min-w-0 max-w-7xl grid-cols-1 gap-4 px-4 py-5 sm:px-6">
       <PageHeader title="Производственный календарь" actions={canEdit && calendar &&
-        <Button variant="filled" onClick={() => setOpen('import')}>Загрузить календарь…</Button>} />
+        <Button variant="filled" disabled={saveDay.isPending} onClick={() => setOpen('import')}>Загрузить календарь…</Button>} />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <IconButton icon={ChevronLeft} label="Предыдущий год" disabled={year <= MIN_YEAR} onClick={() => setYear(year - 1)} />
+          <IconButton icon={ChevronLeft} label="Предыдущий год" disabled={saveDay.isPending || year <= MIN_YEAR}
+            onClick={() => moveYear(-1)} />
           <span className="text-title-large" aria-live="polite">{year}</span>
-          <IconButton icon={ChevronRight} label="Следующий год" disabled={year >= MAX_YEAR} onClick={() => setYear(year + 1)} />
+          <IconButton icon={ChevronRight} label="Следующий год" disabled={saveDay.isPending || year >= MAX_YEAR}
+            onClick={() => moveYear(1)} />
           {calendar && <span className="text-body-medium text-on-surface-variant">
             {weekLabel(calendar.workingWeek)} · {calendar.hoursPerShift} ч/смена
           </span>}
         </div>
-        {calendar && canEdit && <Button onClick={() => setOpen('settings')}>Рабочая неделя и часы…</Button>}
+        {calendar && canEdit && <Button disabled={saveDay.isPending} onClick={() => setOpen('settings')}>Рабочая неделя и часы…</Button>}
       </div>
       {query.isPending && <p role="status" className="text-body-medium">Читаем календарь…</p>}
       {query.isError && <Banner tone="error" actions={[{ label: 'Повторить', onClick: reload }]}>
@@ -59,7 +72,12 @@ export function CompanyCalendarPage() {
         {calendar.importFileName && <p className="text-body-medium text-on-surface-variant">
           Последняя загрузка · {calendar.importFileName}{calendar.importedAt && ` · ${formatDate(calendar.importedAt)}`}
         </p>}
-        <CompanyQuarter key={year} calendar={calendar} canEdit={canEdit} refetch={query.refetch} />
+        <CalendarWriteRefusal error={saveDay.error} conflict={YEAR_CONFLICT} onReload={reload} />
+        <CompanyQuarter key={year} calendar={calendar} saving={saveDay.isPending} stale={isConflict(saveDay.error)}
+          onSaveDay={canEdit ? (date, kind) => saveDay.mutate({ version: calendar.version, input: {
+            workingWeek: calendar.workingWeek, hoursPerShift: calendar.hoursPerShift,
+            days: replaceDay(calendar.days, date, kind),
+          } }) : undefined} />
         {canEdit && open === 'import' && <CalendarImportDialog year={year} onClose={() => setOpen(null)} />}
         {canEdit && open === 'settings' && <CompanyWeekDialog calendar={calendar} onClose={() => setOpen(null)} onReload={reload} />}
       </>}
@@ -67,8 +85,9 @@ export function CompanyCalendarPage() {
   </div>;
 }
 
-function CompanyQuarter({ calendar, canEdit, refetch }: {
-  calendar: CompanyCalendar; canEdit: boolean; refetch: () => Promise<{ isSuccess: boolean }>;
+function CompanyQuarter({ calendar, saving, stale, onSaveDay }: {
+  calendar: CompanyCalendar; saving: boolean; stale: boolean;
+  onSaveDay?: (date: string, kind: CalendarDayKind | null) => void;
 }) {
   const [selected, setSelected] = useState(() => {
     const today = companyToday();
@@ -91,30 +110,24 @@ function CompanyQuarter({ calendar, canEdit, refetch }: {
               month={month} selected={selected} days={days} week={calendar.workingWeek} onSelect={setSelected} />)}
           </div>
           <CompanyDayEditor key={`${selected}/${calendar.version}`} selected={selected}
-            calendar={calendar} kind={days.get(selected) ?? null} canEdit={canEdit} refetch={refetch} />
+            kind={days.get(selected) ?? null} saving={saving} stale={stale} onSave={onSaveDay} />
         </div>
       </div>
     </TabPanel>
   </div>;
 }
 
-function CompanyDayEditor({ selected, kind, canEdit, calendar, refetch }: {
-  selected: string; kind: CalendarDayKind | null; canEdit: boolean; calendar: CompanyCalendar;
-  refetch: () => Promise<{ isSuccess: boolean }>;
+function CompanyDayEditor({ selected, kind, saving, stale, onSave }: {
+  selected: string; kind: CalendarDayKind | null; saving: boolean; stale: boolean;
+  onSave?: (date: string, kind: CalendarDayKind | null) => void;
 }) {
   const [draft, setDraft] = useState(kind);
-  const save = useSaveCompanyCalendar(calendar.year);
   return <Card className="min-w-0" title={formatDate(selected)}>
     <div className="flex flex-wrap items-center gap-1 text-body-medium">Сейчас · <DayLabel kind={kind} fallback="По рабочей неделе" /></div>
-    {canEdit && <>
-      <CalendarWriteRefusal error={save.error} conflict={YEAR_CONFLICT}
-        onReload={() => { void refetch().then(result => { if (result.isSuccess) save.reset(); }); }} />
-      <DayKindField value={draft} baselineLabel="По рабочей неделе" onChange={setDraft} disabled={save.isPending} />
-      <Button variant="tonal" loading={save.isPending} disabled={draft === kind || isConflict(save.error)}
-        onClick={() => save.mutate({ version: calendar.version, input: {
-          workingWeek: calendar.workingWeek, hoursPerShift: calendar.hoursPerShift,
-          days: replaceDay(calendar.days, selected, draft),
-        } })}>Сохранить день</Button>
+    {onSave && <>
+      <DayKindField value={draft} baselineLabel="По рабочей неделе" onChange={setDraft} disabled={saving} />
+      <Button variant="tonal" loading={saving} disabled={draft === kind || stale}
+        onClick={() => onSave(selected, draft)}>Сохранить день</Button>
     </>}
   </Card>;
 }

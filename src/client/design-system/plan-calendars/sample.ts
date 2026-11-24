@@ -34,6 +34,6 @@ export const imported: Days = {
   '06-12': 'holiday', '06-14': 'holiday', '11-03': 'short', '11-05': 'holiday', '12-31': 'holiday',
 };
 export const siteExceptions: Days = { '06-12': 'working', '06-19': 'holiday' };
-export const dateLabel = (date: string) => `${Number(date.slice(3))} ${new Intl.DateTimeFormat('ru-RU', {
+export const dateLabel = (date: string) => new Intl.DateTimeFormat('ru-RU', {
   month: 'long', day: 'numeric', timeZone: 'UTC',
-}).format(new Date(`2027-${date}T12:00:00Z`)).replace(/^\d+\s+/, '')}`;
+}).format(new Date(`2028-${date}T12:00:00Z`));

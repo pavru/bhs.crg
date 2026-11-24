@@ -16,22 +16,36 @@ const quarters = ['I', 'II', 'III', 'IV'] as const;
 type Quarter = (typeof quarters)[number];
 const areas = [{ value: 'company', label: 'Календарь компании' }, { value: 'site', label: 'График стройки' }] as const;
 type Area = (typeof areas)[number]['value'];
+type WorkWeek = { week: number; hours: string };
+type SavedYear = WorkWeek & { days: Days };
+const EXAMPLE_YEAR = 2027;
+const EMPTY_YEAR: SavedYear = { days: {}, week: 31, hours: '8' };
 
 function Company({ variant, scenario }: { variant: Variant; scenario: Scenario }) {
   const readOnly = scenario === 'readonly';
-  const [year, setYear] = useState(2027);
-  const [saved, setSaved] = useState<Days>(example);
-  const [configured, setConfigured] = useState(scenario !== 'empty');
+  const [year, setYear] = useState(EXAMPLE_YEAR);
+  const [years, setYears] = useState<Partial<Record<number, SavedYear>>>(() =>
+    scenario === 'empty' ? {} : { [EXAMPLE_YEAR]: { ...EMPTY_YEAR, days: example } });
   const [quarter, setQuarter] = useState<Quarter>('I');
   const [editor, setEditor] = useState<string | null>(null);
   const [selected, setSelected] = useState('02-20');
-  const [week, setWeek] = useState(31);
-  const [hours, setHours] = useState('8');
-  const [dialog, setDialog] = useState<'import' | 'week' | null>(null);
+  const [weekDraft, setWeekDraft] = useState<WorkWeek | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [stale, setStale] = useState(false);
   const [notice, setNotice] = useState('');
-  const visibleDays = configured && year === 2027 ? saved : {};
+  const { days: visibleDays, week, hours } = years[year] ?? EMPTY_YEAR;
   const start = 3 * quarters.indexOf(quarter);
+
+  function updateYear(patch: Partial<SavedYear>) {
+    setYears(previous => ({ ...previous, [year]: { ...(previous[year] ?? EMPTY_YEAR), ...patch } }));
+  }
+
+  function changeYear(offset: number) {
+    setYear(value => value + offset);
+    setSelected(`${String(start + 1).padStart(2, '0')}-01`);
+    setStale(false);
+    setNotice('');
+  }
 
   function choose(date: string) {
     setSelected(date);
@@ -40,31 +54,27 @@ function Company({ variant, scenario }: { variant: Variant; scenario: Scenario }
 
   function save(date: string, kind?: Kind) {
     if (scenario === 'conflict') { setStale(true); return; }
-    setSaved(previous => {
-      const draft = { ...previous };
-      if (kind) draft[date] = kind;
-      else delete draft[date];
-      return draft;
-    });
-    setYear(2027);
-    setConfigured(true);
+    const days = { ...visibleDays };
+    if (kind) days[date] = kind;
+    else delete days[date];
+    updateYear({ days });
     setEditor(null);
     setNotice(`День ${dateLabel(date)} сохранён.`);
   }
 
   return <div className="grid min-w-0 gap-4">
     <PageHeader title="Производственный календарь" actions={!readOnly &&
-      <Button variant="filled" onClick={() => setDialog('import')}>Загрузить календарь…</Button>} />
+      <Button variant="filled" onClick={() => setImportOpen(true)}>Загрузить календарь…</Button>} />
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
-        <IconButton icon={ChevronLeft} label="Предыдущий год" onClick={() => setYear(value => value - 1)} />
+        <IconButton icon={ChevronLeft} label="Предыдущий год" onClick={() => changeYear(-1)} />
         <strong className="text-title-large">{year}</strong>
-        <IconButton icon={ChevronRight} label="Следующий год" onClick={() => setYear(value => value + 1)} />
+        <IconButton icon={ChevronRight} label="Следующий год" onClick={() => changeYear(1)} />
         <span className="text-body-medium text-on-surface-variant">{weekdays.filter((_, i) => week & (1 << i)).join(' · ')} · {hours} ч/смена</span>
       </div>
-      {!readOnly && <Button onClick={() => setDialog('week')}>Рабочая неделя и часы…</Button>}
+      {!readOnly && <Button onClick={() => setWeekDraft({ week, hours })}>Рабочая неделя и часы…</Button>}
     </div>
-    {(!configured || year !== 2027) && <Banner tone="warning">Календарь компании на {year} год не заполнен.</Banner>}
+    {!years[year] && <Banner tone="warning">Календарь компании на {year} год не заполнен.</Banner>}
     {stale && <Banner tone="warning" actions={[{ label: 'Перечитать', onClick: () => setStale(false) }]}>
       Год тем временем изменили. Перечитайте календарь.
     </Banner>}
@@ -97,13 +107,18 @@ function Company({ variant, scenario }: { variant: Variant; scenario: Scenario }
       {stale && <Banner tone="warning">Год тем временем изменили. Закройте окно и перечитайте календарь.</Banner>}
       <DayEditor seedDate={editor} year={year} days={visibleDays} readOnly={false} onSave={save} inline />
     </Modal>}
-    {dialog === 'import' && <ImportPreview year={year} days={visibleDays} canSave={!readOnly} conflict={scenario === 'conflict'}
-      onClose={() => setDialog(null)} onApply={() => { setYear(2027); setSaved(imported); setConfigured(true); setDialog(null); setNotice('Календарь загружен.'); }} />}
-    {dialog === 'week' && <Modal open title="Рабочая неделя компании" onOpenChange={open => { if (!open) setDialog(null); }}>
+    {importOpen && <ImportPreview year={year} days={visibleDays} canSave={!readOnly} conflict={scenario === 'conflict'}
+      onClose={() => setImportOpen(false)} onApply={() => {
+        updateYear({ days: imported });
+        setImportOpen(false);
+        setNotice('Календарь загружен.');
+      }} />}
+    {weekDraft && <Modal open title="Рабочая неделя компании" onOpenChange={open => { if (!open) setWeekDraft(null); }}>
       <div className="grid gap-3">
-        <WeekFields week={week} onChange={setWeek} />
-        <TextField label="Часов в смене" type="number" min="0.01" max="24" value={hours} onChange={event => setHours(event.currentTarget.value)} />
-        <Button variant="tonal" onClick={() => setDialog(null)}>Применить</Button>
+        <WeekFields week={weekDraft.week} onChange={value => setWeekDraft({ ...weekDraft, week: value })} />
+        <TextField label="Часов в смене" type="number" min="0.01" max="24" value={weekDraft.hours}
+          onChange={event => setWeekDraft({ ...weekDraft, hours: event.currentTarget.value })} />
+        <Button variant="tonal" onClick={() => { updateYear(weekDraft); setWeekDraft(null); }}>Применить</Button>
       </div>
     </Modal>}
   </div>;
