@@ -65,8 +65,16 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         Assert.NotEqual(Version(schedule), Version(listing));
 
         var path = WorkUrl(schedule, work);
-        var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
-        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync(ScheduleUrl(schedule))).StatusCode);
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
+        var readerWork = Assert.Single(Works(await ReadAsync(reader.GetAsync(ScheduleUrl(schedule)))));
+        Assert.Equal("м", readerWork.GetProperty("unitName").GetString());
+        var assignee = Assert.Single(readerWork.GetProperty("assignees").EnumerateArray());
+        Assert.Equal(employeeId, Id(assignee));
+        Assert.StartsWith("Исполнитель ", assignee.GetProperty("name").GetString());
+        Assert.False(assignee.GetProperty("archived").GetBoolean());
+        Assert.Equal(new[] { "archived", "id", "name" }, assignee.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/employees")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/work-types?purpose=choice")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(reader, HttpMethod.Put, path, Version(work), input)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await SendAsync(scene.Editor, HttpMethod.Put, path, null, input)).StatusCode);
         var updated = await ReadAsync(SendAsync(scene.Editor, HttpMethod.Put, path, Version(work), input with { volume = 20m }));
@@ -97,6 +105,7 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         var kept = await ReadAsync(SendAsync(scene.Editor, HttpMethod.Put, WorkUrl(schedule, work), Version(work),
             input with { volume = 12m }));
         Assert.Equal(employeeId, Assert.Single(kept.GetProperty("employeeIds").EnumerateArray()).GetGuid());
+        Assert.True(Assert.Single(kept.GetProperty("assignees").EnumerateArray()).GetProperty("archived").GetBoolean());
         using var refused = await scene.Editor.PostAsJsonAsync(forms, body);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         var error = await refused.Content.ReadAsStringAsync();
