@@ -315,6 +315,19 @@ describe('график стройки', () => {
     expect(diagram().querySelector('[marker-end]')).toBeTruthy();
   });
 
+  it('оставляет предупреждение и переход к работе, когда у графика ещё нет дат', async () => {
+    wideViewport();
+    live = { ...view, works: [{ ...view.works[0], start: null, end: null }],
+      warnings: [{ code: 'no-dates', text: 'У работы нет дат.', workId: 'w1', linkId: null, year: null }] };
+    mount();
+    await screen.findByRole('heading', { name: 'Электромонтаж' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Диаграмма' }));
+    expect(screen.getByRole('img', { name: 'У работы нет дат.' })).toBeTruthy();
+    expect(callUrls().some(url => url.endsWith('/non-working-days'))).toBe(false);
+    click('Монтаж лотков');
+    expect(screen.getByRole('row', { name: /Монтаж лотков/ })).toBeTruthy();
+  });
+
   it('выбирает предшественника из соседнего графика и показывает все три работы цикла', async () => {
     permissions = [reader, editor];
     const civil = { ...view, id: 'civil', name: 'Общестрой', works: [makeWork('foundation', 'Подготовка основания')] };

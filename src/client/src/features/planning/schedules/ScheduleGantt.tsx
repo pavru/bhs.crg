@@ -23,8 +23,11 @@ export function ScheduleGantt({ constructionId, scheduleId, rows, links, warning
   if (!rows.length) return <p className="text-body-medium">Работ по выбранным условиям нет.</p>;
   // Если сроки ещё не назначены, строки остаются доступны и открываются в списке.
   if (!firstDate) return <div className="grid gap-2">
-    <p className="text-body-medium">Назначьте сроки работ в списке.</p>
-    <ul>{rows.map(work => <li key={work.id}><Button variant="text" onClick={() => onOpen(work.id)}>{work.name}</Button></li>)}</ul>
+    <p className="text-body-medium">У работ пока нет сроков.</p>
+    <ul>{rows.map(work => <li key={work.id} className="flex items-center gap-1">
+      <ScheduleWarningMark warnings={warnings.get(work.id) ?? []} />
+      <Button variant="text" onClick={() => onOpen(work.id)}>{work.name}</Button>
+    </li>)}</ul>
   </div>;
   return <CalendarPlot constructionId={constructionId} scheduleId={scheduleId} firstDate={firstDate}
     rows={rows} links={links} warnings={warnings} onOpen={onOpen} />;
