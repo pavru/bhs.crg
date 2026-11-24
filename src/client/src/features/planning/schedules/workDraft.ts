@@ -1,5 +1,6 @@
 import type { ScheduleAssignee, ScheduleWork, ScheduleWorkInput } from '@/shared/api/planningScheduleTypes';
-import { formatInput } from '@/shared/format/format';
+import { formatInput, numberParts } from '@/shared/format/format';
+import { resolveLocale } from '@/shared/hooks/useLocale';
 import { parseNumber } from '@/shared/utils/parseNumber';
 
 export interface WorkDraft {
@@ -12,9 +13,18 @@ export interface WorkDraft {
 
 export const emptyDraft: WorkDraft = { volume: '', start: '', end: '', employeeIds: [], assignees: [] };
 
-export function draftOf(work: ScheduleWork): WorkDraft {
+function volumeLocale(locale: string) {
+  const decimal = numberParts(resolveLocale(locale), 1.5).find(part => part.type === 'decimal')?.value;
+  return decimal === '.' || decimal === ',' ? { locale, decimal } : { locale: 'ru-RU', decimal: ',' };
+}
+
+function volumeInput(value: number | null, locale: string) {
+  return formatInput(value).replace(',', volumeLocale(locale).decimal);
+}
+
+export function draftOf(work: ScheduleWork, locale: string): WorkDraft {
   return {
-    volume: formatInput(work.volume), start: work.start ?? '', end: work.end ?? '',
+    volume: volumeInput(work.volume, locale), start: work.start ?? '', end: work.end ?? '',
     employeeIds: work.employeeIds, assignees: work.assignees,
   };
 }
@@ -37,8 +47,9 @@ export function keepEdits(before: WorkDraft, latest: WorkDraft, draft: WorkDraft
   };
 }
 
-export function workInput(draft: WorkDraft, locale: string): ScheduleWorkInput | null {
-  const volume = draft.volume.trim() ? parseNumber(draft.volume, locale) : null;
+export function workInput(draft: WorkDraft, locale: string, baseline?: ScheduleWork): ScheduleWorkInput | null {
+  const unchanged = baseline && draft.volume === volumeInput(baseline.volume, locale);
+  const volume = unchanged ? baseline.volume : draft.volume.trim() ? parseNumber(draft.volume, volumeLocale(locale).locale) : null;
   if (draft.volume.trim() && (volume === null || volume < 0)) return null;
   if (draft.start && draft.end && draft.start > draft.end) return null;
   return { volume, start: draft.start || null, end: draft.end || null, employeeIds: draft.employeeIds };

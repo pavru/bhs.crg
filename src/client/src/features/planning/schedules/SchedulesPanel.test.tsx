@@ -74,10 +74,10 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function mount(path = `${root}/graph`) {
+function mount(path = `${root}/graph`, locale = 'ru-RU') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={client}>
-    <LocaleContext.Provider value={['ru-RU', () => {}, 'idle']}>
+    <LocaleContext.Provider value={[locale, () => {}, 'idle']}>
       <MemoryRouter initialEntries={[path]}><Routes>
         <Route path="/document-sets/:constructionId/:panel/*" element={<SchedulesPanel constructionId="site" />} />
       </Routes></MemoryRouter>
@@ -134,6 +134,57 @@ describe('график стройки', () => {
     }, { headers: { 'If-Match': '6' } }));
     expect(callUrls()).not.toContain('/employees');
     expect(callUrls()).not.toContain('/work-types');
+  });
+
+  it.each([
+    { locale: 'en-US', initial: '1.234', typed: '2.345' },
+    { locale: 'ru-RU', initial: '1,234', typed: '2,345' },
+    { locale: 'de-DE', initial: '1,234', typed: '2,345' },
+  ])('сохраняет точный объём при смене исполнителя и разбирает ввод на $locale', async ({ locale, initial, typed }) => {
+    permissions = [reader, editor, 'core.employees.read'];
+    live = { ...view, works: [{ ...view.works[0], volume: 1.234 }, ...view.works.slice(1)] };
+    vi.mocked(apiClient.put).mockResolvedValue({ data: {} });
+    mount(`${root}/graph`, locale);
+    fireEvent.click(await screen.findByRole('button', { name: 'Монтаж лотков' }));
+    expect((screen.getByRole('textbox', { name: 'Объём' }) as HTMLInputElement).value).toBe(initial);
+    click('Выбрать исполнителей');
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Отметить: Иван Орлов' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Исполнители' })).getByRole('button', { name: 'Выбрать' }));
+    click('Сохранить работу');
+    await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith(`${schedulePath}/works/w1`, {
+      volume: 1.234, start: '2026-12-01', end: '2026-12-03', employeeIds: [],
+    }, { headers: { 'If-Match': '5' } }));
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Объём' })).toBeNull());
+    click('Монтаж лотков');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Объём' }), { target: { value: typed } });
+    click('Сохранить работу');
+    await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith(`${schedulePath}/works/w1`, {
+      volume: 2.345, start: '2026-12-01', end: '2026-12-03', employeeIds: ['emp'],
+    }, { headers: { 'If-Match': '5' } }));
+  });
+
+  it('после отказа удаления перечитывает график и подтверждает удаление уже с новой версией', async () => {
+    permissions = [reader, editor];
+    vi.mocked(apiClient.delete).mockImplementationOnce(async () => {
+      live = { ...view, works: [{ ...view.works[0], version: '6' }, ...view.works.slice(1)] };
+      throw { response: { status: 409, data: { error: 'Работу тем временем изменили.' } } };
+    }).mockResolvedValueOnce({ data: undefined });
+    mount();
+    async function confirmDelete() {
+      const menu = await screen.findByRole('button', { name: 'Действия работы «Монтаж лотков»' });
+      fireEvent.keyDown(menu, { key: 'Enter' });
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Удалить' }));
+      await screen.findByText('Связи этой работы с другими работами тоже будут удалены.');
+      click('Удалить работу');
+    }
+    await confirmDelete();
+    await screen.findByText('Работу тем временем изменили.');
+    expect(apiClient.delete).toHaveBeenLastCalledWith(`${schedulePath}/works/w1`, { headers: { 'If-Match': '5' } });
+    click('Понятно');
+    await confirmDelete();
+    await waitFor(() => expect(apiClient.delete).toHaveBeenLastCalledWith(
+      `${schedulePath}/works/w1`, { headers: { 'If-Match': '6' } },
+    ));
   });
 
   it('оставляет ручной график custom-editor без чтения смет', async () => {

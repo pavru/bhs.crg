@@ -10,6 +10,11 @@ const siteKey = (constructionId: string) => [...scheduleKey, constructionId] as 
 const detailKey = (constructionId: string, id: string) => [...siteKey(constructionId), id] as const;
 const match = (version: string) => ({ headers: { 'If-Match': version } });
 
+function rereadAfterDeleteRefusal(client: QueryClient, constructionId: string, error: unknown) {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status;
+  if (status === 409 || status === 404) return client.invalidateQueries({ queryKey: siteKey(constructionId) });
+}
+
 export function useSchedules(constructionId: string, enabled: boolean) {
   return useQuery({
     queryKey: siteKey(constructionId),
@@ -63,6 +68,7 @@ export function useWriteScheduleWork(constructionId: string, id: string) {
     },
     // Полный ответ заново читает предупреждения у обеих работ, в том числе в соседних графиках.
     onSuccess: () => client.invalidateQueries({ queryKey: siteKey(constructionId) }),
+    onError: (error, write) => write.kind === 'delete' ? rereadAfterDeleteRefusal(client, constructionId, error) : undefined,
   });
 }
 

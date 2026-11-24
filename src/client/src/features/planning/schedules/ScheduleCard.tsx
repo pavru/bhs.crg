@@ -45,7 +45,7 @@ function ScheduleContents({ schedule, sections, reload }: {
   const [locale] = useLocale();
   const [section, setSection] = useState(ALL_SECTIONS);
   const [warningCode, setWarningCode] = useState<string | null>(null);
-  const [edit, setEdit] = useState<{ baseline: ScheduleWork; draft: WorkDraft } | null>(null);
+  const [edit, setEdit] = useState<{ baseline: ScheduleWork; draft: WorkDraft; locale: string } | null>(null);
   const [invalid, setInvalid] = useState({ start: false, end: false });
   const [refused, setRefused] = useState<string | null>(null);
   const [rereading, setRereading] = useState(false);
@@ -54,15 +54,15 @@ function ScheduleContents({ schedule, sections, reload }: {
   const [deleting, setDeleting] = useState<ScheduleWork | null>(null);
   const write = useWriteScheduleWork(schedule.constructionId, schedule.id);
   const pending = write.isPending;
-  const input = edit ? workInput(edit.draft, locale) : null;
+  const input = edit ? workInput(edit.draft, edit.locale, edit.baseline) : null;
   const hasInvalidInput = !input || invalid.start || invalid.end;
-  const dirty = !!edit && (draftChanged(draftOf(edit.baseline), edit.draft) || invalid.start || invalid.end);
+  const dirty = !!edit && (draftChanged(draftOf(edit.baseline, edit.locale), edit.draft) || invalid.start || invalid.end);
   const refusal = edit && write.error ? scheduleRefusal(write.error, 'Работа не сохранилась.') : null;
   const stale = refusal?.kind === 'conflict' || refused !== null;
 
   function start(work: ScheduleWork) {
     if (edit) return;
-    setEdit({ baseline: work, draft: draftOf(work) });
+    setEdit({ baseline: work, draft: draftOf(work, locale), locale });
     setInvalid({ start: false, end: false });
     setRefused(null);
     setReview('');
@@ -103,7 +103,10 @@ function ScheduleContents({ schedule, sections, reload }: {
         setRefused('Работу удалили. Ваш ввод остался в строке.');
         return;
       }
-      setEdit(current => current && { baseline: fresh, draft: keepEdits(draftOf(current.baseline), draftOf(fresh), current.draft) });
+      setEdit(current => current && {
+        ...current, baseline: fresh,
+        draft: keepEdits(draftOf(current.baseline, current.locale), draftOf(fresh, current.locale), current.draft),
+      });
       setRefused(null);
       setReview('График перечитан. Проверьте значения и сохраните работу.');
       write.reset();
@@ -193,8 +196,7 @@ function ScheduleContents({ schedule, sections, reload }: {
       ids={edit.draft.employeeIds} assignees={edit.draft.assignees} onClose={() => setDialog(null)}
       onChoice={(employeeIds, assignees) => { change({ employeeIds, assignees }); setDialog(null); }} />}
     {canEdit && deleting && <ConfirmDialog open title={`Удалить работу «${deleting.name}»?`}
-      description={schedule.links.some(link => link.predecessorId === deleting.id || link.successorId === deleting.id)
-        ? 'Будут удалены её связи с другими работами.' : undefined}
+      description="Связи этой работы с другими работами тоже будут удалены."
       confirmLabel="Удалить работу" onOpenChange={open => { if (!open) setDeleting(null); }}
       onConfirm={() => write.mutateAsync({ kind: 'delete', id: deleting.id, version: deleting.version })} />}
   </div>;
