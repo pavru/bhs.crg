@@ -104,10 +104,13 @@ public sealed partial class WorkIsolationViolationTests
         bool canReadReport = false)
     {
         using var response = await client.GetAsync(path);
-        if (response.Content.Headers.ContentType?.MediaType is { } media && media.StartsWith("image/", StringComparison.Ordinal))
+        var expectPhoto = canReadReport && status == Ok && path.StartsWith("/api/work/photos/", StringComparison.Ordinal);
+        var isPhoto = response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.Ordinal) == true;
+        Assert.True(isPhoto == expectPhoto, $"{path}: ожидалось фото = {expectPhoto}, получено = {isPhoto}.");
+        if (expectPhoto)
         {
-            Assert.True(canReadReport && status == Ok && response.StatusCode == Ok &&
-                (await response.Content.ReadAsByteArrayAsync()).Length > 0, $"{path}: неожиданный ответ с фото.");
+            Assert.Equal(Ok, response.StatusCode);
+            Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
             return;
         }
         var content = await response.Content.ReadAsStringAsync();
