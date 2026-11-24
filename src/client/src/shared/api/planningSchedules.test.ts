@@ -19,8 +19,8 @@ describe('отказы графика', () => {
     expect(scheduleRefusal(error(409, { preview: { version: '31' } }), 'Отказ').kind).toBe('conflict');
   });
 
-  it('сохраняет имена работ и графиков в отказе при цикле', () => {
-    const cycle = [{ id: 'w1', name: 'Монтаж', scheduleId: 's1', scheduleName: 'Электрика' }];
+  it('сохраняет имена работ, графиков и раздел в отказе при цикле', () => {
+    const cycle = [{ id: 'w1', name: 'Монтаж', scheduleId: 's1', scheduleName: 'Электрика', sectionId: 'section' }];
     const result = scheduleRefusal(error(422, { code: 'schedule-cycle', error: 'Цикл', cycle }), 'Отказ');
     expect(result).toEqual({ kind: 'cycle', message: 'Цикл', cycle });
   });

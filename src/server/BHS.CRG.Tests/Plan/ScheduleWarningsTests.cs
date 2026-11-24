@@ -79,6 +79,11 @@ public class ScheduleWarningsTests(PlanOnlyHost host)
 
         var receiving = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(electric)));
         var source = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(civil)));
+        var connection = Assert.Single(receiving.GetProperty("links").EnumerateArray(), link => Id(link) == Id(broken));
+        Assert.Equal(Id(predecessor), Id(connection.GetProperty("predecessor")));
+        Assert.Equal("Общестрой", connection.GetProperty("predecessor").GetProperty("scheduleName").GetString());
+        Assert.Equal(Id(early), Id(connection.GetProperty("successor")));
+        Assert.Equal("Электромонтаж", connection.GetProperty("successor").GetProperty("scheduleName").GetString());
         var first = Assert.Single(Warnings(receiving), w => Code(w) == "starts-before-predecessor");
         var second = Assert.Single(Warnings(source), w => Code(w) == "starts-before-predecessor");
         Assert.Equal(Id(early), GuidOrNull(first, "workId"));

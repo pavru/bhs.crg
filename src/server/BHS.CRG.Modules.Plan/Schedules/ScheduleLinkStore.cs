@@ -91,8 +91,8 @@ internal sealed class ScheduleLinkStore(PlanDbContext db, ScheduleBuilder schedu
             join successorSchedule in db.Schedules on successor.ScheduleId equals successorSchedule.Id
             orderby link.Id
             select new ScheduleRemovedLink(link.Id,
-                new ScheduleWorkRef(predecessor.Id, predecessor.Name, predecessorSchedule.Id, predecessorSchedule.Name),
-                new ScheduleWorkRef(successor.Id, successor.Name, successorSchedule.Id, successorSchedule.Name),
+                new ScheduleWorkRef(predecessor.Id, predecessor.Name, predecessorSchedule.Id, predecessorSchedule.Name, predecessor.SectionId),
+                new ScheduleWorkRef(successor.Id, successor.Name, successorSchedule.Id, successorSchedule.Name, successor.SectionId),
                 link.Kind, link.Lag)).ToListAsync(ct);
     }
 
@@ -101,7 +101,7 @@ internal sealed class ScheduleLinkStore(PlanDbContext db, ScheduleBuilder schedu
         var works = await (from work in db.ScheduleWorks
             join schedule in db.Schedules on work.ScheduleId equals schedule.Id
             where cycle.Contains(work.Id)
-            select new ScheduleWorkRef(work.Id, work.Name, schedule.Id, schedule.Name)).ToDictionaryAsync(w => w.Id, ct);
+            select new ScheduleWorkRef(work.Id, work.Name, schedule.Id, schedule.Name, work.SectionId)).ToDictionaryAsync(w => w.Id, ct);
         return cycle.Select(id => works[id]).ToList();
     }
 

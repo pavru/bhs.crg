@@ -1,3 +1,4 @@
+using System.Data;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Endpoints;
@@ -25,6 +26,21 @@ internal sealed class CalendarStore(PlanDbContext db, IModuleConstructions const
         var saved = await Sites.SingleOrDefaultAsync(c => c.ConstructionId == id, ct);
         return CalendarViews.Construction(saved ?? new(id), site.TimeZoneId,
             saved is null ? CalendarViews.MissingVersion : db.VersionOf(saved));
+    }
+
+    public async Task<NonWorkingDaysDto> NonWorkingDaysAsync(Guid id, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        const int dayLimit = 366;
+        var length = to.DayNumber - from.DayNumber + 1;
+        if (length is < 1 or > dayLimit)
+            throw new InvalidRequestException($"Укажите период от 1 до {dayLimit} календарных дней.");
+
+        await FindSiteAsync(id, ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var calendar = await WorkingDays.LoadAsync(db, id, ct);
+        var dates = Enumerable.Range(from.DayNumber, length).Select(DateOnly.FromDayNumber)
+            .Where(date => !calendar.IsWorkingDay(date)).ToArray();
+        return new(from, to, dates, calendar.GapsInYears(from.Year, to.Year).ToArray());
     }
 
     public async Task<CompanyCalendarDto> SaveCompanyAsync(

@@ -53,6 +53,15 @@ export interface ScheduleLink {
   kind: string;
   lag: number;
   version: string;
+  predecessor?: ScheduleWorkRef;
+  successor?: ScheduleWorkRef;
+}
+
+export interface ScheduleLinkInput {
+  predecessorId: string;
+  successorId: string;
+  kind: 'fs';
+  lag: number;
 }
 
 interface ScheduleSkipped { unmapped: number }
@@ -77,6 +86,7 @@ export interface ScheduleWorkRef {
   name: string;
   scheduleId: string;
   scheduleName: string;
+  sectionId: string | null;
 }
 
 interface ScheduleDifference {

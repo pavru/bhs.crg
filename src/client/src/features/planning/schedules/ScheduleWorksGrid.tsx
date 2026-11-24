@@ -1,4 +1,4 @@
-import type { ScheduleWarning, ScheduleWork } from '@/shared/api/planningScheduleTypes';
+import type { ScheduleLink, ScheduleWarning, ScheduleWork } from '@/shared/api/planningScheduleTypes';
 import { formatDate, formatNumber } from '@/shared/format/format';
 import { Button } from '@/shared/ui/Button';
 import { DateInput } from '@/shared/ui/DateInput';
@@ -21,16 +21,20 @@ export function ScheduleWarningMark({ warnings }: { warnings: ScheduleWarning[] 
   </Tooltip>;
 }
 
-export function ScheduleWorksGrid({ rows, sections, warnings, editingId, draft, canEdit, canReadEmployees, busy,
-  onOpen, onChange, onIncomplete, onEmployees, onDelete }: {
+export function ScheduleWorksGrid({ rows, sections, warnings, links, editingId, selectedWorkId, draft, canEdit, canReadEmployees, busy,
+  onOpen, onChange, onIncomplete, onEmployees, onLinks, onDelete }: {
   rows: ScheduleWork[]; sections: ScheduleSection[]; warnings: Map<string, ScheduleWarning[]>;
-  editingId: string | null; draft: WorkDraft | null; canEdit: boolean; canReadEmployees: boolean; busy: boolean;
+  links: ScheduleLink[];
+  editingId: string | null; selectedWorkId: string | null; draft: WorkDraft | null;
+  canEdit: boolean; canReadEmployees: boolean; busy: boolean;
   onOpen: (work: ScheduleWork) => void; onChange: (patch: Partial<WorkDraft>) => void;
   onIncomplete: (field: 'start' | 'end', hasError: boolean) => void; onEmployees: () => void;
-  onDelete: (work: ScheduleWork) => void;
+  onLinks: (work: ScheduleWork) => void; onDelete: (work: ScheduleWork) => void;
 }) {
   const current = (work: ScheduleWork) => work.id === editingId ? draft : null;
   const locked = draft !== null || busy;
+  const incoming = new Map<string, number>();
+  for (const link of links) incoming.set(link.successorId, (incoming.get(link.successorId) ?? 0) + 1);
   const columns: EditGridColumn<ScheduleWork>[] = [
     { key: 'name', label: 'Работа', rowHeader: true, cell: work =>
       <span className="flex items-center gap-2">
@@ -62,6 +66,11 @@ export function ScheduleWorksGrid({ rows, sections, warnings, editingId, draft, 
       return canReadEmployees ? <Button variant="text" multiline disabled={busy} onClick={onEmployees}
         aria-label="Выбрать исполнителей">{text}</Button> : assigneeText(edit.employeeIds, edit.assignees);
     } },
+    { key: 'links', label: 'Связи', size: 110, cell: work => {
+      const count = incoming.get(work.id) ?? 0;
+      return canEdit || count ? <Button variant="text" disabled={locked} onClick={() => onLinks(work)}
+        aria-label={`Предшественники: ${work.name}`}>{count ? `Связи · ${count}` : 'Связи'}</Button> : '—';
+    } },
   ];
   if (canEdit) columns.push({
     key: 'actions', label: 'Действия', size: 86,
@@ -72,5 +81,6 @@ export function ScheduleWorksGrid({ rows, sections, warnings, editingId, draft, 
   });
   return <EditGrid label="Работы графика" rows={rows} rowKey={row => row.id} columns={columns} fill
     empty="Работ по выбранным условиям нет."
-    selected={work => work.id === editingId} />;
+    rowData={work => ({ 'data-schedule-work-id': work.id })}
+    selected={work => work.id === (editingId ?? selectedWorkId)} />;
 }

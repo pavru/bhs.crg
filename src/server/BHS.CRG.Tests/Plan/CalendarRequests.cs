@@ -8,6 +8,8 @@ internal static class CalendarRequests
 {
     public static string Company(int year) => $"/api/plan/calendars/company/{year}";
     public static string Construction(Guid id) => $"/api/plan/calendars/constructions/{id}";
+    public static string NonWorkingDays(Guid id, string from, string to) =>
+        $"{Construction(id)}/non-working-days?from={from}&to={to}";
     public static string Version(JsonElement calendar) => calendar.GetProperty("version").GetString()!;
 
     public static byte[] Sample(int year) => File.ReadAllBytes(RepoPaths.File(

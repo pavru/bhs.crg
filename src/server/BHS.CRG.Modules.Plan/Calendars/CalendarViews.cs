@@ -12,6 +12,8 @@ internal sealed record CompanyCalendarDto(
     string? ImportFileName, DateTimeOffset? ImportedAt, string Version, IReadOnlyList<CalendarGap> Gaps);
 internal sealed record ConstructionCalendarDto(
     Guid ConstructionId, string TimeZoneId, int? WorkingWeek, int Shifts, IReadOnlyList<CalendarDayDto> Days, string Version);
+internal sealed record NonWorkingDaysDto(
+    DateOnly From, DateOnly To, IReadOnlyList<DateOnly> NonWorkingDays, IReadOnlyList<CalendarGap> Gaps);
 
 internal static class CalendarViews
 {

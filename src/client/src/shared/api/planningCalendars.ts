@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { scheduleKey } from './planningSchedules';
 
 export const COMPANY_CALENDAR_EDIT = 'plan.calendar.edit';
 export const SCHEDULE_READ = 'plan.schedule.read';
@@ -55,10 +56,18 @@ export interface CalendarImportPreview extends CompanyCalendarInput {
   changes: CalendarImportChange[];
 }
 
+export interface NonWorkingDays {
+  from: string;
+  to: string;
+  nonWorkingDays: string[];
+  gaps: CompanyCalendar['gaps'];
+}
+
 const companyPath = (year: number) => `/plan/calendars/company/${year}`;
 const sitePath = (id: string) => `/plan/calendars/constructions/${id}`;
 const companyKey = (year: number) => ['planning', 'calendars', 'company', year] as const;
 const siteKey = (id: string) => ['planning', 'calendars', 'construction', id] as const;
+const nonWorkingKey = ['planning', 'calendars', 'non-working-days'] as const;
 
 export function useCompanyCalendar(year: number, enabled: boolean) {
   return useQuery({
@@ -76,6 +85,15 @@ export function useConstructionCalendar(id: string, enabled: boolean) {
   });
 }
 
+export function useNonWorkingDays(id: string, from: string, to: string) {
+  return useQuery({
+    queryKey: [...nonWorkingKey, id, from, to],
+    queryFn: ({ signal }) => apiClient.get<NonWorkingDays>(`${sitePath(id)}/non-working-days`, {
+      params: { from, to }, signal,
+    }).then(r => r.data),
+  });
+}
+
 export function useSaveCompanyCalendar(year: number) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -85,6 +103,8 @@ export function useSaveCompanyCalendar(year: number) {
       const key = companyKey(year);
       await queryClient.cancelQueries({ queryKey: key });
       queryClient.setQueryData(key, calendar);
+      void queryClient.invalidateQueries({ queryKey: nonWorkingKey });
+      void queryClient.invalidateQueries({ queryKey: scheduleKey });
     },
   });
 }
@@ -98,6 +118,8 @@ export function useSaveConstructionCalendar(id: string) {
       const key = siteKey(id);
       await queryClient.cancelQueries({ queryKey: key });
       queryClient.setQueryData(key, calendar);
+      void queryClient.invalidateQueries({ queryKey: [...nonWorkingKey, id] });
+      void queryClient.invalidateQueries({ queryKey: [...scheduleKey, id] });
     },
   });
 }

@@ -7,9 +7,14 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Modules.Plan.Schedules;
 
 internal sealed record ScheduleRelation(
-    ScheduleLink Link, ScheduleWork Predecessor, ScheduleWork Successor, uint RowVersion)
+    ScheduleLink Link, ScheduleWork Predecessor, ScheduleWork Successor, uint RowVersion,
+    string PredecessorScheduleName, string SuccessorScheduleName)
 {
-    internal ScheduleLinkDto View => ScheduleLinkStore.View(Link, RowVersion.ToString(CultureInfo.InvariantCulture));
+    internal ScheduleLinkDto View => ScheduleLinkStore.View(Link, RowVersion.ToString(CultureInfo.InvariantCulture)) with
+    {
+        Predecessor = new(Predecessor.Id, Predecessor.Name, Predecessor.ScheduleId, PredecessorScheduleName, Predecessor.SectionId),
+        Successor = new(Successor.Id, Successor.Name, Successor.ScheduleId, SuccessorScheduleName, Successor.SectionId),
+    };
 }
 
 internal static class ScheduleWarnings
@@ -24,9 +29,12 @@ internal static class ScheduleWarnings
         (from link in db.ScheduleLinks.AsNoTracking()
          join predecessor in db.ScheduleWorks.AsNoTracking() on link.PredecessorId equals predecessor.Id
          join successor in db.ScheduleWorks.AsNoTracking() on link.SuccessorId equals successor.Id
+         join predecessorSchedule in db.Schedules.AsNoTracking() on predecessor.ScheduleId equals predecessorSchedule.Id
+         join successorSchedule in db.Schedules.AsNoTracking() on successor.ScheduleId equals successorSchedule.Id
          where predecessor.ScheduleId == scheduleId || successor.ScheduleId == scheduleId
          orderby link.Id
-         select new ScheduleRelation(link, predecessor, successor, EF.Property<uint>(link, PlanDbContext.RowVersion)))
+         select new ScheduleRelation(link, predecessor, successor, EF.Property<uint>(link, PlanDbContext.RowVersion),
+             predecessorSchedule.Name, successorSchedule.Name))
         .ToListAsync(ct);
 
     internal static IReadOnlyList<ScheduleWarning> Read(

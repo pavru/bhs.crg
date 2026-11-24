@@ -19,8 +19,9 @@ public class ScheduleCycleCheckTests(PlanOnlyHost host)
         var scene = await CreateAsync(host);
         var electric = await scene.BuildAsync();
         var civil = await scene.BuildAsync(name: "Общестрой");
-        var a = await scene.ManualAsync(electric);
-        var b = await scene.ManualAsync(civil);
+        var a = await scene.ManualAsync(electric, sectionId: scene.Site.Section);
+        var otherSection = await DistributionFlow.SectionAsync(host, scene.Site.Construction, "ЭОМ-2");
+        var b = await scene.ManualAsync(civil, sectionId: otherSection);
         var c = await scene.ManualAsync(electric);
         var ab = await ReadAsync(scene.LinkAsync(civil, a, b, lag: -2), HttpStatusCode.Created);
         await ReadAsync(scene.LinkAsync(electric, b, c), HttpStatusCode.Created);
@@ -31,10 +32,14 @@ public class ScheduleCycleCheckTests(PlanOnlyHost host)
         var cycle = error.GetProperty("cycle").EnumerateArray().ToList();
         Assert.Equal([Id(c), Id(a), Id(b), Id(c)], cycle.Select(Id).ToArray());
         Assert.Equal("Общестрой", cycle[2].GetProperty("scheduleName").GetString());
+        Assert.Equal([null, scene.Site.Section, otherSection, null], cycle.Select(item => GuidOrNull(item, "sectionId")));
         var publicView = await ReadAsync(scene.Editor.GetAsync(ScheduleUrl(civil)));
         var links = publicView.GetProperty("links").EnumerateArray().ToList();
         Assert.Equal(2, links.Count);
-        Assert.Equal(Version(ab), Version(Assert.Single(links, link => Id(link) == Id(ab))));
+        var saved = Assert.Single(links, link => Id(link) == Id(ab));
+        Assert.Equal(Version(ab), Version(saved));
+        Assert.Equal(scene.Site.Section, GuidOrNull(saved.GetProperty("predecessor"), "sectionId"));
+        Assert.Equal(otherSection, GuidOrNull(saved.GetProperty("successor"), "sectionId"));
 
         var foreign = await CreateAsync(host);
         var otherSchedule = await foreign.BuildAsync();

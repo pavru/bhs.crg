@@ -20,6 +20,8 @@ internal static class CalendarEndpoints
         calendars.MapPost("/company/{year:int}/import", PreviewAsync).RequireAuthorization(companyEdit)
             .DisableAntiforgery().WithMetadata(new RequestSizeLimitAttribute(ProductionCalendarFile.MaxBytes + 4096));
         calendars.MapGet("/constructions/{id:guid}", GetConstructionAsync).RequireAuthorization(read);
+        calendars.MapGet("/constructions/{id:guid}/non-working-days", GetNonWorkingDaysAsync)
+            .RequireAuthorization(AppPolicies.Permission(PlanModule.ScheduleRead));
         calendars.MapPut("/constructions/{id:guid}", PutConstructionAsync)
             .RequireAuthorization(AppPolicies.Permission(PlanModule.ScheduleEdit));
     }
@@ -46,6 +48,10 @@ internal static class CalendarEndpoints
 
     private static async Task<IResult> GetConstructionAsync(Guid id, CalendarStore store, CancellationToken ct) =>
         Results.Ok(await store.ConstructionAsync(id, ct));
+
+    private static async Task<IResult> GetNonWorkingDaysAsync(
+        Guid id, DateOnly from, DateOnly to, CalendarStore store, CancellationToken ct) =>
+        Results.Ok(await store.NonWorkingDaysAsync(id, from, to, ct));
 
     private static async Task<IResult> PutConstructionAsync(
         Guid id, ConstructionCalendarInput input, HttpRequest request, CalendarStore store, CancellationToken ct) =>

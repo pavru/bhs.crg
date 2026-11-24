@@ -7,8 +7,10 @@ internal sealed record ScheduleWorkInput(decimal? Volume, DateOnly? Start, DateO
 internal sealed record ScheduleManualWork(Guid WorkTypeId, Guid? SectionId, ScheduleWorkInput Work);
 internal sealed record ScheduleRebuildRequest(string? Fingerprint);
 internal sealed record ScheduleLinkInput(Guid PredecessorId, Guid SuccessorId, string? Kind, int Lag);
-internal sealed record ScheduleLinkDto(Guid Id, Guid PredecessorId, Guid SuccessorId, string Kind, int Lag, string Version);
-internal sealed record ScheduleWorkRef(Guid Id, string Name, Guid ScheduleId, string ScheduleName);
+internal sealed record ScheduleLinkDto(Guid Id, Guid PredecessorId, Guid SuccessorId, string Kind, int Lag, string Version,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkRef? Predecessor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkRef? Successor = null);
+internal sealed record ScheduleWorkRef(Guid Id, string Name, Guid ScheduleId, string ScheduleName, Guid? SectionId);
 internal sealed record ScheduleRemovedLink(Guid Id, ScheduleWorkRef Predecessor, ScheduleWorkRef Successor, string Kind, int Lag);
 
 internal sealed record ScheduleMark(string Code, string Text);
