@@ -24,7 +24,7 @@
 
 import { seedInvoices } from './seed-invoices.mjs';
 import { ensureEmployees } from './seed-employees.mjs';
-import { seedEstimates } from './seed-estimates.mjs';
+import { estimateSmokeIds, seedEstimates } from './seed-estimates.mjs';
 import { ensurePreviewTemplate } from './seed-preview.mjs';
 import { seedWork } from './seed-work.mjs';
 
@@ -801,7 +801,7 @@ async function main() {
    */
   await seedInvoices({ api, findType, ensureEntry, ensureUser, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
   // Сметы модуля «Планирование» (plan-09) — тоже своим файлом: номенклатура им нужна та, что посеяли счета.
-  const { estimateId, offerId } = await seedEstimates({ api, findType, ensureUser, apiBase: API, token, constructionId });
+  const estimateSeed = await seedEstimates({ api, findType, ensureUser, apiBase: API, token, constructionId });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
@@ -933,7 +933,7 @@ async function main() {
     `SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`, `SMOKE_DATASET_FILE=${NAME.datasetFile}`,
     `SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`, ...(summaryDay ? [`SMOKE_SUMMARY_DAY=${summaryDay}`] : []),
     // Смета — только когда модуль plan включён; без неё прогон смет отказывает, а не проходит пустым.
-    ...(estimateId ? [`SMOKE_ESTIMATE_ID=${estimateId}`] : []), ...(offerId ? [`SMOKE_OFFER_ID=${offerId}`] : [])].join('\n'));
+    ...estimateSmokeIds(estimateSeed)].join('\n'));
   // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а
   // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
   // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что

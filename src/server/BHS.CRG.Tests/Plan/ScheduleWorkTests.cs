@@ -121,7 +121,7 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         Assert.Contains("исполнители работ графиков", await occupied.Content.ReadAsStringAsync());
     }
 
-    internal static async Task<Guid> EmployeeAsync(PlanOnlyHost host)
+    internal static async Task<Guid> EmployeeAsync(PlanOnlyHost host, string? displayName = null)
     {
         var seed = new WorkTypeSeed(host);
         using var scope = host.Services.CreateScope();
@@ -129,7 +129,7 @@ public class ScheduleWorkTests(PlanOnlyHost host)
         if (!(await repo.FindAsync(t => t.Code == CoreRecordTypes.PersonCode)).Any())
             await seed.TypeAsync(CoreRecordTypes.PersonCode, "Лицо");
         var type = (await seed.SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.Employee)))!;
-        var name = $"Исполнитель {Guid.NewGuid():N}";
+        var name = displayName ?? $"Исполнитель {Guid.NewGuid():N}";
         return (await seed.RecordAsync(type.Id, name)).Id;
     }
 }

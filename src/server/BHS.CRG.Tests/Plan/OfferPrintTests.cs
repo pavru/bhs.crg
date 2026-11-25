@@ -94,7 +94,8 @@ public class OfferPrintTests(PlanOnlyHost host)
         {
             var editor = await GrantedSignIn.WithPermissionsAsync(host, CorePermissions.PrintEdit);
             var types = await editor.GetFromJsonAsync<JsonElement>("/api/templates/types");
-            var typeId = Assert.Single(types.EnumerateArray()).GetProperty("type").GetProperty("id").GetGuid();
+            var typeId = Assert.Single(types.EnumerateArray().Select(item => item.GetProperty("type")),
+                type => type.GetProperty("code").GetString() == PlanRecordTypes.OfferCode).GetProperty("id").GetGuid();
             // Фрагменты, которые вставляет кнопка «Реквизит», в том числе поле заказчика.
             var edited = request.TemplateContent + """
 

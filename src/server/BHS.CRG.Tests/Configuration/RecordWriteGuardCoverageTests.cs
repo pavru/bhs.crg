@@ -46,6 +46,8 @@ public class RecordWriteGuardCoverageTests
         ["ПозицияСметы"] = @"\.CreateEstimateRow\(",
         // Коммерческое предложение (plan-13): поля заказчика по схеме; системные поля — колонки, их кладёт расчёт.
         ["КоммерческоеПредложение"] = @"\.ApplyCustomerData\(",
+        // График (plan-19/20): закрытая шапка и поля расчёта хранятся в колонках.
+        ["ГрафикСтройки"] = @"\bSchedule\.Create\(|\.Rebuilt\(",
         // Отчёт монтажника (work-13): шапка — колонки закрытого типа, сведения строки — JSON по схеме.
         ["ОтчётМонтажника"] = @"\bReport\.Create\(|\.ChangeHeader\(",
         ["СтрокаРаботыСведения"] = @"\bReportLine\.Create\(|\.ApplyLine\(",
@@ -108,6 +110,12 @@ public class RecordWriteGuardCoverageTests
             (Guarded, "правка полей заказчика КП против лежащего с проекцией системных полей «Наценка» и «Итого»"),
         ["BHS.CRG.Modules.Plan/Endpoints/OfferPriceListEndpoints.cs|offer.ApplyCustomerData(customer, now);"] =
             (Guarded, "создание черновика из редакции или по прайс-листу: поля заказчика вносятся впервые"),
+        ["BHS.CRG.Modules.Plan/Schedules/ScheduleBuilder.cs|var schedule = Schedule.Create(request.ConstructionId, request.RevisionId, request.CreationKey, name, DateTimeOffset.UtcNow);"] =
+            (Free, "шапка графика состоит из колонок закрытого типа; стройку и исходную редакцию проверяет построитель"),
+        ["BHS.CRG.Modules.Plan/Schedules/ScheduleBuilder.cs|schedule.Rebuilt(source.Fingerprint, source.Unmapped);"] =
+            (Free, "при построении сохраняются отпечаток и число несопоставленных строк из проверенной редакции"),
+        ["BHS.CRG.Modules.Plan/Schedules/ScheduleBuilder.cs|schedule.Rebuilt(prepared.Source.Fingerprint, prepared.Source.Unmapped);"] =
+            (Free, "при перестроении обновляются расчётные колонки шапки после сверки версии и отпечатка"),
         ["BHS.CRG.Modules.Work/Data/ReportWriter.cs|if (was is null) report.Lines.Add(ReportLine.Create(report.Id, i, line, items[line.Id]));"] =
             (Guarded, "новая строка отчёта монтажника (work-13): сведения по схеме «Строка работы: сведения» вносятся " +
                       "впервые — охрана как создание"),
