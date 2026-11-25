@@ -14,13 +14,14 @@
 ## 2. PR поставщика `costs` и прав контракта
 
 - [x] 2.1 `BHS.CRG.Modules/Exchange/MaterialsOnSite.cs` и `Modules.Costs/Exchange/MaterialsOnSiteContract.cs`
-  над `IssuedMaterials.ReadAsync`: полный ответ, подсказка, «скрыто» [COST-17] [COST-18] [WORK-5.1].
+  над `IssuedMaterials`: полный ответ, подсказка, «скрыто» [COST-17] [COST-18] [WORK-5.1].
   Проверка — `MaterialsOnSiteContractTests`: две накладные — количество и даты; только `hint` — без
-  количеств; черновик не входит; ни одного права — «скрыто»
+  количеств, одним запросом; черновик не входит; ни одного права — «скрыто»
 - [x] 2.2 `CostsModule.cs`: `costs.materials.read` и `costs.materials.hint` — права контракта
   (`plan-21`), `ReadAllMark.Out` с причиной [COST-28] [WORK-48] [AUTH-8.1].
   Проверка — тест состава `/api/account/access` по системным ролям: у «Инженера ИД» и «Монтажника»
-  модуль `costs` имеет `available: false`, адреса `/api/costs/*` отвечают 403
+  модуль `costs` имеет `available: false`, адреса `/api/costs/*` отвечают 403. Живой прогон
+  `routing` также проверяет `available` и отказы HTTP
 - [x] 2.3 `SystemRoles.cs` — «Монтажнику» `costs.materials.hint` [WORK-48]. Проверка — тот же тест
   состава: право есть, пространства «Счета и накладные» нет
 - [x] 2.4 Живой хост `work` без `costs`: контракт — «не подключено»; `CostsOnlyHostTests` зелёный

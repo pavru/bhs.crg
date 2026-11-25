@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
@@ -7,6 +8,9 @@ using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Tests.Integration;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -71,9 +75,23 @@ public sealed class MaterialsOnSiteContractTests(MaterialsOnSiteHost host) : ICl
         var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
         AddWaybill(db, site, date, posted: true, (cable, "м", 10m), (cable, "бухта", 1m), (null, "шт", 1m));
         AddWaybill(db, site, date, posted: false, (Guid.NewGuid(), "шт", 2m));
+        AddWaybill(db, Guid.NewGuid(), date, posted: true, (Guid.NewGuid(), "шт", 1m));
         await db.SaveChangesAsync();
 
-        var answer = await Connected(scope.ServiceProvider).ReadAsync(Reader(CostsModule.MaterialsHint), site);
+        ContractAnswer<MaterialsOnSite> answer;
+        host.ReadProbe.Context = db;
+        try
+        {
+            answer = await Connected(scope.ServiceProvider).ReadAsync(Reader(CostsModule.MaterialsHint), site);
+        }
+        finally
+        {
+            host.ReadProbe.Context = null;
+        }
+
+        var read = Assert.Single(host.ReadProbe.Reads);
+        Assert.StartsWith("SELECT DISTINCT", read.Statement, StringComparison.OrdinalIgnoreCase);
+        Assert.False(read.InTransaction);
         var hint = Shown<MaterialsOnSite.Hint>(answer);
         Assert.Equal(cable, Assert.Single(hint.NomenclatureIds));
         var json = JsonSerializer.SerializeToElement(hint, JsonSerializerOptions.Web);
@@ -149,6 +167,8 @@ public sealed class MaterialsOnSiteContractTests(MaterialsOnSiteHost host) : ICl
 
 public sealed class MaterialsOnSiteHost : IntegrationTestFixture
 {
+    internal MaterialsReadProbe ReadProbe { get; } = new();
+
     protected override string HostConnectionString => TestDatabases.ConnectionString("materials");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -161,5 +181,22 @@ public sealed class MaterialsOnSiteHost : IntegrationTestFixture
         };
         foreach (var (key, value) in overrides) builder.UseSetting(key, value);
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(overrides));
+        builder.ConfigureTestServices(services =>
+            services.AddDbContext<CostsDbContext>(options => options.AddInterceptors(ReadProbe)));
+    }
+}
+
+internal sealed class MaterialsReadProbe : DbCommandInterceptor
+{
+    public CostsDbContext? Context { private get; set; }
+    public List<(string Statement, bool InTransaction)> Reads { get; } = [];
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Context is not null && eventData.Context == Context)
+            Reads.Add((command.CommandText, command.Transaction is not null));
+        return ValueTask.FromResult(result);
     }
 }

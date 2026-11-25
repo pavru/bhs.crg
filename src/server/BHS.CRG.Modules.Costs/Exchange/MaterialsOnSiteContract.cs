@@ -15,19 +15,19 @@ internal sealed class MaterialsOnSiteContract(CostsDbContext db) : IMaterialsOnS
             is { } refusal)
             return refusal;
 
+        if (!reader.Allows(CostsModule.MaterialsRead))
+        {
+            var ids = await IssuedMaterials.ReadNomenclatureIdsAsync(db, constructionId, ct);
+            return ContractAnswer.Shown<MaterialsOnSite>(new MaterialsOnSite.Hint(ids));
+        }
+
         // Перечень и число несопоставленных строк должны видеть одну версию накладных.
         await using var snapshot = db.Database.CurrentTransaction is null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
             : null;
         var report = await IssuedMaterials.ReadAsync(db, constructionId, ct);
-        if (reader.Allows(CostsModule.MaterialsRead))
-        {
-            var items = report.Items.Select(item =>
-                new MaterialOnSite(item.NomenclatureId, item.Unit, item.Quantity, item.First, item.Last));
-            return ContractAnswer.Shown<MaterialsOnSite>(new MaterialsOnSite.Full([.. items], report.UnmatchedLines));
-        }
-
-        var nomenclatureIds = report.Items.Select(item => item.NomenclatureId).Distinct();
-        return ContractAnswer.Shown<MaterialsOnSite>(new MaterialsOnSite.Hint([.. nomenclatureIds]));
+        var items = report.Items.Select(item =>
+            new MaterialOnSite(item.NomenclatureId, item.Unit, item.Quantity, item.First, item.Last));
+        return ContractAnswer.Shown<MaterialsOnSite>(new MaterialsOnSite.Full([.. items], report.UnmatchedLines));
     }
 }

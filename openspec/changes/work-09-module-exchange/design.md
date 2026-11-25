@@ -42,9 +42,11 @@
     constructionId, ct)` возвращает `ContractAnswer<MaterialsOnSite>`. `Shown` содержит либо
     `Full(items: nomenclatureId, unit, quantity, first, last; unmatchedLines)`, либо
     `Hint(nomenclatureIds)` с уникальными идентификаторами. Названия потребитель читает портом каталога.
-  - `Modules.Costs/Exchange/MaterialsOnSiteContract.cs` — над `IssuedMaterials.ReadAsync`; вид ответа —
-    по ключам `ModuleReader`: `read` → полный, иначе `hint` → подсказка. До чтения общая проверка
-    `ContractAnswer.Refusal` отвечает `Hidden(costs.materials.read)` либо `SystemRefused(reason)`.
+  - `Modules.Costs/Exchange/MaterialsOnSiteContract.cs` выбирает чтение по ключам `ModuleReader`.
+    Для `read` методы отчёта `IssuedMaterials.ReadAsync` читают из одного снимка. Для `hint`
+    `IssuedMaterials.ReadNomenclatureIdsAsync` выбирает уникальные идентификаторы одним запросом
+    по тому же отбору строк. До чтения общая проверка `ContractAnswer.Refusal` отвечает
+    `Hidden(costs.materials.read)` либо `SystemRefused(reason)`.
   - `CostsModule.cs`: два права с видом «право контракта» (`plan-21`), объяснения прямо говорят, что
     модуль они не открывают; `ReadAllMark.Out` — «читать всё» сводит чтение модуля, а это выдача другому
     модулю.
@@ -56,6 +58,8 @@
 - **Сторож.** `MaterialsOnSiteContractTests` (полный, подсказка, черновик не входит,
   «скрыто»), тест состава `/api/account/access` по ролям, живой хост `work` без `costs` получает «не
   подключено» (`WorkOnlyHostTests` из `work-10`), `CostsOnlyHostTests` зелёный.
+  Браузерный `routing-smoke.mjs` проверяет ворота `costs` по `modules[].available` и отказам на
+  маршрутах.
 - **Чем ломается.** Потребитель зовёт `GET /api/costs/materials` по HTTP: монтажник без
   `costs.waybill.read` получает 403, а выключенный `costs` — 501 вместо «не подключено». Право
   контракта объявлено обычным правом — у «Инженера ИД» появляется раздел «Счета и накладные».
