@@ -123,8 +123,8 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
             // Ворота (ТЗ CORE-24.1, issue #965) — и здесь: счётчик читает строки целиком, то есть
             // «сколько строк» отвечает по данным, на которые права может не быть. Отказ ворот —
             // DomainException, и его глотает тот же catch ниже: список наборов у человека без права
-            // покажет запомненное число вместо живого, а не упадёт целиком. Запомненное число на
-            // источнике лежит с момента создания и уезжает в резервную копию — новой утечки здесь нет.
+            // использует сохранённое описание колонок. У изолированного источника число неизвестно,
+            // пока его не дал поставщик с правами читающего.
             SystemDataSetGate.Ensure(provider.Declaration, access, "");
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
             return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns, provided.Types,

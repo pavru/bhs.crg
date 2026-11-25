@@ -90,7 +90,7 @@ public sealed class ReportCorrection(
             throw new ConflictException(ReportDesk.Stale);
         }
 
-        await activity.RecordAsync(ReportActions.Corrected, report, executor, before: null, after: reason);
+        await activity.RecordAsync(ReportActions.Corrected, report, executor, before: null, after: "исправлен");
         return await views.OneAsync(viewer, report, ct: ct);
     }
 

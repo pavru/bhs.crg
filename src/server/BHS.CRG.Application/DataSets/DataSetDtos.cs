@@ -6,7 +6,7 @@ namespace BHS.CRG.Application.DataSets;
 
 public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
-    string CachedSchema, int CachedRowCount,
+    string CachedSchema, int? CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
     IReadOnlyList<string>? Tags,
     /// <summary>Данные источника разошлись со своим происхождением. Признак и его причина едут
@@ -77,7 +77,7 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 /// живёт в домене, и копия его на клиенте разъехалась бы — тот же урок, что у бейджа «не участвует».
 /// </param>
 public record BindingSourceDto(
-    Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File,
+    Guid Id, string Name, string SheetOrPath, string CachedSchema, int? CachedRowCount, BindingFileDto? File,
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
     DataOrigin Origin = DataOrigin.Parsed,
     /// <summary>Данные источника разошлись со своим файлом (issue #815). Едет ЗДЕСЬ, а не только в

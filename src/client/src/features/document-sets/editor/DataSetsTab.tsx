@@ -484,7 +484,7 @@ function AddBindingPanel({
             {availableFiles.map(f => (
               <SelectGroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
                 {f.sources.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.name} · {s.cachedRowCount} строк</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>{s.name}{s.cachedRowCount == null ? '' : ` · ${s.cachedRowCount} строк`}</SelectItem>
                 ))}
               </SelectGroup>
             ))}

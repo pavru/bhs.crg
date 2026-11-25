@@ -66,7 +66,7 @@ public class DataSnapshotService(
                     // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
                     // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
                     // число даёт get_source, а на его нужду указывает Filtered.
-                    live?.RowCount ?? s.CachedRowCount,
+                    live?.RowCount ?? s.KnownCachedRowCount(),
                     HasFilter(s),
                     s.RecognitionStale,
                     LiveColumnNames(live?.Columns) ?? ColumnNames(s.CachedSchema),
@@ -135,7 +135,7 @@ public class DataSnapshotService(
         }
 
         // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
-        var rawRowCount = loaded?.RawRowCount ?? fallback?.RowCount ?? source.CachedRowCount;
+        var rawRowCount = loaded?.RawRowCount ?? fallback?.RowCount ?? source.KnownCachedRowCount();
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,

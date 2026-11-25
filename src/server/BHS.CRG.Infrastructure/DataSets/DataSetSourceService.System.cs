@@ -85,7 +85,7 @@ public partial class DataSetSourceService
         }
         else await EnsureNameFreeAsync(file.Id, name, null, ct);
 
-        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
+        var source = AddSystemSource(file, name, marker, provider.Declaration, provided);
         source.SetProcessing(rowFilter, null, sortSpec);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
@@ -99,15 +99,27 @@ public partial class DataSetSourceService
         Domain.DataSets.DataSetFile file, string name, string marker, DataAccess access, CancellationToken ct)
     {
         var provider = systemProviders.Get(marker);
-        // Ворота и на создании (ТЗ CORE-24.1): создание прогоняет консолидацию, чтобы записать схему
-        // колонок и счётчик строк, — то есть читает данные. Здесь отказ, а не пропуск: набор выбрал
+        // Ворота и на создании (ТЗ CORE-24.1): создание прогоняет консолидацию для схемы колонок,
+        // то есть читает данные. Здесь отказ, а не пропуск: набор выбрал
         // человек, и молчаливо создать источник без строк значило бы отдать ему пустую таблицу.
         SystemDataSetGate.Ensure(provider.Declaration, access, name);
         var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
 
-        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
+        var source = AddSystemSource(file, name, marker, provider.Declaration, provided);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
+    }
+
+    private static DataSetSource AddSystemSource(
+        DataSetFile file, string name, string marker, SystemDataSetDeclaration declaration, DataSetParseResult provided)
+    {
+        if (declaration.Isolation == SystemDataSetIsolation.PerUser)
+        {
+            var columns = provided.Columns.Select(c => c with { SampleValues = [] }).ToArray();
+            return file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), DataSetSource.UnstoredRowCount);
+        }
+
+        return file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
     }
 }

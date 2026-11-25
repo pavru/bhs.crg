@@ -116,7 +116,7 @@ public static class DataSetDtoMapper
     public static DataSetSourceDto MapSource(
         DataSetSource s, int? bindingCount = null, SystemSourceCounter.SystemSourceState? live = null) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, LiveSchemaOf(live) ?? s.CachedSchema,
-        live?.RowCount ?? s.CachedRowCount,
+        live?.RowCount ?? s.KnownCachedRowCount(),
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
         s.MaterializeTypeId,
@@ -156,7 +156,7 @@ public static class DataSetDtoMapper
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,
         JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
         b.Source is null ? null : new BindingSourceDto(
-            b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.CachedRowCount,
+            b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.KnownCachedRowCount(),
             b.Source.File is null ? null : new BindingFileDto(
                 b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
                 b.Source.File.Scope.ToString(), b.Source.File.ScopeId),

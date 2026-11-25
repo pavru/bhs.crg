@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.Storage;
+using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BHS.CRG.Infrastructure.Backup;
@@ -173,7 +174,9 @@ public partial class BackupService
                     stats.Count(section.Label, section.Created, section.Updated);
                 restoredModules = outcome.Restored;
             }
+            var cleanup = await WorkContentMaintenance.DuringRestoreAsync(db, ct);
             await tx.CommitAsync(ct);
+            cleanup.Log(logger);
         }
         catch (Exception ex)
         {
