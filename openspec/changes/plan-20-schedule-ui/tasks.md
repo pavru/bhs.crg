@@ -42,19 +42,19 @@
 
 ## 4. PR 3: печать списка и проверка
 
-- [ ] 4.1 `Printing/ScheduleWorksPrintContext.cs`, объявление формы в `PlanModule.PrintForms` (право
+- [x] 4.1 `Printing/ScheduleWorksPrintContext.cs`, объявление формы в `PlanModule.PrintForms` (право
   `plan.schedule.read`), шаблон по умолчанию, кнопка «Печать» (решение В-10) [PLAN-17] [CORE-21].
   Проверка — серверный тест контекста печати; `PlanOnlyHostTests` печатает график
-- [ ] 4.2 Живой прогон `src/client/e2e/plan-schedule-smoke.mjs`, посев графика в `e2e/seed.mjs`; вписать
+- [x] 4.2 Живой прогон `src/client/e2e/plan-schedule-smoke.mjs`, посев графика в `e2e/seed.mjs`; вписать
   в `test:e2e:ci` и `e2e/README.md` [PLAN-17]. Проверка — прогон зелёный на стенде
-- [ ] 4.3 `docs/USER_GUIDE.md`: график, построение из сметы, зависимости, предупреждения, диаграмма,
+- [x] 4.3 `docs/USER_GUIDE.md`: график, построение из сметы, зависимости, предупреждения, диаграмма,
   печать; `cd docs/tools && npm run toc` [PLAN-15]–[PLAN-17]. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Schedule|FullyQualifiedName~RecordPrint|FullyQualifiedName~PlanOnlyHost"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm test` и `npm run ui:ratchet` — зелёные, без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 5.5 Живой прогон под ролями: `node e2e/plan-schedule-smoke.mjs` — «Менеджер проекта» строит и правит
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Schedule|FullyQualifiedName~RecordPrint|FullyQualifiedName~PlanOnlyHost"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm test` и `npm run ui:ratchet` — зелёные, без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.5 Живой прогон под ролями: `node e2e/plan-schedule-smoke.mjs` — «Менеджер проекта» строит и правит
   график; «Сметчик» без `plan.schedule.read` пункта «График» не видит

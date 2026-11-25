@@ -76,6 +76,13 @@ public static class PlanRecordTypes
         Group: "Планирование",
         Storage: ModuleStorage.ModuleTable);
 
+    public const string ScheduleCode = "ГрафикСтройки";
+
+    /// <summary>Шапка графика хранится в plan.schedules. Тип нужен для печатной формы записи.</summary>
+    public static readonly ModuleRecordType Schedule = new(
+        ScheduleCode, "График стройки", ModuleSchemaLevel.Closed, [],
+        Group: "Планирование", Storage: ModuleStorage.ModuleTable);
+
     /// <summary>Всё, что объявляет модуль.</summary>
-    public static readonly IReadOnlyList<ModuleRecordType> All = [EstimateRow, Offer];
+    public static readonly IReadOnlyList<ModuleRecordType> All = [EstimateRow, Offer, Schedule];
 }

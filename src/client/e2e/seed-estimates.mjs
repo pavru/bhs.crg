@@ -10,6 +10,7 @@
 // записаны, как их пишет программа: досчёт итогов — забота разбора, а не экранов смет.
 
 import { seedOffer } from './seed-offers.mjs';
+import { seedSchedule } from './seed-schedules.mjs';
 
 /** Единицы измерения: справочник заводит человек; классификатор видов работ появится со следующим запуском. */
 const UNIT_TYPE = 'ЕдиницаИзмерения';
@@ -114,7 +115,18 @@ export async function seedEstimates({ api, findType, ensureUser, apiBase, token,
     await importFile({ api, apiBase, token, form: { constructionId, estimateId: estimate.id }, extra: true });
     console.log(`  + смета «${ESTIMATE_NAME}», ред. 2`);
   }
-  return { estimateId: estimate.id, offerId: await seedOffer({ api, estimateId: estimate.id }) };
+  const schedule = await seedSchedule({ api, constructionId, estimates: existing.items, importEstimate: name =>
+    importFile({ api, apiBase, token, form: { constructionId, 'newEstimate.name': name, 'newEstimate.kind': 'main' } }) });
+  return { estimateId: estimate.id, offerId: await seedOffer({ api, estimateId: estimate.id }), ...schedule };
+}
+
+export function estimateSmokeIds({ estimateId, offerId, scheduleEstimateId, neighborScheduleId }) {
+  return Object.entries({
+    SMOKE_ESTIMATE_ID: estimateId,
+    SMOKE_OFFER_ID: offerId,
+    SMOKE_SCHEDULE_ESTIMATE_ID: scheduleEstimateId,
+    SMOKE_NEIGHBOR_SCHEDULE_ID: neighborScheduleId,
+  }).filter(([, id]) => id).map(([key, id]) => `${key}=${id}`);
 }
 
 /**

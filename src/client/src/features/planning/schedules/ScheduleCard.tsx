@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCan } from '@/shared/api/access';
 import { useGetConstruction } from '@/shared/api/constructions';
-import { SCHEDULE_EDIT } from '@/shared/api/planningCalendars';
+import { SCHEDULE_EDIT, SCHEDULE_READ } from '@/shared/api/planningCalendars';
 import { scheduleRefusal, useSchedule, useWriteScheduleWork } from '@/shared/api/planningSchedules';
 import type { Schedule, ScheduleWarning, ScheduleWork } from '@/shared/api/planningScheduleTypes';
 import { useLocale } from '@/shared/hooks/useLocale';
@@ -17,6 +17,7 @@ import { RebuildByDistributionDialog } from './RebuildByDistributionDialog';
 import { ScheduleEmployeeDialog } from './ScheduleEmployeeDialog';
 import { ScheduleGantt } from './ScheduleGantt';
 import { ScheduleLinksDialog } from './ScheduleLinksDialog';
+import { SchedulePrintDialog } from './SchedulePrintDialog';
 import { ScheduleWorksGrid } from './ScheduleWorksGrid';
 import { skippedText, warningFilters, type ScheduleSection } from './scheduleDisplay';
 import { draftChanged, draftOf, keepEdits, workInput, type WorkDraft } from './workDraft';
@@ -45,6 +46,7 @@ function ScheduleContents({ schedule, sections, reload }: {
   reload: () => Promise<{ isSuccess: boolean; data?: Schedule }>;
 }) {
   const can = useCan();
+  const canPrint = can.permission(SCHEDULE_READ);
   const canEdit = can.permission(SCHEDULE_EDIT);
   const canReadEmployees = can.permission('core.employees.read');
   const canReadCatalog = can.permission('core.catalog.read');
@@ -61,7 +63,7 @@ function ScheduleContents({ schedule, sections, reload }: {
   const [refused, setRefused] = useState<string | null>(null);
   const [rereading, setRereading] = useState(false);
   const [review, setReview] = useState('');
-  const [dialog, setDialog] = useState<'rebuild' | 'add' | 'employees' | null>(null);
+  const [dialog, setDialog] = useState<'rebuild' | 'add' | 'employees' | 'print' | null>(null);
   const [deleting, setDeleting] = useState<ScheduleWork | null>(null);
   const [linkWorkId, setLinkWorkId] = useState<string | null>(null);
   const write = useWriteScheduleWork(schedule.constructionId, schedule.id);
@@ -175,6 +177,9 @@ function ScheduleContents({ schedule, sections, reload }: {
       {canEdit && canReadCatalog && <Button variant="outlined" disabled={!!edit || pending} onClick={() => setDialog('add')}>
         Добавить работу
       </Button>}
+      {canPrint && <Button variant="outlined" disabled={dirty || pending || rereading} onClick={() => setDialog('print')}>
+        Печать списка…
+      </Button>}
       {wide && <Tabs<View> id={VIEW_ID} aria-label="Вид графика" variant="segmented" value={visibleView}
         items={[{ value: 'list', label: 'Список' }, { value: 'gantt', label: 'Диаграмма', disabled: !!edit }]}
         onChange={setView} />}
@@ -222,6 +227,7 @@ function ScheduleContents({ schedule, sections, reload }: {
       </div>
     </>}
     {canEdit && dialog === 'rebuild' && <RebuildByDistributionDialog id={schedule.id} sections={sections} onClose={() => setDialog(null)} />}
+    {canPrint && dialog === 'print' && <SchedulePrintDialog schedule={schedule} onClose={() => setDialog(null)} />}
     {canEdit && canReadCatalog && dialog === 'add' && <ManualScheduleWorkDialog constructionId={schedule.constructionId}
       id={schedule.id} sections={sections} canReadEmployees={canReadEmployees} onClose={() => setDialog(null)} />}
     {canEdit && canReadEmployees && edit && dialog === 'employees' && <ScheduleEmployeeDialog
