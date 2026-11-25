@@ -226,6 +226,9 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<CrewGroups>();
         services.AddScoped<ReportViews>();
         services.AddScoped<ReportEntrySites>();
+        services.AddScoped<MaterialHintAccess>();
+        services.AddScoped<MaterialHintEstimate>();
+        services.AddScoped<MaterialHintChoices>();
         services.AddScoped<ReportHistory>();
         services.AddScoped<ReportCorrection>();
         services.AddScoped<ReportJournal>();
@@ -268,6 +271,7 @@ public sealed class WorkModule : IAppModule
         ReportDetailsSchema.Map(endpoints);
         EntryReportEndpoints.Map(endpoints);
         ReportEntryCatalog.Map(endpoints);
+        MaterialsHint.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
         ReportCorrection.Map(endpoints);

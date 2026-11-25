@@ -49,7 +49,8 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     /// названо числом (issue #1185).</para>
     /// </summary>
     Task<ChoiceCandidates> SearchForChoiceAsync(
-        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default);
+        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default,
+        IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null);
 
     /// <summary>
     /// Записи общих данных ссылками по известным идентификаторам — для показа уже стоящих ссылок.

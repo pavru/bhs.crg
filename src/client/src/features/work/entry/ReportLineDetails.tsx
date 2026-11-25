@@ -1,8 +1,7 @@
 import { useId } from 'react';
 import { catalogLabels, materialName, useCrewCandidates, useEntryCatalog,
   type EntryCatalogScope, type MaterialOption, type WorkTypeOption } from '@/shared/api/workEntryCatalog';
-import type { RequiredReportField } from '@/shared/api/workReports';
-import type { MissingAcceptanceField } from '@/shared/api/workReview';
+import type { RequiredReportField, WorkReportLine } from '@/shared/api/workReports';
 import { Banner } from '@/shared/ui/Banner';
 import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -25,15 +24,17 @@ interface LineEditorProps {
   onChange: (changes: Partial<DraftLine>) => void;
 }
 
-export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, missingFields, onChange, onDetailChange, pickedMaterials, onPickMaterial }:
+export function ReportLineDetails({ scope, line, siteReady, type, disabled, errors, savedLine, onChange, onDetailChange, pickedMaterials, onPickMaterial }:
   LineEditorProps & { type?: WorkTypeOption; errors?: RequiredReportField[];
-    missingFields?: MissingAcceptanceField[]; pickedMaterials: Record<string, MaterialOption>;
+    savedLine?: WorkReportLine; pickedMaterials: Record<string, MaterialOption>;
     onPickMaterial: (material: MaterialOption) => void; onDetailChange: (key: string, value: unknown) => void }) {
   const sections = useEntryCatalog(scope, 'sections', '', siteReady);
   const sectionItems = sections.data?.items ?? [];
   const missingSection = line.sectionId && !sectionItems.some(item => item.id === line.sectionId);
   const missing = missingForId(line, type);
   const locationError = !line.location?.trim() && errors?.some(item => item.field === 'location');
+  const planItemId = scope.reportId && savedLine?.workTypeId === line.workTypeId && savedLine.unitId === line.unitId
+    && savedLine.sectionId === line.sectionId ? savedLine.workPlanItemId : undefined;
   return <div className="space-y-4">
     {missing.length > 0 && <StatusText tone="warning">
       Нужно для ИД · {missing.map(field => requiredFieldTitle[field].toLowerCase()).join(', ')}
@@ -56,17 +57,17 @@ export function ReportLineDetails({ scope, line, siteReady, type, disabled, erro
     {sections.isError && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void sections.refetch() }]}>
       {apiError(sections.error, 'Не удалось загрузить разделы стройки.')}
     </Banner>}
-    <LineMaterials scope={scope} line={line} siteReady={siteReady} disabled={disabled} onChange={onChange}
+    <LineMaterials scope={scope} line={line} planItemId={planItemId} siteReady={siteReady} disabled={disabled} onChange={onChange}
       missing={!line.materials.length && !!errors?.some(item => item.field === 'materials')}
       picked={pickedMaterials} onPick={onPickMaterial} />
     <CrewFields scope={scope} line={line} siteReady={siteReady} disabled={disabled} onChange={onChange} />
-    <ReportCustomerFields details={line.details} missingFields={missingFields} disabled={disabled}
+    <ReportCustomerFields details={line.details} missingFields={savedLine?.missingFields} disabled={disabled}
       scope={scope} onChange={onDetailChange} />
   </div>;
 }
 
-function LineMaterials({ scope, line, siteReady, disabled, onChange, missing, picked, onPick }:
-  LineEditorProps & { missing: boolean; picked: Record<string, MaterialOption>; onPick: (material: MaterialOption) => void }) {
+function LineMaterials({ scope, line, planItemId, siteReady, disabled, onChange, missing, picked, onPick }:
+  LineEditorProps & { planItemId?: string; missing: boolean; picked: Record<string, MaterialOption>; onPick: (material: MaterialOption) => void }) {
   const description = useId();
   const catalog = useEntryCatalog(scope, 'materials', '', siteReady && line.materials.length > 0);
   const labels = catalogLabels(catalog.data);
@@ -89,6 +90,7 @@ function LineMaterials({ scope, line, siteReady, disabled, onChange, missing, pi
     <div data-report-field="materials" tabIndex={-1} className="w-fit max-w-full">
       {missing && <p id={description} className="text-body-small text-error">Добавьте материал для подачи отчёта.</p>}
       {!disabled && siteReady && <MaterialPicker scope={scope} excluded={line.materials.map(item => item.nomenclatureId)}
+        line={{ workTypeId: line.workTypeId, unitId: line.unitId, sectionId: line.sectionId, planItemId }}
         describedBy={missing ? description : undefined} onPick={material => {
           onPick(material);
           onChange({ materials: [...line.materials, { nomenclatureId: material.id, note: null }] });

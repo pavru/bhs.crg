@@ -188,8 +188,11 @@ public interface IModuleCatalog
     /// тот и говорит человеку, что он неполон, — иначе ненайденная позиция читается как
     /// отсутствующая, и человек заведёт вторую такую же.</para>
     /// </summary>
+    /// <param name="onlyIds">Ограничить выбор и архив названными идентификаторами. <c>null</c> — весь справочник.</param>
+    /// <param name="exceptIds">Исключить эти позиции из выбора до лимита. Счётчик архива не меняется.</param>
     Task<ModuleCatalogChoice?> SearchAsync(
-        string role, string? query, int limit, CancellationToken ct = default);
+        string role, string? query, int limit, CancellationToken ct = default,
+        IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null);
 
     /// <summary>
     /// Названия УЖЕ ВЫБРАННЫХ записей вида — одним обращением на все идентификаторы (issue #1078).

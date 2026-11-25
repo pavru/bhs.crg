@@ -125,7 +125,7 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
       <div ref={details} key={expandedLine.id}>
         <ReportLineDetails scope={scope} siteReady={siteReady} line={expandedLine}
           type={typeOf(expandedLine.workTypeId)} disabled={disabled} errors={errors?.filter(error => error.lineId === expandedLine.id)}
-          missingFields={savedLines?.find(line => line.id === expandedLine.id)?.missingFields}
+          savedLine={savedLines?.find(line => line.id === expandedLine.id)}
           pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
           onDetailChange={(key, value) => onChange(current => current.map(line => line.id === expandedLine.id
             ? { ...line, details: withDetailValue(line.details, key, value) } : line))}

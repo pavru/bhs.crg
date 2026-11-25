@@ -8,6 +8,11 @@ namespace BHS.CRG.Modules.Costs.Exchange;
 
 internal sealed class MaterialsOnSiteContract(CostsDbContext db) : IMaterialsOnSite
 {
+    public async Task<ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>> ReadHintAsync(
+        ModuleReader reader, Guid constructionId, CancellationToken ct = default) =>
+        ContractAnswer.Refusal<IReadOnlyList<MaterialOnSiteHint>>(reader, CostsModule.MaterialsHint, CostsModule.MaterialsRead)
+        ?? ContractAnswer.Shown(await IssuedMaterials.ReadHintAsync(db, constructionId, ct));
+
     public async Task<ContractAnswer<MaterialsOnSite>> ReadAsync(
         ModuleReader reader, Guid constructionId, CancellationToken ct = default)
     {

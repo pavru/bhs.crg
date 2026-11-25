@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { seedWorkMaterials } from './seed-work-materials.mjs';
 
 const SITE = 'Стройка проверки ролей Work-25 (посев)';
 const SEATS = {
@@ -12,6 +13,7 @@ const SEATS = {
 };
 const REPORT_A = '59a34fae-bd0a-4abf-a2fa-18cb4f234553';
 const REPORT_B = '78a84820-a0bf-4a37-94cb-12d4273a2a96';
+const LINE_A = 'b0771d96-7183-44ad-aa1a-a469db526195';
 const LINE_B = 'adde5341-b9b5-4d2b-9183-bff6aa16a657';
 const PHOTO_B = '2c12bb11-a268-4bf9-afa1-1346fd5c13df';
 export const WORK_PHOTO_NAME = 'Отчёт Б (посев Work-25).png';
@@ -83,17 +85,23 @@ async function ensureReport(api, site, id, lines) {
   });
 }
 
-export async function seedWork({ api, apiBase, ensureUser, login, password, engineerEmail }) {
+export async function seedWork({ api, apiBase, token, findType, ensureUser, login, password, engineerEmail }) {
   const site = await ensureSite(api);
   await ensureSeats(api, ensureUser, site);
   const line = await workLine(api);
+  await seedWorkMaterials({ api, apiBase, token, findType, site, line });
   const asInstaller = async seat => {
     const auth = { Authorization: `Bearer ${await login(seat.email, password)}` };
     return { auth, api: (method, path, body, headers) => api(method, path, body, { ...auth, ...headers }) };
   };
   const a = await asInstaller(SEATS.A);
-  const reportA = await ensureReport(a.api, site, REPORT_A, []);
+  const draftLine = { ...line, id: LINE_A, location: 'Участок А (посев Work-26)', photos: [] };
+  const reportA = await ensureReport(a.api, site, REPORT_A, [draftLine]);
   assert.equal(reportA.status, 'draft');
+  if (!reportA.lines.length) {
+    await a.api('PUT', `/work/reports/${REPORT_A}`, { changeId: randomUUID(), hours: 8, lines: [draftLine] },
+      { 'If-Match': reportA.version });
+  }
   const b = await asInstaller(SEATS.B);
   let reportB = await ensureReport(b.api, site, REPORT_B, [line]);
   const photo = reportB.lines.flatMap(row => row.photos).find(item => item.id === PHOTO_B);

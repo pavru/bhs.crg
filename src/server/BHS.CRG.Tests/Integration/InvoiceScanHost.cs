@@ -185,8 +185,9 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         public Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default) => inner.GetAsync(id, ct);
 
         public Task<ModuleCatalogChoice?> SearchAsync(
-            string entityType, string? query, int limit, CancellationToken ct = default) =>
-            inner.SearchAsync(entityType, query, limit, ct);
+            string entityType, string? query, int limit, CancellationToken ct = default,
+            IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null) =>
+            inner.SearchAsync(entityType, query, limit, ct, onlyIds, exceptIds);
 
         public Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
             string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)

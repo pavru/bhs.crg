@@ -43,19 +43,26 @@ export interface EntryCatalogPage<T> {
   limit?: number;
 }
 
+export function getEntryCatalog<K extends keyof EntryCatalogItem>(
+  { siteId, date, reportId }: EntryCatalogScope, kind: K, q: string, signal?: AbortSignal,
+) {
+  return apiClient.get<EntryCatalogPage<EntryCatalogItem[K]>>(
+    `/work/entry/sites/${encodeURIComponent(siteId)}/catalog/${kind}`, { params: { date, reportId, q }, signal },
+  ).then(response => response.data);
+}
+
 export function catalogLabels<T extends { id: string }>(data?: EntryCatalogPage<T>) {
   return new Map([...(data?.items ?? []), ...(data?.selected ?? [])].map(item => [item.id, item]));
 }
 
 export function useEntryCatalog<K extends keyof EntryCatalogItem>(
-  { siteId, date, reportId, reportVersion }: EntryCatalogScope, kind: K, q = '', enabled = true,
+  scope: EntryCatalogScope, kind: K, q = '', enabled = true,
 ) {
+  const { siteId, date, reportId, reportVersion } = scope;
   return useQuery({
     queryKey: ['work', 'entry-catalog', siteId, kind, date, reportId, reportVersion, q],
     enabled: enabled && !!siteId && (!!date || !!reportId),
-    queryFn: ({ signal }) => apiClient.get<EntryCatalogPage<EntryCatalogItem[K]>>(
-      `/work/entry/sites/${encodeURIComponent(siteId)}/catalog/${kind}`, { params: { date, reportId, q }, signal },
-    ).then(response => response.data),
+    queryFn: ({ signal }) => getEntryCatalog(scope, kind, q, signal),
   });
 }
 

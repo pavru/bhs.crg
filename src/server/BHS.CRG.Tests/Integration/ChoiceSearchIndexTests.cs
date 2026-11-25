@@ -65,6 +65,28 @@ public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
     /// планировщика ничего не значит (замер на 200 000 строк — в DEV_NOTES).
     /// </summary>
     [Fact]
+    public async Task Ограничения_по_идентификаторам_действуют_до_SQL_лимита()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var (type, byName, byAlias) = await SeedAsync(tag);
+        var plans = new PlanProbe();
+        await using var db = Context(plans);
+        var repository = new DomainObjectRepository(db);
+
+        var upper = await repository.SearchForChoiceAsync([type], $"кабель {tag}", 1, onlyIds: [byAlias]);
+        Assert.Equal(byAlias, Assert.Single(upper.Items).Id);
+        Assert.Equal($"Кабель {tag} ВВГ", upper.Items[0].MatchedAlias);
+        Assert.Contains("LIMIT", plans.Sql);
+        Assert.Contains("\"Id\" = ANY", plans.Sql);
+
+        var lower = await repository.SearchForChoiceAsync([type], $"кабель {tag}", 1, exceptIds: [byName]);
+        Assert.Equal(byAlias, Assert.Single(lower.Items).Id);
+        Assert.Contains("LIMIT", plans.Sql);
+        Assert.Contains("NOT (", plans.Sql);
+        Assert.Contains("\"Id\" = ANY", plans.Sql);
+    }
+
+    [Fact]
     public async Task Образец_из_двух_знаков_находит_по_названию_и_по_имени()
     {
         var tag = Guid.NewGuid().ToString("N")[..8];
@@ -131,13 +153,15 @@ public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
     private sealed class PlanProbe : DbCommandInterceptor
     {
         public string Last { get; private set; } = "";
+        public string Sql { get; private set; } = "";
 
         public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
             CancellationToken ct = default)
         {
-            if (!command.CommandText.Contains("\"SearchText\"") || !command.CommandText.Contains("LIMIT"))
-                return result;
+            if (!command.CommandText.Contains("\"SearchText\"")) return result;
+            if (!command.CommandText.Contains("count(", StringComparison.OrdinalIgnoreCase)) Sql = command.CommandText;
+            if (!command.CommandText.Contains("LIMIT")) return result;
 
             await using var explain = command.Connection!.CreateCommand();
             explain.CommandText = "EXPLAIN " + command.CommandText;

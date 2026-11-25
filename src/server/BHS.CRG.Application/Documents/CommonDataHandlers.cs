@@ -243,7 +243,7 @@ public partial class CommonDataHandlers(
     /// уровня, а этот запрос отбирает по виду и названию и об уровнях не спрашивает.
     /// </summary>
     public async ValueTask<ChoiceCandidates> Handle(SearchCommonDataForChoiceQuery q, CancellationToken ct)
-        => await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);
+        => await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct, q.OnlyIds, q.ExceptIds);
 
     public async ValueTask<IReadOnlyList<CommonDataRef>> Handle(CommonDataRefsByIdsQuery q, CancellationToken ct)
         => await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);

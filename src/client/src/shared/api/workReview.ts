@@ -67,6 +67,7 @@ export interface MissingAcceptanceField { key: string; title: string }
 
 export interface ReviewReportLine {
   id: string;
+  workPlanItemId?: string;
   workTypeId: string;
   variantId: string | null;
   volume: number;

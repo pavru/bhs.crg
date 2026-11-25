@@ -11,9 +11,8 @@ const heading = (page, name) => page.getByRole('heading', { name, exact: typeof 
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const shot = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
-async function pickFromCatalog(page, name) {
-  const dialog = page.getByRole('dialog');
-  const search = dialog.getByRole('combobox', { name: 'Поиск по справочнику' });
+async function pickFromSearch(dialog, name, searchLabel) {
+  const search = dialog.getByRole('combobox', { name: searchLabel });
   await search.fill(name);
   const option = dialog.getByRole('option', { name, exact: true });
   await option.waitFor();
@@ -93,7 +92,7 @@ async function fillAndSubmit(page, report, fixture) {
     const index = report.lines.length + 1;
     await button(page, 'Добавить строку').click();
     await button(page, `Вид работы, строка ${index}`).click();
-    await pickFromCatalog(page, WORK_ENTRY_TYPE);
+    await pickFromSearch(page.getByRole('dialog'), WORK_ENTRY_TYPE, 'Поиск по справочнику');
     await page.getByRole('textbox', { name: `Объём, строка ${index}` }).fill('12');
     await page.getByRole('combobox', { name: 'Вариант' }).click();
     await page.getByRole('option', { name: WORK_ENTRY_VARIANT, exact: true }).click();
@@ -103,7 +102,10 @@ async function fillAndSubmit(page, report, fixture) {
     await page.getByText('Добавьте материал для подачи отчёта.', { exact: true }).waitFor();
     assert.ok(await button(page, 'Добавить материал').evaluate(element => element === document.activeElement));
     await button(page, 'Добавить материал').click();
-    await pickFromCatalog(page, WORK_ENTRY_MATERIAL);
+    const picker = page.getByRole('dialog', { name: 'Добавить материал' });
+    await picker.getByRole('tab', { name: 'Справочник' }).click();
+    await pickFromSearch(picker, WORK_ENTRY_MATERIAL, 'Поиск материала');
+    await picker.getByRole('button', { name: 'Готово' }).click();
     await submitWhilePhotosUpload(page, path);
   }
   const submitted = await callApiOk(page, 'GET', path);

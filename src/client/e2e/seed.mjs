@@ -946,5 +946,5 @@ async function main() {
   // проигнорировали. Один факт — одно место, и это место `ci.yml`.
 }
 
-(process.argv.includes('--work') ? waitForApi().then(ensureAdmin).then(() => seedWork({ api, apiBase: API, ensureUser, login,
+(process.argv.includes('--work') ? waitForApi().then(ensureAdmin).then(() => seedWork({ api, apiBase: API, token, findType, ensureUser, login,
   password: USER_PASSWORD, engineerEmail: USER_EMAIL })) : main()).catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });
