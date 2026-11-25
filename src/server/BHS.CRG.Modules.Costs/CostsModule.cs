@@ -262,7 +262,7 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public IReadOnlyList<string> UsesSections =>
         // Сотрудники — рядом со справочниками: реквизиты сотрудника правит только их экран (C15, work-01).
-        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Periods];
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Periods, CoreSections.Progress];
 
     /// <summary>
     /// В справочники ядра модуль заводит одно — организацию из скана счёта (issue #1077): название и

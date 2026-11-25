@@ -254,7 +254,8 @@ public sealed class PlanModule : IAppModule
     /// <para>Сотрудники — там же, где справочники: реквизиты сотрудника правит только их экран (C15, work-01),
     /// и пространство со справочниками без него осталось бы без двери к сотрудникам.</para>
     /// </summary>
-    public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
+    public IReadOnlyList<string> UsesSections =>
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Progress];
 
     /// <summary>
     /// Свой контекст, действия журнала, запись редакции и разбор файла импорта (фоновой операцией, <c>plan-07</c>). Строку подключения модуль берёт из настроек

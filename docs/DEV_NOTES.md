@@ -6498,6 +6498,18 @@ POST   /api/templates/{id}/versions { content, comment? }  — новая вер
 
 PUT    /api/constructions/{id}/timezone     { timeZoneId }   — null = «как у компании» (#960)
 PUT    /api/constructions/{id}/external-id  { system, code } — только парой
+GET    /api/constructions/{id}/progress?section= → { constructionId, sectionId, columns, rows, strips, costs, factDiagnostics? }
+                                              — любое право включённого поставщика, без права → 403.
+                                              Неизвестная стройка или раздел вне этой стройки → 404.
+                                              Строка — вид работы и единица, cells по кодам колонок.
+                                              Факт текущий. При partial включённые объёмы сохраняются,
+                                              пустая ячейка остаётся пустой. Без Work вместо колонки
+                                              полоса not-connected. Скрытая колонка называет право.
+                                              factDiagnostics относится ко всей стройке за весь период,
+                                              даже при section (scope.from и scope.to равны null).
+                                              Счётчики отчётов, групп по причинам и строк раздельны.
+                                              unsubmitted — предупреждение без partial само по себе.
+                                              Без права факта диагностики нет, без права затрат нет totals.
 GET    /api/periods                         → { today, company, constructions[] } — границы закрытия,
                                               ДЕЙСТВУЮЩИЕ; читает любой вошедший (CORE-35, #1081)
 GET    /api/periods/history                 → записи о закрытиях и отменах (core.period.close); у

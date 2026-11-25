@@ -147,7 +147,6 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
             // себестоимость сметы у plan. Запись постоянная.
             [WorkModule.SitesAll] =
                 "не дверь, а граница внутри адресов назначений (work-11) и приёмки (work-16): «на любых стройках»",
-            [WorkModule.FactsRead] = "право контракта «Фактические работы» (work-27), без двери Work",
         });
 
     /// <summary>
