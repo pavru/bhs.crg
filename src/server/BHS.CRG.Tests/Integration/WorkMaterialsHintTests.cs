@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using BHS.CRG.Api.Modules;
+using BHS.CRG.Application.Documents;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs;
@@ -62,11 +64,16 @@ public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassF
 
         var (_, withNoContracts) = await world.UserAsync("Менеджер без прав контрактов", WorkModule.ReportReview, WorkModule.SitesAll);
         using (withNoContracts)
-        using (var response = await withNoContracts.GetAsync(query))
         {
-            var result = await JsonAsync(response);
-            AssertHidden(result, "issued", CostsModule.MaterialsHint);
-            AssertHidden(result, "estimate", PlanModule.EstimateHint);
+            foreach (var request in new[] { query, Path(site), Path(site) + $"&planItemId={fixture.Position}",
+                         Path(site) + $"&planItemId={Guid.NewGuid()}" })
+            {
+                using var response = await withNoContracts.GetAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var result = await JsonAsync(response);
+                AssertHidden(result, "issued", CostsModule.MaterialsHint);
+                AssertHidden(result, "estimate", PlanModule.EstimateHint);
+            }
         }
 
         var (_, planOnly) = await world.UserAsync("Менеджер с подсказкой сметы", WorkModule.ReportReview, WorkModule.SitesAll,
@@ -82,6 +89,15 @@ public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassF
         }
 
         var directory = new WorkTypeSeed(host);
+        using var searched = await installer.GetAsync(query + "&q=" + Uri.EscapeDataString("Гофра"));
+        Assert.Equal(HttpStatusCode.OK, searched.StatusCode);
+        var matches = await JsonAsync(searched);
+        var matchedCable = Assert.Single(Items(matches, "issued"));
+        Assert.Equal(fixture.Cable, matchedCable.GetProperty("id").GetGuid());
+        Assert.Equal("Гофра кабельная", matchedCable.GetProperty("matchedAlias").GetString());
+        Assert.Equal(fixture.Box, Assert.Single(Items(matches, "estimate")).GetProperty("id").GetGuid());
+        Assert.Empty(Items(matches, "catalog"));
+
         await directory.ArchiveAsync(fixture.Cable);
         await directory.ArchiveAsync(fixture.Box);
         using var archived = await installer.GetAsync(query);
@@ -103,8 +119,10 @@ public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassF
         using var scope = host.Services.CreateScope();
         var services = scope.ServiceProvider;
         await TestDirectories.AssignRolesAsync(services);
-        var cable = await seed.RecordAsync(materialType.Id, "Кабель");
-        var box = await seed.RecordAsync(materialType.Id, "Коробка");
+        var cable = await seed.SendAsync(new CreateCommonDataEntryCommand("Кабель", materialType.Id, JsonDocument.Parse("{}"),
+            CatalogScope.System, null, Aliases: ["Гофра кабельная"]));
+        var box = await seed.SendAsync(new CreateCommonDataEntryCommand("Коробка", materialType.Id, JsonDocument.Parse("{}"),
+            CatalogScope.System, null, Aliases: ["Гофра коробочная"]));
         var clip = await seed.RecordAsync(materialType.Id, "Клипса");
         var tie = await seed.RecordAsync(materialType.Id, "Стяжка");
         var section = Section.Create(site, "ЭОМ");

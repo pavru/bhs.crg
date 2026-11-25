@@ -39,16 +39,19 @@ export function MaterialPicker(props: Props) {
 }
 
 function MaterialChoices({ scope, line, excluded, onPick, onClose }: Props & { onClose: () => void }) {
-  const [tab, setTab] = useState<MaterialHintTierId>('issued');
+  const [chosenTab, setTab] = useState<MaterialHintTierId>();
   const [search, setSearch] = useState('');
   const [active, setActive] = useState<string>();
   const [added, setAdded] = useState(0);
   const id = useId();
   const q = useDebouncedValue(search.trim(), 250);
   const hint = useWorkMaterialsHint(scope, line, q);
-  const pending = search.trim() !== q || hint.isPending;
+  const pending = search.trim() !== q || hint.isPending || hint.isPlaceholderData;
+  const result = hint.data;
+  const tab = chosenTab ?? (result?.kind === 'report-catalog' ? 'catalog' : 'issued');
   const title = sources.find(source => source.value === tab)!.title;
-  const tier = hint.data?.[tab];
+  const tier = result?.kind === 'report-catalog' ? (tab === 'catalog' ? result.catalog : undefined) : result?.tiers[tab];
+  const reason = tier?.reason ?? (result?.kind === 'report-catalog' ? result.reason : undefined);
   const items = pending || hint.isError || tier?.state !== 'ok' ? [] : tier.items.filter(item => !excluded.includes(item.id));
   const listId = `${id}-materials`;
   const activeIndex = items.findIndex(item => item.id === active);
@@ -84,7 +87,7 @@ function MaterialChoices({ scope, line, excluded, onPick, onClose }: Props & { o
         {pending ? <p role="status" className="px-3 text-body-medium">Загрузка…</p>
           : hint.isError ? <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void hint.refetch() }]}>
             {apiError(hint.error, 'Не удалось загрузить подсказку материалов.')}
-          </Banner> : tier?.state !== 'ok' ? <p role="status" className="break-words px-3 text-body-medium text-on-surface-variant">{tier?.reason}</p>
+          </Banner> : tier?.state !== 'ok' ? <p role="status" className="break-words px-3 text-body-medium text-on-surface-variant">{reason}</p>
             : <>
               {items.length > 0 ? <div id={listId} role="listbox" aria-label={title} className={LIST_CONTAINER}>
                 {items.map(item => <ListOption key={item.id} id={`${listId}-${item.id}`} active={item.id === active}

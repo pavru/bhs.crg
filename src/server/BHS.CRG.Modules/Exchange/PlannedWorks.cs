@@ -145,4 +145,11 @@ public sealed record PlannedLabor(Guid PlanItemId, decimal? HoursPerUnit);
 
 /// <summary>Позиции номенклатуры материалов позиции — без количеств и цен.</summary>
 /// <param name="PlanItemId">Позиция перечня; <c>null</c> — материалы строк-материалов сметы.</param>
-public sealed record PlannedHint(Guid? PlanItemId, IReadOnlyList<Guid> NomenclatureIds);
+public sealed record PlannedHint(Guid? PlanItemId, IReadOnlyList<Guid> NomenclatureIds)
+{
+    public const string HintPermission = "plan.estimate.hint";
+    public const string ReadPermission = "plan.estimate.read";
+
+    public static ContractAnswer<IReadOnlyList<PlannedHint>>? Refusal(ModuleReader reader) =>
+        ContractAnswer.Refusal<IReadOnlyList<PlannedHint>>(reader, HintPermission, ReadPermission);
+}

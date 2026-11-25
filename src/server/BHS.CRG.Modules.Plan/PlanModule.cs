@@ -36,7 +36,7 @@ public sealed class PlanModule : IAppModule
     public const string ModuleCode = "plan";
 
     /// <summary>Чтение смет — одним местом: его назовут адреса и составы ролей.</summary>
-    public const string EstimateRead = "plan.estimate.read";
+    public const string EstimateRead = PlannedHint.ReadPermission;
 
     /// <summary>Правка смет — одним местом, как <see cref="EstimateRead" />.</summary>
     public const string EstimateEdit = "plan.estimate.edit";
@@ -64,7 +64,7 @@ public sealed class PlanModule : IAppModule
     /// Право контракта (ТЗ PLAN-23, WORK-59): позиции номенклатуры материалов сметы стройки без количеств и
     /// цен — ярус «смета» подсказки монтажнику.
     /// </summary>
-    public const string EstimateHint = "plan.estimate.hint";
+    public const string EstimateHint = PlannedHint.HintPermission;
 
     /// <summary>Чтение КП — цены продажи, наценки и итоги (ТЗ PLAN-11, PLAN-23); объявлено с адресами КП (<c>plan-13</c>).</summary>
     public const string OfferRead = "plan.offer.read";

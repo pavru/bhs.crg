@@ -254,15 +254,17 @@ public partial class DomainObjectRepository(AppDbContext db) : Repository<Domain
     }
 
     public async Task<ChoiceCandidates> SearchForChoiceAsync(
-        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default)
+        IReadOnlyCollection<Guid> typeIds, string? search, int? limit, CancellationToken ct = default,
+        IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null)
     {
-        if (typeIds.Count == 0) return ChoiceCandidates.Empty;
+        if (typeIds.Count == 0 || onlyIds is { Count: 0 }) return ChoiceCandidates.Empty;
 
         // Только общие данные: документная фасета здесь ни при чём — у записи справочника её нет, а
         // без этого условия в выбор позиции попали бы документы комплектов.
         var query = Db.Set<DomainObject>()
             .AsNoTracking()
             .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId));
+        if (onlyIds is not null) query = query.Where(o => onlyIds.Contains(o.Id));
 
         // Перевод строки в набранном — пробел (ревью PR #1307): в тексте поиска он разделяет
         // название и имена, и образец с ним совпал бы ЧЕРЕЗ границу — «конец названия + начало
@@ -295,7 +297,9 @@ public partial class DomainObjectRepository(AppDbContext db) : Repository<Domain
 
         // Сортировка ДО отсечения — иначе «первые N по названию» означало бы «произвольные N»
         // (контракт метода). Сравнение здесь базы, окончательный порядок задаёт тот, кто показывает.
-        var ordered = query.Where(o => o.ArchivedAt == null).OrderBy(o => o.DisplayName).AsQueryable();
+        var active = query.Where(o => o.ArchivedAt == null);
+        if (exceptIds is { Count: > 0 }) active = active.Where(o => !exceptIds.Contains(o.Id));
+        var ordered = active.OrderBy(o => o.DisplayName).AsQueryable();
         if (limit is > 0) ordered = ordered.Take(limit.Value);
 
         // Альтернативные имена едут только когда искали текстом: назвать «найдено по …» больше

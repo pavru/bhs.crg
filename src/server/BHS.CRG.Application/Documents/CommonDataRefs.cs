@@ -104,7 +104,9 @@ public sealed record ChoiceCandidates(IReadOnlyList<CommonDataRef> Items, int In
 public sealed record SearchCommonDataForChoiceQuery(
     IReadOnlyCollection<Guid> TypeIds,
     string? Search = null,
-    int? Limit = null) : IRequest<ChoiceCandidates>;
+    int? Limit = null,
+    IReadOnlyCollection<Guid>? OnlyIds = null,
+    IReadOnlyCollection<Guid>? ExceptIds = null) : IRequest<ChoiceCandidates>;
 
 /// <summary>
 /// Названия записей по известным идентификаторам — для ПОКАЗА уже стоящих ссылок: строки счёта

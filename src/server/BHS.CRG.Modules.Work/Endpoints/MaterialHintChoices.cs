@@ -27,13 +27,9 @@ internal sealed class MaterialHintChoices(IModuleCatalog catalog)
         var issuedIds = issued.Ids.ToHashSet();
         var estimateIds = estimate.Ids.Where(id => !issuedIds.Contains(id)).ToHashSet();
         var above = issuedIds.Concat(estimateIds).ToArray();
-        var query = q?.Replace('\r', ' ').Replace('\n', ' ').Trim();
-        // При поиске с верхними ярусами нужен полный набор совпавших ссылок: совпадение по альтернативному
-        // имени может оказаться после лимита справочника, но принадлежать первому ярусу.
-        var limit = string.IsNullOrEmpty(query) || above.Length == 0 ? Limit + 1 + above.Length : 0;
-        var search = await catalog.SearchAsync(Role, query, limit, ct);
+        var search = await catalog.SearchAsync(Role, q, Limit + 1, ct, exceptIds: above);
         IReadOnlyList<ModuleCatalogRef> upper = search is null || above.Length == 0 ? []
-            : string.IsNullOrEmpty(query) ? await catalog.RefsAsync(Role, above, ct) ?? [] : search.Items;
+            : (await catalog.SearchAsync(Role, q, above.Length, ct, onlyIds: above))?.Items ?? [];
 
         var issuedTier = Tier(issued, upper, issuedIds, search is not null,
             item => Item(item) with { Unit = issuedUnits.GetValueOrDefault(item.Id) });
@@ -43,10 +39,8 @@ internal sealed class MaterialHintChoices(IModuleCatalog catalog)
         if (search is null)
             return new(issuedTier, estimateTier, new("not-connected", [], MissingCatalog));
 
-        var fromCatalog = search.Items.Where(item => !issuedIds.Contains(item.Id) && !estimateIds.Contains(item.Id))
-            .Take(Limit + 1).ToArray();
         return new(issuedTier, estimateTier,
-            new("ok", [.. fromCatalog.Take(Limit).Select(Item)], InArchive: search.InArchive, More: fromCatalog.Length > Limit));
+            new("ok", [.. search.Items.Take(Limit).Select(Item)], InArchive: search.InArchive, More: search.Items.Count > Limit));
     }
 
     private static MaterialHintTier Tier(MaterialHintSource source, IReadOnlyList<ModuleCatalogRef> upper,

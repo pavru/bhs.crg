@@ -22,6 +22,8 @@ internal sealed class MaterialHintEstimate(IModuleContracts contracts, IModulePl
         var provider = contracts.Get<IPlannedWorks>();
         if (provider is ModuleContractAnswer<IPlannedWorks>.NotConnected missing)
             return MaterialHintSource.NotConnected(missing.Text);
+        if (PlannedHint.Refusal(reader) is ContractAnswer<IReadOnlyList<PlannedHint>>.Hidden hiddenByPermission)
+            return MaterialHintSource.Hidden(hiddenByPermission.Text, hiddenByPermission.Permission);
 
         var key = workTypeId is { } work && unitId is { } unit
             ? new PlanItemKey(work, constructionId, sectionId, unit)

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { BASE, callApi, callApiOk, clearSession, createChecks, launchBrowser, login, settled } from './harness.mjs';
 import { WORK_PHOTO_NAME } from './seed-work.mjs';
 import { WORK_HINT_MATERIALS } from './seed-work-materials.mjs';
@@ -32,6 +33,16 @@ const queue = `${review.path}?constructionId=${site}`;
 const summaryDay = `${summary.path}?${new URLSearchParams({ from: day, to: day })}`;
 const ownerB = 'Монтажник Б (посев Work-25)';
 const bRow = () => page.getByRole('row').filter({ hasText: ownerB });
+
+function versioned(actor, method, path, version, body = null) {
+  return actor.evaluate(async ({ method, path, version, body }) => {
+    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    const response = await fetch(`/api${path}`, { method, headers: {
+      Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'If-Match': version,
+    }, body: body === null ? undefined : JSON.stringify(body) });
+    if (!response.ok) throw new Error(`${method} ${path} → ${response.status}: ${await response.text()}`);
+  }, { method, path, version, body });
+}
 
 async function screens(expected) {
   await settled(page);
@@ -113,6 +124,47 @@ try {
     await text(WORK_HINT_MATERIALS.estimate).waitFor();
     await page.getByRole('button', { name: 'Убрать материал 2' }).click();
     await page.getByRole('button', { name: 'Убрать материал 1' }).click();
+  });
+
+  await check('work-installer-edits-own-report-after-assignment-removal', async () => {
+    const reportPath = `/work/reports/${reportA}`;
+    const report = await callApiOk(page, 'GET', reportPath);
+    const management = await browser.newPage();
+    try {
+      await login(management, manager, password);
+      const { items } = await callApiOk(management, 'GET', `/work/assignments?constructionId=${site}`);
+      const assigned = items.find(item => item.employeeId === report.employeeId && item.kind === 'installer');
+      assert.ok(assigned, 'Не найдено назначение автора отчёта.');
+      const { employeeId, constructionId, kind, dateFrom, dateTo } = assigned;
+      await versioned(management, 'DELETE', `/work/assignments/${assigned.id}`, assigned.version);
+      try {
+        const access = await callApi(page, 'GET', `/work/materials/hint?constructionId=${site}&date=${report.date}`);
+        assert.equal(access.status, 404);
+        await page.goto(`${BASE}${own.path}/${reportA}`);
+        const details = page.getByRole('button', { name: 'Подробности строки 1' });
+        if (await details.getAttribute('aria-expanded') !== 'true') await details.click();
+        await page.getByRole('button', { name: 'Добавить материал' }).click();
+        const picker = page.getByRole('dialog', { name: 'Добавить материал' });
+        await picker.getByRole('tab', { name: 'Справочник' }).click();
+        await picker.getByRole('combobox', { name: 'Поиск материала' }).fill(WORK_HINT_MATERIALS.catalog);
+        await picker.getByRole('option').filter({ hasText: WORK_HINT_MATERIALS.catalog }).click();
+        await picker.getByRole('button', { name: 'Готово' }).click();
+        await text(WORK_HINT_MATERIALS.catalog).waitFor();
+        const [saved] = await Promise.all([
+          page.waitForResponse(response => new URL(response.url()).pathname === `/api${reportPath}`
+            && response.request().method() === 'PUT'),
+          page.getByRole('button', { name: 'Сохранить', exact: true }).click(),
+        ]);
+        assert.equal(saved.status(), 200);
+        const updated = await callApiOk(page, 'GET', reportPath);
+        assert.equal(updated.lines[0].materials.length, report.lines[0].materials.length + 1);
+        const { constructionId, date, shift, hours, note, lines } = report;
+        await versioned(page, 'PUT', reportPath, updated.version, { constructionId, date, shift, hours, note, lines,
+          changeId: randomUUID() });
+      } finally {
+        await callApiOk(management, 'POST', '/work/assignments', { employeeId, constructionId, kind, dateFrom, dateTo });
+      }
+    } finally { await management.close(); }
   });
 
   await check('work-installer-b-own-list-and-photo', async () => {

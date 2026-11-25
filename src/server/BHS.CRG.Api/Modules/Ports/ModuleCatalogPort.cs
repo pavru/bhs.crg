@@ -71,11 +71,12 @@ public sealed class ModuleCatalogPort(
     }
 
     public async Task<ModuleCatalogChoice?> SearchAsync(
-        string role, string? query, int limit, CancellationToken ct = default)
+        string role, string? query, int limit, CancellationToken ct = default,
+        IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null)
     {
         if (await DirectoryAsync(role, ct) is not { } directory) return null;
 
-        var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);
+        var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit, onlyIds, exceptIds), ct);
         // Перевод строки — пробел, как у поиска ядра: иначе сверка с названием разошлась бы с ним.
         var needle = query?.Replace('\r', ' ').Replace('\n', ' ').Trim();
         if (string.IsNullOrEmpty(needle))
@@ -87,7 +88,7 @@ public sealed class ModuleCatalogPort(
         // #1473; ревью PR #1898): «ООО Ром» обязано найти запись, видимую в списке как «ООО «Ромашка»».
         // Найденные только по видимому названию добираются ссылками; архивные в выбор не идут — идут
         // числом, как у ядра. Цена — значения одного поля у записей справочника, не записи целиком.
-        var names = await directory.NamesAsync(ct);
+        var names = await directory.NamesAsync(ct, onlyIds);
         var foundIds = found.Items.Select(i => i.Id).ToHashSet();
         var extra = names.Matching(needle).Where(id => !foundIds.Contains(id)).ToList();
         var items = found.Items.ToList();
@@ -95,7 +96,7 @@ public sealed class ModuleCatalogPort(
         if (extra.Count > 0)
         {
             var byShown = await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], extra), ct);
-            items.AddRange(byShown.Where(r => !r.Archived));
+            items.AddRange(byShown.Where(r => !r.Archived && exceptIds?.Contains(r.Id) != true));
             inArchive += byShown.Count(r => r.Archived);
         }
 

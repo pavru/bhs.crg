@@ -359,7 +359,8 @@ public class InvoicePartiesTests
 
         public Task<ModuleCatalogEntry?> GetAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
 
-        public Task<ModuleCatalogChoice?> SearchAsync(string entityType, string? query, int limit, CancellationToken ct = default) =>
+        public Task<ModuleCatalogChoice?> SearchAsync(string entityType, string? query, int limit, CancellationToken ct = default,
+            IReadOnlyCollection<Guid>? onlyIds = null, IReadOnlyCollection<Guid>? exceptIds = null) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(

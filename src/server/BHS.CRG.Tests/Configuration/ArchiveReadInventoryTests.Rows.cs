@@ -73,7 +73,7 @@ public partial class ArchiveReadInventoryTests
                 nameof(OrganizationShortNamePortTests.Поиск_находит_по_сокращённому_и_называет_полное_найденным_по_нему)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var entry = await mediator.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
-        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit), ct);"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit, onlyIds, exceptIds), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
         ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
@@ -128,7 +128,7 @@ public partial class ArchiveReadInventoryTests
                     "перед снятием роли справочника — тоже все: ссылка на архивную запись держит так же").X(2),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.RefsByIdsAsync(q.TypeIds, q.Ids, ct);"] =
             Shown("названия уже стоящих ссылок"),
-        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct);"] =
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await objects.SearchForChoiceAsync(q.TypeIds, q.Search, q.Limit, ct, q.OnlyIds, q.ExceptIds);"] =
             Choice("кандидаты на выбор", nameof(ArchiveReadPurposeTests.Поиск_на_выбор_архив_не_отдаёт_но_называет_числом_а_по_идентификаторам_находит)),
         ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|=> await repo.GetByIdAsync(q.Id, ct);"] =
             Shown("одна запись по идентификатору: признак несёт она сама"),
@@ -431,11 +431,11 @@ public partial class ArchiveReadInventoryTests
                 nameof(EntryReportEndpointsTests.Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе)),
         ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var selected = ids.Length == 0 ? [] : await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct) ?? [];"] =
             Shown("номенклатура сохранённых строк доступного отчёта (work-22): признак в selected[].archived"),
-        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|var search = await catalog.SearchAsync(Role, query, limit, ct);"] =
+        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|var search = await catalog.SearchAsync(Role, q, Limit + 1, ct, exceptIds: above);"] =
             Choice("подсказка материалов отчёта (work-26): из поиска архивные позиции исключены, их число приходит отдельно",
                 nameof(WorkMaterialsHintWorkOnlyTests.Неполный_справочник_и_архив_обозначены)),
-        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|: string.IsNullOrEmpty(query) ? await catalog.RefsAsync(Role, above, ct) ?? [] : search.Items;"] =
-            Choice("подсказка материалов отчёта без запроса (work-26): архивные позиции отпуска и сметы исключены из выбора",
+        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|: (await catalog.SearchAsync(Role, q, above.Length, ct, onlyIds: above))?.Items ?? [];"] =
+            Choice("подсказка материалов отчёта (work-26): архивные позиции отпуска и сметы исключены из выбора",
                 nameof(WorkMaterialsHintTests.Три_яруса_по_полному_ключу_без_повторов_и_количеств)),
         ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchListEndpoints.cs|: (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [.. matches.Select(m => m.NomenclatureId).Distinct()], ct)"] =
             Shown("список запомненных ресурсов (plan-08): названия уже стоящих позиций, архивная помечена «archived»"),

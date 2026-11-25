@@ -39,8 +39,7 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
             reader, PlanModule.EstimateMaterials, PlanModule.EstimateRead);
         var laborRefusal = ContractAnswer.Refusal<IReadOnlyList<PlannedLabor>>(
             reader, PlanModule.LaborRead, PlanModule.EstimateRead);
-        var hintRefusal = ContractAnswer.Refusal<IReadOnlyList<PlannedHint>>(
-            reader, PlanModule.EstimateHint, PlanModule.EstimateRead);
+        var hintRefusal = PlannedHint.Refusal(reader);
 
         var construction = query.ConstructionId;
         var unmapped = await PlanRows.Unmatched(db, construction).CountAsync(ct);
