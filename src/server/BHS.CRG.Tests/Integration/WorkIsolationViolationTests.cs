@@ -7,6 +7,7 @@ using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Tests.Generation;
 using BHS.CRG.Tests.Work;
 using Microsoft.Extensions.DependencyInjection;
 using NPOI.XSSF.UserModel;
@@ -127,7 +128,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         await CrewWorld.SubmitAsync(owner, reportB, draft);
         using var upload = await PhotoWorld.UploadAsync(owner, reportB, lineB, photoB, PhotoWorld.Shot());
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
-        using var retained = await PhotoWorld.UploadAsync(owner, reportB, lineB, retainedPhotoB, PhotoWorld.Shot());
+        using var retained = await PhotoWorld.UploadAsync(owner, reportB, lineB, retainedPhotoB, PhotoSamples.Jpeg(600, 800));
         Assert.Equal(HttpStatusCode.OK, retained.StatusCode);
         var crew = await executive.GetFromJsonAsync<JsonElement>($"{CrewWorld.Path}?constructionId={world.SiteB}");
         groupB = Assert.Single(crew.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid();
@@ -239,10 +240,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
             (WorkTableWorld.Lines, WorkTableWorld.LinesMarker),
         })
         {
-            using var published = await publish.PostAsJsonAsync($"{table}/dataset", new { name = key });
-            var reference = await ExpectJsonAsync(published, $"{table}/dataset");
-            var fileId = reference.GetProperty("fileId").GetGuid();
-            var sourceId = reference.GetProperty("sourceId").GetGuid();
+            var (fileId, sourceId) = await PublishDataSetAsync(publish, table, key);
             var (column, signal) = key == WorkTableWorld.LinesMarker ? ("Место", marker) : ("Сотрудник", "Монтажник Б");
             foreach (var (client, count) in new[] { (installer, 1), (unassigned, 0), (executive, 2) })
             {
@@ -257,7 +255,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
                     count == 2 ? signal : null, canReadReport: count == 2);
 
                 var canReadReport = count == 2;
-                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport);
+                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport: false);
                 var dataset = await McpAsync(client, "get_dataset", new { datasetId = fileId }, sourceId.ToString(), canReadReport);
                 var source = Assert.Single(dataset.GetProperty("sources").EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
                 Assert.Equal(count, source.GetProperty("rawRowCount").GetInt32());
@@ -271,6 +269,14 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
                     .Any(cell => cell.Value.ValueKind == JsonValueKind.String && cell.Value.GetString() == signal)));
             }
         }
+    }
+
+    private static async Task<(Guid FileId, Guid SourceId)> PublishDataSetAsync(HttpClient publisher, string table, string key)
+    {
+        var path = $"{table}/dataset";
+        using var published = await publisher.PostAsJsonAsync(path, new { name = key });
+        var reference = await ExpectJsonAsync(published, path);
+        return (reference.GetProperty("fileId").GetGuid(), reference.GetProperty("sourceId").GetGuid());
     }
 
     private async Task CheckSourceMetadataAsync(HttpClient client, Guid fileId, Guid sourceId, string key, int count,

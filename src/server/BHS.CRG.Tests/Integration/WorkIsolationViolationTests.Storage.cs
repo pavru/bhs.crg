@@ -1,7 +1,11 @@
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Domain.Activity;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Tests.Work;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -37,19 +41,28 @@ public sealed partial class WorkIsolationViolationTests
     [Fact]
     public async Task Содержимое_отчёта_остаётся_в_схеме_модуля()
     {
+        var returnComment = $"Work25-return-{reportB:N}";
+        var correctionReason = $"Work25-correction-{reportB:N}";
+        var review = new ReviewWorld(testHost);
         var (a, b, manager, unassigned, executive) = await SeedAsync();
+        Guid[] publishedSources;
         using (a)
         using (b)
         using (manager)
         using (unassigned)
         using (executive)
         {
-            await new ReviewWorld(testHost).TickAsync(ReviewWorld.Up19.ToUniversalTime());
+            publishedSources = await PublishSourcesForStorageCheckAsync();
+            await ReturnAndResubmitAsync(b, manager, returnComment);
+            await review.TickAsync(ReviewWorld.Up19.ToUniversalTime());
             var notices = await ReviewWorld.BellAsync(manager);
             Assert.Contains(notices, notice => notice.Message.Contains("Стройка Б", StringComparison.Ordinal));
             Assert.DoesNotContain(notices, notice => notice.Message.Contains(marker, StringComparison.Ordinal));
-            await ArchiveReportAsync(b, manager, a, unassigned, executive);
+            await ArchiveReportAsync(b, manager, a, unassigned, executive, correctionReason);
         }
+        var journal = await review.EntriesAsync(reportB);
+        Assert.Equal(returnComment, Assert.Single(journal, entry => entry.Kind == ReportJournalKinds.Returned).Comment);
+        Assert.Equal(correctionReason, Assert.Single(journal, entry => entry.Kind == ReportJournalKinds.Corrected).Comment);
 
         using var scope = testHost.Services.CreateScope();
         var work = scope.ServiceProvider.GetRequiredService<WorkDbContext>();
@@ -69,6 +82,20 @@ public sealed partial class WorkIsolationViolationTests
                 Assert.Contains((WorkDbContext.SchemaName, table, column), columns);
         }
         AssertNoCoreMarker(columns);
+        foreach (var text in new[] { returnComment, correctionReason })
+            AssertNoCoreMarker(await MarkedColumnsAsync(db, text));
+
+        var sources = await core.DataSetSources.AsNoTracking().Where(source => publishedSources.Contains(source.Id)).ToListAsync();
+        Assert.Equal(publishedSources.Length, sources.Count);
+        Assert.All(sources, source =>
+        {
+            Assert.Equal(DataSetSource.UnstoredRowCount, source.CachedRowCount);
+            Assert.Null(source.CachedData);
+            using var schema = JsonDocument.Parse(source.CachedSchema);
+            var storedColumns = schema.RootElement.EnumerateArray();
+            Assert.NotEmpty(storedColumns);
+            Assert.All(storedColumns, column => Assert.Empty(column.GetProperty("sampleValues").EnumerateArray()));
+        });
 
         // Запись синтетического значения проверяет сам поиск по базе и выполняется последней.
         await using var transaction = await core.Database.BeginTransactionAsync();
@@ -80,12 +107,58 @@ public sealed partial class WorkIsolationViolationTests
         await transaction.RollbackAsync();
     }
 
+    private async Task<Guid[]> PublishSourcesForStorageCheckAsync()
+    {
+        var (_, publisher) = await world.Assignments.UserAsync("Публикатор", WorkModule.ReportRead, CorePermissions.DataSetsEdit);
+        using var publish = publisher;
+        var reports = await PublishDataSetAsync(publish, WorkTableWorld.Reports, WorkTableWorld.ReportsMarker);
+        var lines = await PublishDataSetAsync(publish, WorkTableWorld.Lines, WorkTableWorld.LinesMarker);
+        return [reports.SourceId, lines.SourceId];
+    }
+
+    private async Task ReturnAndResubmitAsync(HttpClient owner, HttpClient manager, string comment)
+    {
+        var path = $"{ReportEndpoints.Path}/{reportB}";
+        var submitted = await owner.GetFromJsonAsync<JsonElement>(path);
+        using var response = await ReviewWorld.ReturnAsync(manager, reportB, ReviewWorld.Version(submitted), comment);
+        var returned = await ExpectJsonAsync(response, $"{path}/return");
+        Assert.Equal("returned", returned.GetProperty("status").GetString());
+
+        using var notices = await owner.GetAsync("/api/notifications");
+        var items = (await ExpectJsonAsync(notices, "/api/notifications")).GetProperty("items");
+        var link = $"/my-reports/{reportB}";
+        var notice = Assert.Single(items.EnumerateArray(), item => item.GetProperty("linkUrl").GetString() == link);
+        Assert.DoesNotContain(comment, notice.GetProperty("message").GetString()!, StringComparison.Ordinal);
+        await CrewWorld.SubmitAsync(owner, reportB, returned);
+    }
+
+    private async Task<(byte[] Original, byte[] Preview)> ReadStoredPhotoAsync()
+    {
+        var photo = Assert.Single(await new PhotoWorld(testHost).PhotosAsync(), photo => photo.Id == photoB);
+        Assert.Equal(lineB, photo.LineId);
+        Assert.Equal(LinePhotoState.Stored, photo.State);
+        var blobs = testHost.Services.GetRequiredService<FakeBlobStorage>();
+        var original = await ReadBlobAsync(Assert.IsType<string>(photo.BlobPath));
+        var preview = await ReadBlobAsync(Assert.IsType<string>(photo.PreviewBlobPath));
+        Assert.False(original.AsSpan().SequenceEqual(preview));
+        return (original, preview);
+
+        async Task<byte[]> ReadBlobAsync(string path)
+        {
+            await using var blob = await blobs.DownloadAsync(path);
+            using var buffer = new MemoryStream();
+            await blob.CopyToAsync(buffer);
+            Assert.True(buffer.Length > 0, $"Пустой файл фото: {path}");
+            return buffer.ToArray();
+        }
+    }
+
     private async Task ArchiveReportAsync(HttpClient owner, HttpClient manager, HttpClient installer,
-        HttpClient unassigned, HttpClient executive)
+        HttpClient unassigned, HttpClient executive, string correctionReason)
     {
         var path = $"{ReportEndpoints.Path}/{reportB}";
         var report = await owner.GetFromJsonAsync<JsonElement>(path);
-        var original = await owner.GetByteArrayAsync($"/api/work/photos/{photoB}");
+        var storedPhoto = await ReadStoredPhotoAsync();
         using var accepted = await ReviewWorld.AcceptAsync(manager, reportB, ReviewWorld.Version(report));
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var version = ReviewWorld.Version(await ReportWorld.JsonAsync(accepted));
@@ -98,7 +171,7 @@ public sealed partial class WorkIsolationViolationTests
             var changed = new
             {
                 constructionId = world.SiteB, date = Day, shift = "day", hours = 9m, note = marker,
-                reason = "Уточнены часы в синтетическом отчёте",
+                reason = correctionReason,
                 lines = new[] { new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = 100m,
                     location = marker, comment = marker, details = new { work25 = marker }, isCrew = true, crewRole = "lead",
                     materials = report.GetProperty("lines")[0].GetProperty("materials"), photos = new[] { new { id = retainedPhotoB } } } },
@@ -110,7 +183,7 @@ public sealed partial class WorkIsolationViolationTests
             var currentPhoto = Assert.Single(current.GetProperty("lines")[0].GetProperty("photos").EnumerateArray());
             Assert.Equal(retainedPhotoB, currentPhoto.GetProperty("id").GetGuid());
 
-            await CheckArchivedReadAsync(owner, installer, unassigned, executive, original);
+            await CheckArchivedReadAsync(owner, installer, unassigned, executive, storedPhoto);
         }
         finally
         {
@@ -119,7 +192,7 @@ public sealed partial class WorkIsolationViolationTests
     }
 
     private async Task CheckArchivedReadAsync(HttpClient owner, HttpClient installer, HttpClient unassigned,
-        HttpClient executive, byte[] original)
+        HttpClient executive, (byte[] Original, byte[] Preview) storedPhoto)
     {
         var ownHistory = $"{ReportEndpoints.Path}/{reportB}?view=at-closing";
         var reviewHistory = $"/api/work/review/reports/{reportB}?number=1";
@@ -138,9 +211,12 @@ public sealed partial class WorkIsolationViolationTests
             entry => entry.GetProperty("id").GetGuid() == photoB);
         var url = Assert.IsType<string>(photo.GetProperty("versionUrl").GetString());
         await CheckResponseAsync(executive, $"/api/work/photos/{photoB}", Missing);
-        Assert.Equal(original, await executive.GetByteArrayAsync(url));
         var preview = $"/api/work/photos/{photoB}/preview?reportId={reportB}&number=1";
-        await CheckResponseAsync(executive, preview, Ok, canReadReport: true);
+        foreach (var reader in new[] { owner, executive })
+        {
+            await CheckResponseAsync(reader, url, Ok, expectedPhoto: storedPhoto.Original);
+            await CheckResponseAsync(reader, preview, Ok, expectedPhoto: storedPhoto.Preview);
+        }
         foreach (var archiveUrl in new[] { url, preview })
         {
             await CheckResponseAsync(installer, archiveUrl, Missing);
