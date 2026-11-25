@@ -15,7 +15,15 @@ public sealed partial class WorkIsolationViolationTests
 
     private sealed record Probe(string Template, HttpStatusCode Installer, HttpStatusCode Unassigned,
         HttpStatusCode Executive, string? Query = null, string? Signal = null,
-        ControlReader Control = ControlReader.Executive, PhotoKind? Photo = null);
+        ControlReader Control = ControlReader.Executive, PhotoKind? Photo = null, string? NonReportReason = null);
+
+    [Fact]
+    public void Маршрут_без_положительной_проверки_диагностируется()
+    {
+        var probe = new Probe("/api/work/test-only-report", Ok, Ok, Ok);
+        var failure = Assert.Throws<Xunit.Sdk.TrueException>(() => CheckProbeControl(probe));
+        Assert.Contains(probe.Template, failure.Message, StringComparison.Ordinal);
+    }
 
     private async Task CheckWorkRoutesAsync(HttpClient installer, HttpClient owner, HttpClient manager,
         HttpClient unassigned, HttpClient executive)
@@ -33,8 +41,9 @@ public sealed partial class WorkIsolationViolationTests
             new(own + "/{id:guid}", Missing, Closed, Closed, Signal: marker, Control: ControlReader.Owner),
             new(own + "/{id:guid}/journal", Missing, Missing, Ok, Signal: marker),
             new(entry + "/{id:guid}", Closed, Missing, Closed, Signal: marker, Control: ControlReader.Manager),
-            new(entry + "/candidates", Closed, Ok, Closed, date),
-            new(entry + "/candidates/{employeeId:guid}/sites", Closed, Ok, Closed, date),
+            new(entry + "/candidates", Closed, Ok, Closed, date, NonReportReason: "Список сотрудников для ввода."),
+            new(entry + "/candidates/{employeeId:guid}/sites", Closed, Ok, Closed, date,
+                NonReportReason: "Стройки, доступные для ввода за сотрудника."),
             new("/api/work/review/queue", Closed, Ok, Ok, $"{site}&{span}", reportKey),
             new("/api/work/review/reports/{id:guid}", Closed, Missing, Ok, Signal: marker),
             new("/api/work/summary", Closed, Missing, Ok, $"construction={world.SiteB}&{span}", reportKey),
@@ -42,16 +51,20 @@ public sealed partial class WorkIsolationViolationTests
             new("/api/work/crew-groups/{id:guid}", Closed, Missing, Ok, Signal: reportKey),
             new(photo, Missing, Missing, Ok, Photo: PhotoKind.Original),
             new(photo + "/preview", Missing, Missing, Ok, Photo: PhotoKind.Preview),
-            new("/api/work/photos/limits", Ok, Ok, Closed),
-            new("/api/work/sites/mine", Ok, Ok, Ok, date),
+            new("/api/work/photos/limits", Ok, Ok, Closed, NonReportReason: "Настройки загрузки фото."),
+            new("/api/work/sites/mine", Ok, Ok, Ok, date, NonReportReason: "Стройки по действующим назначениям."),
             // Справочники и назначения читают свои записи. Совпадение стройки или сотрудника с
             // отчётом само по себе ничего не говорит о доступе к содержимому отчёта.
-            new("/api/work/assignments", Closed, Ok, Closed, site),
-            new("/api/work/assignments/candidates", Closed, Ok, Closed, $"{site}&kind=installer&dateFrom={Day}&dateTo={Day}"),
-            new("/api/work/constructions/{id:guid}/crew-candidates", Ok, Ok, Ok, date),
-            new("/api/work/entry/sites/{id:guid}/crew-candidates", Closed, Ok, Closed, date),
-            new("/api/work/entry/sites/{siteId:guid}/catalog/{kind}", Missing, Missing, Closed, $"reportId={reportB}"),
-            new("/api/work/line-details-schema", Ok, Ok, Closed),
+            new("/api/work/assignments", Closed, Ok, Closed, site, NonReportReason: "Назначения на стройку."),
+            new("/api/work/assignments/candidates", Closed, Ok, Closed, $"{site}&kind=installer&dateFrom={Day}&dateTo={Day}",
+                NonReportReason: "Кандидаты на назначение."),
+            new("/api/work/constructions/{id:guid}/crew-candidates", Ok, Ok, Ok, date,
+                NonReportReason: "Кандидаты в бригаду."),
+            new("/api/work/entry/sites/{id:guid}/crew-candidates", Closed, Ok, Closed, date,
+                NonReportReason: "Кандидаты в бригаду для ввода за сотрудника."),
+            new("/api/work/entry/sites/{siteId:guid}/catalog/{kind}", Missing, Missing, Closed, $"reportId={reportB}",
+                NonReportReason: "Справочник для ввода, доступ к которому проверяется по отчёту."),
+            new("/api/work/line-details-schema", Ok, Ok, Closed, NonReportReason: "Схема полей строки."),
         ];
         var live = EndpointInventory.Routes(testHost.Services).Where(route => EndpointInventory.Matches(EndpointInventory.Route(route), "/api/work")
             && route.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("GET") == true).ToArray();
@@ -60,6 +73,7 @@ public sealed partial class WorkIsolationViolationTests
         var liveTemplates = live.Select(EndpointInventory.Route).ToHashSet(StringComparer.Ordinal);
         Assert.True(liveTemplates.SetEquals(byTemplate.Keys),
             $"Не описаны: {string.Join(", ", liveTemplates.Except(byTemplate.Keys))}. Лишние: {string.Join(", ", byTemplate.Keys.Except(liveTemplates))}.");
+        Assert.All(probes, CheckProbeControl);
 
         var storedPhoto = await ReadStoredPhotoAsync();
         foreach (var route in live)
@@ -90,6 +104,15 @@ public sealed partial class WorkIsolationViolationTests
         await CheckResponseAsync(unassigned, $"/api/work/summary?{span}", Ok, "not-assigned");
         await CheckResponseAsync(manager, $"/api/work/entry/sites/{world.SiteB}/catalog/work-types?reportId={reportB}",
             Ok, world.WorkType.ToString());
+    }
+
+    private static void CheckProbeControl(Probe probe)
+    {
+        var text = !string.IsNullOrWhiteSpace(probe.Signal);
+        var photo = probe.Photo is not null;
+        var nonReport = !string.IsNullOrWhiteSpace(probe.NonReportReason);
+        Assert.True((text ? 1 : 0) + (photo ? 1 : 0) + (nonReport ? 1 : 0) == 1,
+            $"{probe.Template}: нужен контроль текста, фото или обоснование отсутствия содержимого отчёта.");
     }
 
     private string Bind(RouteEndpoint route, string? query)
