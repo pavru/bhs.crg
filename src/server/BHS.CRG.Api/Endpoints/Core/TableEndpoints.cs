@@ -21,13 +21,13 @@ public static class TableEndpoints
     {
         var g = app.MapGroup("/api/tables").RequireAuthorization();
 
-        g.MapGet("/", async (ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
+        g.MapGet("/", async (ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableService tables,
             CancellationToken ct) => Results.Ok(tables.List(await access.ForAsync(user, ct))));
 
         // Таблица без строк: все её колонки с причинами. Экрану она нужна отдельно — выбор колонок и
         // чипы отбора знают все колонки, а не показанные, и остаются на месте, когда отбор отказал.
         g.MapGet("/{address}/columns", async (
-            string address, ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
+            string address, ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableService tables,
             CancellationToken ct) =>
         {
             var (table, refusal) = await tables.DescribeAsync(address, await access.ForAsync(user, ct), ct);
@@ -40,7 +40,7 @@ public static class TableEndpoints
         // частью описания или страницы: число даёт запрос к строкам, а у колонки по требованию — ещё и
         // опрос ядра, и платить за него на каждую страницу и сортировку незачем.
         g.MapGet("/{address}/shortcuts", async (
-            string address, ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables,
+            string address, ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableService tables,
             CancellationToken ct) =>
         {
             var (shortcuts, refusal) = await tables.ShortcutsAsync(address, await access.ForAsync(user, ct), ct);
@@ -56,7 +56,7 @@ public static class TableEndpoints
         g.MapGet("/{address}", async (
             string address, string? columns, string? filter, string? sort, string? totals, int? offset, int? limit,
             string? row,
-            ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
         {
             var request = Paged(
                 List(columns), filter, [.. (List(sort) ?? []).Select(SortOf)], offset, limit, List(totals), row);
@@ -68,7 +68,7 @@ public static class TableEndpoints
         // семидесяти поставщиков кириллицей — уже около 8 КБ. Экран с длинным отбором идёт сюда.
         g.MapPost("/{address}/query", async (
             string address, TableQueryBody body,
-            ClaimsPrincipal user, DataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableService tables, CancellationToken ct) =>
         {
             var request = Paged(
                 body.Columns, body.Filter, body.Sort ?? [], body.Offset, body.Limit, body.Totals, body.Row);
@@ -80,7 +80,7 @@ public static class TableEndpoints
         // таблиц, тем же путём, что экран, — у выгрузки своего чтения нет.
         g.MapPost("/{address}/export", async (
             string address, TableExportBody body,
-            ClaimsPrincipal user, DataAccessResolver access, ModuleTableExport export, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableExport export, CancellationToken ct) =>
         {
             var (file, refusal) = await export.ExportAsync(address, await access.ForAsync(user, ct), body, ct);
             return file is not null
@@ -93,7 +93,7 @@ public static class TableEndpoints
         // и без этого права человек не может создать его и там. Ключ таблицы проверяет служба, как везде.
         g.MapPost("/{address}/dataset", async (
             string address, TableDataSetBody body,
-            ClaimsPrincipal user, DataAccessResolver access, ModuleTableBridge bridge, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, ModuleTableBridge bridge, CancellationToken ct) =>
         {
             var (created, refusal) = await bridge.CreateAsync(address, await access.ForAsync(user, ct), body, ct);
             return created is not null ? Results.Ok(created) : Refused(refusal!);
@@ -113,7 +113,7 @@ public static class TableEndpoints
     private static void MapSavedViews(RouteGroupBuilder g)
     {
         g.MapGet("/{address}/views", async (
-            string address, ClaimsPrincipal user, DataAccessResolver access, SavedTableViewService views,
+            string address, ClaimsPrincipal user, IRequestDataAccessResolver access, SavedTableViewService views,
             CancellationToken ct) =>
         {
             var (list, refusal) = await views.ListAsync(address, await access.ForAsync(user, ct), ct);
@@ -121,7 +121,7 @@ public static class TableEndpoints
         });
 
         g.MapPost("/{address}/views", async (
-            string address, SaveTableView body, ClaimsPrincipal user, DataAccessResolver access,
+            string address, SaveTableView body, ClaimsPrincipal user, IRequestDataAccessResolver access,
             SavedTableViewService views, CancellationToken ct) =>
         {
             var (view, refusal) = await views.CreateAsync(address, await access.ForAsync(user, ct), body, ct);
@@ -130,7 +130,7 @@ public static class TableEndpoints
 
         g.MapPut("/{address}/views/{view}", async (
             string address, string view, SaveTableView body, HttpRequest request, ClaimsPrincipal user,
-            DataAccessResolver access, SavedTableViewService views, CancellationToken ct) =>
+            IRequestDataAccessResolver access, SavedTableViewService views, CancellationToken ct) =>
         {
             if (SeenRefusal(request, view, out var seen) is { } unnamed) return unnamed;
             var (saved, refusal) = await views.UpdateAsync(address, view, seen, await access.ForAsync(user, ct), body, ct);
@@ -138,7 +138,7 @@ public static class TableEndpoints
         });
 
         g.MapDelete("/{address}/views/{view}", async (
-            string address, string view, HttpRequest request, ClaimsPrincipal user, DataAccessResolver access,
+            string address, string view, HttpRequest request, ClaimsPrincipal user, IRequestDataAccessResolver access,
             SavedTableViewService views, CancellationToken ct) =>
         {
             if (SeenRefusal(request, view, out var seen) is { } unnamed) return unnamed;
