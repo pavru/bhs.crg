@@ -13,6 +13,7 @@ using BHS.CRG.Modules.Work.Endpoints;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using WorkContentRollbackBarrier = BHS.CRG.Infrastructure.Migrations.WorkContentRollbackBarrier;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -123,6 +124,15 @@ public sealed class WorkContentStorageCoreHost : ModuleOnlyHost
 
 public class WorkContentStorageRestoreTests(WorkContentStorageCoreHost host) : IClassFixture<WorkContentStorageCoreHost>
 {
+    [Fact]
+    public async Task Рубеж_отката_записан_в_журнале_при_старте_без_Work()
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var applied = await db.Database.GetAppliedMigrationsAsync();
+        Assert.Contains(applied, id => id.EndsWith($"_{nameof(WorkContentRollbackBarrier)}", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task Старая_копия_очищается_при_выключенном_Work()
     {

@@ -395,6 +395,40 @@ check 'все пять помечены к генерации'   5 "${#GENERATE[
 check 'имя бакета — среди них'          да  "$(case " ${GENERATE[*]} " in *" GARAGE_BUCKET "*) echo да ;; *) echo нет ;; esac)"
 
 echo
+echo '── do_rollback: рубеж хранения Work ──'
+mkdir rollback-work30
+cd rollback-work30 || exit 1
+preflight_common() { CURRENT="$(env_get APP_VERSION)"; PGUSER=postgres; PGDB=bhs_crg; }
+compose() {
+    case "$1" in
+        exec) printf '%s\n' "$applied" ;;
+        up) : > api-started ;;
+        *) return 1 ;;
+    esac
+}
+drop_left_converter() { :; }
+wait_for_version() { [ "$1" = 2.1.0 ]; }
+printf 'APP_VERSION=2.2.0\n' > .env
+printf 'APP_VERSION=2.1.0\n' > .env.prev-test
+cp ../pg18.yml docker-compose.yml
+cp ../pg18.yml docker-compose.yml.prev-test
+previous=20261123202931_DataSetRecognitionRevision
+barrier=20261125000000_WorkContentRollbackBarrier
+applied="$previous"$'\n'"$barrier"
+
+printf '%s\n' "$previous" > migrations.prev-test
+check 'применившийся рубеж блокирует откат' 1 "$(run_e do_rollback)"
+check 'отказ называет миграцию Work'       да "$(said "$barrier")"
+check 'по отказу сохраняется версия'   2.2.0 "$(env_get APP_VERSION)"
+check 'по отказу API не запускается'      нет "$([ -e api-started ] && echo да || echo нет)"
+
+printf '%s\n' "$applied" > migrations.prev-test
+check 'рубеж уже был до обновления — откат работает' 0 "$(run_e do_rollback)"
+check 'возвращается сохранённая версия' 2.1.0 "$(env_get APP_VERSION)"
+check 'API запущен'                         да "$([ -e api-started ] && echo да || echo нет)"
+cd .. || exit 1
+
+echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'
 # Единственная проверка, которой нужна сеть. Обрыв связи — не поломка скрипта, поэтому она
 # пропускается, а не роняет прогон: красный прогон обязан означать «код сломан».
