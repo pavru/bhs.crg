@@ -4,6 +4,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Identity;
@@ -114,12 +115,12 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         // периода, своё право, а не costs.invoice.correct, — то открыло бы кладовщику счета (COST-29).
         // Двенадцатое — costs.totals.read (plan-24): право контракта «Фактические затраты», итоги стройки для
         // «Хода работ» «Менеджеру проекта» (решение В-3).
-        // Остальных восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
-        // costs.materials.read (контракт «Материалы на объекте», G6) вынесены — см. причины в
-        // CostsModule. Число названо здесь нарочно: право, добавленное без причины, обязано
-        // столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(12, costs.Count);
+        // Work-09 добавляет два права контракта «Материалы на объекте». Согласование (C6)
+        // и заявки на закупку (этап 3) вынесены, причины в CostsModule.
+        Assert.Equal(14, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
+        Assert.All(new[] { CostsModule.MaterialsRead, CostsModule.MaterialsHint },
+            code => Assert.True(Assert.Single(costs, p => p.Code == code).Contract));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
 
         using var scope = host.Services.CreateScope();
@@ -179,6 +180,8 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
             // Право контракта двери не открывает по построению (AUTH-8.1): его «дверь» — ответ контракта
             // «Фактические затраты» в модуле-потребителе (plan-24). Что оно работает — ActualCostsContractTests.
             ["costs.totals.read"] = "право контракта: итоги «Фактических затрат» для «Хода работ» (plan-24)",
+            [CostsModule.MaterialsRead] = "право контракта: полный перечень «Материалы на объекте» (work-09)",
+            [CostsModule.MaterialsHint] = "право контракта: номенклатура «Материалов на объекте» (work-09)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -245,14 +248,14 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
     /// Права <c>costs</c> системных ролей, у которых их нет в списке выше, — ТОЧНО (change
     /// <c>plan-24-actual-costs-contract</c>, решение В-3, ТЗ AUTH-8.1):
     /// <list type="bullet">
-    ///   <item>«Менеджер проекта» — ровно право контракта <c>costs.totals.read</c>, и модуль ему закрыт:
+    ///   <item>«Менеджер проекта» — права контрактов <c>costs.totals.read</c> и <c>costs.materials.read</c>, модуль закрыт:
     ///   <c>costs.request.*</c> в его составе объявит <c>plan-26</c>, а до тех пор открыть модуль нечем.</item>
     ///   <item>«Руководитель» — чтение через «читать всё», БЕЗ права контракта (<c>ReadAllMark.Out</c>): итоги
     ///   ему отдаёт <c>costs.report.read</c>.</item>
     /// </list>
     /// </summary>
     [Theory]
-    [InlineData("ProjectManager", false, "costs.totals.read")]
+    [InlineData("ProjectManager", false, "costs.totals.read", CostsModule.MaterialsRead)]
     [InlineData("Executive", true, "costs.invoice.read", "costs.report.read", "costs.waybill.read")]
     public async Task System_roles_get_exactly_their_costs_permissions(string role, bool opens, params string[] expected) =>
         await ModuleOnlyChecks.RoleGetsExactlyAsync(host, new BHS.CRG.Modules.Costs.CostsModule(), role, opens, expected);

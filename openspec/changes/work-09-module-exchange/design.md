@@ -5,22 +5,23 @@
 
 ## Context
 
-Сверено по коду master `f8a8b222`.
+Сверено по коду master `311cfa6cd`.
 
-- Каталога `BHS.CRG.Modules/Exchange` нет: механизма межмодульных контрактов в коде нет вовсе.
+- Механизм `plan-22-module-exchange` работает в `BHS.CRG.Modules/Exchange`; у `costs` уже
+  зарегистрирован контракт «Фактические затраты».
 - `Modules.Costs/Data/IssuedMaterials.cs` — перечень отпущенного по стройке с числом строк без
   номенклатуры; читает его только `GET /api/costs/materials` под `costs.waybill.read`
-  (`Modules.Costs/Endpoints/WaybillEndpoints.cs:70,380`).
-- `costs.materials.read` не объявлено нарочно — «до первого потребителя» (`CostsModule.cs:79-83`), но
-  стоит в ролях «Инженер ИД» и «Менеджер проекта» (`Api/Auth/SystemRoles.cs:59,72`) и пропускается при
-  наполнении. `costs.materials.hint` нет нигде, «Монтажнику» его не выдано (`SystemRoles.cs:62-64`).
-- `ModuleAccess.IsOpen` открывает модуль по любому праву с его префиксом (`BHS.CRG.Modules/ModuleAccess.cs:13-17`):
-  объяви `costs.materials.read` обычным правом — у «Инженера ИД» откроется модуль `costs`.
+  (`Modules.Costs/Endpoints/WaybillEndpoints.cs`).
+- `costs.materials.read` уже названо в `Api/Auth/SystemRoles.cs` у «Инженера ИД» и «Менеджера проекта».
+  Право пропускается при наполнении ролей до объявления в `CostsModule`. У «Монтажника» уже есть
+  `plan.estimate.hint`; для отпущенного нужен отдельный ключ `costs.materials.hint`.
+- После `plan-21` `ModuleAccess.IsOpen` исключает права с признаком `Contract` из ворот модуля,
+  по которым `/api/account/access` возвращает `available`.
 
 ## Goals / Non-Goals
 
-**Goals:** механизм контракта со сторожами старта; контракт «Материалы на объекте» в двух видах ответа;
-права контракта объявлены и выданы ролям.
+**Goals:** поставщик контракта «Материалы на объекте» в двух видах ответа и права контракта для системных
+ролей.
 
 **Non-Goals:**
 - подсказка в форме отчёта и ярусы «отпущено → смета → справочник» — `work-26`;
@@ -29,53 +30,44 @@
 
 ## Decisions
 
-- **Условие PR 1 сработало** (решение нарезки этапа 3 от 22.10.2026, D18 зонтика): механизм, параметр
-  доступа `ModuleReader` и сторожа старта заводит `plan-22-module-exchange`; core-дельта снята целиком,
-  PR 2 строится на готовом. Описание PR 1 ниже оставлено для сверки с master перед стартом.
-- ~~**PR 1 — механизм.**~~
-  - `BHS.CRG.Modules/Exchange/ModuleContractAttribute.cs` — `[ModuleContract("costs", "Материалы на
-    объекте")]` на интерфейсе: поставщик назван у контракта, а не выведен из регистрации.
-  - Регистрация у поставщика: `services.AddModuleContract<IContract, Impl>(moduleCode)` в его
-    `RegisterServices`. `RegisterServices` зовётся только у включённого модуля, поэтому «нет реализации»
-    значит «не подключено» (D13).
-  - Порт потребителю `BHS.CRG.Modules/Exchange/IModuleContracts.cs`: `Get<T>()` →
-    `ModuleContractAnswer<T>` — `Connected(T)` | `NotConnected(provider, title)`. Прямой DI-запрос
-    интерфейса контракта потребителем ловит перепись по исходникам (иначе выключенный поставщик —
-    исключение разрешения служб).
-  - `Api/Modules/ModuleContractCatalog.cs` — проверка при старте: интерфейсы с атрибутом в сборке
-    контрактов; у включённого поставщика ровно одна реализация; реализацию зарегистрировал названный
-    модуль; больше одной — отказ.
-  - Параметр доступа — `ModuleReader` из `plan-22`; ответ «скрыто правами» и отказ системы — общими
-    типами `Exchange`, чтобы каждый контракт говорил одинаково.
-  - Нового HTTP-адреса нет: контракт — вызов в процессе.
-- **PR 2 — поставщик `costs`.**
+- **Основа из `plan-22-module-exchange`** (D18 зонтика). Снятый PR механизма покрыт действующей
+  спецификацией `core`. Интерфейс называет поставщика в `[ModuleContract("costs", "Материалы на объекте")]`.
+  `CostsModule.RegisterServices` регистрирует реализацию через `AddModuleContract`; каталог
+  `Api/Modules/ModuleContractCatalog.cs` проверяет единственную регистрацию включённого поставщика.
+  `IModuleContracts.Get<T>()` возвращает `Connected(Contract)` либо
+  `NotConnected(Provider, ProviderTitle, ContractTitle)`, где `ProviderTitle` — название модуля.
+  `ModuleContractRequestInventoryTests` следит за обращениями через порт.
+- **Поставщик `costs`.**
   - `BHS.CRG.Modules/Exchange/MaterialsOnSite.cs` — `IMaterialsOnSite.ReadAsync(ModuleReader, Guid
-    constructionId, ct)` → `Full(items: nomenclatureId, unit, quantity, first, last; unmatchedLines)` |
-    `Hint(nomenclatureIds)` | `Hidden(permission)`. Названий нет: потребитель называет позиции портом
-    каталога. Денег нет ни в одном виде.
-  - `Modules.Costs/Exchange/MaterialsOnSiteContract.cs` — над `IssuedMaterials.ReadAsync`; вид ответа —
-    по ключам `ModuleReader`: `read` → полный, иначе `hint` → подсказка, иначе «скрыто».
+    constructionId, ct)` возвращает `ContractAnswer<MaterialsOnSite>`. `Shown` содержит либо
+    `Full(items: nomenclatureId, unit, quantity, first, last; unmatchedLines)`, либо
+    `Hint(nomenclatureIds)` с уникальными идентификаторами. Названия потребитель читает портом каталога.
+  - `Modules.Costs/Exchange/MaterialsOnSiteContract.cs` выбирает чтение по ключам `ModuleReader`.
+    Для `read` методы отчёта `IssuedMaterials.ReadAsync` читают из одного снимка. Для `hint`
+    `IssuedMaterials.ReadNomenclatureIdsAsync` выбирает уникальные идентификаторы одним запросом
+    по тому же отбору строк. До чтения общая проверка `ContractAnswer.Refusal` отвечает
+    `Hidden(costs.materials.read)` либо `SystemRefused(reason)`.
   - `CostsModule.cs`: два права с видом «право контракта» (`plan-21`), объяснения прямо говорят, что
     модуль они не открывают; `ReadAllMark.Out` — «читать всё» сводит чтение модуля, а это выдача другому
-    модулю. Комментарий `CostsModule.cs:79-83` переписывается.
-  - `SystemRoles.cs:64` — «Монтажнику» `costs.materials.hint`.
+    модулю.
+  - `SystemRoles.cs` — «Монтажнику» `costs.materials.hint`.
   - `GET /api/costs/materials` остаётся под `costs.waybill.read`: экрану накладных право контракта не
     нужно.
 - **If-Match и ворота.** Нового пишущего API нет. Ворота модуля — правом контракта не открываются (D3,
   сторож в тесте состава доступа).
-- **Сторож.** ~~PR 1~~ — сторожа механизма у `plan-22`. PR 2 — `MaterialsOnSiteContractTests` (полный, подсказка, черновик не входит,
+- **Сторож.** `MaterialsOnSiteContractTests` (полный, подсказка, черновик не входит,
   «скрыто»), тест состава `/api/account/access` по ролям, живой хост `work` без `costs` получает «не
   подключено» (`WorkOnlyHostTests` из `work-10`), `CostsOnlyHostTests` зелёный.
+  Браузерный `routing-smoke.mjs` проверяет ворота `costs` по `modules[].available` и отказам на
+  маршрутах.
 - **Чем ломается.** Потребитель зовёт `GET /api/costs/materials` по HTTP: монтажник без
   `costs.waybill.read` получает 403, а выключенный `costs` — 501 вместо «не подключено». Право
   контракта объявлено обычным правом — у «Инженера ИД» появляется раздел «Счета и накладные».
-- **Зависимости.** `plan-21` (вид «право контракта») и `plan-22` (механизм, `ModuleReader`) — до PR 2.
-  `work-10` (живой хост `work`) — для сторожа PR 2. Потребитель —
+- **Зависимости.** `plan-21` (вид «право контракта») и `plan-22` (механизм, `ModuleReader`).
+  `work-10` (живой хост `work`) — для сторожа. Потребитель —
   `work-26`. Снимает вынос `STG-14` (`90-этапы.md:168`).
 
 ## Risks / Trade-offs
 
-- [Механизм `plan-22` устроен иначе, чем описано здесь] → PR 2 подстраивается под готовый; расхождение
-  правится в этом `design.md` до кода (D18 зонтика).
 - [Подсказка выдаёт монтажнику, что отпущено на стройку] → без количеств, дат и денег (Р-3); ровно
   то, что ему и так предлагает поле.

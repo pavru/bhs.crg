@@ -487,10 +487,10 @@ try {
   // ⚠️ Под тем же пользователем, что и проверки выше, и без второго входа: входы прогонов считаны.
   await check('outsider-finds-no-invoice-by-any-stage-path', async () => {
     const access = await callApi(userPage, 'GET', '/account/access');
-    const own = (access.body?.permissions ?? []).filter(code => code.startsWith('costs.'));
-    if (access.status !== 200 || own.length)
-      throw new Error(`у пользователя есть права модуля счетов (${own.join(', ') || access.status}) — `
-        + 'проверять «без модуля» не на ком');
+    const costs = access.body?.modules?.find(module => module.code === 'costs');
+    if (access.status !== 200 || costs?.available !== false)
+      throw new Error(`для проверки нужен закрытый модуль счетов (/account/access: ${access.status}, `
+        + `costs.available: ${costs?.available})`);
 
     // Каждый путь отвечает отказом, а не пустым списком: пустой список не отличить от «счетов нет».
     const doors = [
