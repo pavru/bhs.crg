@@ -431,6 +431,12 @@ public partial class ArchiveReadInventoryTests
                 nameof(EntryReportEndpointsTests.Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе)),
         ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var selected = ids.Length == 0 ? [] : await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct) ?? [];"] =
             Shown("номенклатура сохранённых строк доступного отчёта (work-22): признак в selected[].archived"),
+        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|var search = await catalog.SearchAsync(Role, query, limit, ct);"] =
+            Choice("подсказка материалов отчёта (work-26): из поиска архивные позиции исключены, их число приходит отдельно",
+                nameof(WorkMaterialsHintWorkOnlyTests.Неполный_справочник_и_архив_обозначены)),
+        ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|: string.IsNullOrEmpty(query) ? await catalog.RefsAsync(Role, above, ct) ?? [] : search.Items;"] =
+            Choice("подсказка материалов отчёта без запроса (work-26): архивные позиции отпуска и сметы исключены из выбора",
+                nameof(WorkMaterialsHintTests.Три_яруса_по_полному_ключу_без_повторов_и_количеств)),
         ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchListEndpoints.cs|: (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [.. matches.Select(m => m.NomenclatureId).Distinct()], ct)"] =
             Shown("список запомненных ресурсов (plan-08): названия уже стоящих позиций, архивная помечена «archived»"),
         ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =

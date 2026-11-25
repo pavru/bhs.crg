@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
@@ -34,7 +35,7 @@ internal sealed class MaterialHintEstimate(IModuleContracts contracts, IModulePl
         var query = new PlannedWorksQuery(constructionId, PlanItemIds: matching ? [stored!.Id] : null);
         var answer = await contract.ReadAsync(reader, query, ct);
         if (answer is not ContractAnswer<PlannedWorksAnswer>.Shown shown)
-            throw new InvalidOperationException("Для подсказки материалов требуется доступ пользователя.");
+            throw new ForbiddenException("Для подсказки материалов требуется доступ пользователя.");
         if (shown.Value.Hint is ContractAnswer<IReadOnlyList<PlannedHint>>.Hidden hidden)
             return MaterialHintSource.Hidden(hidden.Text, hidden.Permission);
 

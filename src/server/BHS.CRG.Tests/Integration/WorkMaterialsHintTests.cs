@@ -80,6 +80,16 @@ public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassF
             Assert.All(Items(result, "estimate"), item => Assert.False(item.TryGetProperty("notIssued", out var mark)
                 && mark.ValueKind == JsonValueKind.True));
         }
+
+        var directory = new WorkTypeSeed(host);
+        await directory.ArchiveAsync(fixture.Cable);
+        await directory.ArchiveAsync(fixture.Box);
+        using var archived = await installer.GetAsync(query);
+        Assert.Equal(HttpStatusCode.OK, archived.StatusCode);
+        var afterArchive = await JsonAsync(archived);
+        Assert.Empty(Items(afterArchive, "issued"));
+        Assert.Empty(Items(afterArchive, "estimate"));
+        Assert.Equal(2, afterArchive.GetProperty("catalog").GetProperty("inArchive").GetInt32());
     }
 
     private async Task<Fixture> SeedAsync(Guid site, Guid otherSite)

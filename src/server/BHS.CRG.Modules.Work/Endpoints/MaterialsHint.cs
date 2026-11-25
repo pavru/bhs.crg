@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
 using Microsoft.AspNetCore.Builder;
@@ -37,7 +38,7 @@ internal static class MaterialsHint
                     shown.Value.ToDictionary(item => item.NomenclatureId, item => item.Unit)),
             ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>.Hidden hidden =>
                 (MaterialHintSource.Hidden(hidden.Text, hidden.Permission), []),
-            _ => throw new InvalidOperationException("Для подсказки материалов требуется доступ пользователя."),
+            _ => throw new ForbiddenException("Для подсказки материалов требуется доступ пользователя."),
         };
     }
 }
