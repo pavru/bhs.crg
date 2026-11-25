@@ -8,8 +8,8 @@ internal static class ScheduleWorksPrintTemplate
         #let schedule = json("data.json")
         #let value(x) = if x == none { [—] } else { str(x) }
         #let date(x) = if x == none { [—] } else { x.split("-").rev().join(".") }
-        #let volume(row) = if row.volume == none { [—] } else {
-          let amount = str(row.volume).replace(".", ",")
+        #let volume(row) = if row.volumeText == none { [—] } else {
+          let amount = row.volumeText.replace(".", ",")
           if row.unit == none { amount } else { [#amount #row.unit] }
         }
         #set page(paper: "a4", flipped: true, margin: 17mm, numbering: "1")

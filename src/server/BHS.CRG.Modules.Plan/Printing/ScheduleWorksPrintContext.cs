@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Endpoints;
@@ -38,6 +39,8 @@ internal sealed class ScheduleWorksPrintContext(ScheduleBuilder schedules, IModu
                 work.Name,
                 section = work.SectionId is { } id ? sections?.GetValueOrDefault(id) ?? "Раздел недоступен" : "По стройке в целом",
                 work.Start, work.End, work.DurationWorkingDays, work.Volume,
+                // Typst читает дробное JSON-число как float и может потерять цифры объёма numeric(18, 6).
+                volumeText = work.Volume?.ToString("0.######", CultureInfo.InvariantCulture),
                 unit = work.UnitName,
                 assignees = work.EmployeeIds.GroupJoin(work.Assignees, id => id, person => person.Id, (_, people) =>
                     people.Select(person => person.Archived ? $"{person.Name} (в архиве)" : person.Name).FirstOrDefault()

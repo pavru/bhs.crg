@@ -133,6 +133,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     [Fact]
     public async Task Schedule_reader_prints_the_saved_works_with_the_default_template()
     {
+        const decimal volume = 999999999999.999999m;
         var scene = await ScheduleScenario.CreateAsync(host);
         using var editor = scene.Editor;
         var schedule = await scene.BuildAsync(name: "Проверка списка работ");
@@ -142,7 +143,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
             $"{ScheduleScenario.ScheduleUrl(schedule)}/works",
             new { workTypeId = classifier.WorkType, sectionId = scene.Site.Section, work = new
             {
-                start = "2098-12-01", end = "2098-12-04", volume = 12.75m, employeeIds = new[] { employee },
+                start = "2098-12-01", end = "2098-12-04", volume, employeeIds = new[] { employee },
             } }));
         var id = ScheduleScenario.Id(schedule);
         var path = $"/api/print/{PlanRecordTypes.ScheduleCode}/{id}";
@@ -168,7 +169,8 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var assignee = Assert.Single(work.GetProperty("assignees").EnumerateArray()).GetProperty("name").GetString()!;
         Assert.Equal("Проверка списка работ", body.GetProperty("name").GetString());
         Assert.Equal("ЭОМ-1", printedWork.GetProperty("section").GetString());
-        Assert.Equal(12.75m, printedWork.GetProperty("volume").GetDecimal());
+        Assert.Equal(volume, printedWork.GetProperty("volume").GetDecimal());
+        Assert.Equal("999999999999.999999", printedWork.GetProperty("volumeText").GetString());
         Assert.Equal("м", printedWork.GetProperty("unit").GetString());
         Assert.Equal(assignee, Assert.Single(printedWork.GetProperty("assignees").EnumerateArray()).GetString());
         Assert.Equal(work.GetProperty("durationWorkingDays").GetInt32(), printedWork.GetProperty("durationWorkingDays").GetInt32());
@@ -181,7 +183,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         Assert.Contains("Прокладка кабеля", printed);
         Assert.Contains("01.12.2098", printed);
         Assert.Contains("04.12.2098", printed);
-        Assert.Contains("12,75", printed);
+        Assert.Contains("999999999999,999999", printed);
         Assert.Contains(assignee, printed);
     }
 
