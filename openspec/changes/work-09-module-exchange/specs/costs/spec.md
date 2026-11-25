@@ -31,7 +31,7 @@
 
 #### Scenario: Монтажник
 - **WHEN** пользователь с ролью «Монтажник» читает `GET /api/account/access`
-- **THEN** у него есть `costs.materials.hint`, а модуля `costs` в доступе нет
+- **THEN** у него есть `costs.materials.hint`, а для модуля `costs` ответ содержит `available: false`
 - **AND** любой адрес `/api/costs/*` отвечает ему 403
 
 #### Scenario: Инженер ИД

@@ -5,6 +5,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
@@ -31,6 +32,18 @@ namespace BHS.CRG.Tests.Integration;
 [Collection(WorkOnlyCollection.Name)]
 public class WorkOnlyHostTests(WorkOnlyHost host)
 {
+    [Fact]
+    public void Материалы_на_объекте_без_модуля_счетов_не_подключены()
+    {
+        using var scope = host.Services.CreateScope();
+        var answer = Assert.IsType<ModuleContractAnswer<IMaterialsOnSite>.NotConnected>(
+            scope.ServiceProvider.GetRequiredService<IModuleContracts>().Get<IMaterialsOnSite>());
+
+        Assert.Equal("costs", answer.Provider);
+        Assert.Equal("Материалы на объекте", answer.ContractTitle);
+        Assert.Equal("не подключено: модуль «Счета и накладные»", answer.Text);
+    }
+
     /// <summary>
     /// Приложение поднимается без <c>id</c>, <c>costs</c> и <c>plan</c>, а их адреса отвечают отказом
     /// выключенного модуля с его названием (501, ТЗ OVW-10, AUTH-15, AUTH-19).
