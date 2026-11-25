@@ -100,9 +100,10 @@
 
 ## 6. Стык с этапом 3 (после 3)
 
-- [ ] 6.1 `work-09-module-exchange` (1) — «Материалы на объекте» у `costs`; механизм контракта строит
-  `plan-22-module-exchange` (D18), PR 1 снят [CORE-34] [COST-17] [WORK-48]. Проверка — change
-  заархивирован
+- [x] 6.1 `work-09-module-exchange` (1) — «Материалы на объекте» у `costs` на механизме
+  `plan-22-module-exchange` (D18) [CORE-34] [COST-17] [WORK-48]. Проверка — change
+  заархивирован ([архив 26.11.2026](../archive/2026-11-26-work-09-module-exchange/tasks.md),
+  PR #2098, `3bacce35`).
 - [ ] 6.2 `work-26-materials-hint` (1) — подсказка «отпущено → смета → справочник» [WORK-5.1].
   Проверка — change заархивирован
 - [ ] 6.3 `work-27-actual-works-contract` (1) — поставщик «Фактических работ» без часов, счётчик строк
