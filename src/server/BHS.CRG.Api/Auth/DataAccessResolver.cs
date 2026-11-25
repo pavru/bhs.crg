@@ -28,7 +28,7 @@ public sealed class DataAccessResolver(
     IUserPermissions permissions,
     IServiceScopeFactory scopes,
     ModuleRegistry modules,
-    PermissionCatalog catalog) : IDataAccessResolver
+    PermissionCatalog catalog) : IRequestDataAccessResolver, IDataAccessResolver
 {
     /// <summary>Параметр доступа владельца токена.</summary>
     public async Task<DataAccess> ForAsync(ClaimsPrincipal principal, CancellationToken ct)
@@ -44,21 +44,6 @@ public sealed class DataAccessResolver(
 
         return DataAccess.Of(id.Value, NameOf(principal, id.Value), Keys(granted), EnabledModules());
     }
-
-    /// <summary>
-    /// То же для запроса, до которого принципал не доезжает параметром: инструменты и ресурсы MCP
-    /// берут пользователя из того же JWT через <see cref="IHttpContextAccessor" /> (ТЗ AUTH-12.1).
-    /// </summary>
-    public Task<DataAccess> ForRequestAsync(IHttpContextAccessor http, CancellationToken ct) =>
-        ForAsync(
-            // Запроса нет вовсе — это дефект вызывающего, а не отказ пользователю: инструмент MCP
-            // живёт внутри запроса по устройству. Токен БЕЗ «кто это» — другой случай, и его
-            // разбирает ForAsync: пустой набор ключей, все наборы закрыты.
-            http.HttpContext?.User
-            ?? throw new InvalidOperationException(
-                "Параметр доступа запрошен вне HTTP-запроса: инструменты и ресурсы MCP берут " +
-                "пользователя из принципала, и без него читать строки нечьими правами нельзя."),
-            ct);
 
     /// <inheritdoc />
     public async Task<DataAccess> ForUserAsync(Guid userId, CancellationToken ct)

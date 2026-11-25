@@ -212,10 +212,11 @@ internal static class WorkerRegistration
     // Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
     builder.Services.AddSingleton<IUserPermissions, PermissionCache>();
     // В чьих правах читаются строки набора (ТЗ CORE-24.1, issue #965). Singleton, как и счётчик прав:
-    // своего состояния не держит, а зависимости на запрос берёт через фабрику областей. Объявлен и
-    // интерфейсом — его спрашивают фоновые задания, которым принципала не достаётся, — и классом: в
-    // адресе есть ClaimsPrincipal, и второй метод нужен только там.
+    // запрос получает принципал, фоновая задача — идентификатор автора. Оба интерфейса ведут
+    // в один экземпляр, который создаёт область при чтении прав автора фоновой задачи.
     builder.Services.AddSingleton<BHS.CRG.Api.Auth.DataAccessResolver>();
+    builder.Services.AddSingleton<BHS.CRG.Api.Auth.IRequestDataAccessResolver>(
+        sp => sp.GetRequiredService<BHS.CRG.Api.Auth.DataAccessResolver>());
     builder.Services.AddSingleton<BHS.CRG.Application.DataSets.IDataAccessResolver>(
         sp => sp.GetRequiredService<BHS.CRG.Api.Auth.DataAccessResolver>());
     // Кому адресовано уведомление (AUTH-13): тем же правам, что и двери, — и считается это в одном

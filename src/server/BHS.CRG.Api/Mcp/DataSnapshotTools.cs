@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
@@ -20,7 +20,7 @@ namespace BHS.CRG.Api.Mcp;
 /// </summary>
 [McpServerToolType]
 public class DataSnapshotTools(
-    IDataSnapshotService snapshots, DataAccessResolver access, IHttpContextAccessor http)
+    IDataSnapshotService snapshots, IRequestDataAccessResolver access, IHttpContextAccessor http)
 {
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "list_datasets", ReadOnly = true, Idempotent = true, Destructive = false,
