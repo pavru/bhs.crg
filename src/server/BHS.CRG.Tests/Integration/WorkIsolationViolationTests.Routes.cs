@@ -64,6 +64,8 @@ public sealed partial class WorkIsolationViolationTests
                 NonReportReason: "Кандидаты в бригаду для ввода за сотрудника."),
             new("/api/work/entry/sites/{siteId:guid}/catalog/{kind}", Missing, Missing, Closed, $"reportId={reportB}",
                 NonReportReason: "Справочник для ввода, доступ к которому проверяется по отчёту."),
+            new("/api/work/materials/hint", Missing, Missing, Closed, $"{site}&{date}",
+                NonReportReason: "Материалы справочника, отпуска и сметы в допущенной стройке."),
             new("/api/work/line-details-schema", Ok, Ok, Closed, NonReportReason: "Схема полей строки."),
         ];
         var live = EndpointInventory.Routes(testHost.Services).Where(route => EndpointInventory.Matches(EndpointInventory.Route(route), "/api/work")
@@ -104,6 +106,7 @@ public sealed partial class WorkIsolationViolationTests
         await CheckResponseAsync(unassigned, $"/api/work/summary?{span}", Ok, "not-assigned");
         await CheckResponseAsync(manager, $"/api/work/entry/sites/{world.SiteB}/catalog/work-types?reportId={reportB}",
             Ok, world.WorkType.ToString());
+        await CheckResponseAsync(manager, $"/api/work/materials/hint?{site}&{date}", Ok, "not-connected");
     }
 
     private static void CheckProbeControl(Probe probe)

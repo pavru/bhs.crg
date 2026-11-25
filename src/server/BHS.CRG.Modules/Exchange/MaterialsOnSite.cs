@@ -11,7 +11,13 @@ public interface IMaterialsOnSite
     /// номенклатуры. Без обоих прав перечень скрыт. Задание без пользователя получает отказ с причиной.
     /// </summary>
     Task<ContractAnswer<MaterialsOnSite>> ReadAsync(ModuleReader reader, Guid constructionId, CancellationToken ct = default);
+
+    /// <summary>Явная подсказка по любому из двух прав. Единица указана, если у позиции она однозначна.</summary>
+    Task<ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>> ReadHintAsync(
+        ModuleReader reader, Guid constructionId, CancellationToken ct = default);
 }
+
+public sealed record MaterialOnSiteHint(Guid NomenclatureId, string? Unit);
 
 /// <summary>Данные контракта в объёме прав пользователя.</summary>
 public abstract record MaterialsOnSite

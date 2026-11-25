@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using BHS.CRG.Modules.Exchange;
 
 namespace BHS.CRG.Modules.Costs.Data;
 
@@ -36,6 +37,20 @@ public static class IssuedMaterials
             .Select(item => item.Line.NomenclatureId!.Value)
             .Distinct()
             .ToListAsync(ct);
+
+    internal static async Task<IReadOnlyList<MaterialOnSiteHint>> ReadHintAsync(
+        CostsDbContext db, Guid constructionId, CancellationToken ct)
+    {
+        var pairs = await Matched(PostedLines(db, constructionId))
+            .Select(item => new { Id = item.Line.NomenclatureId!.Value, item.Line.Unit })
+            .Distinct().ToListAsync(ct);
+
+        return [.. pairs.GroupBy(pair => pair.Id).Select(group =>
+        {
+            var units = group.Select(pair => pair.Unit).Where(unit => unit is not null).Take(2).ToArray();
+            return new MaterialOnSiteHint(group.Key, units.Length == 1 ? units[0] : null);
+        })];
+    }
 
     public static async Task<IssuedMaterialsReport> ReadAsync(
         CostsDbContext db, Guid constructionId, CancellationToken ct)

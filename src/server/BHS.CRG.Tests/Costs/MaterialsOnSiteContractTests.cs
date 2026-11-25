@@ -99,6 +99,43 @@ public sealed class MaterialsOnSiteContractTests(MaterialsOnSiteHost host) : ICl
     }
 
     [Fact]
+    public async Task Явная_подсказка_читает_одну_узкую_проекцию_даже_при_широком_праве()
+    {
+        using var scope = host.Services.CreateScope();
+        var site = Guid.NewGuid();
+        var cable = Guid.NewGuid();
+        var box = Guid.NewGuid();
+        var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>();
+        AddWaybill(db, site, new DateOnly(2026, 9, 10), posted: true,
+            (cable, "м", 10m), (cable, "бухта", 1m), (box, "шт", 2m), (box, "шт", 5m));
+        AddWaybill(db, Guid.NewGuid(), new DateOnly(2026, 9, 10), posted: true, (Guid.NewGuid(), "м", 10m));
+        await db.SaveChangesAsync();
+
+        var contract = Connected(scope.ServiceProvider);
+        foreach (var reader in new[] { Reader(CostsModule.MaterialsHint), Reader(CostsModule.MaterialsRead),
+                     Reader(CostsModule.MaterialsRead, CostsModule.MaterialsHint) })
+        {
+            host.ReadProbe.Context = db;
+            ContractAnswer<IReadOnlyList<MaterialOnSiteHint>> answer;
+            try { answer = await contract.ReadHintAsync(reader, site); }
+            finally { host.ReadProbe.Context = null; }
+
+            var read = Assert.Single(host.ReadProbe.Reads);
+            var columns = read.Statement.Split("FROM", 2, StringSplitOptions.None)[0];
+            Assert.StartsWith("SELECT DISTINCT", columns, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("quantity", columns, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("issued_on", columns, StringComparison.OrdinalIgnoreCase);
+            Assert.False(read.InTransaction);
+            var shown = Assert.IsType<ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>.Shown>(answer).Value;
+            Assert.Equal(2, shown.Count);
+            Assert.Contains(new MaterialOnSiteHint(cable, null), shown);
+            Assert.Contains(new MaterialOnSiteHint(box, "шт"), shown);
+            var json = JsonSerializer.SerializeToElement(shown[0], JsonSerializerOptions.Web);
+            Assert.Equal(["nomenclatureId", "unit"], json.EnumerateObject().Select(field => field.Name).Order());
+        }
+    }
+
+    [Fact]
     public async Task Без_права_данные_скрыты_а_фоновому_заданию_отказано_с_причиной()
     {
         using var scope = host.Services.CreateScope();
@@ -188,7 +225,18 @@ public sealed class MaterialsOnSiteHost : IntegrationTestFixture
 
 internal sealed class MaterialsReadProbe : DbCommandInterceptor
 {
-    public CostsDbContext? Context { private get; set; }
+    private CostsDbContext? context;
+
+    public CostsDbContext? Context
+    {
+        private get => context;
+        set
+        {
+            if (value is not null) Reads.Clear();
+            context = value;
+        }
+    }
+
     public List<(string Statement, bool InTransaction)> Reads { get; } = [];
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(

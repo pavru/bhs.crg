@@ -155,7 +155,7 @@ async function ensureUnits({ api, findType }) {
 }
 
 /** Загрузка файла, ожидание разбора и создание редакции — как это делает окно загрузки. */
-async function importFile({ api, apiBase, token, form, extra = false }) {
+export async function importFile({ api, apiBase, token, form, extra = false }) {
   const body = new FormData();
   body.append('file', new Blob([estimateXml(extra)], { type: 'application/xml' }), extra ? 'ЛСР ред. 2 (посев).xml' : 'ЛСР (посев).xml');
   for (const [k, v] of Object.entries(form)) body.append(k, v);

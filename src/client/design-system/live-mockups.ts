@@ -122,7 +122,21 @@ const workCustomerFieldsMockup: LiveMockup = {
   reference: 'openspec/changes/work-24-customer-fields/design.md',
 };
 
+const workMaterialsMockup: LiveMockup = {
+  id: 'work-26-materials-hint',
+  title: 'Материалы строки отчёта · Work-26',
+  kind: 'design',
+  entry: 'work26.html',
+  pages: [
+    { path: 'a', title: 'А · Ярусы в одном окне' },
+    { path: 'b', title: 'Б · Источники на боковом листе' },
+    { path: 'c', title: 'В · Подсказка в строке отчёта' },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/work-26-materials-hint/design.md',
+};
+
 export const liveMockups = [
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
-  planSchedulesMockup, workSummaryMockup, workCustomerFieldsMockup,
+  planSchedulesMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
 ];

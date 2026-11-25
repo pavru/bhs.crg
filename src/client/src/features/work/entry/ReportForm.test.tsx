@@ -58,6 +58,11 @@ beforeEach(() => {
     if (path.endsWith('/catalog/sections')) return { data: { items: [{ id: 's1', name: 'Корпус А' }] } };
     if (path.endsWith('/catalog/materials')) return { data: { reason: materialReason,
       items: materialReason ? [] : [{ id: 'm1', displayName: 'Кабель ВВГ', archived: false }] } };
+    if (path === '/work/materials/hint') return { data: {
+      issued: { state: 'ok', items: [{ id: 'm1', displayName: 'Кабель ВВГ' }] },
+      estimate: { state: 'ok', items: [] },
+      catalog: materialReason ? { state: 'not-connected', reason: materialReason, items: [] } : { state: 'ok', items: [] },
+    } };
     if (path.endsWith('/crew-candidates')) return { data: { items: [{ id: 'e2', fullName: 'Сергеев' }] } };
     return { data: path === '/work/sites/mine' || path.endsWith('/sites') ? sites : current };
   });
@@ -319,6 +324,7 @@ it('добавляет и убирает черновую строку, сохр
   fireEvent.click(button('Подробности строки 1'));
   fireEvent.click(button('Добавить материал'));
   fireEvent.click(await within(await screen.findByRole('dialog')).findByRole('option', { name: 'Кабель ВВГ' }));
+  fireEvent.click(button('Готово'));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Бригадная работа' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Сергеев' }));
   expect(apiClient.get).toHaveBeenCalledWith('/work/constructions/site-a/crew-candidates',
@@ -378,6 +384,7 @@ it('показывает причину пустого ответа справо
   materialReason = 'Справочник номенклатуры не заведён.';
   mount('r1');
   fireEvent.click(await screen.findByRole('button', { name: 'Добавить материал' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Справочник' }));
   expect(await screen.findByText(materialReason)).toBeTruthy();
 });
 

@@ -9,6 +9,13 @@ namespace BHS.CRG.Modules.Work.Endpoints;
 internal sealed class ReportEntrySites(
     WorkDbContext db, IModuleConstructions constructions, IModuleClock clock, ReportReads reads, IModuleEmployees employees)
 {
+    public async Task<bool> HasAssignmentAsync(ModuleEmployee employee, Guid site, DateOnly on, CancellationToken ct)
+    {
+        if (employee.Archived || employee.NotWorkingOn(on) is not null) return false;
+        return await db.Assignments.AnyAsync(a => a.EmployeeId == employee.Id && a.ConstructionId == site
+            && a.DateFrom <= on && (a.DateTo == null || a.DateTo >= on), ct);
+    }
+
     public async Task<IReadOnlyList<MySiteDto>> ForEmployeeAsync(
         ModuleEmployee employee, ModuleReach reach, DateOnly? date, CancellationToken ct)
     {

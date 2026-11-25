@@ -207,7 +207,7 @@ const NOMENCLATURE_ROLE = 'role.nomenclature';
  * Найденный по коду тип без роли НЕ трогаем, как и раньше: роль на действующей базе ставит миграция
  * ядра, а не посев.
  */
-async function findDirectory(api, findType, role, code) {
+export async function findDirectory(api, findType, role, code) {
   const all = await api('GET', '/document-types');
   // Схема в ответе приходит строкой с JSON; объект принимаем тоже — посев не должен зависеть от того,
   // в каком виде её отдал сервер.

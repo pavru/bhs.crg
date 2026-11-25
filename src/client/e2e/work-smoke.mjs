@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { BASE, callApi, callApiOk, clearSession, createChecks, launchBrowser, login, settled } from './harness.mjs';
 import { WORK_PHOTO_NAME } from './seed-work.mjs';
+import { WORK_HINT_MATERIALS } from './seed-work-materials.mjs';
 
 function fixture(key) {
   const value = process.env[`SMOKE_WORK_${key}`];
@@ -74,6 +75,44 @@ try {
     await page.goto(`${BASE}${own.path}/${reportB}`);
     await text('Отчёт не найден: его нет, или он вне ваших строек.').waitFor();
     assert.equal((await callApi(page, 'GET', `/work/photos/${photoB}/preview`)).status, 404);
+  });
+
+  await check('work-installer-gets-material-hint-tiers', async () => {
+    const report = await callApiOk(page, 'GET', `/work/reports/${reportA}`);
+    const [line] = report.lines;
+    assert.ok(line, 'В черновике монтажника нет строки посева Work-26.');
+    const query = new URLSearchParams({ constructionId: site, date: report.date, workTypeId: line.workTypeId,
+      unitId: line.unitId, planItemId: line.workPlanItemId });
+    const hint = await callApiOk(page, 'GET', `/work/materials/hint?${query}`);
+    for (const [tier, name] of Object.entries(WORK_HINT_MATERIALS)) {
+      assert.equal(hint[tier].state, 'ok', `Состояние яруса «${tier}».`);
+      const item = hint[tier].items.find(item => item.displayName === name);
+      assert.ok(item, `Ярус «${tier}» не содержит «${name}».`);
+      assert.equal(Object.values(hint).flatMap(group => group.items).filter(other => other.id === item.id).length, 1);
+      if (tier === 'estimate') assert.equal(item.notIssued, true);
+      if (tier === 'issued') {
+        assert.equal(item.unit, 'м');
+        for (const key of ['quantity', 'first', 'last', 'waybillId']) assert.equal(Object.hasOwn(item, key), false);
+      }
+    }
+    await page.goto(`${BASE}${own.path}/${reportA}`);
+    const details = page.getByRole('button', { name: 'Подробности строки 1' });
+    await details.waitFor();
+    if (await details.getAttribute('aria-expanded') !== 'true') await details.click();
+    await page.getByRole('button', { name: 'Добавить материал' }).click();
+    const picker = page.getByRole('dialog', { name: 'Добавить материал' });
+    await picker.getByRole('option').filter({ hasText: WORK_HINT_MATERIALS.issued }).click();
+    await picker.getByRole('tab', { name: 'Смета' }).click();
+    const resource = picker.getByRole('option').filter({ hasText: WORK_HINT_MATERIALS.estimate });
+    await resource.getByText('Не отпущен').waitFor();
+    await resource.click();
+    await picker.getByRole('tab', { name: 'Справочник' }).click();
+    await picker.getByRole('option').filter({ hasText: WORK_HINT_MATERIALS.catalog }).waitFor();
+    await picker.getByRole('button', { name: 'Готово' }).click();
+    await text(WORK_HINT_MATERIALS.issued).waitFor();
+    await text(WORK_HINT_MATERIALS.estimate).waitFor();
+    await page.getByRole('button', { name: 'Убрать материал 2' }).click();
+    await page.getByRole('button', { name: 'Убрать материал 1' }).click();
   });
 
   await check('work-installer-b-own-list-and-photo', async () => {
