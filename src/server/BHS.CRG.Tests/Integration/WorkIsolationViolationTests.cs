@@ -7,6 +7,7 @@ using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Tests.Generation;
 using BHS.CRG.Tests.Work;
 using Microsoft.Extensions.DependencyInjection;
 using NPOI.XSSF.UserModel;
@@ -127,7 +128,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         await CrewWorld.SubmitAsync(owner, reportB, draft);
         using var upload = await PhotoWorld.UploadAsync(owner, reportB, lineB, photoB, PhotoWorld.Shot());
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
-        using var retained = await PhotoWorld.UploadAsync(owner, reportB, lineB, retainedPhotoB, PhotoWorld.Shot());
+        using var retained = await PhotoWorld.UploadAsync(owner, reportB, lineB, retainedPhotoB, PhotoSamples.Jpeg(600, 800));
         Assert.Equal(HttpStatusCode.OK, retained.StatusCode);
         var crew = await executive.GetFromJsonAsync<JsonElement>($"{CrewWorld.Path}?constructionId={world.SiteB}");
         groupB = Assert.Single(crew.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid();

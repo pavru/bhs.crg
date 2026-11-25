@@ -11,10 +11,11 @@ public sealed partial class WorkIsolationViolationTests
     private const HttpStatusCode Missing = HttpStatusCode.NotFound;
 
     private enum ControlReader { Executive, Owner, Manager }
+    private enum PhotoKind { Original, Preview }
 
     private sealed record Probe(string Template, HttpStatusCode Installer, HttpStatusCode Unassigned,
         HttpStatusCode Executive, string? Query = null, string? Signal = null,
-        ControlReader Control = ControlReader.Executive, bool Photo = false);
+        ControlReader Control = ControlReader.Executive, PhotoKind? Photo = null);
 
     private async Task CheckWorkRoutesAsync(HttpClient installer, HttpClient owner, HttpClient manager,
         HttpClient unassigned, HttpClient executive)
@@ -39,8 +40,8 @@ public sealed partial class WorkIsolationViolationTests
             new("/api/work/summary", Closed, Missing, Ok, $"construction={world.SiteB}&{span}", reportKey),
             new("/api/work/crew-groups", Closed, Ok, Ok, $"{site}&{span}", reportKey),
             new("/api/work/crew-groups/{id:guid}", Closed, Missing, Ok, Signal: reportKey),
-            new(photo, Missing, Missing, Ok, Photo: true),
-            new(photo + "/preview", Missing, Missing, Ok, Photo: true),
+            new(photo, Missing, Missing, Ok, Photo: PhotoKind.Original),
+            new(photo + "/preview", Missing, Missing, Ok, Photo: PhotoKind.Preview),
             new("/api/work/photos/limits", Ok, Ok, Closed),
             new("/api/work/sites/mine", Ok, Ok, Ok, date),
             // Справочники и назначения читают свои записи. Совпадение стройки или сотрудника с
@@ -60,6 +61,7 @@ public sealed partial class WorkIsolationViolationTests
         Assert.True(liveTemplates.SetEquals(byTemplate.Keys),
             $"Не описаны: {string.Join(", ", liveTemplates.Except(byTemplate.Keys))}. Лишние: {string.Join(", ", byTemplate.Keys.Except(liveTemplates))}.");
 
+        var storedPhoto = await ReadStoredPhotoAsync();
         foreach (var route in live)
         {
             var probe = byTemplate[EndpointInventory.Route(route)];
@@ -67,9 +69,16 @@ public sealed partial class WorkIsolationViolationTests
             await CheckResponseAsync(installer, path, probe.Installer, probe.Template == own ? reportA.ToString() : null);
             await CheckResponseAsync(unassigned, path, probe.Unassigned);
             var executiveSignal = probe.Control == ControlReader.Executive ? probe.Signal : null;
-            var photoBytes = probe.Photo ? await owner.GetByteArrayAsync(path) : null;
+            var expectedPhoto = probe.Photo switch
+            {
+                PhotoKind.Original => storedPhoto.Original,
+                PhotoKind.Preview => storedPhoto.Preview,
+                _ => null,
+            };
             await CheckResponseAsync(executive, path, probe.Executive, executiveSignal,
-                canReadReport: executiveSignal is not null || probe.Photo, expectedPhoto: photoBytes);
+                canReadReport: executiveSignal is not null, expectedPhoto: expectedPhoto);
+            if (expectedPhoto is not null)
+                await CheckResponseAsync(owner, path, Ok, expectedPhoto: expectedPhoto);
             if (probe.Control != ControlReader.Executive)
             {
                 var reader = probe.Control == ControlReader.Owner ? owner : manager;
@@ -112,16 +121,14 @@ public sealed partial class WorkIsolationViolationTests
         bool canReadReport = false, byte[]? expectedPhoto = null)
     {
         using var response = await client.GetAsync(path);
-        var expectPhoto = canReadReport && status == Ok && path.StartsWith("/api/work/photos/", StringComparison.Ordinal);
+        var expectPhoto = expectedPhoto is not null;
         var isPhoto = response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.Ordinal) == true;
         Assert.True(isPhoto == expectPhoto, $"{path}: ожидалось фото = {expectPhoto}, получено = {isPhoto}.");
-        if (expectPhoto)
+        if (expectedPhoto is not null)
         {
-            Assert.True(response.StatusCode == Ok, $"{path}: ожидалось фото, получен ответ {(int)response.StatusCode}.");
+            Assert.True(response.StatusCode == status, $"{path}: ожидалось фото, получен ответ {(int)response.StatusCode}.");
             var bytes = await response.Content.ReadAsByteArrayAsync();
-            Assert.True(bytes.Length > 0, $"{path}: фото пустое.");
-            if (expectedPhoto is not null)
-                Assert.True(bytes.AsSpan().SequenceEqual(expectedPhoto), $"{path}: фото отличается от ответа владельцу.");
+            Assert.True(bytes.AsSpan().SequenceEqual(expectedPhoto), $"{path}: фото отличается от сохранённого файла.");
             return;
         }
         var content = await response.Content.ReadAsStringAsync();
