@@ -239,10 +239,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
             (WorkTableWorld.Lines, WorkTableWorld.LinesMarker),
         })
         {
-            using var published = await publish.PostAsJsonAsync($"{table}/dataset", new { name = key });
-            var reference = await ExpectJsonAsync(published, $"{table}/dataset");
-            var fileId = reference.GetProperty("fileId").GetGuid();
-            var sourceId = reference.GetProperty("sourceId").GetGuid();
+            var (fileId, sourceId) = await PublishDataSetAsync(publish, table, key);
             var (column, signal) = key == WorkTableWorld.LinesMarker ? ("Место", marker) : ("Сотрудник", "Монтажник Б");
             foreach (var (client, count) in new[] { (installer, 1), (unassigned, 0), (executive, 2) })
             {
@@ -271,6 +268,14 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
                     .Any(cell => cell.Value.ValueKind == JsonValueKind.String && cell.Value.GetString() == signal)));
             }
         }
+    }
+
+    private static async Task<(Guid FileId, Guid SourceId)> PublishDataSetAsync(HttpClient publisher, string table, string key)
+    {
+        var path = $"{table}/dataset";
+        using var published = await publisher.PostAsJsonAsync(path, new { name = key });
+        var reference = await ExpectJsonAsync(published, path);
+        return (reference.GetProperty("fileId").GetGuid(), reference.GetProperty("sourceId").GetGuid());
     }
 
     private async Task CheckSourceMetadataAsync(HttpClient client, Guid fileId, Guid sourceId, string key, int count,
