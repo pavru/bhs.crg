@@ -10,8 +10,11 @@ public sealed partial class WorkIsolationViolationTests
     private const HttpStatusCode Closed = HttpStatusCode.Forbidden;
     private const HttpStatusCode Missing = HttpStatusCode.NotFound;
 
+    private enum ControlReader { Executive, Owner, Manager }
+
     private sealed record Probe(string Template, HttpStatusCode Installer, HttpStatusCode Unassigned,
-        HttpStatusCode Executive, string? Query = null, string? ExecutiveSignal = null);
+        HttpStatusCode Executive, string? Query = null, string? Signal = null,
+        ControlReader Control = ControlReader.Executive, bool Photo = false);
 
     private async Task CheckWorkRoutesAsync(HttpClient installer, HttpClient owner, HttpClient manager,
         HttpClient unassigned, HttpClient executive)
@@ -25,19 +28,19 @@ public sealed partial class WorkIsolationViolationTests
         var reportKey = reportB.ToString();
         Probe[] probes =
         [
-            new(own, Ok, Closed, Closed),
-            new(own + "/{id:guid}", Missing, Closed, Closed),
-            new(own + "/{id:guid}/journal", Missing, Missing, Ok, ExecutiveSignal: "\"items\":[{"),
-            new(entry + "/{id:guid}", Closed, Missing, Closed),
+            new(own, Ok, Closed, Closed, Signal: marker, Control: ControlReader.Owner),
+            new(own + "/{id:guid}", Missing, Closed, Closed, Signal: marker, Control: ControlReader.Owner),
+            new(own + "/{id:guid}/journal", Missing, Missing, Ok, Signal: marker),
+            new(entry + "/{id:guid}", Closed, Missing, Closed, Signal: marker, Control: ControlReader.Manager),
             new(entry + "/candidates", Closed, Ok, Closed, date),
             new(entry + "/candidates/{employeeId:guid}/sites", Closed, Ok, Closed, date),
             new("/api/work/review/queue", Closed, Ok, Ok, $"{site}&{span}", reportKey),
-            new("/api/work/review/reports/{id:guid}", Closed, Missing, Ok, ExecutiveSignal: marker),
+            new("/api/work/review/reports/{id:guid}", Closed, Missing, Ok, Signal: marker),
             new("/api/work/summary", Closed, Missing, Ok, $"construction={world.SiteB}&{span}", reportKey),
             new("/api/work/crew-groups", Closed, Ok, Ok, $"{site}&{span}", reportKey),
-            new("/api/work/crew-groups/{id:guid}", Closed, Missing, Ok, ExecutiveSignal: reportKey),
-            new(photo, Missing, Missing, Ok),
-            new(photo + "/preview", Missing, Missing, Ok),
+            new("/api/work/crew-groups/{id:guid}", Closed, Missing, Ok, Signal: reportKey),
+            new(photo, Missing, Missing, Ok, Photo: true),
+            new(photo + "/preview", Missing, Missing, Ok, Photo: true),
             new("/api/work/photos/limits", Ok, Ok, Closed),
             new("/api/work/sites/mine", Ok, Ok, Ok, date),
             // Справочники и назначения читают свои записи. Совпадение стройки или сотрудника с
@@ -63,16 +66,21 @@ public sealed partial class WorkIsolationViolationTests
             var path = Bind(route, probe.Query);
             await CheckResponseAsync(installer, path, probe.Installer, probe.Template == own ? reportA.ToString() : null);
             await CheckResponseAsync(unassigned, path, probe.Unassigned);
-            await CheckResponseAsync(executive, path, probe.Executive, probe.ExecutiveSignal,
-                canReadReport: probe.ExecutiveSignal is not null || probe.Template.StartsWith(photo, StringComparison.Ordinal));
+            var executiveSignal = probe.Control == ControlReader.Executive ? probe.Signal : null;
+            var photoBytes = probe.Photo ? await owner.GetByteArrayAsync(path) : null;
+            await CheckResponseAsync(executive, path, probe.Executive, executiveSignal,
+                canReadReport: executiveSignal is not null || probe.Photo, expectedPhoto: photoBytes);
+            if (probe.Control != ControlReader.Executive)
+            {
+                var reader = probe.Control == ControlReader.Owner ? owner : manager;
+                Assert.NotNull(probe.Signal);
+                await CheckResponseAsync(reader, path, Ok, probe.Signal, canReadReport: true);
+            }
         }
 
-        await CheckResponseAsync(owner, own, Ok, marker, canReadReport: true);
-        await CheckResponseAsync(owner, $"{own}/{reportB}", Ok, marker, canReadReport: true);
         await CheckResponseAsync(unassigned, $"/api/work/summary?{span}", Ok, "not-assigned");
-        await CheckResponseAsync(manager, $"{entry}/{reportB}", Ok, marker, canReadReport: true);
         await CheckResponseAsync(manager, $"/api/work/entry/sites/{world.SiteB}/catalog/work-types?reportId={reportB}",
-            Ok, world.WorkType.ToString(), canReadReport: true);
+            Ok, world.WorkType.ToString());
     }
 
     private string Bind(RouteEndpoint route, string? query)
@@ -101,7 +109,7 @@ public sealed partial class WorkIsolationViolationTests
     }
 
     private async Task CheckResponseAsync(HttpClient client, string path, HttpStatusCode status, string? signal = null,
-        bool canReadReport = false)
+        bool canReadReport = false, byte[]? expectedPhoto = null)
     {
         using var response = await client.GetAsync(path);
         var expectPhoto = canReadReport && status == Ok && path.StartsWith("/api/work/photos/", StringComparison.Ordinal);
@@ -109,8 +117,11 @@ public sealed partial class WorkIsolationViolationTests
         Assert.True(isPhoto == expectPhoto, $"{path}: ожидалось фото = {expectPhoto}, получено = {isPhoto}.");
         if (expectPhoto)
         {
-            Assert.Equal(Ok, response.StatusCode);
-            Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
+            Assert.True(response.StatusCode == Ok, $"{path}: ожидалось фото, получен ответ {(int)response.StatusCode}.");
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 0, $"{path}: фото пустое.");
+            if (expectedPhoto is not null)
+                Assert.True(bytes.AsSpan().SequenceEqual(expectedPhoto), $"{path}: фото отличается от ответа владельцу.");
             return;
         }
         var content = await response.Content.ReadAsStringAsync();
@@ -125,5 +136,7 @@ public sealed partial class WorkIsolationViolationTests
         Assert.False(content.Contains(marker, StringComparison.Ordinal), $"{path}: в ответе есть метка отчёта Б.");
         Assert.False(content.Contains(reportB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть отчёт Б.");
         Assert.False(content.Contains(lineB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть строка отчёта Б.");
+        Assert.False(content.Contains(photoB.ToString(), StringComparison.OrdinalIgnoreCase)
+            || content.Contains(retainedPhotoB.ToString(), StringComparison.OrdinalIgnoreCase), $"{path}: в ответе есть фото отчёта Б.");
     }
 }

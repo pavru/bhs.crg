@@ -254,7 +254,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
                     count == 2 ? signal : null, canReadReport: count == 2);
 
                 var canReadReport = count == 2;
-                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport);
+                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport: false);
                 var dataset = await McpAsync(client, "get_dataset", new { datasetId = fileId }, sourceId.ToString(), canReadReport);
                 var source = Assert.Single(dataset.GetProperty("sources").EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
                 Assert.Equal(count, source.GetProperty("rawRowCount").GetInt32());
