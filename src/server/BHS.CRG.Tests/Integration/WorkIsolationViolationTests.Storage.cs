@@ -91,6 +91,10 @@ public sealed partial class WorkIsolationViolationTests
         {
             Assert.Equal(DataSetSource.UnstoredRowCount, source.CachedRowCount);
             Assert.Null(source.CachedData);
+            using var schema = JsonDocument.Parse(source.CachedSchema);
+            var storedColumns = schema.RootElement.EnumerateArray();
+            Assert.NotEmpty(storedColumns);
+            Assert.All(storedColumns, column => Assert.Empty(column.GetProperty("sampleValues").EnumerateArray()));
         });
 
         // Запись синтетического значения проверяет сам поиск по базе и выполняется последней.
