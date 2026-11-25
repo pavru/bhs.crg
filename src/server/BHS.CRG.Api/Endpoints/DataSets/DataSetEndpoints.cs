@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Security.Claims;
 using System.Text.Json;
@@ -37,12 +37,12 @@ public static class DataSetEndpoints
         // источника. Берётся у того, кто открыл, и доходит до поставщика — «в правах открывшего»
         // означает именно это, а не «под правами приложения».
         g.MapGet("/files", async (string? scope, Guid? scopeId, bool? includeInherited,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListFilesAsync(scope, scopeId, includeInherited == true,
                 await access.ForAsync(user, ct), ct)));
 
         g.MapGet("/available", async (Guid setId,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAvailableFilesAsync(setId, await access.ForAsync(user, ct), ct)));
 
         g.MapPost("/files", async (HttpRequest request, IDataSetService svc, CancellationToken ct) =>
@@ -70,7 +70,7 @@ public static class DataSetEndpoints
         // Что система готова консолидировать на этом уровне — ДО создания набора (issue #606):
         // пусто ⇒ предлагать системный набор здесь незачем.
         g.MapGet("/system-candidates", async (string scope, Guid? scopeId,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListSystemCandidatesAsync(scope, scopeId, await access.ForAsync(user, ct), ct)));
 
         g.MapPut("/files/{id:guid}", async (Guid id, HttpRequest request, IDataSetService svc, CancellationToken ct) =>
@@ -102,13 +102,13 @@ public static class DataSetEndpoints
         // ── Источники ──────────────────────────────────────────────────────────
 
         g.MapGet("/files/{fileId:guid}/sources", async (Guid fileId,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListSourcesAsync(fileId, await access.ForAsync(user, ct), ct)));
 
         // Кандидаты на источник в сыром файле (листы/массивы/«весь файл») — без персиста, для
         // подсказок в диалоге создания источника. Пусто для XML (строится вручную builder'ом).
         g.MapGet("/files/{fileId:guid}/source-candidates", async (Guid fileId,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var candidates = await svc.DetectSourceCandidatesAsync(fileId, await access.ForAsync(user, ct), ct);
             return Results.Ok(candidates.Select(c => new
@@ -129,7 +129,7 @@ public static class DataSetEndpoints
 
         g.MapGet("/sources/{sourceId:guid}/preview", async (
             Guid sourceId, int maxRows,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var preview = await svc.PreviewSourceAsync(sourceId, maxRows, await access.ForAsync(user, ct), ct);
             return preview is null ? Results.NotFound() : Results.Ok(preview);
@@ -138,7 +138,7 @@ public static class DataSetEndpoints
         // Выгрузка ВСЕХ строк источника (после обработки) в CSV/XLS/XLSX. format=xlsx по умолчанию.
         g.MapGet("/sources/{sourceId:guid}/export", async (
             Guid sourceId, string? format,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var result = await svc.ExportSourceAsync(sourceId, format, await access.ForAsync(user, ct), ct);
             return result is null ? Results.NotFound() : Results.File(result.Content, result.ContentType, result.FileName);
@@ -146,7 +146,7 @@ public static class DataSetEndpoints
 
         g.MapPost("/sources/{sourceId:guid}/auto-map", async (
             Guid sourceId, AutoMapRequest req,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var fields = req.Fields.Select(f => new FieldInfo(f.Key, f.Title)).ToList();
             var mapping = await svc.AutoMapAsync(sourceId, fields, await access.ForAsync(user, ct), ct);
@@ -169,7 +169,7 @@ public static class DataSetEndpoints
         // дополнительный способ для JSON (в дополнение к авто-детекту top-level узлов).
         g.MapPost("/files/{fileId:guid}/sources", async (
             Guid fileId, SourceRequest req,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
@@ -236,7 +236,7 @@ public static class DataSetEndpoints
         // Live-превью материализации (issue #294): принимает текущие (несохранённые) typeId+mapping из диалога.
         g.MapPost("/sources/{sourceId:guid}/materialization/preview", async (
             Guid sourceId, MaterializePreviewRequest req,
-            ClaimsPrincipal user, DataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
+            ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var result = await svc.MaterializePreviewAsync(
                 sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, req.Discriminator, req.ByIdColumn,
@@ -424,7 +424,7 @@ public static class DataSetEndpoints
         // отличила бы одно от другого (разбор — SourceProcessingBody). Тело называет версию обработки,
         // с которой открыт диалог (issue #1141): источник тем временем изменили — 409 общим обработчиком.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
-            Guid sourceId, JsonElement body, ClaimsPrincipal user, DataAccessResolver access,
+            Guid sourceId, JsonElement body, ClaimsPrincipal user, IRequestDataAccessResolver access,
             IDataSetService svc, CancellationToken ct) =>
         {
             if (!SourceProcessingBody.TryParse(body, out var input, out var refusal))
@@ -440,7 +440,7 @@ public static class DataSetEndpoints
         // Применить шаблон (Extraction, если задана в шаблоне, + Filter/Transformation/Sort) —
         // copy-on-apply, единожды; Extraction триггерит пере-парсинг файла.
         g.MapPost("/sources/{sourceId:guid}/apply-template/{templateId:guid}", async (
-            Guid sourceId, Guid templateId, ClaimsPrincipal user, DataAccessResolver access,
+            Guid sourceId, Guid templateId, ClaimsPrincipal user, IRequestDataAccessResolver access,
             IDataSetService svc, CancellationToken ct) =>
         {
             try

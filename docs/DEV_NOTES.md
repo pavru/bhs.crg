@@ -4942,6 +4942,16 @@ Change `core-journal-series` (ТЗ CORE-28.2, CORE-28.3). Автосохране
 `ProvideAsync(marker, scope, scopeId, access, ct)`, — и то же требование стоит в единственной точке
 извлечения строк, `IDataSetRowLoader`.
 
+Обработчики таблиц и наборов передают принципал текущего запроса в `IRequestDataAccessResolver`.
+Снимки MCP извлекают тот же принципал из `HttpContext` через `ForRequestAsync`. Запросный интерфейс
+и фоновый `IDataAccessResolver` ведут в один `DataAccessResolver`. Для фонового задания
+`ForUserAsync` берёт права автора из базы по его идентификатору.
+
+В интеграционном тесте `RequestDataAccessTests` производная фабрика `WithWebHostBuilder` заменяет
+только `IRequestDataAccessResolver` через `ConfigureTestServices`. Сравнение на одном посеве и с
+одним JWT проходит через настоящие HTTP `query` и MCP `get_rows` с обычными воротами. Штатный
+ответ после освобождения производной фабрики служит контролем восстановления выдачи.
+
 При `PerUser` сохраняются имена колонок. Примеры, строки и их число вычисляются по правам читающего.
 Когда число недоступно, REST и MCP возвращают неизвестное значение. В БД и манифесте копии его
 представляет `DataSetSource.UnstoredRowCount`.

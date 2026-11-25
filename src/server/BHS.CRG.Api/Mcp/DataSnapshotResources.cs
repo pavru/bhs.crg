@@ -16,7 +16,7 @@ namespace BHS.CRG.Api.Mcp;
 /// </summary>
 [McpServerResourceType]
 public class DataSnapshotResources(
-    IDataSnapshotService snapshots, DataAccessResolver access, IHttpContextAccessor http)
+    IDataSnapshotService snapshots, IRequestDataAccessResolver access, IHttpContextAccessor http)
 {
     [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerResource(UriTemplate = "bhs://dataset/{datasetId}", Name = "dataset",

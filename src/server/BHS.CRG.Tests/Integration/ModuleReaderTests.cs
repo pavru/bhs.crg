@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
@@ -56,7 +57,21 @@ public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
         };
         try
         {
-            var reader = await scope.ServiceProvider.GetRequiredService<IModuleReaders>().ForRequestAsync();
+            var services = scope.ServiceProvider;
+            var implementation = services.GetRequiredService<DataAccessResolver>();
+            var request = services.GetRequiredService<IRequestDataAccessResolver>();
+            Assert.Same(implementation, request);
+            Assert.Same(implementation, services.GetRequiredService<IDataAccessResolver>());
+
+            var direct = await implementation.ForAsync(http.HttpContext.User, default);
+            var viaInterface = await request.ForAsync(http.HttpContext.User, default);
+            Assert.Equal(direct.UserId, viaInterface.UserId);
+            Assert.Equal(direct.Who, viaInterface.Who);
+            Assert.True(direct.Keys.SetEquals(viaInterface.Keys));
+            Assert.True(direct.EnabledModules.SetEquals(viaInterface.EnabledModules));
+            Assert.Contains("id", viaInterface.EnabledModules);
+
+            var reader = await services.GetRequiredService<IModuleReaders>().ForRequestAsync();
 
             Assert.False(reader.IsSystem);
             Assert.Equal(userId, reader.UserId);
@@ -78,11 +93,14 @@ public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var scope = fixture.Services.CreateScope();
 
         var reader = await scope.ServiceProvider.GetRequiredService<IModuleReaders>().ForJobAsync(Run(userId));
+        var access = await scope.ServiceProvider.GetRequiredService<IDataAccessResolver>().ForUserAsync(userId, default);
 
         Assert.False(reader.IsSystem);
         Assert.Equal(userId, reader.UserId);
         Assert.True(reader.Allows(Permission));
         Assert.False(reader.Allows("id.config.edit"));
+        Assert.Equal(userId, access.UserId);
+        Assert.True(access.Keys.SetEquals(reader.Keys));
     }
 
     [Fact]
@@ -92,10 +110,14 @@ public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var gone = Guid.NewGuid();
 
         var reader = await scope.ServiceProvider.GetRequiredService<IModuleReaders>().ForJobAsync(Run(gone));
+        var access = await scope.ServiceProvider.GetRequiredService<IDataAccessResolver>().ForUserAsync(gone, default);
 
         Assert.True(reader.IsSystem);
         Assert.Empty(reader.Keys);
         Assert.Contains(gone.ToString(), reader.SystemReason);
+        Assert.True(access.IsSystem);
+        Assert.Empty(access.Keys);
+        Assert.Equal(reader.SystemReason, access.SystemReason);
     }
 
     /// <summary>
@@ -108,11 +130,15 @@ public class ModuleReaderTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var scope = fixture.Services.CreateScope();
 
         var reader = await scope.ServiceProvider.GetRequiredService<IModuleReaders>().ForJobAsync(Run(Guid.Empty));
+        var access = await scope.ServiceProvider.GetRequiredService<IDataAccessResolver>().ForUserAsync(Guid.Empty, default);
 
         Assert.True(reader.IsSystem);
         Assert.Empty(reader.Keys);
         Assert.Contains("не человек", reader.SystemReason);
         Assert.DoesNotContain("удалена", reader.SystemReason);
+        Assert.True(access.IsSystem);
+        Assert.Empty(access.Keys);
+        Assert.Equal(reader.SystemReason, access.SystemReason);
     }
 
     [Fact]
