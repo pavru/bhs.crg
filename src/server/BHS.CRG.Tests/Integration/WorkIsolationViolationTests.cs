@@ -22,6 +22,7 @@ public sealed class WorkIsolationHost : AssignmentHost
 public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) : IClassFixture<WorkIsolationHost>
 {
     private const string Day = ReportWorld.Day16;
+    private const decimal HoursA = 6m, HoursB = 8m, VolumeA = 7m, VolumeB = 100m;
     private readonly WorkIsolationHost testHost = host;
     private readonly ReportWorld world = new(host);
     private readonly string marker = $"Work25-{Guid.NewGuid():N}";
@@ -89,7 +90,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
             var ownOutside = Guid.NewGuid();
             var draft = await CrewWorld.CreateAsync(client, world.Draft(ownOutside, world.SiteB));
             await CrewWorld.SubmitAsync(client, ownOutside, draft);
-            var table = await CheckTableAsync(client, WorkTableWorld.Reports, 2, "own-and-sites", "Часы", null);
+            var table = await CheckTableAsync(client, WorkTableWorld.Reports, 2, "own-and-sites");
             Assert.Equal(new[] { reportA, ownOutside }.Order(), table.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid()).Order());
             await CheckResponseAsync(client, $"/api/work/review/reports/{ownOutside}", HttpStatusCode.OK, ownOutside.ToString());
             await CheckResponseAsync(client, $"/api/work/summary?from={Day}&to={Day}&construction={world.SiteB}",
@@ -111,14 +112,15 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         var (_, executive) = await world.Assignments.UserAsync("Руководитель", WorkModule.ReportRead, CorePermissions.DataSetsRead);
         await world.Assignments.AssignedAsync(ownerId, world.SiteB, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
         await world.Assignments.AssignedAsync(installerId, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
-        var own = await CrewWorld.CreateAsync(installer, world.Draft(reportA, world.SiteA, lineId: lineA, location: "Участок А", volume: 7));
+        var own = await CrewWorld.CreateAsync(installer, world.Draft(reportA, world.SiteA, hours: HoursA,
+            lineId: lineA, location: "Участок А", volume: VolumeA));
         await CrewWorld.SubmitAsync(installer, reportA, own);
         var draft = await CrewWorld.CreateAsync(owner, new
         {
-            id = reportB, constructionId = world.SiteB, date = Day, shift = "day", hours = 8m, note = marker,
+            id = reportB, constructionId = world.SiteB, date = Day, shift = "day", hours = HoursB, note = marker,
             lines = new[]
             {
-                new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = 100m, isCrew = true,
+                new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = VolumeB, isCrew = true,
                     crewRole = "lead", location = marker, comment = marker, details = new { work25 = marker },
                     materials = new[] { new { nomenclatureId = material, note = marker } },
                     photos = new[] { new { id = photoB, originalName = $"{marker}-1.jpg" },
@@ -170,45 +172,50 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
     {
         foreach (var client in new[] { installer, unassigned, executive })
             await CheckResponseAsync(client, "/api/tables", HttpStatusCode.OK, "work.reports");
-        foreach (var (table, total, ownValue, fullValue, ownKey, foreignKey, column, signal) in new[]
+        foreach (var (table, total, ownValue, foreignValue, ownKey, foreignKey, column, signal) in new[]
         {
-            (WorkTableWorld.Reports, "Часы", 8, 16, reportA, reportB, "Сотрудник", "Монтажник Б"),
-            (WorkTableWorld.Lines, "Объём", 7, 107, lineA, lineB, "Место", marker),
+            (WorkTableWorld.Reports, "Часы", HoursA, HoursB, reportA, reportB, "Сотрудник", "Монтажник Б"),
+            (WorkTableWorld.Lines, "Объём", VolumeA, VolumeB, lineA, lineB, "Место", marker),
         })
         {
             var path = $"{table}?totals={Uri.EscapeDataString(total)}";
-            var own = await CheckTableAsync(installer, path, 1, "own", total, ownValue);
+            var own = await CheckTableAsync(installer, path, 1, "own");
+            CheckNumericTotal(own, path, total, ownValue);
             Assert.Equal(ownKey, Assert.Single(own.GetProperty("keys").EnumerateArray()).GetGuid());
             AssertReportNotDisclosed(own.GetRawText(), path);
-            var none = await CheckTableAsync(unassigned, path, 0, "not-assigned", total, null);
+            var none = await CheckTableAsync(unassigned, path, 0, "not-assigned");
+            CheckNumericTotal(none, path, total);
             Assert.Equal("not-assigned", none.GetProperty("reason").GetString());
             Assert.Empty(none.GetProperty("keys").EnumerateArray());
             AssertReportNotDisclosed(none.GetRawText(), path);
-            var all = await CheckTableAsync(executive, path, 2, "all", total, fullValue);
+            var all = await CheckTableAsync(executive, path, 2, "all");
+            CheckNumericTotal(all, path, total, ownValue, foreignValue);
             Assert.Equal(new[] { ownKey, foreignKey }.Order(), all.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid()).Order());
 
             await CheckResponseAsync(installer, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
             await CheckResponseAsync(unassigned, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
             await CheckResponseAsync(executive, $"{table}?row={foreignKey}", HttpStatusCode.OK,
                 foreignKey.ToString(), canReadReport: true);
-            await CheckQueryAndExportAsync(table, column, signal, foreignKey, installer, unassigned, executive);
+            await CheckQueryAndExportAsync(table, column, signal, foreignKey, total, foreignValue, installer, unassigned, executive);
         }
     }
 
     private async Task CheckQueryAndExportAsync(string table, string column, string signal, Guid foreignKey,
-        HttpClient installer, HttpClient unassigned, HttpClient executive)
+        string total, decimal foreignValue, HttpClient installer, HttpClient unassigned, HttpClient executive)
     {
         var filter = JsonSerializer.Serialize(new { type = "condition", column, op = "contains", value = signal });
         foreach (var (client, count) in new[] { (installer, 0), (unassigned, 0), (executive, 1) })
         {
-            using var query = await client.PostAsJsonAsync($"{table}/query", new { filter });
-            var body = await ExpectJsonAsync(query, $"{table}/query");
+            var queryPath = $"{table}/query";
+            using var query = await client.PostAsJsonAsync(queryPath, new { filter, totals = new[] { total } });
+            var body = await ExpectJsonAsync(query, queryPath);
             Assert.Equal(count, body.GetProperty("count").GetInt32());
+            CheckNumericTotal(body, queryPath, total, count == 1 ? [foreignValue] : []);
             var keys = body.GetProperty("keys").EnumerateArray();
             if (count == 1)
                 Assert.Equal(foreignKey, Assert.Single(keys).GetGuid());
             else
-                AssertReportNotDisclosed(body.GetRawText(), $"{table}/query");
+                AssertReportNotDisclosed(body.GetRawText(), queryPath);
 
             using var export = await client.PostAsJsonAsync($"{table}/export", new { columns = new[] { column } });
             Assert.Equal(HttpStatusCode.OK, export.StatusCode);
@@ -219,15 +226,53 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         }
     }
 
-    private static async Task<JsonElement> CheckTableAsync(HttpClient client, string path, int count, string boundary,
-        string total, decimal? sum)
+    private static async Task<JsonElement> CheckTableAsync(HttpClient client, string path, int count, string boundary)
     {
         using var response = await client.GetAsync(path);
         var json = await ExpectJsonAsync(response, path);
         Assert.Equal(boundary, json.GetProperty("boundaryOutcome").GetString());
         Assert.Equal(count, json.GetProperty("count").GetInt32());
-        if (sum is { } value) Assert.Equal(value, json.GetProperty("totals").GetProperty(total).GetProperty("sum").GetDecimal());
         return json;
+    }
+
+    private static void CheckNumericTotal(JsonElement body, string path, string column, params decimal[] values)
+    {
+        var total = body.GetProperty("totals").GetProperty(column);
+        var actual = (Count: total.GetProperty("count").GetInt64(), Skipped: total.GetProperty("skipped").GetInt64(),
+            Sum: Read("sum"), Average: Read("average"), Min: Read("min"), Max: Read("max"));
+        var expected = values.Length == 0
+            ? (0L, 0L, (decimal?)null, (decimal?)null, (decimal?)null, (decimal?)null)
+            : ((long)values.Length, 0L, values.Sum(), values.Average(), values.Min(), values.Max());
+        Assert.True(actual == expected, $"{path}, колонка «{column}»: ожидался итог {expected}, получен {actual}.");
+
+        decimal? Read(string key)
+        {
+            var value = total.GetProperty(key);
+            return value.ValueKind == JsonValueKind.Null ? null : value.GetDecimal();
+        }
+    }
+
+    [Theory]
+    [InlineData("count")]
+    [InlineData("skipped")]
+    [InlineData("sum")]
+    [InlineData("average")]
+    [InlineData("min")]
+    [InlineData("max")]
+    public void Проверка_пустого_итога_отвергает_значение_из_синтетического_ответа(string field)
+    {
+        const string column = "Объём";
+        const string path = "/api/work25-test-only";
+        var fixture = JsonNode.Parse("""
+            {"totals":{"Объём":{"count":0,"skipped":0,"sum":null,"average":null,"min":null,"max":null}}}
+            """)!;
+        CheckNumericTotal(JsonSerializer.SerializeToElement(fixture), path, column);
+        fixture["totals"]![column]![field] = VolumeB;
+
+        var failure = Assert.Throws<Xunit.Sdk.TrueException>(() =>
+            CheckNumericTotal(JsonSerializer.SerializeToElement(fixture), path, column));
+        Assert.Contains(path, failure.Message, StringComparison.Ordinal);
+        Assert.Contains(column, failure.Message, StringComparison.Ordinal);
     }
 
     private async Task CheckDataSetsAsync(HttpClient installer, HttpClient unassigned, HttpClient executive)

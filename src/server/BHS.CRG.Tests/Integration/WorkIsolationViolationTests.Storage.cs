@@ -172,7 +172,7 @@ public sealed partial class WorkIsolationViolationTests
             {
                 constructionId = world.SiteB, date = Day, shift = "day", hours = 9m, note = marker,
                 reason = correctionReason,
-                lines = new[] { new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = 100m,
+                lines = new[] { new { id = lineB, workTypeId = world.WorkType, unitId = world.Unit, volume = VolumeB,
                     location = marker, comment = marker, details = new { work25 = marker }, isCrew = true, crewRole = "lead",
                     materials = report.GetProperty("lines")[0].GetProperty("materials"), photos = new[] { new { id = retainedPhotoB } } } },
             };
@@ -202,11 +202,11 @@ public sealed partial class WorkIsolationViolationTests
 
         var snapshot = await owner.GetFromJsonAsync<JsonElement>(ownHistory);
         Assert.Equal("at-closing", snapshot.GetProperty("view").GetString());
-        Assert.Equal(8m, snapshot.GetProperty("hours").GetDecimal());
+        Assert.Equal(HoursB, snapshot.GetProperty("hours").GetDecimal());
         var card = await executive.GetFromJsonAsync<JsonElement>(reviewHistory);
         Assert.Equal(1, card.GetProperty("viewedVersion").GetInt32());
         var archived = card.GetProperty("report");
-        Assert.Equal(8m, archived.GetProperty("hours").GetDecimal());
+        Assert.Equal(HoursB, archived.GetProperty("hours").GetDecimal());
         var photo = Assert.Single(archived.GetProperty("lines")[0].GetProperty("photos").EnumerateArray(),
             entry => entry.GetProperty("id").GetGuid() == photoB);
         var url = Assert.IsType<string>(photo.GetProperty("versionUrl").GetString());
