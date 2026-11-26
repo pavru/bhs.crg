@@ -46,7 +46,8 @@ export const SUITE_SECONDS = {
   'work-entry': 12,
   'work-summary': 12,
   work: 20,
-  'work-crew': 16,
+  // Work-27: 5,3 с в первом прогоне CI, округлено вверх.
+  'work-crew': 6,
 };
 
 /**

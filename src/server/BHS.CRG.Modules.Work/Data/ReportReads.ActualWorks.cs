@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
@@ -21,7 +22,7 @@ public sealed partial class ReportReads
     internal async Task<ActualWorksInputs> ActualWorksAsync(ModuleReader reader, ActualWorksQuery query, CancellationToken ct)
     {
         if (reader.IsSystem || !reader.Allows(WorkModule.FactsRead))
-            throw new InvalidOperationException("Чтение входов факта требует права work.facts.read у человека.");
+            throw new ForbiddenException("Чтение фактических работ требует права work.facts.read.");
 
         var reach = ModuleReach.OfSites([query.ConstructionId]);
         var viewer = ReportViewer.Of(reach);

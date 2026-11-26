@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
@@ -18,10 +19,12 @@ internal sealed record CrewPublication(
         var reports = lines.DistinctBy(l => l.ReportId).ToArray();
         var accepted = reports.Count(l => l.Accepted);
         var unsubmitted = lines.SelectMany(l => l.Participants).Except(submitted).Count();
+        if (reports.Length == 0)
+            return new(false, "empty", keys, 0, 0, 0);
+
         var exclusion = Exclude(group, keys, accepted, reports.Length);
-        return new(reports.Length > 0 && exclusion is null,
-            reports.Length == 0 ? "empty" : exclusion is { } reason ? ReasonCode(reason) : null,
-            keys, accepted, reports.Length, unsubmitted) { Exclusion = exclusion };
+        var reason = exclusion is { } code ? JsonNamingPolicy.KebabCaseLower.ConvertName(code.ToString()) : null;
+        return new(exclusion is null, reason, keys, accepted, reports.Length, unsubmitted) { Exclusion = exclusion };
     }
 
     internal CrewFactExclusion? Exclusion { get; private init; }
@@ -29,7 +32,6 @@ internal sealed record CrewPublication(
     private static CrewFactExclusion? Exclude(CrewGroupRecord group, IReadOnlyList<CrewPublicationKey> keys,
         int accepted, int participating)
     {
-        if (participating == 0) return null;
         if (group.State == "pending") return CrewFactExclusion.NotApproved;
         if (group.State == "stale") return CrewFactExclusion.Stale;
         if (accepted != participating) return CrewFactExclusion.AwaitingAcceptance;
@@ -38,16 +40,6 @@ internal sealed record CrewPublication(
         if (keys.Count != 1) return CrewFactExclusion.MultipleKeys;
         return null;
     }
-
-    private static string ReasonCode(CrewFactExclusion reason) => reason switch
-    {
-        CrewFactExclusion.NotApproved => "not-approved",
-        CrewFactExclusion.Stale => "stale",
-        CrewFactExclusion.AwaitingAcceptance => "awaiting-acceptance",
-        CrewFactExclusion.InvalidKey => "invalid-key",
-        CrewFactExclusion.MultipleKeys => "multiple-keys",
-        _ => throw new ArgumentOutOfRangeException(nameof(reason)),
-    };
 
     internal static bool PositionMatches(IReadOnlyDictionary<Guid, PlanItemKey> positions, Guid id, PlanItemKey key) =>
         positions.TryGetValue(id, out var saved) && saved == key;
