@@ -26,6 +26,7 @@ public class ConstructionProgressTests
 {
     private const string EstimateRead = PlanModule.EstimateRead;
     private const string FactRead = ActualWorksProbeModule.FactsRead;
+    private const string EstimateColumn = "plan:estimate";
 
     [Fact]
     public async Task План_и_факт_независимы_а_строки_собираются_по_виду_и_единице()
@@ -41,11 +42,11 @@ public class ConstructionProgressTests
         using var reader = await GrantedSignIn.WithPermissionsAsync(host, EstimateRead, FactRead);
         var all = await ReadAsync(reader, site.Id);
         var planOnly = Find(all, "rows", "workTypeId", site.PlanWork);
-        Assert.Equal(20m, Volume(planOnly, "estimate"));
+        Assert.Equal(20m, Volume(planOnly, EstimateColumn));
         Assert.False(planOnly.GetProperty("cells").TryGetProperty("fact", out _));
         var factOnly = Find(all, "rows", "workTypeId", site.FactWork);
         Assert.Equal(12m, Volume(factOnly, "fact"));
-        Assert.False(factOnly.GetProperty("cells").TryGetProperty("estimate", out _));
+        Assert.False(factOnly.GetProperty("cells").TryGetProperty(EstimateColumn, out _));
         Assert.Equal("м", factOnly.GetProperty("unitName").GetString());
         Assert.Contains("3", Find(all, "strips", "code", "fact-pending").GetProperty("text").GetString());
         Assert.Contains("2", Find(all, "strips", "code", "fact-crew-multiple-keys").GetProperty("text").GetString());
@@ -55,13 +56,13 @@ public class ConstructionProgressTests
 
         var section = await ReadAsync(reader, site.Id, site.Section);
         Assert.Equal(5m, Volume(Find(section, "rows", "workTypeId", site.FactWork), "fact"));
-        Assert.Equal(8m, Volume(Find(section, "rows", "workTypeId", site.PlanWork), "estimate"));
+        Assert.Equal(8m, Volume(Find(section, "rows", "workTypeId", site.PlanWork), EstimateColumn));
         Assert.Equal(all.GetProperty("factDiagnostics").GetRawText(), section.GetProperty("factDiagnostics").GetRawText());
         Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"{Path(site.Id)}?section={Guid.NewGuid()}")).StatusCode);
 
         using var factReader = await GrantedSignIn.WithPermissionsAsync(host, FactRead);
         var factResponse = await ReadAsync(factReader, site.Id);
-        AssertState(Find(factResponse, "columns", "code", "estimate"), "hidden", EstimateRead);
+        AssertState(Find(factResponse, "columns", "code", EstimateColumn), "hidden", EstimateRead);
         Assert.Equal(site.FactWork, Assert.Single(factResponse.GetProperty("rows").EnumerateArray()).GetProperty("workTypeId").GetGuid());
 
         using var planReader = await GrantedSignIn.WithPermissionsAsync(host, EstimateRead);
@@ -77,6 +78,61 @@ public class ConstructionProgressTests
         using var anonymous = host.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(Path(site.Id))).StatusCode);
     }
+
+    [Fact]
+    public async Task Одинаковые_коды_двух_поставщиков_и_ядра_дают_три_отдельные_колонки()
+    {
+        await using var host = new ProgressHost("plan,costs", "progress_codes", probeWork: true, probePlan: true, probeCosts: true);
+        await host.InitializeAsync();
+        var site = await SeedAsync(host);
+        var fact = host.Services.GetRequiredService<ActualWorksProbeData>().Facts[site.Id];
+        var item = fact.Items[0].PlanItemId;
+        var probes = host.Services.GetRequiredService<ProgressProbeData>();
+        probes.PlanColumns[site.Id] = [VolumeColumn("fact", new ProgressItemValue(item, new(Volume: 20)))];
+        probes.CostsColumns[site.Id] = [VolumeColumn("fact", new ProgressItemValue(item, new(Volume: 30)))];
+
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, EstimateRead, CostsModule.TotalsRead, FactRead);
+        var response = await ReadAsync(reader, site.Id);
+        Assert.Equal(["costs:fact", "fact", "plan:fact"], response.GetProperty("columns").EnumerateArray()
+            .Select(column => column.GetProperty("code").GetString()).Order(StringComparer.Ordinal));
+        var row = Assert.Single(response.GetProperty("rows").EnumerateArray());
+        Assert.Equal(20m, Volume(row, "plan:fact"));
+        Assert.Equal(30m, Volume(row, "costs:fact"));
+        Assert.Equal(12m, Volume(row, "fact"));
+        AssertState(Find(response, "columns", "code", "plan:fact"), "ok");
+        AssertState(Find(response, "columns", "code", "costs:fact"), "ok");
+        AssertState(Find(response, "columns", "code", "fact"), "partial");
+    }
+
+    [Fact]
+    public async Task Пустой_объём_отличается_от_нуля_и_не_мешает_сложению_чисел()
+    {
+        await using var host = new ProgressHost("plan", "progress_null", probeWork: true, probePlan: true);
+        await host.InitializeAsync();
+        var site = await SeedAsync(host);
+        var fact = host.Services.GetRequiredService<ActualWorksProbeData>().Facts[site.Id];
+        var first = fact.Items[0].PlanItemId;
+        var second = fact.Items[1].PlanItemId;
+        var missing = new ProgressItemValue(first, new());
+        host.Services.GetRequiredService<ProgressProbeData>().PlanColumns[site.Id] =
+        [
+            VolumeColumn("missing", missing, new ProgressItemValue(second, new())),
+            VolumeColumn("zero", missing, new ProgressItemValue(second, new(Volume: 0))),
+            VolumeColumn("mixed", missing, new ProgressItemValue(second, new(Volume: 15))),
+        ];
+
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, EstimateRead);
+        var response = await ReadAsync(reader, site.Id);
+        var row = Assert.Single(response.GetProperty("rows").EnumerateArray());
+        string ColumnCode(string title) => Find(response, "columns", "title", title).GetProperty("code").GetString()!;
+        var missingCell = row.GetProperty("cells").GetProperty(ColumnCode("missing"));
+        Assert.Equal(JsonValueKind.Null, missingCell.GetProperty("volume").ValueKind);
+        Assert.Equal(0m, Volume(row, ColumnCode("zero")));
+        Assert.Equal(15m, Volume(row, ColumnCode("mixed")));
+    }
+
+    private static ProgressColumn VolumeColumn(string code, params ProgressItemValue[] values) =>
+        new(code, code, ProgressColumnKind.Volume, ContractAnswer.Shown<IReadOnlyList<ProgressItemValue>>(values));
 
     [Fact]
     public async Task Выключенный_Work_и_Costs_дают_состояния_без_чисел()
@@ -150,7 +206,7 @@ public class ConstructionProgressTests
         using var scope = host.Services.CreateScope();
         var items = scope.ServiceProvider.GetRequiredService<IModulePlanItems>();
         var planId = Assert.IsType<PlanItemResult>((await items.FindOrCreateAsync(new(planned.Id, site.Id, null, unit.Id))).Item).Id;
-        host.Services.GetRequiredService<ProgressPlanData>().Items[site.Id] = (planId, first.Id);
+        host.Services.GetRequiredService<ProgressProbeData>().Items[site.Id] = (planId, first.Id);
 
         if (host.Services.GetService<ActualWorksProbeData>() is { } facts)
         {
@@ -164,7 +220,7 @@ public class ConstructionProgressTests
         return new(site.Id, first.Id, planned.Id, accepted.Id);
     }
 
-    private sealed class ProgressHost(string modules, string suffix, bool probeWork, bool probePlan) : ModuleOnlyHost
+    private sealed class ProgressHost(string modules, string suffix, bool probeWork, bool probePlan, bool probeCosts = false) : ModuleOnlyHost
     {
         protected override string ModuleCode => modules;
         protected override string DatabaseSuffix => suffix;
@@ -176,9 +232,11 @@ public class ConstructionProgressTests
             {
                 if (probePlan)
                 {
-                    services.AddSingleton<ProgressPlanData>();
+                    services.AddSingleton<ProgressProbeData>();
                     services.SwapModuleContract<IProgressContribution, ProgressPlanProbe>(PlanModule.ModuleCode);
                 }
+                if (probeCosts)
+                    services.SwapModuleContract<IProgressContribution, ProgressCostsProbe>(CostsModule.ModuleCode);
                 if (!probeWork) return;
 
                 var probe = new ActualWorksProbeModule();
@@ -195,17 +253,22 @@ public class ConstructionProgressTests
         }
     }
 
-    private sealed class ProgressPlanData
+    private sealed class ProgressProbeData
     {
         internal ConcurrentDictionary<Guid, (Guid PlanItem, Guid Section)> Items { get; } = new();
+        internal ConcurrentDictionary<Guid, IReadOnlyList<ProgressColumn>> PlanColumns { get; } = new();
+        internal ConcurrentDictionary<Guid, IReadOnlyList<ProgressColumn>> CostsColumns { get; } = new();
     }
 
-    private sealed class ProgressPlanProbe(ProgressPlanData data) : IProgressContribution
+    private sealed class ProgressPlanProbe(ProgressProbeData data) : IProgressContribution
     {
         public IReadOnlyList<string> AnswerPermissions => [EstimateRead];
 
         public Task<ProgressContribution> ReadAsync(ModuleReader reader, Guid site, Guid? section, CancellationToken ct)
         {
+            if (data.PlanColumns.TryGetValue(site, out var columns))
+                return Task.FromResult(ReadColumns(reader, columns, EstimateRead));
+
             IReadOnlyList<ProgressItemValue> ReadValues()
             {
                 if (!data.Items.TryGetValue(site, out var item) || (section != null && section != item.Section))
@@ -217,5 +280,19 @@ public class ConstructionProgressTests
                 ?? ContractAnswer.Shown(ReadValues());
             return Task.FromResult(new ProgressContribution([new("estimate", "План по смете", ProgressColumnKind.Volume, values)], [], []));
         }
+    }
+
+    private sealed class ProgressCostsProbe(ProgressProbeData data) : IProgressContribution
+    {
+        public IReadOnlyList<string> AnswerPermissions => [CostsModule.TotalsRead];
+
+        public Task<ProgressContribution> ReadAsync(ModuleReader reader, Guid site, Guid? section, CancellationToken ct) =>
+            Task.FromResult(ReadColumns(reader, data.CostsColumns.GetValueOrDefault(site) ?? [], CostsModule.TotalsRead));
+    }
+
+    private static ProgressContribution ReadColumns(ModuleReader reader, IReadOnlyList<ProgressColumn> columns, string permission)
+    {
+        var refusal = ContractAnswer.Refusal<IReadOnlyList<ProgressItemValue>>(reader, permission);
+        return new(refusal is null ? columns : columns.Select(column => column with { Values = refusal }).ToArray(), [], []);
     }
 }

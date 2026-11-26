@@ -20,6 +20,7 @@ public sealed record ProgressContribution(
 
 public enum ProgressColumnKind { Volume, Dates }
 
+/// <param name="Code">Локальный код, уникальный внутри вклада. Ядро добавляет к нему код модуля в ответе API.</param>
 /// <param name="Values">Ответ в правах читателя. Скрытый ответ содержит только код права.</param>
 /// <param name="UnavailableReason">Причина отсутствия данных при доступной колонке, например отсутствие графика.</param>
 public sealed record ProgressColumn(
@@ -28,7 +29,7 @@ public sealed record ProgressColumn(
 
 public sealed record ProgressItemValue(Guid PlanItemId, ProgressValue Value);
 
-/// <summary>Объём в единице позиции или границы срока. Пустая граница означает, что даты нет.</summary>
+/// <summary>Объём в единице позиции или границы срока. Пустой объём или граница означают отсутствие значения.</summary>
 public sealed record ProgressValue(decimal? Volume = null, DateOnly? Start = null, DateOnly? End = null);
 
 /// <summary>Пояснение над таблицей. Скрытая полоса называет право и не несёт данных.</summary>

@@ -14,19 +14,31 @@ internal sealed class ConstructionProgress(
     public async Task<ConstructionProgressResponse> ReadAsync(
         ModuleReader reader, Guid site, Guid? section, CancellationToken ct)
     {
-        var contributions = new List<ProgressContribution>();
+        var columns = new List<ProgressColumn>();
+        var strips = new List<ProgressStrip>();
+        var planItemIds = new HashSet<Guid>();
         // Последовательно: поставщики могут читать справочники одним контекстом ядра.
         foreach (var provider in contracts.GetAll<IProgressContribution>())
-            contributions.Add(await provider.Contract.ReadAsync(reader, site, section, ct));
+        {
+            var contribution = await provider.Contract.ReadAsync(reader, site, section, ct);
+            var prefix = Uri.EscapeDataString(provider.Module);
+            var localCodes = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var column in contribution.Columns)
+            {
+                if (!localCodes.Add(column.Code))
+                    throw new InvalidOperationException($"Модуль «{provider.Module}» повторил код колонки «{column.Code}» в «Ходе работ».");
+                columns.Add(column with { Code = $"{prefix}:{column.Code}" });
+            }
+            strips.AddRange(contribution.Strips);
+            planItemIds.UnionWith(contribution.PlanItemIds);
+        }
 
-        var columns = contributions.SelectMany(c => c.Columns).ToList();
-        var strips = contributions.SelectMany(c => c.Strips).ToList();
         var diagnostics = await AddFactAsync(reader, new ActualWorksQuery(site, section), columns, strips, ct);
 
         var values = columns.SelectMany(c => ShownValues(c).Select(v => (c, v)))
             .ToLookup(pair => pair.v.PlanItemId, pair => pair);
-        var ids = contributions.SelectMany(c => c.PlanItemIds).Concat(values.Select(g => g.Key)).Distinct().ToArray();
-        var rows = await RowsAsync(site, ids, values, ct);
+        planItemIds.UnionWith(values.Select(g => g.Key));
+        var rows = await RowsAsync(site, planItemIds, values, ct);
         var costs = await ReadCostsAsync(reader, site, section, ct);
         var partial = diagnostics is not null && IsPartial(diagnostics);
         return new(site, section, columns.Select(column => ColumnView(column, partial)).ToList(), rows, strips, costs, diagnostics);
@@ -113,10 +125,10 @@ internal sealed class ConstructionProgress(
         };
     }
 
-    private async Task<IReadOnlyList<ProgressRow>> RowsAsync(Guid site, Guid[] ids,
+    private async Task<IReadOnlyList<ProgressRow>> RowsAsync(Guid site, IReadOnlyCollection<Guid> ids,
         ILookup<Guid, (ProgressColumn c, ProgressItemValue v)> values, CancellationToken ct)
     {
-        if (ids.Length == 0) return [];
+        if (ids.Count == 0) return [];
 
         var groups = (await items.GetAsync(ids, ct)).Where(item => item.Key.ConstructionId == site)
             .GroupBy(item => (item.Key.WorkTypeId, item.Key.UnitId)).ToList();
@@ -138,7 +150,7 @@ internal sealed class ConstructionProgress(
     private static ProgressValue Aggregate(ProgressColumnKind kind, IReadOnlyList<ProgressValue> values) =>
         kind == ProgressColumnKind.Dates
             ? new(Start: values.Min(v => v.Start), End: values.Max(v => v.End))
-            : new(Volume: values.Sum(v => v.Volume));
+            : new(Volume: values.Any(v => v.Volume.HasValue) ? values.Sum(v => v.Volume) : null);
 
     private static IReadOnlyList<ProgressItemValue> ShownValues(ProgressColumn column) =>
         column is { Values: ContractAnswer<IReadOnlyList<ProgressItemValue>>.Shown shown, UnavailableReason: null }

@@ -52,7 +52,8 @@ public class ConstructionProgressRealWorkTests(ConstructionProgressWorkHost host
         Assert.Equal(120m, FactVolume(shown));
         Assert.Equal(1, shown.GetProperty("factDiagnostics").GetProperty("unsubmitted").GetInt32());
         Assert.Equal("ok", Strip(shown, "fact-unsubmitted").GetProperty("state").GetString());
-        Assert.DoesNotContain(shown.GetProperty("columns").EnumerateArray(), c => c.GetProperty("code").GetString() == "estimate");
+        Assert.False(Assert.Single(shown.GetProperty("rows").EnumerateArray())
+            .GetProperty("cells").TryGetProperty("plan:estimate", out _));
 
         var json = shown.GetRawText();
         Assert.DoesNotContain("Первый монтажник", json);

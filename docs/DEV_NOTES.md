@@ -6501,7 +6501,9 @@ PUT    /api/constructions/{id}/external-id  { system, code } — только п
 GET    /api/constructions/{id}/progress?section= → { constructionId, sectionId, columns, rows, strips, costs, factDiagnostics? }
                                               — любое право включённого поставщика, без права → 403.
                                               Неизвестная стройка или раздел вне этой стройки → 404.
-                                              Строка — вид работы и единица, cells по кодам колонок.
+                                              Строка — вид работы и единица. Ключ cells совпадает с columns[].code.
+                                              У вкладов код вида «модуль:колонка» (plan:estimate), у факта ядра — fact.
+                                              Если у всех позиций в ячейке объём пуст, volume равен null.
                                               Факт текущий. При partial включённые объёмы сохраняются,
                                               пустая ячейка остаётся пустой. Без Work вместо колонки
                                               полоса not-connected. Скрытая колонка называет право.
