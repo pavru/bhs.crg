@@ -119,19 +119,27 @@ describe('переход из окна загрузки', () => {
   });
 });
 
-it('ссылка из Хода работ открывает указанную редакцию, даже когда загружена более новая', async () => {
+it('ссылка из предупреждения открывает несопоставленные строки действующей редакции', async () => {
   serve(false);
   const base = vi.mocked(apiClient.get).getMockImplementation()!;
   const current = estimate(false);
   const first = current.revisions[0];
-  const newer = { ...first, id: 'r2', number: 2, current: false };
-  vi.mocked(apiClient.get).mockImplementation(async (url, config) =>
-    url === '/plan/estimates/e1' ? { data: { ...current, revisions: [newer, first] } } as never : base(url, config));
-  mount(undefined, '?revision=r1');
+  const newer = { ...first, id: 'r2', number: 2, current: false, unmatched: 0 };
+  vi.mocked(apiClient.get).mockImplementation(async (url, config) => {
+    if (url === '/plan/estimates/e1') return { data: { ...current, revisions: [newer, first] } } as never;
+    if (url === '/plan/revisions/r1/rows') return { data: { items: [line(false),
+      line(false, { id: 'mapped', name: 'Уже сопоставлено', marks: [] }),
+    ], next: null, hidden: HIDDEN } } as never;
+    return base(url, config);
+  });
+  mount(undefined, '?revision=r1&queue=unmatched');
 
-  await openSection();
+  const unmatched = await screen.findByRole('button', { name: /Не сопоставлены/ });
+  expect(unmatched.getAttribute('aria-pressed')).toBe('true');
+  await screen.findByText('Розетка штепсельная');
+  expect(screen.queryByText('Уже сопоставлено')).toBeNull();
   expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/plan/revisions/r1/rows')).toBe(true);
-  expect(screen.getByTestId('search').textContent).toBe('?revision=r1');
+  expect(screen.getByTestId('search').textContent).toBe('?revision=r1&queue=unmatched');
 });
 
 describe('карточка сметы и право на стоимость', () => {

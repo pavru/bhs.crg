@@ -60,19 +60,13 @@ export function useWriteScheduleLink(constructionId: string, id: string) {
   });
 }
 
-async function storeSchedule(client: QueryClient, schedule: Schedule) {
-  const key = detailKey(schedule.constructionId, schedule.id);
-  await client.cancelQueries({ queryKey: key });
-  client.setQueryData(key, schedule);
-  void client.invalidateQueries({ queryKey: siteKey(schedule.constructionId), exact: true });
-}
-
 export function useCreateSchedule() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: ScheduleCreate) => apiClient.post<Schedule>(PATH, input).then(r => r.data),
-    onSuccess: async schedule => {
-      await storeSchedule(client, schedule);
+    onSuccess: schedule => {
+      void client.invalidateQueries({ queryKey: siteKey(schedule.constructionId), exact: true });
+      void client.invalidateQueries({ queryKey: detailKey(schedule.constructionId, schedule.id), exact: true });
       if (schedule.revisionId) void client.invalidateQueries({ queryKey: ['planning', 'estimates'] });
     },
   });
@@ -111,12 +105,8 @@ export function useRebuildSchedule(id: string) {
   return useMutation({
     mutationFn: ({ version, fingerprint }: ScheduleRebuildPreview) =>
       apiClient.post<Schedule>(`${PATH}/${id}/rebuild`, { fingerprint }, match(version)).then(r => r.data),
-    onSuccess: async schedule => {
-      await storeSchedule(client, schedule);
-      void client.invalidateQueries({ queryKey: siteKey(schedule.constructionId), predicate: query =>
-        query.queryKey.at(-1) !== schedule.id,
-      });
-    },
+    // Текущий факт и диагностику возвращает чтение графика. Оно обновляет кэш после записи.
+    onSuccess: schedule => client.invalidateQueries({ queryKey: siteKey(schedule.constructionId) }),
   });
 }
 

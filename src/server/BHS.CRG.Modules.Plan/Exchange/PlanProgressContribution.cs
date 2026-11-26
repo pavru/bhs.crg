@@ -38,25 +38,24 @@ internal sealed class PlanProgressContribution(PlanDbContext db, IModuleContract
             return new(EstimateCode, EstimateTitle, ProgressColumnKind.Volume, refusal);
         }
 
+        var path = reader.Allows(PlanModule.ModuleCode) && reader.Allows("core.constructions.read")
+            ? $"/document-sets/{site}/estimates" : null;
         var provider = ((ModuleContractAnswer<IPlannedWorks>.Connected)contracts.Get<IPlannedWorks>()).Contract;
         // План раздела и предупреждение по всей стройке должны читать одну версию действующих редакций.
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var answer = await ReadPlanAsync(provider, reader, new(site, section), ct);
         var wholeItems = section.HasValue && answer.Undecided > 0
             ? (await ReadPlanAsync(provider, reader, new(site), ct)).Volumes.Items : null;
+        var unmatched = path is not null && answer.Unmapped > 0
+            ? await PlanRows.UnmatchedByRevision(db, site).ToListAsync(ct) : [];
         await tx.CommitAsync(ct);
 
-        var path = reader.Allows(PlanModule.ModuleCode) && reader.Allows("core.constructions.read")
-            ? $"/document-sets/{site}/estimates" : null;
         foreach (var basis in answer.Volumes.Basis)
             strips.Add(new($"estimate-basis-{basis.EstimateId}", $"План по: смета «{basis.EstimateName}» ред. {basis.Revision}",
-                Link: EstimateLink(path, basis)));
+                Link: path is null ? null : EstimateLink(path, basis.EstimateId, basis.RevisionId)));
 
         if (answer.Unmapped > 0)
-        {
-            var link = section is null && answer.Volumes.Basis is [var only] ? EstimateLink(path, only) : path;
-            strips.Add(new("estimate-unmapped", $"Строк сметы не сопоставлено: {answer.Unmapped} — в таблице их нет", Link: link));
-        }
+            AddUnmatched(answer.Unmapped, unmatched, path, strips);
         if (wholeItems is not null)
             await AddUndistributedAsync(wholeItems, answer.Undecided, path, strips, ct);
 
@@ -74,8 +73,23 @@ internal sealed class PlanProgressContribution(PlanDbContext db, IModuleContract
         throw new InvalidOperationException("Контракт «Плановые работы» не вернул объёмы читателю смет.");
     }
 
-    private static string? EstimateLink(string? path, PlannedBasis basis) =>
-        path is null ? null : $"{path}/{basis.EstimateId}?revision={basis.RevisionId}";
+    private static string EstimateLink(string path, Guid estimateId, Guid revisionId) =>
+        $"{path}/{estimateId}?revision={revisionId}";
+
+    private static void AddUnmatched(int count, IReadOnlyList<PlanRows.UnmatchedRevision> revisions, string? path,
+        List<ProgressStrip> strips)
+    {
+        static string Link(string path, PlanRows.UnmatchedRevision revision) =>
+            $"{EstimateLink(path, revision.EstimateId, revision.RevisionId)}&queue=unmatched";
+
+        var link = path is not null && revisions is [var only] ? Link(path, only) : null;
+        strips.Add(new("estimate-unmapped", $"Строк сметы не сопоставлено: {count} — в таблице их нет", Link: link));
+        if (path is null || revisions.Count < 2) return;
+
+        foreach (var revision in revisions)
+            strips.Add(new($"estimate-unmapped-{revision.RevisionId}",
+                $"Смета «{revision.EstimateName}» ред. {revision.Number}: {revision.Count}", Link: Link(path, revision)));
+    }
 
     private async Task AddUndistributedAsync(IReadOnlyList<PlannedItem> items, int undecided, string? path,
         List<ProgressStrip> strips, CancellationToken ct)

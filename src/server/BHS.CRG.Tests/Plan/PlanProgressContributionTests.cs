@@ -5,6 +5,7 @@ using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Plan.OfferDerivativeScenario;
 
 namespace BHS.CRG.Tests.Plan;
@@ -36,17 +37,56 @@ public class PlanProgressContributionTests(PlanOnlyHost host)
         Assert.Equal(link, basis.GetProperty("link").GetString());
         var unmapped = Strip(reply, "estimate-unmapped");
         Assert.Equal("Строк сметы не сопоставлено: 17 — в таблице их нет", unmapped.GetProperty("text").GetString());
-        Assert.Equal(link, unmapped.GetProperty("link").GetString());
+        Assert.Equal($"{link}&queue=unmatched", unmapped.GetProperty("link").GetString());
 
         var extra = await EstimateSeed.EstimateAsync(host, site.Construction, "Дополнительная", EstimateKind.Additional);
         await EstimateSeed.RevisionAsync(host, extra, await EstimateSeed.MatchedRowAsync(host, site, 50m));
         reply = await ProgressAsync(reader, site.Construction);
         Assert.Equal(350m, Cell(reply, "plan:estimate").GetProperty("volume").GetDecimal());
         Assert.Equal("План по: смета «Дополнительная» ред. 1", Strip(reply, $"estimate-basis-{extra}").GetProperty("text").GetString());
+        Assert.Equal($"{link}&queue=unmatched", Strip(reply, "estimate-unmapped").GetProperty("link").GetString());
         AssertColumn(reply, "plan:estimate", "ok");
         AssertColumn(reply, "plan:schedule", "hidden", PlanModule.ScheduleRead);
         Assert.DoesNotContain("\"unitCost\"", reply.GetRawText());
         Assert.DoesNotContain("\"total\"", reply.GetRawText());
+    }
+
+    [Fact]
+    public async Task Несопоставленные_на_разделе_ведут_ко_всем_действующим_редакциям_из_счётчика()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var main = await EstimateSeed.EstimateAsync(host, site.Construction);
+        var first = await EstimateSeed.RevisionAsync(host, main, new EstimateRowDraft("Строка А", SourceVolume: 1));
+        await EstimateSeed.RevisionAsync(host, main, await EstimateSeed.MatchedRowAsync(host, site, 50));
+
+        var otherSection = await DistributionFlow.SectionAsync(host, site.Construction, "ЭОМ-2");
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+        var other = Estimate.Create(site.Construction, otherSection, "Смета второго корпуса", EstimateKind.Main, DateTimeOffset.UtcNow);
+        db.Estimates.Add(other);
+        await db.SaveChangesAsync();
+        var second = await EstimateSeed.RevisionAsync(host, other.Id,
+            new EstimateRowDraft("Строка Б", SourceVolume: 1), new EstimateRowDraft("Строка В", SourceVolume: 1));
+        await EstimateSeed.RevisionAsync(host, other.Id, await EstimateSeed.MatchedRowAsync(host, site with { Section = otherSection }, 70));
+
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead, CorePermissions.ConstructionsRead);
+        foreach (var section in new Guid?[] { null, site.Section })
+        {
+            var response = await ProgressAsync(reader, site.Construction, section);
+            var warning = Strip(response, "estimate-unmapped");
+            Assert.Equal("Строк сметы не сопоставлено: 3 — в таблице их нет", warning.GetProperty("text").GetString());
+            Assert.Equal(JsonValueKind.Null, warning.GetProperty("link").ValueKind);
+            AssertLink(first.Id, main, "Смета «Основная» ред. 1: 1");
+            AssertLink(second.Id, other.Id, "Смета «Смета второго корпуса» ред. 1: 2");
+
+            void AssertLink(Guid revision, Guid estimate, string title)
+            {
+                var strip = Strip(response, $"estimate-unmapped-{revision}");
+                Assert.Equal(title, strip.GetProperty("text").GetString());
+                Assert.Equal($"/document-sets/{site.Construction}/estimates/{estimate}?revision={revision}&queue=unmatched",
+                    strip.GetProperty("link").GetString());
+            }
+        }
     }
 
     [Fact]
