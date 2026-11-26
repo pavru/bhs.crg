@@ -52,7 +52,7 @@ export function ScheduleWorksGrid({ rows, sections, warnings, links, factState, 
     } },
     ...(factState && factState !== 'not-connected' ? [{
       key: 'fact', label: factState === 'partial' ? 'Факт · включённый объём' : 'Факт по учёту',
-      size: 144, cell: (work: ScheduleWork) => <ScheduleFactCell work={work} />,
+      size: 144, cell: (work: ScheduleWork) => <ScheduleFactCell fact={work.fact} unitName={work.unitName} />,
     }] : []),
     ...(['start', 'end'] as const).map(field => {
       const label = field === 'start' ? 'Начало' : 'Окончание';

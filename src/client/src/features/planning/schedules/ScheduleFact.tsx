@@ -1,4 +1,4 @@
-import type { ScheduleFact, ScheduleWork } from '@/shared/api/planningScheduleTypes';
+import type { ScheduleFact } from '@/shared/api/planningScheduleTypes';
 import type { FactDiagnostics } from '@/shared/api/progress';
 import { formatDate, formatQuantityUnit } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -42,11 +42,10 @@ export function ScheduleFactNotice({ fact, diagnostics }: {
   </Banner>;
 }
 
-export function ScheduleFactCell({ work }: { work: ScheduleWork }) {
-  const fact = work.fact;
+export function ScheduleFactCell({ fact, unitName }: { fact?: ScheduleFact | null; unitName: string | null }) {
   if (fact?.state === 'hidden') return <span className="text-on-surface-variant">Скрыто правами</span>;
   if (fact?.state === 'partial' || fact?.state === 'ok') {
-    if (fact.volume != null) return <span className="tabular-nums">{formatQuantityUnit(fact.volume, work.unitName)}</span>;
+    if (fact.volume != null) return <span className="tabular-nums">{formatQuantityUnit(fact.volume, unitName)}</span>;
     const text = fact.state === 'partial' ? 'Нет включённого объёма' : 'Нет учтённого объёма';
     return <Tooltip content={text}><span aria-label={text} className="text-on-surface-variant">—</span></Tooltip>;
   }

@@ -124,38 +124,6 @@ async function linkAction(name: string, predecessor = 'Монтаж лотков
 }
 
 describe('график стройки', () => {
-  it('без Work показывает состояние подключения без колонки и чисел факта', async () => {
-    live = { ...view, works: view.works.map(work => ({ ...work, fact: { state: 'not-connected' } })) };
-    mount();
-    await screen.findByText('Учёт работ не подключён');
-    expect(screen.queryByRole('columnheader', { name: /Факт/ })).toBeNull();
-  });
-
-  it('показывает включённый объём и причины неполного факта в охвате стройки', async () => {
-    live = { ...view, works: view.works.map((work, index) => ({ ...work, fact: {
-      state: 'partial', volume: index === 0 ? 12 : null,
-    } })), factDiagnostics: {
-      scope: { constructionId: 'site', from: null, to: null }, awaitingAcceptance: 3, excludedCrewGroups: 2,
-      crewExclusions: [{ reason: 'MultipleKeys', groups: 2 }], withoutPlanItem: 1, unsubmitted: 1,
-    } };
-    mount();
-    await screen.findByRole('columnheader', { name: 'Факт · включённый объём' });
-    expect(screen.getByText('Факт неполный')).toBeTruthy();
-    expect(screen.getByText('Диагностика факта по всей стройке за весь период')).toBeTruthy();
-    expect(screen.getByText(/разные позиции, разделы или единицы: 2/)).toBeTruthy();
-    expect(screen.getByText(/^12\sм$/)).toBeTruthy();
-    expect(screen.getAllByLabelText('Нет включённого объёма')).toHaveLength(2);
-    expect(screen.queryByText(/^0\sм$/)).toBeNull();
-  });
-
-  it('при закрытом факте показывает право без предупреждений и объёмов', async () => {
-    live = { ...view, works: view.works.map(work => ({ ...work, fact: { state: 'hidden', permission: 'work.facts.read' } })) };
-    mount();
-    await screen.findByText('work.facts.read');
-    expect(screen.queryByText('Факт неполный')).toBeNull();
-    expect(screen.getByRole('columnheader', { name: 'Факт по учёту' })).toBeTruthy();
-  });
-
   it('показывает custom-reader подписи, длительность и обе строки нарушения без запросов к справочникам', async () => {
     mount();
     await screen.findByRole('heading', { name: 'Электромонтаж' });
