@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY, useReviewCard, type ReviewFullCard } from '@/shared/api/workReview';
 import { CREW_GROUPS_KEY } from '@/shared/api/workCrew';
+import { invalidateWorkProgress } from '@/shared/api/workReports';
 import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { formatDate, formatDateTime, formatDayTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -46,12 +47,13 @@ export function ReportCard() {
     setParams(update, { replace: true });
   }
 
-  function updateAfterWrite() {
+  function updateAfterWrite(constructionId: string) {
     void queryClient.invalidateQueries({ queryKey: [...REVIEW_CARD_KEY, id] });
     void queryClient.invalidateQueries({ queryKey: [...REVIEW_JOURNAL_KEY, id] });
     void queryClient.invalidateQueries({ queryKey: REVIEW_QUEUE_KEY });
     void queryClient.invalidateQueries({ queryKey: CREW_GROUPS_KEY });
     void queryClient.invalidateQueries({ queryKey: WORK_SUMMARY_KEY });
+    void invalidateWorkProgress(queryClient, constructionId);
   }
 
   const missing = (card.error as { response?: { status?: number } } | null)?.response?.status === 404;
@@ -70,7 +72,7 @@ export function ReportCard() {
             ? formatDayTime(data.autoSubmitAt, data.timeZoneId) : formatDateTime(data.autoSubmitAt)}
             {data.timeZoneId && ' по времени стройки'}</p>}
         </> : data && <ReportContent key={`${id}:${data.viewedVersion}`} card={data} onVersion={choose}
-          onStored={updateAfterWrite} onReread={async () => {
+          onStored={() => updateAfterWrite(data.report.constructionId)} onReread={async () => {
             await card.refetch({ throwOnError: true });
             void queryClient.invalidateQueries({ queryKey: [...REVIEW_JOURNAL_KEY, id] });
             void queryClient.invalidateQueries({ queryKey: REVIEW_QUEUE_KEY });

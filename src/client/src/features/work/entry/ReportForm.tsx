@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { removeWorkPhoto } from '@/shared/api/workPhotos';
 import {
-  createWorkReport, entrySitesQuery, ownReportsKey, reportQuery, submitWorkReport, updateWorkReport,
+  createWorkReport, entrySitesQuery, invalidateWorkProgress, ownReportsKey, reportQuery, submitWorkReport, updateWorkReport,
   type EntrySite, type ReportHeader, type ReportInput, type ReportMode, type RequiredReportField, type WorkReport,
 } from '@/shared/api/workReports';
 import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
@@ -213,6 +213,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
     setBusy('submit');
     try {
       const row = await submitWorkReport(mode, saved, changeId(`submit/${saved.version}`));
+      void invalidateWorkProgress(cache, row.constructionId);
       await accept(row);
       if (!initial) openSaved(row.id);
     } catch (error) {

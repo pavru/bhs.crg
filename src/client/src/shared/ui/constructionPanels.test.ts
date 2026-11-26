@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Assignment, DateRange, Monitoring } from './icons';
+import { Assignment, DateRange } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import {
   constructionPanels, defaultPanel, panelPageOwners, panelRegistryProblems, panelsAt, type ConstructionPanel,
@@ -11,18 +11,15 @@ import { pageOwners } from './navConfig';
 
 const PLAN = { code: 'plan', title: 'Планирование', sections: ['constructions', 'catalog', 'progress'] };
 const COSTS = { code: 'costs', title: 'Счета и накладные', sections: ['constructions', 'catalog', 'progress'] };
+const WORK = { code: 'work', title: 'Учёт работ', sections: ['constructions', 'catalog', 'progress'] };
 const ID = { code: 'id', title: 'Исполнительная документация', sections: ['constructions', 'catalog', 'datasets'] };
 
 function access(permissions: string[], ...open: { code: string }[]): AccessInfo {
-  return { permissions, modules: [PLAN, COSTS, ID].map(m => ({ ...m, available: open.some(o => o.code === m.code) })) };
+  return { permissions, modules: [PLAN, COSTS, WORK, ID].map(m => ({ ...m, available: open.some(o => o.code === m.code) })) };
 }
 
-// Панели блока «Работы» — тестовые: «Ход работ» вписывает plan-25, «График» — plan-20. «Сметы» здесь — тестовый
-// вариант настоящих (plan-09): только у стройки, чтобы ветки уровня и адреса раздела было на чём проверить.
-const progress: ConstructionPanel = {
-  id: 'progress', label: 'Ход работ', icon: Monitoring, block: 'work', levels: ['construction', 'section'],
-  section: 'progress', permission: ['plan.estimate.read', 'costs.report.read'],
-};
+// «Сметы» и «График» здесь — только у стройки, чтобы проверить ветки уровней и адресов.
+const progress = constructionPanels.find(p => p.id === 'progress')!;
 const estimates: ConstructionPanel = {
   id: 'estimates', label: 'Сметы', icon: Assignment, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.estimate.read',
@@ -31,7 +28,7 @@ const schedule: ConstructionPanel = {
   id: 'schedule', label: 'График', icon: DateRange, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.schedule.read',
 };
-const core = constructionPanels.filter(p => !p.module);
+const core = constructionPanels.filter(p => !p.module && p !== progress);
 const registry = [progress, estimates, schedule, ...core];
 const catalog = constructionPanels.find(p => p.id === 'catalog')!;
 
@@ -86,9 +83,8 @@ describe('панели карточки стройки', () => {
     expect(defaultPanel('construction', plain, insideOf(plain), registry)?.id).toBe('catalog');
     const estimator = access(['plan.estimate.read'], PLAN);
     expect(defaultPanel('construction', estimator, insideOf(estimator), registry)?.id).toBe('progress');
-    // Настоящий реестр: у сметчика первой стоят «Сметы» (plan-09) — на обоих уровнях; без права — «Каталог».
-    expect(defaultPanel('construction', estimator, insideOf(estimator))?.id).toBe('estimates');
-    expect(defaultPanel('section', estimator, insideOf(estimator))?.id).toBe('estimates');
+    expect(defaultPanel('construction', estimator, insideOf(estimator))?.id).toBe('progress');
+    expect(defaultPanel('section', estimator, insideOf(estimator))?.id).toBe('progress');
     expect(defaultPanel('construction', plain, insideOf(plain))?.id).toBe('catalog');
   });
 
@@ -154,6 +150,24 @@ describe('реестр панелей', () => {
   });
 });
 
+describe('панель «Ход работ»', () => {
+  it.each(['plan.estimate.read', 'plan.schedule.read', 'costs.report.read', 'costs.totals.read', 'work.facts.read'])(
+    'каждое из прав открывает панель ядра на обоих уровнях: %s', right => {
+      const reader = access([right], ID, COSTS);
+      for (const level of ['construction', 'section'] as const) {
+        expect(ids(panelsAt(level, reader, insideOf(reader)).work)).toEqual(['progress']);
+        expect(ids(panelsAt(level, reader, insideOf(reader, 'module:id')).work)).toEqual([]);
+      }
+    });
+
+  it('раздел пространства виден с любым из модулей, объявляющих progress', () => {
+    for (const module of [PLAN, COSTS, WORK]) {
+      const reader = access(['work.facts.read'], module);
+      expect(ids(panelsAt('construction', reader, insideOf(reader, `module:${module.code}`)).work)).toEqual(['progress']);
+    }
+  });
+});
+
 /** Настоящая панель «Сметы» (plan-09, задача 2.2, ТЗ PLAN-20): видна только с правом на сметы, на обоих уровнях. */
 describe('панель «Сметы»', () => {
   it('без plan.estimate.read пункта «Сметы» нет ни у стройки, ни у раздела', () => {
@@ -167,8 +181,8 @@ describe('панель «Сметы»', () => {
 
   it('с правом — «Сметы» в блоке «Работы» карточки стройки и страницы раздела', () => {
     const estimator = access(['plan.estimate.read'], PLAN);
-    expect(ids(panelsAt('construction', estimator, insideOf(estimator)).work)).toEqual(['estimates']);
-    expect(ids(panelsAt('section', estimator, insideOf(estimator)).work)).toEqual(['estimates']);
+    expect(ids(panelsAt('construction', estimator, insideOf(estimator)).work)).toEqual(['progress', 'estimates']);
+    expect(ids(panelsAt('section', estimator, insideOf(estimator)).work)).toEqual(['progress', 'estimates']);
   });
 
   it('и пункт «Сметы» раздела «Планы» — тем же правом', () => {

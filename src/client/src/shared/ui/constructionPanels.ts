@@ -1,4 +1,4 @@
-import { Database, DateRange, Engineering, Group, Table, TableChart, type IconDef } from './icons';
+import { Database, DateRange, Engineering, Group, Monitoring, Table, TableChart, type IconDef } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { CALENDAR_READ } from '@/shared/api/planningCalendars';
 import { allowed } from './navAccess';
@@ -47,6 +47,8 @@ export interface ConstructionPanel {
 const BOTH: PanelLevel[] = ['construction', 'section'];
 
 export const constructionPanels: ConstructionPanel[] = [
+  { id: 'progress', label: 'Ход работ', icon: Monitoring, block: 'work', levels: BOTH, section: 'progress',
+    permission: ['plan.estimate.read', 'plan.schedule.read', 'work.facts.read', 'costs.report.read', 'costs.totals.read'] },
   // Сметы стройки (plan-09, ТЗ PLAN-20) — и на странице раздела: смета привязана к разделу (`sectionId`), и
   // там видны его сметы.
   { id: 'estimates', label: 'Сметы', icon: TableChart, block: 'work', levels: BOTH, module: 'plan',

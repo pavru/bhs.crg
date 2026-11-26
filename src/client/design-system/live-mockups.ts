@@ -108,6 +108,20 @@ const workSummaryMockup: LiveMockup = {
   reference: 'openspec/changes/work-23-summary/design.md · Раунд Р5',
 };
 
+const planProgressMockup: LiveMockup = {
+  id: 'plan-25-progress',
+  title: 'П5 · Ход работ',
+  kind: 'design',
+  entry: 'plan-progress.html',
+  pages: [
+    { path: 'a', title: 'А · Общая таблица', width: 1440 },
+    { path: 'b', title: 'Б · Строка и подробности', width: 1440 },
+    { path: 'c', title: 'В · Работы по наличию данных', width: 1440 },
+  ],
+  aliases: [],
+  reference: 'openspec/changes/plan-25-progress/design.md · Раунд П5',
+};
+
 const workCustomerFieldsMockup: LiveMockup = {
   id: 'work-24-customer-fields',
   title: 'Поля заказчика · Нужно к приёмке',
@@ -138,7 +152,7 @@ const workMaterialsMockup: LiveMockup = {
 
 export const liveMockups = [
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
-  planSchedulesMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
+  planSchedulesMockup, planProgressMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
   {
     id: 'work-27-actual-works-contract',
     title: 'Сверка бригад · Публикация факта',

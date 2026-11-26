@@ -1,3 +1,5 @@
+import type { FactDiagnostics } from './progress';
+
 export interface ScheduleSummary {
   id: string;
   constructionId: string;
@@ -44,7 +46,13 @@ export interface ScheduleWork extends ScheduleWorkInput {
   unitName: string | null;
   assignees: ScheduleAssignee[];
   warnings?: ScheduleWarning[];
+  /** Факт приходит из полного чтения графика. Ответы записи могут его не содержать. */
+  fact?: ScheduleFact | null;
 }
+
+export type ScheduleFact =
+  | { state: 'ok' | 'partial'; volume: number | null }
+  | { state: 'hidden' | 'not-connected'; permission?: string | null; text?: string | null };
 
 export interface ScheduleLink {
   id: string;
@@ -72,6 +80,7 @@ export interface Schedule extends ScheduleSummary {
   works: ScheduleWork[];
   links: ScheduleLink[];
   warnings: ScheduleWarning[];
+  factDiagnostics?: FactDiagnostics | null;
 }
 
 export interface ScheduleCreate {

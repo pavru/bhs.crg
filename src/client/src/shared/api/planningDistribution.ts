@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidateConstructionProgress } from './progress';
 
 /**
  * Распределение редакции сметы по разделам стройки (change `plan-10-distribution`, ТЗ PLAN-5.1): правила разделов
@@ -195,6 +196,7 @@ function useDistributionWrite<T>(revisionId: string, send: (body: T, version: st
     onSuccess: done => {
       qc.setQueryData(key(revisionId), done.distribution);
       void qc.invalidateQueries({ queryKey: ['planning', 'estimates'] });
+      void invalidateConstructionProgress(qc);
     },
   });
 }

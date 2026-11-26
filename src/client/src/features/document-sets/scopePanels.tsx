@@ -11,6 +11,7 @@ import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { EstimatesPanel } from '@/features/planning/estimates/EstimatesPanel';
+import { ProgressPanel } from '@/features/planning/progress/ProgressPanel';
 import { SchedulesPanel } from '@/features/planning/schedules/SchedulesPanel';
 import { AssignmentsPanel } from '@/features/work/assignments/AssignmentsPanel';
 import { CatalogPanel } from './CatalogPanel';
@@ -28,6 +29,7 @@ export interface PanelScope {
  * `constructionPanels.test.ts`.
  */
 export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
+  progress: scope => <ProgressPanel {...scope} />,
   estimates: scope => <EstimatesPanel {...scope} />,
   schedule: ({ constructionId }) => <SchedulesPanel constructionId={constructionId} />,
   catalog: scope => <CatalogPanel {...scope} />,

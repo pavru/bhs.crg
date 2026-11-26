@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { CrewGroup, CrewGroupsPage, CrewLine, CrewPublication } from '@/shared/api/work';
 import { CREW_GROUPS_KEY, useCrewGroups } from '@/shared/api/workCrew';
+import { invalidateWorkProgress } from '@/shared/api/workReports';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY } from '@/shared/api/workReview';
 import { formatCount, formatDate, formatDateTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -140,6 +141,7 @@ export function CrewReconciliationPanel({ canReadReports }: { canReadReports: bo
     }));
     void client.invalidateQueries({ queryKey: CREW_GROUPS_KEY });
     void client.invalidateQueries({ queryKey: REVIEW_QUEUE_KEY });
+    void invalidateWorkProgress(client, group.constructionId);
     for (const reportId of new Set(group.lines.map(line => line.reportId))) {
       void client.invalidateQueries({ queryKey: [...REVIEW_CARD_KEY, reportId] });
       void client.invalidateQueries({ queryKey: [...REVIEW_JOURNAL_KEY, reportId] });

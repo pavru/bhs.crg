@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiError, withBlobErrorBody } from '@/shared/utils/apiError';
 import { apiClient } from './client';
+import { invalidateConstructionProgress } from './progress';
 import type { Schedule, ScheduleCreate, ScheduleLinkInput, ScheduleRebuildPreview, ScheduleSummary, ScheduleWorkInput,
   ScheduleWorkRef } from './planningScheduleTypes';
 
@@ -32,9 +33,15 @@ export function useSchedules(constructionId: string, enabled: boolean) {
 export function useSchedule(constructionId: string, id: string, enabled = true) {
   return useQuery({
     queryKey: detailKey(constructionId, id),
+    staleTime: 0,
     queryFn: ({ signal }) => apiClient.get<Schedule>(`${PATH}/${id}`, { signal }).then(r => r.data),
     enabled,
   });
+}
+
+export function invalidateScheduleFacts(client: QueryClient, constructionId: string) {
+  const site = siteKey(constructionId);
+  return client.invalidateQueries({ queryKey: site, predicate: query => query.queryKey.length > site.length });
 }
 
 type LinkWrite =
@@ -67,6 +74,7 @@ export function useCreateSchedule() {
     onSuccess: schedule => {
       void client.invalidateQueries({ queryKey: siteKey(schedule.constructionId), exact: true });
       void client.invalidateQueries({ queryKey: detailKey(schedule.constructionId, schedule.id), exact: true });
+      void invalidateConstructionProgress(client, schedule.constructionId);
       if (schedule.revisionId) void client.invalidateQueries({ queryKey: ['planning', 'estimates'] });
     },
   });
@@ -91,7 +99,10 @@ export function useWriteScheduleWork(constructionId: string, id: string) {
       }
     },
     // Полный ответ заново читает предупреждения у обеих работ, в том числе в соседних графиках.
-    onSuccess: () => client.invalidateQueries({ queryKey: siteKey(constructionId) }),
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: siteKey(constructionId) }),
+      invalidateConstructionProgress(client, constructionId),
+    ]),
     onError: (error, write) => write.kind === 'delete' ? rereadAfterDeleteRefusal(client, constructionId, error) : undefined,
   });
 }
@@ -106,7 +117,10 @@ export function useRebuildSchedule(id: string) {
     mutationFn: ({ version, fingerprint }: ScheduleRebuildPreview) =>
       apiClient.post<Schedule>(`${PATH}/${id}/rebuild`, { fingerprint }, match(version)).then(r => r.data),
     // Текущий факт и диагностику возвращает чтение графика. Оно обновляет кэш после записи.
-    onSuccess: schedule => client.invalidateQueries({ queryKey: siteKey(schedule.constructionId) }),
+    onSuccess: schedule => Promise.all([
+      client.invalidateQueries({ queryKey: siteKey(schedule.constructionId) }),
+      invalidateConstructionProgress(client, schedule.constructionId),
+    ]),
   });
 }
 
