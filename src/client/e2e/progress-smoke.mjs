@@ -209,14 +209,18 @@ try {
   await check('schedule-current-fact-or-disconnected', async () => {
     await managerPage.goto(`${BASE}${parent}/schedule/${graph.id}`);
     await managerPage.getByRole('heading', { name: graph.name }).waitFor();
+    const cards = managerPage.getByRole('list', { name: 'Работы графика' });
     if (workEnabled) {
-      await managerPage.getByRole('columnheader', { name: 'Факт · включённый объём' }).waitFor();
-      await managerPage.getByText(smallText).waitFor();
-      await managerPage.getByLabel('Нет включённого объёма').waitFor();
+      const measured = cards.getByRole('listitem').filter({ hasText: fixture.measured.displayName });
+      const pending = cards.getByRole('listitem').filter({ hasText: fixture.pending.displayName });
+      await measured.getByText('Факт · включённый объём', { exact: true }).waitFor();
+      await measured.getByText(smallText).waitFor();
+      await measured.getByText('Данных мало', { exact: true }).waitFor();
+      await pending.getByLabel('Нет включённого объёма').waitFor();
       await warning(managerPage).waitFor();
     } else {
-      await managerPage.getByText('Учёт работ не подключён', { exact: true }).waitFor();
-      assert.equal(await managerPage.getByRole('columnheader', { name: /Факт/ }).count(), 0);
+      await cards.getByText('Учёт работ не подключён', { exact: true }).first().waitFor();
+      assert.equal(await cards.getByText(/^Факт/).count(), 0);
     }
   });
 } finally {
