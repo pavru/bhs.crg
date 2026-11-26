@@ -153,7 +153,8 @@ try {
       await button(form, 'Закрыть').click();
       const filter = manager.getByRole('button', { name: /^Нарушения зависимостей · 1$/ });
       await filter.click();
-      await manager.getByRole('row').filter({ hasText: selected.name }).getByRole('img').waitFor();
+      await manager.getByRole('list', { name: 'Работы графика' }).getByRole('listitem')
+        .filter({ hasText: selected.name }).getByRole('img').waitFor();
       const datesPath = `/plan/calendars/constructions/${constructionId}/non-working-days`;
       const range = await (await requestDuring(manager, 'GET', datesPath, () => tab(manager, 'Диаграмма').click())).json();
       assert(range.nonWorkingDays.length > 0);
@@ -174,7 +175,7 @@ try {
       await button(manager.getByRole('dialog'), 'Закрыть').click();
       await manager.setViewportSize({ width: 390, height: 900 });
       await tab(manager, 'Диаграмма').waitFor({ state: 'hidden' });
-      await manager.getByRole('table', { name: 'Работы графика' }).waitFor();
+      await manager.getByRole('list', { name: 'Работы графика' }).waitFor();
     });
   }
 

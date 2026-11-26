@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Work;
+using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Support;
 using BHS.CRG.Tests.Work;
@@ -21,6 +23,49 @@ public class ConstructionProgressRealWorkTests(ConstructionProgressWorkHost host
 
     public Task InitializeAsync() => crew.SeedAsync();
     public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task Labor_strip_respects_report_scope_norm_rights_and_the_selected_month()
+    {
+        var world = new WorkLaborWorld(host);
+        // Тот же посев, что у факта; используем его справочники для сравнения Work.
+        await world.SeedAsync();
+        var site = world.Reports.SiteA;
+        var section = await world.SectionAsync(site, "Корпус А");
+        var person = await world.Reports.EmployeeAsync("Монтажник");
+        await world.NormAsync(site, section, .5m);
+        await world.ReportAsync(site, person, 8, ReportStatus.Accepted, WorkLaborWorld.Day,
+            world.Line(12, section), world.Line(4, section, world.Reports.WorkTypeNeedsPlace));
+        var (_, manager) = await world.Reports.ManagerAsync("Менеджер", site, PlanModule.LaborRead);
+        var (_, hidden) = await world.Reports.ManagerAsync("Без норм", site);
+        var (_, otherSite) = await world.Reports.ManagerAsync("Другая стройка", world.Reports.SiteB, PlanModule.EstimateRead);
+        using var executive = await GrantedSignIn.WithPermissionsAsync(host, WorkModule.ReportRead, PlanModule.EstimateRead);
+        using var factsOnly = await GrantedSignIn.WithPermissionsAsync(host, WorkModule.FactsRead, PlanModule.LaborRead);
+        var path = $"/api/constructions/{site}/progress";
+        var atMonth = path + "?laborMonth=2026-11-01";
+        var shown = Strip(await manager.GetFromJsonAsync<JsonElement>(atMonth), "work-labor");
+        Assert.Equal("ok", shown.GetProperty("state").GetString());
+        Assert.Equal("2026-11-01", shown.GetProperty("month").GetString());
+        var labor = shown.GetProperty("labor");
+        Assert.Equal(6m, labor.GetProperty("estimatedHours").GetDecimal());
+        Assert.Equal(8m, labor.GetProperty("actualHours").GetDecimal());
+        Assert.Equal(4m, Assert.Single(labor.GetProperty("offEstimateWorks").EnumerateArray()).GetProperty("volume").GetDecimal());
+        var bySection = Strip(await executive.GetFromJsonAsync<JsonElement>(atMonth + $"&section={section}"), "work-labor");
+        Assert.True(bySection.GetProperty("labor").GetProperty("distributed").GetBoolean());
+        Assert.Contains("расчётная", bySection.GetProperty("text").GetString());
+
+        var noReport = await manager.GetFromJsonAsync<JsonElement>(path + "?laborMonth=2026-10-01");
+        Assert.Equal("no-accepted", Strip(noReport, "work-labor").GetProperty("state").GetString());
+        var denied = Strip(await hidden.GetFromJsonAsync<JsonElement>(atMonth), "work-labor");
+        Assert.Equal(PlanModule.LaborRead, denied.GetProperty("permission").GetString());
+        Assert.False(denied.TryGetProperty("labor", out _));
+        foreach (var reader in new[] { otherSite, factsOnly })
+        {
+            var answer = await reader.GetFromJsonAsync<JsonElement>(atMonth);
+            Assert.DoesNotContain(answer.GetProperty("strips").EnumerateArray(), x => x.GetProperty("code").GetString() == "work-labor");
+        }
+        Assert.Equal(HttpStatusCode.BadRequest, (await manager.GetAsync(path + "?laborMonth=2026-11-02")).StatusCode);
+    }
 
     [Fact]
     public async Task Current_crew_fact_is_published_once_after_acceptance_and_invalidated_by_late_submission()

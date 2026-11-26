@@ -30,6 +30,21 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
         DateOnly from, DateOnly to, CancellationToken ct)
     {
         var scope = await ScopeAsync(reader, constructionId, sectionId, from, to, ct);
+        return await CompareInScopeAsync(reader, scope, constructionId, sectionId, from, to, ct);
+    }
+
+    internal async Task<LaborComparison?> CompareProgressAsync(ModuleReader reader, Guid constructionId,
+        Guid? sectionId, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        if (reader.IsSystem || !reader.Allows(WorkModule.ReportReview) && !reader.Allows(WorkModule.ReportRead)) return null;
+        var reach = await ReachAsync(reader, ct);
+        if (!reach.Covers(constructionId, own: false)) return null;
+        return await CompareInScopeAsync(reader, ModuleReach.OfSites([constructionId]), constructionId, sectionId, from, to, ct);
+    }
+
+    private async Task<LaborComparison> CompareInScopeAsync(ModuleReader reader, ModuleReach scope, Guid constructionId,
+        Guid? sectionId, DateOnly from, DateOnly to, CancellationToken ct)
+    {
         var (plan, refusal) = OpenPlan(reader, sectionId);
         if (refusal is not null) return refusal;
 
@@ -78,7 +93,7 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
         if (sectionId is not null && constructionId is null)
             throw new InvalidRequestException("Для отбора по разделу укажите стройку (constructionId).");
 
-        var reach = reader.Allows(WorkModule.ReportRead) ? ModuleReach.All : await managerSites.ReachAsync(reader, ct);
+        var reach = await ReachAsync(reader, ct);
         if (constructionId is not { } id) return reach;
         if (!reach.Covers(id, own: false)) throw new NotFoundException("Стройка не найдена.");
         var construction = (await constructions.ListAsync(ct)).FirstOrDefault(c => c.Id == id)
@@ -87,6 +102,9 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
             throw new NotFoundException("Раздел не найден.");
         return ModuleReach.OfSites([id]);
     }
+
+    private Task<ModuleReach> ReachAsync(ModuleReader reader, CancellationToken ct) =>
+        reader.Allows(WorkModule.ReportRead) ? Task.FromResult(ModuleReach.All) : managerSites.ReachAsync(reader, ct);
 
     private (IPlannedWorks? Plan, LaborComparison? Refusal) OpenPlan(ModuleReader reader, Guid? sectionId)
     {

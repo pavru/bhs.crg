@@ -9,6 +9,7 @@ import { NumberInput } from '@/shared/ui/NumberInput';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { ScheduleFactCell } from './ScheduleFact';
+import { ScheduleWorkCards } from './ScheduleWorkCards';
 import { assigneeText, sectionName, volumeText, type ScheduleSection } from './scheduleDisplay';
 import type { WorkDraft } from './workDraft';
 
@@ -85,6 +86,9 @@ export function ScheduleWorksGrid({ rows, sections, warnings, links, factState, 
       { key: 'delete', label: 'Удалить', icon: Delete, danger: true, onSelect: () => onDelete(work) },
     ]} />,
   });
+  if (!draft && rows.some(work => work.productivity))
+    return <ScheduleWorkCards rows={rows} columns={columns} selectedWorkId={selectedWorkId} />;
+
   return <EditGrid label="Работы графика" rows={rows} rowKey={row => row.id} columns={columns} fill
     empty="Работ по выбранным условиям нет."
     rowData={work => ({ 'data-schedule-work-id': work.id })}

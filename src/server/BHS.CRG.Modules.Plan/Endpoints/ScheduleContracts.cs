@@ -29,9 +29,16 @@ internal sealed record ScheduleWorkDto(
     decimal? Volume, DateOnly? Start, DateOnly? End, IReadOnlyList<Guid> EmployeeIds, bool Manual, string Version,
     int? DurationWorkingDays, string? UnitName, IReadOnlyList<ScheduleAssigneeDto> Assignees,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ScheduleWarning>? Warnings,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkFact? Fact = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkFact? Fact = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkProductivity? Productivity = null);
 
 internal sealed record ScheduleWorkFact(string State, decimal? Volume = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Permission = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null);
+
+internal sealed record ScheduleWorkProductivity(string State,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<WorkProductivityMonth>? Months = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorkProductivitySample? MinSample = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Permission = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null);
 

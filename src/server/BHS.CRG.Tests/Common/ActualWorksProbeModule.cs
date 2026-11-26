@@ -28,7 +28,7 @@ internal sealed class ActualWorksProbeModule : IAppModule
     {
         services.AddSingleton<ActualWorksProbeData>();
         services.AddModuleContract<IActualWorks, ActualWorksProbe>(Code);
-        services.AddModuleContract<IWorkProductivity, UnusedProductivityProbe>(Code);
+        services.AddModuleContract<IWorkProductivity, WorkProductivityProbe>(Code);
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints) { }
@@ -51,13 +51,14 @@ internal sealed class ActualWorksProbeModule : IAppModule
 }
 
 /// <summary>У пробы есть только заданные объёмы. Настоящую выработку проверяет WorkProductivityTests.</summary>
-internal sealed class UnusedProductivityProbe : IWorkProductivity
+internal sealed class WorkProductivityProbe : IWorkProductivity
 {
     public IReadOnlyList<string> AnswerPermissions => [ActualWorksProbeModule.FactsRead];
 
     public Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
         ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default) =>
-        throw new InvalidOperationException("Проба факта не содержит отчётов для расчёта выработки.");
+        Task.FromResult(ContractAnswer.Refusal<WorkProductivityAnswer>(reader, [.. AnswerPermissions])
+            ?? ContractAnswer.Shown(new WorkProductivityAnswer(query.UnitId, new(10, 2), "too-little-data", [])));
 }
 
 internal sealed class ActualWorksProbeData
