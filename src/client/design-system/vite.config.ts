@@ -70,6 +70,7 @@ export default defineConfig({
       planOffers: resolve(root, 'plan-offers.html'),
       planCalendars: resolve(root, 'plan-calendars.html'),
       planSchedules: resolve(root, 'plan-schedules.html'),
+      planProgress: resolve(root, 'plan-progress.html'),
     } },
   },
 });
