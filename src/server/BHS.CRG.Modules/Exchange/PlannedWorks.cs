@@ -145,7 +145,11 @@ public sealed record PlannedMaterial(Guid? PlanItemId, Guid NomenclatureId, deci
 /// Чел.-ч на единицу классификатора: сумма чел.-ч строк на сумму их объёма. <c>null</c> — смета норм не
 /// несёт, и это не ноль.
 /// </param>
-public sealed record PlannedLabor(Guid PlanItemId, decimal? HoursPerUnit);
+public sealed record PlannedLabor(Guid PlanItemId, decimal? HoursPerUnit)
+{
+    public const string Permission = "plan.labor.read";
+    public const string EstimateReadPermission = "plan.estimate.read";
+}
 
 /// <summary>Позиции номенклатуры материалов позиции — без количеств и цен.</summary>
 /// <param name="PlanItemId">Позиция перечня; <c>null</c> — материалы строк-материалов сметы.</param>

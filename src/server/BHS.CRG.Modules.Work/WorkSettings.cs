@@ -28,5 +28,16 @@ public static class WorkSettings
         "числа отвергается с названным пределом. Уже прикреплённые фото уменьшение не снимает.",
         DefaultValue: 10m, Min: 1m, Max: 50m);
 
-    public static IReadOnlyList<ModuleSetting> All => [PhotoMaxMegabytes, PhotosPerLine];
+    public static readonly NumberSetting ProductivityReports = new(
+        "work.productivity.min-reports", "Минимум отчётов для выработки",
+        "Если в выборке меньше принятых пригодных отчётов, за этот период показывается «данных мало».",
+        DefaultValue: 10m, Min: 1m, Max: int.MaxValue);
+
+    public static readonly NumberSetting ProductivityConstructions = new(
+        "work.productivity.min-constructions", "Минимум строек для выработки",
+        "Если в выборке меньше строек, за этот период показывается «данных мало».",
+        DefaultValue: 2m, Min: 1m, Max: int.MaxValue);
+
+    public static IReadOnlyList<ModuleSetting> All =>
+        [PhotoMaxMegabytes, PhotosPerLine, ProductivityReports, ProductivityConstructions];
 }
