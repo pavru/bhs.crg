@@ -17,7 +17,8 @@ internal sealed class WorkProductivityProvider(LaborSnapshots snapshots, Product
             throw new InvalidRequestException("Выработка требует вид работы (workTypeId) и единицу (unitId).");
 
         var snapshot = await snapshots.ReadAsync(ModuleReach.All, null, null, query.WorkTypeId, ct);
-        return ContractAnswer.Shown((await productivity.CalculateAsync(snapshot, query, sectionId: null, crossModule: true, ct))
-            .Productivity);
+        var values = (await productivity.CalculateAsync(snapshot, query, sectionId: null, crossModule: true, ct)).Productivity;
+        var state = values.Months.Any(m => m.Productivity.State == LaborStates.Ok) ? LaborStates.Ok : LaborStates.TooLittleData;
+        return ContractAnswer.Shown(new WorkProductivityAnswer(values.UnitId, values.MinSample, state, values.Months));
     }
 }

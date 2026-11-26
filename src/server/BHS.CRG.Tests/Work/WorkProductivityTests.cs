@@ -22,7 +22,7 @@ public class WorkProductivityTests(WorkLaborHost host) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Real_contract_checks_rights_and_two_distinct_workers_for_each_published_rate()
+    public async Task Contract_checks_monthly_thresholds_without_publishing_the_http_total()
     {
         var employee = await world.Reports.EmployeeAsync("Первый");
         var second = await world.Reports.EmployeeAsync("Второй");
@@ -31,7 +31,7 @@ public class WorkProductivityTests(WorkLaborHost host) : IAsyncLifetime
         for (var i = 0; i < 5; i++)
         {
             await world.ReportAsync(world.Reports.SiteA, employee, 2, ReportStatus.Accepted, oct.AddDays(i), world.Line(10));
-            await world.ReportAsync(world.Reports.SiteB, employee, 2, ReportStatus.Accepted, nov.AddDays(i), world.Line(10));
+            await world.ReportAsync(world.Reports.SiteB, employee, 2, ReportStatus.Accepted, oct.AddDays(i), world.Line(10));
         }
 
         using var scope = host.Services.CreateScope();
@@ -47,25 +47,42 @@ public class WorkProductivityTests(WorkLaborHost host) : IAsyncLifetime
             await provider.ReadAsync(ModuleReader.OfSystem("тест контракта"), query));
 
         var oneWorker = Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Shown>(await provider.ReadAsync(reader, query)).Value;
-        Assert.Equal(new WorkProductivitySample(10, 2), oneWorker.Total.Sample);
-        Assert.Equal("too-little-data", oneWorker.Total.State);
-        Assert.False(JsonSerializer.SerializeToElement(oneWorker.Total, WebJson).TryGetProperty("volumePerHour", out _));
+        var oneWorkerMonth = Assert.Single(oneWorker.Months).Productivity;
+        Assert.Equal(new WorkProductivitySample(10, 2), oneWorkerMonth.Sample);
+        Assert.Equal("too-little-data", oneWorker.State);
+        Assert.Equal("too-little-data", oneWorkerMonth.State);
+        Assert.False(JsonSerializer.SerializeToElement(oneWorkerMonth, WebJson).TryGetProperty("volumePerHour", out _));
 
         await world.ReportAsync(world.Reports.SiteA, second, 2, ReportStatus.Accepted, oct, world.Line(10));
+        await world.ReportAsync(world.Reports.SiteB, second, 2, ReportStatus.Accepted, nov, world.Line(10));
         var shown = Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Shown>(await provider.ReadAsync(reader, query)).Value;
-        Assert.Equal(5m, shown.Total.VolumePerHour);
-        Assert.Equal(new WorkProductivitySample(11, 2), shown.Total.Sample);
-        Assert.Equal(2, shown.Months.Count);
-        Assert.All(shown.Months, m => Assert.Equal("too-little-data", m.Productivity.State));
+        Assert.Equal("ok", shown.State);
+        Assert.Collection(shown.Months, first =>
+        {
+            Assert.Equal(oct, first.Month);
+            Assert.Equal(5m, first.Productivity.VolumePerHour);
+            Assert.Equal(new WorkProductivitySample(11, 2), first.Productivity.Sample);
+        }, secondMonth =>
+        {
+            Assert.Equal(nov, secondMonth.Month);
+            Assert.Equal("too-little-data", secondMonth.Productivity.State);
+            Assert.Null(secondMonth.Productivity.VolumePerHour);
+            Assert.Equal(new WorkProductivitySample(1, 1), secondMonth.Productivity.Sample);
+        });
 
         var json = JsonSerializer.SerializeToElement(shown, WebJson);
-        Keys(json, "unitId", "minSample", "total", "months");
-        Keys(json.GetProperty("total"), "state", "volumePerHour", "sample");
-        Keys(json.GetProperty("total").GetProperty("sample"), "reports", "constructions");
+        Keys(json, "unitId", "minSample", "state", "months");
         Keys(json.GetProperty("minSample"), "reports", "constructions");
-        var month = json.GetProperty("months")[0];
+        var month = json.GetProperty("months")[1];
         Keys(month, "month", "productivity");
         Keys(month.GetProperty("productivity"), "state", "sample");
+        Keys(month.GetProperty("productivity").GetProperty("sample"), "reports", "constructions");
+
+        var executive = await AccessProbe.SignInAsync(host, "Executive", "work28");
+        var page = await ReadAsync(executive, world.Productivity(oct, nov));
+        var total = page.GetProperty("productivity").GetProperty("total");
+        Assert.Equal(5m, Number(total, "volumePerHour"));
+        Assert.Equal(12m, Number(total.GetProperty("sample"), "reports"));
     }
 
     [Fact]

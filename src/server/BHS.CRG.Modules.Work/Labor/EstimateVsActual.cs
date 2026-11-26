@@ -35,18 +35,9 @@ internal static class EstimateVsActual
             }
         }
 
-        var excludedGroups = 0;
-        foreach (var crew in snapshot.Crew.Where(c => c.Group.ConstructionId == constructionId && c.ReportIds.Count > 0))
+        foreach (var crew in snapshot.Crew.Where(c => c.Group.ConstructionId == constructionId && c.Publication.Published))
         {
             var members = crew.ReportIds.Where(accepted.ContainsKey).Select(id => accepted[id]).ToArray();
-            if (!crew.Publication.Published)
-            {
-                if (members.Length > 0) excludedGroups++;
-                // Если итог группы негоден, даже известные часы её отчётов нельзя выдать за несметную работу.
-                foreach (var member in members) member.UnusableCrew.Add(crew.Group.WorkTypeId);
-                continue;
-            }
-
             var key = crew.Publication.Keys.Single();
             var volume = crew.Group.Total!.Value;
             var weight = volume * norms.GetValueOrDefault(key.PlanItemId);
@@ -61,7 +52,7 @@ internal static class EstimateVsActual
                 if (!report.SeenCrew.Contains(kind)) report.UnusableCrew.Add(kind);
         }
 
-        return new(accepted.Values.ToArray(), volumes, excludedGroups);
+        return new(accepted.Values.ToArray(), volumes);
     }
 
     private static void AddCrewShares(LaborReportEstimate[] members, Guid? sectionId, decimal? weight)
@@ -116,8 +107,8 @@ internal sealed class LaborReportEstimate(LaborReport report)
     internal bool HasNorm => Work.Any(w => w.HasNorm);
     internal bool UnknownCrewShare => Work.Any(w => w.HasNorm && w.Weight is null);
     internal bool OffEstimate => !HasNorm && UnusableCrew.Count == 0;
-    internal bool Unallocated => HasNorm ? !UnknownCrewShare && !Work.Any(w => w.Weight is > 0m)
-        : UnusableCrew.Count > 0;
+    internal bool Unallocated => UnusableCrew.Count > 0
+        || (HasNorm && !UnknownCrewShare && Work.Sum(w => w.Weight) <= 0m);
 
     internal decimal? HoursOn(Guid? sectionId)
     {
@@ -128,17 +119,18 @@ internal sealed class LaborReportEstimate(LaborReport report)
     internal decimal? DistributedHoursOn(Guid? sectionId)
     {
         if (Report.Hours is not { } hours || UnknownCrewShare) return null;
-        var sections = Work.Where(w => w.Weight is > 0m).GroupBy(w => w.SectionId)
-            .OrderBy(g => g.Key).ToArray();
-        return EstimateVsActual.Distribute(hours, sections, g => g.Sum(w => w.Weight!.Value))
-            .Where(s => s.Item.Key == sectionId).Select(s => (decimal?)s.Portion).SingleOrDefault();
+        var sections = Work.GroupBy(w => w.SectionId)
+            .Select(g => (SectionId: g.Key, Weight: g.Sum(w => w.Weight ?? 0m)))
+            .Where(s => s.Weight > 0m).OrderBy(s => s.SectionId);
+        return EstimateVsActual.Distribute(hours, sections, s => s.Weight)
+            .Where(s => s.Item.SectionId == sectionId).Select(s => (decimal?)s.Portion).SingleOrDefault();
     }
 
     internal bool InSection(Guid? sectionId) => sectionId is null || Report.Lines.Any(l => l.SectionId == sectionId);
 }
 
 internal sealed record LaborSiteEstimate(IReadOnlyList<LaborReportEstimate> Reports,
-    IReadOnlyList<LaborVolumeEstimate> Volumes, int ExcludedCrewGroups)
+    IReadOnlyList<LaborVolumeEstimate> Volumes)
 {
     internal LaborComparison Compare(Guid? sectionId)
     {
@@ -160,7 +152,10 @@ internal sealed record LaborSiteEstimate(IReadOnlyList<LaborReportEstimate> Repo
             .Select(r => r.Report.Hours)), works);
         var unallocated = distributed ? null : SumKnown(reports.Where(r => r.Unallocated).Select(r => r.Report.Hours));
         var unsectioned = distributed ? null : DistributedHours(comparable, null);
-        var diagnostics = new LaborDiagnostics(ExcludedCrewGroups, reports.Count(r => r.Report.Hours is null),
+        // Считается каждая негодная группа, затрагивающая хотя бы один отчёт выбранного охвата.
+        var excludedGroups = reports.SelectMany(r => r.UnusableCrew.Select(kind => (r.Report.ShiftKey, kind)))
+            .Distinct().Count();
+        var diagnostics = new LaborDiagnostics(excludedGroups, reports.Count(r => r.Report.Hours is null),
             reports.Count(r => r.UnknownCrewShare));
         return new(normed.Length == 0 ? LaborStates.NoNorms : LaborStates.Ok, distributed,
             normed.Length == 0 ? null : normed.Sum(w => w.Weight), actual, offEstimate, unallocated, unsectioned, diagnostics,

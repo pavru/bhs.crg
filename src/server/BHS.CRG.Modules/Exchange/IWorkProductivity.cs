@@ -10,7 +10,7 @@ public interface IWorkProductivity
     /// <summary>Право ответа. Читается без обращения к данным.</summary>
     IReadOnlyList<string> AnswerPermissions { get; }
 
-    /// <summary>Агрегат экземпляра. Охват, сотрудники и частичные месяцы не задаются потребителем.</summary>
+    /// <summary>Непересекающиеся месяцы экземпляра. Охват, сотрудники и частичные месяцы не задаются потребителем.</summary>
     Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
         ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default);
 }
@@ -27,4 +27,4 @@ public sealed record WorkProductivityValue(string State,
 public sealed record WorkProductivityMonth(DateOnly Month, WorkProductivityValue Productivity);
 
 public sealed record WorkProductivityAnswer(
-    Guid UnitId, WorkProductivitySample MinSample, WorkProductivityValue Total, IReadOnlyList<WorkProductivityMonth> Months);
+    Guid UnitId, WorkProductivitySample MinSample, string State, IReadOnlyList<WorkProductivityMonth> Months);

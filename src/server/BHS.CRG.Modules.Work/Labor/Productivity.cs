@@ -7,7 +7,10 @@ namespace BHS.CRG.Modules.Work.Labor;
 internal sealed record ProductivityDiscarded(int MixedReports, int OtherUnit, int NotAccepted, int WithoutPositiveHours,
     int UnusableCrew, int OutsideSection);
 
-internal sealed record ProductivityResult(WorkProductivityAnswer Productivity, ProductivityDiscarded Discarded);
+internal sealed record LaborProductivityValues(Guid UnitId, WorkProductivitySample MinSample,
+    WorkProductivityValue? Total, IReadOnlyList<WorkProductivityMonth> Months);
+
+internal sealed record ProductivityResult(LaborProductivityValues Productivity, ProductivityDiscarded Discarded);
 
 internal sealed class Productivity(IModuleSettings settings)
 {
@@ -51,7 +54,7 @@ internal sealed class Productivity(IModuleSettings settings)
         var months = included.GroupBy(r => MonthOf(r.Date)).OrderBy(g => g.Key)
             .Select(g => new WorkProductivityMonth(g.Key, Value(g.ToArray(), crewByMonth[g.Key], minimum, crossModule)))
             .ToArray();
-        var total = Value(included, usableCrew, minimum, crossModule);
+        var total = crossModule ? null : Value(included, usableCrew, minimum, crossModule);
         return new(new(query.UnitId, minimum, total, months),
             new(mixed, otherUnit, notAccepted, withoutHours, eligible.Count - included.Length, outsideSection));
     }

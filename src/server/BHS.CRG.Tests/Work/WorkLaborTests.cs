@@ -54,6 +54,83 @@ public class WorkLaborTests(WorkLaborHost host) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Signed_weights_are_summed_before_allocating_report_hours()
+    {
+        var site = world.Reports.SiteA;
+        var sectionA = await world.SectionAsync(site, "Основные работы");
+        var sectionB = await world.SectionAsync(site, "Поправки");
+        var (_, manager) = await world.Reports.ManagerAsync("Менеджер", site, PlanModule.LaborRead);
+        var employee = await world.Reports.EmployeeAsync("Монтажник");
+        await world.NormAsync(site, sectionA, .5m);
+        await world.NormAsync(site, sectionB, -.5m);
+        await world.ReportAsync(site, employee, 6, ReportStatus.Accepted, WorkLaborWorld.Day,
+            world.Line(12, sectionA), world.Line(12, sectionB));
+        await world.ReportAsync(site, employee, 10, ReportStatus.Accepted, WorkLaborWorld.Day.AddDays(1),
+            world.Line(12, sectionA), world.Line(4, sectionB));
+
+        var total = await ReadAsync(manager, WorkLaborWorld.Estimate(site));
+        Assert.Equal(4m, Number(total, "estimatedHours"));
+        Assert.Equal(10m, Number(total, "actualHours"));
+        Assert.Equal(6m, Number(total, "unallocatedHours"));
+        var first = await ReadAsync(manager, WorkLaborWorld.Estimate(site, sectionA));
+        var second = await ReadAsync(manager, WorkLaborWorld.Estimate(site, sectionB));
+        Assert.Equal(10m, Number(first, "actualHours"));
+        Assert.Equal(-8m, Number(second, "estimatedHours"));
+        Assert.Equal(JsonValueKind.Null, second.GetProperty("actualHours").ValueKind);
+    }
+
+    [Fact]
+    public async Task Unusable_crew_affects_only_sections_of_its_accepted_reports_and_leaves_their_hours_unallocated()
+    {
+        var site = world.Reports.SiteA;
+        var sectionA = await world.SectionAsync(site, "Индивидуальные работы");
+        var sectionB = await world.SectionAsync(site, "Бригадные работы");
+        var (_, manager) = await world.Reports.ManagerAsync("Менеджер", site, PlanModule.LaborRead);
+        var employee = await world.Reports.EmployeeAsync("Монтажник");
+        await world.NormAsync(site, sectionA, .5m);
+        await world.NormAsync(site, sectionB, .5m);
+        await world.ReportAsync(site, employee, 8, ReportStatus.Accepted, WorkLaborWorld.Day, world.Line(12, sectionA));
+        await AcceptCrewReportAsync(8, includeIndividual: false);
+
+        var sectionProductivity = $"/api/work/labor/productivity?constructionId={site}&sectionId={sectionA}"
+            + "&from=2026-11-16&to=2026-11-16";
+        var before = await ReadAsync(manager, sectionProductivity);
+        Assert.Equal(75m, Number(SitePercentage(before), "percent"));
+
+        await AcceptCrewReportAsync(10, includeIndividual: true);
+        var siteTotal = await ReadAsync(manager, WorkLaborWorld.Estimate(site));
+        Assert.Equal(12m, Number(siteTotal, "estimatedHours"));
+        Assert.Equal(8m, Number(siteTotal, "actualHours"));
+        Assert.Equal(18m, Number(siteTotal, "unallocatedHours"));
+        var sectionTotal = await ReadAsync(manager, WorkLaborWorld.Estimate(site, sectionA));
+        Assert.Equal(8m, Number(sectionTotal, "actualHours"));
+        Assert.Equal(1m, Number(sectionTotal.GetProperty("diagnostics"), "excludedCrewGroups"));
+        var after = await ReadAsync(manager, sectionProductivity);
+        Assert.Equal(JsonValueKind.Null, SitePercentage(after).GetProperty("percent").ValueKind);
+
+        async Task AcceptCrewReportAsync(decimal hours, bool includeIndividual)
+        {
+            var (_, installer) = await world.Reports.InstallerAsync($"Участник {hours}");
+            var id = Guid.NewGuid();
+            var workTypeId = world.Reports.WorkType;
+            var unitId = world.Reports.Unit;
+            var lines = new List<object>
+            {
+                new { id = Guid.NewGuid(), workTypeId, unitId, volume = 12, sectionId = sectionB, isCrew = true, crewRole = "lead" },
+            };
+            if (includeIndividual)
+                lines.Add(new { id = Guid.NewGuid(), workTypeId, unitId, volume = 12, sectionId = sectionA });
+            var draft = await CrewWorld.CreateAsync(installer, new
+                { id, constructionId = site, date = ReportWorld.Day16, shift = "day", hours, lines });
+            var submitted = await CrewWorld.SubmitAsync(installer, id, draft);
+            await CrewWorld.JsonAsync(await ReviewWorld.AcceptAsync(manager, id, ReviewWorld.Version(submitted)));
+        }
+
+        static JsonElement SitePercentage(JsonElement page) =>
+            Assert.Single(page.GetProperty("sites").EnumerateArray()).GetProperty("comparison");
+    }
+
+    [Fact]
     public async Task Employee_percentage_and_construction_filter_follow_current_manager_assignments()
     {
         var a = world.Reports.SiteA;

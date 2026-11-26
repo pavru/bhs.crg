@@ -19,7 +19,7 @@ internal static class LaborStates
 internal sealed record SiteLaborPercentage(Guid ConstructionId, Guid? SectionId, LaborPercentage Comparison);
 internal sealed record EmployeeLaborPercentage(Guid EmployeeId, string? EmployeeName, LaborPercentage Comparison);
 
-internal sealed record LaborProductivityPage(string State, WorkProductivityAnswer? Productivity = null,
+internal sealed record LaborProductivityPage(string State, LaborProductivityValues? Productivity = null,
     ProductivityDiscarded? Discarded = null, IReadOnlyList<SiteLaborPercentage>? Sites = null,
     IReadOnlyList<EmployeeLaborPercentage>? Employees = null, string? Permission = null, string? Reason = null);
 
@@ -66,7 +66,7 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
         var people = byEmployee ? await EmployeePercentagesAsync(reportResults, sectionId, ct) : null;
         var accepted = snapshot.Reports.Any(r => r.Accepted && (sectionId is null || r.Lines.Any(l => l.SectionId == sectionId)));
         var state = !accepted ? LaborStates.NoAccepted
-            : rate?.Productivity.Total.State ?? (siteResults.Any(s => s.Comparison.State == LaborStates.Ok)
+            : rate?.Productivity.Total?.State ?? (siteResults.Any(s => s.Comparison.State == LaborStates.Ok)
                 ? LaborStates.Ok : LaborStates.NoNorms);
         return new(state, rate?.Productivity, rate?.Discarded, needsEstimate ? siteResults : null, people);
     }
