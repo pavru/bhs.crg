@@ -45,12 +45,12 @@ internal sealed class ActualWorksProvider(WorkDbContext db, ReportReads reads, I
         }
 
         var lines = inputs.CrewLines.ToLookup(l => l.GroupId);
-        var submitted = inputs.SubmittedEmployees.ToLookup(e => e.GroupId, e => e.EmployeeId);
+        var submitted = inputs.SubmittedEmployees.ToLookup(e => e.Shift, e => e.EmployeeId);
         var reasons = new Dictionary<CrewFactExclusion, int>();
         var unsubmitted = 0;
         foreach (var group in inputs.Groups)
         {
-            var publication = CrewPublication.Classify(group, lines[group.Id].ToArray(), submitted[group.Id], positions);
+            var publication = CrewPublication.Classify(group, lines[group.Id].ToArray(), submitted[group.ShiftKey], positions);
             unsubmitted += publication.Unsubmitted;
             if (publication.Exclusion is { } reason)
                 reasons[reason] = reasons.GetValueOrDefault(reason) + 1;

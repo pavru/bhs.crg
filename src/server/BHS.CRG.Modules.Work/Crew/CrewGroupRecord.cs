@@ -20,6 +20,8 @@ internal sealed class CrewGroupRecord : IIsolatedRecord
     public DateTimeOffset? ApprovedAt { get; private set; }
     public uint Version { get; private set; }
 
+    internal CrewShiftKey ShiftKey => new(ConstructionId, Date, Shift);
+
     public string State => ApprovedRevision is null ? "pending" : ApprovedRevision == InputRevision ? "approved" : "stale";
 
     public static CrewGroupRecord Create(Report report, Guid workTypeId) => new()

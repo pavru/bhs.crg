@@ -44,9 +44,9 @@ public sealed partial class ReportReads
             .SelectMany(r => r.Lines.Select(l => new AcceptedWorkLine(l.WorkPlanItemId, r.Date, r.Shift,
                 l.SectionId, l.WorkTypeId, l.UnitId, l.Volume, l.IsCrew))).ToListAsync(ct);
         var crew = await groups.ToListAsync(ct);
-        return crew.Count == 0
-            ? new(awaiting, accepted, [], [], [])
-            : new(awaiting, accepted, crew, await CrewLinesAsync(viewer, groups, ct),
-                await CrewSubmittedEmployeesAsync(viewer, groups, ct));
+        if (crew.Count == 0) return new(awaiting, accepted, [], [], []);
+        var lines = await CrewLinesAsync(viewer, groups, ct);
+        var submitted = await CrewSubmittedEmployeesAsync(viewer, groups, lines, ct);
+        return new(awaiting, accepted, crew, lines, submitted);
     }
 }

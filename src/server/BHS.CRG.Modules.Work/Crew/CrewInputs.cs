@@ -7,7 +7,9 @@ internal sealed record CrewGroupLine(Guid GroupId, Guid ReportId, Guid EmployeeI
     decimal Volume, Guid UnitId, string CrewRole, IReadOnlyList<Guid> Participants,
     Guid PlanItemId, Guid? SectionId, bool Accepted);
 
-internal sealed record CrewSubmittedEmployee(Guid GroupId, Guid EmployeeId);
+internal readonly record struct CrewShiftKey(Guid ConstructionId, DateOnly Date, ReportShift Shift);
+
+internal sealed record CrewSubmittedEmployee(CrewShiftKey Shift, Guid EmployeeId);
 
 public sealed class CrewInputs(WorkDbContext db, ReportReads reads)
 {

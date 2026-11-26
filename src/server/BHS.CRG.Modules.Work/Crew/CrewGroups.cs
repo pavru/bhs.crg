@@ -95,7 +95,7 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         if (groups.Count == 0) return ([], [], []);
         var lines = await reads.CrewLinesAsync(viewer, query, ct);
         var byGroup = lines.ToLookup(l => l.GroupId);
-        var submitted = (await reads.CrewSubmittedEmployeesAsync(viewer, query, ct)).ToLookup(s => s.GroupId, s => s.EmployeeId);
+        var submitted = (await reads.CrewSubmittedEmployeesAsync(viewer, query, lines, ct)).ToLookup(s => s.Shift, s => s.EmployeeId);
         var positions = await CrewPublication.ReadPositionsAsync(planItems, lines.Select(l => l.PlanItemId), ct);
         await tx.CommitAsync(ct);
 
@@ -104,7 +104,7 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         foreach (var group in groups)
         {
             var rows = byGroup[group.Id].ToArray();
-            var publication = CrewPublication.Classify(group, rows, submitted[group.Id], positions);
+            var publication = CrewPublication.Classify(group, rows, submitted[group.ShiftKey], positions);
             items.Add(View(group, rows, publication, approves?.Covers(group.ConstructionId, own: false) == true, names));
         }
         return (items, groups, lines);
@@ -136,7 +136,6 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         ReportRules.EnsureVolume("Итог группы", "total", total);
         var unitId = unitIds.Single();
         var names = await NamesAsync(rows, ct);
-        var submitted = await reads.CrewSubmittedEmployeesAsync(viewer, query, ct);
         var positions = await CrewPublication.ReadPositionsAsync(planItems, rows.Select(l => l.PlanItemId), ct);
         var before = group.Total;
         var now = time.GetUtcNow();
@@ -148,10 +147,13 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
             journal.AppendCrewApproval(line.ReportId, line.EmployeeId, group.Id, before, total, UnitName(unitId),
                 actor, NameOf(line.EmployeeId, names), change, seq, now);
         }
+        // Приёмка держит замок сотрудника. После захвата всех этих замков видны приёмки, завершившиеся до утверждения.
+        var currentRows = await reads.CrewLinesAsync(viewer, query, ct);
+        var submitted = await reads.CrewSubmittedEmployeesAsync(viewer, query, currentRows, ct);
+        var publication = CrewPublication.Classify(group, currentRows, submitted.Select(s => s.EmployeeId), positions);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        var publication = CrewPublication.Classify(group, rows, submitted.Select(s => s.EmployeeId), positions);
-        return Results.Ok(View(group, rows, publication, true, names));
+        return Results.Ok(View(group, currentRows, publication, true, names));
     }
 
     private async Task<Dictionary<Guid, string>> NamesAsync(IEnumerable<CrewGroupLine> lines, CancellationToken ct)

@@ -106,7 +106,9 @@ public class ActualWorksProviderTests(AssignmentHost host) : IAsyncLifetime
         var (_, manager) = await crew.Reports.ManagerAsync("Менеджер", crew.Site, WorkModule.CrewApprove);
         var (id, submitted) = await CrewAsync(120);
         await ApproveAsync(manager);
-        var race = new AcceptAfterCount(async () => await AcceptAsync(manager, id, submitted));
+        var race = new AcceptAfterRead(
+            sql => sql.Contains("count(*)", StringComparison.OrdinalIgnoreCase) && sql.Contains("FROM work.reports"),
+            async () => await AcceptAsync(manager, id, submitted));
         await using var probed = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             services.AddDbContext<WorkDbContext>(options => options.AddInterceptors(race))));
         using var scope = probed.Services.CreateScope();
@@ -124,6 +126,59 @@ public class ActualWorksProviderTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(0, current.Diagnostics.AwaitingAcceptance);
         Assert.Equal(0, current.Diagnostics.ExcludedCrewGroups);
         Assert.Equal(120m, Assert.Single(current.Items).Volume);
+    }
+
+    [Fact]
+    public async Task Approval_response_includes_an_acceptance_committed_after_the_first_read()
+    {
+        var (_, manager) = await crew.Reports.ManagerAsync("Менеджер", crew.Site, WorkModule.CrewApprove);
+        var (id, submitted) = await CrewAsync(120);
+        var pending = Assert.Single(await crew.GroupsAsync(manager));
+        var groupId = pending.GetProperty("id").GetGuid();
+        var race = new AcceptAfterRead(
+            sql => sql.Contains("work.crew_groups") && sql.Contains("work.report_lines"),
+            async () => await AcceptAsync(manager, id, submitted));
+        await using var probed = host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddDbContext<WorkDbContext>(options => options.AddInterceptors(race))));
+        using var approvalClient = probed.CreateClient();
+        approvalClient.DefaultRequestHeaders.Authorization = manager.DefaultRequestHeaders.Authorization;
+        race.Armed = true;
+
+        var approved = await CrewWorld.JsonAsync(await CrewWorld.ApproveAsync(approvalClient, groupId, ReviewWorld.Version(pending)));
+        Assert.True(race.Changed);
+        AssertPublication(approved, true, null, 1, 1, 0);
+        AssertPublication(Assert.Single(await crew.GroupsAsync(manager)), true, null, 1, 1, 0);
+        Assert.Equal(120m, Assert.Single((await FactAsync(new(crew.Site))).Items).Volume);
+    }
+
+    [Fact]
+    public async Task Submission_by_a_named_employee_is_shared_by_groups_in_the_same_shift_only()
+    {
+        var (_, manager) = await crew.Reports.ManagerAsync("Менеджер", crew.Site, WorkModule.CrewApprove);
+        var (_, lead) = await crew.Reports.InstallerAsync("Бригадир");
+        var (member, memberClient) = await crew.Reports.InstallerAsync("Участник");
+        await crew.AssignAsync(member);
+        var day = Guid.NewGuid();
+        var draft = await CrewWorld.CreateAsync(lead, new
+        {
+            id = day, constructionId = crew.Site, date = ReportWorld.Day16, shift = "day", hours = 8m,
+            lines = new[] { crew.Reports.WorkType, crew.Reports.WorkTypeNeedsPlace }.Select(workTypeId => new
+            {
+                id = Guid.NewGuid(), workTypeId, unitId = crew.Reports.Unit, volume = 120, location = "оси 3–4",
+                isCrew = true, crewRole = "lead", participants = new[] { member },
+            }).ToArray(),
+        });
+        await CrewWorld.SubmitAsync(lead, day, draft);
+        await crew.SubmittedAsync(lead, Guid.NewGuid(), Guid.NewGuid(), 120, participants: [member], shift: "night");
+        var query = new ActualWorksQuery(crew.Site);
+        Assert.Equal(3, (await FactAsync(query)).Diagnostics.Unsubmitted);
+
+        await crew.Review.SubmittedAsync(memberClient, Guid.NewGuid(), crew.Site);
+        var groups = await crew.GroupsAsync(manager);
+        Assert.Equal(3, groups.Length);
+        foreach (var group in groups)
+            Assert.Equal(group.GetProperty("shift").GetString() == "day" ? 0 : 1, group.GetProperty("unsubmitted").GetInt32());
+        Assert.Equal(1, (await FactAsync(query)).Diagnostics.Unsubmitted);
     }
 
     [Fact]
@@ -392,7 +447,7 @@ public class ActualWorksProviderTests(AssignmentHost host) : IAsyncLifetime
         Assert.IsType<ModuleContractAnswer<IActualWorks>.Connected>(services.GetRequiredService<IModuleContracts>()
             .Get<IActualWorks>()).Contract;
 
-    private sealed class AcceptAfterCount(Func<Task> accept) : DbCommandInterceptor
+    private sealed class AcceptAfterRead(Func<string, bool> isRead, Func<Task> accept) : DbCommandInterceptor
     {
         public bool Armed { get; set; }
         public bool Changed { get; private set; }
@@ -400,8 +455,7 @@ public class ActualWorksProviderTests(AssignmentHost host) : IAsyncLifetime
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(
             DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
         {
-            if (Armed && !Changed && command.CommandText.Contains("count(*)", StringComparison.OrdinalIgnoreCase)
-                && command.CommandText.Contains("FROM work.reports", StringComparison.Ordinal))
+            if (Armed && !Changed && isRead(command.CommandText))
             {
                 Changed = true;
                 await accept();
