@@ -28,6 +28,7 @@ internal sealed class ActualWorksProbeModule : IAppModule
     {
         services.AddSingleton<ActualWorksProbeData>();
         services.AddModuleContract<IActualWorks, ActualWorksProbe>(Code);
+        services.AddModuleContract<IWorkProductivity, UnusedProductivityProbe>(Code);
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints) { }
@@ -47,6 +48,16 @@ internal sealed class ActualWorksProbeModule : IAppModule
         services.AddSingleton(new PermissionCatalog([.. CorePermissions.All, .. registry.Enabled.SelectMany(m => m.Permissions)]));
         probe.RegisterServices(services, new ConfigurationBuilder().Build());
     }
+}
+
+/// <summary>У пробы есть только заданные объёмы. Настоящую выработку проверяет WorkProductivityTests.</summary>
+internal sealed class UnusedProductivityProbe : IWorkProductivity
+{
+    public IReadOnlyList<string> AnswerPermissions => [ActualWorksProbeModule.FactsRead];
+
+    public Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
+        ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default) =>
+        throw new InvalidOperationException("Проба факта не содержит отчётов для расчёта выработки.");
 }
 
 internal sealed class ActualWorksProbeData

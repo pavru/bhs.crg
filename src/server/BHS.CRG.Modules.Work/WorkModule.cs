@@ -138,8 +138,9 @@ public sealed class WorkModule : IAppModule
             ReadAllMark.In),
 
         new(FactsRead,
-            "читать принятые объёмы по всем стройкам, без часов и сотрудников",
-            "даёт другим модулям текущий факт по позициям перечня и числовую диагностику исключений",
+            "читать принятые объёмы и выработку по всем стройкам",
+            "даёт другим модулям текущий факт по позициям перечня, числовую диагностику и выработку по виду работ; " +
+            "часы и сотрудники остаются в учёте работ",
             [],
             ReadAllMark.Out("модуль «Учёт работ» не открывает"), Contract: true),
     ];
@@ -195,7 +196,7 @@ public sealed class WorkModule : IAppModule
         ModuleFile.Remembering("report_journal", "changes", "файлы держат строки и версии, журнал только помнит их пути"),
     ];
 
-    /// <summary>Лимиты фото строки (ТЗ WORK-33, <c>work-17</c>).</summary>
+    /// <summary>Лимиты фото строки и пороги выборки выработки.</summary>
     public IReadOnlyList<BHS.CRG.Modules.Settings.ModuleSetting> Settings => WorkSettings.All;
 
     /// <summary>
@@ -220,6 +221,10 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
         services.AddModuleContract<IActualWorks, ActualWorksProvider>(ModuleCode);
+        services.AddModuleContract<IWorkProductivity, WorkProductivityProvider>(ModuleCode);
+        services.AddScoped<Labor.LaborSnapshots>();
+        services.AddScoped<Labor.Productivity>();
+        services.AddScoped<Labor.LaborAnalytics>();
         services.AddScoped<WorkTableReaders>();
         services.AddScoped<Summary.SummaryQuery>();
         services.AddScoped<WorkTableNames>();
@@ -280,6 +285,7 @@ public sealed class WorkModule : IAppModule
         ReportEntryCatalog.Map(endpoints);
         MaterialsHint.Map(endpoints);
         ReportJournalEndpoint.Map(endpoints);
+        LaborEndpoints.Map(endpoints);
         ReportReviewEndpoints.Map(endpoints);
         ReportCorrection.Map(endpoints);
         ReviewQueue.Map(endpoints);
