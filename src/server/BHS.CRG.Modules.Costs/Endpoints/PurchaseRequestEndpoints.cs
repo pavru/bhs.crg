@@ -122,20 +122,23 @@ internal static class PurchaseRequestEndpoints
 
     private static async Task<IResult> ReturnAsync(
         Guid id, PurchaseRequestReturn body, HttpRequest http, CostsDbContext db, IModuleUser user,
-        IModuleActivityLog log, CancellationToken ct)
+        PurchaseRequestReturnJournal journal, CancellationToken ct)
     {
         var request = await ForWriteAsync(id, http, db, ct);
         RequireStatus(request, PurchaseRequestStatus.Submitted, "Вернуть в черновик можно только поданную заявку.");
-        if (request.CreatedBy != UserId(user))
+        var authorId = UserId(user);
+        if (request.CreatedBy != authorId)
             throw new ForbiddenException("Вернуть заявку в черновик может только её автор.");
         var reason = body.Reason?.Trim();
         if (string.IsNullOrEmpty(reason) || reason.Length > PurchaseRequestLine.NoteLength)
             throw new InvalidRequestException("Укажите причину возврата длиной от 1 до 2000 знаков.");
 
-        request.ChangeStatus(PurchaseRequestStatus.Draft, DateTimeOffset.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        request.ChangeStatus(PurchaseRequestStatus.Draft, now);
+        var returned = PurchaseRequestReturnEvent.Create(request, authorId, user.Name, now, reason);
+        db.PurchaseRequestReturnEvents.Add(returned);
         await db.SaveChangesAsync(ct);
-        await log.RecordAsync(PurchaseRequestActions.Returned, request.Id.ToString(),
-            $"Заявка № {request.Number}", after: reason, ct: ct);
+        await journal.DeliverAsync(returned, ct);
         return Results.Ok(View(db, request));
     }
 

@@ -860,6 +860,44 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.PurchaseRequestReturnEvent", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("author_name");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<long>("RequestNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("request_number");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("purchase_request_return_events", "costs");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.SupplierMatch", b =>
                 {
                     b.Property<Guid>("Id")

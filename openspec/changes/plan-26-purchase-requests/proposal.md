@@ -38,11 +38,13 @@
 ### Modified Capabilities
 - `costs`: заявка на закупку — модель, статусы, создание из сметы, связь со счётом, права
   `costs.request.*`.
+- `plan`: контракт «Плановые работы» сохраняет отдельные количества материалов без единицы.
 
 ## Impact
 
 - **Сервер:** `src/server/BHS.CRG.Modules.Costs/Data/PurchaseRequest*.cs`, `Endpoints/PurchaseRequest*.cs`,
-  ссылка на заявку у `Invoice`, миграции `CostsDbContext` (`PurchaseRequests`, `InvoiceRequestLink`),
+  ссылка на заявку у `Invoice`, миграции `CostsDbContext` (`PurchaseRequests`, `PurchaseRequestReturnEvents`,
+  `InvoiceRequestLink`),
   объявления ссылок `CORE-34.1` (номенклатура, стройка, позиция перечня), права в `CostsModule`.
 - **Клиент:** `src/client/src/features/costs/requests/*`, `shared/api/purchaseRequests.ts`, поле заявки в
   форме счёта, пункт навигации «Заявки».

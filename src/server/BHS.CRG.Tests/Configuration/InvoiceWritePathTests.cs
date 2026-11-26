@@ -37,6 +37,8 @@ public class InvoiceWritePathTests
         ["Endpoints/PurchaseRequestEndpoints.cs"] =
             (5, "пишутся только заявки и их строки. Существующая заявка сверяет If-Match в ForWriteAsync. " +
                 "К учётному периоду заявки не относятся (Plan-26)"),
+        ["Endpoints/PurchaseRequestReturnJournal.cs"] =
+            (1, "после доставки причины возврата удаляется только событие очереди журнала (Plan-26)"),
         ["Endpoints/InvoiceDesk.cs"] =
             (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
         ["Endpoints/InvoiceDesk.Correction.cs"] =

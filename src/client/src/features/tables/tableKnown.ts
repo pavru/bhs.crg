@@ -44,8 +44,9 @@ const TABLE_KNOWN: Readonly<Record<string, Builders>> = {
 export function useTableKnown(
   address: string, columns: readonly TableColumn[], access: AccessInfo,
 ): Readonly<Record<string, ColumnKnown>> {
-  // Реестр доступен за воротами модуля, а оба справочника подсказок требуют права читать счета.
-  const builders = hasPermission(access, 'costs.invoice.read') && Object.hasOwn(TABLE_KNOWN, address)
+  const canReadArticles = hasPermission(access, 'costs.invoice.read');
+  const canReadSites = canReadArticles || hasPermission(access, 'costs.waybill.read');
+  const builders = canReadSites && Object.hasOwn(TABLE_KNOWN, address)
     ? TABLE_KNOWN[address]
     : undefined;
   const wanted = useMemo(
@@ -55,12 +56,13 @@ export function useTableKnown(
     }),
     [columns, builders]);
   const sites = useCostsConstructions(wanted.length > 0);
-  const articles = useCostsArticles(wanted.some(c => c.sites));
+  const articles = useCostsArticles(canReadArticles && wanted.some(c => c.sites));
+  const visibleArticles = canReadArticles ? articles.data : undefined;
   const filter = useSiteFilterState();
   const favorites = filter.active ? filter.favorites : null;
 
   return useMemo(() => {
-    const sources: Sources = { sites: sites.data, articles: articles.data, favorites };
+    const sources: Sources = { sites: sites.data, articles: visibleArticles, favorites };
     return Object.fromEntries(wanted.map(c => [c.key, c.build(sources)]));
-  }, [wanted, sites.data, articles.data, favorites]);
+  }, [wanted, sites.data, visibleArticles, favorites]);
 }

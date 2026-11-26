@@ -31,6 +31,7 @@ const REQUESTS_ONLY: AccessInfo = {
   modules: [{ code: 'costs', title: 'Счета и накладные', available: true }],
 };
 const CAN_READ_INVOICES: AccessInfo = { ...REQUESTS_ONLY, permissions: ['costs.invoice.read'] };
+const CAN_READ_WAYBILLS: AccessInfo = { ...REQUESTS_ONLY, permissions: ['costs.waybill.read'] };
 
 function answer(articles: 'ok' | 'fail' = 'ok') {
   vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
@@ -78,6 +79,30 @@ describe('useTableKnown', () => {
     const { result } = renderHook(() => useTableKnown('costs.invoices', [SECTIONS], CAN_READ_INVOICES), { wrapper });
     await waitFor(() => expect(result.current.РазделыРазноски.complete).toBe(true));
     expect(asked()).toEqual(['/costs/constructions']);
+  });
+
+  it('читатель накладных видит стройки и полный перечень разделов, включая смену прав с тёплым кэшем', async () => {
+    answer();
+    const { result, rerender } = renderHook(
+      ({ access }) => useTableKnown('costs.invoices', [OBJECTS, SECTIONS], access),
+      { wrapper, initialProps: { access: CAN_READ_WAYBILLS } },
+    );
+    await waitFor(() => expect(result.current.РазделыРазноски.complete).toBe(true));
+    expect(asked()).toEqual(['/costs/constructions']);
+    expect(result.current.ОбъектыРазноски.items.map(item => item.value)).toEqual(['Комарова 36', 'объект удалён']);
+    expect(result.current.ОбъектыРазноски.complete).toBe(false);
+
+    rerender({ access: CAN_READ_INVOICES });
+    await waitFor(() => expect(result.current.ОбъектыРазноски.complete).toBe(true));
+    expect(result.current.ОбъектыРазноски.items.map(item => item.value)).toContain('Склад');
+    vi.mocked(apiClient.get).mockClear();
+
+    rerender({ access: CAN_READ_WAYBILLS });
+    expect(result.current.РазделыРазноски.complete).toBe(true);
+    expect(result.current.ОбъектыРазноски.items.map(item => item.value)).not.toContain('Склад');
+    rerender({ access: REQUESTS_ONLY });
+    expect(result.current).toEqual({});
+    expect(asked()).not.toContain('/costs/articles');
   });
 
   it('чужая таблица со стройками и таблица без таких колонок — ни перечней, ни запросов', () => {

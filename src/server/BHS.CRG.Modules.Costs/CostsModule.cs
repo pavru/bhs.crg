@@ -347,6 +347,8 @@ public sealed class CostsModule : IAppModule
         services.AddSingleton<IModuleActivityActions, InvoiceActions>();
         services.AddSingleton<IModuleActivityActions, WaybillActions>();
         services.AddSingleton<IModuleActivityActions, PurchaseRequestActions>();
+        services.AddScoped<PurchaseRequestReturnJournal>();
+        services.AddScoped<IModuleJobHandler>(sp => sp.GetRequiredService<PurchaseRequestReturnJournal>());
 
         // Стройки и статьи — цели разноски (F3, issue #1087). Областью запроса: читает порты ядра, а те
         // живут областью запроса.
@@ -411,6 +413,8 @@ public sealed class CostsModule : IAppModule
     /// давало бы пустой 404, неотличимый от опечатки в ссылке (ТЗ OVW-10, AUTH-15, AUTH-19).
     /// </summary>
     public IReadOnlyList<string> RoutePrefixes => ["/api/costs"];
+
+    public IReadOnlyList<ModuleTick> Ticks => [PurchaseRequestReturnJournal.Tick];
 
     /// <summary>
     /// Группа модуля заводится пустой. Это не забытая строка: ворота (<c>module:costs</c>) стоят на

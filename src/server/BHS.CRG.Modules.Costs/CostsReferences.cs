@@ -30,6 +30,10 @@ public static class CostsReferences
             "строки заявок на закупку с этой позицией номенклатуры"),
         ModuleReference.Holding("purchase_request_lines", "plan_item_id", ReferenceTarget.WorkPlanItem,
             "строки заявок на закупку, взятые из материалов этой позиции перечня"),
+        ModuleReference.Remembering("purchase_request_return_events", "request_id", target: null,
+            "номер и идентификатор заявки нужны для журнала даже после удаления черновика"),
+        ModuleReference.Remembering("purchase_request_return_events", "author_id", ReferenceTarget.User,
+            "автор возврата нужен для журнала даже после удаления учётной записи"),
 
         // Накладные (D1, issue #1083).
         ModuleReference.Holding("waybills", "construction_id", ReferenceTarget.Construction,

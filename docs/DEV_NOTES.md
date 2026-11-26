@@ -7326,6 +7326,7 @@ POST   /api/costs/requests  { constructionId, sectionId? | planItemIds?, lines }
 PUT    /api/costs/requests/{id}/lines  { lines }  → заявка; заменяет строки черновика
 POST   /api/costs/requests/{id}/submit | /close  → заявка; черновик → подана → закрыта
 POST   /api/costs/requests/{id}/return  { reason }  → заявка; возврат поданной автором с причиной в журнале
+       Причина хранится вместе с переходом. При сбое общей записи в журнал доставку повторяет такт Costs.
 DELETE /api/costs/requests/{id}  → 204; удаляет черновик
        Все четыре вида правок существующей заявки требуют costs.request.edit и If-Match.
        Заголовок отсутствует или неверно записан — 400; устаревшая версия или неверное состояние — 409.

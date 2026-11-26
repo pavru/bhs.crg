@@ -87,6 +87,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
 
     public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
 
+    internal DbSet<PurchaseRequestReturnEvent> PurchaseRequestReturnEvents => Set<PurchaseRequestReturnEvent>();
+
     /// <summary>Версии накладной, ушедшие под исправление (issue #1340) — только дописываются.</summary>
     public DbSet<WaybillVersion> WaybillVersions => Set<WaybillVersion>();
 

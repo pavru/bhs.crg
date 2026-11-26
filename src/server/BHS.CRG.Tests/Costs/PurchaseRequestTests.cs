@@ -16,7 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Costs;
 
-public sealed class PurchaseRequestTests(PurchaseRequestHost host) : IClassFixture<PurchaseRequestHost>
+public sealed partial class PurchaseRequestTests(PurchaseRequestHost host) : IClassFixture<PurchaseRequestHost>
 {
     internal const string Requests = "/api/costs/requests";
     private const string Suggest = Requests + "/draft-from-estimate";
@@ -112,16 +112,25 @@ public sealed class PurchaseRequestTests(PurchaseRequestHost host) : IClassFixtu
         }), HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task Две_неизвестные_единицы_сметы_не_объединяются()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Две_неизвестные_единицы_сметы_не_объединяются(bool samePlanItem)
     {
-        var (site, material, a, b) = await SeedAsync(60, 40, unit: null);
+        var (site, material, a, b) = await SeedAsync(60, samePlanItem ? null : 40, unit: null);
+        if (samePlanItem)
+        {
+            var additional = await EstimateSeed.EstimateAsync(host, site.Construction, "Дополнительная", EstimateKind.Additional);
+            await EstimateSeed.RevisionAsync(host, additional, await RowAsync(site, material, 40, null));
+        }
+        var itemIds = b is { } other ? new[] { a, other } : [a];
         await IssueAsync(site.Construction, material, 5, null);
         using var client = await SupplierAsync();
-        var result = await SuggestAsync(client, new { constructionId = site.Construction, planItemIds = new[] { a, b!.Value } });
+        var result = await SuggestAsync(client, new { constructionId = site.Construction, planItemIds = itemIds });
 
         var lines = result.GetProperty("lines").EnumerateArray().ToArray();
         Assert.Equal([40m, 60m], lines.Select(line => line.GetProperty("quantity").GetDecimal()).Order());
+        Assert.Equal(itemIds.Order(), lines.Select(line => line.GetProperty("planItemId").GetGuid()).Distinct().Order());
         Assert.All(lines, line =>
         {
             Assert.True(line.GetProperty("unitMismatch").GetBoolean());

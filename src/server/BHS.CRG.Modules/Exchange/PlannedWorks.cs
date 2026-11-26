@@ -137,7 +137,7 @@ public sealed record PlannedMaterials(IReadOnlyList<PlannedMaterial> Lines, int 
 
 /// <summary>Материал позиции: сколько на её объём.</summary>
 /// <param name="PlanItemId">Позиция перечня; <c>null</c> — материал строки-материала сметы.</param>
-/// <param name="Unit">Единица, как в файле сметы: количества складываются в пределах одной единицы.</param>
+/// <param name="Unit">Единица из сметы. Количества складываются внутри одной непустой единицы. Без неё строки идут отдельно.</param>
 public sealed record PlannedMaterial(Guid? PlanItemId, Guid NomenclatureId, decimal Quantity, string? Unit);
 
 /// <summary>Норма трудозатрат позиции — без денег.</summary>

@@ -36,5 +36,16 @@ internal static class PurchaseRequestModel
         line.HasIndex(l => new { l.RequestId, l.Position }).HasDatabaseName("ix_purchase_request_lines_order");
         line.HasIndex(l => l.NomenclatureId).HasDatabaseName("ix_purchase_request_lines_nomenclature");
         line.HasIndex(l => l.PlanItemId).HasDatabaseName("ix_purchase_request_lines_plan_item");
+
+        var returned = builder.Entity<PurchaseRequestReturnEvent>();
+        returned.ToTable("purchase_request_return_events");
+        returned.HasKey(saved => saved.EventId);
+        returned.Property(saved => saved.EventId).HasColumnName("event_id").ValueGeneratedNever();
+        returned.Property(saved => saved.RequestId).HasColumnName("request_id");
+        returned.Property(saved => saved.RequestNumber).HasColumnName("request_number");
+        returned.Property(saved => saved.AuthorId).HasColumnName("author_id");
+        returned.Property(saved => saved.AuthorName).HasColumnName("author_name");
+        returned.Property(saved => saved.OccurredAt).HasColumnName("occurred_at");
+        returned.Property(saved => saved.Reason).HasColumnName("reason").HasMaxLength(PurchaseRequestLine.NoteLength);
     }
 }
