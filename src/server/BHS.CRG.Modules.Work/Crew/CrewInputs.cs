@@ -4,7 +4,8 @@ using BHS.CRG.Modules.Work.Data;
 namespace BHS.CRG.Modules.Work.Crew;
 
 internal sealed record CrewGroupLine(Guid GroupId, Guid ReportId, Guid EmployeeId, Guid Id, Guid? VariantId,
-    decimal Volume, Guid UnitId, string CrewRole, IReadOnlyList<Guid> Participants);
+    decimal Volume, Guid UnitId, string CrewRole, IReadOnlyList<Guid> Participants,
+    Guid PlanItemId, Guid? SectionId, bool Accepted);
 
 internal sealed record CrewSubmittedEmployee(Guid GroupId, Guid EmployeeId);
 

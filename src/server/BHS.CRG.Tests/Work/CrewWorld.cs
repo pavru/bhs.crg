@@ -22,14 +22,15 @@ internal sealed class CrewWorld(AssignmentHost host)
         Reports.Assignments.AssignedAsync(employee, site ?? Site, AssignmentKind.Installer, from, to);
 
     public object Body(Guid report, Guid line, decimal volume, string? role = "lead", Guid[]? participants = null,
-        string shift = "day", Guid? site = null, Guid? unit = null) =>
+        string shift = "day", Guid? site = null, Guid? unit = null, Guid? section = null,
+        string date = ReportWorld.Day16, string? reason = null) =>
         new
         {
-            id = report, constructionId = site ?? Site, date = ReportWorld.Day16, shift, hours = 8m, changeId = Guid.NewGuid(),
+            id = report, constructionId = site ?? Site, date, shift, hours = 8m, changeId = Guid.NewGuid(), reason,
             lines = new[]
             {
                 new { id = line, workTypeId = Reports.WorkType, volume, unitId = unit ?? Reports.Unit, isCrew = true,
-                    crewRole = role, participants, location = "оси 3–4" },
+                    crewRole = role, participants, sectionId = section, location = "оси 3–4" },
             },
         };
 

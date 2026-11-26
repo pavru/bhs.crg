@@ -76,6 +76,17 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.NotImplemented, edit.StatusCode);
     }
 
+    [Fact]
+    public void ActualWorks_is_not_connected_on_a_real_plan_only_host()
+    {
+        using var scope = host.Services.CreateScope();
+        var port = scope.ServiceProvider.GetRequiredService<IModuleContracts>();
+        var answer = Assert.IsType<ModuleContractAnswer<IActualWorks>.NotConnected>(port.Get<IActualWorks>());
+        Assert.Equal("work", answer.Provider);
+        Assert.Equal("Учёт работ", answer.ProviderTitle);
+        Assert.Equal("Фактические работы", answer.ContractTitle);
+    }
+
     /// <summary>
     /// Контракт «Фактические затраты» на экземпляре без счетов — «не подключено» с названием поставщика (change
     /// <c>plan-24-actual-costs-contract</c>, ТЗ CORE-34, OVW-9): «Ход работ» обязан сказать, чего не хватает, а не

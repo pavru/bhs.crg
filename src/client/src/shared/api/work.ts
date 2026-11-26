@@ -107,6 +107,14 @@ export interface CrewLine {
   crewRole: 'lead' | 'member';
 }
 
+export interface CrewPublication {
+  published: boolean;
+  reason: 'empty' | 'not-approved' | 'stale' | 'awaiting-acceptance' | 'invalid-key' | 'multiple-keys' | null;
+  keys: { planItemId: string; sectionId: string | null; unitId: string; valid: boolean }[];
+  accepted: number;
+  participating: number;
+}
+
 export interface CrewGroup {
   id: string;
   constructionId: string;
@@ -122,6 +130,7 @@ export interface CrewGroup {
   approvedByName: string | null;
   approvedAt: string | null;
   unsubmitted: number;
+  publication: CrewPublication;
   actions: string[];
   lines: CrewLine[];
 }
@@ -132,6 +141,7 @@ export interface CrewGroupsPage {
   workTypes: Record<string, string>;
   workVariants: Record<string, string>;
   units: Record<string, string>;
+  sections: Record<string, string>;
 }
 
 /** Ответ `GET /api/work/review/queue`. */

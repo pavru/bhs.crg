@@ -139,4 +139,17 @@ const workMaterialsMockup: LiveMockup = {
 export const liveMockups = [
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
   planSchedulesMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
-];
+  {
+    id: 'work-27-actual-works-contract',
+    title: 'Сверка бригад · Публикация факта',
+    kind: 'design',
+    entry: 'work27.html',
+    pages: [
+      { path: 'a', title: 'А · Статус в шапке группы' },
+      { path: 'b', title: 'Б · Сводка над строками' },
+      { path: 'c', title: 'В · Раскрываемые подробности' },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/work-27-actual-works-contract/design.md',
+  },
+] satisfies LiveMockup[];

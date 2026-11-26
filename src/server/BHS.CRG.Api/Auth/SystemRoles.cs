@@ -77,7 +77,7 @@ public static class SystemRoles
             [
                 "core.employees.read", "core.constructions.edit", CorePermissions.PeriodClose, CorePermissions.FilesUse,
                 .. ReferenceReads,
-                "work.report.review", "work.assignment.edit", "work.crew.approve", "work.devices.manage",
+                "work.report.review", "work.assignment.edit", "work.crew.approve", "work.devices.manage", "work.facts.read",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
                 // Право контракта (PLAN-21.1, решение В-3, plan-24): итоги затрат стройки — «разнесено» и
                 // «оплачено» — для полосы «Хода работ». Любой стройки: привязки данных к пользователю нет

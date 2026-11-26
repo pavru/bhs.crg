@@ -425,7 +425,8 @@ public sealed partial class ReportReads(WorkDbContext db)
          where line.IsCrew && line.WorkTypeId == crew.WorkTypeId
          orderby report.Id, line.Position
          select new CrewGroupLine(crew.Id, report.Id, report.EmployeeId, line.Id, line.VariantId, line.Volume,
-             line.UnitId, line.CrewRole!, line.Participants.Select(p => p.EmployeeId).ToList())).ToListAsync(ct);
+             line.UnitId, line.CrewRole!, line.Participants.Select(p => p.EmployeeId).ToList(),
+             line.WorkPlanItemId, line.SectionId, report.Status == ReportStatus.Accepted)).ToListAsync(ct);
 
     internal Task<List<CrewSubmittedEmployee>> CrewSubmittedEmployeesAsync(ReportViewer viewer,
         IQueryable<CrewGroupRecord> groups, CancellationToken ct) =>

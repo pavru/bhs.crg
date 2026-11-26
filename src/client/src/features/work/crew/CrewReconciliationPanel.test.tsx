@@ -17,6 +17,10 @@ const group: CrewGroup = {
   id: 'group-1', constructionId: 'site-1', date: '2026-11-21', shift: 'night', workTypeId: 'type-1',
   version: '10', state: 'pending', mismatch: true, total: null, unitId: null, approvedBy: null,
   approvedByName: null, approvedAt: null, unsubmitted: 2, actions: ['approve'],
+  publication: {
+    published: false, reason: 'not-approved', accepted: 1, participating: 2,
+    keys: [{ planItemId: 'item-1', sectionId: 'section-1', unitId: 'm', valid: true }],
+  },
   lines: [
     { id: 'line-1', reportId: 'report-1', employeeId: 'employee-1', fullName: 'Иван Крылов',
       variantId: 'variant-1', volume: 120, unitId: 'm', crewRole: 'lead' },
@@ -40,6 +44,7 @@ beforeEach(() => {
   crewPage = {
     items: [group], constructions: [{ id: 'site-1', name: 'Терминал' }],
     workTypes: { 'type-1': 'Прокладка кабеля' }, workVariants: { 'variant-1': 'В лотке' }, units: { m: 'м' },
+    sections: { 'section-1': 'Корпус А', 'section-2': 'Корпус Б' },
   };
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
@@ -104,7 +109,8 @@ describe('сверка бригад', () => {
   it('показывает прежний итог и расхождение из ответа, скрывает действие без approve', async () => {
     permissions = ['work.report.read'];
     crewPage.items = [{ ...group, state: 'stale', total: 120, unitId: 'm', actions: [],
-      approvedByName: 'Менеджер', approvedAt: '2026-11-21T10:15:00Z' }];
+      approvedByName: 'Менеджер', approvedAt: '2026-11-21T10:15:00Z',
+      publication: { ...group.publication, reason: 'stale' } }];
     mount();
     expect(await screen.findByText('Требует решения')).toBeTruthy();
     expect(screen.getByText('Есть расхождение в объёмах')).toBeTruthy();
@@ -112,6 +118,35 @@ describe('сверка бригад', () => {
     expect(screen.getByText('Не подали отчёт · 2')).toBeTruthy();
     expect(screen.getByText('В лотке')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Утвердить итог' })).toBeNull();
+  });
+
+  it('показывает утверждённый итог, исключение и оба ключа без обещания правки раздела', async () => {
+    permissions = ['work.crew.approve'];
+    crewPage.items = [{ ...group, state: 'approved', total: 120, unitId: 'm', unsubmitted: 0, actions: [],
+      publication: { ...group.publication, reason: 'multiple-keys', accepted: 2,
+        keys: [...group.publication.keys, { planItemId: 'item-2', sectionId: 'section-2', unitId: 'm', valid: true }] } }];
+    mount();
+    expect(await screen.findByText('Утверждено', { exact: true })).toBeTruthy();
+    expect(screen.getByText('Итог · 120 м', { exact: true })).toBeTruthy();
+    expect(screen.getByText('Не включён в факт', { exact: true })).toBeTruthy();
+    expect(screen.getByText('В строках группы разные позиции перечня.')).toBeTruthy();
+    expect(screen.getByText('Принято отчётов · 2 из 2')).toBeTruthy();
+    const list = screen.getByRole('list', { name: 'Позиции перечня' });
+    expect(list.textContent).toContain('Корпус А');
+    expect(list.textContent).toContain('Корпус Б');
+    expect(screen.queryByRole('link', { name: /Открыть отчёт|раздел/i })).toBeNull();
+  });
+
+  it.each([
+    ['awaiting-acceptance', 1, false, 'Приёмка участвующих отчётов ещё не завершена.'],
+    [null, 2, true, 'Включён в факт'],
+  ] as const)('отдельно показывает приёмку и предупреждение о неподанных (%s)', async (reason, accepted, published, label) => {
+    crewPage.items = [{ ...group, state: 'approved', total: 120, unitId: 'm', unsubmitted: 1, actions: [],
+      publication: { ...group.publication, published, reason, accepted } }];
+    mount();
+    expect(await screen.findByText(label, { exact: true })).toBeTruthy();
+    expect(screen.getByText(`Принято отчётов · ${accepted} из 2`)).toBeTruthy();
+    expect(screen.getByText('Не подали отчёт · 1')).toBeTruthy();
   });
 
   it.each(['', '?tab=crew'])('право утверждения открывает только сверку по адресу /work-review%s', async search => {
@@ -140,7 +175,8 @@ describe('сверка бригад', () => {
   ] as const)('утверждает %s с версией открытой группы', async (_kind, option, total) => {
     vi.mocked(apiClient.post).mockImplementation(async () => {
       const result: CrewGroup = { ...group, version: '11', total, unitId: 'm', state: 'approved', actions: [],
-        approvedByName: 'Менеджер', approvedAt: '2026-11-21T10:15:00Z' };
+        approvedByName: 'Менеджер', approvedAt: '2026-11-21T10:15:00Z',
+        publication: { ...group.publication, reason: 'awaiting-acceptance' } };
       crewPage.items = [result];
       return { data: result };
     });
