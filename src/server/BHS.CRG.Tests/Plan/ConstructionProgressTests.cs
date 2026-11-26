@@ -16,9 +16,7 @@ using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Plan;
 
@@ -237,18 +235,8 @@ public class ConstructionProgressTests
                 }
                 if (probeCosts)
                     services.SwapModuleContract<IProgressContribution, ProgressCostsProbe>(CostsModule.ModuleCode);
-                if (!probeWork) return;
-
-                var probe = new ActualWorksProbeModule();
-                var existing = (ModuleRegistry)services.Single(s => s.ServiceType == typeof(ModuleRegistry)).ImplementationInstance!;
-                var registry = new ModuleRegistry([.. existing.Enabled, probe], [.. existing.Disabled.Where(m => m.Code != probe.Code)]);
-                services.RemoveAll<ModuleRegistry>();
-                services.RemoveAll<IEnabledModules>();
-                services.RemoveAll<PermissionCatalog>();
-                services.AddSingleton(registry);
-                services.AddSingleton<IEnabledModules>(registry);
-                services.AddSingleton(new PermissionCatalog([.. CorePermissions.All, .. registry.Enabled.SelectMany(m => m.Permissions)]));
-                probe.RegisterServices(services, new ConfigurationBuilder().Build());
+                if (probeWork)
+                    ActualWorksProbeModule.Enable(services);
             });
         }
     }

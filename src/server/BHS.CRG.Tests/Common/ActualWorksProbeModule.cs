@@ -1,10 +1,14 @@
 using System.Collections.Concurrent;
+using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Exchange;
+using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Common;
 
@@ -29,6 +33,20 @@ internal sealed class ActualWorksProbeModule : IAppModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints) { }
 
     public Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
+
+    internal static void Enable(IServiceCollection services)
+    {
+        var existing = (ModuleRegistry)services.Single(s => s.ServiceType == typeof(ModuleRegistry)).ImplementationInstance!;
+        var probe = new ActualWorksProbeModule();
+        var registry = new ModuleRegistry([.. existing.Enabled, probe], [.. existing.Disabled.Where(m => m.Code != probe.Code)]);
+        services.RemoveAll<ModuleRegistry>();
+        services.RemoveAll<IEnabledModules>();
+        services.RemoveAll<PermissionCatalog>();
+        services.AddSingleton(registry);
+        services.AddSingleton<IEnabledModules>(registry);
+        services.AddSingleton(new PermissionCatalog([.. CorePermissions.All, .. registry.Enabled.SelectMany(m => m.Permissions)]));
+        probe.RegisterServices(services, new ConfigurationBuilder().Build());
+    }
 }
 
 internal sealed class ActualWorksProbeData

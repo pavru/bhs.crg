@@ -51,4 +51,8 @@ public sealed record CrewFactExclusionCount(CrewFactExclusion Reason, int Groups
 /// <param name="Unsubmitted">Предупреждение. Число пар «группа, неподанный участник».</param>
 public sealed record ActualWorksDiagnostics(
     ActualWorksScope Scope, int AwaitingAcceptance, int ExcludedCrewGroups,
-    IReadOnlyList<CrewFactExclusionCount> CrewExclusions, int WithoutPlanItem, int Unsubmitted);
+    IReadOnlyList<CrewFactExclusionCount> CrewExclusions, int WithoutPlanItem, int Unsubmitted)
+{
+    /// <summary>Неподанные участники — предупреждение. Неполноту определяют исключения из факта.</summary>
+    public bool IsPartial() => AwaitingAcceptance > 0 || ExcludedCrewGroups > 0 || WithoutPlanItem > 0;
+}

@@ -96,7 +96,11 @@ public sealed record PlannedVolumes(IReadOnlyList<PlannedItem> Items, IReadOnlyL
 /// </param>
 public sealed record PlannedItem(
     Guid PlanItemId, Guid UnitId, decimal Volume, IReadOnlyList<PlannedShare> Distribution, decimal Undistributed,
-    int WithoutVolume);
+    int WithoutVolume)
+{
+    /// <summary>Есть хотя бы одна строка с числовым объёмом в выбранном охвате, в том числе с явным нулём.</summary>
+    public bool HasVolume { get; init; } = true;
+}
 
 /// <summary>Объём позиции на разделе стройки; <c>null</c> — «стройка в целом».</summary>
 public sealed record PlannedShare(Guid? SectionId, decimal Volume);

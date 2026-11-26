@@ -119,6 +119,21 @@ describe('переход из окна загрузки', () => {
   });
 });
 
+it('ссылка из Хода работ открывает указанную редакцию, даже когда загружена более новая', async () => {
+  serve(false);
+  const base = vi.mocked(apiClient.get).getMockImplementation()!;
+  const current = estimate(false);
+  const first = current.revisions[0];
+  const newer = { ...first, id: 'r2', number: 2, current: false };
+  vi.mocked(apiClient.get).mockImplementation(async (url, config) =>
+    url === '/plan/estimates/e1' ? { data: { ...current, revisions: [newer, first] } } as never : base(url, config));
+  mount(undefined, '?revision=r1');
+
+  await openSection();
+  expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/plan/revisions/r1/rows')).toBe(true);
+  expect(screen.getByTestId('search').textContent).toBe('?revision=r1');
+});
+
 describe('карточка сметы и право на стоимость', () => {
   it('без права: колонка стоимости — «скрыто правами», сумм нет ни в таблице, ни у редакции', async () => {
     serve(false);

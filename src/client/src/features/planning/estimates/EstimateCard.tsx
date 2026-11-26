@@ -85,7 +85,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
   if (!estimate.data) return <p className="text-body-medium text-on-surface-variant">Читаем смету…</p>;
 
   const data = estimate.data;
-  const shown = data.revisions.find(r => r.id === chosen) ?? latestRevision(data);
+  const shown = data.revisions.find(r => r.id === (chosen ?? params.get('revision'))) ?? latestRevision(data);
   const viewId = `estimate-${data.id}-view`;
   const revisionsId = `estimate-${data.id}`;
   return (
