@@ -150,12 +150,19 @@ internal static class PlannedWorksMath
         IReadOnlyDictionary<Guid, RowShare> shares, Guid? section)
     {
         var rowOf = rows.ToDictionary(r => r.Id);
-        var lines = materials.Where(m => m.NomenclatureId is not null)
-            .GroupBy(m => (Item: rowOf[m.RowId].PlanItemId, Nomenclature: m.NomenclatureId!.Value, m.Unit))
-            .OrderBy(g => g.Key.Item is null).ThenBy(g => g.Key.Item).ThenBy(g => g.Key.Nomenclature).ThenBy(g => g.Key.Unit)
-            .Select(g => new PlannedMaterial(g.Key.Item, g.Key.Nomenclature,
-                g.Sum(m => Scale(m.Quantity, shares[m.RowId].Weight(section), Quantities)), g.Key.Unit))
+        var matched = materials.Where(material => material.NomenclatureId is not null)
+            .Select(material => new PlannedMaterial(rowOf[material.RowId].PlanItemId, material.NomenclatureId!.Value,
+                Scale(material.Quantity, shares[material.RowId].Weight(section), Quantities),
+                string.IsNullOrWhiteSpace(material.Unit) ? null : material.Unit))
             .ToList();
+        var grouped = matched.Where(material => material.Unit is not null)
+            .GroupBy(material => (material.PlanItemId, material.NomenclatureId, material.Unit))
+            .Select(group => new PlannedMaterial(group.Key.PlanItemId, group.Key.NomenclatureId,
+                group.Sum(material => material.Quantity), group.Key.Unit));
+        var lines = grouped.Concat(matched.Where(material => material.Unit is null))
+            .OrderBy(material => material.PlanItemId is null).ThenBy(material => material.PlanItemId)
+            .ThenBy(material => material.NomenclatureId).ThenBy(material => material.Unit)
+            .ThenBy(material => material.Quantity).ToList();
         return new PlannedMaterials(lines, materials.Count(m => m.NomenclatureId is null));
     }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
@@ -25,7 +26,7 @@ namespace BHS.CRG.Tests.Plan;
 internal static class EstimateSeed
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
-    private static Classifier? classifier;
+    private static readonly ConditionalWeakTable<IntegrationTestFixture, Classifier> Classifiers = new();
 
     /// <summary>
     /// Вид работы и единица классификатора — ссылки сопоставленной строки; тип вида работы — для новых
@@ -37,12 +38,15 @@ internal static class EstimateSeed
     /// <summary>Стройка с разделом — у каждого теста своя.</summary>
     internal sealed record Site(Guid Construction, Guid Section);
 
-    public static async Task<Classifier> ClassifierAsync(PlanOnlyHost host)
+    public static async Task<Classifier> ClassifierAsync(IntegrationTestFixture host)
     {
         await Gate.WaitAsync();
         try
         {
-            return classifier ??= await SeedClassifierAsync(host);
+            if (Classifiers.TryGetValue(host, out var classifier)) return classifier;
+            classifier = await SeedClassifierAsync(host);
+            Classifiers.Add(host, classifier);
+            return classifier;
         }
         finally
         {
@@ -50,7 +54,7 @@ internal static class EstimateSeed
         }
     }
 
-    private static async Task<Classifier> SeedClassifierAsync(PlanOnlyHost host)
+    private static async Task<Classifier> SeedClassifierAsync(IntegrationTestFixture host)
     {
         _ = host.CreateClient();
         var seed = new WorkTypeSeed(host);
@@ -78,7 +82,7 @@ internal static class EstimateSeed
         }
     }
 
-    public static async Task<Site> SiteAsync(PlanOnlyHost host, string name = "Стройка")
+    public static async Task<Site> SiteAsync(IntegrationTestFixture host, string name = "Стройка")
     {
         await ClassifierAsync(host);
         var seed = new WorkTypeSeed(host);
@@ -88,7 +92,7 @@ internal static class EstimateSeed
     }
 
     public static async Task<Guid> EstimateAsync(
-        PlanOnlyHost host, Guid constructionId, string name = "Основная", EstimateKind kind = EstimateKind.Main)
+        IntegrationTestFixture host, Guid constructionId, string name = "Основная", EstimateKind kind = EstimateKind.Main)
     {
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
@@ -99,7 +103,7 @@ internal static class EstimateSeed
     }
 
     /// <summary>Редакция — единственным местом записи строк, как её запишет импорт.</summary>
-    public static async Task<EstimateRevision> RevisionAsync(PlanOnlyHost host, Guid estimateId, params EstimateRowDraft[] rows)
+    public static async Task<EstimateRevision> RevisionAsync(IntegrationTestFixture host, Guid estimateId, params EstimateRowDraft[] rows)
     {
         using var scope = host.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<EstimateRevisionWriter>()
@@ -107,7 +111,7 @@ internal static class EstimateSeed
     }
 
     /// <summary>Позиция перечня стройки — портом ядра, как её заведёт сопоставление.</summary>
-    public static async Task<Guid> PlanItemAsync(PlanOnlyHost host, Site site, Guid? workType = null)
+    public static async Task<Guid> PlanItemAsync(IntegrationTestFixture host, Site site, Guid? workType = null)
     {
         var c = await ClassifierAsync(host);
         using var scope = host.Services.CreateScope();
@@ -117,7 +121,7 @@ internal static class EstimateSeed
     }
 
     /// <summary>Сопоставленная строка: вид работы, единица, объём и позиция перечня.</summary>
-    public static async Task<EstimateRowDraft> MatchedRowAsync(PlanOnlyHost host, Site site, decimal volume, string name = "Кабель ВВГнг 3х2,5")
+    public static async Task<EstimateRowDraft> MatchedRowAsync(IntegrationTestFixture host, Site site, decimal volume, string name = "Кабель ВВГнг 3х2,5")
     {
         var c = await ClassifierAsync(host);
         return new EstimateRowDraft(name, WorkTypeId: c.WorkType, UnitId: c.Unit, Factor: 100m, Volume: volume,

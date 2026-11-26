@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { hasPermission, type AccessInfo } from '@/shared/api/access';
 import { useCostsArticles } from '@/shared/api/articles';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import type { TableColumn } from '@/shared/api/tables';
@@ -40,8 +41,14 @@ const TABLE_KNOWN: Readonly<Record<string, Builders>> = {
  * Перечни по ключу колонки; колонки без перечня в нём нет. `columns` — объявление таблицы из кэша
  * запроса: та же ссылка, пока описание не перечитали.
  */
-export function useTableKnown(address: string, columns: readonly TableColumn[]): Readonly<Record<string, ColumnKnown>> {
-  const builders = Object.hasOwn(TABLE_KNOWN, address) ? TABLE_KNOWN[address] : undefined;
+export function useTableKnown(
+  address: string, columns: readonly TableColumn[], access: AccessInfo,
+): Readonly<Record<string, ColumnKnown>> {
+  const canReadArticles = hasPermission(access, 'costs.invoice.read');
+  const canReadSites = canReadArticles || hasPermission(access, 'costs.waybill.read');
+  const builders = canReadSites && Object.hasOwn(TABLE_KNOWN, address)
+    ? TABLE_KNOWN[address]
+    : undefined;
   const wanted = useMemo(
     () => columns.flatMap(c => {
       const build = (c.sites ? builders?.sites : undefined) ?? (c.sections ? builders?.sections : undefined);
@@ -49,12 +56,13 @@ export function useTableKnown(address: string, columns: readonly TableColumn[]):
     }),
     [columns, builders]);
   const sites = useCostsConstructions(wanted.length > 0);
-  const articles = useCostsArticles(wanted.some(c => c.sites));
+  const articles = useCostsArticles(canReadArticles && wanted.some(c => c.sites));
+  const visibleArticles = canReadArticles ? articles.data : undefined;
   const filter = useSiteFilterState();
   const favorites = filter.active ? filter.favorites : null;
 
   return useMemo(() => {
-    const sources: Sources = { sites: sites.data, articles: articles.data, favorites };
+    const sources: Sources = { sites: sites.data, articles: visibleArticles, favorites };
     return Object.fromEntries(wanted.map(c => [c.key, c.build(sources)]));
-  }, [wanted, sites.data, articles.data, favorites]);
+  }, [wanted, sites.data, visibleArticles, favorites]);
 }

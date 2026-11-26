@@ -82,7 +82,7 @@ export function TablePage() {
   // Перечни «Объекта» и «Раздела» — подсказка значения в условии отбора (UI-56). Хук — до ранних выходов;
   // у выключенного модуля справочников не спрашиваем: его адреса закрыты.
   const known = useTableKnown(address,
-    declaration.data && declaration.data.state !== 'module-off' ? declaration.data.columns : NO_COLUMNS);
+    declaration.data && declaration.data.state !== 'module-off' ? declaration.data.columns : NO_COLUMNS, access);
 
   const filter = view.filter ?? view.brokenFilter;
   // ⚠️ Под готовым представлением строки ждут описания: настройка приходит в нём, и запрос, ушедший
@@ -193,7 +193,7 @@ export function TablePage() {
 
         {/* Избранные стройки таблицу не урезают — только предлагают условие, которое ставит человек (#1223). */}
         {!off && (
-          <SitesChip columns={decl.columns} filter={view}
+          <SitesChip columns={decl.columns} filter={view} canReadArticles={hasPermission(access, 'costs.invoice.read')}
             onToggle={(column, names) => setView(v => withSitesChip(v, allKeys, column, names))} />
         )}
 

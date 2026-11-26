@@ -48,9 +48,10 @@ const rowFilters = () => vi.mocked(apiClient.get).mock.calls
   .filter(([url]) => url === '/tables/costs.invoices')
   .map(([, config]) => (config as { params: { filter?: string } }).params.filter);
 
-function mount(filter: SiteFilterValue) {
+function mount(filter: SiteFilterValue, cachedArticles = false) {
   window.history.pushState(null, '', '/tables/costs.invoices');
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (cachedArticles) qc.setQueryData(['costs-articles'], [{ id: 's1', name: 'Склад', archived: false }]);
   return render(
     <QueryClientProvider client={qc}>
       <SnackbarProvider>
@@ -69,7 +70,7 @@ beforeEach(() => {
   vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
     if (url.endsWith('/columns')) return { data: DECLARATION };
     if (url.endsWith('/views') || url.endsWith('/shortcuts')) return { data: [] };
-    if (url === '/account/access') return { data: { permissions: [], modules: [] } };
+    if (url === '/account/access') return { data: { permissions: ['costs.invoice.read'], modules: [] } };
     if (url === '/costs/articles') return { data: [{ id: 's1', name: 'Склад', archived: false }] };
     // Справочник строек — перечню подсказки «Объекта» в условии отбора (UI-56).
     if (url === '/costs/constructions') return { data: SITES.map(s => ({ ...s, sections: [] })) };
@@ -113,6 +114,23 @@ describe('таблица со стройками под включённым ф�
     });
     mount(filterOf(['c']));
     await screen.findByText(/статьи вне строек с тем же названием не проверены/);
+  });
+
+  it('права заявок не открывают статьи, включая названия в кэше, а чип ставит отбор', async () => {
+    const ok = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url, config) => url === '/account/access'
+      ? { data: { permissions: ['costs.request.read', 'costs.request.edit'], modules: [] } }
+      : ok(url, config));
+    mount(filterOf(['c']), true);
+
+    const chip = await screen.findByRole('button', { name: /Объект: избранные стройки/ });
+    await screen.findByText(/статьи вне строек с тем же названием не проверены/);
+    expect(screen.queryByText(/попадут и другие объекты с тем же названием/)).toBeNull();
+    fireEvent.click(chip);
+    await waitFor(() => expect(rowFilters().at(-1)).toContain('Склад'));
+    const urls = vi.mocked(apiClient.get).mock.calls.map(([url]) => url);
+    expect(urls).not.toContain('/costs/articles');
+    expect(urls).not.toContain('/costs/constructions');
   });
 
   it('фильтр выключен или избранное пусто — чипа нет', async () => {

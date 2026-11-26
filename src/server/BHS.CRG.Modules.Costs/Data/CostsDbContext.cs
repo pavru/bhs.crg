@@ -85,6 +85,10 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
 
     public DbSet<WaybillLine> WaybillLines => Set<WaybillLine>();
 
+    public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
+
+    internal DbSet<PurchaseRequestReturnEvent> PurchaseRequestReturnEvents => Set<PurchaseRequestReturnEvent>();
+
     /// <summary>Версии накладной, ушедшие под исправление (issue #1340) — только дописываются.</summary>
     public DbSet<WaybillVersion> WaybillVersions => Set<WaybillVersion>();
 
@@ -139,6 +143,8 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
     /// </summary>
     public string VersionOf(Waybill waybill) => Version(waybill);
 
+    internal string VersionOf(PurchaseRequest request) => Version(request);
+
     /// <summary>
     /// Версия счёта — та же системная колонка, что стережёт одновременную запись (см. ниже у модели).
     /// Форма получает её в ответе чтения и называет при каждой правке (issue #1176): так окно
@@ -182,6 +188,9 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
                 "Перечитайте условия поставщиков и повторите: записанная поверх, она затёрла бы чужую правку.",
                 e);
 
+        if (e.Entries.Any(entry => entry.Entity is PurchaseRequest or PurchaseRequestLine))
+            return new ConflictException("Заявку тем временем изменили. Перечитайте её и повторите правку.", e);
+
         var waybill = e.Entries.Any(entry => entry.Entity is Waybill or WaybillLine);
         var (changed, reread) = waybill ? ("Накладную", "накладную") : ("Счёт", "счёт");
         return new ConflictException(
@@ -193,6 +202,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options, IMo
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        PurchaseRequestModel.Configure(builder);
 
         var invoice = builder.Entity<Invoice>();
         InvoiceDuplicateConfirmation.Configure(builder, invoice);

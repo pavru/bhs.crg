@@ -78,7 +78,7 @@ internal static class DistributionFlow
         .GetProperty("distribution");
 
     /// <summary>Второй раздел стройки — у каждого теста свой.</summary>
-    public static async Task<Guid> SectionAsync(PlanOnlyHost host, Guid construction, string name) =>
+    public static async Task<Guid> SectionAsync(IntegrationTestFixture host, Guid construction, string name) =>
         (await new WorkTypeSeed(host).SendAsync(new CreateSectionCommand(construction, name))).Id;
 
     /// <summary>Строка раздела ЛСР: (номер главы, название, шифр, объём в единице строки).</summary>
@@ -86,7 +86,7 @@ internal static class DistributionFlow
         new($"Позиция {rate}", LsrSectionCode: code, LsrSectionName: section, NumberInSection: number, RateCode: rate,
             SourceVolume: volume, SourceUnit: "100 м", Number: number);
 
-    public static async Task<List<Guid>> RowIdsAsync(PlanOnlyHost host, Guid revision)
+    public static async Task<List<Guid>> RowIdsAsync(IntegrationTestFixture host, Guid revision)
     {
         using var scope = host.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<PlanDbContext>().EstimateRows

@@ -115,9 +115,8 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         // периода, своё право, а не costs.invoice.correct, — то открыло бы кладовщику счета (COST-29).
         // Двенадцатое — costs.totals.read (plan-24): право контракта «Фактические затраты», итоги стройки для
         // «Хода работ» «Менеджеру проекта» (решение В-3).
-        // Work-09 добавляет два права контракта «Материалы на объекте». Согласование (C6)
-        // и заявки на закупку (этап 3) вынесены, причины в CostsModule.
-        Assert.Equal(14, costs.Count);
+        // Work-09 добавляет два права контракта «Материалы на объекте», Plan-26 — два права заявок.
+        Assert.Equal(16, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
         Assert.All(new[] { CostsModule.MaterialsRead, CostsModule.MaterialsHint },
             code => Assert.True(Assert.Single(costs, p => p.Code == code).Contract));
@@ -216,7 +215,8 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
     /// выданы» без неё зелена и у роли, которой выдали всё.
     /// </summary>
     [Theory]
-    [InlineData("Supplier", "costs.invoice.edit", "costs.allocation.edit", "costs.waybill.edit", "costs.waybill.correct")]
+    [InlineData("Supplier", "costs.invoice.edit", "costs.allocation.edit", "costs.waybill.edit", "costs.waybill.correct",
+        CostsModule.RequestRead, CostsModule.RequestEdit)]
     [InlineData("Accountant", "costs.invoice.pay", "costs.report.read", "costs.articles.edit", "costs.invoice.correct",
         "costs.invoice.edit", "costs.allocation.edit")]
     public async Task Module_roles_receive_module_permissions(string role, params string[] expected)
@@ -245,26 +245,26 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
     /// Права <c>costs</c> системных ролей, у которых их нет в списке выше, — ТОЧНО (change
     /// <c>plan-24-actual-costs-contract</c>, решение В-3, ТЗ AUTH-8.1):
     /// <list type="bullet">
-    ///   <item>«Менеджер проекта» — права контрактов <c>costs.totals.read</c> и <c>costs.materials.read</c>, модуль закрыт:
-    ///   <c>costs.request.*</c> в его составе объявит <c>plan-26</c>, а до тех пор открыть модуль нечем.</item>
+    ///   <item>«Менеджер проекта» — права контрактов <c>costs.totals.read</c> и <c>costs.materials.read</c>
+    ///   и оба права на заявки. Модуль открыт правами на заявки.</item>
     ///   <item>«Руководитель» — чтение через «читать всё», БЕЗ права контракта (<c>ReadAllMark.Out</c>): итоги
     ///   ему отдаёт <c>costs.report.read</c>.</item>
     /// </list>
     /// </summary>
     [Theory]
-    [InlineData("ProjectManager", false, "costs.totals.read", CostsModule.MaterialsRead)]
-    [InlineData("Executive", true, "costs.invoice.read", "costs.report.read", "costs.waybill.read")]
+    [InlineData("ProjectManager", true, "costs.totals.read", CostsModule.MaterialsRead, CostsModule.RequestRead, CostsModule.RequestEdit)]
+    [InlineData("Executive", true, "costs.invoice.read", "costs.report.read", "costs.waybill.read", CostsModule.RequestRead)]
     public async Task System_roles_get_exactly_their_costs_permissions(string role, bool opens, params string[] expected) =>
         await ModuleOnlyChecks.RoleGetsExactlyAsync(host, new BHS.CRG.Modules.Costs.CostsModule(), role, opens, expected);
 
     /// <summary>
-    /// Право контракта модуль не открывает и на воротах (AUTH-8.1): «Менеджер проекта» с <c>costs.totals.read</c>
+    /// Право контракта модуль не открывает и на воротах (AUTH-8.1): пользователь с одним <c>costs.totals.read</c>
     /// получает 403 на адресе модуля — и на отчёте по затратам тоже, хотя итоги той же стройки ему отдаёт контракт.
     /// </summary>
     [Fact]
     public async Task Contract_right_alone_does_not_open_the_module_addresses()
     {
-        var client = await AccessProbe.SignInAsync(host, "ProjectManager", "costs");
+        using var client = await GrantedSignIn.WithPermissionsAsync(host, CostsModule.TotalsRead);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/site-costs")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/invoices")).StatusCode);

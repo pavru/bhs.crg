@@ -17,17 +17,19 @@ import { favoriteNames, namesakes, replacesOthers, sitesChipState, sitesColumn }
  * прочие объекты в ней — статьи (ревью PR #1339). Справочник статей не прочитан (нет права, сбой) — об этом
  * сказано: молчание читалось бы как «тёзок нет».</p>
  */
-export function SitesChip({ columns, filter, onToggle }: {
+export function SitesChip({ columns, filter, canReadArticles, onToggle }: {
   columns: readonly TableColumn[];
   /** Отбор, который стоит на экране: по нему видно, нажат ли чип и можно ли его нажать. */
   filter: ShortcutFilter;
+  canReadArticles: boolean;
   onToggle: (column: string, names: string[]) => void;
 }) {
   const sites = useSiteFilterState();
   const column = sitesColumn(columns);
   const offered = sites.active && !!column;
-  const articles = useCostsArticles(offered);
-  const others = useMemo(() => (articles.data ?? []).map(a => a.name), [articles.data]);
+  const articles = useCostsArticles(offered && canReadArticles);
+  const visibleArticles = canReadArticles ? articles.data : undefined;
+  const others = useMemo(() => (visibleArticles ?? []).map(a => a.name), [visibleArticles]);
   const names = useMemo(() => favoriteNames(sites.sites, sites.favorites), [sites.sites, sites.favorites]);
   const twins = useMemo(() => namesakes(sites.sites, sites.favorites, names, others),
     [sites.sites, sites.favorites, names, others]);
@@ -54,7 +56,8 @@ export function SitesChip({ columns, filter, onToggle }: {
         <span className="text-on-surface-variant">
           Отбор по названию: попадут и другие объекты с тем же названием — {twins.map(n => `«${n}»`).join(', ')}.
         </span>
-      ) : articles.isError && (
+      ) : null}
+      {(!canReadArticles || articles.isError) && (
         <span className="text-on-surface-variant">Отбор по названию: статьи вне строек с тем же названием не проверены.</span>
       )}
     </div>

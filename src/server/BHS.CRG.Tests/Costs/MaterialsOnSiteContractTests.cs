@@ -165,7 +165,10 @@ public sealed class MaterialsOnSiteContractTests(MaterialsOnSiteHost host) : ICl
 
             if (role.Name is SystemRoles.IdEngineer or "Installer" or "ProjectManager")
             {
-                Assert.False(Assert.Single(access.Modules, module => module.Code == CostsModule.ModuleCode).Available);
+                // У менеджера модуль открыт правами заявок (Plan-26). Контракт по-прежнему не открывает
+                // ни счета, ни накладные.
+                Assert.Equal(role.Name == "ProjectManager",
+                    Assert.Single(access.Modules, module => module.Code == CostsModule.ModuleCode).Available);
                 Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/invoices")).StatusCode);
                 Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/waybills")).StatusCode);
                 Assert.Equal(HttpStatusCode.Forbidden,
