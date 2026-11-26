@@ -84,7 +84,7 @@ it('на узкой панели оставляет план и факт ряд�
 });
 
 it('на широкой панели показывает сроки выбранной строки и меняет их с клавиатуры', async () => {
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 1000 } as DOMRect);
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 832 } as DOMRect);
   mount();
   const details = within(await screen.findByRole('complementary', { name: 'Подробности работы' }));
   expect(details.getByRole('heading', { name: 'Лотки' })).toBeTruthy();

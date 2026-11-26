@@ -5,6 +5,7 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { ProgressHidden } from './ProgressStrips';
 
+const MIN_WIDTH_FOR_DETAILS = 800;
 const rowKey = (row: ProgressRow) => `${row.workTypeId}/${row.unitId}`;
 const workName = (row: ProgressRow) => row.workTypeName ?? 'Вид работы недоступен';
 
@@ -83,7 +84,7 @@ export function ProgressGrid({ columns, rows, section }: {
     const element = host.current;
     const update = () => {
       // Учитываем место внутри карточки после рейла и навигации стройки.
-      setWide(element.getBoundingClientRect().width >= 864);
+      setWide(element.getBoundingClientRect().width >= MIN_WIDTH_FOR_DETAILS);
     };
     update();
     const observer = new ResizeObserver(update);

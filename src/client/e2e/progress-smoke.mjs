@@ -8,6 +8,7 @@ const password = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const { check, summarize } = createChecks();
 const browser = await launchBrowser();
 const entry = '/work/entry/reports';
+const desktop = { width: 1280, height: 900 };
 
 async function createUser(admin, label, role) {
   const email = `p25-${label}-${suffix}@bhs.local`;
@@ -99,7 +100,7 @@ try {
   const manager = await createUser(admin, 'manager', 'ProjectManager');
   const denied = await contractRole(admin, 'denied', []);
   const estimatorPage = await browser.newPage();
-  const managerPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const managerPage = await browser.newPage({ viewport: desktop });
   const deniedPage = await browser.newPage();
   await login(estimatorPage, estimate, password);
   await login(managerPage, manager, password);
@@ -168,7 +169,7 @@ try {
         }
         assert.equal(await managerPage.getByRole('complementary', { name: 'Подробности работы' }).count(), 0);
       } finally {
-        await managerPage.setViewportSize({ width: 1440, height: 900 });
+        await managerPage.setViewportSize(desktop);
       }
     });
     await check('contract-reader-mobile-has-only-fact', async () => {
