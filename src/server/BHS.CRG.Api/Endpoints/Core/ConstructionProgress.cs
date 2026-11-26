@@ -40,7 +40,7 @@ internal sealed class ConstructionProgress(
         planItemIds.UnionWith(values.Select(g => g.Key));
         var rows = await RowsAsync(site, planItemIds, values, ct);
         var costs = await ReadCostsAsync(reader, site, section, ct);
-        var partial = diagnostics is not null && IsPartial(diagnostics);
+        var partial = diagnostics?.IsPartial() == true;
         return new(site, section, columns.Select(column => ColumnView(column, partial)).ToList(), rows, strips, costs, diagnostics);
     }
 
@@ -77,12 +77,9 @@ internal sealed class ConstructionProgress(
         return null;
     }
 
-    private static bool IsPartial(ActualWorksDiagnostics diagnostics) =>
-        diagnostics.AwaitingAcceptance > 0 || diagnostics.ExcludedCrewGroups > 0 || diagnostics.WithoutPlanItem > 0;
-
     private static void AddFactStrips(ActualWorksDiagnostics diagnostics, List<ProgressStrip> strips)
     {
-        var partial = IsPartial(diagnostics);
+        var partial = diagnostics.IsPartial();
         if (!partial && diagnostics.Unsubmitted == 0) return;
 
         // У этого адреса один отбор факта: раздел. Охват счётчиков поставщика всегда шире него.

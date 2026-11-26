@@ -85,7 +85,9 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
   if (!estimate.data) return <p className="text-body-medium text-on-surface-variant">Читаем смету…</p>;
 
   const data = estimate.data;
-  const shown = data.revisions.find(r => r.id === chosen) ?? latestRevision(data);
+  const linkedRevision = params.get('revision');
+  const shown = data.revisions.find(r => r.id === (chosen ?? linkedRevision)) ?? latestRevision(data);
+  const linkedQueue = shown?.id === linkedRevision && params.get('queue') === 'unmatched' ? 'unmatched' : 'all';
   const viewId = `estimate-${data.id}-view`;
   const revisionsId = `estimate-${data.id}`;
   return (
@@ -132,7 +134,8 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
                 <RevisionDistribution key={shown.id} revision={shown} constructionId={data.constructionId}
                   initialQueue={opening?.revisionId === shown.id && opening.mode === 'distribution' ? 'carry-over' : 'all'} />
               ) : (
-                <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
+                <RevisionLines key={`${shown.id}:${linkedQueue}`} revision={shown}
+                  initialQueue={opening?.revisionId === shown.id ? opening.queue : linkedQueue} />
               )}
               <EstimateDerivatives estimateId={data.id} revisionId={shown.id} />
             </TabPanel>

@@ -83,7 +83,11 @@ internal static class PlannedWorksMath
     {
         var list = rows.ToList();
         var volume = list.Sum(r => Round(Volume(r) * shares[r.Id].Weight(section), Quantities));
-        return new PlannedItem(item, list[0].UnitId!.Value, volume, [new PlannedShare(section, volume)], 0m, WithoutVolume(list));
+        var missing = WithoutVolume(list);
+        return new PlannedItem(item, list[0].UnitId!.Value, volume, [new PlannedShare(section, volume)], 0m, missing)
+        {
+            HasVolume = missing < list.Count,
+        };
     }
 
     private static PlannedItem Whole(Guid item, IEnumerable<PlannedRow> rows, IReadOnlyDictionary<Guid, RowShare> shares)
@@ -110,7 +114,11 @@ internal static class PlannedWorksMath
         List<PlannedShare> distribution =
             [.. bySection.Where(p => p.Value != 0m).OrderBy(p => p.Key).Select(p => new PlannedShare(p.Key, p.Value))];
         if (whole != 0m) distribution.Add(new PlannedShare(null, whole));
-        return new PlannedItem(item, list[0].UnitId!.Value, list.Sum(Volume), distribution, undistributed, WithoutVolume(list));
+        var missing = WithoutVolume(list);
+        return new PlannedItem(item, list[0].UnitId!.Value, list.Sum(Volume), distribution, undistributed, missing)
+        {
+            HasVolume = missing < list.Count,
+        };
     }
 
     public static IReadOnlyList<PlannedCost> Cost(

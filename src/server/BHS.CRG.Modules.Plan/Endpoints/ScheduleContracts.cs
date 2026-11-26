@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BHS.CRG.Modules.Exchange;
 
 namespace BHS.CRG.Modules.Plan.Endpoints;
 
@@ -21,12 +22,18 @@ internal sealed record ScheduleAssigneeDto(Guid Id, string Name, bool Archived);
 internal sealed record ScheduleDto(
     Guid Id, Guid ConstructionId, Guid? RevisionId, string Name, string Version, ScheduleSkipped Skipped,
     IReadOnlyList<ScheduleMark> Marks, IReadOnlyList<ScheduleWorkDto> Works, IReadOnlyList<ScheduleLinkDto> Links,
-    IReadOnlyList<ScheduleWarning> Warnings);
+    IReadOnlyList<ScheduleWarning> Warnings,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ActualWorksDiagnostics? FactDiagnostics = null);
 internal sealed record ScheduleWorkDto(
     Guid Id, Guid PlanItemId, Guid WorkTypeId, Guid UnitId, Guid? SourceRowId, Guid? SectionId, string Name,
     decimal? Volume, DateOnly? Start, DateOnly? End, IReadOnlyList<Guid> EmployeeIds, bool Manual, string Version,
     int? DurationWorkingDays, string? UnitName, IReadOnlyList<ScheduleAssigneeDto> Assignees,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ScheduleWarning>? Warnings);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ScheduleWarning>? Warnings,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScheduleWorkFact? Fact = null);
+
+internal sealed record ScheduleWorkFact(string State, decimal? Volume = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Permission = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null);
 
 internal sealed record ScheduleDifference(Guid? WorkId, Guid RowId, Guid? SectionId, string Name, decimal? Volume);
 internal sealed record ScheduleVolumeChange(

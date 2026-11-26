@@ -38,6 +38,20 @@ public static class PlanRows
         where estimate.ConstructionId == constructionId
         select row;
 
+    internal sealed record UnmatchedRevision(Guid EstimateId, string EstimateName, Guid RevisionId, int Number, int Count);
+
+    /// <summary>Источники счётчика несопоставленных строк для перехода к конкретным редакциям.</summary>
+    internal static IQueryable<UnmatchedRevision> UnmatchedByRevision(PlanDbContext db, Guid constructionId)
+    {
+        var counts = Unmatched(db, constructionId).GroupBy(row => row.RevisionId)
+            .Select(group => new { RevisionId = group.Key, Count = group.Count() });
+        return from count in counts
+               join revision in db.EstimateRevisions on count.RevisionId equals revision.Id
+               join estimate in db.Estimates on revision.EstimateId equals estimate.Id
+               orderby estimate.Name, estimate.Id
+               select new UnmatchedRevision(estimate.Id, estimate.Name, revision.Id, revision.Number, count.Count);
+    }
+
     /// <summary>
     /// Строки-материалы действующих редакций всех смет стройки (D2 <c>plan-31</c>): в план объёмов они не входят
     /// и позиции перечня не имеют, но их материалы и стоимость — часть сметы стройки. Их отдают «Плановые
