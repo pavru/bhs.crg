@@ -46,6 +46,10 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Modules.Plan/Import/EstimateRowMatching.cs"] = "сопоставление строк вернуло не столько строк, сколько получило (plan-07): промах реализации IEstimateRowMatcher (plan-08), а не отказ человеку",
         ["BHS.CRG.Modules.Plan/Data/EstimateAttachment.cs"] = "приложение из импорта без сметы (plan-11): EstimateAttach отказывает раньше по EstimateImport.NotAttachable — промах кода принятия, а не отказ человеку",
         ["BHS.CRG.Modules.Plan/Data/EstimateRevision.cs"] = "фиксация редакции без вида или названия производной (plan-06): промах кода КП и графика, который фиксирует, — человек фиксацию не зовёт",
+        ["BHS.CRG.Modules.Plan/Exchange/PlanProgressContribution.cs"] =
+            "свой IPlannedWorks отказал в объёмах после проверки plan.estimate.read (Plan-25): нарушен договор провайдера; штатный отказ читателю возвращается состоянием hidden",
+        ["BHS.CRG.Modules.Plan/Schedules/ScheduleFacts.cs"] =
+            "IActualWorks отказал как системе в авторизованном чтении графика (Plan-25): нарушен договор параметра доступа; выключенный модуль и отсутствие права уже возвращаются состояниями",
         ["BHS.CRG.Modules.Work/Data/WorkPlanItemLink.cs"] = "порт перечня не ответил по ключу ни позицией, ни отказом (work-13): нарушение договора порта, а не ошибка запроса — 500 и журнал, а не 400 человеку",
         ["BHS.CRG.Modules.Work/Data/ReportReads.cs"] = "чтение черновиков с истёкшим окном с параметром доступа не системы (work-15): его зовёт только автоподача, человеку адреса к нему нет — промах кода, а не отказ человеку",
         ["BHS.CRG.Modules.Work/Data/WorkDbContext.cs"] = "версия назначения у строки без отслеживания и замок стройки вне транзакции (work-11): промах кода адреса назначений, а не отказ человеку — оба ловят тесты назначений",
