@@ -96,6 +96,27 @@ it('на широкой панели показывает сроки выбра�
   expect(details.queryByText(/^20\sм$/)).toBeNull();
 });
 
+it('сохраняет шесть знаков плана и четыре знака факта, отличая их от нуля', async () => {
+  response = { ...payload, rows: [row('small', 'Провод', {
+    'plan:estimate': volume(0.000001), fact: volume(0.0001),
+  })] };
+  mount();
+  await screen.findByRole('rowheader', { name: /Провод/ });
+  expect(workRow('Провод').getByText('0,000001 м')).toBeTruthy();
+  expect(workRow('Провод').getByText('0,0001 м')).toBeTruthy();
+  expect(workRow('Провод').queryByText('0 м')).toBeNull();
+});
+
+it('на узкой панели показывает нужное право на факт даже при пустой таблице', async () => {
+  response = { ...payload, rows: [], strips: [], columns: [
+    { ...payload.columns[1], state: 'hidden', permission: 'work.facts.read' },
+  ] };
+  mount();
+  await screen.findByRole('table');
+  expect(screen.getByText('work.facts.read').closest('[role="status"]')).toBeTruthy();
+  expect(screen.queryByRole('complementary')).toBeNull();
+});
+
 it('запрашивает выбранный раздел и оставляет предупреждение в охвате стройки', async () => {
   mount();
   const filter = await screen.findByRole('combobox', { name: 'Раздел стройки' });

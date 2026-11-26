@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidateConstructionProgress } from './progress';
 import type { NomenclatureCandidates } from './nomenclatureCandidates';
 import type { NomenclatureSearchResult } from './invoices';
 import type { EstimateRow, HiddenPart, PlanMark } from './planningEstimates';
@@ -199,6 +200,7 @@ function useRevisionChanged() {
   return () => Promise.all([
     qc.invalidateQueries({ queryKey: ['planning', 'revisions'] }),
     qc.invalidateQueries({ queryKey: ['planning', 'estimates'] }),
+    invalidateConstructionProgress(qc),
   ]);
 }
 

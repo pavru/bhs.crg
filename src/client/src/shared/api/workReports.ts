@@ -1,10 +1,19 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { hasModule, hasPermission, type AccessInfo } from './access';
 import type { AssignmentCandidate, WorkLinePhotoRef } from './work';
 import type { ReviewReport, ReviewReportLine } from './workReview';
 import { parseSchemaFields, type SchemaField } from './schema';
 import type { DocumentType, EnumTypeDef, PrimitiveTypeDef } from './types';
+import { invalidateScheduleFacts } from './planningSchedules';
+import { invalidateConstructionProgress } from './progress';
+
+export function invalidateWorkProgress(client: QueryClient, constructionId: string) {
+  return Promise.all([
+    invalidateConstructionProgress(client, constructionId),
+    invalidateScheduleFacts(client, constructionId),
+  ]);
+}
 
 export type ReportShift = 'day' | 'night';
 export type ReportMode = 'own' | 'entry';

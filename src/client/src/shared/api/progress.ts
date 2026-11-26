@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 export interface FactDiagnostics {
@@ -56,9 +56,18 @@ export interface ConstructionProgress {
   costs: ProgressCosts;
 }
 
+const progressKey = ['construction-progress'] as const;
+const siteKey = (constructionId: string) => [...progressKey, constructionId] as const;
+
+export function invalidateConstructionProgress(client: QueryClient, constructionId?: string) {
+  return client.invalidateQueries({ queryKey: constructionId ? siteKey(constructionId) : progressKey });
+}
+
 export function useConstructionProgress(constructionId: string, sectionId?: string) {
   return useQuery({
-    queryKey: ['construction-progress', constructionId, sectionId ?? null],
+    queryKey: [...siteKey(constructionId), sectionId ?? null],
+    // Источники обновляются и в других вкладках, и на сервере. При возврате читаем текущий снимок.
+    staleTime: 0,
     queryFn: ({ signal }) => apiClient.get<ConstructionProgress>(`/constructions/${constructionId}/progress`, {
       params: sectionId ? { section: sectionId } : undefined, signal,
     }).then(result => result.data),

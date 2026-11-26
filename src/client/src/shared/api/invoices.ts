@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { API_BASE, apiClient } from './client';
 import { getToken } from './token';
 import { onWritten, writeMeta, type WriteContext } from './writeWatch';
+import { invalidateConstructionProgress } from './progress';
 
 /**
  * Счета модуля «Счета и накладные» (задача C1 этапа 2, issue #1076, ТЗ COST-6.2).
@@ -679,6 +680,7 @@ export function useInvoiceWrite<T extends { id: string }>(send: (input: T) => Pr
     onSuccess: view => {
       qc.setQueryData([QK, view.id], view);
       void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+      void invalidateConstructionProgress(qc);
     },
     onError: rereadOnConflict(qc),
   });
@@ -750,6 +752,7 @@ export function forgetInvoice(qc: QueryClient, id: string) {
   // оставшегося двойника в кэше лежит оговорка о дубликате со ссылкой на удалённый (ревью PR #1298).
   // Сам удалённый счёт под ключом уже не стоит, и заново его это не запросит.
   void qc.invalidateQueries({ queryKey: INVOICES_KEY });
+  void invalidateConstructionProgress(qc);
 }
 
 export function useCreateInvoice() {

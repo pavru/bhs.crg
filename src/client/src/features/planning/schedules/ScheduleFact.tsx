@@ -45,7 +45,7 @@ export function ScheduleFactNotice({ fact, diagnostics }: {
 export function ScheduleFactCell({ fact, unitName }: { fact?: ScheduleFact | null; unitName: string | null }) {
   if (fact?.state === 'hidden') return <span className="text-on-surface-variant">Скрыто правами</span>;
   if (fact?.state === 'partial' || fact?.state === 'ok') {
-    if (fact.volume != null) return <span className="tabular-nums">{formatQuantityUnit(fact.volume, unitName)}</span>;
+    if (fact.volume != null) return <span className="tabular-nums wrap-anywhere">{formatQuantityUnit(fact.volume, unitName, 4)}</span>;
     const text = fact.state === 'partial' ? 'Нет включённого объёма' : 'Нет учтённого объёма';
     return <Tooltip content={text}><span aria-label={text} className="text-on-surface-variant">—</span></Tooltip>;
   }

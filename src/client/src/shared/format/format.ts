@@ -180,9 +180,10 @@ export function formatQuantity(value: number): string {
 }
 
 /** Количество с единицей: «40 м»; без единицы — одно число. Одно правило для матрицы, разноски и окон о строке. */
-export function formatQuantityUnit(value: number, unit: string | null | undefined): string {
+export function formatQuantityUnit(value: number, unit: string | null | undefined, maxFractionDigits?: number): string {
   const name = unit?.trim();
-  return name ? `${formatQuantity(value)} ${name}` : formatQuantity(value);
+  const quantity = maxFractionDigits === undefined ? formatQuantity(value) : formatNumber(value, maxFractionDigits);
+  return name ? `${quantity} ${name}` : quantity;
 }
 
 /**

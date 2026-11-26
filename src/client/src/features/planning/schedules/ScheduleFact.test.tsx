@@ -19,7 +19,7 @@ it('без Work показывает состояние подключения �
 });
 
 it('показывает включённый объём и причины неполного факта в охвате стройки', () => {
-  const shown = { state: 'partial', volume: 12 } as const;
+  const shown = { state: 'partial', volume: 0.0001 } as const;
   render(<>
     <ScheduleFactNotice fact={shown} diagnostics={diagnostics} />
     <ScheduleFactCell fact={shown} unitName="м" />
@@ -28,7 +28,7 @@ it('показывает включённый объём и причины не�
   expect(screen.getByText('Факт неполный')).toBeTruthy();
   expect(screen.getByText('Диагностика факта по всей стройке за весь период')).toBeTruthy();
   expect(screen.getByText(/разные позиции, разделы или единицы: 2/)).toBeTruthy();
-  expect(screen.getByText(/^12\sм$/)).toBeTruthy();
+  expect(screen.getByText('0,0001 м')).toBeTruthy();
   expect(screen.getByLabelText('Нет включённого объёма')).toBeTruthy();
   expect(screen.queryByText(/^0\sм$/)).toBeNull();
 });

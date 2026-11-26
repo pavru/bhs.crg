@@ -20,7 +20,7 @@ function cellText(column: ProgressColumn, row: ProgressRow) {
   if (column.state === 'hidden' || column.state === 'not-available') return null;
   const value = row.cells[column.code];
   return column.kind === 'Dates' ? datesText(value)
-    : value?.volume == null ? null : formatQuantityUnit(value.volume, row.unitName);
+    : value?.volume == null ? null : formatQuantityUnit(value.volume, row.unitName, column.code === 'fact' ? 4 : 6);
 }
 
 function emptyText(column: ProgressColumn) {
@@ -38,7 +38,7 @@ function valueCell(column: ProgressColumn, row: ProgressRow, detail = false) {
     {column.text || 'Данные недоступны'}
   </span>;
   const text = cellText(column, row);
-  if (text !== null) return <span className="tabular-nums">{text}</span>;
+  if (text !== null) return <span className="tabular-nums wrap-anywhere">{text}</span>;
   if (detail) return <span className="text-on-surface-variant">{emptyText(column)}</span>;
   return <Tooltip content={emptyText(column)}><span aria-label={emptyText(column)} className="text-on-surface-variant">—</span></Tooltip>;
 }
@@ -46,7 +46,7 @@ function valueCell(column: ProgressColumn, row: ProgressRow, detail = false) {
 function gridColumn(column: ProgressColumn, wide: boolean): DataGridColumn<ProgressRow> {
   return {
     key: column.code, label: column.title, align: 'right', width: wide ? 'w-36' : 'w-22',
-    wrap: column.state === 'hidden' || column.state === 'not-available',
+    wrap: true,
     header: <span className="inline-flex flex-col whitespace-normal">
       {column.title}
       {column.state === 'partial' && <span className="text-label-small text-on-surface-variant">

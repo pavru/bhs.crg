@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { formatMoney } from '@/shared/format/format';
-import type { ProgressCosts, ProgressStrip } from '@/shared/api/progress';
+import type { ProgressColumn, ProgressCosts, ProgressStrip } from '@/shared/api/progress';
 import { Banner } from '@/shared/ui/Banner';
 import { LinkOff, ReceiptLong, VisibilityOff } from '@/shared/ui/icons';
 
@@ -36,18 +36,25 @@ function CostsStrip({ costs, sectionId }: { costs: ProgressCosts; sectionId: str
   </Banner>;
 }
 
-export function ProgressStrips({ strips, costs, sectionId, partial }: {
-  strips: ProgressStrip[]; costs: ProgressCosts; sectionId: string | null; partial: boolean;
+export function ProgressStrips({ strips, costs, sectionId, columns, partial }: {
+  strips: ProgressStrip[]; costs: ProgressCosts; sectionId: string | null; columns: ProgressColumn[]; partial: boolean;
 }) {
   const factNotes = strips.filter(strip => strip.code.startsWith('fact-'));
   const disconnected = strips.filter(strip => strip.state === 'not-connected');
   const other = strips.filter(strip => !strip.code.startsWith('fact-') && strip.state !== 'not-connected');
+  const hiddenColumns = columns.filter(column => column.state === 'hidden'
+    && !other.some(strip => strip.state === 'hidden' && strip.permission === column.permission));
   return <div className="grid min-w-0 gap-3">
     {factNotes.length > 0 && <Banner tone="warning">
       {partial && <strong className="block text-label-large">Факт неполный</strong>}
       {factNotes.map(strip => <span key={strip.code} className="block">{strip.text}</span>)}
     </Banner>}
     {disconnected.map(strip => <Banner key={strip.code} tone="info" icon={LinkOff}>{strip.text}</Banner>)}
+    {hiddenColumns.length > 0 && <Banner tone="info" icon={VisibilityOff}>
+      {hiddenColumns.map(column => <span key={column.code} className="block">
+        {column.title} · <ProgressHidden permission={column.permission} />
+      </span>)}
+    </Banner>}
     <div className={other.length > 0 ? 'grid min-w-0 gap-3 @3xl:grid-cols-2 @3xl:items-start' : undefined}>
       {other.length > 0 && <Banner tone={other.some(strip => strip.state === 'partial') ? 'warning' : 'info'}>
         {other.map((strip, index) => <span key={`${strip.code}/${index}`} className="block"><StripContent strip={strip} /></span>)}

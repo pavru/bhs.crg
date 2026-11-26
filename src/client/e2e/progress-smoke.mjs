@@ -9,6 +9,10 @@ const { check, summarize } = createChecks();
 const browser = await launchBrowser();
 const entry = '/work/entry/reports';
 const desktop = { width: 1280, height: 900 };
+const smallVolume = 0.0001;
+const smallText = /^0[,.]0001\sм$/;
+const largeVolume = 12_345_678.125;
+const largeText = /^12[\s,]345[\s,]678[,.]125\sм$/;
 
 async function createUser(admin, label, role) {
   const email = `p25-${label}-${suffix}@bhs.local`;
@@ -72,7 +76,7 @@ async function prepare(admin, workEnabled) {
   });
   const draft = await api('POST', entry, {
     id: randomUUID(), employeeId: employee.id, constructionId: site.id, date: construction.today, shift: 'day', hours: 8,
-    lines: [line(measured, first, 31.5), line(extra, second, 6.25), line(pending, second, 937.75, true)],
+    lines: [line(measured, first, smallVolume), line(extra, second, largeVolume), line(pending, second, 937.75, true)],
   });
   const submitted = await versioned(admin, `${entry}/${draft.id}/submit`, draft.version);
   await versioned(admin, `/work/reports/${draft.id}/accept`, submitted.version);
@@ -119,6 +123,7 @@ try {
       }
     }
     await estimatorPage.getByText('costs.totals.read', { exact: true }).waitFor();
+    if (workEnabled) await estimatorPage.getByRole('status').getByText('work.facts.read', { exact: true }).waitFor();
     assert.equal(await estimatorPage.getByText(/Разнесено.*оплачено/).count(), 0);
     await managerPage.getByText(/Разнесено.*оплачено/).waitFor();
     await managerPage.getByText('Привязано к работам · не ведётся', { exact: true }).waitFor();
@@ -140,18 +145,18 @@ try {
       const inspector = managerPage.getByRole('complementary', { name: 'Подробности работы' });
       await work(managerPage, extra.displayName).click();
       await inspector.getByRole('heading', { name: extra.displayName }).waitFor();
-      await inspector.getByText(/^6[,.]25\sм$/).waitFor();
+      await inspector.getByText(largeText).waitFor();
       assert.equal(await table.getByText(/937[,.]75/).count(), 0);
       const selection = managerPage.getByRole('combobox', { name: 'Раздел стройки' });
       await selection.click();
       await managerPage.getByRole('option', { name: 'Первый корпус' }).click();
-      await work(managerPage, measured.displayName).getByText(/^31[,.]5\sм$/).waitFor();
+      await work(managerPage, measured.displayName).getByText(smallText).waitFor();
       await inspector.getByRole('heading', { name: measured.displayName }).waitFor();
       await warning(managerPage).waitFor();
       await managerPage.getByText(/Бригадных групп.*итог не утверждён: 1/).waitFor();
       assert.equal(await work(managerPage, extra.displayName).count(), 0);
       await managerPage.goto(`${BASE}${parent}/sections/${second.id}/progress`);
-      await work(managerPage, extra.displayName).getByText(/^6[,.]25\sм$/).waitFor();
+      await work(managerPage, extra.displayName).getByText(largeText).waitFor();
       assert.equal(await managerPage.getByRole('combobox', { name: 'Раздел стройки' }).count(), 0);
     });
     await check('mobile-keeps-plan-and-fact-in-the-same-viewport', async () => {
@@ -160,13 +165,20 @@ try {
         await managerPage.goto(BASE + path);
         const row = work(managerPage, measured.displayName);
         await row.getByText('Срок по графику', { exact: false }).waitFor();
-        await row.getByText(/^31[,.]5\sм$/).waitFor();
+        await row.getByText(smallText).waitFor();
         const table = managerPage.getByRole('table');
         await table.scrollIntoViewIfNeeded();
         for (const name of [/План по смете/, /Факт по учёту/]) {
           const cell = await table.getByRole('columnheader', { name }).boundingBox();
           assert(cell && cell.x >= 0 && cell.x + cell.width <= 390, `Колонка ${name} вышла за экран`);
         }
+        const longAmount = work(managerPage, extra.displayName).getByText(largeText);
+        assert(await longAmount.evaluate(element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const cell = element.closest('td').getBoundingClientRect();
+          return Array.from(range.getClientRects()).every(rect => rect.left >= cell.left && rect.right <= cell.right);
+        }), 'Длинное значение вышло за пределы ячейки');
         assert.equal(await managerPage.getByRole('complementary', { name: 'Подробности работы' }).count(), 0);
       } finally {
         await managerPage.setViewportSize(desktop);
@@ -180,11 +192,11 @@ try {
       const data = await callApiOk(facts, 'GET', `${apiPath}?section=${first.id}`);
       assert.equal(data.costs.state, 'hidden');
       assert.equal('totals' in data.costs, false);
-      assert.equal(data.rows.find(row => row.workTypeId === measured.id).cells.fact.volume, 31.5);
+      assert.equal(data.rows.find(row => row.workTypeId === measured.id).cells.fact.volume, smallVolume);
       assert.equal(data.factDiagnostics.excludedCrewGroups, 1);
       await facts.goto(BASE + path);
-      await work(facts, measured.displayName).getByText(/^31[,.]5\sм$/).waitFor();
-      await work(facts, extra.displayName).getByText(/^6[,.]25\sм$/).waitFor();
+      await work(facts, measured.displayName).getByText(smallText).waitFor();
+      await work(facts, extra.displayName).getByText(largeText).waitFor();
       await warning(facts).waitFor();
       assert.equal(await facts.getByRole('complementary', { name: 'Подробности работы' }).count(), 0);
       assert.equal(await facts.getByText(/Разнесено.*оплачено|937[,.]75/).count(), 0);
@@ -199,7 +211,7 @@ try {
     await managerPage.getByRole('heading', { name: graph.name }).waitFor();
     if (workEnabled) {
       await managerPage.getByRole('columnheader', { name: 'Факт · включённый объём' }).waitFor();
-      await managerPage.getByText(/^31[,.]5\sм$/).waitFor();
+      await managerPage.getByText(smallText).waitFor();
       await managerPage.getByLabel('Нет включённого объёма').waitFor();
       await warning(managerPage).waitFor();
     } else {

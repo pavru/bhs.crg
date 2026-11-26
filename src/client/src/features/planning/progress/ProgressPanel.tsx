@@ -37,6 +37,7 @@ function ProgressContent({ constructionId, sectionId }: { constructionId: string
     </Banner>}
     {data && <>
       <ProgressStrips strips={data.strips} costs={data.costs} sectionId={data.sectionId}
+        columns={data.columns}
         partial={data.columns.some(column => column.code === 'fact' && column.state === 'partial')} />
       <h3 className="text-title-medium">Виды работ</h3>
       <ProgressGrid columns={data.columns} rows={data.rows} section={data.sectionId !== null} />

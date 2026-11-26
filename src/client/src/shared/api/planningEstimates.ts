@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidateConstructionProgress } from './progress';
 import type { DistributionCounts } from './planningDistribution';
 import type { CommonDataEntry } from './types';
 import { directoryMissingOf, type DirectoryMissingRefusal } from './directoryMissing';
@@ -280,6 +281,7 @@ export function useMakeCurrentRevision() {
     onSuccess: estimate => {
       qc.setQueryData([...KEY, 'one', estimate.id], estimate);
       void qc.invalidateQueries({ queryKey: KEY });
+      void invalidateConstructionProgress(qc, estimate.constructionId);
     },
     // 409 и 404 — смету тем временем изменили или удалили: перечитывается она и предпросмотр, иначе окно
     // предлагало бы повторить по тем же устаревшим цифрам.

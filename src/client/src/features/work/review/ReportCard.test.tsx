@@ -141,15 +141,23 @@ it('требует комментарий и перечитывает карто
 
 it.each([
   ['Принять', 'accepted'], ['Вернуть', 'returned'],
-] as const)('после решения «%s» помечает кэш сводки устаревшим', async (label, status) => {
+] as const)('после решения «%s» обновляет выборки факта по стройке', async (label, status) => {
   vi.mocked(apiClient.post).mockResolvedValue({ data: { id: card.id, status, version: 'v2' } });
   const queryClient = mount();
   const summary = [...WORK_SUMMARY_KEY, { from: '2026-11-23', to: '2026-11-23', construction: 's1', offset: 0 }];
-  queryClient.setQueryData(summary, { rows: [] });
+  const affected = [
+    summary, ['construction-progress', 's1', null], ['construction-progress', 's1', 'section'],
+    ['planning', 'schedules', 's1', 'graph'],
+  ];
+  const other = ['construction-progress', 's2', null];
+  for (const key of [...affected, other]) queryClient.setQueryData(key, {});
   const dialog = await openDecision(label);
   if (label === 'Вернуть') fireEvent.change(dialog.getByRole('textbox', { name: 'Что исправить' }), { target: { value: 'Уточните место' } });
   fireEvent.click(dialog.getByRole('button', { name: label }));
-  await waitFor(() => expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(true));
+  await waitFor(() => {
+    for (const key of affected) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+  expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
 });
 
 it('правит объём с версией чтения и сохраняет прочие поля строки и ссылки на фото', async () => {

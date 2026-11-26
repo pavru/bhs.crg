@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidateConstructionProgress } from './progress';
 import type { Estimate, EstimateKind, HiddenPart, PlanMark } from './planningEstimates';
 import type { CarryOverCountsInfo } from './planningDistribution';
 
@@ -193,6 +194,7 @@ export function useCommitImport() {
       qc.setQueryData([...KEY, 'one', done.import.id], done.import);
       void qc.invalidateQueries({ queryKey: [...KEY, 'construction', done.import.constructionId] });
       void qc.invalidateQueries({ queryKey: ['planning', 'estimates'] });
+      void invalidateConstructionProgress(qc, done.import.constructionId);
     },
     // Импорт тем временем изменили или отменили — окно перечитывает отчёт, а не повторяет по прежнему.
     onError: (_e, { id }) => { void qc.invalidateQueries({ queryKey: [...KEY, 'one', id] }); },
