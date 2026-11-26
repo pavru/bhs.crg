@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { hasPermission, type AccessInfo } from '@/shared/api/access';
 import { useCostsArticles } from '@/shared/api/articles';
 import { useCostsConstructions } from '@/shared/api/invoices';
 import type { TableColumn } from '@/shared/api/tables';
@@ -40,8 +41,13 @@ const TABLE_KNOWN: Readonly<Record<string, Builders>> = {
  * Перечни по ключу колонки; колонки без перечня в нём нет. `columns` — объявление таблицы из кэша
  * запроса: та же ссылка, пока описание не перечитали.
  */
-export function useTableKnown(address: string, columns: readonly TableColumn[]): Readonly<Record<string, ColumnKnown>> {
-  const builders = Object.hasOwn(TABLE_KNOWN, address) ? TABLE_KNOWN[address] : undefined;
+export function useTableKnown(
+  address: string, columns: readonly TableColumn[], access: AccessInfo,
+): Readonly<Record<string, ColumnKnown>> {
+  // Реестр доступен за воротами модуля, а оба справочника подсказок требуют права читать счета.
+  const builders = hasPermission(access, 'costs.invoice.read') && Object.hasOwn(TABLE_KNOWN, address)
+    ? TABLE_KNOWN[address]
+    : undefined;
   const wanted = useMemo(
     () => columns.flatMap(c => {
       const build = (c.sites ? builders?.sites : undefined) ?? (c.sections ? builders?.sections : undefined);

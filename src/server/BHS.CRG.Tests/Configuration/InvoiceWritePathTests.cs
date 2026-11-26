@@ -34,6 +34,9 @@ public class InvoiceWritePathTests
         ["Endpoints/WaybillCorrection.cs"] =
             (1, "исправление накладной (issue #1340) — внутри WaybillDesk.CorrectAsync, входа исправления связки: " +
                 "замок периода, отказ «исправление не нужно», право и версия формы у него свои"),
+        ["Endpoints/PurchaseRequestEndpoints.cs"] =
+            (5, "пишутся только заявки и их строки. Существующая заявка сверяет If-Match в ForWriteAsync. " +
+                "К учётному периоду заявки не относятся (Plan-26)"),
         ["Endpoints/InvoiceDesk.cs"] =
             (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
         ["Endpoints/InvoiceDesk.Correction.cs"] =

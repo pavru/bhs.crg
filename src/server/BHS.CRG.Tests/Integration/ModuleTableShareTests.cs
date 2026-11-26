@@ -198,18 +198,21 @@ public sealed class ModuleTableShareTests(InvoiceLineHost host) : ModuleTableSee
     }
 
     /// <summary>Подпись смысла — только тому, кто колонку видит: закрытой подписывать нечего.</summary>
-    [Fact]
-    public async Task Закрытая_сумма_приходит_с_причиной_а_не_с_подписью_доли()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("ProjectManager")]
+    public async Task Закрытая_сумма_приходит_с_причиной_а_не_с_подписью_доли(string? role)
     {
         var (admin, _) = await SignInAsync("Admin");
         var seed = await SeedSharesAsync(admin);
-        var (narrow, _) = await SignInAsync(await RoleAsync("costs.waybill.read"));
+        var (narrow, _) = await SignInAsync(role ?? await RoleAsync("costs.waybill.read"));
 
         var table = await ReadAsync(narrow, $"columns=Номер,{Amount}&totals={Amount}&filter={Own(seed, Is(seed.A))}");
 
         var amount = Column(table, Amount);
         Assert.Equal("no-right", amount.GetProperty("unavailable").GetString());
         Assert.Equal(JsonValueKind.Null, amount.GetProperty("note").ValueKind);
+        Assert.NotEmpty(table.GetProperty("rows").EnumerateArray());
         Assert.All(table.GetProperty("rows").EnumerateArray(), r => Assert.False(r.TryGetProperty(Amount, out _)));
         Assert.False(table.GetProperty("totals").TryGetProperty(Amount, out _));
     }

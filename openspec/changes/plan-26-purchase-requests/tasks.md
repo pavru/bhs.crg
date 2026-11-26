@@ -9,7 +9,9 @@
   заявки со строками и продолжением нумерации
 - [x] 1.2 Права `costs.request.read` (`ReadAllMark.In`), `costs.request.edit` (`Out`) в `CostsModule`.
   Проверка [COST-28] — тест состава `/api/account/access` по
-  ролям; `CostsOnlyHostTests` — число прав и объяснение
+  ролям; `CostsOnlyHostTests` — число прав и объяснение. Менеджер проекта получает доступ к модулю
+  с правами заявок. Реестр оставляет доступный отбор, причины скрытых сумм и ввод значения вручную.
+  Подсказки справочников реестра запрашиваются только под правом чтения счетов.
 - [x] 1.3 `POST /api/costs/requests/draft-from-estimate` через `IPlannedWorks` (часть `materials`) и
   `IssuedMaterials`: «по смете − отпущено», `issuedExceeds`, `unitMismatch`, «скрыто правами», `plan`
   выключен — 409 [COST-5.1]. Проверка — `PurchaseRequestTests`: 100 − 30 = 70; 120 отпущено — 0 и
