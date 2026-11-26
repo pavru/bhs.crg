@@ -1,6 +1,6 @@
 # Proposal: контракт «Фактические работы» — форма и поставщик `work`
 
-Дочерний change зонтика `work-00-epic`, общая архитектура — `../work-00-epic/design.md` (D3, D4, D13).
+Дочерний change зонтика `work-00-epic`, общая архитектура — `../../work-00-epic/design.md` (D3, D4, D13).
 
 ## Why
 
