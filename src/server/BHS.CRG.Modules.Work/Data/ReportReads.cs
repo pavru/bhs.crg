@@ -425,15 +425,22 @@ public sealed partial class ReportReads(WorkDbContext db)
          where line.IsCrew && line.WorkTypeId == crew.WorkTypeId
          orderby report.Id, line.Position
          select new CrewGroupLine(crew.Id, report.Id, report.EmployeeId, line.Id, line.VariantId, line.Volume,
-             line.UnitId, line.CrewRole!, line.Participants.Select(p => p.EmployeeId).ToList())).ToListAsync(ct);
+             line.UnitId, line.CrewRole!, line.Participants.Select(p => p.EmployeeId).ToList(),
+             line.WorkPlanItemId, line.SectionId, report.Status == ReportStatus.Accepted)).ToListAsync(ct);
 
     internal Task<List<CrewSubmittedEmployee>> CrewSubmittedEmployeesAsync(ReportViewer viewer,
-        IQueryable<CrewGroupRecord> groups, CancellationToken ct) =>
-        (from crew in groups
-         from report in Visible(viewer).AsNoTracking()
-         where report.ConstructionId == crew.ConstructionId && report.Date == crew.Date && report.Shift == crew.Shift
-               && (report.Status == ReportStatus.Submitted || report.Status == ReportStatus.Accepted)
-         select new CrewSubmittedEmployee(crew.Id, report.EmployeeId)).ToListAsync(ct);
+        IQueryable<CrewGroupRecord> groups, IReadOnlyList<CrewGroupLine> lines, CancellationToken ct)
+    {
+        var participants = lines.SelectMany(l => l.Participants).Distinct().ToArray();
+        if (participants.Length == 0) return Task.FromResult(new List<CrewSubmittedEmployee>());
+
+        // Достаточно одного отчёта сотрудника за смену, бригадные строки для этого не обязательны.
+        return Visible(viewer).AsNoTracking()
+            .Where(r => participants.Contains(r.EmployeeId)
+                && (r.Status == ReportStatus.Submitted || r.Status == ReportStatus.Accepted)
+                && groups.Any(g => g.ConstructionId == r.ConstructionId && g.Date == r.Date && g.Shift == r.Shift))
+            .Select(r => new CrewSubmittedEmployee(new(r.ConstructionId, r.Date, r.Shift), r.EmployeeId)).ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyDictionary<ReportStatus, int>> ClosingCountsAsync(
         ModuleReader system, ModuleClosingScope scope, CancellationToken ct)

@@ -15,7 +15,7 @@ namespace BHS.CRG.Modules.Work.Crew;
 
 internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleReaders readers, ManagerSites managers,
     IModuleEmployees employees, IModuleUnits units, IModuleConstructions constructions, IModuleWorkTypes workTypes,
-    ReportJournal journal, ReportPeople people, TimeProvider time)
+    IModulePlanItems planItems, ReportJournal journal, ReportPeople people, TimeProvider time)
 {
     private const string Path = "/api/work/crew-groups";
     private const string NotFound = "Группа сверки не найдена.";
@@ -55,6 +55,7 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         var unitIds = lines.Select(l => l.UnitId).Concat(groups.Where(g => g.UnitId.HasValue).Select(g => g.UnitId!.Value))
             .Distinct().ToArray();
         var measures = unitIds.Length == 0 ? [] : await units.GetAsync(unitIds, ct) ?? [];
+        var sectionIds = lines.Select(l => l.SectionId).OfType<Guid>().ToHashSet();
         return Results.Ok(new
         {
             items,
@@ -63,6 +64,8 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
             workTypes = types.ToDictionary(t => t.Id, t => t.DisplayName),
             workVariants = types.SelectMany(t => t.Variants).Where(v => variantIds.Contains(v.Id)).ToDictionary(v => v.Id, v => v.Name),
             units = measures.ToDictionary(u => u.Id, u => u.Name),
+            sections = sites.Where(s => siteIds.Contains(s.Id)).SelectMany(s => s.Sections)
+                .Where(s => sectionIds.Contains(s.Id)).ToDictionary(s => s.Id, s => s.Name),
         });
     }
 
@@ -92,12 +95,18 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         if (groups.Count == 0) return ([], [], []);
         var lines = await reads.CrewLinesAsync(viewer, query, ct);
         var byGroup = lines.ToLookup(l => l.GroupId);
-        var submitted = (await reads.CrewSubmittedEmployeesAsync(viewer, query, ct)).ToLookup(s => s.GroupId, s => s.EmployeeId);
+        var submitted = (await reads.CrewSubmittedEmployeesAsync(viewer, query, lines, ct)).ToLookup(s => s.Shift, s => s.EmployeeId);
+        var positions = await CrewPublication.ReadPositionsAsync(planItems, lines.Select(l => l.PlanItemId), ct);
         await tx.CommitAsync(ct);
 
         var names = await NamesAsync(lines, ct);
-        var items = groups.Select(g => View(g, byGroup[g.Id].ToList(), Unsubmitted(byGroup[g.Id], submitted[g.Id]),
-            approves?.Covers(g.ConstructionId, own: false) == true, names)).ToList();
+        var items = new List<object>(groups.Count);
+        foreach (var group in groups)
+        {
+            var rows = byGroup[group.Id].ToArray();
+            var publication = CrewPublication.Classify(group, rows, submitted[group.ShiftKey], positions);
+            items.Add(View(group, rows, publication, approves?.Covers(group.ConstructionId, own: false) == true, names));
+        }
         return (items, groups, lines);
     }
 
@@ -127,7 +136,7 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
         ReportRules.EnsureVolume("Итог группы", "total", total);
         var unitId = unitIds.Single();
         var names = await NamesAsync(rows, ct);
-        var submitted = await reads.CrewSubmittedEmployeesAsync(viewer, query, ct);
+        var positions = await CrewPublication.ReadPositionsAsync(planItems, rows.Select(l => l.PlanItemId), ct);
         var before = group.Total;
         var now = time.GetUtcNow();
         var change = Guid.NewGuid();
@@ -138,9 +147,13 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
             journal.AppendCrewApproval(line.ReportId, line.EmployeeId, group.Id, before, total, UnitName(unitId),
                 actor, NameOf(line.EmployeeId, names), change, seq, now);
         }
+        // Приёмка держит замок сотрудника. После захвата всех этих замков видны приёмки, завершившиеся до утверждения.
+        var currentRows = await reads.CrewLinesAsync(viewer, query, ct);
+        var submitted = await reads.CrewSubmittedEmployeesAsync(viewer, query, currentRows, ct);
+        var publication = CrewPublication.Classify(group, currentRows, submitted.Select(s => s.EmployeeId), positions);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        return Results.Ok(View(group, rows, Unsubmitted(rows, submitted.Select(s => s.EmployeeId)), true, names));
+        return Results.Ok(View(group, currentRows, publication, true, names));
     }
 
     private async Task<Dictionary<Guid, string>> NamesAsync(IEnumerable<CrewGroupLine> lines, CancellationToken ct)
@@ -153,15 +166,13 @@ internal sealed class CrewGroups(WorkDbContext db, ReportReads reads, IModuleRea
 
     private static string VersionOf(CrewGroupRecord group) => group.Version.ToString(CultureInfo.InvariantCulture);
 
-    private static int Unsubmitted(IEnumerable<CrewGroupLine> lines, IEnumerable<Guid> submitted) =>
-        lines.SelectMany(l => l.Participants).Except(submitted).Count();
-
-    private static object View(CrewGroupRecord g, IReadOnlyList<CrewGroupLine> rows, int unsubmitted, bool canApprove,
+    private static object View(CrewGroupRecord g, IReadOnlyList<CrewGroupLine> rows, CrewPublication publication, bool canApprove,
         IReadOnlyDictionary<Guid, string> names) => new
     {
         g.Id, g.ConstructionId, g.Date, shift = Report.ShiftCode(g.Shift), g.WorkTypeId,
         version = VersionOf(g), state = g.State, mismatch = rows.Select(l => l.Volume).Distinct().Skip(1).Any(),
-        g.Total, g.UnitId, g.ApprovedBy, g.ApprovedByName, g.ApprovedAt, unsubmitted,
+        g.Total, g.UnitId, g.ApprovedBy, g.ApprovedByName, g.ApprovedAt, publication.Unsubmitted,
+        publication = new { publication.Published, publication.Reason, publication.Keys, publication.Accepted, publication.Participating },
         actions = canApprove && g.State != "approved" && rows.Count > 0 ? new[] { "approve" } : [],
         lines = rows.Select(l => new
         {

@@ -1,10 +1,12 @@
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules.Data;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Exchange;
 using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Review;
 using BHS.CRG.Modules.Work.Closing;
@@ -69,6 +71,8 @@ public sealed class WorkModule : IAppModule
     /// </summary>
     public const string ReportRead = "work.report.read";
 
+    public const string FactsRead = "work.facts.read";
+
     public string Code => ModuleCode;
 
     public string Title => "Учёт работ";
@@ -76,12 +80,8 @@ public sealed class WorkModule : IAppModule
     /// <summary>
     /// Права модуля (ТЗ WORK-45, WORK-46) — каждое с объяснением: галку в редакторе ролей ставит человек.
     ///
-    /// <para>⚠️ Здесь шесть прав из восьми (D2 зонтика
-    /// <c>work-00-epic</c>): право объявляется вместе с первым адресом, который оно открывает.
-    /// <c>work.facts.read</c> — право
-    /// контракта — с «Фактическими работами» (<c>work-27</c>), <c>work.devices.manage</c> — с этапом 5.
-    /// Объявленное раньше, право было бы галкой, которая не делает ничего, — а «Инженер ИД» с одним
-    /// <c>work.facts.read</c> до признака права контракта у него получил бы пустой модуль.</para>
+    /// <para>Право объявляется вместе с первым адресом или контрактом, который оно открывает
+    /// (D2 зонтика <c>work-00-epic</c>). Право управления устройствами появится с этапом 5.</para>
     ///
     /// <para>Двери есть у четырёх: назначения (<c>work.assignment.edit</c>, <c>work-11</c>), свои отчёты
     /// (<c>work.report.own</c>) и ввод за сотрудника (<c>work.report.review</c>, <c>work-13</c>), чтение всех отчётов
@@ -136,6 +136,12 @@ public sealed class WorkModule : IAppModule
             "открывает. Принятые объёмы без часов и людей другим модулям выдаёт своё право контракта",
             ["core.constructions.read", "core.employees.read"],
             ReadAllMark.In),
+
+        new(FactsRead,
+            "читать принятые объёмы по всем стройкам, без часов и сотрудников",
+            "даёт другим модулям текущий факт по позициям перечня и числовую диагностику исключений",
+            [],
+            ReadAllMark.Out("модуль «Учёт работ» не открывает"), Contract: true),
     ];
 
     /// <summary>
@@ -151,8 +157,7 @@ public sealed class WorkModule : IAppModule
     /// (CORE-8); сотрудники — монтажник есть сотрудник учётной записи (WORK-47), и дверь к их реквизитам
     /// — только их экран (C15, <c>work-01</c>).
     ///
-    /// <para>Учётный период (WORK-15) дописывает <c>work-19</c>, «Ход работ» — <c>work-27</c>, каждый своей
-    /// строкой и вместе с тем, что модуль там показывает.</para>
+    /// <para>Раздел «Ход работ» объявляется вместе с экраном в <c>plan-25</c>.</para>
     /// </summary>
     public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
 
@@ -213,6 +218,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
+        services.AddModuleContract<IActualWorks, ActualWorksProvider>(ModuleCode);
         services.AddScoped<WorkTableReaders>();
         services.AddScoped<Summary.SummaryQuery>();
         services.AddScoped<WorkTableNames>();

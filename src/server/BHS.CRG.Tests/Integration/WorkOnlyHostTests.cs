@@ -122,14 +122,14 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     public async Task Work_permissions_are_declared_with_explanations_and_reach_the_database()
     {
         // Право объявляется вместе с первым адресом, который оно открывает (D2 зонтика work-00-epic).
-        // work.facts.read — work-27, work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
+        // work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
         // своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
         var work = await ModuleOnlyChecks.DeclaredAndStoredAsync(host, WorkModule.ModuleCode,
-            [WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+            [WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
                 WorkModule.SitesAll],
             "id", "costs", "plan");
 
-        Assert.All(work, p => Assert.False(p.Contract, $"«{p.Code}» — права контракта каркас не объявляет."));
+        Assert.Equal([WorkModule.FactsRead], work.Where(p => p.Contract).Select(p => p.Code));
         // В «читать всё» входит одно чтение отчётов; остальные пишут (AUTH-5.2, WORK-39).
         Assert.Equal([WorkModule.ReportRead], work.Where(p => p.ReadAll is { Included: true }).Select(p => p.Code));
     }
@@ -147,6 +147,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
             // себестоимость сметы у plan. Запись постоянная.
             [WorkModule.SitesAll] =
                 "не дверь, а граница внутри адресов назначений (work-11) и приёмки (work-16): «на любых стройках»",
+            [WorkModule.FactsRead] = "право контракта «Фактические работы» (work-27), без двери Work",
         });
 
     /// <summary>
@@ -163,19 +164,18 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     ///   в его составе появится на этапе 5.</item>
     ///   <item>«Руководитель» — чтение всех отчётов через «читать всё» (AUTH-5.2).</item>
     ///   <item>«Инженер ИД» и «Производитель работ» — модуля нет: у них в составе только
-    ///   <c>work.facts.read</c>, право контракта, которое ещё не объявлено (<c>work-27</c>) и модуль не
-    ///   откроет и после (AUTH-8.1).</item>
+    ///   <c>work.facts.read</c>, право контракта (work-27, AUTH-8.1).</item>
     /// </list>
     /// </summary>
     [Theory]
     [InlineData(SystemRoles.Admin, true,
-        WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+        WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
         WorkModule.SitesAll)]
     [InlineData("Installer", true, WorkModule.ReportOwn)]
-    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.CrewApprove, WorkModule.ReportReview)]
+    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportReview)]
     [InlineData("Executive", true, WorkModule.ReportRead)]
-    [InlineData(SystemRoles.IdEngineer, false)]
-    [InlineData("WorksManager", false)]
+    [InlineData(SystemRoles.IdEngineer, false, WorkModule.FactsRead)]
+    [InlineData("WorksManager", false, WorkModule.FactsRead)]
     [InlineData("Estimator", false)]
     [InlineData("Supplier", false)]
     [InlineData("Accountant", false)]

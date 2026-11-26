@@ -58,6 +58,8 @@ public class IsolatedReadInventoryTests
             "группы сверки (work-18) читаются в охвате строек вместе с уже поданными строками",
         ["BHS.CRG.Modules.Work/Data/ReportReads.Versions.cs"] =
             "история исправлений (work-19) читается только в охвате отчёта и с учётом видимости его содержимого",
+        ["BHS.CRG.Modules.Work/Data/ReportReads.ActualWorks.cs"] =
+            "факт без людей (WORK-39, work-27): стройка и даты по праву контракта, наружу только объёмы и счётчики",
     };
 
     /// <summary>Изолированная запись: имя типа и её таблица (или представление); null — таблицы нет.</summary>

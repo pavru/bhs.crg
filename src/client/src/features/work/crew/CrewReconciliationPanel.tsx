@@ -1,12 +1,13 @@
 import { useId, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import type { CrewGroup, CrewGroupsPage, CrewLine } from '@/shared/api/work';
+import type { CrewGroup, CrewGroupsPage, CrewLine, CrewPublication } from '@/shared/api/work';
 import { CREW_GROUPS_KEY, useCrewGroups } from '@/shared/api/workCrew';
 import { REVIEW_CARD_KEY, REVIEW_JOURNAL_KEY, REVIEW_QUEUE_KEY } from '@/shared/api/workReview';
 import { formatCount, formatDate, formatDateTime, formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { DateRange } from '@/shared/ui/DateRange';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -23,6 +24,48 @@ const states: Record<CrewGroup['state'], { text: string; tone: StatusTone }> = {
   stale: { text: 'Требует решения', tone: 'warning' },
 };
 
+const exclusions: Record<NonNullable<CrewPublication['reason']>, string> = {
+  empty: 'В группе нет текущих поданных строк.',
+  'not-approved': 'Группа ждёт утверждения итога.',
+  stale: 'После утверждения изменились строки или состав группы. Нужно повторное утверждение.',
+  'awaiting-acceptance': 'Приёмка участвующих отчётов ещё не завершена.',
+  'invalid-key': 'Позиция перечня или единица измерения не согласована со строками группы.',
+  'multiple-keys': 'В строках группы разные позиции перечня.',
+};
+
+function PublicationSummary({ group, page, title }: { group: CrewGroup; page: CrewGroupsPage; title: string }) {
+  const { published, reason, keys, accepted, participating } = group.publication;
+  const unit = group.unitId && page.units[group.unitId];
+  return <Card variant="filled">
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="min-w-0 space-y-1">
+        <h3 className="text-title-small">Итог сверки</h3>
+        {group.total != null && <p className="text-body-medium">
+          {group.state === 'stale' ? 'Прежний итог' : 'Итог'} · {formatNumber(group.total, 4)}{unit && ` ${unit}`}
+          {group.approvedByName && ` · ${group.approvedByName}`}
+          {group.approvedAt && ` · ${formatDateTime(group.approvedAt)}`}
+        </p>}
+        <p className="text-body-medium">Принято отчётов · {formatCount(accepted)} из {formatCount(participating)}</p>
+        {group.unsubmitted > 0 && <p className="text-body-medium">Не подали отчёт · {formatCount(group.unsubmitted)}</p>}
+      </div>
+      <div className="min-w-0 space-y-1">
+        <h3 className="text-title-small">Факт по перечню работ</h3>
+        <StatusText tone={published ? 'success' : 'warning'}>{published ? 'Включён в факт' : 'Не включён в факт'}</StatusText>
+        {reason && <p className="text-body-medium">{exclusions[reason]}</p>}
+        {keys.length > 0 && <ul className="space-y-1 text-body-medium" aria-label="Позиции перечня">
+          {keys.map(key => <li key={`${key.planItemId}/${key.sectionId}/${key.unitId}`}>
+            {key.valid ? title : 'Негодная ссылка на позицию'} · {page.units[key.unitId] ?? 'Единица недоступна'}
+            <span className="block text-on-surface-variant sm:inline">
+              <span className="hidden sm:inline"> · </span>
+              {key.sectionId === null ? 'Стройка в целом' : page.sections[key.sectionId] ?? 'Раздел недоступен'}
+            </span>
+          </li>)}
+        </ul>}
+      </div>
+    </div>
+  </Card>;
+}
+
 function CrewGroupSection({ group, page, title, shift, canReadReports, onApprove }: {
   group: CrewGroup;
   page: CrewGroupsPage;
@@ -36,7 +79,6 @@ function CrewGroupSection({ group, page, title, shift, canReadReports, onApprove
   const [params] = useSearchParams();
   const reportPath = (line: CrewLine) => `/work-review/${encodeURIComponent(line.reportId)}?${params}`;
   const status = states[group.state];
-  const unit = group.unitId && page.units[group.unitId];
   const columns: DataGridColumn<CrewLine>[] = [
     { key: 'fullName', label: 'Сотрудник', rowHeader: true, wrap: true },
     { key: 'crewRole', label: 'Роль', cell: line => line.crewRole === 'lead' ? 'Бригадир' : 'Участник' },
@@ -55,15 +97,10 @@ function CrewGroupSection({ group, page, title, shift, canReadReports, onApprove
           <StatusText tone={status.tone}>{status.text}</StatusText>
           {group.mismatch && <StatusText tone="warning" icon={Group}>Есть расхождение в объёмах</StatusText>}
         </div>
-        {group.unsubmitted > 0 && <p className="text-body-medium">Не подали отчёт · {formatCount(group.unsubmitted)}</p>}
-        {group.total != null && <p className="text-body-medium">
-          {group.state === 'stale' ? 'Прежний итог' : 'Итог'} · {formatNumber(group.total, 4)}{unit && ` ${unit}`}
-          {group.approvedByName && ` · ${group.approvedByName}`}
-          {group.approvedAt && ` · ${formatDateTime(group.approvedAt)}`}
-        </p>}
       </div>
       {group.actions.includes('approve') && <Button variant="tonal" onClick={onApprove}>Утвердить итог</Button>}
     </div>
+    <PublicationSummary group={group} page={page} title={title} />
     {group.lines.length > 0 ? <DataGrid columns={columns} rows={group.lines} rowKey={line => line.id}
       onRowOpen={canReadReports ? line => navigate(reportPath(line)) : undefined}
       rowLink={canReadReports ? line => ({ to: reportPath(line), label: `Открыть отчёт · ${line.fullName}` }) : undefined} />
