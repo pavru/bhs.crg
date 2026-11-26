@@ -28,8 +28,9 @@ public static class CoreSections
     public const string Datasets = "datasets";
     public const string Periods = "periods";
     public const string Reconciliations = "reconciliations";
+    public const string Progress = "progress";
 
-    public static readonly IReadOnlyList<string> All = [Constructions, Catalog, Employees, Datasets, Periods, Reconciliations];
+    public static readonly IReadOnlyList<string> All = [Constructions, Catalog, Employees, Datasets, Periods, Reconciliations, Progress];
 
     /// <summary>
     /// Объявление модуля годно: только известные коды и без повторов. Негодное — отказ при старте:

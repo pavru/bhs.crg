@@ -159,7 +159,8 @@ public sealed class WorkModule : IAppModule
     ///
     /// <para>Раздел «Ход работ» объявляется вместе с экраном в <c>plan-25</c>.</para>
     /// </summary>
-    public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees];
+    public IReadOnlyList<string> UsesSections =>
+        [CoreSections.Constructions, CoreSections.Catalog, CoreSections.Employees, CoreSections.Progress];
 
     public IReadOnlyList<ModuleRoleNeed> Needs =>
     [

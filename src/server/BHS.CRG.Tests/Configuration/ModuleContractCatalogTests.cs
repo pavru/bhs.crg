@@ -259,4 +259,15 @@ public class ModuleContractCatalogTests
         Assert.Equal("Плановые работы", declaration.Title);
         Assert.False(declaration.Many);
     }
+
+    [Fact]
+    public void Колонки_хода_работ_объявлены_контрактом_со_многими_поставщиками()
+    {
+        using var sp = Build(Supplier, [typeof(IProgressContribution)], Supplying(null));
+        var contract = Assert.Single(sp.GetRequiredService<BHS.CRG.Api.Modules.ModuleContractCatalog>().ManyProviders);
+
+        Assert.Same(typeof(IProgressContribution), contract.Interface);
+        Assert.Equal("Колонка Хода работ", contract.Title);
+        Assert.Null(contract.Declaration.Provider);
+    }
 }

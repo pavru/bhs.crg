@@ -24,15 +24,15 @@ public class CoreSectionsTests
 
         Assert.All(registry.Enabled, m => Assert.NotEmpty(m.UsesSections));
         // Счета без строек и справочников: пространство «Счета» не показало бы, куда разносить счёт.
-        Assert.Equal(["constructions", "catalog", "employees", "periods"], new CostsModule().UsesSections);
+        Assert.Equal(["constructions", "catalog", "employees", "periods", "progress"], new CostsModule().UsesSections);
         // Планирование без строек — пространство без «Строек» и без карточки с «Работами» («Сметы»,
         // «График»); без справочников — без видов работ и номенклатуры, с которыми сопоставляют смету.
-        // Учётного периода у смет нет; «Ход работ» дописывает plan-25 своей константой.
-        Assert.Equal(["constructions", "catalog", "employees"], new PlanModule().UsesSections);
+        Assert.Equal(["constructions", "catalog", "employees", "progress"], new PlanModule().UsesSections);
         // Учёт работ без строек — без назначений (WORK-21); без справочников — без классификатора видов
         // работ, из которого строка отчёта выбирает работу (CORE-8); монтажник — сотрудник (WORK-47).
-        // Учётный период дописывает work-19, «Ход работ» — work-27, каждый своей строкой.
-        Assert.Equal(["constructions", "catalog", "employees"], new WorkModule().UsesSections);
+        Assert.Equal(["constructions", "catalog", "employees", "progress"], new WorkModule().UsesSections);
+        Assert.Single(CoreSections.All, section => section == CoreSections.Progress);
+        Assert.DoesNotContain(CoreSections.Progress, new IdModule().UsesSections);
         // Сотрудники — в каждом пространстве со справочниками: после C15 «Общие данные» сотрудника не
         // пишут, и пространство без раздела «Сотрудники» осталось бы без двери к ним (work-01).
         Assert.All(registry.Enabled.Where(m => m.UsesSections.Contains("catalog")),

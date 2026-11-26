@@ -23,7 +23,7 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 {
-    /// <summary>Пути справочников ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
+    /// <summary>Пути справочников ядра. Все адреса под ними перечислены поимённо и принадлежат ядру.</summary>
     private static readonly string[] DirectoryPrefixes =
         ["/api/constructions", "/api/sections", "/api/common-data", "/api/catalog", "/api/employees"];
 
@@ -33,6 +33,9 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/constructions/{id:guid}/purge",
         "GET /api/constructions/",
         "GET /api/constructions/{id:guid}",
+        // «Ход работ» — чтение сводки ядра по стройке (PLAN-21). Вклад выключенного модуля
+        // отсутствует, остальные по-прежнему доступны. Записи модулей меняются по их адресам.
+        "GET /api/constructions/{id:guid}/progress",
         // Лёгкий справочник строек — только id и имя (issue #1218): его берёт шапка «Избранных
         // строек» на каждом экране, в том числе на экранах модулей. Это чтение самого справочника,
         // и при выключенном модуле он обязан оставаться на месте.
@@ -143,7 +146,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 
         Assert.True(unexpected.Count == 0,
             "Под путями справочника ядра появился новый адрес: " + string.Join(", ", unexpected) + ".\n" +
-            "Если он правит стройку или раздел — допишите его в список. Если он заводит или правит\n" +
+            "Если адрес принадлежит справочнику или сводке ядра — объясните его в списке. Если он заводит или правит\n" +
             "что-то другое (комплект, документ, отчёт), ему здесь не место: под префиксом ядра он\n" +
             "переживёт выключение своего модуля и будет работать в отсутствие того, чем правит.");
 

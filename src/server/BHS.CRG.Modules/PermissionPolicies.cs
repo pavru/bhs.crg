@@ -13,7 +13,7 @@ namespace BHS.CRG.Modules;
 public sealed class PermissionRequirement(IReadOnlyList<string> codes) : IAuthorizationRequirement
 {
     public IReadOnlyList<string> Codes { get; } = codes;
-    public override string ToString() => AppPolicies.AnyPermission([.. Codes]);
+    public override string ToString() => Codes.Count == 0 ? "нет прав поставщиков" : AppPolicies.AnyPermission([.. Codes]);
 }
 
 /// <summary>Требование «у пользователя есть доступ к модулю <paramref name="code" />».</summary>
@@ -123,6 +123,7 @@ public sealed class PermissionHandler(IUserPermissions permissions)
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
+        if (requirement.Codes.Count == 0) return;
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
         if (requirement.Codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)))
             context.Succeed(requirement);

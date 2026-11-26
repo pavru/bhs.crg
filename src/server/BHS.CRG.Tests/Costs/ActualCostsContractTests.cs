@@ -6,6 +6,7 @@ using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Tests.Integration;
+using BHS.CRG.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Costs;
@@ -49,6 +50,17 @@ public class ActualCostsContractTests(InvoiceLineHost host) : InvoiceLineTestBas
         var report = await ReportAsync(admin, site);
         Assert.Equal(report.Spent, totals.Paid);
         Assert.Equal(report.Spent + report.Payable, totals.Allocated);
+
+        using var progressReader = await GrantedSignIn.WithPermissionsAsync(host, CostsModule.TotalsRead);
+        var progress = await progressReader.GetFromJsonAsync<JsonElement>($"/api/constructions/{site}/progress?section={sections[0]}");
+        var costs = progress.GetProperty("costs");
+        Assert.Equal("ok", costs.GetProperty("state").GetString());
+        var sectionTotals = costs.GetProperty("totals");
+        Assert.Equal(40_000m, sectionTotals.GetProperty("allocated").GetDecimal());
+        Assert.Equal(40_000m, sectionTotals.GetProperty("paid").GetDecimal());
+        var linked = sectionTotals.GetProperty("linkedToWorks");
+        Assert.Equal("not-tracked", linked.GetProperty("state").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(linked.GetProperty("reason").GetString()));
     }
 
     /// <summary>
