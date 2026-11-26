@@ -58,7 +58,7 @@ public sealed class PlanModule : IAppModule
     public const string EstimateMaterials = "plan.estimate.materials";
 
     /// <summary>Право контракта (ТЗ PLAN-23, WORK-57): нормы чел.-ч позиций сметы без денег — «по смете — фактически».</summary>
-    public const string LaborRead = "plan.labor.read";
+    public const string LaborRead = PlannedLabor.Permission;
 
     /// <summary>
     /// Право контракта (ТЗ PLAN-23, WORK-59): позиции номенклатуры материалов сметы стройки без количеств и
