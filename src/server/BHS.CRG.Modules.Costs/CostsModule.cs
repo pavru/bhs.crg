@@ -37,6 +37,9 @@ namespace BHS.CRG.Modules.Costs;
 /// </summary>
 public sealed class CostsModule : IAppModule
 {
+    public const string RequestRead = "costs.request.read";
+    public const string RequestEdit = "costs.request.edit";
+
     public const string ModuleCode = "costs";
 
     /// <summary>
@@ -102,7 +105,6 @@ public sealed class CostsModule : IAppModule
     ///   решение владельца 28.09.2026): оно выключено по умолчанию, то есть его можно не делать
     ///   вовсе до первого спроса. Право без поведения в редакторе ролей обещает шаг, которого
     ///   нет.</item>
-    ///   <item><c>costs.request.*</c> — заявки на закупку живут этапом 3 (нужен <c>plan</c>).</item>
     /// </list>
     ///
     /// <para>Неизвестные коды в <c>SystemRoles</c> пропускаются при наполнении роли до объявления права.</para>
@@ -120,12 +122,25 @@ public sealed class CostsModule : IAppModule
     /// Поэтому раскрытие составного <c>*.read.all</c> объявляется явной пометкой у каждого права
     /// (задача A3, issue #1074), а не угадывается по суффиксу кода.</para>
     ///
-    /// <para>В «читать всё» входят три права: счета, накладные и отчёты по затратам. Вместе они
+    /// <para>В «читать всё» входят права на счета, накладные, заявки и отчёты по затратам. Вместе они
     /// открывают всё, что в модуле можно ПРОЧЕСТЬ, включая суммы; ни одно не стоит на изменяющем
     /// адресе — это сверяет <c>ReadAllWritesNothingTests</c> по адресам живого приложения.</para>
     /// </summary>
     public IReadOnlyList<AppPermission> Permissions =>
     [
+        new(RequestRead,
+            "видеть заявки на закупку, их строки и состояние",
+            "все заявки экземпляра и количества в их строках; счета и сметы открываются своими правами",
+            ["core.constructions.read", "core.catalog.read"],
+            ReadAllMark.In),
+
+        new(RequestEdit,
+            "создавать заявки из материалов сметы, править строки черновика, подавать и закрывать заявки",
+            "для предложения нужны права на материалы сметы; вычитается отпуск по всей стройке. Автор может " +
+            "вернуть поданную заявку в черновик с причиной",
+            [RequestRead, "plan.estimate.materials"],
+            ReadAllMark.Out("создаёт, меняет и удаляет черновики заявок, переводит заявки между состояниями")),
+
         new("costs.invoice.read",
             "видеть счета на оплату: реестр, строки, разноску, состояние и срок оплаты",
             "все счета экземпляра вместе с суммами — кто поставщик, за что и сколько; построчной " +
@@ -331,6 +346,7 @@ public sealed class CostsModule : IAppModule
         // поднимается вовсе — и это лучше, чем объявление, прочитанное однажды и устаревшее.
         services.AddSingleton<IModuleActivityActions, InvoiceActions>();
         services.AddSingleton<IModuleActivityActions, WaybillActions>();
+        services.AddSingleton<IModuleActivityActions, PurchaseRequestActions>();
 
         // Стройки и статьи — цели разноски (F3, issue #1087). Областью запроса: читает порты ядра, а те
         // живут областью запроса.
@@ -345,6 +361,8 @@ public sealed class CostsModule : IAppModule
         // переход «разобран» и список, называющий в строке, чего черновику не хватает.
         services.AddScoped<InvoiceSnapshots>();
         services.AddScoped<WaybillDesk>();
+        services.AddScoped<PurchaseRequestEstimate>();
+        services.AddScoped<PurchaseRequestLines>();
 
         // Путь «скан → черновик» (B1b, issue #1077): служба и её фоновая операция. Обработчик
         // регистрируется по интерфейсу порта — постановка операции без исполнителя есть отказ сразу.
@@ -433,6 +451,7 @@ public sealed class CostsModule : IAppModule
         ArticleEndpoints.MapArticles(endpoints);
         WaybillEndpoints.MapWaybills(endpoints);
         WaybillCorrection.Map(endpoints);
+        PurchaseRequestEndpoints.Map(endpoints);
     }
 
     /// <summary>

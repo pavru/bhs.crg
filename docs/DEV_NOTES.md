@@ -7308,6 +7308,28 @@ GET    /api/costs/nomenclature/{id}/card  → КАРТОЧКА позиции (i
                                       номенклатура / удалена — 404, справочник не назначен — 409. Для
                                       человека: сравнивать по этим строкам код не должен
 
+# Заявки на закупку (Plan-26), модуль Costs
+GET    /api/costs/requests?constructionId=&beforeNumber=  → { items, nextBeforeNumber }  costs.request.read
+GET    /api/costs/requests/{id}  → { id, number, constructionId, createdBy, createdAt, updatedAt,
+                                      status: draft|submitted|closed, version, lines }  costs.request.read
+POST   /api/costs/requests/draft-from-estimate  { constructionId, sectionId? | planItemIds? }  costs.request.edit
+       sectionId — раздел стройки. Передаётся ровно один вид отбора. Ответ без записи:
+       { state: "shown", suggestion: { selection, warnings, unmatchedIssued, unmatchedEstimate,
+         undecidedEstimate, lines: [{ nomenclatureId, planItemId, unit, estimateQuantity,
+         compatibleIssuedQuantity, quantity, issuedExceeds, unitMismatch }] } }
+       или { state: "hidden", permission, message } без сметных строк. Отпуск считается по всей стройке,
+       другие заявки количество не резервируют. compatibleIssuedQuantity = null, когда единица
+       отсутствует либо партии отпуска есть только в несовместимых единицах.
+POST   /api/costs/requests  { constructionId, sectionId? | planItemIds?, lines }  → 201  costs.request.edit
+       Сохраняет подтверждённые строки: [{ nomenclatureId, planItemId?, quantity, unit, note? }].
+       Создание и предложение без Plan дают 409. Существующие заявки доступны при выключенном Plan.
+PUT    /api/costs/requests/{id}/lines  { lines }  → заявка; заменяет строки черновика
+POST   /api/costs/requests/{id}/submit | /close  → заявка; черновик → подана → закрыта
+POST   /api/costs/requests/{id}/return  { reason }  → заявка; возврат поданной автором с причиной в журнале
+DELETE /api/costs/requests/{id}  → 204; удаляет черновик
+       Все четыре вида правок существующей заявки требуют costs.request.edit и If-Match.
+       Заголовок отсутствует или неверно записан — 400; устаревшая версия или неверное состояние — 409.
+
 # Модуль plan — сметы (change plan-06-estimate-model). Чтение — plan.estimate.read, правка —
 # plan.estimate.edit. Деньги (cost: стоимость единицы, итог, сметное наполнение data, цена и стоимость
 # материала, итог редакции) — только с plan.estimate.cost; без права их нет вовсе, а в ответе есть

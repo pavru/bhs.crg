@@ -22,6 +22,15 @@ public static class CostsReferences
 
     public static IReadOnlyList<ModuleReference> All =>
     [
+        ModuleReference.Holding("purchase_requests", "construction_id", ReferenceTarget.Construction,
+            "заявки на закупку для этой стройки"),
+        ModuleReference.Remembering("purchase_requests", "created_by", ReferenceTarget.User,
+            "автор заявки — справочное поле; удаление учётной записи заявки не касается"),
+        ModuleReference.Holding("purchase_request_lines", "nomenclature_id", ReferenceTarget.Record,
+            "строки заявок на закупку с этой позицией номенклатуры"),
+        ModuleReference.Holding("purchase_request_lines", "plan_item_id", ReferenceTarget.WorkPlanItem,
+            "строки заявок на закупку, взятые из материалов этой позиции перечня"),
+
         // Накладные (D1, issue #1083).
         ModuleReference.Holding("waybills", "construction_id", ReferenceTarget.Construction,
             "накладные на эту стройку", Waybill("id")),

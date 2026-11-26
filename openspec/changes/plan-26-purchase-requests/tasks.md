@@ -2,22 +2,26 @@
 
 ## 1. PR 1: заявка
 
-- [ ] 1.1 `Modules.Costs/Data/PurchaseRequest.cs`, `PurchaseRequestLine.cs`, конфигурация в
+- [x] 1.1 `Modules.Costs/Data/PurchaseRequest.cs`, `PurchaseRequestLine.cs`, конфигурация в
   `CostsDbContext`, миграция `PurchaseRequests`
   (`dotnet ef migrations add PurchaseRequests --project src/server/BHS.CRG.Modules.Costs --context CostsDbContext`)
-  [COST-5.1]. Проверка — на пересозданной базе старт применяет миграцию
-- [ ] 1.2 Права `costs.request.read` (`ReadAllMark.In`), `costs.request.edit` (`Out`) в `CostsModule`;
-  комментарий `CostsModule.cs:78` переписан [COST-28]. Проверка — тест состава `/api/account/access` по
+  [COST-5.1]. Проверка — старт на чистой базе, обновление с контрольной накладной и восстановление
+  заявки со строками и продолжением нумерации
+- [x] 1.2 Права `costs.request.read` (`ReadAllMark.In`), `costs.request.edit` (`Out`) в `CostsModule`.
+  Проверка [COST-28] — тест состава `/api/account/access` по
   ролям; `CostsOnlyHostTests` — число прав и объяснение
-- [ ] 1.3 `POST /api/costs/requests/draft-from-estimate` через `IPlannedWorks` (часть `materials`) и
+- [x] 1.3 `POST /api/costs/requests/draft-from-estimate` через `IPlannedWorks` (часть `materials`) и
   `IssuedMaterials`: «по смете − отпущено», `issuedExceeds`, `unitMismatch`, «скрыто правами», `plan`
   выключен — 409 [COST-5.1]. Проверка — `PurchaseRequestTests`: 100 − 30 = 70; 120 отпущено — 0 и
-  пометка; без права — `hidden`; без `plan` — 409
-- [ ] 1.4 Чтение, сохранение, правка строк, переходы, удаление черновика под `costs.request.*` с
+  пометка; без права — `hidden`; без `plan` — 409. По решению от 27.11.2026 также проверить долю
+  раздела стройки 40 из 100, совместный и раздельный выбор позиций, повторный расчёт, неизвестные
+  и разные единицы и все предупреждения об охвате и отсутствии резервирования
+- [x] 1.4 Чтение, сохранение, правка строк, переходы, удаление черновика под `costs.request.*` с
   `If-Match` [COST-5.1]. Проверка — тот же тест: без `If-Match` — 400, устаревшая — 409, правка
-  подданной — 409, только чтение — 403, без модуля — 501; `RecordWriteGuardCoverageTests`,
+  поданной — 409, только чтение — 403, без модуля — 501. Параллельная замена строк и запись причины
+  возврата в журнал. `RecordWriteGuardCoverageTests`,
   `EndpointGateInventoryTests` зелёные
-- [ ] 1.5 Объявления ссылок `CORE-34.1` (номенклатура, позиция перечня, стройка) в `CostsReferences.cs`
+- [x] 1.5 Объявления ссылок `CORE-34.1` (номенклатура, позиция перечня, стройка) в `CostsReferences.cs`
   [CORE-34.1]. Проверка — `ModuleReferenceInventoryTests` зелёный; удаление номенклатуры строки заявки —
   отказ с числом
 
@@ -37,7 +41,8 @@
 - [ ] 3.2 `shared/api/purchaseRequests.ts`: чтение, предложение, правка с `If-Match`, разбор
   400/403/409/422 [COST-5.1]. Проверка — vitest на разбор отказов
 - [ ] 3.3 `features/costs/requests/*`: список на `DataGrid`, карточка, мастер (`Modal wide`), пометки
-  `issuedExceeds`, `unitMismatch`, состояние «скрыто правами»; пункт «Заявки» в разделе затрат [COST-5.1].
+  `issuedExceeds`, `unitMismatch`, состояние «скрыто правами», выбор раздела стройки и предупреждения
+  об общем отпуске и отсутствии резервирования; пункт «Заявки» в разделе затрат [COST-5.1].
   Проверка — vitest: `hidden` — подпись с правом, а не пустой список
 - [ ] 3.4 Выбор заявки в шапке счёта [COST-5.1]. Проверка — vitest: заявки только своей стройки
 - [ ] 3.5 Живой прогон `src/client/e2e/purchase-requests-smoke.mjs` под «Снабженцем»; вписать в

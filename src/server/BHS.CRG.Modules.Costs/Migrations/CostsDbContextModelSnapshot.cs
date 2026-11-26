@@ -752,6 +752,114 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.ToTable("invoice_versions", "costs");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.PurchaseRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Number"));
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_purchase_requests_number");
+
+                    b.HasIndex("ConstructionId", "Number")
+                        .HasDatabaseName("ix_purchase_requests_site_number");
+
+                    b.ToTable("purchase_requests", "costs");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.PurchaseRequestLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("NomenclatureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("nomenclature_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("PlanItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_item_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("unit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NomenclatureId")
+                        .HasDatabaseName("ix_purchase_request_lines_nomenclature");
+
+                    b.HasIndex("PlanItemId")
+                        .HasDatabaseName("ix_purchase_request_lines_plan_item");
+
+                    b.HasIndex("RequestId", "Position")
+                        .HasDatabaseName("ix_purchase_request_lines_order");
+
+                    b.ToTable("purchase_request_lines", "costs", t =>
+                        {
+                            t.HasCheckConstraint("ck_purchase_request_lines_quantity", "quantity >= 0");
+                        });
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.SupplierMatch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1107,6 +1215,15 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.PurchaseRequestLine", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.PurchaseRequest", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.WaybillLine", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Costs.Data.Waybill", null)
@@ -1123,6 +1240,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasForeignKey("RecordId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.PurchaseRequest", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }
