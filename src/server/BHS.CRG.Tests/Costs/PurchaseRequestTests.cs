@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
@@ -255,26 +256,49 @@ public sealed partial class PurchaseRequestTests(PurchaseRequestHost host) : ICl
     }
 
     [Fact]
-    public async Task Восстановление_возвращает_строки_и_продолжает_нумерацию()
+    public async Task Восстановление_возвращает_строки_связь_со_счётом_и_продолжает_нумерацию()
     {
         var (site, material, item, _) = await SeedAsync(100);
+        using var scope = host.Services.CreateScope();
+        await new WorkTypeSeed(host).TypeAsync(TestDirectories.OrganizationCode, "Организация");
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+        await scope.ServiceProvider.ProjectModuleTypesAsync();
         using var supplier = await SupplierAsync();
         var draft = await CreateAsync(supplier, site.Construction, item, material);
-        using var scope = host.Services.CreateScope();
+        var invoiceView = await ReadAsync(
+            await supplier.PostAsJsonAsync("/api/costs/invoices",
+                new { requisites = new Dictionary<string, string> { ["Номер"] = "Проверка копии" } }),
+            HttpStatusCode.Created);
+        var invoiceId = invoiceView.GetProperty("id").GetGuid();
+        var requestId = draft.GetProperty("id").GetGuid();
+        using (var link = host.Services.CreateScope())
+        {
+            var db = link.ServiceProvider.GetRequiredService<CostsDbContext>();
+            var invoice = await db.Invoices.SingleAsync(invoice => invoice.Id == invoiceId);
+            // Состояние после возврата поданной заявки со счётом в черновик.
+            db.Entry(invoice).Property(row => row.PurchaseRequestId).CurrentValue = requestId;
+            await db.SaveChangesAsync();
+        }
+
+        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(draft), null, HttpStatusCode.Conflict);
         var backup = scope.ServiceProvider.GetRequiredService<BackupService>();
         var (export, _) = await backup.ExportAsync(BackupScope.Full);
         await using var archive = export;
 
-        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(draft), null, HttpStatusCode.NoContent);
         using (var reset = host.Services.CreateScope())
         {
             var db = reset.ServiceProvider.GetRequiredService<CostsDbContext>();
+            await db.Invoices.Where(invoice => invoice.Id == invoiceId).ExecuteDeleteAsync();
             await db.Database.ExecuteSqlRawAsync("ALTER SEQUENCE costs.purchase_requests_number_seq RESTART WITH 1");
         }
+        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(draft), null, HttpStatusCode.NoContent);
         using (var restore = host.Services.CreateScope())
         {
             var report = await restore.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(archive);
             Assert.True(report.Success, string.Join("; ", report.Warnings));
+            var db = restore.ServiceProvider.GetRequiredService<CostsDbContext>();
+            var invoice = await db.Invoices.AsNoTracking().SingleAsync(invoice => invoice.Id == invoiceId);
+            Assert.Equal(requestId, invoice.PurchaseRequestId);
         }
 
         var restored = await supplier.GetFromJsonAsync<JsonElement>(Address(draft));

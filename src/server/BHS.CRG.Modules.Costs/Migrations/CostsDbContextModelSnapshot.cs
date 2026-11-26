@@ -114,6 +114,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("text")
                         .HasColumnName("payment_document");
 
+                    b.Property<Guid?>("PurchaseRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("purchase_request_id");
+
                     b.Property<string>("Purpose")
                         .HasColumnType("text")
                         .HasColumnName("purpose");
@@ -223,6 +227,9 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.HasIndex("PayerId")
                         .HasDatabaseName("ix_invoices_payer")
                         .HasFilter("payer_id IS NOT NULL");
+
+                    b.HasIndex("PurchaseRequestId")
+                        .HasDatabaseName("ix_invoices_purchase_request_id");
 
                     b.HasIndex("ScanFingerprint")
                         .HasDatabaseName("ix_invoices_scan_fingerprint")
@@ -1192,6 +1199,14 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasDatabaseName("ux_waybill_versions_number");
 
                     b.ToTable("waybill_versions", "costs");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.Invoice", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.PurchaseRequest", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceAllocation", b =>

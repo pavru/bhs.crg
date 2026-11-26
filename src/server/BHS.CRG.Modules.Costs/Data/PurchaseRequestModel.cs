@@ -21,6 +21,12 @@ internal static class PurchaseRequestModel
         request.HasIndex(r => r.Number).IsUnique().HasDatabaseName("ux_purchase_requests_number");
         request.HasIndex(r => new { r.ConstructionId, r.Number }).HasDatabaseName("ix_purchase_requests_site_number");
 
+        var invoice = builder.Entity<Invoice>();
+        invoice.Property(i => i.PurchaseRequestId).HasColumnName("purchase_request_id");
+        invoice.HasOne<PurchaseRequest>().WithMany().HasForeignKey(i => i.PurchaseRequestId)
+            .OnDelete(DeleteBehavior.Restrict);
+        invoice.HasIndex(i => i.PurchaseRequestId).HasDatabaseName("ix_invoices_purchase_request_id");
+
         var line = builder.Entity<PurchaseRequestLine>();
         line.ToTable("purchase_request_lines", table =>
             table.HasCheckConstraint("ck_purchase_request_lines_quantity", "quantity >= 0"));
@@ -47,5 +53,15 @@ internal static class PurchaseRequestModel
         returned.Property(saved => saved.AuthorName).HasColumnName("author_name");
         returned.Property(saved => saved.OccurredAt).HasColumnName("occurred_at");
         returned.Property(saved => saved.Reason).HasColumnName("reason").HasMaxLength(PurchaseRequestLine.NoteLength);
+    }
+
+    public static async Task LockAsync(CostsDbContext db, Guid id, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Заявка запирается только внутри транзакции.");
+
+        await db.Database.SqlQuery<Guid>(
+                $"SELECT id AS \"Value\" FROM costs.purchase_requests WHERE id = {id} FOR UPDATE")
+            .ToListAsync(ct);
     }
 }
