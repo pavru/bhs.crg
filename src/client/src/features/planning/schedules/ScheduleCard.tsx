@@ -15,6 +15,7 @@ import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { ManualScheduleWorkDialog } from './ManualScheduleWorkDialog';
 import { RebuildByDistributionDialog } from './RebuildByDistributionDialog';
 import { ScheduleEmployeeDialog } from './ScheduleEmployeeDialog';
+import { ScheduleFactNotice } from './ScheduleFact';
 import { ScheduleGantt } from './ScheduleGantt';
 import { ScheduleLinksDialog } from './ScheduleLinksDialog';
 import { SchedulePrintDialog } from './SchedulePrintDialog';
@@ -149,7 +150,9 @@ function ScheduleContents({ schedule, sections, reload }: {
     || (section === WHOLE_SITE ? work.sectionId === null : work.sectionId === section));
   const filters = warningFilters(group.flatMap(work => warnings.get(work.id) ?? []));
   const filtered = warningCode === null ? group : group.filter(work => warnings.get(work.id)?.some(w => w.code === warningCode));
-  const rows = edit && !filtered.some(work => work.id === edit.baseline.id) ? [...filtered, edit.baseline] : filtered;
+  const editingWork = edit && (schedule.works.find(work => work.id === edit.baseline.id) ?? { ...edit.baseline, fact: null });
+  const rows = editingWork && !filtered.some(work => work.id === editingWork.id) ? [...filtered, editingWork] : filtered;
+  const fact = schedule.works.find(work => work.fact)?.fact;
   const calendarGaps = [...new Set(group.flatMap(work => warnings.get(work.id) ?? [])
     .filter(warning => warning.code === 'calendar-missing').map(warning => warning.text))];
   const distribution = schedule.marks.find(mark => mark.code === 'distribution-changed');
@@ -158,6 +161,7 @@ function ScheduleContents({ schedule, sections, reload }: {
     links={schedule.links} warnings={warnings} onOpen={workId => { setSelectedWorkId(workId); setView('list'); }} />
     : <div ref={table} tabIndex={-1} className="min-w-0">
       <ScheduleWorksGrid rows={rows} sections={sections} warnings={warnings} links={schedule.links}
+        factState={fact?.state}
         canEdit={canEdit} canReadEmployees={canReadEmployees}
         editingId={canEdit ? edit?.baseline.id ?? null : null} draft={canEdit ? edit?.draft ?? null : null}
         selectedWorkId={selectedWorkId} busy={pending || rereading} onOpen={start} onChange={change}
@@ -191,6 +195,7 @@ function ScheduleContents({ schedule, sections, reload }: {
       { label: 'Предпросмотр перестроения', onClick: () => setDialog('rebuild') },
     ] : undefined}>{distribution.text}</Banner>}
     {schedule.skipped.unmapped > 0 && <p className="text-body-medium text-on-surface-variant">{skippedText(schedule.skipped.unmapped)}</p>}
+    {visibleView === 'list' && <ScheduleFactNotice fact={fact} diagnostics={schedule.factDiagnostics} />}
     {calendarGaps.length > 0 && <Banner tone="warning"><ul>{calendarGaps.map(text => <li key={text}>{text}</li>)}</ul></Banner>}
     <div className="flex flex-wrap items-center gap-2">
       <div className="w-56 max-w-full"><Select label="Раздел" value={section} disabled={!!edit} onValueChange={value => {

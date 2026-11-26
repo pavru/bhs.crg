@@ -8,6 +8,7 @@ import { Delete, Edit, Warning } from '@/shared/ui/icons';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { ScheduleFactCell } from './ScheduleFact';
 import { assigneeText, sectionName, volumeText, type ScheduleSection } from './scheduleDisplay';
 import type { WorkDraft } from './workDraft';
 
@@ -21,10 +22,11 @@ export function ScheduleWarningMark({ warnings }: { warnings: ScheduleWarning[] 
   </Tooltip>;
 }
 
-export function ScheduleWorksGrid({ rows, sections, warnings, links, editingId, selectedWorkId, draft, canEdit, canReadEmployees, busy,
+export function ScheduleWorksGrid({ rows, sections, warnings, links, factState, editingId, selectedWorkId, draft, canEdit, canReadEmployees, busy,
   onOpen, onChange, onIncomplete, onEmployees, onLinks, onDelete }: {
   rows: ScheduleWork[]; sections: ScheduleSection[]; warnings: Map<string, ScheduleWarning[]>;
   links: ScheduleLink[];
+  factState?: NonNullable<ScheduleWork['fact']>['state'];
   editingId: string | null; selectedWorkId: string | null; draft: WorkDraft | null;
   canEdit: boolean; canReadEmployees: boolean; busy: boolean;
   onOpen: (work: ScheduleWork) => void; onChange: (patch: Partial<WorkDraft>) => void;
@@ -48,6 +50,10 @@ export function ScheduleWorksGrid({ rows, sections, warnings, links, editingId, 
       return edit ? <NumberInput label="Объём" value={edit.volume} unit={work.unitName} disabled={busy}
         onChange={volume => onChange({ volume })} /> : volumeText(work.volume, work.unitName);
     } },
+    ...(factState && factState !== 'not-connected' ? [{
+      key: 'fact', label: factState === 'partial' ? 'Факт · включённый объём' : 'Факт по учёту',
+      size: 144, cell: (work: ScheduleWork) => <ScheduleFactCell work={work} />,
+    }] : []),
     ...(['start', 'end'] as const).map(field => {
       const label = field === 'start' ? 'Начало' : 'Окончание';
       return { key: field, label, size: 152, cell: (work: ScheduleWork) => {

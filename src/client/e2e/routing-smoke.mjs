@@ -110,8 +110,9 @@ try {
   // и холодную загрузку того же адреса — параметр берётся из URL, а не из состояния.
   let constructionUrl = '';
   let defaultPanel = 'catalog';
-  const firstPanel = async () => (await callApi(page, 'GET', '/account/access')).body.modules
-    .some(m => m.code === 'plan' && m.available) ? 'estimates' : 'catalog';
+  const firstPanel = async () => (await callApi(page, 'GET', '/account/access')).body.permissions
+    .some(p => ['plan.estimate.read', 'plan.schedule.read', 'work.facts.read', 'costs.report.read', 'costs.totals.read'].includes(p))
+    ? 'progress' : 'catalog';
   // Экран стройки узнаётся по своей кнопке; заодно убеждаемся, что список строек сменился,
   // а не остался под изменившимся адресом (при непопадании в маршрут не будет ни того ни другого).
   const assertConstructionScreen = async () => {
@@ -128,7 +129,7 @@ try {
     if (!(await card.count())) throw new Error('нет ни одной стройки — нужны демо-данные');
     await card.click();
     // Голый адрес стройки уводит на панель по умолчанию (plan-02) — первую блока «Работы», а без него
-    // «Каталог». Блок у администратора — «Сметы», если включён модуль plan (в CI включён с plan-09).
+    // «Каталог». В CI «Ход работ» первый в блоке «Работы».
     defaultPanel = await firstPanel();
     await page.waitForURL(u => new RegExp(`^/document-sets/[0-9a-f-]{36}/${defaultPanel}$`).test(new URL(u).pathname), { timeout: 5000 });
     constructionUrl = page.url();

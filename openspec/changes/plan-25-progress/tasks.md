@@ -50,28 +50,28 @@
 
 ## 3. PR 3: экран (макеты П5)
 
-- [ ] 3.1 Раунд П5: три интерактивных варианта на живой локальной дизайн-системе: таблица, полосы,
+- [x] 3.1 Раунд П5: три интерактивных варианта на живой локальной дизайн-системе: таблица, полосы,
   отбор, `partial` с причинами и охватом; выбор владельца до производственного UI [PLAN-21].
   Проверка — ссылка в `design.md`, обе темы и широкая/узкая компоновки
-- [ ] 3.2 `src/client/src/shared/api/progress.ts` и `features/planning/progress/ProgressPanel.tsx` на
+- [x] 3.2 `src/client/src/shared/api/progress.ts` и `features/planning/progress/ProgressPanel.tsx` на
   `DataGrid`; регистрация панели «Ход работ» механизмом `plan-02`: «любое из» пяти прав, `section:
   'progress'`, блок «Работы» первой записью, уровни стройки и раздела [PLAN-21] [PLAN-20]. Проверка — vitest: колонка `hidden` — подпись с правом, `not-connected` — полоса вместо
   колонки; неполный факт содержит причины и охват предупреждений без закрытых ссылок
-- [ ] 3.3 Полосы над таблицей общим компонентом состояния; затраты `costs` — «разнесено · из них
+- [x] 3.3 Полосы над таблицей общим компонентом состояния; затраты `costs` — «разнесено · из них
   оплачено», доля по работам — «не ведётся» [PLAN-21.1]. Проверка — vitest на три состояния
-- [ ] 3.4 Колонка факта в списке графика (`plan-20`) с состоянием [PLAN-18]. Проверка — vitest:
+- [x] 3.4 Колонка факта в списке графика (`plan-20`) с состоянием [PLAN-18]. Проверка — vitest:
   `not-connected` — строка «учёт работ не подключён», а не нули; `partial` — включённый объём при
   его наличии и предупреждение с охватом; отсутствие объёма при исключениях не выглядит нулём
-- [ ] 3.5 Живой прогон `src/client/e2e/progress-smoke.mjs` (стенд без `work`): «Сметчик» и «Менеджер
+- [x] 3.5 Живой прогон `src/client/e2e/progress-smoke.mjs` (стенд без `work`): «Сметчик» и «Менеджер
   проекта» видят «Ход работ», полосу «учёт работ не подключён»; вписать в `test:e2e:ci` и
   `e2e/README.md` [PLAN-21]. Дополнительно настоящий Work: принятый факт, исключённая группа,
   несметная работа и чтение только с правом контракта. Проверка — оба состава зелёные
-- [ ] 3.6 `docs/USER_GUIDE.md`: «Ход работ», полосы и оговорки; `cd docs/tools && npm run toc` [PLAN-21].
+- [x] 3.6 `docs/USER_GUIDE.md`: «Ход работ», полосы и оговорки; `cd docs/tools && npm run toc` [PLAN-21].
   Проверка — проверка содержания в «Frontend» зелёная
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~ConstructionProgress|FullyQualifiedName~PlanProgress|FullyQualifiedName~ScheduleFact|FullyQualifiedName~ModuleContract|FullyQualifiedName~EndpointGateInventory"` — зелёный
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~ConstructionProgress|FullyQualifiedName~PlanProgress|FullyQualifiedName~ScheduleFact|FullyQualifiedName~ModuleContract|FullyQualifiedName~EndpointGateInventory"` — зелёный
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
