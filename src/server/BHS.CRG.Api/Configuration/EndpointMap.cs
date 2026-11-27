@@ -2,6 +2,7 @@ using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
 using BHS.CRG.Api.Endpoints.Files;
+using BHS.CRG.Api.Endpoints.Field;
 using BHS.CRG.Api.Endpoints.Backup;
 using BHS.CRG.Api.Endpoints.Maintenance;
 using BHS.CRG.Api.Endpoints.Support;
@@ -89,6 +90,7 @@ internal static class EndpointMap
 
     // Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).
     app.MapAppModules();
+    app.MapFieldEndpoints();
     app.MapDataSetEndpoints();
     app.MapDataSetBindingEndpoints();
     app.MapDataSetBindingTemplateEndpoints();

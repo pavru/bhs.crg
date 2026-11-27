@@ -24,6 +24,6 @@
 
 ## Impact
 
-Хост API, WorkModule.RoutePrefixes, публикующий прокси и контрактные тесты сервера.
+Хост API, WorkModule.RoutePrefixes, общий отказ выключенного модуля AppModuleExtensions.Refuse (дополнительное поле причины), публикующий прокси и контрактные тесты сервера.
 
 [Общая архитектура этапа](../mob-00-epic/design.md).

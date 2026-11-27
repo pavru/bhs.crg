@@ -278,7 +278,7 @@ public sealed class WorkModule : IAppModule
     /// выключенном экземпляре, — без объявления <c>/api/work/...</c> давал бы пустой 404, неотличимый
     /// от опечатки (ТЗ OVW-10, AUTH-15, AUTH-19).
     /// </summary>
-    public IReadOnlyList<string> RoutePrefixes => ["/api/work"];
+    public IReadOnlyList<string> RoutePrefixes => ["/api/work", "/api/field"];
 
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт

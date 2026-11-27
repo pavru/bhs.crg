@@ -46,6 +46,13 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
             + "логотип и название",
     };
 
+    private static readonly Dictionary<string, string> FieldPublic = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["/api/field/info"] = "название экземпляра и совместимость нужны до подключения телефона",
+        ["/api/field/info/logo"] = "логотип для подтверждения экземпляра до подключения телефона",
+        ["/api/field/ping"] = "проверка связи до подключения телефона",
+    };
+
     /// <summary>
     /// Личные адреса: вошедшему доступно СВОЁ и только своё, отдельного права не нужно.
     ///
@@ -145,17 +152,22 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     };
 
     [Fact]
-    public void Every_endpoint_is_gated_declared_public_or_written_into_the_debt()
+    public void Every_endpoint_is_gated_declared_public_or_written_into_the_debt() => AssertInventory(fixture);
+
+    internal static void AssertInventory(IntegrationTestFixture host)
     {
-        var homeless = Homeless(Routes(), Public, Personal, SignedIn, GatedInside, Debt);
+        using var client = host.CreateClient();
+        var routes = EndpointInventory.Routes(host.Services);
+        var buckets = Buckets(host);
+        var homeless = Homeless(routes, buckets);
 
         Assert.True(homeless.Count == 0,
             "Адреса без ворот и без записи в списке. Каждому нужно либо право (политика perm: или " +
             "module:), либо строка в Public/Personal/SignedIn/GatedInside/Debt с объяснением:\n  " +
             string.Join("\n  ", homeless));
 
-        var touched = Touched(Routes(), Public, Personal, SignedIn, GatedInside, Debt);
-        var stale = new[] { Public, Personal, SignedIn, GatedInside, Debt }.SelectMany(b => b.Keys)
+        var touched = Touched(routes, buckets);
+        var stale = buckets.SelectMany(b => b.Keys)
             .Where(k => !touched.Contains(k)).Order().ToList();
 
         Assert.True(stale.Count == 0,
@@ -175,7 +187,8 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Guard_speaks_when_a_gate_is_missing()
     {
-        var withoutDebt = Homeless(Routes(), Public, Personal, SignedIn, GatedInside);
+        var routes = Routes();
+        var withoutDebt = Homeless(routes, Buckets(fixture).Where(bucket => bucket != Debt).ToArray());
 
         Assert.NotEmpty(withoutDebt);
         Assert.All(withoutDebt, line => Assert.Contains("/", line));
@@ -329,7 +342,15 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// <c>/api/notifications</c>, иначе исключение утонуло бы в общем правиле.
     /// </summary>
     private static string? Longest(string route, IEnumerable<string> keys) =>
-        keys.Where(k => Matches(route, k)).OrderByDescending(k => k.Length).FirstOrDefault();
+        keys.Where(k => FieldPublic.ContainsKey(k)
+                ? route.Equals(k, StringComparison.OrdinalIgnoreCase)
+                : Matches(route, k))
+            .OrderByDescending(k => k.Length).FirstOrDefault();
+
+    private static Dictionary<string, string>[] Buckets(IntegrationTestFixture host) =>
+        host.Services.GetRequiredService<ModuleRegistry>().IsEnabled("work")
+            ? [Public, FieldPublic, Personal, SignedIn, GatedInside, Debt]
+            : [Public, Personal, SignedIn, GatedInside, Debt];
 
     private static string Route(RouteEndpoint endpoint) => EndpointInventory.Route(endpoint);
 
