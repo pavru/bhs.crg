@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
@@ -13,8 +14,12 @@ public sealed record MissingField(int Line, Guid LineId, string Field)
     public const string Materials = "materials";
 
     /// <summary>Поле словами — для текста отказа.</summary>
+    [JsonIgnore]
     public string Title => Field == Location ? "место работ" : "материалы";
 }
+
+[Flags]
+public enum RequiredGaps { None = 0, Location = 1, Materials = 2 }
 
 /// <summary>
 /// Ручная подача без обязательных полей (ТЗ WORK-6): 422 с перечнем строк и полей. Черновик остаётся черновиком —
@@ -46,17 +51,29 @@ public sealed class RequiredFields(IModuleWorkTypes workTypes)
         if (lines.Count == 0) return [];
         var known = await workTypes.GetAsync([.. lines.Select(l => l.WorkTypeId).Distinct()], ct);
         if (known is null) return null;
+        var types = known.ToDictionary(type => type.Id);
         var missing = new List<MissingField>();
         for (var i = 0; i < lines.Count; i++)
         {
             var line = lines[i];
-            if (known.FirstOrDefault(w => w.Id == line.WorkTypeId) is not { } type) continue;
-            if (type.RequiresLocation && string.IsNullOrWhiteSpace(line.Location))
-                missing.Add(new MissingField(i + 1, line.Id, MissingField.Location));
-            if (type.RequiresMaterials && line.Materials.Count == 0)
-                missing.Add(new MissingField(i + 1, line.Id, MissingField.Materials));
+            var gaps = Check(types.GetValueOrDefault(line.WorkTypeId), line.Location, line.Materials.Count > 0);
+            missing.AddRange(ForLine(gaps, i + 1, line.Id));
         }
         return missing;
+    }
+
+    public static RequiredGaps Check(ModuleWorkType? type, string? location, bool hasMaterials)
+    {
+        var gaps = RequiredGaps.None;
+        if (type?.RequiresLocation == true && string.IsNullOrWhiteSpace(location)) gaps |= RequiredGaps.Location;
+        if (type?.RequiresMaterials == true && !hasMaterials) gaps |= RequiredGaps.Materials;
+        return gaps;
+    }
+
+    public static IEnumerable<MissingField> ForLine(RequiredGaps gaps, int number, Guid id)
+    {
+        if (gaps.HasFlag(RequiredGaps.Location)) yield return new(number, id, MissingField.Location);
+        if (gaps.HasFlag(RequiredGaps.Materials)) yield return new(number, id, MissingField.Materials);
     }
 
     /// <summary>Перечень колонкой <c>required_missing</c>: пустой — <c>null</c>.</summary>

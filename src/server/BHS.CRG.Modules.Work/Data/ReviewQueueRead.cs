@@ -1,3 +1,5 @@
+using BHS.CRG.Modules.Work.Submission;
+
 namespace BHS.CRG.Modules.Work.Data;
 
 /// <summary>Отбор очереди приёмки; не названное — не отбирает.</summary>
@@ -14,7 +16,8 @@ public sealed record ReviewQueueFilter(
 /// фото (<c>work-17</c>) — им пометка <c>photos-pending</c> называет, сколько ждут.
 /// </summary>
 public sealed record ReviewQueueItem(
-    Report Report, string Version, int Lines, IReadOnlyList<string> Marks, int PhotosPending, int MissingFields);
+    Report Report, string Version, int Lines, IReadOnlyList<string> Marks, int PhotosPending, int MissingFields,
+    RequiredGaps Required);
 
 /// <summary>Страница очереди из файла чтения.</summary>
 public sealed record ReviewQueueRead(

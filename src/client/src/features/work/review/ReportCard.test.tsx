@@ -14,6 +14,7 @@ vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn()
 const card: ReviewFullCard = {
   id: 'r1', employeeName: 'Ирина Иванова', constructionName: 'Терминал', timeZoneId: 'Asia/Vladivostok',
   actions: ['accept', 'return', 'edit'], status: 'submitted', viewedVersion: 1, atClosingVersion: null,
+  currentRequiredMissing: [],
   workTypes: { w1: 'Прокладка кабеля' }, workVariants: {}, units: { m: 'м' }, sections: {},
   report: {
     id: 'r1', status: 'submitted', employeeId: 'e1', constructionId: 's1', date: '2026-11-23', shift: 'night',
@@ -82,6 +83,29 @@ it('называет незаполненные поля из строки от�
   mount();
   expect(await screen.findByText('Номер акта')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Принять' })).toBeTruthy();
+});
+
+it('называет текущие пропуски и снимает пометку при перечитывании после сохранения', async () => {
+  const customer = { code: 'fields-missing', text: 'не заполнены поля: 1' };
+  read = () => ({ ...card, currentRequiredMissing: [{ line: 1, lineId: 'l1', field: 'location' }],
+    report: { ...card.report, marks: [{ code: 'required-missing', text: 'не указано обязательное место работ' }, customer] } });
+  vi.mocked(apiClient.put).mockImplementation(async () => {
+    read = () => ({ ...card, report: { ...card.report, marks: [customer] } });
+    return { data: { id: 'r1' } };
+  });
+  const client = mount();
+  const queueKey = ['work', 'review-queue', { mark: 'required-missing' }];
+  client.setQueryData(queueKey, {});
+  expect(await screen.findByText('Строка 1 · Место работ')).toBeTruthy();
+  expect(screen.getByText('не указано обязательное место работ')).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Действия отчёта' }), { key: 'Enter' });
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Править строки' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Место строки 1' }), { target: { value: 'Коридор' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить правку' }));
+  await waitFor(() => expect(screen.queryByText('Строка 1 · Место работ')).toBeNull());
+  expect(screen.queryByText('не указано обязательное место работ')).toBeNull();
+  expect(screen.getByText('не заполнены поля: 1')).toBeTruthy();
+  expect(client.getQueryState(queueKey)?.isInvalidated).toBe(true);
 });
 
 it('перечитывает открытый черновик после автоподачи и останавливает опрос после подачи', async () => {

@@ -145,6 +145,21 @@ describe('очередь приёмки', () => {
     }));
   });
 
+  it('отбирает текущие пропуски отдельным чипом и снимает чип при нулевом счётчике', async () => {
+    const customer = { code: 'fields-missing', text: 'не заполнены поля: 1' };
+    answer = ({ mark }) => mark === 'required-missing'
+      ? page({ items: [], reason: 'filtered-out', total: 0, counts: { 'required-missing': 0, 'fields-missing': 1 } })
+      : page({ items: [{ ...row, marks: [{ code: 'required-missing', text: 'не указаны обязательные материалы' }, customer] }],
+        counts: { 'required-missing': 1, 'fields-missing': 1 } });
+    mount('?constructionId=site-1');
+    expect(await screen.findByText('не указаны обязательные материалы')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /не заполнены место или материалы.*1/ }));
+    expect(await screen.findByText('Отбор скрыл все отчёты')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /не заполнены место или материалы/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /не заполнены поля.*1/ })).toBeTruthy();
+    expect(queueCalls().at(-1)).toMatchObject({ constructionId: 'site-1', mark: 'required-missing', offset: 0 });
+  });
+
   it('показывает незнакомую пометку строки словами сервера', async () => {
     answer = () => page({ items: [{ ...row, marks: [{ code: 'future', text: 'Проверьте допуск' }] }], counts: { future: 2 } });
     mount();
