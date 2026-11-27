@@ -14,6 +14,6 @@ internal sealed class DeviceActions : IModuleActivityActions
         DeviceRevocation.Replacement => "Замена телефона",
         DeviceRevocation.Dismissal => "Увольнение",
         DeviceRevocation.Lost => "Утеря телефона",
-        _ => throw new ArgumentOutOfRangeException(nameof(reason)),
+        _ => reason.ToString(),
     };
 }
