@@ -23,7 +23,7 @@ public sealed partial class ReportReads
     // Отбор отчётов по виду берёт все строки каждого кандидата: именно по ним определяется смешанный отчёт.
     // Содержимое черновика не читается. При сравнении используются часы только принятых отчётов.
     internal async Task<LaborInputs> LaborAsync(ReportViewer viewer, DateOnly? from, DateOnly? to,
-        Guid? workTypeId, CancellationToken ct)
+        Guid[]? workTypeIds, CancellationToken ct)
     {
         var reports = Visible(viewer).AsNoTracking().Where(r => r.SubmittedAt != null);
         var groups = CrewGroups(viewer.Reach).AsNoTracking();
@@ -37,10 +37,10 @@ public sealed partial class ReportReads
             reports = reports.Where(r => r.Date <= end);
             groups = groups.Where(g => g.Date <= end);
         }
-        if (workTypeId is { } kind)
+        if (workTypeIds is not null)
         {
-            reports = reports.Where(r => r.Lines.Any(l => l.WorkTypeId == kind));
-            groups = groups.Where(g => g.WorkTypeId == kind);
+            reports = reports.Where(r => r.Lines.Any(l => workTypeIds.Contains(l.WorkTypeId)));
+            groups = groups.Where(g => workTypeIds.Contains(g.WorkTypeId));
         }
 
         var projected = await reports.Select(r => new LaborReport(r.Id, r.ConstructionId, r.EmployeeId, r.Date,

@@ -59,11 +59,14 @@ public class ConstructionProgressRealWorkTests(ConstructionProgressWorkHost host
         var denied = Strip(await hidden.GetFromJsonAsync<JsonElement>(atMonth), "work-labor");
         Assert.Equal(PlanModule.LaborRead, denied.GetProperty("permission").GetString());
         Assert.False(denied.TryGetProperty("labor", out _));
-        foreach (var reader in new[] { otherSite, factsOnly })
-        {
-            var answer = await reader.GetFromJsonAsync<JsonElement>(atMonth);
-            Assert.DoesNotContain(answer.GetProperty("strips").EnumerateArray(), x => x.GetProperty("code").GetString() == "work-labor");
-        }
+        var withoutReportRight = Strip(await factsOnly.GetFromJsonAsync<JsonElement>(atMonth), "work-labor");
+        Assert.Equal("hidden", withoutReportRight.GetProperty("state").GetString());
+        Assert.Equal(WorkModule.ReportRead, withoutReportRight.GetProperty("permission").GetString());
+        Assert.Contains(WorkModule.ReportRead, withoutReportRight.GetProperty("text").GetString());
+        Assert.False(withoutReportRight.TryGetProperty("labor", out _));
+        var outsideReach = await otherSite.GetFromJsonAsync<JsonElement>(atMonth);
+        Assert.DoesNotContain(outsideReach.GetProperty("strips").EnumerateArray(),
+            x => x.GetProperty("code").GetString() == "work-labor");
         Assert.Equal(HttpStatusCode.BadRequest, (await manager.GetAsync(path + "?laborMonth=2026-11-02")).StatusCode);
     }
 

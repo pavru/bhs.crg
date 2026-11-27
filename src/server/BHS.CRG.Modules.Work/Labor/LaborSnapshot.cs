@@ -15,10 +15,10 @@ internal sealed record LaborSnapshot(IReadOnlyList<LaborReport> Reports, IReadOn
 internal sealed class LaborSnapshots(WorkDbContext db, ReportReads reads, IModulePlanItems planItems)
 {
     internal async Task<LaborSnapshot> ReadAsync(ModuleReach reach, DateOnly? from, DateOnly? to,
-        Guid? workTypeId, CancellationToken ct)
+        Guid[]? workTypeIds, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-        var inputs = await reads.LaborAsync(ReportViewer.Of(reach), from, to, workTypeId, ct);
+        var inputs = await reads.LaborAsync(ReportViewer.Of(reach), from, to, workTypeIds, ct);
         var positionIds = inputs.Reports.Where(r => r.Accepted).SelectMany(r => r.Lines.Select(l => l.PlanItemId));
         var positions = await CrewPublication.ReadPositionsAsync(planItems,
             positionIds.Concat(inputs.CrewLines.Select(l => l.PlanItemId)), ct);

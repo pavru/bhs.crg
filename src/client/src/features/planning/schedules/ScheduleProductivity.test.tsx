@@ -37,6 +37,13 @@ it('сохраняет состояние малой выборки без ну�
   expect(screen.queryByText(/м\/ч/)).toBeNull();
 });
 
+it('показывает размер пустой выборки без месячных показателей', () => {
+  show({ state: 'too-little-data', minSample: { reports: 10, constructions: 2 }, months: [] });
+  expect(screen.getByText('Данных мало')).toBeTruthy();
+  expect(screen.getByText('0 отчётов · 0 строек')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /выработку по месяцам/ })).toBeNull();
+});
+
 it('называет право при скрытой выработке', () => {
   show({ state: 'hidden', permission: 'work.facts.read' });
   expect(screen.getByText(/Скрыто правами/)).toBeTruthy();

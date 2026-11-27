@@ -119,8 +119,12 @@ try {
   if (selected) {
     const graphPath = `${schedulesPath}/${schedule.id}`;
     await check('manager-saves-dates-volume-and-assignee', async () => {
-      await button(manager, selected.name).click();
-      await manager.getByRole('textbox', { name: 'Объём', exact: true }).fill('125');
+      await button(manager, `Действия работы «${selected.name}»`).press('Enter');
+      await manager.getByRole('menuitem', { name: 'Изменить', exact: true }).press('Enter');
+      const volume = manager.getByRole('textbox', { name: 'Объём', exact: true });
+      await volume.waitFor();
+      await manager.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Объём');
+      await volume.fill('125');
       await fillDate(manager, 'Начало', '01122026');
       await fillDate(manager, 'Окончание', '02122026');
       await button(manager, 'Выбрать исполнителей').click();

@@ -55,10 +55,15 @@ internal sealed class WorkProductivityProbe : IWorkProductivity
 {
     public IReadOnlyList<string> AnswerPermissions => [ActualWorksProbeModule.FactsRead];
 
-    public Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
-        ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default) =>
-        Task.FromResult(ContractAnswer.Refusal<WorkProductivityAnswer>(reader, [.. AnswerPermissions])
-            ?? ContractAnswer.Shown(new WorkProductivityAnswer(query.UnitId, new(10, 2), "too-little-data", [])));
+    public Task<IReadOnlyDictionary<WorkProductivityQuery, ContractAnswer<WorkProductivityAnswer>>> ReadManyAsync(
+        ModuleReader reader, IReadOnlyCollection<WorkProductivityQuery> queries, CancellationToken ct = default)
+    {
+        var refusal = ContractAnswer.Refusal<WorkProductivityAnswer>(reader, [.. AnswerPermissions]);
+        IReadOnlyDictionary<WorkProductivityQuery, ContractAnswer<WorkProductivityAnswer>> answers =
+            queries.Distinct().ToDictionary(query => query, query => refusal
+                ?? ContractAnswer.Shown(new WorkProductivityAnswer(query.UnitId, new(10, 2), "too-little-data", [])));
+        return Task.FromResult(answers);
+    }
 }
 
 internal sealed class ActualWorksProbeData

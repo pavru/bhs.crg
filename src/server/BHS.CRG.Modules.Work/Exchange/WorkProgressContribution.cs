@@ -13,7 +13,7 @@ internal sealed class WorkProgressContribution(LaborAnalytics analytics, IModule
     private static readonly ProgressContribution Empty = new([], [], []);
 
     public IReadOnlyList<string> AnswerPermissions { get; } =
-        Array.AsReadOnly(new[] { WorkModule.ReportReview, WorkModule.ReportRead });
+        Array.AsReadOnly(new[] { WorkModule.ReportRead, WorkModule.ReportReview });
 
     public Task<ProgressContribution> ReadAsync(ModuleReader reader, Guid constructionId, Guid? sectionId,
         CancellationToken ct = default) => ReadForPeriodAsync(reader, constructionId, sectionId, null, ct);
@@ -21,7 +21,10 @@ internal sealed class WorkProgressContribution(LaborAnalytics analytics, IModule
     public async Task<ProgressContribution> ReadForPeriodAsync(ModuleReader reader, Guid constructionId, Guid? sectionId,
         DateOnly? laborMonth, CancellationToken ct = default)
     {
-        if (reader.IsSystem || !AnswerPermissions.Any(reader.Allows)) return Empty;
+        if (reader.IsSystem) return Empty;
+        if (!AnswerPermissions.Any(reader.Allows))
+            return new([], [new("work-labor", $"Трудозатраты скрыты: нужно право {WorkModule.ReportRead}.",
+                LaborStates.Hidden, Permission: WorkModule.ReportRead)], []);
         var today = laborMonth ?? await clock.TodayOnSiteAsync(constructionId, ct);
         if (today is not { } day) return Empty;
         var from = new DateOnly(day.Year, day.Month, 1);

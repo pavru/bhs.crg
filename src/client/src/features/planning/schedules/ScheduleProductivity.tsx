@@ -39,7 +39,10 @@ export function ScheduleProductivity({ value, unit, name }: { value: Productivit
   const months = [...value.months].sort((a, b) => b.month.localeCompare(a.month));
   const latest = months.find(month => month.productivity.state === 'ok') ?? months[0];
   return <div className="grid min-w-0 gap-2">
-    {latest ? <MonthValue value={latest} unit={unit} showMonth /> : <span className="text-on-surface-variant">Данных мало</span>}
+    {latest ? <MonthValue value={latest} unit={unit} showMonth /> : <span className="grid gap-1 text-on-surface-variant">
+      <span>Данных мало</span>
+      <span className="text-body-small">{sampleText({ reports: 0, constructions: 0 })}</span>
+    </span>}
     {months.length > 0 && <Button variant="text" className="justify-self-start" aria-expanded={open} aria-controls={details}
       aria-label={`${open ? 'Свернуть' : 'Показать'} выработку по месяцам: ${name}`}
       icon={<Icon icon={open ? KeyboardArrowUp : KeyboardArrowDown} size={18} />} onClick={() => setOpen(value => !value)}>

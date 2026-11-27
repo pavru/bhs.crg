@@ -48,7 +48,7 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
         var (plan, refusal) = OpenPlan(reader, sectionId);
         if (refusal is not null) return refusal;
 
-        var snapshot = await snapshots.ReadAsync(scope, from, to, workTypeId: null, ct);
+        var snapshot = await snapshots.ReadAsync(scope, from, to, workTypeIds: null, ct);
         var result = await EstimateAsync(plan!, reader, constructionId, snapshot, ct);
         return result.Compare(sectionId);
     }
@@ -62,8 +62,8 @@ internal sealed class LaborAnalytics(ManagerSites managerSites, IModuleConstruct
         if (refusal is not null) return new(refusal.State, Permission: refusal.Permission, Reason: refusal.Reason);
 
         var needsEstimate = constructionId is not null || byEmployee || query is null;
-        var snapshot = await snapshots.ReadAsync(scope, from, to, needsEstimate ? null : query!.WorkTypeId, ct);
-        var rate = query is null ? null : await productivity.CalculateAsync(snapshot, query, sectionId, crossModule: false, ct);
+        var snapshot = await snapshots.ReadAsync(scope, from, to, needsEstimate ? null : [query!.WorkTypeId], ct);
+        var rate = query is null ? null : await productivity.CalculateAsync(snapshot, query, sectionId, ct);
         var siteResults = new List<SiteLaborPercentage>();
         var reportResults = new List<LaborReportEstimate>();
         if (needsEstimate)

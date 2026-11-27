@@ -194,10 +194,15 @@ try {
       assert.equal('totals' in data.costs, false);
       assert.equal(data.rows.find(row => row.workTypeId === measured.id).cells.fact.volume, smallVolume);
       assert.equal(data.factDiagnostics.excludedCrewGroups, 1);
+      const labor = data.strips.find(strip => strip.code === 'work-labor');
+      assert.equal(labor.state, 'hidden');
+      assert.equal(labor.permission, 'work.report.read');
+      assert.equal('labor' in labor, false);
       await facts.goto(BASE + path);
       await work(facts, measured.displayName).getByText(smallText).waitFor();
       await work(facts, extra.displayName).getByText(largeText).waitFor();
       await warning(facts).waitFor();
+      await facts.getByRole('region', { name: 'Трудозатраты' }).getByText(/work\.report\.read/).waitFor();
       assert.equal(await facts.getByRole('complementary', { name: 'Подробности работы' }).count(), 0);
       assert.equal(await facts.getByText(/Разнесено.*оплачено|937[,.]75/).count(), 0);
       assert.equal(await facts.getByText(employee.displayName, { exact: true }).count(), 0);
@@ -217,6 +222,7 @@ try {
       await measured.getByText(smallText).waitFor();
       await measured.getByText('Данных мало', { exact: true }).waitFor();
       await pending.getByLabel('Нет включённого объёма').waitFor();
+      await pending.getByText('0 отчётов · 0 строек', { exact: true }).waitFor();
       await warning(managerPage).waitFor();
     } else {
       await cards.getByText('Учёт работ не подключён', { exact: true }).first().waitFor();

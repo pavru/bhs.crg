@@ -15,24 +15,14 @@ internal sealed class ScheduleProductivity(IModuleContracts contracts, IModuleRe
 
         var work = ((ModuleContractAnswer<IWorkProductivity>.Connected)provider).Contract;
         var reader = await readers.ForRequestAsync(ct);
-        if (ContractAnswer.Refusal<WorkProductivityAnswer>(reader, [.. work.AnswerPermissions])
-            is ContractAnswer<WorkProductivityAnswer>.Hidden hidden)
-            return Map(schedule, _ => new("hidden", Permission: hidden.Permission, Text: hidden.Text));
-
-        // Позиции разных разделов с тем же видом и единицей используют одну месячную выборку.
-        var values = new Dictionary<WorkProductivityQuery, ScheduleWorkProductivity>();
-        foreach (var query in schedule.Works.Select(Query).Distinct())
+        var answers = await work.ReadManyAsync(reader, schedule.Works.Select(Query).Distinct().ToArray(), ct);
+        return Map(schedule, item => answers[Query(item)] switch
         {
-            var answer = await work.ReadAsync(reader, query, ct);
-            values.Add(query, answer switch
-            {
-                ContractAnswer<WorkProductivityAnswer>.Shown(var shown) => new(shown.State, shown.Months, shown.MinSample),
-                ContractAnswer<WorkProductivityAnswer>.Hidden denied => new("hidden", Permission: denied.Permission, Text: denied.Text),
-                ContractAnswer<WorkProductivityAnswer>.SystemRefused refused => new("not-available", Text: refused.Text),
-                _ => new("not-available"),
-            });
-        }
-        return Map(schedule, item => values[Query(item)]);
+            ContractAnswer<WorkProductivityAnswer>.Shown(var shown) => new(shown.State, shown.Months, shown.MinSample),
+            ContractAnswer<WorkProductivityAnswer>.Hidden denied => new("hidden", Permission: denied.Permission, Text: denied.Text),
+            ContractAnswer<WorkProductivityAnswer>.SystemRefused refused => new("not-available", Text: refused.Text),
+            _ => new("not-available"),
+        });
     }
 
     private static WorkProductivityQuery Query(ScheduleWorkDto work) => new(work.WorkTypeId, work.UnitId);
