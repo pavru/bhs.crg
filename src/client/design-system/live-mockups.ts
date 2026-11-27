@@ -154,6 +154,19 @@ export const liveMockups = [
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
   planSchedulesMockup, planProgressMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
   {
+    id: 'mob-06-offline-entry',
+    title: 'Мои отчёты · Полевой ввод MOB-06',
+    kind: 'design',
+    entry: 'mob06.html',
+    pages: [
+      { path: 'a', title: 'А · Карточка отчёта', width: 1024 },
+      { path: 'b', title: 'Б · Поиск в отчёте', width: 1024 },
+      { path: 'c', title: 'В · Ввод по шагам', width: 1024 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/mob-06-offline-entry/design.md · Варианты для выбора',
+  },
+  {
     id: 'work-27-actual-works-contract',
     title: 'Сверка бригад · Публикация факта',
     kind: 'design',
