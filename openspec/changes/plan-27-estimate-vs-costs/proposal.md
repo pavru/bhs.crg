@@ -14,7 +14,7 @@
 читает её контрактом «Плановые работы» (`plan-23`, часть `cost`) в правах спрашивающего (`STG-17`).
 При импорте ЛСР стоимость ресурса сейчас теряется даже у материала с ценой в исходном файле.
 По решению владельца от 27.11.2026 импорт, учёт коэффициентов и порядок обработки ранее загруженных
-редакций готовятся отдельным change модуля Plan.
+редакций входят в [plan-32-estimate-resource-costs](../plan-32-estimate-resource-costs/proposal.md).
 
 ## What Changes
 
@@ -47,5 +47,5 @@
 - **Клиент:** `src/client/src/features/costs/SiteCostsPage.tsx` — вкладка, новый `EstimateVsCosts.tsx` рядом; `shared/api/estimateVsCosts.ts`.
 - **Тесты:** `src/server/BHS.CRG.Tests/Costs/EstimateVsCostsTests.cs`, `EndpointGateInventoryTests`.
 - **Документы:** `docs/USER_GUIDE.md` — «план против факта» и его оговорки.
-- **Зависит от:** `plan-23` и отдельного change импорта стоимости ресурсов. Код и интерфейс Plan-27
+- **Зависит от:** `plan-23` и `plan-32-estimate-resource-costs`. Код и интерфейс Plan-27
   ждут слияния реализации этой предпосылки, подтверждённого повышения версии и слияния её архива.
