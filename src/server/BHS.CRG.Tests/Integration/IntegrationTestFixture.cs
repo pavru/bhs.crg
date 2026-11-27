@@ -166,7 +166,8 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
             services.AddRateLimiter(o =>
             {
                 o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report", "branding", "branding-icons", "field-info"])
+                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report", "branding", "branding-icons",
+                    "field-info", "field-join", "field-refresh"])
                     o.AddPolicy(policy, _ => RateLimitPartition.GetNoLimiter("tests"));
             });
         });

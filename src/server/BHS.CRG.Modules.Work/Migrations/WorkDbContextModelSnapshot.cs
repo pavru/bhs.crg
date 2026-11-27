@@ -757,6 +757,118 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("review_digest_retries", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RedeemedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.ToTable("device_invitations", "work");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AccessExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AccessHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("DeliveryUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Grant")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("InvitationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreviousRefreshHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ProtectedRotationResponse")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RefreshHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("RetryUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Revocation")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevokedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("RevokedOn")
+                        .HasColumnType("date");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTimeOffset>("SessionExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessHash")
+                        .IsUnique();
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("InvitationId")
+                        .IsUnique();
+
+                    b.HasIndex("PreviousRefreshHash");
+
+                    b.HasIndex("RefreshHash")
+                        .IsUnique();
+
+                    b.ToTable("device_sessions", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Data.LinePhoto", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Work.Data.ReportLine", null)
@@ -826,6 +938,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                         .WithMany()
                         .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceSession", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Devices.DeviceInvitation", null)
+                        .WithOne()
+                        .HasForeignKey("BHS.CRG.Modules.Work.Devices.DeviceSession", "InvitationId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

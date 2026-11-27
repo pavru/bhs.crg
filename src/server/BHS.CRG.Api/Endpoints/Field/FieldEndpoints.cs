@@ -37,5 +37,6 @@ internal static class FieldEndpoints
             response.Headers.CacheControl = "no-store";
             return Results.Ok(new { ok = true });
         }).AllowAnonymous();
+        FieldSessionEndpoints.Map(field);
     }
 }

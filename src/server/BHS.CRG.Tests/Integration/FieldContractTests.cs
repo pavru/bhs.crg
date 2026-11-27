@@ -73,7 +73,8 @@ public class FieldContractTests(WorkOnlyHost host)
     {
         using var client = host.CreateClient();
         var routes = FirstFieldClient.Routes(host.Services);
-        Assert.Equal(["GET /api/field/info", "GET /api/field/info/logo", "GET /api/field/ping"],
+        Assert.Equal(["GET /api/field/info", "GET /api/field/info/logo", "GET /api/field/ping",
+                "POST /api/field/join", "POST /api/field/refresh"],
             routes.Select(e => $"{EndpointInventory.Verbs(e)} {EndpointInventory.Route(e)}").Order());
         Assert.All(routes, endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>()));
     }
@@ -137,6 +138,20 @@ public class FieldContractTests(WorkOnlyHost host)
         using var response = await FirstFieldClient.SendAsync(client, "ping");
         await FirstFieldClient.ReadAsync(response, FirstFieldClient.Operation("ping"));
         Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
+    [Theory]
+    [InlineData("join")]
+    [InlineData("refresh")]
+    public async Task Saved_session_refusals_keep_their_wire_shape(string name)
+    {
+        using var client = host.CreateClient();
+        var refusals = FirstFieldClient.Operation(name).GetProperty("refusals");
+        using var unknown = await FirstFieldClient.SendAsync(client, name);
+        await FirstFieldClient.ReadAsync(unknown, refusals[1]);
+        using var malformed = await client.PostAsync($"/api/field/{name}",
+            new StringContent("{", Encoding.UTF8, "application/json"));
+        await FirstFieldClient.ReadAsync(malformed, refusals[0]);
     }
 }
 

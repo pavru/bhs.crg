@@ -5,6 +5,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Work.Data;
+using BHS.CRG.Modules.Work.Devices;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Exchange;
 using BHS.CRG.Modules.Work.Photos;
@@ -13,6 +14,7 @@ using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Submission;
 using BHS.CRG.Modules.Work.Tables;
 using BHS.CRG.Modules.Tables;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,6 +74,7 @@ public sealed class WorkModule : IAppModule
     public const string ReportRead = "work.report.read";
 
     public const string FactsRead = "work.facts.read";
+    public const string DevicesManage = "work.devices.manage";
 
     private const string PhotoGeolocationNote =
         "Если в исходном снимке есть читаемая геометка, координаты места съёмки сохраняются отдельно от файла как данные фото.";
@@ -84,7 +87,7 @@ public sealed class WorkModule : IAppModule
     /// Права модуля (ТЗ WORK-45, WORK-46) — каждое с объяснением: галку в редакторе ролей ставит человек.
     ///
     /// <para>Право объявляется вместе с первым адресом или контрактом, который оно открывает
-    /// (D2 зонтика <c>work-00-epic</c>). Право управления устройствами появится с этапом 5.</para>
+    /// (D2 зонтика <c>work-00-epic</c>).</para>
     ///
     /// <para>Двери есть у четырёх: назначения (<c>work.assignment.edit</c>, <c>work-11</c>), свои отчёты
     /// (<c>work.report.own</c>) и ввод за сотрудника (<c>work.report.review</c>, <c>work-13</c>), чтение всех отчётов
@@ -98,6 +101,10 @@ public sealed class WorkModule : IAppModule
     /// </summary>
     public IReadOnlyList<AppPermission> Permissions =>
     [
+        new(DevicesManage, "выдавать приглашения и отзывать полевые устройства",
+            "управляет устройствами сотрудников своих строек. Право «на любых стройках» расширяет охват на весь экземпляр.",
+            ["core.employees.read"], ReadAllMark.Out("выдаёт приглашения и отзывает устройства")),
+
         new(ReportOwn,
             "вводить и подавать свои отчёты о работах: строки, часы, фото",
             "только свои отчёты — того сотрудника, с которым связана учётная запись (WORK-47), и только по " +
@@ -225,6 +232,10 @@ public sealed class WorkModule : IAppModule
         services.AddSingleton<IModuleActivityActions, AssignmentActions>();
         services.AddSingleton<IModuleActivityActions, ReportActions>();
         services.AddScoped<ManagerSites>();
+        services.AddScoped<DeviceSessions>();
+        services.AddScoped<DeviceManagementScope>();
+        services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, FieldDeviceAuthentication>(
+            FieldDeviceAuthentication.SchemeName, _ => { });
         services.AddScoped<AssignmentGate>();
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
@@ -305,6 +316,7 @@ public sealed class WorkModule : IAppModule
         CrewCandidates.Map(endpoints);
         CrewGroups.Map(endpoints);
         PhotoEndpoints.Map(endpoints);
+        DeviceManagementEndpoints.Map(endpoints);
     }
 
     /// <summary>

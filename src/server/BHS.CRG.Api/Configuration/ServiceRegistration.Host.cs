@@ -260,7 +260,9 @@ internal static class HostRegistration
         // адресом и стенду живых прогонов CI — поднимают его там, а не пересборкой (BrandingRateLimit).
         o.AddPolicy("branding", PerClient(branding.PermitLimit, BrandingRateLimit.Window));
         // Название и логотип для телефона имеют свой счётчик на тот же адрес клиента.
-        o.AddPolicy("field-info", new FieldInfoRateLimit(PerClient(branding.PermitLimit, BrandingRateLimit.Window)));
+        o.AddPolicy("field-info", new FieldRateLimit(PerClient(branding.PermitLimit, BrandingRateLimit.Window)));
+        o.AddPolicy("field-join", new FieldRateLimit(PerClient(30, TimeSpan.FromMinutes(5))));
+        o.AddPolicy("field-refresh", new FieldRateLimit(PerClient(120, TimeSpan.FromMinutes(5))));
         // Значки вкладки и приложения и манифест (issue #1315) — отдельной корзиной. Это запросы
         // сверх названия и логотипа (манифест — при каждой загрузке страницы, значки — когда
         // браузер решит их перечитать), и в общей с названием корзине отказ достался бы адресу, без
@@ -281,7 +283,7 @@ internal static class HostRegistration
     });
     }
 
-    private sealed class FieldInfoRateLimit(Func<HttpContext, RateLimitPartition<string>> perClient)
+    private sealed class FieldRateLimit(Func<HttpContext, RateLimitPartition<string>> perClient)
         : IRateLimiterPolicy<string>
     {
         public RateLimitPartition<string> GetPartition(HttpContext context) => perClient(context);
