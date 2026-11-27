@@ -51,6 +51,8 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         ["/api/field/info"] = "название экземпляра и совместимость нужны до подключения телефона",
         ["/api/field/info/logo"] = "логотип для подтверждения экземпляра до подключения телефона",
         ["/api/field/ping"] = "проверка связи до подключения телефона",
+        ["/api/field/join"] = "одноразовое приглашение само подтверждает подключение телефона",
+        ["/api/field/refresh"] = "полевой refresh-токен подтверждает право обновить сессию устройства",
     };
 
     /// <summary>
