@@ -23,9 +23,9 @@ export function PurchaseLineFields({ draft, names, busy = false, onChange }: {
         <div className="grid gap-2">
           {'estimateQuantity' in row && <>
             <p className="text-body-medium text-on-surface-variant">
-              По смете {formatNumber(row.estimateQuantity)} {row.unit ?? '(без единицы)'}
+              По смете {formatNumber(row.estimateQuantity, 6)} {row.unit ?? '(без единицы)'}
               {' · '}Отпущено на стройку {row.compatibleIssuedQuantity === null ? 'неизвестно в этой единице'
-                : `${formatNumber(row.compatibleIssuedQuantity)} ${row.unit ?? ''}`}
+                : `${formatNumber(row.compatibleIssuedQuantity, 6)} ${row.unit ?? ''}`}
             </p>
             {row.issuedExceeds && <StatusText tone="warning">Отпущено больше сметы. Предложено 0.</StatusText>}
             {row.unitMismatch && <StatusText tone="warning">{row.unit ? 'Несовместимые единицы. Проверьте количество.'

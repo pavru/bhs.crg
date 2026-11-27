@@ -64,12 +64,13 @@ try {
     await dialog.getByText(/Другие заявки не резервируют/).waitFor();
     const after = await callApiOk(page, 'GET', `${root}?constructionId=${siteId}`);
     assert.deepEqual(after.items.map(item => item.id), before.items.map(item => item.id));
-    await dialog.getByLabel('Количество в заявке').first().fill('42');
+    await dialog.getByLabel('Количество в заявке').first().fill('0,004001');
     const saved = await responseFor(page, 'POST', root, () => button(dialog, 'Сохранить черновик').click(), 201);
     request = await saved.json();
     assert.equal(request.status, 'draft');
-    assert.equal(request.lines[0].quantity, 42);
+    assert.equal(request.lines[0].quantity, 0.004001);
     await page.getByRole('heading', { name: `Заявка № ${request.number}`, exact: true }).waitFor();
+    await page.getByTestId('purchase-detail').getByRole('cell', { name: '0,004001', exact: true }).waitFor();
   });
 
   await check('подача использует версию заявки', async () => {

@@ -80,7 +80,7 @@ export function PurchaseRequestsPage() {
             {purchaseRefusal(list.error).message}
           </Banner> : list.isPending ? <p className="p-4" role="status">Читаем заявки…</p>
             : <DataGrid rows={items} columns={columns} rowKey={row => row.id} onRowOpen={row => pick(row.id)}
-              rowOpen={row => row.id === selected} framed={false} density="compact" />}
+              rowOpen={row => row.id === selected} framed={false} />}
           {list.hasNextPage && <div className="p-2">
             <Button variant="text" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Показать ещё</Button>
           </div>}

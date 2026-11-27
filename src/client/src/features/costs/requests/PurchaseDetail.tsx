@@ -27,7 +27,7 @@ const LABEL: Record<Action, string> = {
   return: 'Вернуть в черновик', delete: 'Удалить черновик',
 };
 
-function show(value: number | null) { return value === null ? 'Неизвестно' : formatNumber(value); }
+function show(value: number | null) { return value === null ? 'Неизвестно' : formatNumber(value, 6); }
 
 function PurchaseTotals({ request, invoices, issued }: { request: PurchaseRequest; invoices: boolean; issued: boolean }) {
   const quantities = request.quantities;
@@ -53,7 +53,7 @@ function PurchaseTotals({ request, invoices, issued }: { request: PurchaseReques
     {!invoiceVisible && <Banner tone="info">«Выставлено» скрыто. Нужно право чтения счетов.</Banner>}
     {!issuedVisible && <Banner tone="info">«Отпущено» скрыто. Нужно право чтения накладных или количеств отпуска.</Banner>}
     <div className="hidden min-w-0 @xl/quantities:block">
-      <DataGrid columns={columns} rows={quantities.items} rowKey={(row, index) => `${row.nomenclatureId}:${index}`} density="compact" />
+      <DataGrid columns={columns} rows={quantities.items} rowKey={(row, index) => `${row.nomenclatureId}:${index}`} />
     </div>
     <div className="grid gap-2 @xl/quantities:hidden">
       {quantities.items.map((row, index) => <Card key={`${row.nomenclatureId}:${index}`} title={columns[0].cell?.(row, index)}>
