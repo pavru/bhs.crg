@@ -8,7 +8,7 @@ namespace BHS.CRG.Tests.Integration;
 public partial class InvoicePaymentTests
 {
     [Fact]
-    public async Task InvoiceRequestLink_исправление_периода_не_переносит_связанный_счёт_на_другую_стройку()
+    public async Task InvoiceRequestLink_после_снижения_допуска_исправляет_текст_на_той_же_стройке()
     {
         var (admin, _) = await SignInAsync("Admin");
         var (invoice, _, site) = await InvoiceWithPositionAsync(admin, "Позиция связанного счёта");
@@ -22,10 +22,10 @@ public partial class InvoicePaymentTests
             await db.SaveChangesAsync();
         }
 
-        var view = await ReadAsync(admin, invoice);
+        var requisites = await RequisitesWithAsync(admin, invoice, "Итого", 40_000.50m);
         using var linked = await admin.PutAsJsonAsync($"/api/costs/invoices/{invoice}", new
         {
-            requisites = view.GetProperty("requisites"), purchaseRequestId = request.Id,
+            requisites, purchaseRequestId = request.Id,
         });
         await OkAsync(linked);
         var today = await TodayAsync();
@@ -33,25 +33,43 @@ public partial class InvoicePaymentTests
         await PayAsync(admin, invoice, paidOn, await PreviewAsync(admin, invoice, paidOn), null);
         await CloseAsync(site, today.AddDays(-10));
 
-        view = await ReadAsync(admin, invoice);
-        var version = view.GetProperty("version").GetString();
-        var moved = Correction(view, "Перенос на другой объект", lines =>
+        try
         {
-            var parts = (Dictionary<string, object?>[])lines[0]["parts"]!;
-            parts[0]["construction"] = other;
-        });
-        using var preview = await CorrectionRawAsync(admin, invoice, "preview", version, moved);
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, preview.StatusCode);
-        Assert.Contains("другая стройка", await ErrorAsync(preview));
+            await ToleranceAsync(admin, "0.10");
+            var view = await ReadAsync(admin, invoice);
+            var allocation = view.GetProperty("allocation");
+            Assert.Equal(0.10m, allocation.GetProperty("tolerance").GetDecimal());
+            Assert.Equal(0.50m, allocation.GetProperty("discrepancy").GetDecimal());
+            Assert.False(allocation.GetProperty("withinTolerance").GetBoolean());
+            var version = view.GetProperty("version").GetString();
+            var moved = Correction(view, "Перенос на другой объект", lines =>
+            {
+                var parts = (Dictionary<string, object?>[])lines[0]["parts"]!;
+                parts[0]["construction"] = other;
+            });
+            using var preview = await CorrectionRawAsync(admin, invoice, "preview", version, moved);
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, preview.StatusCode);
+            Assert.Contains("другая стройка", await ErrorAsync(preview));
 
-        var sameSite = Correction(view, "Уточнено наименование", lines => lines[0]["supplierText"] = "Кабель");
-        var accepted = await CorrectionPreviewAsync(admin, invoice, view, sameSite);
-        var stamp = accepted.GetProperty("stamp").GetString();
-        using var refused = await CorrectionRawAsync(admin, invoice, "", version, moved with { Stamp = stamp });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
-        var unchanged = await ReadAsync(admin, invoice);
-        Assert.Equal(version, unchanged.GetProperty("version").GetString());
-        Assert.Equal(request.Id, unchanged.GetProperty("purchaseRequestId").GetGuid());
-        await CorrectAsync(admin, invoice, view, sameSite with { Stamp = stamp });
+            var worse = Correction(view, "Увеличить расхождение", total: 40_000.75m);
+            using var worsePreview = await CorrectionRawAsync(admin, invoice, "preview", version, worse);
+            Assert.Equal(HttpStatusCode.BadRequest, worsePreview.StatusCode);
+            Assert.Contains("расходится", await ErrorAsync(worsePreview));
+
+            var sameSite = Correction(view, "Уточнено наименование", lines => lines[0]["supplierText"] = "Кабель");
+            var accepted = await CorrectionPreviewAsync(admin, invoice, view, sameSite);
+            var stamp = accepted.GetProperty("stamp").GetString();
+            using var refused = await CorrectionRawAsync(admin, invoice, "", version, moved with { Stamp = stamp });
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+            var unchanged = await ReadAsync(admin, invoice);
+            Assert.Equal(version, unchanged.GetProperty("version").GetString());
+            var corrected = await CorrectAsync(admin, invoice, view, sameSite with { Stamp = stamp });
+            Assert.Equal(request.Id, corrected.GetProperty("purchaseRequestId").GetGuid());
+            Assert.Equal("Кабель", corrected.GetProperty("lines")[0].GetProperty("supplierText").GetString());
+        }
+        finally
+        {
+            await ToleranceAsync(admin, null);
+        }
     }
 }

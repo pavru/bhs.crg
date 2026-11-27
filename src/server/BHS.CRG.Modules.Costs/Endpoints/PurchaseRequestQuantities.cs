@@ -28,9 +28,9 @@ internal sealed record PurchaseRequestQuantities(
         var canReadInvoices = await user.HasAsync(InvoiceRead, ct);
         var canReadIssued = await user.HasAsync(CostsModule.MaterialsRead, ct) || await user.HasAsync(WaybillRead, ct);
         var materials = request.Lines.Select(line => line.NomenclatureId).Distinct().ToArray();
-        var invoiced = canReadInvoices ? await InvoicedAsync(db, request.Id, materials, ct) : [];
+        var invoiced = canReadInvoices ? await InvoicedAsync(db, request.Id, materials, ct) : null;
         var issued = canReadIssued ? await IssuedAsync(db, request.ConstructionId, ct) : [];
-        var invoicesByMaterial = invoiced.ToLookup(line => line.NomenclatureId);
+        var invoicesByMaterial = (invoiced?.Items ?? []).ToLookup(line => line.NomenclatureId);
         var issuedByMaterial = issued.ToLookup(line => line.NomenclatureId);
 
         var rows = new List<PurchaseQuantityRow>();
@@ -48,6 +48,7 @@ internal sealed record PurchaseRequestQuantities(
             PurchaseQuantityRow Row(decimal ordered)
             {
                 var (invoiceQuantity, invoiceMismatch) = Compare(canReadInvoices, unit, invoicesByMaterial[material]);
+                if (invoiced?.HasInvoicesWithoutLines == true) invoiceQuantity = null;
                 var (issuedQuantity, issuedMismatch) = Compare(canReadIssued, unit, issuedByMaterial[material]);
                 return new(material, unit, ordered, invoiceQuantity, invoiceMismatch, issuedQuantity, issuedMismatch);
             }
@@ -57,16 +58,27 @@ internal sealed record PurchaseRequestQuantities(
             PurchaseQuantityAccess.For(canReadIssued, CostsModule.MaterialsRead, WaybillRead), rows);
     }
 
-    private static Task<List<MeasuredQuantity>> InvoicedAsync(
-        CostsDbContext db, Guid requestId, IReadOnlyList<Guid> materials, CancellationToken ct) =>
-        (from invoice in db.Invoices.AsNoTracking()
-         join line in db.InvoiceLines.AsNoTracking() on invoice.Id equals line.InvoiceId
-         where invoice.PurchaseRequestId == requestId
-             && line.NomenclatureId != null && materials.Contains(line.NomenclatureId.Value)
-         group line by new { line.NomenclatureId, line.Unit } into groupByUnit
-         select new MeasuredQuantity(groupByUnit.Key.NomenclatureId!.Value, groupByUnit.Key.Unit,
-             groupByUnit.Any(line => line.Quantity == null) ? null : groupByUnit.Sum(line => line.Quantity)))
-        .ToListAsync(ct);
+    private static async Task<InvoiceQuantities> InvoicedAsync(
+        CostsDbContext db, Guid requestId, IReadOnlyList<Guid> materials, CancellationToken ct)
+    {
+        // Пустой счёт может содержать любую позицию заявки. Читаем его вместе с количествами,
+        // чтобы запись строк между двумя запросами не выдала неполный итог за подтверждённый.
+        var groups = await (from invoice in db.Invoices.AsNoTracking()
+            join line in db.InvoiceLines.AsNoTracking() on invoice.Id equals line.InvoiceId into invoiceLines
+            from line in invoiceLines.DefaultIfEmpty()
+            where invoice.PurchaseRequestId == requestId
+                && (line == null || line.NomenclatureId != null && materials.Contains(line.NomenclatureId.Value))
+            group line by new { line!.NomenclatureId, line.Unit } into groupByUnit
+            select new
+            {
+                groupByUnit.Key.NomenclatureId, groupByUnit.Key.Unit,
+                Quantity = groupByUnit.Any(line => line!.Quantity == null) ? null : groupByUnit.Sum(line => line!.Quantity),
+            }).ToListAsync(ct);
+
+        return new(groups.Any(group => group.NomenclatureId is null),
+            [.. groups.Where(group => group.NomenclatureId is not null)
+                .Select(group => new MeasuredQuantity(group.NomenclatureId!.Value, group.Unit, group.Quantity))]);
+    }
 
     private static async Task<List<MeasuredQuantity>> IssuedAsync(
         CostsDbContext db, Guid constructionId, CancellationToken ct)
@@ -90,4 +102,5 @@ internal sealed record PurchaseRequestQuantities(
     }
 
     private sealed record MeasuredQuantity(Guid NomenclatureId, string? Unit, decimal? Quantity);
+    private sealed record InvoiceQuantities(bool HasInvoicesWithoutLines, IReadOnlyList<MeasuredQuantity> Items);
 }

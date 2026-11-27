@@ -95,8 +95,14 @@ public sealed partial class InvoiceDesk
 
                 var seen = await snapshots.OfAsync(invoice, ct);
                 if (invoice.PurchaseRequestId is not null)
+                {
+                    // Смена допуска не меняет стройку или распределённые доли.
+                    // Денежное расхождение сравнивает EnsureNoWorse со снимком до исправления.
+                    var allocation = seen.Allocation.Summary;
                     await InvoiceRequestLink.EnsureAllocationAsync(db, invoice, seen.Parts,
-                        seen.Allocation.Summary.Allocated, alreadyLinked: true, ct);
+                        allocation.Unbalanced.Count == 0 && allocation.Lost == 0 && allocation.Document.Balanced,
+                        alreadyLinked: true, ct);
+                }
                 InvoiceCorrectionCheck.EnsureNoWorse(invoice, was, wasGaps, seen);
 
                 // Состояние счёта исправление НЕ трогает (ревью PR #1364). Вернуть разобранный в черновик было бы

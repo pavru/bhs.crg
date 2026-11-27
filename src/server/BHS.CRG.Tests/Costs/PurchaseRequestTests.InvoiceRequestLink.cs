@@ -103,10 +103,20 @@ public sealed partial class PurchaseRequestTests
         await LinkInvoiceAsync(editor, invoice, requestId, Ineligible);
         invoice = await AllocateDocument(invoice, [new { construction = site.Construction, amount = 100 }], HttpStatusCode.OK);
         var linked = await LinkInvoiceAsync(editor, invoice, requestId, HttpStatusCode.OK);
+        var withoutLines = UnitRow(await QuantitiesAsync(editor, draft), "м");
+        Assert.Equal(JsonValueKind.Null, withoutLines.GetProperty("invoicedQuantity").ValueKind);
+        var withLines = await AllocatedInvoiceAsync(editor, site.Construction, material, 12);
+        await LinkInvoiceAsync(editor, withLines, requestId, HttpStatusCode.OK);
+        var incomplete = UnitRow(await QuantitiesAsync(editor, draft), "м");
+        Assert.Equal(JsonValueKind.Null, incomplete.GetProperty("invoicedQuantity").ValueKind);
+
         await AllocateDocument(linked, [new { construction = other.Construction, amount = 100 }], Ineligible);
         var stillLinked = await editor.GetFromJsonAsync<JsonElement>(InvoiceAddress(linked));
         Assert.Equal(Version(linked), Version(stillLinked));
         Assert.Equal(requestId, stillLinked.GetProperty("purchaseRequestId").GetGuid());
+        await LinkInvoiceAsync(editor, stillLinked, null, HttpStatusCode.OK);
+        var complete = UnitRow(await QuantitiesAsync(editor, draft), "м");
+        Assert.Equal(12m, complete.GetProperty("invoicedQuantity").GetDecimal());
     }
 
     [Fact]
