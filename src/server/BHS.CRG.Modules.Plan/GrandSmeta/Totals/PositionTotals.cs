@@ -4,7 +4,8 @@ namespace BHS.CRG.Modules.Plan.GrandSmeta.Totals;
 
 /// <summary>Досчитанная позиция: «Всего по позиции» в текущих ценах, затраты труда рабочих «всего» и
 /// коэффициенты, которые на неё действуют, — документа и самой позиции.</summary>
-internal sealed record ComputedPosition(decimal Total, decimal Labor, IReadOnlyList<XElement> Coefficients);
+internal sealed record ComputedPosition(decimal Total, decimal Labor, IReadOnlyList<XElement> Coefficients,
+    IReadOnlyDictionary<XElement, decimal?> MaterialAmounts);
 
 /// <summary>
 /// Досчёт итога позиции ЛСР, сохранённой без итогов (ТЗ PLAN-8, plan-05 группа 3): только по данным файла —
@@ -67,6 +68,11 @@ internal abstract class PositionTotals
         return method == CalculationMethod.Bim ? new BimTotals(root) : new RimTotals(root);
     }
 
+    /// <summary>Дополнение записанных итогов ресурсами допускает только тот же закрытый профиль.
+    /// Неподдержанный профиль оставляет ресурсы неизвестными, не отвергая сохранённый итог.</summary>
+    public static PositionTotals? SupportedProfile(XElement root, CalculationMethod method) =>
+        Unsupported(root, method) is null ? For(root, method) : null;
+
     /// <summary>Чего нет в перечне — «метод РМ», «метод БИМ (опция X)»; всё знакомо — null.</summary>
     private static string? Unsupported(XElement root, CalculationMethod method)
     {
@@ -98,6 +104,21 @@ internal abstract class PositionTotals
 
     public ComputedPosition Compute(XElement position, XElement chapter)
     {
+        var (vidRab, applied, factors, quantity) = Inputs(position, chapter);
+        return new ComputedPosition(Total(position, vidRab?.Vr, factors, quantity), Labor(position, applied, quantity), applied,
+            MaterialAmounts(position, factors, quantity));
+    }
+
+    /// <summary>У записанной позиции досчитываются только материальные слагаемые; Total не вызывается.</summary>
+    public IReadOnlyDictionary<XElement, decimal?> ComputeMaterials(XElement position, XElement chapter)
+    {
+        var (_, _, factors, quantity) = Inputs(position, chapter);
+        return MaterialAmounts(position, factors, quantity);
+    }
+
+    private ((XElement Vr, string? Group)? VidRab, List<XElement> Applied, Factors Factors, decimal Quantity) Inputs(
+        XElement position, XElement chapter)
+    {
         var vidRab = VidRab(position);
         var chapterId = chapter.Text("SysID");
         // Порядок — документа, затем позиции: у программы в итоге он свой и из файла не выводится (ЛСР ЭОМ)
@@ -108,8 +129,12 @@ internal abstract class PositionTotals
         var factors = Factors.Of(applied);
         var quantity = (position.Element("Quantity") ?? throw new GrandSmetaFormatException("у позиции нет объёма"))
             .Number("Result") ?? 0m;
-        return new ComputedPosition(Total(position, vidRab?.Vr, factors, quantity), Labor(position, applied, quantity), applied);
+        return (vidRab, applied, factors, quantity);
     }
+
+    /// <summary>Индивидуальные материальные слагаемые. Общая статья БИМ их не доказывает.</summary>
+    protected virtual IReadOnlyDictionary<XElement, decimal?> MaterialAmounts(XElement position, Factors factors, decimal quantity) =>
+        new Dictionary<XElement, decimal?>();
 
     /// <summary>Коэффициент, который на позицию действует, — из перечня, иначе позиция не досчитывается.</summary>
     private static void Supported(XElement k)

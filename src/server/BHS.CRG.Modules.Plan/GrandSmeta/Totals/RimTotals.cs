@@ -12,6 +12,14 @@ namespace BHS.CRG.Modules.Plan.GrandSmeta.Totals;
 /// </summary>
 internal sealed class RimTotals(XElement root) : PositionTotals(root)
 {
+    /// <summary>Те же слагаемые, что в статье МАТ, но без AuxMat. Отсутствующий атрибут цены не является
+    /// свидетельством нулевой стоимости отдельного ресурса; явное исключение NotCount является.</summary>
+    protected override IReadOnlyDictionary<XElement, decimal?> MaterialAmounts(XElement position, Factors f, decimal quantity) =>
+        position.Elements("Resources").Elements("Mat").Where(m => !m.HasOption("Deleted", "Attribs"))
+            .ToDictionary(m => m, m => m.HasOption("NotCount") ? 0m
+                : m.Number("Quantity") is { } norm && m.Element("PriceCurr")?.Number("Value") is { } price
+                    ? (decimal?)Kopecks(norm * f.Mt * quantity * price) : null);
+
     protected override decimal Total(XElement position, XElement? vidRab, Factors f, decimal quantity)
     {
         var resources = position.Element("Resources");
