@@ -93,10 +93,14 @@ Plan-25. Графики и `plan-23`/`plan-24` уже готовы; Work-28 жд
   24.11.2026 по находкам Work-25; уведомление без комментария, со ссылкой на отчёт. Проверка — change
   заархивирован ([архив 25.11.2026](../archive/2026-11-25-work-30-isolated-content-storage/tasks.md),
   PR #2087, `d8f57208`). Обязательная предпосылка завершения 5.6.
-- [ ] 5.6 `work-25-roles-e2e-violation` (1) — роли в посеве, живой прогон, проверка нарушением [STG-6]
-  [WORK-39]. Проверка — тест нарушения сначала падает, потом зелёный в CI
-  Выполненная часть архивирована ([архив Work-25](../archive/2026-11-25-work-25-roles-e2e-violation/tasks.md), PR #2084, #2091 и #2095).
-  Пункты 1.1, 1.5 и 1.6 остаются открытыми и отслеживаются в [баге #2096](https://github.com/pavru/bhs.crg/issues/2096).
+- [x] 5.6 `work-25-roles-e2e-violation` — роли в посеве, живой прогон, проверка чувствительности [STG-6]
+  [WORK-39]. [Архив Work-25](../archive/2026-11-25-work-25-roles-e2e-violation/tasks.md) от 25.11.2026
+  сохранил 12/15 (PR #2084, #2091 и #2095). Остаток 1.1, 1.5 и 1.6 подтверждён 27.11.2026
+  отдельным [Work-25.1](../archive/2026-11-27-work-25-1-isolation-test-controls/tasks.md) (PR #2116, архив #2118).
+  [#2096](https://github.com/pavru/bhs.crg/issues/2096) закрыт как выполненный. Доказательства —
+  [целевой отказ](https://github.com/pavru/bhs.crg/actions/runs/45924057907/job/140261237208),
+  [штатный зелёный CI](https://github.com/pavru/bhs.crg/actions/runs/45924899148) и
+  [зелёный CI последнего коммита](https://github.com/pavru/bhs.crg/actions/runs/45928865762).
 
 ## 6. Стык с этапом 3 (после 3)
 
@@ -121,14 +125,15 @@ Plan-25. Графики и `plan-23`/`plan-24` уже готовы; Work-28 жд
 
 ## 7. Верификация этапа
 
-- [ ] 7.1 Профильные тесты модуля и переписей: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work|FullyQualifiedName~Inventory|FullyQualifiedName~ModuleBoundary"`
-- [ ] 7.2 Весь набор backend двумя потоками: `bash scripts/backend-tests.sh` — зелёный
-- [ ] 7.3 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 7.4 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 7.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 7.6 Покрытие ТЗ: каждая метка `WORK-1`…`WORK-58` закрыта дочерним change или названа вынесенной в
-  `WORK-58`. Проверка — сверка меток `docs/tz/30-учёт-работ.md` с `openspec/specs/work/spec.md`
-  после архивации
+- [x] 7.1 Профильные тесты модуля и переписей: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Work|FullyQualifiedName~Inventory|FullyQualifiedName~ModuleBoundary"` — 492 прошли на отдельном PostgreSQL
+- [x] 7.2 Весь набор backend штатным `scripts/backend-tests.sh` — 6965 тестов прошли в двух долях
+  по два параллельных потока. Среда и порядок повтора первой доли — в [отчёте](verification.md#прогоны).
+- [x] 7.3 `cd src/client && npx tsc -b` — без ошибок
+- [x] 7.4 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 7.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [ ] 7.6 До архивации подтвердить каждое применимое требование ТЗ, включая `WORK-1`…`WORK-59` и подметки,
+  по действующим спецификациям, коду и проверкам. Согласованные выносы учитываются по `WORK-58`.
+  [Матрица](verification.md#матрица-покрытия) и [открытые вопросы](verification.md#открытые-вопросы-покрытия).
 
 ## Workflow follow-up
 
