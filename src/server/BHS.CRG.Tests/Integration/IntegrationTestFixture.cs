@@ -110,6 +110,8 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         ["ModuleTicks:Enabled"] = "false",
     };
 
+    protected virtual bool UseProductionRateLimits => false;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // UseSetting, а НЕ только ConfigureAppConfiguration. Разница не стилистическая: проверки
@@ -153,9 +155,8 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
             // там, где сделана: конвейер приложения перестаёт собираться целиком, и падает каждый
             // запрос каждого теста (проверено — набор шёл 16 минут вместо трёх).
             //
-            // ⚠️ Сам ограничитель после этого в тестах не проверяется — и не проверялся раньше:
-            // теста на него нет ни одного. Появится — ему нужен свой хост с боевыми пределами,
-            // иначе он будет зелёным, ничего не проверяя.
+            // Профильные тесты ограничителя запускаются на отдельном хосте с боевыми пределами.
+            if (UseProductionRateLimits) return;
             //
             // ⚠️ Список имён ДУБЛИРУЕТ приложение и расходится с ним молча: политика, о которой
             // здесь не знают, даёт 500 «no such policy exists» в каждом тесте, который трогает её
@@ -165,7 +166,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
             services.AddRateLimiter(o =>
             {
                 o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report", "branding", "branding-icons"])
+                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report", "branding", "branding-icons", "field-info"])
                     o.AddPolicy(policy, _ => RateLimitPartition.GetNoLimiter("tests"));
             });
         });
