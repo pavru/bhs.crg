@@ -1,0 +1,61 @@
+{
+  "protocolVersion": 1,
+  "exchangePrefix": "/api/field/v1/",
+  "workDisabled": { "status": 501, "response": { "module": "work", "reason": "module-disabled" } },
+  "defaultInfo": {
+    "status": 200,
+    "response": { "organizationName": "BHS.CRG", "logoUrl": null, "protocolVersions": [1], "minimumSenderVersionCode": 1 }
+  },
+  "operations": {
+    "info": {
+      "request": { "method": "GET", "path": "/api/field/info" },
+      "status": 200,
+      "response": {
+        "organizationName": "Пример-Строй",
+        "logoUrl": null,
+        "protocolVersions": [1],
+        "minimumSenderVersionCode": 1
+      }
+    },
+    "ping": {
+      "request": { "method": "GET", "path": "/api/field/ping" },
+      "status": 200,
+      "response": { "ok": true }
+    },
+    "join": {
+      "request": {
+        "method": "POST", "path": "/api/field/join",
+        "body": { "invitationCode": "example-invitation" }
+      },
+      "status": 200,
+      "response": {
+        "deviceId": "22b00cf9-66d2-496f-849d-30fbe267b802",
+        "employeeId": "967bd88d-1fee-4681-bc54-3589c1801167",
+        "accessToken": "example-access", "refreshToken": "example-refresh",
+        "expiresAt": "2027-02-26T00:00:00Z"
+      },
+      "refusals": [
+        { "status": 400, "response": { "reason": "invalid-request" } },
+        { "status": 403, "response": { "reason": "invitation-invalid" } }
+      ]
+    },
+    "refresh": {
+      "request": {
+        "method": "POST", "path": "/api/field/refresh",
+        "body": { "refreshToken": "example-refresh" }
+      },
+      "status": 200,
+      "response": {
+        "deviceId": "22b00cf9-66d2-496f-849d-30fbe267b802",
+        "employeeId": "967bd88d-1fee-4681-bc54-3589c1801167",
+        "accessToken": "example-next-access", "refreshToken": "example-next-refresh",
+        "expiresAt": "2027-02-27T00:00:00Z"
+      },
+      "refusals": [
+        { "status": 400, "response": { "reason": "invalid-request" } },
+        { "status": 401, "response": { "reason": "invalid-session" } },
+        { "status": 403, "response": { "reason": "device-revoked" } }
+      ]
+    }
+  }
+}

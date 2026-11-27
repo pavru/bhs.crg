@@ -245,6 +245,7 @@ public static class AppModuleExtensions
         {
             error = $"Модуль «{module.Title}» не подключён на этом экземпляре.",
             module = module.Code,
+            reason = "module-disabled",
         },
         statusCode: StatusCodes.Status501NotImplemented);
 
