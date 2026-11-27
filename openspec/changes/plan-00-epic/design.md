@@ -3,7 +3,7 @@
 Документ общий для всех дочерних change `plan-01`…`plan-30`: каждый ссылается сюда и не повторяет
 сказанного. Мотивация — `proposal.md`. Требования — дельты дочерних change и
 `docs/tz/50-планирование.md`. Обязательства перед этапом 4 — `WORK-57`, `WORK-59`,
-`openspec/changes/work-00-epic`.
+`openspec/changes/archive/2026-11-27-work-00-epic`.
 
 ## Context
 
