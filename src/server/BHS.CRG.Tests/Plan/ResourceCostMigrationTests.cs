@@ -65,7 +65,15 @@ public class ResourceCostMigrationTests
         Assert.Equal(first, (await db.Estimates.AsNoTracking().SingleAsync(e => e.Id == estimate)).CurrentRevisionId);
         Assert.All(await db.EstimateRevisions.AsNoTracking().ToListAsync(), r => Assert.Null(r.SourceBlobPath));
         Assert.All(await db.EstimateRevisions.AsNoTracking().ToListAsync(), r => Assert.True(r.Frozen));
-        await db.Database.MigrateAsync();
+        // Миграцию выполняет обычный старт приложения над прежней наполненной схемой.
+        // Второй хост использует ту же базу, не сбрасывая её и не получая исходные файлы.
+        await using (var restarted = new ResourceCostMigrationRestartHost())
+        {
+            await restarted.InitializeAsync();
+            using var probe = restarted.CreateClient();
+            Assert.Equal(HttpStatusCode.OK, (await probe.GetAsync("/api/version")).StatusCode);
+        }
+        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
         Assert.Equal(before, await SnapshotAsync(db));
         Assert.False(db.Database.HasPendingModelChanges());
         await using var reread = new PlanDbContext(options.Options);
@@ -106,4 +114,10 @@ internal sealed class ResourceCostMigrationHost : ModuleOnlyHost
     protected override string ModuleCode => "plan";
     protected override string DatabaseSuffix => "resource_cost_migrate";
     protected override IReadOnlyList<string> SchemasDroppedBeforeStart => ["plan", "public"];
+}
+
+internal sealed class ResourceCostMigrationRestartHost : ModuleOnlyHost
+{
+    protected override string ModuleCode => "plan";
+    protected override string DatabaseSuffix => "resource_cost_migrate";
 }
