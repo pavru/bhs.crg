@@ -105,11 +105,25 @@ public sealed record LocalEstimatePosition(
     decimal? Labor,
     IReadOnlyList<PositionMaterial> Materials,
     IReadOnlyList<PositionCoefficient> Coefficients,
-    MarketAnalysisLine? MarketAnalysis);
+    MarketAnalysisLine? MarketAnalysis,
+    ResourceCost? OwnMaterialCost = null);
 
 /// <summary>Материал позиции: количество «всего» на позицию — норма × коэффициент к расходу × объём.
 /// Удалённый сметчиком ресурс (<c>Attribs="Deleted"</c>) в перечень не входит.</summary>
-public sealed record PositionMaterial(string? Code, string Caption, string? Units, decimal Quantity);
+public sealed record PositionMaterial(string? Code, string Caption, string? Units, decimal Quantity, ResourceCost? Cost = null);
+
+/// <summary>Независимые текущие цена и сумма ресурса. Основа каждой величины подтверждается отдельно;
+/// старый промежуточный JSON без этих полей остаётся неизвестным. Эти данные — только внутри Plan,
+/// наружу их выпускает денежный DTO под правом на себестоимость.</summary>
+public sealed record ResourceCost(decimal? UnitPrice, decimal? Amount,
+    ResourceTaxBasis UnitPriceBasis = ResourceTaxBasis.Unknown, ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown);
+
+/// <summary>Подтверждение налоговой основы конкретного числа; отсутствие доказательства — не ставка 0%.</summary>
+public enum ResourceTaxBasis
+{
+    Unknown,
+    ExcludingVat,
+}
 
 /// <summary>Коэффициент позиции — как его назвала программа, со значениями в названии («ОЗП=1,2; ЭМ=1,2…»);
 /// без пересчёта (PLAN-8).</summary>
