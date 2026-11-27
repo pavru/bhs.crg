@@ -2,7 +2,7 @@
 
 ## Context
 
-Экран подключения Compose, Android networking, `/m/join`, постоянные полевые операции. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../mob-02-device-sessions/tasks.md), [mob-06-offline-entry](../mob-06-offline-entry/tasks.md).
+Экран подключения Compose, Android networking, `/m/join`, постоянные полевые операции. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [mob-06-offline-entry](../mob-06-offline-entry/tasks.md).
 
 ## Goals / Non-Goals
 
