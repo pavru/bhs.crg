@@ -1,6 +1,7 @@
 using System.Globalization;
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Work.Crew;
+using BHS.CRG.Modules.Work.Devices;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -37,6 +38,9 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
 
     /// <summary>Назначения сотрудников на стройки (<c>work-11</c>, ТЗ WORK-21, WORK-46).</summary>
     public DbSet<Assignment> Assignments => Set<Assignment>();
+
+    internal DbSet<DeviceInvitation> DeviceInvitations => Set<DeviceInvitation>();
+    internal DbSet<DeviceSession> DeviceSessions => Set<DeviceSession>();
 
     /// <summary>
     /// Серверная последовательность изменений отчётов (ТЗ MOB-16, change <c>work-13</c>): номер получает каждое
@@ -94,6 +98,8 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
 
     /// <summary>Версия отчёта — то же правило, что у назначения: только у отслеживаемой строки.</summary>
     public string VersionOf(Report report) => TrackedVersion(report, "отчёта");
+
+    internal string VersionOf(DeviceSession session) => TrackedVersion(session, "устройства");
 
     private string TrackedVersion(object entity, string what)
     {
@@ -165,6 +171,7 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
         WorkReportModel.Configure(builder, RowVersion);
         ReportVersion.Configure(builder);
         CrewGroupRecord.Configure(builder);
+        DeviceModel.Configure(builder);
     }
 
     /// <summary>

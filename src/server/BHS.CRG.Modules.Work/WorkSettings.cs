@@ -38,6 +38,11 @@ public static class WorkSettings
         "Если в выборке меньше строек, за этот период показывается «данных мало».",
         DefaultValue: 2m, Min: 1m, Max: int.MaxValue);
 
+    public static readonly NumberSetting DeviceDeliveryDays = new(
+        "work.devices.delivery-days", "Срок досылки после отзыва",
+        "Сколько суток после замены или увольнения устройство может досылать свои отчёты за день отзыва и ранее.",
+        DefaultValue: 14m, Min: 0m, Max: 90m, Unit: "дн.");
+
     public static IReadOnlyList<ModuleSetting> All =>
-        [PhotoMaxMegabytes, PhotosPerLine, ProductivityReports, ProductivityConstructions];
+        [PhotoMaxMegabytes, PhotosPerLine, ProductivityReports, ProductivityConstructions, DeviceDeliveryDays];
 }

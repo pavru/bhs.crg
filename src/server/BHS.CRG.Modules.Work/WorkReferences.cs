@@ -18,6 +18,13 @@ public static class WorkReferences
 {
     public static IReadOnlyList<ModuleReference> All =>
     [
+        ModuleReference.Remembering("device_invitations", "EmployeeId", ReferenceTarget.Record,
+            "приглашение можно погасить только для существующего сотрудника; история приглашений сохраняется"),
+        ModuleReference.Remembering("device_sessions", "EmployeeId", ReferenceTarget.Record,
+            "полевой доступ требует существующего сотрудника; запись устройства хранит историю отзыва"),
+        ModuleReference.Remembering("device_sessions", "RevokedBy", ReferenceTarget.User,
+            "идентификатор автора отзыва; удаление учётной записи не меняет историю"),
+
         ModuleReference.Holding("assignments", "employee_id", ReferenceTarget.Record, "назначения"),
         ModuleReference.Holding("assignments", "construction_id", ReferenceTarget.Construction,
             "назначения на эту стройку"),

@@ -46,6 +46,7 @@ public class AssignmentHost : ModuleOnlyHost
 
     internal DateTimeOffset? ClosureTime { get; set; }
     internal DateTimeOffset? ReportTime { get; set; }
+    internal DateTimeOffset? ModuleTime { get; set; }
 
     protected override string ModuleCode => WorkModule.ModuleCode;
 
@@ -58,7 +59,7 @@ public class AssignmentHost : ModuleOnlyHost
         {
             services.RemoveAll<IModuleClock>();
             services.AddScoped<IModuleClock>(sp => new ModuleClockPort(
-                sp.GetRequiredService<IAppSettingsStore>(), new Fixed(Now),
+                sp.GetRequiredService<IAppSettingsStore>(), new Fixed(ModuleTime ?? Now),
                 sp.GetRequiredService<IRepository<Construction>>()));
             services.RemoveAll<IPeriodClosures>();
             services.AddScoped<IPeriodClosures>(sp => ActivatorUtilities.CreateInstance<PeriodClosureService>(
