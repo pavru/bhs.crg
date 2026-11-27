@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +27,8 @@ public sealed record EstimateRowDraft(
 /// <param name="ResourceMatchId">Запомненное сопоставление, подставившее позицию номенклатуры (<c>plan-08</c>).</param>
 public sealed record EstimateMaterialDraft(
     string SourceName, decimal Quantity, string? SourceCode = null, string? SourceUnit = null,
-    Guid? NomenclatureId = null, decimal? UnitPrice = null, decimal? Amount = null, Guid? ResourceMatchId = null);
+    Guid? NomenclatureId = null, decimal? UnitPrice = null, decimal? Amount = null, Guid? ResourceMatchId = null,
+    ResourceTaxBasis UnitPriceBasis = ResourceTaxBasis.Unknown, ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown);
 
 /// <summary>
 /// Запись новой редакции сметы — ЕДИНСТВЕННОЕ место, где строки сметы попадают в базу (change

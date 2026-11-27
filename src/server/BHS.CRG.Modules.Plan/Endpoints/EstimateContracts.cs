@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BHS.CRG.Modules.Exchange;
 
 namespace BHS.CRG.Modules.Plan.Endpoints;
 
@@ -68,7 +69,9 @@ public sealed record LsrSectionDto(string? Code, string? Name);
 public sealed record EstimateRowCostDto(decimal? UnitCost, decimal? Total, JsonElement Data);
 
 /// <summary>Цена и стоимость материала — только с <c>plan.estimate.cost</c>.</summary>
-public sealed record MaterialCostDto(decimal? UnitPrice, decimal? Amount);
+public sealed record MaterialCostDto(decimal? UnitPrice, decimal? Amount,
+    ResourceTaxBasis UnitPriceBasis = ResourceTaxBasis.Unknown,
+    ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown);
 
 public sealed record EstimateMaterialDto(
     Guid Id, int Order, Guid? NomenclatureId, string SourceName, string? SourceCode, string? SourceUnit,

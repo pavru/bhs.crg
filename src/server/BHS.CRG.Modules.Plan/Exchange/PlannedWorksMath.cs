@@ -12,7 +12,8 @@ internal sealed record PlannedRow(
     string? LsrSectionCode, decimal? Total);
 
 /// <summary>Материал строки: позиция номенклатуры (или пусто, пока не сопоставлен), количество и стоимость.</summary>
-internal sealed record PlannedRowMaterial(Guid RowId, Guid? NomenclatureId, decimal Quantity, string? Unit, decimal? Amount);
+internal sealed record PlannedRowMaterial(Guid RowId, Guid? NomenclatureId, decimal Quantity, string? Unit, decimal? Amount,
+    ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown);
 
 /// <summary>Трудозатраты строки: чел.-ч на её объём.</summary>
 internal sealed record PlannedRowLabor(Guid RowId, decimal ManHours);
@@ -138,7 +139,9 @@ internal static class PlannedWorksMath
                         .Select(m => (Material: m, Weight: shares[r.Id].Weight(section))))
                     .GroupBy(x => x.Material.NomenclatureId!.Value).OrderBy(x => x.Key)
                     .Select(x => new PlannedMaterialCost(x.Key, x.Any(m => m.Material.Amount is null) ? null
-                        : x.Sum(m => Scale(m.Material.Amount!.Value, m.Weight, Money))))
+                        : x.Sum(m => Scale(m.Material.Amount!.Value, m.Weight, Money)),
+                        x.All(m => m.Material.Amount is not null && m.Material.AmountBasis == ResourceTaxBasis.ExcludingVat)
+                            ? ResourceTaxBasis.ExcludingVat : ResourceTaxBasis.Unknown))
                     .ToList();
                 return new PlannedCost(g.Key, total, costs);
             }),
