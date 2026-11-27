@@ -136,6 +136,8 @@ Plan-25. Графики и `plan-23`/`plan-24` уже готовы; Work-28 жд
   [Матрица](verification.md#матрица-покрытия) и [открытые вопросы](verification.md#открытые-вопросы-покрытия).
   Пробел по обязательным месту и материалам при автоподаче закрыт в
   [Work‑31](../archive/2026-11-27-work-31-autosubmit-required-missing/tasks.md), PR #2125, версия 2.142.10.
+  Исправление закрытого отчёта из веб-карточки подтверждено в
+  [Work‑32](../archive/2026-11-27-work-32-closed-report-correction-ui/tasks.md#4-верификация), PR #2127, версия 2.142.11.
 
 ## Workflow follow-up
 
