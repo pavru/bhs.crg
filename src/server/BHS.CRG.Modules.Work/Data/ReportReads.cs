@@ -4,6 +4,7 @@ using BHS.CRG.Modules.Ports;
 using System.Linq.Expressions;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.EntityFrameworkCore;
 
@@ -321,8 +322,8 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// отчётам охвата, независимо от отбора и страницы.
     /// </summary>
     public async Task<ReviewQueueRead> QueueAsync(
-        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, IModuleWorkTypes workTypes, CancellationToken ct,
-        ModuleAcceptanceSchema? acceptance = null)
+        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit,
+        IModuleWorkTypes workTypes, IModulePeriods periods, CancellationToken ct, ModuleAcceptanceSchema? acceptance = null)
     {
         await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var sources = Sources(userId);
@@ -339,7 +340,7 @@ public sealed partial class ReportReads(WorkDbContext db)
         for (var i = 0; i < ReviewMarks.Counted.Count; i++) counts[ReviewMarks.Counted[i].Code] = counted?[i] ?? 0;
         var missingFields = await CountMissingFieldsAsync(chosen, acceptance, ct);
         counts[ReviewMarks.FieldsMissing] = missingFields.Count;
-        var required = await RequiredGapsAsync(chosen, workTypes, ct);
+        var required = await RequiredGapsAsync(chosen, workTypes, periods, ct);
         counts[ReviewMarks.RequiredMissing] = required.Count;
 
         var missingIds = missingFields.Keys.ToArray();
@@ -372,13 +373,19 @@ public sealed partial class ReportReads(WorkDbContext db)
     }
 
     private static async Task<Dictionary<Guid, RequiredGaps>> RequiredGapsAsync(
-        IQueryable<Report> chosen, IModuleWorkTypes workTypes, CancellationToken ct)
+        IQueryable<Report> chosen, IModuleWorkTypes workTypes, IModulePeriods periods, CancellationToken ct)
     {
         var lines = await chosen.Where(report => report.SubmittedBy == ReportSubmitter.Auto)
             .SelectMany(report => report.Lines, (report, line) => new
             {
-                ReportId = report.Id, line.WorkTypeId, line.Location, HasMaterials = line.Materials.Any(),
+                ReportId = report.Id, report.ConstructionId, report.Date,
+                line.WorkTypeId, line.Location, HasMaterials = line.Materials.Any(),
             }).ToListAsync(ct);
+        if (lines.Count == 0) return [];
+
+        // Если период закрыли без Work, поданный отчёт может сохраниться в очереди.
+        var boundaries = await periods.BoundariesAsync(ct);
+        lines.RemoveAll(line => ReportPeriods.IsClosed(boundaries, line.ConstructionId, line.Date));
         if (lines.Count == 0) return [];
         var known = await workTypes.GetAsync([.. lines.Select(line => line.WorkTypeId).Distinct()], ct);
         if (known is null) return [];

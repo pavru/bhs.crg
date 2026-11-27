@@ -85,7 +85,7 @@ public static class ReviewQueue
     private static Task<IResult> GetAsync(
         Guid? constructionId, Guid? employeeId, DateOnly? from, DateOnly? to, string? mark, int? offset, int? limit,
         IModuleUser user, IModuleReaders readers, ManagerSites sites, IModuleEmployees employees, ReportReads reads,
-        IModuleAcceptanceFields acceptanceFields, IModuleWorkTypes workTypes, CancellationToken ct) =>
+        IModuleAcceptanceFields acceptanceFields, IModuleWorkTypes workTypes, IModulePeriods periods, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
             var skip = offset ?? 0;
@@ -113,7 +113,7 @@ public static class ReviewQueue
             }
 
             var acceptance = await acceptanceFields.ReadAsync(WorkModule.ModuleCode, WorkRecordTypes.LineDetailsCode, ct);
-            var read = await reads.QueueAsync(ReportViewer.Of(reach), filter, user.Id, skip, take, workTypes, ct, acceptance);
+            var read = await reads.QueueAsync(ReportViewer.Of(reach), filter, user.Id, skip, take, workTypes, periods, ct, acceptance);
             string? reason = read.Total > 0 ? null : read.PendingEmployeeIds.Count > 0 && filter.Any ? FilteredOut : NothingPending;
             var rows = read.Items.Select(i => Row(i, user.Id, decides)).ToList();
             var ids = read.PendingEmployeeIds.Union(rows.Select(row => row.EmployeeId)).ToArray();

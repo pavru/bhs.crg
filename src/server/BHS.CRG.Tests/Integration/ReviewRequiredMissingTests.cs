@@ -5,12 +5,15 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Modules;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Modules.Work.Review;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -129,14 +132,15 @@ public class ReviewRequiredMissingTests(AssignmentHost host) : IAsyncLifetime
         await using var scope = host.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var reads = sp.GetRequiredService<ReportReads>();
+        var periods = sp.GetRequiredService<IModulePeriods>();
         var port = new TypesProbe(sp.GetRequiredService<IModuleWorkTypes>());
         var viewer = ReportViewer.Of(ModuleReach.OfSites([World.SiteA]));
         var filter = new ReviewQueueFilter(null, null, null, null, ReviewMarks.Of(Required));
-        var read = await reads.QueueAsync(viewer, filter, null, 0, 1, port, default);
+        var read = await reads.QueueAsync(viewer, filter, null, 0, 1, port, periods, default);
         Assert.Equal([both], Assert.Single(port.Requests));
         Assert.Equal(3, read.Total);
         port.Unavailable = true;
-        read = await reads.QueueAsync(viewer, filter, null, 0, 1, port, default);
+        read = await reads.QueueAsync(viewer, filter, null, 0, 1, port, periods, default);
         Assert.Equal(0, read.Counts[Required]);
         Assert.Empty(read.Items);
     }
@@ -219,6 +223,54 @@ public class ReviewRequiredMissingTests(AssignmentHost host) : IAsyncLifetime
         var report = card.GetProperty("report");
         Assert.Equal("manual", report.GetProperty("submittedBy").GetString());
         Assert.Equal([(1, line, "location")], Missing(report, "requiredMissing"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Закрытие_без_Work_снимает_пометку_после_включения_модуля(bool company)
+    {
+        using var installer = (await World.InstallerAsync("Монтажник")).Client;
+        using var reader = (await World.Assignments.UserAsync("Руководитель", WorkModule.ReportRead)).Client;
+        using var closer = await period.CloserAsync();
+        var (closed, open, line) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var october = WorkPeriodWorld.OctoberEnd;
+        await CreateAsync(installer, Body(closed, World.SiteA, [Line(line, World.WorkTypeNeedsPlace)], october));
+        await CreateAsync(installer, Body(open, World.SiteB, [Line(Guid.NewGuid(), World.WorkTypeNeedsPlace)],
+            company ? ReportWorld.Day16 : october));
+        await period.Review.TickAsync(ReviewWorld.Up19);
+        Assert.Equal(2, Count(await ReadQueueAsync(reader), Required));
+
+        host.ClosureTime = ReviewWorld.Up19.ToUniversalTime();
+        await using (var withoutWork = host.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Modules:Enabled", "id");
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Modules:Enabled"] = "id" }));
+        }))
+        {
+            using var closingClient = withoutWork.CreateClient();
+            Assert.DoesNotContain(withoutWork.Services.GetRequiredService<ModuleRegistry>().Enabled, m => m.Code == WorkModule.ModuleCode);
+            closingClient.DefaultRequestHeaders.Authorization = closer.DefaultRequestHeaders.Authorization;
+            await WorkPeriodWorld.CloseAsync(closingClient, site: company ? null : World.SiteA);
+        }
+
+        await using var withWork = host.WithWebHostBuilder(_ => { });
+        using var review = withWork.CreateClient();
+        review.DefaultRequestHeaders.Authorization = reader.DefaultRequestHeaders.Authorization;
+        var queue = await ReadQueueAsync(review);
+        var row = Assert.Single(queue.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetGuid() == closed);
+        Assert.Null(MarkText(row, Required));
+        Assert.Equal(1, Count(queue, Required));
+        Assert.Equal([open], Ids(await ReadQueueAsync(review, $"?mark={Required}")));
+
+        var card = await ReadCardAsync(review, closed);
+        var report = card.GetProperty("report");
+        Assert.True(report.GetProperty("periodClosed").GetBoolean());
+        Assert.Equal("submitted", report.GetProperty("status").GetString());
+        Assert.Equal([(1, line, "location")], Missing(report, "requiredMissing"));
+        Assert.Null(MarkText(report, Required));
+        Assert.Empty(Missing(card, "currentRequiredMissing"));
     }
 
     private async Task MarkCustomerFieldAsync()

@@ -64,7 +64,8 @@ public class ReviewReadsTests(AssignmentHost host) : IAsyncLifetime
 
         var page = await new ReportReads(db).QueueAsync(ReportViewer.Of(ModuleReach.All),
             new ReviewQueueFilter(null, null, null, null, null), null, 0, 1,
-            scope.ServiceProvider.GetRequiredService<IModuleWorkTypes>(), default);
+            scope.ServiceProvider.GetRequiredService<IModuleWorkTypes>(),
+            scope.ServiceProvider.GetRequiredService<IModulePeriods>(), default);
 
         Assert.Equal(2, page.Total);
         Assert.Equal(2, page.Counts[ReviewMarks.SiteNotAssigned]);
