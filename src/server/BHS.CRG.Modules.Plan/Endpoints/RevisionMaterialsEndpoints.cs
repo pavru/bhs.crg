@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Matching;
@@ -122,12 +123,17 @@ public static class RevisionMaterialsEndpoints
             marks.Add(new("mixed", "Ресурсы материала сопоставлены с разными позициями номенклатуры"));
 
         var prices = g.Materials.Select(m => m.UnitPrice).Distinct().ToList();
+        var commonPrice = prices is [{ } price] && g.Materials.All(m => m.UnitPriceBasis == ResourceTaxBasis.ExcludingVat)
+            ? (decimal?)price : null;
         return new MaterialGroupDto(
             g.Key, first.SourceName, first.SourceCode, first.SourceUnit, g.Rows, g.Materials.Sum(m => m.Quantity),
             positions is [{ } only] ? only : null, marks,
             cost
-                ? new MaterialCostDto(prices is [{ } price] ? price : null,
-                    g.Materials.All(m => m.Amount is not null) ? g.Materials.Sum(m => m.Amount!.Value) : null)
+                ? new MaterialCostDto(commonPrice,
+                    g.Materials.All(m => m.Amount is not null) ? g.Materials.Sum(m => m.Amount!.Value) : null,
+                    commonPrice is not null ? ResourceTaxBasis.ExcludingVat : ResourceTaxBasis.Unknown,
+                    g.Materials.All(m => m.Amount is not null && m.AmountBasis == ResourceTaxBasis.ExcludingVat)
+                        ? ResourceTaxBasis.ExcludingVat : ResourceTaxBasis.Unknown)
                 : null);
     }
 }

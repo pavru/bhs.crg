@@ -96,7 +96,12 @@ export interface EstimateMaterial {
   sourceUnit: string | null;
   quantity: number;
   marks: PlanMark[];
-  cost?: { unitPrice: number | null; amount: number | null };
+  cost?: {
+    unitPrice: number | null;
+    amount: number | null;
+    unitPriceBasis: 'Unknown' | 'ExcludingVat';
+    amountBasis: 'Unknown' | 'ExcludingVat';
+  };
 }
 
 export type EstimateRowKind = 'work' | 'material';

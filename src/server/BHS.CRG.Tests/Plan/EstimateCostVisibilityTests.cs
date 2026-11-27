@@ -28,7 +28,7 @@ public class EstimateCostVisibilityTests(PlanOnlyHost host)
     private const string Secret = "СЕКРЕТНАЯ-РАСЦЕНКА-ГЭСН-7";
 
     /// <summary>Ключи, под которыми деньги и наполнение лежат в ответе с правом.</summary>
-    private static readonly string[] CostKeys = ["cost", "data", "unitCost", "total", "unitPrice", "amount"];
+    private static readonly string[] CostKeys = ["cost", "data", "unitCost", "total", "unitPrice", "amount", "unitPriceBasis", "amountBasis"];
 
     [Fact]
     public async Task Без_права_ответы_строк_и_смет_не_несут_денег_и_наполнения()

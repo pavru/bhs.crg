@@ -122,7 +122,7 @@ public sealed record PlannedCost(Guid? PlanItemId, decimal? Total, IReadOnlyList
 /// <param name="Amount">
 /// <c>null</c> — смета стоимости ресурса не несёт (так бывает у базисно-индексного расчёта), и это не ноль.
 /// </param>
-public sealed record PlannedMaterialCost(Guid NomenclatureId, decimal? Amount)
+public sealed record PlannedMaterialCost(Guid NomenclatureId, decimal? Amount, ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown)
 {
     /// <summary>Стоимости в смете нет — показывать «нет в смете», а не ноль.</summary>
     public bool NotInEstimate => Amount is null;
