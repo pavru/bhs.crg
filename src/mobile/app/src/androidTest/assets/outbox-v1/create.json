@@ -1,0 +1,24 @@
+{
+  "report": {
+    "id": "a1c099bc-b135-4448-ac80-67bfe95396e6",
+    "constructionId": null,
+    "unlistedSiteName": "Новый объект",
+    "companyZoneId": "Asia/Vladivostok",
+    "siteZoneId": null,
+    "windowZoneId": "Asia/Vladivostok",
+    "date": "2026-11-16",
+    "shift": "NIGHT",
+    "windowEndsAt": "2026-11-17T14:00:00Z",
+    "hours": "8",
+    "note": null,
+    "status": "DRAFT",
+    "submittedAt": null,
+    "revision": 1
+  },
+  "lines": [
+    {
+      "id": "b52e41dc-11ed-4dc1-877d-45ff47884368",
+      "volume": "12.25"
+    }
+  ]
+}
