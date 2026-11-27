@@ -1,15 +1,16 @@
 {
-  "about": "Общий файл примеров окна подачи (ТЗ MOB-18, WORK-8, WORK-10, WORK-52, MOB-35; change work-15-submission). Читают тесты сервера (SubmissionCasesTests) и в этапе 5 — тесты приложения. Пояс стройки — действующий (свой или компании); пояс компании — для чтения примера. Мгновения ожиданий сравниваются как мгновения, смещение записи не важно.",
+  "about": "Общий файл примеров окна подачи (ТЗ MOB-18, WORK-8, WORK-10, WORK-22, WORK-52, MOB-35). Читают тесты сервера и Kotlin. null в siteZone означает отчёт без стройки: используется пояс компании. null в shift означает дневную смену по умолчанию. Мгновения сравниваются независимо от смещения.",
   "cases": [
     {
       "name": "Дневная смена, Москва: подача вечером",
       "companyZone": "Europe/Moscow",
       "siteZone": "Europe/Moscow",
       "date": "2026-11-16",
-      "shift": "day",
+      "shift": null,
       "now": "2026-11-16T18:00:00+03:00",
       "hasNightYesterday": false,
       "deviceTime": "2026-11-16T18:00:00+03:00",
+      "attemptedShiftAfterSubmission": "night",
       "expect": {
         "windowEndsAt": "2026-11-17T00:00:00+03:00",
         "momentOfManual": "2026-11-16T18:00:00+03:00",
@@ -28,6 +29,21 @@
       "expect": {
         "windowEndsAt": "2026-11-18T00:00:00+10:00",
         "momentOfManual": "2026-11-17T06:00:00+10:00",
+        "suggested": { "date": "2026-11-16", "shift": "night", "label": "Ночная смена 16.11" }
+      }
+    },
+    {
+      "name": "Отчёт без стройки: продолжение вчерашней ночи по поясу компании",
+      "companyZone": "Asia/Vladivostok",
+      "siteZone": null,
+      "date": "2026-11-16",
+      "shift": "night",
+      "now": "2026-11-16T16:00:00Z",
+      "hasNightYesterday": true,
+      "deviceTime": "2026-11-18T09:00:00+10:00",
+      "expect": {
+        "windowEndsAt": "2026-11-18T00:00:00+10:00",
+        "momentOfManual": "2026-11-18T00:00:00+10:00",
         "suggested": { "date": "2026-11-16", "shift": "night", "label": "Ночная смена 16.11" }
       }
     },
