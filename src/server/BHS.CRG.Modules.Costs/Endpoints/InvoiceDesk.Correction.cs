@@ -94,6 +94,9 @@ public sealed partial class InvoiceDesk
                 await db.SaveChangesAsync(ct);
 
                 var seen = await snapshots.OfAsync(invoice, ct);
+                if (invoice.PurchaseRequestId is not null)
+                    await InvoiceRequestLink.EnsureAllocationAsync(db, invoice, seen.Parts,
+                        seen.Allocation.Summary.Allocated, alreadyLinked: true, ct);
                 InvoiceCorrectionCheck.EnsureNoWorse(invoice, was, wasGaps, seen);
 
                 // Состояние счёта исправление НЕ трогает (ревью PR #1364). Вернуть разобранный в черновик было бы

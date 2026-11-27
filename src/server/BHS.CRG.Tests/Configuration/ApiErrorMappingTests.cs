@@ -63,6 +63,7 @@ public class ApiErrorMappingTests
     public static TheoryData<DomainException, int> DomainRefusals() => new()
     {
         { new InvalidRequestException("Укажите название профиля."), StatusCodes.Status400BadRequest },
+        { new UnprocessableRequestException("Счёт не разнесён на стройку заявки."), StatusCodes.Status422UnprocessableEntity },
         { new NotFoundException("Профиль распознавания не найден."), StatusCodes.Status404NotFound },
         { new ConflictException("Тип документа с кодом «АОСР» уже существует."), StatusCodes.Status409Conflict },
         { new ForbiddenException("Действие доступно только администратору."), StatusCodes.Status403Forbidden },

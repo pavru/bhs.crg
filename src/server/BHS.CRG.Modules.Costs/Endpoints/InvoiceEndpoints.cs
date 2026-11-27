@@ -90,6 +90,9 @@ public static class InvoiceEndpoints
         IModuleActivityLog log, IModuleWriteGuard guard, InvoiceDesk desk, IModuleReferenceTargets targets,
         IModuleCatalog catalog, CancellationToken ct)
     {
+        if (body.PurchaseRequestId.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+            throw new InvalidRequestException("Сначала сохраните и разнесите счёт, затем укажите заявку в правке шапки.");
+
         var typeId = await types.FindAsync(CostsRecordTypes.InvoiceCode, ct)
             ?? throw new ConflictException(
                 $"Тип «{CostsRecordTypes.InvoiceCode}» в системе не заведён, поэтому счёт завести " +
@@ -165,6 +168,8 @@ public static class InvoiceEndpoints
             var invoice = write.Invoice;
             var dueWas = (invoice.DueDate, invoice.DueDateManual);
             var changed = await ApplyRequisitesAsync(invoice, body.Requisites, desk, guard, targets, catalog, rule, ct);
+            if (await InvoiceRequestLink.SetAsync(db, invoice, body.PurchaseRequestId, ct))
+                changed = [.. changed, "Заявка на закупку"];
 
             // Разобранный счёт, переставший отвечать условию «разобран», САМ возвращается в черновик — как
             // при правке строк и разноски. Шапка задевает условие дважды: обязательным полем, которое

@@ -466,6 +466,12 @@ public sealed partial class Invoice
     /// </summary>
     public void ContentChanged() => Touch();
 
+    internal void LinkPurchaseRequest(Guid? requestId)
+    {
+        PurchaseRequestId = requestId;
+        Touch();
+    }
+
     /// <summary>
     /// Сменить режим НДС. Зовёт только запись строк — и в той же правке кладёт строки, досчитанные по
     /// НОВОМУ режиму: режим без пересчёта строк оставил бы суммы с НДС посчитанными по старому правилу.

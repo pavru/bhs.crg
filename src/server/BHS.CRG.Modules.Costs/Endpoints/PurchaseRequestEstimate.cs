@@ -70,8 +70,8 @@ internal sealed class PurchaseRequestEstimate(
 
         foreach (var material in materials.Lines.GroupBy(line => line.NomenclatureId))
         {
-            var delivered = issuedByMaterial[material.Key].ToLookup(line => Unit(line.Unit));
-            var units = material.ToLookup(line => Unit(line.Unit));
+            var delivered = issuedByMaterial[material.Key].ToLookup(line => PurchaseRequestLine.ComparableUnit(line.Unit));
+            var units = material.ToLookup(line => PurchaseRequestLine.ComparableUnit(line.Unit));
             foreach (var group in units)
             {
                 if (group.Key is null)
@@ -98,8 +98,6 @@ internal sealed class PurchaseRequestEstimate(
                 "Другие заявки не резервируют количество и не участвуют в расчёте. До нового отпуска предложение может повториться.",
             ]);
     }
-
-    private static string? Unit(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static PurchaseRequestSuggestionLine Suggestion(
         Guid material, Guid? source, string? unit, decimal planned, decimal? issued, bool mismatch) =>
