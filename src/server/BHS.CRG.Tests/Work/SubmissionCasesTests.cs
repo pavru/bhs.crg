@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Submission;
 
@@ -7,7 +8,7 @@ namespace BHS.CRG.Tests.Work;
 
 /// <summary>
 /// Правило окна подачи по общему файлу примеров (ТЗ MOB-18, WORK-8, WORK-10, WORK-52, MOB-35; change
-/// <c>work-15-submission</c>). Файл лежит рядом с правилом (<c>Submission/SubmissionCases.json</c>), и в этапе 5 его же
+/// <c>work-15-submission</c>). Файл лежит рядом с правилом (<c>Submission/SubmissionCases.json</c>), его же
 /// читают тесты приложения: правило, изменённое без файла, краснеет здесь с названием примера.
 ///
 /// <para><b>Состав обязателен.</b> Без ночной смены и без пояса стройки, отличного от пояса компании, примеры прошли бы
@@ -27,8 +28,8 @@ public class SubmissionCasesTests
     {
         var c = Cases().Single(x => Text(x, "name") == name);
         var expect = c.GetProperty("expect");
-        var zone = Text(c, "siteZone");
-        var shift = Report.ParseShift(Text(c, "shift"));
+        var zone = EffectiveZone(c);
+        var shift = Report.ParseShift(c.GetProperty("shift").GetString());
 
         var ends = SubmissionWindow.EndsAt(zone, Day(Text(c, "date")), shift);
         Assert.Equal(Instant(expect, "windowEndsAt"), ends);
@@ -39,6 +40,25 @@ public class SubmissionCasesTests
         Assert.Equal(Day(Text(suggested, "date")), pair.Date);
         Assert.Equal(Text(suggested, "shift"), Report.ShiftCode(pair.Shift));
         Assert.Equal(Text(suggested, "label"), pair.Label);
+
+        if (c.TryGetProperty("attemptedShiftAfterSubmission", out var attempted))
+            AssertShiftLocked(c, shift, Report.ParseShift(attempted.GetString()), ends);
+    }
+
+    private static void AssertShiftLocked(JsonElement c, ReportShift shift, ReportShift attempted, DateTimeOffset ends)
+    {
+        var now = Instant(c, "deviceTime");
+        var site = Guid.NewGuid();
+        var date = Day(Text(c, "date"));
+        var report = Report.Create(Guid.NewGuid(), Guid.NewGuid(), site, date, shift, null, null, 1, now, ends);
+        report.Submit(SubmissionWindow.MomentOfManual(now, ends), ReportSubmitter.Manual, null, 2, now);
+
+        Assert.NotEqual(shift, attempted);
+        Assert.Equal(Report.KeyLocked, Assert.Throws<ConflictException>(() =>
+            report.ChangeHeader(site, date, attempted, null, null, 3, now,
+                SubmissionWindow.EndsAt(EffectiveZone(c), date, attempted))).Message);
+        Assert.Equal(shift, report.Shift);
+        Assert.Equal(ends, report.WindowEndsAt);
     }
 
     /// <summary>Ночная смена, чужой пояс, «после полуночи в ночную смену» и переход часов — в файле есть все.</summary>
@@ -47,9 +67,12 @@ public class SubmissionCasesTests
     {
         var cases = Cases();
         Assert.Contains(cases, c => Text(c, "shift") == "night");
-        Assert.Contains(cases, c => Text(c, "siteZone") != Text(c, "companyZone"));
-        Assert.Contains(cases, c => Text(c, "siteZone") == "Europe/Berlin");
+        Assert.Contains(cases, c => c.GetProperty("shift").ValueKind == JsonValueKind.Null);
+        Assert.Contains(cases, c => c.TryGetProperty("attemptedShiftAfterSubmission", out _));
+        Assert.Contains(cases, c => EffectiveZone(c) != Text(c, "companyZone"));
+        Assert.Contains(cases, c => c.GetProperty("siteZone").GetString() == "Europe/Berlin");
         Assert.Contains(cases, AfterMidnightInNight);
+        Assert.Contains(cases, c => c.GetProperty("siteZone").ValueKind == JsonValueKind.Null && AfterMidnightInNight(c));
         Assert.Equal(cases.Count, cases.Select(c => Text(c, "name")).Distinct().Count());
     }
 
@@ -84,7 +107,7 @@ public class SubmissionCasesTests
     {
         var suggested = c.GetProperty("expect").GetProperty("suggested");
         if (Text(suggested, "shift") != "night") return false;
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(Text(c, "siteZone"));
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(EffectiveZone(c));
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Instant(c, "now"), zone).DateTime);
         return today == Day(Text(suggested, "date")).AddDays(1);
     }
@@ -96,6 +119,8 @@ public class SubmissionCasesTests
     }
 
     private static string Text(JsonElement e, string name) => e.GetProperty(name).GetString()!;
+
+    private static string EffectiveZone(JsonElement c) => c.GetProperty("siteZone").GetString() ?? Text(c, "companyZone");
 
     private static DateOnly Day(string iso) => DateOnly.ParseExact(iso, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
