@@ -15,18 +15,36 @@ internal sealed record ProductivityResult(LaborProductivityValues Productivity, 
 internal sealed class Productivity(IModuleSettings settings)
 {
     internal async Task<ProductivityResult> CalculateAsync(LaborSnapshot snapshot, WorkProductivityQuery query,
-        Guid? sectionId, bool crossModule, CancellationToken ct)
+        Guid? sectionId, CancellationToken ct) =>
+        Calculate(snapshot.Reports, snapshot.Crew, query, sectionId, crossModule: false, await MinimumAsync(ct));
+
+    internal async Task<IReadOnlyDictionary<WorkProductivityQuery, WorkProductivityAnswer>> CalculateMonthlyAsync(
+        LaborSnapshot snapshot, IReadOnlyCollection<WorkProductivityQuery> queries, CancellationToken ct)
     {
-        var minimum = new WorkProductivitySample(
-            (int)await settings.GetAsync(WorkSettings.ProductivityReports, ct),
-            (int)await settings.GetAsync(WorkSettings.ProductivityConstructions, ct));
-        return Calculate(snapshot, query, sectionId, crossModule, minimum);
+        var minimum = await MinimumAsync(ct);
+        // Отчёт может войти только в выборку вида и единицы первой строки. Остальные строки всё равно
+        // проверяются на смешанный состав, а неподходящий участник исключает всю бригаду.
+        var reports = snapshot.Reports.Where(r => r.Lines.Count > 0)
+            .ToLookup(r => new WorkProductivityQuery(r.Lines[0].WorkTypeId, r.Lines[0].UnitId));
+        var crew = snapshot.Crew.ToLookup(c => c.Group.WorkTypeId);
+        return queries.ToDictionary(query => query, query =>
+        {
+            var values = Calculate(reports[query], crew[query.WorkTypeId], query, sectionId: null, crossModule: true, minimum);
+            var months = values.Productivity.Months;
+            var state = months.Any(month => month.Productivity.State == LaborStates.Ok)
+                ? LaborStates.Ok : LaborStates.TooLittleData;
+            return new WorkProductivityAnswer(query.UnitId, minimum, state, months);
+        });
     }
 
-    private static ProductivityResult Calculate(LaborSnapshot snapshot, WorkProductivityQuery query, Guid? sectionId,
-        bool crossModule, WorkProductivitySample minimum)
+    private async Task<WorkProductivitySample> MinimumAsync(CancellationToken ct) => new(
+        (int)await settings.GetAsync(WorkSettings.ProductivityReports, ct),
+        (int)await settings.GetAsync(WorkSettings.ProductivityConstructions, ct));
+
+    private static ProductivityResult Calculate(IEnumerable<LaborReport> reports, IEnumerable<LaborCrew> crew,
+        WorkProductivityQuery query, Guid? sectionId, bool crossModule, WorkProductivitySample minimum)
     {
-        var candidates = snapshot.Reports.Where(r => r.Lines.Any(l => l.WorkTypeId == query.WorkTypeId
+        var candidates = reports.Where(r => r.Lines.Any(l => l.WorkTypeId == query.WorkTypeId
             && (sectionId is null || l.SectionId == sectionId)));
         var mixed = 0;
         var otherUnit = 0;
@@ -46,7 +64,7 @@ internal sealed class Productivity(IModuleSettings settings)
 
         // Одна группа на вид работы и смену. Если один отчёт не прошёл, брать из группы только
         // подходящие часы означало бы делить целый объём на часть затраченного времени.
-        var usableCrew = snapshot.Crew.Where(c => c.Group.WorkTypeId == query.WorkTypeId && c.Publication.Published
+        var usableCrew = crew.Where(c => c.Group.WorkTypeId == query.WorkTypeId && c.Publication.Published
             && c.ReportIds.All(eligible.ContainsKey)).ToArray();
         var crewMembers = usableCrew.SelectMany(c => c.ReportIds).ToHashSet();
         var included = eligible.Values.Where(r => !r.Lines.Any(l => l.IsCrew) || crewMembers.Contains(r.Id)).ToArray();

@@ -33,16 +33,19 @@ internal static class ConstructionProgressEndpoints
         answer is ModuleContractAnswer<T>.Connected connected ? permissionOf(connected.Contract) : [];
 
     private static async Task<IResult> ReadAsync(
-        Guid id, [FromQuery(Name = "section")] Guid? sectionId, AppDbContext db, IModuleReaders readers,
+        Guid id, [FromQuery(Name = "section")] Guid? sectionId, DateOnly? laborMonth, AppDbContext db, IModuleReaders readers,
         IModuleContracts contracts, IModulePlanItems items, IModuleWorkTypes workTypes, IModuleUnits units,
         CancellationToken ct)
     {
+        if (laborMonth is { Day: not 1 })
+            return Results.BadRequest(new { error = "Назовите первое число месяца трудозатрат (laborMonth)." });
+
         if (!await db.Constructions.AnyAsync(
                 site => site.Id == id && (sectionId == null || site.Sections.Any(section => section.Id == sectionId)), ct))
             return Results.NotFound();
 
         var reader = await readers.ForRequestAsync(ct);
         var progress = new ConstructionProgress(contracts, items, workTypes, units);
-        return Results.Ok(await progress.ReadAsync(reader, id, sectionId, ct));
+        return Results.Ok(await progress.ReadAsync(reader, id, sectionId, laborMonth, ct));
     }
 }

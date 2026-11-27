@@ -48,7 +48,19 @@ export interface ScheduleWork extends ScheduleWorkInput {
   warnings?: ScheduleWarning[];
   /** Факт приходит из полного чтения графика. Ответы записи могут его не содержать. */
   fact?: ScheduleFact | null;
+  productivity?: ScheduleProductivity;
 }
+
+export interface ProductivitySample { reports: number; constructions: number }
+
+export interface ProductivityMonth {
+  month: string;
+  productivity: { state: 'ok' | 'too-little-data'; volumePerHour?: number; sample: ProductivitySample };
+}
+
+export type ScheduleProductivity =
+  | { state: 'ok' | 'too-little-data'; months: ProductivityMonth[]; minSample: ProductivitySample }
+  | { state: 'hidden' | 'not-connected' | 'not-available'; permission?: string; text?: string };
 
 export type ScheduleFact =
   | { state: 'ok' | 'partial'; volume: number | null }

@@ -43,8 +43,12 @@ internal static class ScheduleEndpoints
         return created ? Results.Created($"{Root}/{view.Id}", view) : Results.Ok(view);
     }
 
-    private static async Task<IResult> ReadAsync(Guid id, ScheduleBuilder builder, ScheduleFacts facts, CancellationToken ct) =>
-        Results.Ok(await facts.AddAsync(await builder.ReadAsync(id, ct), ct));
+    private static async Task<IResult> ReadAsync(Guid id, ScheduleBuilder builder, ScheduleFacts facts,
+        ScheduleProductivity productivity, CancellationToken ct)
+    {
+        var schedule = await facts.AddAsync(await builder.ReadAsync(id, ct), ct);
+        return Results.Ok(await productivity.AddAsync(schedule, ct));
+    }
 
     private static async Task<IResult> PreviewAsync(Guid id, ScheduleBuilder builder, CancellationToken ct) =>
         Results.Ok(await builder.PreviewAsync(id, ct));

@@ -78,6 +78,20 @@ public class WorkProductivityTests(WorkLaborHost host) : IAsyncLifetime
         Keys(month.GetProperty("productivity"), "state", "sample");
         Keys(month.GetProperty("productivity").GetProperty("sample"), "reports", "constructions");
 
+        var other = new WorkProductivityQuery(world.Reports.WorkTypeNeedsPlace, query.UnitId);
+        var empty = new WorkProductivityQuery(query.WorkTypeId, Guid.NewGuid());
+        await world.ReportAsync(world.Reports.SiteA, second, 1, ReportStatus.Accepted, nov.AddDays(1), world.Line(17, type: other.WorkTypeId));
+        var batch = await provider.ReadManyAsync(reader, [other, query, empty, query]);
+        Assert.Equal(3, batch.Count);
+        Assert.Equal(json.GetRawText(), JsonSerializer.SerializeToElement(
+            Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Shown>(batch[query]).Value, WebJson).GetRawText());
+        var otherRate = Assert.Single(Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Shown>(batch[other]).Value.Months).Productivity;
+        Assert.Equal(new WorkProductivitySample(1, 1), otherRate.Sample);
+        Assert.Null(otherRate.VolumePerHour);
+        Assert.Empty(Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Shown>(batch[empty]).Value.Months);
+        Assert.All(await provider.ReadManyAsync(noAccess, [query, other]), item =>
+            Assert.Equal(WorkModule.FactsRead, Assert.IsType<ContractAnswer<WorkProductivityAnswer>.Hidden>(item.Value).Permission));
+
         var executive = await AccessProbe.SignInAsync(host, "Executive", "work28");
         var page = await ReadAsync(executive, world.Productivity(oct, nov));
         var total = page.GetProperty("productivity").GetProperty("total");

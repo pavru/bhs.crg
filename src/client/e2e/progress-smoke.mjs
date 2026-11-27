@@ -194,10 +194,15 @@ try {
       assert.equal('totals' in data.costs, false);
       assert.equal(data.rows.find(row => row.workTypeId === measured.id).cells.fact.volume, smallVolume);
       assert.equal(data.factDiagnostics.excludedCrewGroups, 1);
+      const labor = data.strips.find(strip => strip.code === 'work-labor');
+      assert.equal(labor.state, 'hidden');
+      assert.equal(labor.permission, 'work.report.read');
+      assert.equal('labor' in labor, false);
       await facts.goto(BASE + path);
       await work(facts, measured.displayName).getByText(smallText).waitFor();
       await work(facts, extra.displayName).getByText(largeText).waitFor();
       await warning(facts).waitFor();
+      await facts.getByRole('region', { name: 'Трудозатраты' }).getByText(/work\.report\.read/).waitFor();
       assert.equal(await facts.getByRole('complementary', { name: 'Подробности работы' }).count(), 0);
       assert.equal(await facts.getByText(/Разнесено.*оплачено|937[,.]75/).count(), 0);
       assert.equal(await facts.getByText(employee.displayName, { exact: true }).count(), 0);
@@ -209,14 +214,19 @@ try {
   await check('schedule-current-fact-or-disconnected', async () => {
     await managerPage.goto(`${BASE}${parent}/schedule/${graph.id}`);
     await managerPage.getByRole('heading', { name: graph.name }).waitFor();
+    const cards = managerPage.getByRole('list', { name: 'Работы графика' });
     if (workEnabled) {
-      await managerPage.getByRole('columnheader', { name: 'Факт · включённый объём' }).waitFor();
-      await managerPage.getByText(smallText).waitFor();
-      await managerPage.getByLabel('Нет включённого объёма').waitFor();
+      const measured = cards.getByRole('listitem').filter({ hasText: fixture.measured.displayName });
+      const pending = cards.getByRole('listitem').filter({ hasText: fixture.pending.displayName });
+      await measured.getByText('Факт · включённый объём', { exact: true }).waitFor();
+      await measured.getByText(smallText).waitFor();
+      await measured.getByText('Данных мало', { exact: true }).waitFor();
+      await pending.getByLabel('Нет включённого объёма').waitFor();
+      await pending.getByText('0 отчётов · 0 строек', { exact: true }).waitFor();
       await warning(managerPage).waitFor();
     } else {
-      await managerPage.getByText('Учёт работ не подключён', { exact: true }).waitFor();
-      assert.equal(await managerPage.getByRole('columnheader', { name: /Факт/ }).count(), 0);
+      await cards.getByText('Учёт работ не подключён', { exact: true }).first().waitFor();
+      assert.equal(await cards.getByText(/^Факт/).count(), 0);
     }
   });
 } finally {

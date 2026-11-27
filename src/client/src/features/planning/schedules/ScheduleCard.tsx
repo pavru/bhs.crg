@@ -74,18 +74,26 @@ function ScheduleContents({ schedule, sections, reload }: {
   const dirty = !!edit && (draftChanged(draftOf(edit.baseline, edit.locale), edit.draft) || invalid.start || invalid.end);
   const refusal = edit && write.error ? scheduleRefusal(write.error, 'Работа не сохранилась.') : null;
   const stale = refusal?.kind === 'conflict' || refused !== null;
+  const editingId = canEdit ? edit?.baseline.id ?? null : null;
 
   useEffect(() => {
-    if (!selectedWorkId || visibleView !== 'list') return;
+    const workId = editingId ?? selectedWorkId;
+    if (!workId || visibleView !== 'list') return;
     const row = [...(table.current?.querySelectorAll<HTMLElement>('[data-schedule-work-id]') ?? [])]
-      .find(item => item.dataset.scheduleWorkId === selectedWorkId);
+      .find(item => item.dataset.scheduleWorkId === workId);
     if (!row) return;
+    const field = editingId && row.querySelector<HTMLInputElement>('input:enabled');
+    if (field) {
+      field.focus();
+      return;
+    }
     row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     (row.querySelector<HTMLElement>('button, [tabindex="0"]') ?? table.current)?.focus({ preventScroll: true });
-  }, [selectedWorkId, visibleView]);
+  }, [editingId, selectedWorkId, visibleView]);
 
   function start(work: ScheduleWork) {
     if (edit) return;
+    setSelectedWorkId(work.id);
     setEdit({ baseline: work, draft: draftOf(work, locale), locale });
     setInvalid({ start: false, end: false });
     setRefused(null);
@@ -163,7 +171,7 @@ function ScheduleContents({ schedule, sections, reload }: {
       <ScheduleWorksGrid rows={rows} sections={sections} warnings={warnings} links={schedule.links}
         factState={fact?.state}
         canEdit={canEdit} canReadEmployees={canReadEmployees}
-        editingId={canEdit ? edit?.baseline.id ?? null : null} draft={canEdit ? edit?.draft ?? null : null}
+        editingId={editingId} draft={canEdit ? edit?.draft ?? null : null}
         selectedWorkId={selectedWorkId} busy={pending || rereading} onOpen={start} onChange={change}
         onIncomplete={(field, hasError) => setInvalid(current => current[field] === hasError ? current : { ...current, [field]: hasError })}
         onEmployees={() => setDialog('employees')} onLinks={work => setLinkWorkId(work.id)}

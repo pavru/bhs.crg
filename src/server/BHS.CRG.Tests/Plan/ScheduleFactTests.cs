@@ -32,6 +32,7 @@ public class ScheduleFactTests(PlanOnlyHost host)
         using var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
         var opened = await ReadAsync(reader.GetAsync(ScheduleUrl(schedule)));
         AssertFact(Assert.Single(Works(opened)), "not-connected", null);
+        Assert.Equal("not-connected", Assert.Single(Works(opened)).GetProperty("productivity").GetProperty("state").GetString());
         Assert.False(opened.TryGetProperty("factDiagnostics", out _));
     }
 }
@@ -84,6 +85,13 @@ public class ScheduleFactProbeTests(ScheduleFactProbeHost host) : IClassFixture<
         using var scheduleOnly = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.ScheduleRead);
         var hidden = await ReadAsync(scheduleOnly.GetAsync(ScheduleUrl(schedule)));
         Assert.All(Works(hidden), work => AssertFact(work, "hidden", null, ActualWorksProbeModule.FactsRead));
+        Assert.All(Works(hidden), work =>
+        {
+            var productivity = work.GetProperty("productivity");
+            Assert.Equal("hidden", productivity.GetProperty("state").GetString());
+            Assert.Equal(WorkModule.FactsRead, productivity.GetProperty("permission").GetString());
+            Assert.False(productivity.TryGetProperty("months", out _));
+        });
         Assert.False(hidden.TryGetProperty("factDiagnostics", out _));
         using var workOnly = await GrantedSignIn.WithPermissionsAsync(host, ActualWorksProbeModule.FactsRead);
         using var refused = await workOnly.GetAsync(ScheduleUrl(schedule));
@@ -128,6 +136,11 @@ public class ScheduleFactRealWorkTests(ScheduleFactWorkHost host) : IClassFixtur
         var shown = await ReadAsync(reader.GetAsync(ScheduleUrl(schedule)));
         AssertFact(WorkById(shown, local), "ok", 120);
         AssertFact(WorkById(shown, whole), "ok", null);
+        var productivity = WorkById(shown, local).GetProperty("productivity");
+        Assert.Equal("too-little-data", productivity.GetProperty("state").GetString());
+        var month = Assert.Single(productivity.GetProperty("months").EnumerateArray()).GetProperty("productivity");
+        Assert.Equal(1, month.GetProperty("sample").GetProperty("reports").GetInt32());
+        Assert.False(month.TryGetProperty("volumePerHour", out _));
 
         host.ClosureTime = AssignmentHost.Now.AddDays(5);
         using var closer = await new WorkPeriodWorld(host).CloserAsync();

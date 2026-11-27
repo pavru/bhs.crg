@@ -222,6 +222,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<ReportReads>();
         services.AddModuleContract<IActualWorks, ActualWorksProvider>(ModuleCode);
         services.AddModuleContract<IWorkProductivity, WorkProductivityProvider>(ModuleCode);
+        services.AddModuleContract<IProgressContribution, WorkProgressContribution>(ModuleCode);
         services.AddScoped<Labor.LaborSnapshots>();
         services.AddScoped<Labor.Productivity>();
         services.AddScoped<Labor.LaborAnalytics>();

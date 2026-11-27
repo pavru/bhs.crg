@@ -31,6 +31,7 @@ const review = { path: '/work-review', name: 'Приёмка' };
 const summary = { path: '/work-summary', name: 'Сводка' };
 const queue = `${review.path}?constructionId=${site}`;
 const summaryDay = `${summary.path}?${new URLSearchParams({ from: day, to: day })}`;
+const laborMonth = fixture('LABOR_MONTH');
 const ownerB = 'Монтажник Б (посев Work-25)';
 const bRow = () => page.getByRole('row').filter({ hasText: ownerB });
 
@@ -76,6 +77,26 @@ async function populatedSummary() {
   await page.goto(`${BASE}${summaryDay}`);
   await heading(summary.name).waitFor();
   await bRow().waitFor();
+}
+
+async function laborComparison() {
+  const answer = await callApiOk(page, 'GET', `/constructions/${site}/progress?laborMonth=${laborMonth}`);
+  const strip = answer.strips.find(item => item.code === 'work-labor');
+  assert.equal(strip?.state, 'ok', strip?.text);
+  assert.ok(strip.labor.estimatedHours > 0);
+  assert.equal(strip.labor.actualHours, 8);
+  await page.goto(`${BASE}/document-sets/${site}/progress`);
+  const field = page.getByRole('group', { name: 'Месяц трудозатрат' });
+  const month = field.getByRole('textbox', { name: /month|месяц/i });
+  const yearField = field.getByRole('textbox', { name: /year|год/i });
+  await month.waitFor();
+  const [year, number] = laborMonth.split('-');
+  if (await yearField.inputValue() !== year) await yearField.fill(year);
+  if (await month.inputValue() !== number) await month.fill(number);
+  const labor = page.getByRole('region', { name: 'Трудозатраты' });
+  await labor.getByText('По смете', { exact: true }).waitFor();
+  await labor.getByText('8 ч', { exact: true }).waitFor();
+  await labor.getByText(/чел\.-ч$/).waitFor();
 }
 
 try {
@@ -208,6 +229,7 @@ try {
     await page.getByRole('button', { name: 'Принять', exact: true }).waitFor();
     await photo(/^Открыть фото 1:/);
     await populatedSummary();
+    await laborComparison();
   });
 
   await check('work-unassigned-manager-sees-the-reason', async () => {
@@ -236,6 +258,7 @@ try {
       assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
     }
     await populatedSummary();
+    await laborComparison();
   });
 
   await check('work-id-engineer-has-no-work-section', async () => {

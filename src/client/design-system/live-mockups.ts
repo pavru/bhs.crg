@@ -166,4 +166,17 @@ export const liveMockups = [
     aliases: [],
     reference: 'openspec/changes/work-27-actual-works-contract/design.md',
   },
+  {
+    id: 'work-28-estimate-vs-actual',
+    title: 'Трудозатраты и выработка · Р6',
+    kind: 'design',
+    entry: 'work28.html',
+    pages: [
+      { path: 'a', title: 'А · Сводка в строке', width: 1440 },
+      { path: 'b', title: 'Б · Панель подробностей', width: 1440 },
+      { path: 'c', title: 'В · Раскрытие на месте', width: 1440 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/work-28-estimate-vs-actual/design.md · Раунд Р6',
+  },
 ] satisfies LiveMockup[];
