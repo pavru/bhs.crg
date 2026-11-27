@@ -18,10 +18,12 @@ import { withDetailValue } from '../reportDetails';
 import { emptyLine, type DraftLine } from './reportContents';
 import { missingForId } from './reportPresentation';
 
-export function ReportLines({ scope, lines, savedLines, photos, disabled, siteReady, errors, focus, onChange }: {
+export function ReportLines({ scope, lines, savedLines, photos, disabled, siteReady, errors, focus, onChange, correction, onPickType }: {
   scope: EntryCatalogScope; lines: DraftLine[]; disabled: boolean; siteReady: boolean;
   savedLines?: WorkReportLine[]; errors?: RequiredReportField[]; focus?: RequiredReportField;
-  photos: ReportPhotos;
+  photos?: ReportPhotos;
+  correction?: boolean;
+  onPickType?: (type: WorkTypeOption) => void;
   onChange: (update: (lines: DraftLine[]) => DraftLine[]) => void;
 }) {
   const toast = useSnackbar();
@@ -89,6 +91,7 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
       label={`Вид работы, строка ${index + 1}`} value={line.workTypeId} type={typeOf(line.workTypeId)}
       disabled={disabled || !siteReady} onPick={type => {
         setPickedTypes(old => ({ ...old, [type.id]: type }));
+        onPickType?.(type);
         if (type.id !== line.workTypeId) update(line, { workTypeId: type.id, variantId: null, unitId: type.unitId ?? '' });
       }} /> },
     { key: 'volume', label: 'Объём', width: 'w-28', cell: (line, index) => <NumberInput
@@ -114,6 +117,51 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
     } },
   ];
 
+  function detailsOf(line: DraftLine) {
+    const savedLine = savedLines?.find(item => item.id === line.id);
+    return <ReportLineDetails scope={scope} siteReady={siteReady} line={line} type={typeOf(line.workTypeId)}
+      disabled={disabled} errors={errors?.filter(error => error.lineId === line.id)} savedLine={savedLine}
+      pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
+      onDetailChange={(key, value) => onChange(current => current.map(item => item.id === line.id
+        ? { ...item, details: withDetailValue(item.details, key, value) } : item))}
+      onChange={changes => update(line, changes)} />;
+  }
+
+  function move(index: number, direction: -1 | 1) {
+    onChange(current => {
+      const next = [...current];
+      [next[index], next[index + direction]] = [next[index + direction], next[index]];
+      return next;
+    });
+  }
+
+  if (correction) return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-title-medium">Строки работы</h3>
+      <Button variant="tonal" disabled={disabled || !siteReady}
+        onClick={() => { const line = emptyLine(); onChange(current => [...current, line]); }}>Добавить строку</Button>
+    </div>
+    {lines.map((line, index) => <Card key={line.id} title={`Строка ${index + 1} · ${typeOf(line.workTypeId)?.displayName ?? 'Работа'}`}>
+      <div className="space-y-4">
+        <div className="grid items-start gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          {columns.slice(0, 3).map(column => <div className="min-w-0" key={column.key}>
+            {column.cell(line, index)}
+          </div>)}
+        </div>
+        {detailsOf(line)}
+        {line.photos.length > 0 && <StatusText>Фото строки · {line.photos.length}</StatusText>}
+        <div className="flex flex-wrap gap-2">
+          {index > 0 && <Button variant="text" disabled={disabled} aria-label={`Поднять строку ${index + 1}`}
+            onClick={() => move(index, -1)}>Выше</Button>}
+          {index < lines.length - 1 && <Button variant="text" disabled={disabled} aria-label={`Опустить строку ${index + 1}`}
+            onClick={() => move(index, 1)}>Ниже</Button>}
+          <Button variant="text" danger disabled={disabled} aria-label={`Убрать строку ${index + 1}`}
+            onClick={() => drop(line.id)}>Убрать строку</Button>
+        </div>
+      </div>
+    </Card>)}
+  </div>;
+
   return <div className="space-y-3">
     <EditGrid label="Строки отчёта" columns={columns} rows={lines} rowKey={line => line.id} numbered fill minWidth="min-w-160"
       selected={line => line.id === expanded} add={disabled || !siteReady ? undefined : { label: 'Добавить строку', onAdd: () => {
@@ -123,16 +171,10 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
       } }} onRemove={disabled ? undefined : remove} />
     {expandedLine && <Card title={`Подробности строки ${expandedIndex + 1}`}>
       <div ref={details} key={expandedLine.id}>
-        <ReportLineDetails scope={scope} siteReady={siteReady} line={expandedLine}
-          type={typeOf(expandedLine.workTypeId)} disabled={disabled} errors={errors?.filter(error => error.lineId === expandedLine.id)}
-          savedLine={savedLines?.find(line => line.id === expandedLine.id)}
-          pickedMaterials={pickedMaterials} onPickMaterial={material => setPickedMaterials(old => ({ ...old, [material.id]: material }))}
-          onDetailChange={(key, value) => onChange(current => current.map(line => line.id === expandedLine.id
-            ? { ...line, details: withDetailValue(line.details, key, value) } : line))}
-          onChange={changes => update(expandedLine, changes)} />
-        <LinePhotos lineId={expandedLine.id} photos={expandedLine.photos}
+        {detailsOf(expandedLine)}
+        {photos && <LinePhotos lineId={expandedLine.id} photos={expandedLine.photos}
           declared={savedLines?.find(line => line.id === expandedLine.id)?.photos ?? []} controls={photos}
-          add={newPhotos => update(expandedLine, { photos: [...expandedLine.photos, ...newPhotos] })} />
+          add={newPhotos => update(expandedLine, { photos: [...expandedLine.photos, ...newPhotos] })} />}
       </div>
     </Card>}
     {removing && !!dependents.length && <ConfirmDialog open title={`Удалить строку ${removingIndex + 1}?`}

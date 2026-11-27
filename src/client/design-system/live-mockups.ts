@@ -205,4 +205,17 @@ export const liveMockups = [
     aliases: [],
     reference: 'openspec/changes/work-31-autosubmit-required-missing/design.md · Варианты интерфейса',
   },
+  {
+    id: 'work-32-closed-report-correction-ui',
+    title: 'Исправление закрытого отчёта · Work-32',
+    kind: 'design',
+    entry: 'work32.html',
+    pages: [
+      { path: 'a', title: 'А · Правка в карточке', width: 1280 },
+      { path: 'b', title: 'Б · Боковая панель', width: 1280 },
+      { path: 'c', title: 'В · По шагам', width: 1280 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/work-32-closed-report-correction-ui/design.md · D5',
+  },
 ] satisfies LiveMockup[];

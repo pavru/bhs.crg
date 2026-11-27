@@ -59,6 +59,8 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         var noReason = await PostAsync(manager, id, seen, Body(site, line, 99m, "   "));
         Assert.Equal(HttpStatusCode.BadRequest, noReason.StatusCode);
         Assert.Contains("Укажите причину", await AssignmentWorld.ErrorAsync(noReason));
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsync(manager, id, seen, Body(site, line, 99m, new string('а', 1001)))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsync(manager, id, "not-a-version", body)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(installer, id, seen, body)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await PostAsync(alien, id, null, body)).StatusCode);
         Assert.DoesNotContain(await period.Review.EntriesAsync(id), e => e.Kind == ReportJournalKinds.Corrected);
@@ -112,7 +114,8 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
             var card = await manager.GetFromJsonAsync<JsonElement>($"{cardUrl}?number={number}");
             Assert.Equal(number, card.GetProperty("viewedVersion").GetInt32());
             Assert.Equal(1, card.GetProperty("atClosingVersion").GetInt32());
-            Assert.Empty(card.GetProperty("actions").EnumerateArray());
+            Assert.Equal(number == 3 ? ["correct"] : Array.Empty<string>(),
+                card.GetProperty("actions").EnumerateArray().Select(x => x.GetString()));
             var version = card.GetProperty("report");
             Assert.Equal(volume, Volume(version));
             Assert.Equal(view, version.GetProperty("view").GetString());
@@ -122,6 +125,7 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
 
         host.ClosureTime = host.ClosureTime!.Value.AddMinutes(1);
         await ReopenCompanyAsync(closer);
+        Assert.Empty((await manager.GetFromJsonAsync<JsonElement>(cardUrl)).GetProperty("actions").EnumerateArray());
         var edited = await ReportWorld.PutAsync(manager, $"{EntryReportEndpoints.Path}/{id}", ReviewWorld.Version(second),
             period.World.Draft(id, site, date: OctoberEnd, lineId: line, volume: 85m, changeId: Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
@@ -260,12 +264,17 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         var (_, stranger) = await period.World.InstallerAsync("Другой монтажник");
         var (_, manager) = await period.World.ManagerAsync("Менеджер", site);
         var (id, line, photo) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var retained = Guid.NewGuid();
         var created = await installer.PostAsJsonAsync(Reports, new
         {
-            id, constructionId = site, date = OctoberEnd, hours = 8, lines = new[] { new
+            id, constructionId = site, date = OctoberEnd, shift = "night", hours = 8, lines = new object[] { new
             {
                 id = line, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume = 120,
                 photos = new[] { new { id = photo } },
+            }, new
+            {
+                id = retained, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume = 120,
+                photos = Array.Empty<object>(),
             } },
         });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -280,10 +289,28 @@ public class ReportCorrectionTests(AssignmentHost host) : IAsyncLifetime
         host.ClosureTime = DateTimeOffset.UtcNow;
         await CloseAsync(await period.CloserAsync());
 
-        await CorrectAsync(manager, id, ReviewWorld.Version(await ReportWorld.JsonAsync(accepted)),
-            new { reason = "Строку исключили по акту", constructionId = site, date = OctoberEnd, hours = 8, lines = Array.Empty<object>() });
+        var card = await manager.GetFromJsonAsync<JsonElement>($"/api/work/review/reports/{id}");
+        var version = ReviewWorld.Version(card.GetProperty("report"));
+        var added = Guid.NewGuid();
+        var body = new
+        {
+            reason = "Строку исключили по акту", constructionId = site, date = OctoberEnd, shift = "night", hours = 6,
+            note = "По табелю", lines = new[]
+            {
+                new { id = added, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume = 10 },
+                new { id = retained, workTypeId = period.World.WorkType, unitId = period.World.Unit, volume = 90 },
+            },
+        };
+        var corrected = await CorrectAsync(manager, id, version, body);
+        Assert.Equal("night", corrected.GetProperty("shift").GetString());
+        Assert.Equal(6m, corrected.GetProperty("hours").GetDecimal());
+        Assert.Equal("По табелю", corrected.GetProperty("note").GetString());
+        Assert.Equal([added, retained], corrected.GetProperty("lines").EnumerateArray().Select(x => x.GetProperty("id").GetGuid()));
+        Assert.Equal(HttpStatusCode.Conflict, (await PostAsync(manager, id, version, body)).StatusCode);
+        Assert.Single(await period.Review.EntriesAsync(id), e => e.Kind == ReportJournalKinds.Corrected);
         Assert.Equal(HttpStatusCode.NotFound, (await installer.GetAsync(currentUrl)).StatusCode);
         var history = await installer.GetFromJsonAsync<JsonElement>($"{Reports}/{id}?view=at-closing");
+        Assert.Equal(8m, history.GetProperty("hours").GetDecimal());
         var url = history.GetProperty("lines")[0].GetProperty("photos")[0].GetProperty("versionUrl").GetString()!;
         Assert.Equal(original, await installer.GetByteArrayAsync(url));
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync(url)).StatusCode);

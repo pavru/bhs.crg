@@ -88,9 +88,10 @@ interface LineDetailsSchema {
 
 export const reportDetailsSchemaKey = ['work', 'line-details-schema'] as const;
 
-export function useReportDetailsSchema() {
+export function useReportDetailsSchema(enabled = true) {
   return useQuery({
     queryKey: reportDetailsSchemaKey,
+    enabled,
     queryFn: ({ signal }) => apiClient.get<LineDetailsSchema>('/work/line-details-schema', { signal })
       .then(({ data }) => ({ ...data, fields: parseSchemaFields({ fields: data.fields }) })),
   });

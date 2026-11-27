@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { RequiredReportField, ReviewAction, ReviewQueuePage, WorkLinePhoto, WorkMark } from './work';
 import { useWorkPhotoFile } from './workPhotos';
+import type { ReportInput } from './workReports';
 
 export interface ReviewQueueFilters {
   constructionId?: string;
@@ -63,6 +64,12 @@ export function returnWorkReport(id: string, version: string, changeId: string, 
     { headers: { 'If-Match': version } }).then(response => response.data);
 }
 
+export function correctWorkReport(report: ReviewReport, input: ReportInput, reason: string) {
+  return apiClient.post<ReviewReport>(`/work/reports/${report.id}/correction`, {
+    ...input, employeeId: report.employeeId, reason,
+  }, { headers: { 'If-Match': report.version } }).then(response => response.data);
+}
+
 export interface MissingAcceptanceField { key: string; title: string }
 
 export interface ReviewReportLine {
@@ -106,6 +113,7 @@ export interface ReviewReport {
   missingFieldsCount?: number;
   acceptWouldMark: boolean;
   currentVersion: number;
+  periodClosed?: boolean;
   versions: ReviewReportVersion[];
 }
 
@@ -114,7 +122,7 @@ interface ReviewCardHeader {
   employeeName: string;
   constructionName: string;
   timeZoneId: string | null;
-  actions: ReviewAction[];
+  actions: (ReviewAction | 'correct')[];
 }
 
 export interface ReviewFullCard extends ReviewCardHeader {
@@ -133,11 +141,15 @@ export type ReviewCardData = ReviewFullCard | (ReviewCardHeader & { status: 'dra
 export const REVIEW_CARD_KEY = ['work', 'review-card'] as const;
 export const REVIEW_JOURNAL_KEY = ['work', 'review-journal'] as const;
 
+export function readReviewCard(id: string, number?: number, signal?: AbortSignal) {
+  return apiClient.get<ReviewCardData>(`/work/review/reports/${encodeURIComponent(id)}`,
+    { params: { number }, signal }).then(response => response.data);
+}
+
 export function useReviewCard(id: string, number: number | undefined) {
   return useQuery({
     queryKey: [...REVIEW_CARD_KEY, id, number],
-    queryFn: ({ signal }) => apiClient.get<ReviewCardData>(`/work/review/reports/${encodeURIComponent(id)}`,
-      { params: { number }, signal }).then(response => response.data),
+    queryFn: ({ signal }) => readReviewCard(id, number, signal),
     retry: (count, error) => (error as { response?: { status?: number } })?.response?.status !== 404 && count < 2,
     refetchInterval: ({ state }) => {
       const status = (state.error as { response?: { status?: number } } | null)?.response?.status;
@@ -171,11 +183,15 @@ export interface ReviewJournalEntry {
   comment: string | null;
 }
 
+export function readReviewJournal(id: string, signal?: AbortSignal) {
+  return apiClient.get<{ items: ReviewJournalEntry[] }>(`/work/reports/${id}/journal`, { signal })
+    .then(response => response.data.items);
+}
+
 export function useReviewJournal(id: string) {
   return useQuery({
     queryKey: [...REVIEW_JOURNAL_KEY, id],
-    queryFn: ({ signal }) => apiClient.get<{ items: ReviewJournalEntry[] }>(`/work/reports/${id}/journal`, { signal })
-      .then(response => response.data.items),
+    queryFn: ({ signal }) => readReviewJournal(id, signal),
   });
 }
 
