@@ -32,6 +32,7 @@ export const SUITE_SECONDS = {
   'allocation-matrix': 40,
   'invoice-payment': 38,
   'site-costs': 15,
+  'purchase-requests': 15,
   costs: 36,
   'table-chips': 11,
   'table-view': 35,

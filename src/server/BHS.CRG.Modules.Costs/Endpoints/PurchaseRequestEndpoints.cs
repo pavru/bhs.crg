@@ -21,6 +21,8 @@ internal static class PurchaseRequestEndpoints
         var read = AppPolicies.Permission(CostsModule.RequestRead);
         var edit = AppPolicies.Permission(CostsModule.RequestEdit);
         group.MapGet("/", ListAsync).RequireAuthorization(read);
+        group.MapGet("/constructions", ConstructionsAsync).RequireAuthorization(read);
+        group.MapGet("/estimate-items", EstimateItemsAsync).RequireAuthorization(edit);
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization(read);
         group.MapPost("/draft-from-estimate", SuggestAsync).RequireAuthorization(edit);
         group.MapPost("/", CreateAsync).RequireAuthorization(edit);
@@ -32,11 +34,22 @@ internal static class PurchaseRequestEndpoints
     }
 
     private static async Task<IResult> ListAsync(
-        CostsDbContext db, Guid? constructionId, long? beforeNumber, CancellationToken ct)
+        CostsDbContext db, Guid? constructionId, long? beforeNumber, string? status, CancellationToken ct)
     {
         var query = db.PurchaseRequests.AsNoTracking();
         if (constructionId is { } site) query = query.Where(request => request.ConstructionId == site);
         if (beforeNumber is { } before) query = query.Where(request => request.Number < before);
+        if (status is not null)
+        {
+            var selected = status switch
+            {
+                "draft" => PurchaseRequestStatus.Draft,
+                "submitted" => PurchaseRequestStatus.Submitted,
+                "closed" => PurchaseRequestStatus.Closed,
+                _ => throw new InvalidRequestException("Неизвестный статус заявки."),
+            };
+            query = query.Where(request => request.Status == selected);
+        }
 
         var page = await query.OrderByDescending(request => request.Number).Take(PageSize + 1)
             .Select(request => new
@@ -60,15 +73,17 @@ internal static class PurchaseRequestEndpoints
         return Results.Ok(new { items, nextBeforeNumber = page.Count > PageSize ? items[^1].Number : (long?)null });
     }
 
-    private static async Task<IResult> GetAsync(Guid id, CostsDbContext db, IModuleUser user, CancellationToken ct)
+    private static async Task<IResult> GetAsync(
+        Guid id, CostsDbContext db, IModuleUser user, IModuleCatalog catalog, CancellationToken ct)
     {
         var request = await FindAsync(db, id, ct);
         var quantities = await PurchaseRequestQuantities.ReadAsync(db, user, request, ct);
-        return Results.Ok(View(db, request, quantities));
+        var names = await MaterialNamesAsync(catalog, request.Lines.Select(line => line.NomenclatureId), ct);
+        return Results.Ok(View(db, request, quantities, names));
     }
 
     private static async Task<IResult> SuggestAsync(
-        PurchaseRequestSource source, PurchaseRequestEstimate estimate, CancellationToken ct)
+        PurchaseRequestSource source, PurchaseRequestEstimate estimate, IModuleCatalog catalog, CancellationToken ct)
     {
         var answer = await estimate.ReadAsync(source, ct);
         if (Hidden(answer) is { } hidden)
@@ -76,8 +91,44 @@ internal static class PurchaseRequestEndpoints
 
         var (plan, materials) = Shown(answer);
         var suggestion = await estimate.SuggestAsync(source, plan, materials, ct);
-        return Results.Ok(new { state = "shown", suggestion });
+        var nomenclatureNames = await MaterialNamesAsync(catalog, suggestion.Lines.Select(line => line.NomenclatureId), ct);
+        return Results.Ok(new { state = "shown", suggestion, nomenclatureNames });
     }
+
+    private static async Task<IResult> ConstructionsAsync(IModuleConstructions constructions, CancellationToken ct) =>
+        Results.Ok((await constructions.ListAsync(ct)).Select(site => new { site.Id, site.Name, site.Sections }));
+
+    private static async Task<IResult> EstimateItemsAsync(
+        Guid constructionId, PurchaseRequestEstimate estimate, IModulePlanItems planItems, IModuleWorkTypes types,
+        IModuleUnits units, CancellationToken ct)
+    {
+        var answer = await estimate.ReadForConstructionAsync(constructionId, ct);
+        if (Hidden(answer) is { } hidden)
+            return Results.Ok(new { state = "hidden", permission = hidden.Permission, message = hidden.Text });
+
+        var (_, materials) = Shown(answer);
+        var ids = materials.Lines.Select(line => line.PlanItemId).OfType<Guid>().Distinct().ToArray();
+        var items = await planItems.GetAsync(ids, ct);
+        var own = items.Where(item => item.Key.ConstructionId == constructionId).ToArray();
+        var workNames = (await types.GetAsync(own.Select(item => item.Key.WorkTypeId).Distinct().ToArray(), ct) ?? [])
+            .ToDictionary(work => work.Id, work => work.DisplayName);
+        var unitNames = (await units.GetAsync(own.Select(item => item.Key.UnitId).Distinct().ToArray(), ct) ?? [])
+            .ToDictionary(unit => unit.Id, unit => unit.Name);
+        return Results.Ok(new
+        {
+            state = "shown",
+            items = own.Select(item => new
+            {
+                item.Id, Name = workNames.GetValueOrDefault(item.Key.WorkTypeId),
+                SectionId = item.Key.SectionId, Unit = unitNames.GetValueOrDefault(item.Key.UnitId),
+            }).OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(item => item.Id),
+        });
+    }
+
+    private static async Task<Dictionary<Guid, string?>> MaterialNamesAsync(
+        IModuleCatalog catalog, IEnumerable<Guid> ids, CancellationToken ct) =>
+        (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids.Distinct().ToArray(), ct) ?? [])
+            .ToDictionary(item => item.Id, item => item.DisplayName);
 
     private static async Task<IResult> CreateAsync(
         PurchaseRequestCreate body, PurchaseRequestEstimate estimate, PurchaseRequestLines lines,
@@ -205,7 +256,8 @@ internal static class PurchaseRequestEndpoints
     private static string Code(PurchaseRequestStatus status) => status.ToString().ToLowerInvariant();
     private static string VersionText(uint version) => version.ToString(CultureInfo.InvariantCulture);
     private static object View(
-        CostsDbContext db, PurchaseRequest request, PurchaseRequestQuantities? quantities = null) => new
+        CostsDbContext db, PurchaseRequest request, PurchaseRequestQuantities? quantities = null,
+        Dictionary<Guid, string?>? nomenclatureNames = null) => new
     {
         request.Id,
         request.Number,
@@ -216,6 +268,7 @@ internal static class PurchaseRequestEndpoints
         Status = Code(request.Status),
         Version = db.VersionOf(request),
         Quantities = quantities,
+        NomenclatureNames = nomenclatureNames,
         Lines = request.Lines.OrderBy(line => line.Position).Select(line => new
         {
             line.NomenclatureId, line.PlanItemId, line.Quantity, line.Unit, line.Note,

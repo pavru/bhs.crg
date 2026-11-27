@@ -345,6 +345,7 @@ export interface InvoiceReadiness {
 
 export interface InvoiceView {
   id: string;
+  purchaseRequestId?: string | null;
   /** Версия счёта: её называет каждая правка (`seen`), и устаревшая получает отказ 409 (issue #1176). */
   version: string;
   documentTypeId: string;
@@ -765,8 +766,9 @@ export function useCreateInvoice() {
 }
 
 export function useUpdateInvoice() {
-  return useInvoiceWrite(({ id, seen, requisites }: { id: string; seen: string; requisites: InvoiceRequisites }) =>
-    apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites }, seenBy(seen)).then(r => r.data));
+  return useInvoiceWrite(({ id, seen, requisites, purchaseRequestId }: {
+    id: string; seen: string; requisites: InvoiceRequisites; purchaseRequestId?: string | null;
+  }) => apiClient.put<InvoiceView>(`/costs/invoices/${id}`, { requisites, purchaseRequestId }, seenBy(seen)).then(r => r.data));
 }
 
 /**

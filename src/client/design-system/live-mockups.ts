@@ -179,4 +179,17 @@ export const liveMockups = [
     aliases: [],
     reference: 'openspec/changes/work-28-estimate-vs-actual/design.md · Раунд Р6',
   },
+  {
+    id: 'plan-26-purchase-requests',
+    title: 'Заявки на закупку · П6',
+    kind: 'design',
+    entry: 'plan26.html',
+    pages: [
+      { path: 'a', title: 'А · Реестр и карточка', width: 1440 },
+      { path: 'b', title: 'Б · По стройкам', width: 1440 },
+      { path: 'c', title: 'В · Очередь по статусам', width: 1440 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/plan-26-purchase-requests/design.md · Раунд П6',
+  },
 ] satisfies LiveMockup[];

@@ -21,6 +21,29 @@ public sealed partial class PurchaseRequestTests(PurchaseRequestHost host) : ICl
     internal const string Requests = "/api/costs/requests";
     private const string Suggest = Requests + "/draft-from-estimate";
 
+    [Fact]
+    public async Task Снабженец_получает_только_позиции_материалов_действующей_сметы_своей_стройки()
+    {
+        var (site, _, item, _) = await SeedAsync(100);
+        var (other, _, _, _) = await SeedAsync(250);
+        using var supplier = await SupplierAsync();
+        var path = $"{Requests}/estimate-items?constructionId={site.Construction}";
+        var shown = await ReadAsync(await supplier.GetAsync(path), HttpStatusCode.OK);
+        var choice = Assert.Single(shown.GetProperty("items").EnumerateArray());
+        Assert.Equal(item, choice.GetProperty("id").GetGuid());
+        Assert.False(string.IsNullOrWhiteSpace(choice.GetProperty("name").GetString()));
+        Assert.False(choice.TryGetProperty("estimateQuantity", out _));
+
+        using var noEstimate = await GrantedSignIn.WithPermissionsAsync(host, CostsModule.RequestEdit, CostsModule.RequestRead);
+        var hidden = await ReadAsync(await noEstimate.GetAsync(path), HttpStatusCode.OK);
+        Assert.False(hidden.TryGetProperty("items", out _));
+        Assert.Equal("plan.estimate.materials", hidden.GetProperty("permission").GetString());
+        var sites = await ReadAsync(await noEstimate.GetAsync(Requests + "/constructions"), HttpStatusCode.OK);
+        Assert.Contains(sites.EnumerateArray(), row => row.GetProperty("id").GetGuid() == other.Construction);
+        using var reader = await GrantedSignIn.WithPermissionsAsync(host, CostsModule.RequestRead);
+        await ReadAsync(await reader.GetAsync(path), HttpStatusCode.Forbidden);
+    }
+
     [Theory]
     [InlineData(30, "м", 70, 30, false, false)]
     [InlineData(120, "м", 0, 120, true, false)]

@@ -43,24 +43,24 @@
 
 ## 3. PR 3: экраны (макеты П6)
 
-- [ ] 3.1 Раунд П6: три варианта списка и карточки заявки, мастера «из сметы» и выбора заявки в счёте в
-  Claude (артефакты типа «Design»), выбор владельца; ссылку вписать сюда [COST-5.1]. Проверка — ссылка на выбранный вариант
-  в `design.md`
-- [ ] 3.2 `shared/api/purchaseRequests.ts`: чтение, предложение, правка с `If-Match`, разбор
+- [x] 3.1 Раунд П6: три варианта списка и карточки заявки, мастера «из сметы» и выбора заявки в счёте в
+  [живом каталоге BHS.CRG UI](http://127.0.0.1:5200/?section=mockups&project=plan-26-purchase-requests&page=a)
+  [COST-5.1]. Владелец выбрал вариант А 27.11.2026. Выбор и ссылки в [разборе П6](design.md#раунд-п6)
+- [x] 3.2 `shared/api/purchaseRequests.ts`: чтение, предложение, правка с `If-Match`, разбор
   400/403/409/422 [COST-5.1]. Проверка — vitest на разбор отказов
-- [ ] 3.3 `features/costs/requests/*`: список на `DataGrid`, карточка, мастер (`Modal wide`), пометки
+- [x] 3.3 `features/costs/requests/*`: список на `DataGrid`, карточка, мастер (`Modal wide`), пометки
   `issuedExceeds`, `unitMismatch`, состояние «скрыто правами», выбор раздела стройки и предупреждения
   об общем отпуске и отсутствии резервирования; пункт «Заявки» в разделе затрат [COST-5.1].
   Проверка — vitest: `hidden` — подпись с правом, а не пустой список
-- [ ] 3.4 Выбор заявки в шапке счёта [COST-5.1]. Проверка — vitest: заявки только своей стройки
-- [ ] 3.5 Живой прогон `src/client/e2e/purchase-requests-smoke.mjs` под «Снабженцем»; вписать в
+- [x] 3.4 Выбор заявки в шапке счёта [COST-5.1]. Проверка — vitest: заявки только своей стройки
+- [x] 3.5 Живой прогон `src/client/e2e/purchase-requests-smoke.mjs` под «Снабженцем»; вписать в
   `test:e2e:ci` и `e2e/README.md`. Проверка — прогон зелёный на стенде
-- [ ] 3.6 `docs/USER_GUIDE.md`: заявки на закупку; `cd docs/tools && npm run toc` [COST-5.1]. Проверка —
+- [x] 3.6 `docs/USER_GUIDE.md`: заявки на закупку; `cd docs/tools && npm run toc` [COST-5.1]. Проверка —
   проверка содержания в «Frontend» зелёная
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PurchaseRequest|FullyQualifiedName~InvoiceRequestLink|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CostsOnlyHost"` — зелёный
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PurchaseRequest|FullyQualifiedName~InvoiceRequestLink|FullyQualifiedName~RecordWriteGuard|FullyQualifiedName~ModuleReferenceInventory|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~CostsOnlyHost"` — зелёный
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 4.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

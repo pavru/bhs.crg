@@ -44,6 +44,8 @@ public class RecordDeletionInventoryTests
     {
         ["BHS.CRG.Api/Endpoints/Core/EmployeeAccountLinks.cs"] =
             "удаляет строку связи «учётная запись → сотрудник» (отвязывание, work-01); карточку сотрудника только читает",
+        ["BHS.CRG.Modules.Costs/Endpoints/PurchaseRequestEndpoints.cs"] =
+            "удаляет только черновик заявки модуля без счетов; стройки и разделы для мастера только читает (plan-26)",
         ["BHS.CRG.Modules.Plan/Distribution/DistributionWriter.cs"] =
             "удаляет правила и части распределения редакции — записи модуля; разделы стройки только читает (plan-10)",
         ["BHS.CRG.Modules.Plan/Endpoints/OfferEndpoints.cs"] =
