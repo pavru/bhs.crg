@@ -13,6 +13,7 @@ internal sealed partial class WorkIsolationScenario
 
     private enum ControlReader { Executive, Owner, Manager }
     private enum ExpandedReader { Installer, Unassigned }
+    private enum WorkProfile { Installer, Unassigned, Executive, Owner, Manager }
     private enum PhotoKind { Original, Preview }
 
     private sealed record Probe(string Template, HttpStatusCode Installer, HttpStatusCode Unassigned,
@@ -40,7 +41,7 @@ internal sealed partial class WorkIsolationScenario
         [
             new(own, Ok, Closed, Closed, Signal: "items[].id, note", Control: ControlReader.Owner, Expanded: ExpandedReader.Installer),
             new(own + "/{id:guid}", Missing, Closed, Closed, Signal: "id, note", Control: ControlReader.Owner, Expanded: ExpandedReader.Installer),
-            new(own + "/{id:guid}/journal", Missing, Missing, Ok, Signal: "items[].changes", Expanded: ExpandedReader.Installer),
+            new(own + "/{id:guid}/journal", Missing, Missing, Ok, Signal: "items[].changes[note].after", Expanded: ExpandedReader.Installer),
             new(entry + "/{id:guid}", Closed, Missing, Closed, Signal: "id, note", Control: ControlReader.Manager,
                 Expanded: ExpandedReader.Unassigned),
             new(entry + "/candidates", Closed, Ok, Closed, date, NonReportReason: "Список сотрудников для ввода.",
@@ -96,24 +97,25 @@ internal sealed partial class WorkIsolationScenario
                 PhotoKind.Preview => storedPhoto.Preview,
                 _ => null,
             };
-            catalog.Add($"GET {probe.Template}", probe.Signal ?? probe.NonReportReason ?? $"байты {probe.Photo}", async () =>
-            {
-                var installerExpanded = expanded && probe.Expanded == ExpandedReader.Installer;
-                var unassignedExpanded = expanded && probe.Expanded == ExpandedReader.Unassigned;
-                await CheckWorkProbeAsync(readers.Installer, path, probe, installerExpanded ? Ok : probe.Installer,
-                    installerExpanded, installerExpanded ? expectedPhoto : null, includesA: true);
-                await CheckWorkProbeAsync(readers.Unassigned, path, probe, unassignedExpanded ? Ok : probe.Unassigned,
-                    unassignedExpanded);
-                await CheckWorkProbeAsync(readers.Executive, path, probe, probe.Executive,
-                    probe.Control == ControlReader.Executive, expectedPhoto);
-                if (expectedPhoto is not null || probe.Control == ControlReader.Owner)
-                    await CheckWorkProbeAsync(readers.Owner, path, probe, Ok, true, expectedPhoto);
-                if (probe.Control == ControlReader.Manager || probe.Template == "/api/work/entry/sites/{siteId:guid}/catalog/{kind}")
-                    await CheckWorkProbeAsync(readers.Manager, path, probe, Ok, true);
-            });
+            var observation = probe.Signal ?? probe.NonReportReason ?? $"байты {probe.Photo}";
+            var installerExpanded = expanded && probe.Expanded == ExpandedReader.Installer;
+            var unassignedExpanded = expanded && probe.Expanded == ExpandedReader.Unassigned;
+            Add(WorkProfile.Installer, () => CheckWorkProbeAsync(readers.Installer, path, probe,
+                installerExpanded ? Ok : probe.Installer, installerExpanded, installerExpanded ? expectedPhoto : null, includesA: true));
+            Add(WorkProfile.Unassigned, () => CheckWorkProbeAsync(readers.Unassigned, path, probe,
+                unassignedExpanded ? Ok : probe.Unassigned, unassignedExpanded));
+            Add(WorkProfile.Executive, () => CheckWorkProbeAsync(readers.Executive, path, probe,
+                probe.Executive, probe.Control == ControlReader.Executive, expectedPhoto));
+            if (ChecksOwner(probe))
+                Add(WorkProfile.Owner, () => CheckWorkProbeAsync(readers.Owner, path, probe, Ok, true, expectedPhoto));
+            if (ChecksManager(probe))
+                Add(WorkProfile.Manager, () => CheckWorkProbeAsync(readers.Manager, path, probe, Ok, true));
+
+            void Add(WorkProfile profile, Func<Task> verify) =>
+                catalog.Add(WorkProbeName(probe.Template, profile), observation, verify);
         }
 
-        const string summary = "GET /api/work/summary без фильтра стройки";
+        var summary = WorkProbeName("/api/work/summary без фильтра стройки", WorkProfile.Unassigned);
         catalog.Add(summary, "reason, boundaryOutcome, total", () => CheckResponseAsync(readers.Unassigned,
             $"/api/work/summary?{span}", Ok, inspect: body =>
             {
@@ -130,11 +132,28 @@ internal sealed partial class WorkIsolationScenario
                     Assert.Empty(body.GetProperty("rows").EnumerateArray());
                 }
             }, canReadReport: expanded));
-        const string materials = "GET /api/work/materials/hint (назначенный менеджер)";
+        var materials = WorkProbeName("/api/work/materials/hint", WorkProfile.Manager);
         catalog.Add(materials, "reason", () => CheckResponseAsync(readers.Manager, $"/api/work/materials/hint?{site}&{date}",
             Ok, "not-connected"));
-        return [.. liveTemplates.Select(template => $"GET {template}"), summary, materials];
+        // Обязательные пары берём из инвентаря и матрицы отдельно от регистрации вызовов.
+        return [.. liveTemplates.SelectMany(template => RequiredWorkProbeNames(byTemplate[template])), summary, materials];
     }
+
+    private static IEnumerable<string> RequiredWorkProbeNames(Probe probe)
+    {
+        yield return WorkProbeName(probe.Template, WorkProfile.Installer);
+        yield return WorkProbeName(probe.Template, WorkProfile.Unassigned);
+        yield return WorkProbeName(probe.Template, WorkProfile.Executive);
+        if (ChecksOwner(probe)) yield return WorkProbeName(probe.Template, WorkProfile.Owner);
+        if (ChecksManager(probe)) yield return WorkProbeName(probe.Template, WorkProfile.Manager);
+    }
+
+    private static string WorkProbeName(string template, WorkProfile profile) => $"GET {template} [{profile}]";
+
+    private static bool ChecksOwner(Probe probe) => probe.Photo is not null || probe.Control == ControlReader.Owner;
+
+    private static bool ChecksManager(Probe probe) => probe.Control == ControlReader.Manager
+        || probe.Template == "/api/work/entry/sites/{siteId:guid}/catalog/{kind}";
 
     private Task CheckWorkProbeAsync(HttpClient client, string path, Probe probe, HttpStatusCode status, bool positive,
         byte[]? expectedPhoto = null, bool includesA = false)
@@ -164,8 +183,7 @@ internal sealed partial class WorkIsolationScenario
                 Assert.Equal(marker, report.GetProperty("note").GetString());
                 break;
             case "/api/work/reports/{id:guid}/journal":
-                Assert.Contains(Items(body).SelectMany(item => item.GetProperty("changes").EnumerateArray()),
-                    change => change.GetRawText().Contains(marker, StringComparison.Ordinal));
+                AssertJournalNote(body, marker);
                 break;
             case "/api/work/review/queue":
                 Assert.Equal(positive ? 1 : 0, body.GetProperty("total").GetInt32());
@@ -200,6 +218,26 @@ internal sealed partial class WorkIsolationScenario
                 CheckWorkReference(body, template, positive, includesA);
                 break;
         }
+    }
+
+    private static void AssertJournalNote(JsonElement body, string expected)
+    {
+        var changes = Items(body).SelectMany(item => item.GetProperty("changes").EnumerateArray());
+        var note = Assert.Single(changes, change => change.GetProperty("field").GetString() == "note"
+            && change.GetProperty("line").ValueKind == JsonValueKind.Null);
+        Assert.Equal(expected, note.GetProperty("after").GetString());
+    }
+
+    internal static void CheckJournalNoteFromAnotherField()
+    {
+        const string expected = "Work25-journal-marker";
+        using var body = JsonDocument.Parse("""
+            {"items":[{"changes":[
+                {"line":null,"field":"note","before":"Work25-journal-marker","after":"другое примечание"},
+                {"line":"fixture-line","field":"location","after":"Work25-journal-marker"}
+            ]}]}
+            """);
+        Assert.Throws<Xunit.Sdk.EqualException>(() => AssertJournalNote(body.RootElement, expected));
     }
 
     private void CheckCrewGroup(JsonElement group)

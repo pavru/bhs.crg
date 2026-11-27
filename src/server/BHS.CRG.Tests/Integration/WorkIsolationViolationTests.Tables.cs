@@ -163,12 +163,30 @@ internal sealed partial class WorkIsolationScenario
         Assert.Equal(Boundary(table, reader), body.GetProperty("boundary").GetString());
         Assert.Equal(reader.Count == 0 ? "not-assigned" : null, body.GetProperty("reason").GetString());
         Assert.Equal(expected.Length, body.GetProperty("count").GetInt32());
-        var keys = body.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid());
+        var keys = body.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid()).ToArray();
+        Assert.Equal(expected.Select(row => row.Key).Order(), keys.Order());
         var rows = body.GetProperty("rows").EnumerateArray();
         Assert.Equal(expected.Length, body.GetProperty("rows").GetArrayLength());
         var cells = keys.Zip(rows, (key, row) => (key, row.GetProperty(table.Value).GetString(), row.GetProperty(table.Total).GetDecimal()));
         Assert.Equal(expected.OrderBy(row => row.Key), cells.OrderBy(row => row.key));
         if (reader.Count != 2) AssertReportNotDisclosed(body.GetRawText(), table.Path);
+    }
+
+    internal void CheckExtraTableKey()
+    {
+        var table = Tables().Single(table => table.Path == WorkTableWorld.Reports);
+        using var client = new HttpClient();
+        var reader = new SnapshotReader(client, 0, "not-assigned");
+        var body = JsonSerializer.SerializeToElement(new
+        {
+            boundaryOutcome = reader.Boundary,
+            boundary = Boundary(table, reader),
+            reason = "not-assigned",
+            count = 0,
+            keys = new[] { Guid.NewGuid() },
+            rows = Array.Empty<object>(),
+        });
+        Assert.Throws<EqualException>(() => AssertTableRows(body, table, reader, []));
     }
 
     private static string Boundary(TableProbe table, SnapshotReader reader) => reader.Boundary switch

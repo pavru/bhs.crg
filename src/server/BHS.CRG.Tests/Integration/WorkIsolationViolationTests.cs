@@ -50,6 +50,12 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
     [Fact]
     public void Маршрут_без_положительной_проверки_диагностируется() => WorkIsolationScenario.CheckMissingProbeControl();
 
+    [Fact]
+    public void Пустая_страница_таблицы_с_лишним_ключом_отвергается() => new WorkIsolationScenario(testHost).CheckExtraTableKey();
+
+    [Fact]
+    public void Метка_вне_нового_значения_примечания_журнала_отвергается() => WorkIsolationScenario.CheckJournalNoteFromAnotherField();
+
     [Theory]
     [InlineData("count")]
     [InlineData("skipped")]
