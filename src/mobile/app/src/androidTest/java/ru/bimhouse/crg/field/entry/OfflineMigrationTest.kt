@@ -4,7 +4,6 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -29,8 +28,8 @@ class OfflineMigrationTest {
 
     @Test
     fun opensVersionOneWithSameReportLinesAndPendingActions() = runBlocking {
-        val reportId = UUID.randomUUID()
-        val rowId = UUID.randomUUID().toString()
+        val reportId = UUID.fromString("a1c099bc-b135-4448-ac80-67bfe95396e6")
+        val rowId = "b52e41dc-11ed-4dc1-877d-45ff47884368"
         val createId = UUID.randomUUID().toString()
         val submitId = UUID.randomUUID().toString()
         val actionTime = "2026-11-16T16:00:00Z"
@@ -53,6 +52,9 @@ class OfflineMigrationTest {
         )
         val submitted = LocalReport(report, listOf(line))
         val draft = submitted.copy(report = report.copy(status = ReportStatus.DRAFT, submittedAt = null, revision = 1))
+        val assets = instrumentation.context.assets
+        val createSnapshot = assets.open("outbox-v1/create.json").bufferedReader().use { it.readText() }
+        val submitSnapshot = assets.open("outbox-v1/submit.json").bufferedReader().use { it.readText() }
 
         helper.createDatabase(owner.databaseName(), 1).use { legacy ->
             legacy.execSQL("""
@@ -72,8 +74,8 @@ class OfflineMigrationTest {
                 INSERT INTO report_outbox (sequence, actionId, reportId, action, deviceTime, snapshotJson)
                 VALUES (?, ?, ?, ?, ?, ?)
             """.trimIndent()
-            legacy.execSQL(insertAction, arrayOf<Any>(4, createId, report.id, "CREATE", actionTime, Json.encodeToString(draft)))
-            legacy.execSQL(insertAction, arrayOf<Any>(5, submitId, report.id, "SUBMIT", actionTime, Json.encodeToString(submitted)))
+            legacy.execSQL(insertAction, arrayOf<Any>(4, createId, report.id, "CREATE", actionTime, createSnapshot))
+            legacy.execSQL(insertAction, arrayOf<Any>(5, submitId, report.id, "SUBMIT", actionTime, submitSnapshot))
         }
 
         OfflineReportStore.open(context, owner).use { store ->

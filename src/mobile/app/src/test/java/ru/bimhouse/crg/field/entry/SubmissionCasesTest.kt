@@ -28,13 +28,21 @@ class SubmissionCasesTest(private val name: String, private val case: Submission
         assertEquals(case.expect.windowEndsAt.instant(), endsAt)
         assertEquals(case.expect.momentOfManual.instant(),
             SubmissionWindow.momentOfManual(case.deviceTime.instant(), endsAt))
+
+        val now = case.now.instant()
+        val today = now.atZone(zone).toLocalDate()
+        val nightEndsAt = if (case.hasNightYesterday) {
+            SubmissionWindow.endsAt(zone, today.minusDays(1), Shift.NIGHT)
+        } else {
+            null
+        }
         assertEquals(
             SuggestedShift(
                 LocalDate.parse(case.expect.suggested.date),
                 Shift.parse(case.expect.suggested.shift),
                 case.expect.suggested.label,
             ),
-            SubmissionWindow.suggested(zone, case.now.instant(), case.hasNightYesterday),
+            SubmissionWindow.suggested(today, now, nightEndsAt),
         )
         case.attemptedShiftAfterSubmission?.let {
             assertNotEquals(shift, Shift.parse(it))

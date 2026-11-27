@@ -83,6 +83,27 @@ class OfflineReportStoreTest {
     }
 
     @Test
+    fun suggestsYesterdayNightOnlyUntilStoredDeadlineAfterZoneChange() = runBlocking {
+        val placement = ReportPlacement(moscow, constructionId = UUID.randomUUID(), siteZone = vladivostok)
+        val updatedPlacement = placement.copy(siteZone = moscow)
+        val storedDeadline = Instant.parse("2026-11-17T14:00:00Z")
+
+        OfflineReportStore.open(context, owner).use { store ->
+            val saved = store.create(UUID.randomUUID(), ReportInput(placement, date, Shift.NIGHT), action())
+            assertEquals(storedDeadline, Instant.parse(saved.report.windowEndsAt))
+
+            assertEquals(
+                SuggestedShift(date, Shift.NIGHT, "Ночная смена 16.11"),
+                store.suggested(updatedPlacement, storedDeadline.minusSeconds(1)),
+            )
+            assertEquals(
+                SuggestedShift(date.plusDays(1), Shift.DAY, "Отчёт 17.11"),
+                store.suggested(updatedPlacement, storedDeadline),
+            )
+        }
+    }
+
+    @Test
     fun queueFailureRollsBackReportAndRows() = runBlocking {
         val reportId = UUID.randomUUID()
         val input = ReportInput(unlisted, date, lines = listOf(line))

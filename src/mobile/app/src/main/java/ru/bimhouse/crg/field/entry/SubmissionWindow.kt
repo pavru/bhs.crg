@@ -39,10 +39,9 @@ object SubmissionWindow {
 
     fun momentOfManual(deviceTime: Instant, endsAt: Instant): Instant = minOf(deviceTime, endsAt)
 
-    fun suggested(zone: ZoneId, now: Instant, hasNightYesterday: Boolean): SuggestedShift {
-        val today = now.atZone(zone).toLocalDate()
-        val yesterday = today.minusDays(1)
-        if (hasNightYesterday && now < endsAt(zone, yesterday, Shift.NIGHT)) {
+    fun suggested(today: LocalDate, now: Instant, yesterdayNightEndsAt: Instant?): SuggestedShift {
+        if (yesterdayNightEndsAt != null && now < yesterdayNightEndsAt) {
+            val yesterday = today.minusDays(1)
             return SuggestedShift(yesterday, Shift.NIGHT, "Ночная смена ${yesterday.format(shortDate)}")
         }
         return SuggestedShift(today, Shift.DAY, "Отчёт ${today.format(shortDate)}")

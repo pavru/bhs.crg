@@ -54,13 +54,11 @@ internal interface OfflineDao {
     suspend fun lines(id: String): List<ReportLineRecord>
 
     @Query("""
-        SELECT EXISTS (
-            SELECT 1 FROM reports
-            WHERE constructionId IS :constructionId AND unlistedSiteName IS :unlistedSiteName
-              AND date = :date AND shift = 'NIGHT'
-        )
+        SELECT windowEndsAt FROM reports
+        WHERE constructionId IS :constructionId AND unlistedSiteName IS :unlistedSiteName
+          AND date = :date AND shift = 'NIGHT'
     """)
-    suspend fun hasNight(constructionId: String?, unlistedSiteName: String?, date: String): Boolean
+    suspend fun nightWindowEndTimes(constructionId: String?, unlistedSiteName: String?, date: String): List<String>
 
     @Query("SELECT * FROM report_outbox WHERE actionId = :id")
     suspend fun action(id: String): PendingReportAction?

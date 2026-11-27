@@ -21,11 +21,11 @@ class OfflineReportStore internal constructor(private val db: OfflineDatabase) :
 
     suspend fun suggested(placement: ReportPlacement, now: Instant): SuggestedShift {
         val zone = SubmissionWindow.effectiveZone(placement.companyZone, placement.siteZone)
-        val yesterday = now.atZone(zone).toLocalDate().minusDays(1)
-        val hasNight = dao.hasNight(
-            placement.constructionId?.toString(), placement.unlistedSiteName, yesterday.toString(),
-        )
-        return SubmissionWindow.suggested(zone, now, hasNight)
+        val today = now.atZone(zone).toLocalDate()
+        val nightEndsAt = dao.nightWindowEndTimes(
+            placement.constructionId?.toString(), placement.unlistedSiteName, today.minusDays(1).toString(),
+        ).maxOfOrNull { Instant.parse(it) }
+        return SubmissionWindow.suggested(today, now, nightEndsAt)
     }
 
     suspend fun create(id: UUID, input: ReportInput, action: LocalAction): LocalReport =
