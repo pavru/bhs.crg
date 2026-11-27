@@ -34,14 +34,14 @@
 | Пункты ТЗ | Ответственные change | Наблюдаемый результат |
 |---|---|---|
 | MOB-1…4 | [06](../mob-06-offline-entry/tasks.md), [07](../mob-07-android-join/tasks.md) | Один APK, на личном устройстве только данные его сотрудника; ввод и подача доступны в авиарежиме |
-| MOB-5…8 | [02](../mob-02-device-sessions/tasks.md), [07](../mob-07-android-join/tasks.md), [10](../mob-10-device-desk/tasks.md) | Менеджер выдаёт приглашение, монтажник подключается и без камеры, видит организацию до подтверждения |
-| MOB-9…12 | [02](../mob-02-device-sessions/tasks.md), [07](../mob-07-android-join/tasks.md), [10](../mob-10-device-desk/tasks.md) | Три режима, предупреждения об HTTP на обеих сторонах, итоговый адрес сохранён, понижение защиты отклонено |
+| MOB-5…8 | [02](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [07](../mob-07-android-join/tasks.md), [10](../mob-10-device-desk/tasks.md) | Менеджер выдаёт приглашение, монтажник подключается и без камеры, видит организацию до подтверждения |
+| MOB-9…12 | [02](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [07](../mob-07-android-join/tasks.md), [10](../mob-10-device-desk/tasks.md) | Три режима, предупреждения об HTTP на обеих сторонах, итоговый адрес сохранён, понижение защиты отклонено |
 | MOB-13…14 | [01](../archive/2026-11-28-mob-01-field-contract/tasks.md) | Прокси публикует два префикса, старый контракт проходит после обновления |
 | MOB-15…18 | [03](../mob-03-report-exchange/tasks.md), [04](../mob-04-reference-sync/tasks.md), [06](../mob-06-offline-entry/tasks.md) | Повтор не удваивает работу; изменения упорядочены сервером, обе стороны проходят общие примеры ночной смены |
-| MOB-19…20 | [02](../mob-02-device-sessions/tasks.md), [08](../mob-08-background-sync/tasks.md), [09](../mob-09-photo-outbox/tasks.md) | Потерянный refresh повторяется; текст поступает и принимается до фото |
+| MOB-19…20 | [02](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [08](../mob-08-background-sync/tasks.md), [09](../mob-09-photo-outbox/tasks.md) | Потерянный refresh повторяется; текст поступает и принимается до фото |
 | MOB-21…23 | [03](../mob-03-report-exchange/tasks.md), [08](../mob-08-background-sync/tasks.md) | Семь причин на экране, отдельное поле серверного отказа, явная правка записи менеджера, мягкий случай снятого назначения |
 | MOB-24…27 | [эпик, 0.1](tasks.md), [06](../mob-06-offline-entry/tasks.md), [08](../mob-08-background-sync/tasks.md), [11](../mob-11-apk-release/tasks.md) | Два канала одного APK, обновление сохраняет очередь, локальное напоминание и три триггера обмена |
-| MOB-28…30 | [02](../mob-02-device-sessions/tasks.md), [10](../mob-10-device-desk/tasks.md) | Отзыв по причине, ограниченная досылка, число и возраст с указанием свежести сведений |
+| MOB-28…30 | [02](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [10](../mob-10-device-desk/tasks.md) | Отзыв по причине, ограниченная досылка, число и возраст с указанием свежести сведений |
 | MOB-31…36, включая MOB-33.1 и Q1…Q4 | [06](../mob-06-offline-entry/tasks.md), [07](../mob-07-android-join/tasks.md), [08](../mob-08-background-sync/tasks.md) | Компоновки телефона и планшета, независимые индикаторы, доступный возврат, поля заказчика в вебе, быстрый выбор работы |
 | MOB-37 | [04](../mob-04-reference-sync/tasks.md), [08](../mob-08-background-sync/tasks.md) | Курсор на справочник, предел объёма, только свои стройки и участники на дату |
 | WORK-22/23/28/29/32/58 | [03](../mob-03-report-exchange/tasks.md), [05](../mob-05-unlisted-site/tasks.md), [10](../mob-10-device-desk/tasks.md) | Очередь без стройки, привязка, сверка часов при объединении, реальная пометка поздней доставки, последний контакт и карточка устройства |

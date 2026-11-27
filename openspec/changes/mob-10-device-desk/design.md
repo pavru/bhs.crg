@@ -2,7 +2,7 @@
 
 ## Context
 
-Веб-карточка сотрудника, устройства, SummaryContact, сводка Work, журнал действий. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../mob-02-device-sessions/tasks.md), [mob-08-background-sync](../mob-08-background-sync/tasks.md).
+Веб-карточка сотрудника, устройства, SummaryContact, сводка Work, журнал действий. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../archive/2026-11-28-mob-02-device-sessions/tasks.md), [mob-08-background-sync](../mob-08-background-sync/tasks.md).
 
 ## Goals / Non-Goals
 
