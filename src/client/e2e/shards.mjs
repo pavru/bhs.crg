@@ -44,6 +44,7 @@ export const SUITE_SECONDS = {
   // Назначения (work-12) — замер на своём стенде, до первого прогона CI.
   'work-assignments': 12,
   'work-review': 12,
+  'work-correction': 14,
   'work-entry': 12,
   'work-summary': 12,
   work: 20,

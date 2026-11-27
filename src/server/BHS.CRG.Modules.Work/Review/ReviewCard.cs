@@ -14,6 +14,7 @@ namespace BHS.CRG.Modules.Work.Review;
 public static class ReviewCard
 {
     public const string Path = "/api/work/review/reports/{id:guid}";
+    private const string Correct = "correct";
 
     public static void Map(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet(Path, GetAsync).WithTags("Отчёты")
@@ -43,11 +44,14 @@ public static class ReviewCard
         var types = lines.Count == 0 ? [] : await workTypes.GetAsync([.. lines.Select(l => l.WorkTypeId).Distinct()], ct) ?? [];
         var byId = types.ToDictionary(t => t.Id);
         var measures = lines.Count == 0 ? [] : await units.GetAsync([.. lines.Select(l => l.UnitId).Distinct()], ct) ?? [];
-        var currentPending = report.Status == ReportStatus.Submitted && card.ViewedVersion == report.CurrentVersion;
-        var actions = currentPending
-            && manager?.Covers(report.ConstructionId, own: false) == true
-            && !ReportPeriods.IsClosed(await periods.CurrentAsync(ct), report.ConstructionId, report.Date)
-                ? ReviewQueue.Decisions : [];
+        var current = card.ViewedVersion == report.CurrentVersion;
+        var currentPending = current && report.Status == ReportStatus.Submitted;
+        var canManage = current && manager?.Covers(report.ConstructionId, own: false) == true;
+        IReadOnlyList<string> actions = [];
+        if (canManage && content.PeriodClosed && await periods.ClosingAsync(report, ct) is not null)
+            actions = [Correct];
+        else if (canManage && currentPending && !content.PeriodClosed)
+            actions = ReviewQueue.Decisions;
         var required = RequiredGaps.None;
         var currentRequiredMissing = new List<MissingField>();
         if (currentPending && !content.PeriodClosed && report.SubmittedBy == ReportSubmitter.Auto)
@@ -66,7 +70,7 @@ public static class ReviewCard
             timeZoneId = site?.TimeZoneId, card.ViewedVersion, card.AtClosingVersion, actions, currentRequiredMissing,
             report = content with
             {
-                AcceptWouldMark = actions.Count > 0 && content.AcceptWouldMark,
+                AcceptWouldMark = actions.Contains(ReviewQueue.Accept) && content.AcceptWouldMark,
                 Marks = required == RequiredGaps.None ? content.Marks : ReviewMarks.Dtos(
                     content.Marks.Select(mark => mark.Code).ToArray(), content.PhotosPending, content.MissingFieldsCount, required),
             },

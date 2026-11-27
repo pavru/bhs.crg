@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Description, Download, ImageIcon, TableChart, Upload } from '@/shared/ui/icons';
@@ -11,7 +11,8 @@ import { Modal } from '@/shared/ui/Modal';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { Chip } from '@/shared/ui/Chip';
-import { useFieldUploadChange } from './useFieldUploadChange';
+import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
+import { TrackFieldFiles, useFieldUploadChange } from './useFieldUploadChange';
 import type { IconDef } from '@/shared/ui/icons';
 
 export interface PrintFormContext {
@@ -169,10 +170,12 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   const [previewOpen, setPreviewOpen] = useState(false);
   const attachment = isFileAttachment(value) ? value : null;
   const uploadChange = useFieldUploadChange(onChange);
+  const trackUpload = useContext(TrackFieldFiles);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (trackUpload) beginUpload();
     setUploading(true); setUploadError('');
     try {
       if (printForm) {
@@ -189,6 +192,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Ошибка загрузки');
     } finally {
+      if (trackUpload) endUpload();
       setUploading(false);
       e.target.value = '';
     }

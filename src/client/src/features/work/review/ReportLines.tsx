@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAccess } from '@/shared/api/access';
+import { useReportDetailsSchema } from '@/shared/api/workReports';
 import { useReviewPhoto, type ReviewFullCard, type ReviewReportLine } from '@/shared/api/workReview';
 import { formatNumber } from '@/shared/format/format';
 import { Banner } from '@/shared/ui/Banner';
@@ -6,6 +8,8 @@ import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { PhotoGallery, PhotoImage } from '@/shared/ui/PhotoGallery';
 import { StatusText } from '@/shared/ui/StatusText';
+import { formatFieldValue } from '@/shared/utils/fieldDisplay';
+import { detailValues } from '../reportDetails';
 import { workLabel } from './workLabel';
 
 type Photo = ReviewReportLine['photos'][number];
@@ -23,6 +27,9 @@ function ReportPhoto({ card, photo, preview, label }: { card: ReviewFullCard; ph
 
 export function ReportLines({ card }: { card: ReviewFullCard }) {
   const [gallery, setGallery] = useState<{ line: ReviewReportLine; index: number } | null>(null);
+  const hasDetails = card.report.lines.some(line => Object.keys(detailValues(line.details)).length > 0);
+  const rights = useAccess(hasDetails).data?.permissions;
+  const schema = useReportDetailsSchema(hasDetails && !!rights?.some(right => right === 'work.report.review' || right === 'work.report.own')).data;
   const columns: DataGridColumn<ReviewReportLine>[] = [
     { key: 'work', label: 'Работа и место', rowHeader: true, wrap: true, cell: line => <>
       <span className="font-medium">{workLabel(card, line)}</span>
@@ -30,6 +37,7 @@ export function ReportLines({ card }: { card: ReviewFullCard }) {
         {[line.sectionId && card.sections[line.sectionId], line.location].filter(Boolean).join(' · ')}
       </span>
       {line.comment && <span className="block whitespace-pre-wrap text-body-small">{line.comment}</span>}
+      <FilledDetails details={line.details} schema={schema} />
       {!!line.missingFields?.length && <div className="mt-1">
         <StatusText tone="warning">Нужно к приёмке</StatusText>
         <ul className="list-disc ps-5 text-body-small">
@@ -57,4 +65,28 @@ export function ReportLines({ card }: { card: ReviewFullCard }) {
       initialIndex={gallery.index} onClose={() => setGallery(null)} renderPhoto={index =>
         <ReportPhoto key={photos[index].id} photo={photos[index]} card={card} preview={false} label={`Фото ${index + 1}`} />} />}
   </>;
+}
+
+function FilledDetails({ details, schema }: {
+  details: unknown; schema: ReturnType<typeof useReportDetailsSchema>['data'];
+}) {
+  const entries = Object.entries(detailValues(details)).filter(([, value]) => value != null && value !== '');
+  return entries.length > 0 && <dl className="mt-1 space-y-1 text-body-small">
+    {entries.map(([key, value]) => {
+      const field = schema?.fields.find(item => item.key === key);
+      return <div className="flex flex-wrap gap-x-2 break-words" key={key}>
+        <dt className="text-on-surface-variant">{field?.title || key}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap">{value && typeof value === 'object'
+          ? detailSummary(value) : field ? formatFieldValue(field, value, schema) : String(value)}</dd>
+      </div>;
+    })}
+  </dl>;
+}
+
+function detailSummary(value: object): string {
+  if (Array.isArray(value)) return value.map(item => item && typeof item === 'object' ? detailSummary(item) : String(item ?? '')).join(', ');
+  const info = value as Record<string, unknown>;
+  if (typeof info.displayName === 'string') return info.displayName;
+  if (typeof info.fileName === 'string') return info.fileName;
+  return JSON.stringify(value);
 }

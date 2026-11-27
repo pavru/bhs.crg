@@ -10,7 +10,12 @@ import { SideSheet } from '@/shared/ui/SideSheet';
 import { StatusText } from '@/shared/ui/StatusText';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useTheme } from '@/shared/ui/themeContext';
-import { freshLine, HeaderFields, LineFields, type Contents } from './CorrectionFields';
+import { HeaderFields, LineFields, type Contents, type Line } from './CorrectionFields';
+
+const freshLine = (id: string): Line => ({
+  id, work: '', variant: '', volume: '', unit: '', section: '', location: '', comment: '', act: '',
+  materials: [], isCrew: false, crewRole: '', participants: [],
+});
 
 const initial: Contents = {
   hours: '8', note: 'Работы по наряду № 21', lines: [
@@ -70,7 +75,7 @@ export function CorrectionMockup({ variant }: { variant: 'a' | 'b' | 'c' }) {
   const [announcement, setAnnouncement] = useState('');
   const openButton = useRef<HTMLButtonElement>(null);
   const editorTitle = useRef<HTMLHeadingElement>(null);
-  const cancelTitle = useRef<HTMLParagraphElement>(null);
+  const cancelTitle = useRef<HTMLSpanElement>(null);
   const nextId = useRef(0);
   const current = versions.at(-1)!;
   const shown = versions.find(version => version.number === number) ?? current;
@@ -184,8 +189,8 @@ export function CorrectionMockup({ variant }: { variant: 'a' | 'b' | 'c' }) {
       Пока форма была открыта, отчёт изменили. Черновик сохранён.
     </Banner>}
     {outcome === 'compare' && <Banner tone="warning" actions={[{ label: 'Подтвердить новую основу', onClick: acceptBasis }]}>
-      <p className="break-words">Часы за смену · было {basis.contents.hours || '—'} · текущая версия {current.contents.hours || '—'} · черновик {draft.hours || '—'}</p>
-      <p>{draft.hours === basis.contents.hours ? 'Часы из текущей версии будут сохранены.' : 'После подтверждения сохранится ваш вариант часов.'}</p>
+      <span className="block break-words">Часы за смену · было {basis.contents.hours || '—'} · текущая версия {current.contents.hours || '—'} · черновик {draft.hours || '—'}</span>
+      <span className="block">{draft.hours === basis.contents.hours ? 'Часы из текущей версии будут сохранены.' : 'После подтверждения сохранится ваш вариант часов.'}</span>
     </Banner>}
     {outcome === 'unknown' && <Banner tone="warning" actions={[{ label: 'Проверить версию и журнал', onClick: () => saved(current) }]}>
       Ответ не получен. Проверьте, сохранилось ли исправление.
@@ -198,7 +203,7 @@ export function CorrectionMockup({ variant }: { variant: 'a' | 'b' | 'c' }) {
     {confirmInSheet ? <Banner tone="warning" actions={[
       { label: 'Продолжить правку', onClick: () => setLeaving(undefined) },
       { label: 'Отменить исправление', onClick: () => { close(leaving.number); setLeaving(undefined); } },
-    ]}><p ref={cancelTitle} tabIndex={-1}>Отменить исправление?</p><p>Введённые значения и причина будут потеряны.</p></Banner>
+    ]}><span ref={cancelTitle} tabIndex={-1} className="block">Отменить исправление?</span><span className="block">Введённые значения и причина будут потеряны.</span></Banner>
     : <div className="flex flex-wrap justify-end gap-2">
       <Button variant="text" onClick={() => requestClose()} disabled={outcome === 'sending'}>Отмена</Button>
       {variant === 'c' && reviewing && <Button variant="outlined" onClick={() => setStep('fields')} disabled={outcome !== 'ready'}>Назад к полям</Button>}

@@ -13,7 +13,11 @@ public class ReviewCardTests(AssignmentHost host) : IAsyncLifetime
 
     public Task InitializeAsync() => world.SeedAsync();
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync()
+    {
+        host.ClosureTime = null;
+        return Task.CompletedTask;
+    }
 
     [Fact]
     public async Task Чтение_руководителя_не_расширяет_охват_действий()
@@ -64,6 +68,37 @@ public class ReviewCardTests(AssignmentHost host) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
         var after = await manager.GetFromJsonAsync<JsonElement>(Url(id));
         Assert.Single(after.GetProperty("report").GetProperty("lines").EnumerateArray());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Закрытая_действующая_карточка_предлагает_исправление_только_в_охвате_менеджера(bool company)
+    {
+        var periods = new WorkPeriodWorld(host);
+        var site = world.SiteA;
+        var (_, installer) = await world.Reports.InstallerAsync("Монтажник");
+        var (_, manager) = await world.Reports.ManagerAsync("Менеджер", site);
+        var (_, siteB) = await world.Reports.ManagerAsync("Менеджер другой стройки", world.SiteB);
+        var (_, managerReader) = await world.Reports.ManagerAsync("Менеджер другой стройки с чтением", world.SiteB, WorkModule.ReportRead);
+        var (_, reader) = await world.Reports.Assignments.UserAsync("Руководитель", WorkModule.ReportRead);
+        var (_, all) = await world.Reports.Assignments.UserAsync("Все стройки", WorkModule.ReportReview, WorkModule.SitesAll);
+        var id = Guid.NewGuid();
+        var submitted = await world.SubmittedAsync(installer, id, site, WorkPeriodWorld.OctoberEnd, Guid.NewGuid());
+        Assert.Equal(HttpStatusCode.OK, (await ReviewWorld.AcceptAsync(manager, id, ReviewWorld.Version(submitted))).StatusCode);
+        host.ClosureTime = AssignmentHost.Now.AddDays(5);
+        await WorkPeriodWorld.CloseAsync(await periods.CloserAsync(), site: company ? null : site);
+
+        foreach (var allowed in new[] { manager, all })
+        {
+            var card = await allowed.GetFromJsonAsync<JsonElement>(Url(id));
+            Assert.Equal("correct", Assert.Single(card.GetProperty("actions").EnumerateArray()).GetString());
+            Assert.False(card.GetProperty("report").GetProperty("acceptWouldMark").GetBoolean());
+            Assert.Empty(card.GetProperty("currentRequiredMissing").EnumerateArray());
+        }
+        foreach (var readOnly in new[] { reader, managerReader })
+            Assert.Empty((await readOnly.GetFromJsonAsync<JsonElement>(Url(id))).GetProperty("actions").EnumerateArray());
+        Assert.Equal(HttpStatusCode.NotFound, (await siteB.GetAsync(Url(id))).StatusCode);
     }
 
     private static string Url(Guid id) => $"/api/work/review/reports/{id}";

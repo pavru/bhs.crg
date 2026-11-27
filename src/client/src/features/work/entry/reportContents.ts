@@ -15,7 +15,7 @@ export const emptyLine = (): DraftLine => ({
   comment: null, details: {}, isCrew: false, crewRole: null, materials: [], participants: [], photos: [],
 });
 
-export function contentsOf(report?: WorkReport): ReportContents {
+export function contentsOf(report?: Pick<WorkReport, 'hours' | 'lines'>): ReportContents {
   return {
     hours: formatInput(report?.hours),
     lines: report?.lines.map(line => ({ ...lineFields(line), volume: formatInput(line.volume), photos: line.photos })) ?? [],

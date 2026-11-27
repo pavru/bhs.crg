@@ -6858,6 +6858,13 @@ GET    /api/work/review/queue?constructionId=&employeeId=&from=&to=&mark=&offset
                                     коды каталога (Data/ReviewMarks.cs), нулевые тоже, по всему
                                     отбору без отбора по пометке. Неизвестный mark, from > to,
                                     limit вне 1…200 — 400.
+GET    /api/work/review/reports/{id}?number= → карточка с действующей или указанной версией,
+                                    действиями и currentRequiredMissing. Действие correct выдаётся
+                                    для действующей версии в закрытом периоде менеджеру в охвате.
+                                    После исправления клиент читает карточку без number и обновляет
+                                    историю. При неизвестном исходе клиент сверяет версию и журнал.
+                                    Повтор прежнего запроса использует прежний If-Match. У адреса
+                                    correction нет клиентского повтора по changeId.
 GET    /api/work/reports/{id}/journal       → { items: [{ seq, kind: created|updated|deleted|submitted|
                                     auto-submitted|accepted|returned|manager-edited|same-person|
                                     notify-none|corrected|accepted-changed, changeId, comment,

@@ -25,11 +25,6 @@ export type Line = {
 
 export type Contents = { hours: string; note: string; lines: Line[] };
 
-export const freshLine = (id: string): Line => ({
-  id, work: '', variant: '', volume: '', unit: '', section: '', location: '', comment: '', act: '',
-  materials: [], isCrew: false, crewRole: '', participants: [],
-});
-
 type LineFieldsProps = {
   line: Line; number: number; last: boolean; onChange: (next: Line) => void;
   onRemove: () => void; onMove: (direction: -1 | 1) => void;
