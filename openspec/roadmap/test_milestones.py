@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from build import change_dirs, read_tasks
+from build import CHANGE, MOBILE_CHANGE, change_dirs, read_tasks
 from milestones import attach_milestones, select
 
 HERE = Path(__file__).resolve().parent
@@ -12,9 +12,9 @@ WORK_25 = 'work-25-roles-e2e-violation'
 WORK_25_1 = 'work-25-1-isolation-test-controls'
 
 
-def load():
+def load(pattern=CHANGE):
     result = {}
-    for name, (path, archived) in change_dirs().items():
+    for name, (path, archived) in change_dirs(pattern).items():
         title, sections = read_tasks(path / 'tasks.md', name)
         result[name] = {'title': title, 'sections': sections, 'archived': archived,
                         'path': path.relative_to(HERE.parents[1]).as_posix()}
@@ -26,6 +26,27 @@ def tasks(changes, name):
 
 
 class RoadmapTests(unittest.TestCase):
+    def test_mobile_release_gate_and_independent_first_milestones(self):
+        mobile = load(MOBILE_CHANGE)
+        definitions = json.loads((HERE / 'milestones-5.json').read_text(encoding='utf-8'))['changes']
+        for change in mobile.values():
+            change['archived'] = False
+            for section in change['sections']:
+                for task in section['items']:
+                    task['done'] = False
+
+        def states():
+            attach_milestones(mobile, definitions)
+            return {part['id']: part['state'] for change in mobile.values()
+                    for part in change.get('milestones', [])}
+
+        self.assertEqual(set(states().values()), {'waiting'})
+        release_gate = next(t for t in tasks(mobile, 'mob-00-epic') if t['n'] == '0.1')
+        release_gate['done'] = True
+        self.assertEqual({key for key, state in states().items() if state == 'ready'},
+                         {'mob-01-field-contract#1', 'mob-06-offline-entry#1'})
+        self.assertEqual(states()['mob-06-offline-entry#2'], 'waiting')
+
     @classmethod
     def setUpClass(cls):
         cls.base = load()

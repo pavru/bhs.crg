@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Дорожная карта этапов 3–4</title>
+<title>__TITLE__</title>
 <style>
 /* Ведомость: лист-таблица с узкой колонкой номеров, группы — заголовки листа, две линии и этап после них */
 :root {
@@ -57,6 +57,7 @@ header.top { display: grid; gap: 10px; }
 .lead { max-width: 68ch; margin: 0; color: var(--muted); }
 
 .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.summary > :only-child { grid-column: 1 / -1; }
 @media (max-width: 760px) { .summary { grid-template-columns: 1fr; } }
 .track-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0; align-content: start; }
 .track-card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -217,14 +218,14 @@ main { display: grid; gap: 32px; }
 <div class="wrap">
   <header class="top">
     <div class="eyebrow">BHS.CRG · OpenSpec · openspec/changes</div>
-    <h1>Дорожная карта этапов 3–4</h1>
-    <p class="lead">По одной работе Work и Plan параллельно; Work — приоритет. В привычном порядке зонтика под каждым change показаны отдельные вехи PR, их задачи и условия старта. Статусы читаются из OpenSpec, даты прежних отметок Claude сохранены.</p>
+    <h1>__TITLE__</h1>
+    <p class="lead">__LEAD__</p>
   </header>
 
   <div class="summary" id="summary"></div>
 
   <div class="toolbar">
-    <input type="search" id="q" placeholder="Поиск: change, метка PLAN-7, файл…" aria-label="Поиск по шагам и задачам">
+    <input type="search" id="q" placeholder="Поиск: change, метка __EXAMPLE__, файл…" aria-label="Поиск по шагам и задачам">
     <div class="seg" role="group" aria-label="Что показывать">
       <button type="button" id="f-all" aria-pressed="true">Все шаги</button>
       <button type="button" id="f-open" aria-pressed="false">Невыполненные</button>
