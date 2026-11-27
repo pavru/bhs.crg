@@ -317,6 +317,7 @@ public sealed class WorkModule : IAppModule
         CrewGroups.Map(endpoints);
         PhotoEndpoints.Map(endpoints);
         DeviceManagementEndpoints.Map(endpoints);
+        FieldSessionEndpoints.Map(endpoints);
     }
 
     /// <summary>

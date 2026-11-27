@@ -1,15 +1,18 @@
 using System.Text.Json;
-using BHS.CRG.Modules.Work.Devices;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
-namespace BHS.CRG.Api.Endpoints.Field;
+namespace BHS.CRG.Modules.Work.Devices;
 
 internal static class FieldSessionEndpoints
 {
     private sealed record JoinRequest(string? InvitationCode);
     private sealed record RefreshRequest(string? RefreshToken);
 
-    internal static void Map(RouteGroupBuilder field)
+    internal static void Map(IEndpointRouteBuilder endpoints)
     {
+        var field = endpoints.MapGroup("/api/field");
         field.MapPost("/join", async (HttpContext context, DeviceSessions sessions, CancellationToken ct) =>
         {
             var body = await ReadAsync<JoinRequest>(context, ct);

@@ -77,6 +77,8 @@ internal sealed partial class WorkIsolationScenario
             new("/api/work/materials/hint", Missing, Missing, Closed, $"{site}&{date}",
                 NonReportReason: "Материалы справочника, отпуска и сметы в допущенной стройке."),
             new("/api/work/line-details-schema", Ok, Ok, Closed, NonReportReason: "Схема полей строки."),
+            new("/api/work/devices/employees/{employeeId:guid}", Closed, Closed, Closed,
+                NonReportReason: "Отдельное право на управление устройствами; в ответе сведения об устройствах и отзыве."),
         ];
         var live = EndpointInventory.Routes(testHost.Services).Where(route => EndpointInventory.Matches(EndpointInventory.Route(route), "/api/work")
             && route.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("GET") == true).ToArray();

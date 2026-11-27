@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace BHS.CRG.Modules.Work.Devices;
 
-public sealed record FieldDeviceAccess(Guid DeviceId, Guid EmployeeId, string Grant,
+internal sealed record FieldDeviceAccess(Guid DeviceId, Guid EmployeeId, string Grant,
     DateTimeOffset AccessExpiresAt, DateOnly? RevokedOn, DateTimeOffset? DeliveryUntil)
 {
     // Дату и автора существующего отчёта берёт вызывающая операция Work из сохранённой записи.
@@ -20,7 +20,7 @@ public sealed record FieldDeviceAccess(Guid DeviceId, Guid EmployeeId, string Gr
         (RevokedOn is null || declaredForReport) && AllowsReport(authorId, reportDate, delivering: true, now);
 }
 
-public sealed class FieldDeviceAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options,
+internal sealed class FieldDeviceAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger, UrlEncoder encoder, DeviceSessions sessions, IModuleClock clock)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {

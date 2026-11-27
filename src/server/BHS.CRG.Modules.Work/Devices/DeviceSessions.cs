@@ -9,16 +9,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Devices;
 
-public sealed record DeviceCredentials(Guid DeviceId, Guid EmployeeId, string AccessToken,
+internal sealed record DeviceCredentials(Guid DeviceId, Guid EmployeeId, string AccessToken,
     string RefreshToken, DateTimeOffset ExpiresAt);
 
-public sealed record DeviceSessionResult(DeviceCredentials? Credentials, string? Reason)
+internal sealed record DeviceSessionResult(DeviceCredentials? Credentials, string? Reason)
 {
     internal static DeviceSessionResult Refused(string reason) => new(null, reason);
     internal static DeviceSessionResult Issued(DeviceCredentials credentials) => new(credentials, null);
 }
 
-public sealed class DeviceSessions(WorkDbContext db, IModuleClock clock, IModuleEmployees employees,
+internal sealed class DeviceSessions(WorkDbContext db, IModuleClock clock, IModuleEmployees employees,
     IDataProtectionProvider protection)
 {
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(90);
@@ -80,9 +80,10 @@ public sealed class DeviceSessions(WorkDbContext db, IModuleClock clock, IModule
         if (session.RefreshHash != hash && session.PreviousRefreshHash != hash)
             return DeviceSessionResult.Refused("invalid-session");
 
+        var employeeExists = await EmployeeExistsAsync(session, ct);
         var now = clock.UtcNow();
         if (session.IsRevokedAt(now)) return DeviceSessionResult.Refused("device-revoked");
-        if (session.SessionExpiresAt <= now) return DeviceSessionResult.Refused("invalid-session");
+        if (session.SessionExpiresAt <= now || !employeeExists) return DeviceSessionResult.Refused("invalid-session");
 
         if (session.PreviousRefreshHash == hash)
             return Replay(session, now);
@@ -101,8 +102,12 @@ public sealed class DeviceSessions(WorkDbContext db, IModuleClock clock, IModule
     internal async Task<DeviceSession?> FindAccessAsync(string token, CancellationToken ct)
     {
         var hash = Hash(token);
-        return await db.DeviceSessions.AsNoTracking().SingleOrDefaultAsync(s => s.AccessHash == hash, ct);
+        var session = await db.DeviceSessions.AsNoTracking().SingleOrDefaultAsync(s => s.AccessHash == hash, ct);
+        return session is not null && await EmployeeExistsAsync(session, ct) ? session : null;
     }
+
+    private async Task<bool> EmployeeExistsAsync(DeviceSession session, CancellationToken ct) =>
+        (await employees.GetAsync([session.EmployeeId], ct)) is { Count: 1 };
 
     internal Task LockSessionAsync(Guid id, CancellationToken ct) => LockAsync($"work.device-session:{id}", ct);
 
