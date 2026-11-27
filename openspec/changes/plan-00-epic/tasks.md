@@ -133,6 +133,8 @@
 - [x] 5.8 `plan-26-purchase-requests` (3) — заявки на закупку в `costs` [COST-5.1]. Слиты #2112,
   `bc34d869`, #2114, `1cbd953c`, и #2117, `179d54063`.
   [Архив 27.11.2026](../archive/2026-11-27-plan-26-purchase-requests/tasks.md).
+- [ ] 5.8.1 [`plan-32-estimate-resource-costs`](../plan-32-estimate-resource-costs/tasks.md) — стоимость ресурсов при импорте ЛСР [PLAN-8] [PLAN-9.1] [PLAN-23].
+  Проверка — сквозной импорт БИМ и РИМ до денежной части «Плановых работ», код и архив слиты до реализации 5.9.
 - [ ] 5.9 `plan-27-estimate-vs-costs` (1) — «план против факта» материалов в `costs` [COST-21] [COST-26].
   Макеты П6 для этой вкладки и выбор владельца — задача 2.1 [Plan-27](../plan-27-estimate-vs-costs/tasks.md).
   Проверка — change заархивирован
