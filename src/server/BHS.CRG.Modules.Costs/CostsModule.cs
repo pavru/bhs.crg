@@ -364,6 +364,7 @@ public sealed class CostsModule : IAppModule
         services.AddScoped<InvoiceSnapshots>();
         services.AddScoped<WaybillDesk>();
         services.AddScoped<PurchaseRequestEstimate>();
+        services.AddScoped<EstimateVsCostsReport>();
         services.AddScoped<PurchaseRequestLines>();
 
         // Путь «скан → черновик» (B1b, issue #1077): служба и её фоновая операция. Обработчик
@@ -447,6 +448,7 @@ public sealed class CostsModule : IAppModule
         AllocationMatrixEndpoints.Map(endpoints);
         PaymentEndpoints.Map(endpoints);
         SiteCostsEndpoints.Map(endpoints);
+        EstimateVsCostsEndpoints.Map(endpoints);
         LostReferencesEndpoints.Map(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);

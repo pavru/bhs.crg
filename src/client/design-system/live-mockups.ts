@@ -151,6 +151,19 @@ const workMaterialsMockup: LiveMockup = {
 };
 
 export const liveMockups = [
+  {
+    id: 'plan-27-estimate-vs-costs',
+    title: 'План против факта материалов · П6',
+    kind: 'design',
+    entry: 'plan27.html',
+    pages: [
+      { path: 'a', title: 'А · Общая таблица', width: 1440 },
+      { path: 'b', title: 'Б · Список и подробности', width: 1440 },
+      { path: 'c', title: 'В · Группы отклонений', width: 1440 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/plan-27-estimate-vs-costs/design.md · Раунд П6',
+  },
   duplicatePaymentMockup, paymentRequisitesMockup, workEntryMockup, planOffersMockup, planCalendarsMockup,
   planSchedulesMockup, planProgressMockup, workSummaryMockup, workCustomerFieldsMockup, workMaterialsMockup,
   {
