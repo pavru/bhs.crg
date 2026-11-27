@@ -1,3 +1,5 @@
+import { newLocalId } from '@/shared/utils/localId';
+
 export const variants = {
   a: { title: 'Карточка отчёта', description: 'Работы и часы видны сразу. Добавление открывает отдельную форму.' },
   b: { title: 'Поиск в отчёте', description: 'Поиск и недавние работы рядом со строками текущей смены.' },
@@ -74,7 +76,7 @@ export const deliveryLabels: Record<Delivery, string> = {
 
 export function blankLine(workItem?: Work): Line {
   return {
-    id: crypto.randomUUID(), workId: workItem?.id ?? '', name: workItem?.name ?? '',
+    id: newLocalId(), workId: workItem?.id ?? '', name: workItem?.name ?? '',
     variant: '', section: '', unit: workItem?.unit ?? '', quantity: '', place: '', material: '',
     crew: [], note: '', photo: false,
   };
@@ -96,11 +98,11 @@ export function sampleReports(): Report[] {
     },
     {
       id: 'submitted', siteId: 'east', siteName: sites[0].name, date: previous, shift: 'day',
-      status: 'submitted', delivery: 'local', hours: '7,5', lines: [{ ...tray, id: crypto.randomUUID() }],
+      status: 'submitted', delivery: 'local', hours: '7,5', lines: [{ ...tray, id: newLocalId() }],
     },
     {
       id: 'accepted', siteId: 'port', siteName: sites[1].name, date: '2026-11-26', shift: 'day',
-      status: 'accepted', delivery: 'delivered', hours: '8', lines: [{ ...marking, id: crypto.randomUUID() }],
+      status: 'accepted', delivery: 'delivered', hours: '8', lines: [{ ...marking, id: newLocalId() }],
     },
   ];
 }

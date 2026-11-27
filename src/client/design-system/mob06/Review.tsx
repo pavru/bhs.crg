@@ -9,6 +9,7 @@ import { StatusText } from '@/shared/ui/StatusText';
 import { Switch } from '@/shared/ui/Switch';
 import { TextField } from '@/shared/ui/TextField';
 import { ThemeToggle } from '@/shared/ui/ThemeToggle';
+import { newLocalId } from '@/shared/utils/localId';
 import { DeliveryMark, ReportList, ReportView, ShiftMeta } from './ReportView';
 import { sampleReports, sites, today, variants, type Report, type Variant } from './sample';
 
@@ -94,7 +95,7 @@ function Sandbox({ storageKey, variant, offline }: { storageKey: string; variant
   }
   function makeReport(siteId: string | null, siteName: string) {
     const next: Report = {
-      id: crypto.randomUUID(), siteId, siteName, date: today, shift: 'day',
+      id: newLocalId(), siteId, siteName, date: today, shift: 'day',
       status: 'draft', delivery: 'local', hours: '', lines: [],
     };
     setReports(previous => [next, ...previous]);

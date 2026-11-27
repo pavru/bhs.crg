@@ -2,9 +2,11 @@ package ru.bimhouse.crg.field.entry
 
 import android.content.pm.ActivityInfo
 import android.provider.Settings
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -155,10 +157,28 @@ class OfflineEntryUiTest {
         if (scroll) field.performScrollTo()
         field.performClick().performTextInput(value)
     }
-    private fun tapTag(tag: String) { compose.onNodeWithTag(tag).performScrollTo().performClick() }
-    private fun tap(text: String) { compose.onNodeWithText(text).performScrollTo().performClick() }
+    private fun tapTag(tag: String) {
+        awaitTag(tag)
+        compose.onNodeWithTag(tag).performScrollTo().performClick()
+    }
+    private fun tap(text: String) {
+        awaitText(text)
+        compose.onNodeWithText(text).performScrollTo().performClick()
+    }
     private fun see(text: String) { compose.onNodeWithText(text).performScrollTo().assertIsDisplayed() }
     private fun seeSubmitted() { compose.onNodeWithTag("life-status").performScrollTo().assert(hasText("Подан")) }
-    private fun awaitText(text: String) { compose.waitUntil(10_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() } }
-    private fun awaitTag(tag: String) { compose.waitUntil(10_000) { compose.onAllNodes(androidx.compose.ui.test.hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() } }
+    private fun awaitText(text: String) = awaitNodes(hasText(text))
+    private fun awaitTag(tag: String) = awaitNodes(hasTestTag(tag))
+
+    private fun awaitNodes(matcher: SemanticsMatcher) {
+        compose.waitUntil(10_000) {
+            try {
+                compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+            } catch (error: IllegalStateException) {
+                // При смене окна или клавиатуры новое дерево ещё может не присоединиться.
+                if (!error.message.orEmpty().contains("No compose hierarchies")) throw error
+                false
+            }
+        }
+    }
 }
