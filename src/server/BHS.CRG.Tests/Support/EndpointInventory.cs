@@ -36,14 +36,15 @@ internal static class EndpointInventory
             .OfType<RouteEndpoint>()
             .Where(e => includeRefusals || e.Metadata.GetMetadata<DisabledModuleEndpoint>() is null)];
 
-    /// <summary>Ворота — политика права, политика модуля или запрет всем при отсутствии прав поставщиков.</summary>
+    /// <summary>Ворота учитываются только там, где адрес не отменяет их явным анонимным доступом.</summary>
     internal static bool IsGated(Endpoint endpoint) =>
-        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a =>
+        endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null &&
+        (endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a =>
             a.Policy is { } p &&
             (p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
              || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)))
         || endpoint.Metadata.GetOrderedMetadata<AuthorizationPolicy>().Any(p =>
-            p.Requirements.OfType<PermissionRequirement>().Any(r => r.Codes.Count == 0));
+            p.Requirements.OfType<PermissionRequirement>().Any(r => r.Codes.Count == 0)));
 
     /// <summary>
     /// Права, которые стоят хотя бы на одной двери. Право из «любого из» (<c>perm:а|б</c>) — тоже:
@@ -51,6 +52,7 @@ internal static class EndpointInventory
     /// </summary>
     internal static HashSet<string> GatingPermissions(IEnumerable<RouteEndpoint> routes) =>
         routes
+            .Where(e => e.Metadata.GetMetadata<IAllowAnonymous>() is null)
             .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
             .SelectMany(a => AppPolicies.PermissionCodes(a.Policy) ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);

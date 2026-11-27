@@ -107,6 +107,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
         Assert.Empty(await work.Database.GetPendingMigrationsAsync());
         Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_Initial", StringComparison.Ordinal));
         Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_ReportVersions", StringComparison.Ordinal));
+        Assert.Contains(await work.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_DeviceSessions", StringComparison.Ordinal));
 
         var core = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Empty(await core.Database.GetPendingMigrationsAsync());
@@ -122,10 +123,10 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     public async Task Work_permissions_are_declared_with_explanations_and_reach_the_database()
     {
         // Право объявляется вместе с первым адресом, который оно открывает (D2 зонтика work-00-epic).
-        // work.devices.manage — этап 5. Список назван нарочно: право, добавленное без
+        // Список назван нарочно: право, добавленное без
         // своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
         var work = await ModuleOnlyChecks.DeclaredAndStoredAsync(host, WorkModule.ModuleCode,
-            [WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+            [WorkModule.Assign, WorkModule.CrewApprove, WorkModule.DevicesManage, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
                 WorkModule.SitesAll],
             "id", "costs", "plan");
 
@@ -159,8 +160,7 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     ///   <item>«Администратор» — всё объявленное, в том числе <c>work.sites.all</c> («или администратор» из
     ///   WORK-21 выражено правом, WORK-46).</item>
     ///   <item>«Монтажник» — свои отчёты. До каркаса у него не было ни одного модуля.</item>
-    ///   <item>«Менеджер проекта» — приёмка, назначения и сверка бригад. <c>work.devices.manage</c>
-    ///   в его составе появится на этапе 5.</item>
+    ///   <item>«Менеджер проекта» — приёмка, назначения, сверка бригад и управление устройствами.</item>
     ///   <item>«Руководитель» — чтение всех отчётов через «читать всё» (AUTH-5.2).</item>
     ///   <item>«Инженер ИД» и «Производитель работ» — модуля нет: у них в составе только
     ///   <c>work.facts.read</c>, право контракта (work-27, AUTH-8.1).</item>
@@ -168,10 +168,10 @@ public class WorkOnlyHostTests(WorkOnlyHost host)
     /// </summary>
     [Theory]
     [InlineData(SystemRoles.Admin, true,
-        WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
+        WorkModule.Assign, WorkModule.CrewApprove, WorkModule.DevicesManage, WorkModule.FactsRead, WorkModule.ReportOwn, WorkModule.ReportRead, WorkModule.ReportReview,
         WorkModule.SitesAll)]
     [InlineData("Installer", true, WorkModule.ReportOwn)]
-    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.CrewApprove, WorkModule.FactsRead, WorkModule.ReportReview)]
+    [InlineData("ProjectManager", true, WorkModule.Assign, WorkModule.CrewApprove, WorkModule.DevicesManage, WorkModule.FactsRead, WorkModule.ReportReview)]
     [InlineData("Executive", true, WorkModule.ReportRead)]
     [InlineData(SystemRoles.IdEngineer, false, WorkModule.FactsRead)]
     [InlineData("WorksManager", false, WorkModule.FactsRead)]

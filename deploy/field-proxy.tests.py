@@ -8,10 +8,11 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 DEPLOY = Path(__file__).resolve().parent
@@ -21,7 +22,7 @@ def docker(*args):
     return subprocess.check_output(["docker", *args], text=True).strip()
 
 
-def verify(base, work_disabled):
+def verify(base, work_disabled, invitation):
     snapshot = json.loads((DEPLOY.parent / "docs/field/client-v1.json").read_text(encoding="utf-8"))
     for name in ("info", "ping"):
         case = snapshot["operations"][name]
@@ -54,9 +55,45 @@ def verify(base, work_disabled):
         except HTTPError as error:
             if error.code != 404:
                 raise
+    if invitation is not None:
+        verify_session(base, snapshot["operations"], invitation)
 
 
-def run(port, temp, work_disabled):
+def verify_session(base, operations, invitation):
+    def post(name, body):
+        case = operations[name]
+        saved = case["request"]
+        request = Request(base + saved["path"], json.dumps(body).encode(),
+                          {"Content-Type": "application/json"}, method=saved["method"])
+        try:
+            with urlopen(request, timeout=15) as response:
+                received = json.load(response)
+                if response.status != case["status"] or not set(case["response"]) <= received.keys():
+                    raise ValueError(f"{name}: ответ не соответствует договору v1")
+        except HTTPError as error:
+            raise ValueError(f"{name}: HTTP {error.code}") from error
+        if received["employeeId"] != invitation["employeeId"]:
+            raise ValueError(f"{name}: другой сотрудник")
+        if not received["accessToken"] or not received["refreshToken"]:
+            raise ValueError(f"{name}: пустые учётные данные")
+        return received
+
+    joined = post("join", {"invitationCode": invitation["invitationCode"]})
+    refreshed = post("refresh", {"refreshToken": joined["refreshToken"]})
+    if refreshed["deviceId"] != joined["deviceId"] or refreshed["refreshToken"] == joined["refreshToken"]:
+        raise ValueError("Refresh не обновил ту же сессию")
+    if post("refresh", {"refreshToken": joined["refreshToken"]}) != refreshed:
+        raise ValueError("Refresh не повторил результат ротации")
+    request = Request(base + "/api/work/reports", headers={"Authorization": "Bearer " + refreshed["accessToken"]})
+    try:
+        with urlopen(request, timeout=15):
+            raise ValueError("Внешний прокси пропустил полевую сессию в офисный API")
+    except HTTPError as error:
+        if error.code != 404:
+            raise
+
+
+def run(port, temp, work_disabled, invitation=None):
     dockerfile = (DEPLOY / "Dockerfile.web").read_text(encoding="utf-8")
     image = re.search(r"^FROM (nginxinc/\S+)", dockerfile, re.M)[1]
     # Меняются только адреса стенда: пара конфигураций работает в одном сетевом пространстве.
@@ -79,7 +116,7 @@ def run(port, temp, work_disabled):
     try:
         docker("exec", container, "nginx", "-t")
         address = docker("port", container, "8081/tcp")
-        verify("http://" + address, work_disabled)
+        verify("http://" + address, work_disabled, invitation)
     finally:
         docker("rm", "-f", container)
 
@@ -88,7 +125,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("port", type=int, help="порт тестового API, доступный контейнеру")
     parser.add_argument("--work-disabled", action="store_true", help="проверить отказ на экземпляре без Work")
+    parser.add_argument("--invitation-stdin", action="store_true",
+                        help="прочитать JSON с invitationCode и employeeId для проверки подключения и refresh")
     options = parser.parse_args()
+    invitation = json.load(sys.stdin) if options.invitation_stdin else None
     with tempfile.TemporaryDirectory() as directory:
-        run(options.port, Path(directory), options.work_disabled)
+        run(options.port, Path(directory), options.work_disabled, invitation)
     print("Проверены сведения, связь, выдача файлов и границы внешнего прокси.")
+    if invitation is not None:
+        print("Через внешний прокси проверены подключение, refresh и повтор refresh.")
