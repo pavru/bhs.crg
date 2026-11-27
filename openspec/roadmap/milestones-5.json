@@ -1,0 +1,92 @@
+{
+  "changes": {
+    "mob-01-field-contract": {
+      "after": [
+        {
+          "ref": "mob-00-epic",
+          "tasks": [
+            "0.1"
+          ],
+          "label": "Подтверждён канал установки приложения на устройства заказчиков"
+        }
+      ]
+    },
+    "mob-02-device-sessions": {
+      "after": [
+        "mob-01-field-contract"
+      ]
+    },
+    "mob-03-report-exchange": {
+      "after": [
+        "mob-02-device-sessions"
+      ]
+    },
+    "mob-04-reference-sync": {
+      "after": [
+        "mob-02-device-sessions"
+      ]
+    },
+    "mob-05-unlisted-site": {
+      "after": [
+        "mob-03-report-exchange"
+      ]
+    },
+    "mob-06-offline-entry": {
+      "after": [
+        {
+          "ref": "mob-00-epic",
+          "tasks": [
+            "0.1"
+          ],
+          "label": "Подтверждён канал установки приложения на устройства заказчиков"
+        }
+      ],
+      "parts": {
+        "2": {
+          "after": [
+            "mob-06#1",
+            {
+              "ref": "mob-06-offline-entry",
+              "tasks": [
+                "0.1"
+              ],
+              "label": "Первый PR слит, подтверждён коммит бота и версия на master"
+            }
+          ]
+        }
+      }
+    },
+    "mob-07-android-join": {
+      "after": [
+        "mob-02-device-sessions",
+        "mob-06-offline-entry"
+      ]
+    },
+    "mob-08-background-sync": {
+      "after": [
+        "mob-03-report-exchange",
+        "mob-04-reference-sync",
+        "mob-05-unlisted-site",
+        "mob-07-android-join"
+      ]
+    },
+    "mob-09-photo-outbox": {
+      "after": [
+        "mob-08-background-sync"
+      ]
+    },
+    "mob-10-device-desk": {
+      "after": [
+        "mob-02-device-sessions",
+        "mob-04-reference-sync",
+        "mob-08-background-sync"
+      ]
+    },
+    "mob-11-apk-release": {
+      "after": [
+        "mob-09-photo-outbox",
+        "mob-10-device-desk"
+      ]
+    }
+  }
+}
