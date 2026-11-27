@@ -2,7 +2,7 @@
 
 ## Context
 
-Полевые операции v1, существующие ReportWriter, ReportDesk, ReviewMarks, журнал отчёта и очередь приёмки. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../mob-02-device-sessions/tasks.md).
+Полевые операции v1, существующие ReportWriter, ReportDesk, ReviewMarks, журнал отчёта и очередь приёмки. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../archive/2026-11-28-mob-02-device-sessions/tasks.md).
 
 ## Goals / Non-Goals
 
