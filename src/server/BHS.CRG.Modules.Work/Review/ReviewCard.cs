@@ -4,6 +4,7 @@ using BHS.CRG.Modules.Work.Access;
 using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
+using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -37,18 +38,38 @@ public static class ReviewCard
         if (card.Content is null)
             return Results.Ok(new DraftPresence(report.Id, executor, label, site?.TimeZoneId, report.WindowEndsAt));
 
-        var lines = card.Content.Lines;
+        var content = card.Content;
+        var lines = content.Lines;
         var types = lines.Count == 0 ? [] : await workTypes.GetAsync([.. lines.Select(l => l.WorkTypeId).Distinct()], ct) ?? [];
+        var byId = types.ToDictionary(t => t.Id);
         var measures = lines.Count == 0 ? [] : await units.GetAsync([.. lines.Select(l => l.UnitId).Distinct()], ct) ?? [];
-        var actions = report.Status == ReportStatus.Submitted && card.ViewedVersion == report.CurrentVersion
+        var currentPending = report.Status == ReportStatus.Submitted && card.ViewedVersion == report.CurrentVersion;
+        var actions = currentPending
             && manager?.Covers(report.ConstructionId, own: false) == true
             && !ReportPeriods.IsClosed(await periods.CurrentAsync(ct), report.ConstructionId, report.Date)
                 ? ReviewQueue.Decisions : [];
+        var required = RequiredGaps.None;
+        var currentRequiredMissing = new List<MissingField>();
+        if (currentPending && !content.PeriodClosed && report.SubmittedBy == ReportSubmitter.Auto)
+        {
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                var gaps = RequiredFields.Check(byId.GetValueOrDefault(line.WorkTypeId), line.Location, line.Materials.Count > 0);
+                required |= gaps;
+                currentRequiredMissing.AddRange(RequiredFields.ForLine(gaps, i + 1, line.Id));
+            }
+        }
         return Results.Ok(new
         {
-            id, status = card.Content.Status, employeeName = executor, constructionName = label,
-            timeZoneId = site?.TimeZoneId, card.ViewedVersion, card.AtClosingVersion, actions,
-            report = card.Content with { AcceptWouldMark = actions.Count > 0 && card.Content.AcceptWouldMark },
+            id, status = content.Status, employeeName = executor, constructionName = label,
+            timeZoneId = site?.TimeZoneId, card.ViewedVersion, card.AtClosingVersion, actions, currentRequiredMissing,
+            report = content with
+            {
+                AcceptWouldMark = actions.Count > 0 && content.AcceptWouldMark,
+                Marks = required == RequiredGaps.None ? content.Marks : ReviewMarks.Dtos(
+                    content.Marks.Select(mark => mark.Code).ToArray(), content.PhotosPending, content.MissingFieldsCount, required),
+            },
             workTypes = types.ToDictionary(t => t.Id, t => t.DisplayName),
             workVariants = types.SelectMany(t => t.Variants).ToDictionary(v => v.Id, v => v.Name),
             units = measures.ToDictionary(u => u.Id, u => u.Name),

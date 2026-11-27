@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using BHS.CRG.Modules.Work.Submission;
 
 namespace BHS.CRG.Modules.Work.Data;
 
@@ -54,6 +55,7 @@ public static class ReviewMarks
     public const string AcceptedChanged = "accepted-changed";
     public const string PhotosPending = "photos-pending";
     public const string FieldsMissing = "fields-missing";
+    public const string RequiredMissing = "required-missing";
     public const string LateDelivery = "late-delivery";
 
     /// <summary>Все пометки — в порядке, в котором их показывает очередь.</summary>
@@ -99,6 +101,8 @@ public static class ReviewMarks
             "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
         new(FieldsMissing, "не заполнены поля",
             "поля заказчика с признаком «нужно к приёмке» в действующей схеме (work-24)", null),
+        new(RequiredMissing, "не заполнены место или материалы",
+            "место и материалы, обязательные по виду работы в текущих строках автоподанного отчёта (work-31)", null),
     ];
 
     /// <summary>Пометки, которые считаются в запросе базы, — по порядку каталога.</summary>
@@ -121,16 +125,29 @@ public static class ReviewMarks
     /// 2» — сколько ждут, а не только что ждут.
     /// </summary>
     public static IReadOnlyList<ReviewMarkDto> Dtos(
-        IReadOnlyCollection<string> codes, int photosPending, int missingFields = 0) =>
+        IReadOnlyCollection<string> codes, int photosPending, int missingFields = 0, RequiredGaps required = RequiredGaps.None) =>
     [
-        .. All.Where(m => m.Code == FieldsMissing ? missingFields > 0 : codes.Contains(m.Code))
+        .. All.Where(m => m.Code switch
+            {
+                FieldsMissing => missingFields > 0,
+                RequiredMissing => required != RequiredGaps.None,
+                _ => codes.Contains(m.Code),
+            })
             .Select(m => m.Code switch
             {
                 PhotosPending => new ReviewMarkDto(m.Code, $"{m.Text}: {photosPending}"),
                 FieldsMissing => new ReviewMarkDto(m.Code, $"{m.Text}: {missingFields}"),
+                RequiredMissing => new ReviewMarkDto(m.Code, RequiredText(required)),
                 _ => m.Dto,
             }),
     ];
+
+    private static string RequiredText(RequiredGaps required) => required switch
+    {
+        RequiredGaps.Location => "не указано обязательное место работ",
+        RequiredGaps.Materials => "не указаны обязательные материалы",
+        _ => "не указаны обязательные место работ и материалы",
+    };
 
     /// <summary>Пометка по коду; неизвестный код — <c>null</c>.</summary>
     public static ReviewMark? Of(string code) => All.FirstOrDefault(m => m.Code == code);

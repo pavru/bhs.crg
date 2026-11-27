@@ -192,4 +192,17 @@ export const liveMockups = [
     aliases: [],
     reference: 'openspec/changes/archive/2026-11-27-plan-26-purchase-requests/design.md · Раунд П6',
   },
+  {
+    id: 'work-31-autosubmit-required-missing',
+    title: 'Приёмка · Место и материалы после автоподачи',
+    kind: 'design',
+    entry: 'work31.html',
+    pages: [
+      { path: 'a', title: 'А · Пометка и список в карточке', width: 1280 },
+      { path: 'b', title: 'Б · Очередь и панель отчёта', width: 1280 },
+      { path: 'c', title: 'В · Пропуски в строках', width: 1280 },
+    ],
+    aliases: [],
+    reference: 'openspec/changes/work-31-autosubmit-required-missing/design.md · Варианты интерфейса',
+  },
 ] satisfies LiveMockup[];

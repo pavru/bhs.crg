@@ -25,9 +25,12 @@ export const WORK_MARK_CODES = [
   'accepted-changed',
   'late-delivery',
   'fields-missing',
+  'required-missing',
 ] as const;
 
 export type WorkMarkCode = (typeof WORK_MARK_CODES)[number];
+
+export type RequiredReportField = { line: number; lineId: string; field: 'location' | 'materials' };
 
 /** Коды SummaryStates сервера. Состав и порядок сверяет SummaryStateCatalogTests. */
 export const WORK_SUMMARY_STATES = [

@@ -17,6 +17,7 @@ import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
+import { requiredFieldTitle } from '../entry/reportPresentation';
 import { ACCEPT_MARK_WARNING, AcceptDialog } from './AcceptDialog';
 import { ReportJournal } from './ReportJournal';
 import { ReportLineEdit } from './ReportLineEdit';
@@ -87,7 +88,7 @@ function ReportContent({ card, onVersion, onStored, onReread }: {
 }) {
   const [decision, setDecision] = useState<'accept' | 'return' | null>(null);
   const [editing, setEditing] = useState(false);
-  const { report, actions } = card;
+  const { report, actions, currentRequiredMissing } = card;
   const canAccept = actions?.includes('accept');
   const canReturn = actions?.includes('return');
   const canEdit = actions?.includes('edit');
@@ -111,6 +112,15 @@ function ReportContent({ card, onVersion, onStored, onReread }: {
       <StatusText tone={card.status === 'accepted' ? 'success' : 'neutral'}>{statusLabel[card.status]}</StatusText>
       {report.marks.map(mark => <StatusText key={mark.code} {...reviewMarkStyle(mark.code)}>{mark.text}</StatusText>)}
     </div>
+    {currentRequiredMissing?.length > 0 && <Banner tone="warning">
+      <div className="space-y-2">
+        <strong>Нужно заполнить для ИД</strong>
+        <ul className="space-y-1">
+          {currentRequiredMissing.map(({ line, lineId, field }) =>
+            <li key={`${lineId}/${field}`}>Строка {line} · {requiredFieldTitle[field]}</li>)}
+        </ul>
+      </div>
+    </Banner>}
     {report.note && <p className="whitespace-pre-wrap text-body-medium">{report.note}</p>}
     {!editing && <ReportVersionBar card={card} onChange={onVersion} />}
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

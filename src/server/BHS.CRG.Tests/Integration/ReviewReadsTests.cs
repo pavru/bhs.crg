@@ -1,8 +1,10 @@
 using System.Data.Common;
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -58,15 +60,17 @@ public class ReviewReadsTests(AssignmentHost host) : IAsyncLifetime
         await world.SubmittedAsync(sidorov, Guid.NewGuid(), world.SiteA);
         var probe = new Commands();
         await using var db = Context(probe);
+        await using var scope = host.Services.CreateAsyncScope();
 
         var page = await new ReportReads(db).QueueAsync(ReportViewer.Of(ModuleReach.All),
-            new ReviewQueueFilter(null, null, null, null, null), null, 0, 1, default);
+            new ReviewQueueFilter(null, null, null, null, null), null, 0, 1,
+            scope.ServiceProvider.GetRequiredService<IModuleWorkTypes>(), default);
 
         Assert.Equal(2, page.Total);
         Assert.Equal(2, page.Counts[ReviewMarks.SiteNotAssigned]);
         Assert.Single(page.Items);
         Assert.Equal(new[] { petrovId, sidorovId }.Order(), page.PendingEmployeeIds.Order());
-        Assert.Equal(4, probe.Sql.Count); // агрегация, число и сотрудники, страница, флаги
+        Assert.Equal(5, probe.Sql.Count); // агрегация, строки автоподач, число и сотрудники, страница, флаги
         Assert.Single(probe.Sql, sql => sql.Contains("GROUP BY", StringComparison.OrdinalIgnoreCase));
     }
 

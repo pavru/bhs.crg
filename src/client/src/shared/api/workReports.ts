@@ -1,7 +1,7 @@
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { hasModule, hasPermission, type AccessInfo } from './access';
-import type { AssignmentCandidate, WorkLinePhotoRef } from './work';
+import type { AssignmentCandidate, RequiredReportField, WorkLinePhotoRef } from './work';
 import type { ReviewReport, ReviewReportLine } from './workReview';
 import { parseSchemaFields, type SchemaField } from './schema';
 import type { DocumentType, EnumTypeDef, PrimitiveTypeDef } from './types';
@@ -19,7 +19,7 @@ export type ReportShift = 'day' | 'night';
 export type ReportMode = 'own' | 'entry';
 export type ReportStatus = 'draft' | 'returned' | 'submitted' | 'accepted';
 export type WorkReportLine = ReviewReportLine;
-export type RequiredReportField = { line: number; lineId: string; field: 'location' | 'materials' };
+export type { RequiredReportField } from './work';
 
 export interface EntrySite {
   id: string;

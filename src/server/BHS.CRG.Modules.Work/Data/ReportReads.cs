@@ -4,6 +4,7 @@ using BHS.CRG.Modules.Ports;
 using System.Linq.Expressions;
 using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Access;
+using BHS.CRG.Modules.Work.Submission;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -320,7 +321,7 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// отчётам охвата, независимо от отбора и страницы.
     /// </summary>
     public async Task<ReviewQueueRead> QueueAsync(
-        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, CancellationToken ct,
+        ReportViewer viewer, ReviewQueueFilter filter, Guid? userId, int offset, int limit, IModuleWorkTypes workTypes, CancellationToken ct,
         ModuleAcceptanceSchema? acceptance = null)
     {
         await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
@@ -332,18 +333,22 @@ public sealed partial class ReportReads(WorkDbContext db)
         if (filter.From is { } from) chosen = chosen.Where(r => r.Date >= from);
         if (filter.To is { } to) chosen = chosen.Where(r => r.Date <= to);
 
-        // Все счётчики — одной агрегацией по отбору; пустой отбор строки группы не даёт — тогда нули.
+        // Пометки, чьи источники есть в Work, считаются одной агрегацией по отбору.
         var counted = await chosen.GroupBy(_ => 1).Select(ReviewMarks.Counts(sources)).FirstOrDefaultAsync(ct);
         var counts = ReviewMarks.All.ToDictionary(m => m.Code, _ => 0);
         for (var i = 0; i < ReviewMarks.Counted.Count; i++) counts[ReviewMarks.Counted[i].Code] = counted?[i] ?? 0;
         var missingFields = await CountMissingFieldsAsync(chosen, acceptance, ct);
         counts[ReviewMarks.FieldsMissing] = missingFields.Count;
+        var required = await RequiredGapsAsync(chosen, workTypes, ct);
+        counts[ReviewMarks.RequiredMissing] = required.Count;
 
         var missingIds = missingFields.Keys.ToArray();
+        var requiredIds = required.Keys.ToArray();
         var selected = filter.Mark switch
         {
             null => chosen,
             { Code: ReviewMarks.FieldsMissing } => chosen.Where(r => missingIds.Contains(r.Id)),
+            { Code: ReviewMarks.RequiredMissing } => chosen.Where(r => requiredIds.Contains(r.Id)),
             { Has: { } has } => chosen.Where(has(sources)),
             _ => chosen.Where(_ => false),
         };
@@ -361,9 +366,31 @@ public sealed partial class ReportReads(WorkDbContext db)
             [
                 .. page.Select(p => new ReviewQueueItem(
                     p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending,
-                    missingFields.GetValueOrDefault(p.Report.Id))),
+                    missingFields.GetValueOrDefault(p.Report.Id), required.GetValueOrDefault(p.Report.Id))),
             ],
             summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
+    }
+
+    private static async Task<Dictionary<Guid, RequiredGaps>> RequiredGapsAsync(
+        IQueryable<Report> chosen, IModuleWorkTypes workTypes, CancellationToken ct)
+    {
+        var lines = await chosen.Where(report => report.SubmittedBy == ReportSubmitter.Auto)
+            .SelectMany(report => report.Lines, (report, line) => new
+            {
+                ReportId = report.Id, line.WorkTypeId, line.Location, HasMaterials = line.Materials.Any(),
+            }).ToListAsync(ct);
+        if (lines.Count == 0) return [];
+        var known = await workTypes.GetAsync([.. lines.Select(line => line.WorkTypeId).Distinct()], ct);
+        if (known is null) return [];
+
+        var types = known.ToDictionary(type => type.Id);
+        var reports = new Dictionary<Guid, RequiredGaps>();
+        foreach (var line in lines)
+        {
+            var gaps = RequiredFields.Check(types.GetValueOrDefault(line.WorkTypeId), line.Location, line.HasMaterials);
+            if (gaps != RequiredGaps.None) reports[line.ReportId] = reports.GetValueOrDefault(line.ReportId) | gaps;
+        }
+        return reports;
     }
 
     private static async Task<Dictionary<Guid, int>> CountMissingFieldsAsync(

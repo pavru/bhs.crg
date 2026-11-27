@@ -14,6 +14,7 @@ const catalog: Record<WorkMarkCode, { label: string; icon: IconDef; tone: Status
   'accepted-changed': { label: 'изменение принятого', icon: HistoryIcon, tone: 'warning' },
   'late-delivery': { label: 'поздняя доставка', icon: Schedule, tone: 'neutral' },
   'fields-missing': { label: 'не заполнены поля', icon: Warning, tone: 'warning' },
+  'required-missing': { label: 'не заполнены место или материалы', icon: Warning, tone: 'warning' },
 };
 
 function knownMark(code: string): code is WorkMarkCode {

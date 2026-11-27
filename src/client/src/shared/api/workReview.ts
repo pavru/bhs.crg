@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { ReviewAction, ReviewQueuePage, WorkLinePhoto, WorkMark } from './work';
+import type { RequiredReportField, ReviewAction, ReviewQueuePage, WorkLinePhoto, WorkMark } from './work';
 import { useWorkPhotoFile } from './workPhotos';
 
 export interface ReviewQueueFilters {
@@ -120,6 +120,7 @@ interface ReviewCardHeader {
 export interface ReviewFullCard extends ReviewCardHeader {
   status: ReviewReport['status'];
   report: ReviewReport;
+  currentRequiredMissing: RequiredReportField[];
   viewedVersion: number;
   atClosingVersion: number | null;
   workTypes: Record<string, string>;
