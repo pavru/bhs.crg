@@ -470,7 +470,7 @@ export function InvoiceForm({
           <InvoicePart title={PART_TITLE.who.title} step={1} open={open.who} onToggle={() => toggle('who')} line={lineOf('who')}
             actions={<ConfirmBlock blocks={[who]} view={view} locked={locked || reading} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
             <BlockFields block={who} {...fieldProps} />
-            <InvoicePurchaseRequestField invoice={view} selection={requestChange} editable={!quiet && !reading}
+            <InvoicePurchaseRequestField invoice={view} selection={requestChange} editable={!quiet && !reading} autosave={auto}
               onSelect={id => { setRequestChange(id); queue.mark('header'); }} />
             {!quiet && <RecognitionNotes recognition={watch.recognition} />}
           </InvoicePart>

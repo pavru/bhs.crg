@@ -10,14 +10,15 @@ import { choicesForInvoice, constructionForRequest } from './invoiceRequestChoic
 const NONE = 'none';
 
 interface Props {
-  invoice: InvoiceView; selection: string | null | undefined; editable: boolean; onSelect: (id: string | null) => void;
+  invoice: InvoiceView; selection: string | null | undefined; editable: boolean; autosave: boolean;
+  onSelect: (id: string | null) => void;
 }
 
 export function InvoicePurchaseRequestField(props: Props) {
   return props.invoice.purchaseRequestId === undefined ? null : <PurchaseLink {...props} />;
 }
 
-function PurchaseLink({ invoice, selection, editable, onSelect }: Props) {
+function PurchaseLink({ invoice, selection, editable, autosave, onSelect }: Props) {
   const can = useCan();
   const allowed = can.permission(REQUEST_READ);
   const site = constructionForRequest(invoice);
@@ -48,7 +49,7 @@ function PurchaseLink({ invoice, selection, editable, onSelect }: Props) {
         </Select>
         <Button variant="filled" disabled={selected === value || (!!selected && !choices.some(row => row.id === selected))}
           className="@lg/request-link:self-center" onClick={() => { setDraft(undefined); onSelect(selected); }}>
-          Сохранить связь
+          {autosave ? 'Сохранить связь' : 'Добавить к правкам'}
         </Button>
       </div>
     </div> : <div className="grid gap-1">
@@ -56,6 +57,8 @@ function PurchaseLink({ invoice, selection, editable, onSelect }: Props) {
       <p className="text-body-medium">{value === null ? 'Без заявки' : caption}</p>
       {editable && !!value && <Button variant="text" className="justify-self-start" onClick={() => onSelect(null)}>Снять связь</Button>}
     </div>}
+    {editable && !autosave && selection !== undefined &&
+      <p className="text-body-small text-on-surface-variant">Связь запишется вместе с остальными правками счёта.</p>}
     {editable && unavailable && <p className="text-body-small text-on-surface-variant">{unavailable}</p>}
   </div>;
 }
