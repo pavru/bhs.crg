@@ -50,6 +50,7 @@ data class WorkLine(
     val crewRole: String? = null,
     val materials: List<WorkMaterial> = emptyList(),
     val participants: List<String> = emptyList(),
+    val customName: String? = null,
 )
 
 @Serializable
@@ -72,6 +73,8 @@ data class ReportRecord(
     val status: ReportStatus,
     val submittedAt: String?,
     val revision: Long,
+    val returnNote: String? = null,
+    val returnedAt: String? = null,
 )
 
 @Entity(

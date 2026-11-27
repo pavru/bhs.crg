@@ -2,12 +2,17 @@ plugins {
     id("com.android.application") version "9.4.1"
     id("com.google.devtools.ksp") version "2.3.6"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
     id("androidx.room") version "2.8.5"
 }
 
 android {
     namespace = "ru.bimhouse.crg.field"
     compileSdk = 36
+
+    buildFeatures {
+        compose = true
+    }
 
     defaultConfig {
         applicationId = "ru.bimhouse.crg.field"
@@ -40,6 +45,13 @@ androidComponents {
 }
 
 dependencies {
+    val compose = platform("androidx.compose:compose-bom:2026.02.00")
+    implementation(compose)
+    androidTestImplementation(compose)
+    implementation("androidx.activity:activity-compose:1.12.4")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
     implementation("androidx.room:room-runtime:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
@@ -48,4 +60,5 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.room:room-testing:2.8.5")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }

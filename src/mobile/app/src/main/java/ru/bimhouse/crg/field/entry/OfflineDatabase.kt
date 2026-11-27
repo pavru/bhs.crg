@@ -50,6 +50,12 @@ internal interface OfflineDao {
     @Query("SELECT * FROM reports WHERE id = :id")
     suspend fun report(id: String): ReportRecord?
 
+    @Query("""
+        SELECT * FROM reports
+        ORDER BY CASE WHEN status = 'RETURNED' THEN 0 ELSE 1 END, date DESC, id
+    """)
+    suspend fun reports(): List<ReportRecord>
+
     @Query("SELECT * FROM report_lines WHERE reportId = :id ORDER BY position")
     suspend fun lines(id: String): List<ReportLineRecord>
 
@@ -111,8 +117,8 @@ data class ReportOwner(val instanceKey: String, val employeeId: UUID) {
 
 @Database(
     entities = [ReportRecord::class, ReportLineRecord::class, PendingReportAction::class],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    version = 3,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 @TypeConverters(LineConverters::class)
 internal abstract class OfflineDatabase : RoomDatabase() {
