@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -258,6 +259,8 @@ internal static class HostRegistration
         // Число — из конфигурации (RateLimits:Branding, по умолчанию 300): кому мало — офису за одним
         // адресом и стенду живых прогонов CI — поднимают его там, а не пересборкой (BrandingRateLimit).
         o.AddPolicy("branding", PerClient(branding.PermitLimit, BrandingRateLimit.Window));
+        // Название и логотип для телефона имеют свой счётчик на тот же адрес клиента.
+        o.AddPolicy("field-info", new FieldInfoRateLimit(PerClient(branding.PermitLimit, BrandingRateLimit.Window)));
         // Значки вкладки и приложения и манифест (issue #1315) — отдельной корзиной. Это запросы
         // сверх названия и логотипа (манифест — при каждой загрузке страницы, значки — когда
         // браузер решит их перечитать), и в общей с названием корзине отказ достался бы адресу, без
@@ -276,6 +279,19 @@ internal static class HostRegistration
                 PermitLimit = 10, Window = TimeSpan.FromMinutes(10), QueueLimit = 0,
             }));
     });
+    }
+
+    private sealed class FieldInfoRateLimit(Func<HttpContext, RateLimitPartition<string>> perClient)
+        : IRateLimiterPolicy<string>
+    {
+        public RateLimitPartition<string> GetPartition(HttpContext context) => perClient(context);
+
+        public Func<OnRejectedContext, CancellationToken, ValueTask> OnRejected => static async (context, ct) =>
+        {
+            var response = context.HttpContext.Response;
+            response.Headers.CacheControl = "no-store";
+            await response.WriteAsJsonAsync(new { reason = "rate-limited" }, ct);
+        };
     }
 
     /// <summary>Выдача и проверка JWT плюс политики авторизации.</summary>

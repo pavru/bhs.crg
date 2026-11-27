@@ -2,6 +2,7 @@
   "protocolVersion": 1,
   "exchangePrefix": "/api/field/v1/",
   "workDisabled": { "status": 501, "response": { "module": "work", "reason": "module-disabled" } },
+  "infoRateLimited": { "status": 429, "response": { "reason": "rate-limited" } },
   "defaultInfo": {
     "status": 200,
     "response": { "organizationName": "BHS.CRG", "logoUrl": null, "protocolVersions": [1], "minimumSenderVersionCode": 1 }

@@ -22,7 +22,7 @@ internal static class FieldEndpoints
                 protocolVersions = new[] { 1 },
                 minimumSenderVersionCode = 1,
             });
-        }).AllowAnonymous().RequireRateLimiting("branding");
+        }).AllowAnonymous().RequireRateLimiting("field-info");
 
         field.MapGet("/info/logo", async (IBrandingService branding, HttpResponse response, CancellationToken ct) =>
         {
@@ -30,7 +30,7 @@ internal static class FieldEndpoints
             if (logo is null) return Results.NotFound(new { reason = "logo-unavailable" });
             response.Headers.CacheControl = "no-cache";
             return Results.File(logo.Content, logo.MimeType, entityTag: EntityTagHeaderValue.Parse(logo.ETag));
-        }).AllowAnonymous().RequireRateLimiting("branding");
+        }).AllowAnonymous().RequireRateLimiting("field-info");
 
         field.MapGet("/ping", (HttpResponse response) =>
         {

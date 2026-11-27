@@ -18,6 +18,7 @@ internal static class FirstFieldClient
 
     internal static JsonElement Operation(string name) => Snapshot.GetProperty("operations").GetProperty(name);
     internal static JsonElement WorkDisabled => Snapshot.GetProperty("workDisabled");
+    internal static JsonElement InfoRateLimited => Snapshot.GetProperty("infoRateLimited");
     internal static JsonElement DefaultInfo => Snapshot.GetProperty("defaultInfo");
 
     internal static async Task<HttpResponseMessage> SendAsync(HttpClient client, string name)
@@ -63,6 +64,10 @@ internal static class FirstFieldClient
 [Collection(WorkOnlyCollection.Name)]
 public class FieldContractTests(WorkOnlyHost host)
 {
+    [Fact]
+    public void Common_gate_inventory_accounts_for_public_field_routes() =>
+        EndpointGateInventoryTests.AssertInventory(host);
+
     [Fact]
     public void Only_named_public_operations_and_the_logo_are_mapped_in_the_field_group()
     {
@@ -138,6 +143,10 @@ public class FieldContractTests(WorkOnlyHost host)
 [Collection(PlanOnlyCollection.Name)]
 public class FieldContractWorkOffTests(PlanOnlyHost host)
 {
+    [Fact]
+    public void Common_gate_inventory_accounts_for_disabled_field_routes() =>
+        EndpointGateInventoryTests.AssertInventory(host);
+
     [Fact]
     public async Task Both_prefixes_keep_the_module_refusal_and_all_saved_requests_can_read_its_reason()
     {
