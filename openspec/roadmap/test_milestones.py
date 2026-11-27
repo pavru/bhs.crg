@@ -46,6 +46,14 @@ class RoadmapTests(unittest.TestCase):
         self.assertEqual({key for key, state in states().items() if state == 'ready'},
                          {'mob-01-field-contract#1', 'mob-06-offline-entry#1'})
         self.assertEqual(states()['mob-06-offline-entry#2'], 'waiting')
+        for task in tasks(mobile, 'mob-06-offline-entry'):
+            if task['n'].startswith('1.'):
+                task['done'] = True
+        self.assertEqual(states()['mob-06-offline-entry#1'], 'done')
+        self.assertEqual(states()['mob-06-offline-entry#2'], 'waiting')
+        transition = next(t for t in tasks(mobile, 'mob-06-offline-entry') if t['n'] == '0.1')
+        transition['done'] = True
+        self.assertEqual(states()['mob-06-offline-entry#2'], 'ready')
 
     @classmethod
     def setUpClass(cls):

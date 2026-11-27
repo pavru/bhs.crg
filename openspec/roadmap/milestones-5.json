@@ -44,7 +44,14 @@
       "parts": {
         "2": {
           "after": [
-            "mob-06#1"
+            "mob-06#1",
+            {
+              "ref": "mob-06-offline-entry",
+              "tasks": [
+                "0.1"
+              ],
+              "label": "Первый PR слит, подтверждён коммит бота и версия на master"
+            }
           ]
         }
       }
@@ -71,6 +78,7 @@
     "mob-10-device-desk": {
       "after": [
         "mob-02-device-sessions",
+        "mob-04-reference-sync",
         "mob-08-background-sync"
       ]
     },
