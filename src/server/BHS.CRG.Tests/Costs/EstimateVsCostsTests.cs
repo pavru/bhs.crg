@@ -14,6 +14,8 @@ using BHS.CRG.Tests.Integration;
 using BHS.CRG.Tests.Plan;
 using BHS.CRG.Tests.Support;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NPOI.XSSF.UserModel;
 
@@ -291,6 +293,16 @@ public class EstimateVsCostsHost : ModuleOnlyHost
 {
     protected override string ModuleCode => "costs,plan";
     protected override string DatabaseSuffix => "plan27";
+    // Три отдельных хоста не оставляют простаивающие пулы до конца общего прогона CI.
+    protected override string HostConnectionString => ConnectionString + ";Pooling=false";
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        var settings = new Dictionary<string, string?> { ["ConnectionStrings:Postgres"] = HostConnectionString };
+        builder.UseSetting("ConnectionStrings:Postgres", HostConnectionString);
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(settings));
+    }
 }
 
 [Collection("Integration")]
@@ -309,7 +321,7 @@ public class EstimateVsCostsDisconnectedTests(EstimateVsCostsDisconnectedHost ho
     }
 }
 
-public sealed class EstimateVsCostsDisconnectedHost : ModuleOnlyHost
+public sealed class EstimateVsCostsDisconnectedHost : EstimateVsCostsHost
 {
     protected override string ModuleCode => "costs";
     protected override string DatabaseSuffix => "plan27off";

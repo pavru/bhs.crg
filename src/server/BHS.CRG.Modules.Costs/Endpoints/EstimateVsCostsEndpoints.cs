@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Files;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -22,7 +23,7 @@ internal static class EstimateVsCostsEndpoints
         {
             var view = await report.ReadAsync(site, section, ct, search, onlyExcess == true);
             return Results.File(spreadsheets.Xlsx(EstimateVsCostsExport.Sheet(view)),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "План против факта.xlsx");
+                FileKinds.Xlsx, "План против факта.xlsx");
         });
     }
 }

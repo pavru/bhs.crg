@@ -65,6 +65,9 @@
   права, режим без Plan, числовые клетки XLSX и несовпадение RUB/USD.
 - Итоговый серверный профиль с `EstimateVsCosts|SiteCosts|ArchiveReadInventory|ModuleBoundary|EndpointGateInventory|FileSizeRatchet`
   прошёл 62/62 на собственном PostgreSQL, порт 5427.
+- После первого CI исправлены MIME XLSX через общий реестр и пулы трёх отдельных тестовых хостов.
+  Повторный профиль `EstimateVsCosts|FileKindCatalog|FileSizeRatchet|ModuleBoundary|EndpointGateInventory`
+  прошёл 46/46 на отдельной БД того же стенда.
 - Итоговый клиентский профиль `EstimateVsCosts.test.tsx` и `SiteCostsPage.test.tsx` прошёл 15/15.
   Сборка клиента включает `tsc -b`. Линт, UI-храповик, проверки темы и каталог макетов прошли.
 - На изолированном живом стенде (API 5077, клиент 5177, PostgreSQL 5427, Garage 3927)
