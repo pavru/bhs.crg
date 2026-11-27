@@ -9,17 +9,65 @@ using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Endpoints;
 using BHS.CRG.Tests.Generation;
 using BHS.CRG.Tests.Work;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using NPOI.XSSF.UserModel;
 
 namespace BHS.CRG.Tests.Integration;
 
-public sealed class WorkIsolationHost : AssignmentHost
+public class WorkIsolationHost : AssignmentHost
 {
     protected override string DatabaseSuffix => "workiso";
+
+    internal WorkIsolationReadControl? ReadControl { get; }
+
+    public WorkIsolationHost() { }
+
+    internal WorkIsolationHost(WorkIsolationReadControl control) => ReadControl = control;
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        if (ReadControl is { } control)
+            builder.ConfigureTestServices(control.Register);
+    }
 }
 
 public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) : IClassFixture<WorkIsolationHost>
+{
+    private readonly WorkIsolationHost testHost = host;
+
+    [Fact]
+    public Task Сегодня_вычисляется_по_поясу_стройки_на_границе_суток() => new WorkIsolationScenario(testHost).CheckLocalDayAsync();
+
+    [Fact]
+    public Task Содержимое_отчёта_остаётся_в_схеме_модуля() => new WorkIsolationScenario(testHost).CheckStorageAsync();
+
+    [Fact]
+    public Task Сужение_охвата_до_неназначенных_строек_доходит_до_таблиц_и_источников() =>
+        new WorkIsolationScenario(testHost).CheckRestrictedReaderAsync();
+
+    [Fact]
+    public void Маршрут_без_положительной_проверки_диагностируется() => WorkIsolationScenario.CheckMissingProbeControl();
+
+    [Fact]
+    public void Пустая_страница_таблицы_с_лишним_ключом_отвергается() => new WorkIsolationScenario(testHost).CheckExtraTableKey();
+
+    [Fact]
+    public void Метка_вне_нового_значения_примечания_журнала_отвергается() => WorkIsolationScenario.CheckJournalNoteFromAnotherField();
+
+    [Theory]
+    [InlineData("count")]
+    [InlineData("skipped")]
+    [InlineData("sum")]
+    [InlineData("average")]
+    [InlineData("min")]
+    [InlineData("max")]
+    public void Проверка_пустого_итога_отвергает_значение_из_синтетического_ответа(string field) =>
+        WorkIsolationScenario.CheckInvalidEmptyTotal(field);
+}
+
+internal sealed partial class WorkIsolationScenario(WorkIsolationHost host)
 {
     private const string Day = ReportWorld.Day16;
     private const decimal HoursA = 6m, HoursB = 8m, VolumeA = 7m, VolumeB = 100m;
@@ -33,10 +81,12 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
     private readonly Guid photoB = Guid.NewGuid();
     private readonly Guid retainedPhotoB = Guid.NewGuid();
     private Guid employeeB;
+    private Guid managerEmployee;
     private Guid groupB;
+    private Guid installerAccount;
+    private Guid unassignedAccount;
 
-    [Fact]
-    public async Task Сегодня_вычисляется_по_поясу_стройки_на_границе_суток()
+    internal async Task CheckLocalDayAsync()
     {
         await world.Assignments.ResetAsync();
         var directory = await world.Assignments.DirectoryAsync();
@@ -59,31 +109,9 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         }
     }
 
-    [Fact]
-    public async Task Отчёт_виден_только_в_охвате_читающей_роли()
-    {
-        var (installer, owner, manager, unassigned, executive) = await SeedAsync();
-        using (installer)
-        using (owner)
-        using (manager)
-        using (unassigned)
-        using (executive)
-        {
-            await CheckWorkRoutesAsync(installer, owner, manager, unassigned, executive);
-            await CheckTablesAsync(installer, unassigned, executive);
-            await CheckDataSetsAsync(installer, unassigned, executive);
-            foreach (var client in new[] { installer, unassigned, executive })
-            {
-                await CheckResponseAsync(client, "/api/notifications", HttpStatusCode.OK);
-                await CheckResponseAsync(client, "/api/activity", HttpStatusCode.Forbidden);
-            }
-            await CheckCombinedRoleAsync();
-        }
-    }
-
     private async Task CheckCombinedRoleAsync()
     {
-        var (employee, client) = await ReaderAsync("Монтажник и менеджер", WorkModule.ReportOwn, WorkModule.ReportReview);
+        var (employee, _, client) = await ReaderAsync("Монтажник и менеджер", WorkModule.ReportOwn, WorkModule.ReportReview);
         using (client)
         {
             await world.Assignments.AssignedAsync(employee, world.SiteA, AssignmentKind.Manager, "2026-10-01", null);
@@ -99,16 +127,32 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         }
     }
 
-    private async Task<(HttpClient Installer, HttpClient Owner, HttpClient Manager, HttpClient Unassigned, HttpClient Executive)> SeedAsync()
+    internal sealed record IsolationReaders(HttpClient Installer, HttpClient Owner, HttpClient Manager, HttpClient Unassigned,
+        HttpClient Executive) : IDisposable
     {
-        host.ReportTime = ReviewWorld.Evening16.ToUniversalTime();
+        public void Dispose()
+        {
+            Installer.Dispose();
+            Owner.Dispose();
+            Manager.Dispose();
+            Unassigned.Dispose();
+            Executive.Dispose();
+        }
+    }
+
+    private async Task<IsolationReaders> SeedAsync()
+    {
+        testHost.ReportTime = ReviewWorld.Evening16.ToUniversalTime();
         await world.SeedAsync();
         var material = await SeedReportFieldsAsync();
-        var (installerId, installer) = await ReaderAsync("Монтажник А", WorkModule.ReportOwn);
-        var (ownerId, owner) = await ReaderAsync("Монтажник Б", WorkModule.ReportOwn);
+        var (installerId, installerUser, installer) = await ReaderAsync("Монтажник А", WorkModule.ReportOwn);
+        installerAccount = installerUser;
+        var (ownerId, _, owner) = await ReaderAsync("Монтажник Б", WorkModule.ReportOwn);
         employeeB = ownerId;
-        var (_, manager) = await world.ManagerAsync("Назначенный менеджер", world.SiteB, WorkModule.Assign);
-        var (_, unassigned) = await ReaderAsync("Менеджер без назначений", WorkModule.ReportReview, WorkModule.Assign);
+        var (assignedManager, manager) = await world.ManagerAsync("Назначенный менеджер", world.SiteB, WorkModule.Assign);
+        managerEmployee = assignedManager;
+        var (_, unassignedUser, unassigned) = await ReaderAsync("Менеджер без назначений", WorkModule.ReportReview, WorkModule.Assign);
+        unassignedAccount = unassignedUser;
         var (_, executive) = await world.Assignments.UserAsync("Руководитель", WorkModule.ReportRead, CorePermissions.DataSetsRead);
         await world.Assignments.AssignedAsync(ownerId, world.SiteB, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
         await world.Assignments.AssignedAsync(installerId, world.SiteA, AssignmentKind.Installer, "2026-10-01", "2026-11-30");
@@ -134,7 +178,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         Assert.Equal(HttpStatusCode.OK, retained.StatusCode);
         var crew = await executive.GetFromJsonAsync<JsonElement>($"{CrewWorld.Path}?constructionId={world.SiteB}");
         groupB = Assert.Single(crew.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid();
-        return (installer, owner, manager, unassigned, executive);
+        return new(installer, owner, manager, unassigned, executive);
     }
 
     private async Task<Guid> SeedReportFieldsAsync()
@@ -160,71 +204,14 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         return (await seed.RecordAsync(directory.Id, "Материал посева")).Id;
     }
 
-    private async Task<(Guid Employee, HttpClient Client)> ReaderAsync(string name, params string[] permissions)
+    private async Task<(Guid Employee, Guid Account, HttpClient Client)> ReaderAsync(string name, params string[] permissions)
     {
         var employee = await world.EmployeeAsync(name);
         var (user, client) = await world.Assignments.UserAsync(name, [.. permissions, CorePermissions.DataSetsRead]);
         await world.Assignments.LinkAsync(employee, user);
-        return (employee, client);
+        return (employee, user, client);
     }
 
-    private async Task CheckTablesAsync(HttpClient installer, HttpClient unassigned, HttpClient executive)
-    {
-        foreach (var client in new[] { installer, unassigned, executive })
-            await CheckResponseAsync(client, "/api/tables", HttpStatusCode.OK, "work.reports");
-        foreach (var (table, total, ownValue, foreignValue, ownKey, foreignKey, column, signal) in new[]
-        {
-            (WorkTableWorld.Reports, "Часы", HoursA, HoursB, reportA, reportB, "Сотрудник", "Монтажник Б"),
-            (WorkTableWorld.Lines, "Объём", VolumeA, VolumeB, lineA, lineB, "Место", marker),
-        })
-        {
-            var path = $"{table}?totals={Uri.EscapeDataString(total)}";
-            var own = await CheckTableAsync(installer, path, 1, "own");
-            CheckNumericTotal(own, path, total, ownValue);
-            Assert.Equal(ownKey, Assert.Single(own.GetProperty("keys").EnumerateArray()).GetGuid());
-            AssertReportNotDisclosed(own.GetRawText(), path);
-            var none = await CheckTableAsync(unassigned, path, 0, "not-assigned");
-            CheckNumericTotal(none, path, total);
-            Assert.Equal("not-assigned", none.GetProperty("reason").GetString());
-            Assert.Empty(none.GetProperty("keys").EnumerateArray());
-            AssertReportNotDisclosed(none.GetRawText(), path);
-            var all = await CheckTableAsync(executive, path, 2, "all");
-            CheckNumericTotal(all, path, total, ownValue, foreignValue);
-            Assert.Equal(new[] { ownKey, foreignKey }.Order(), all.GetProperty("keys").EnumerateArray().Select(value => value.GetGuid()).Order());
-
-            await CheckResponseAsync(installer, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
-            await CheckResponseAsync(unassigned, $"{table}?row={foreignKey}", HttpStatusCode.NotFound);
-            await CheckResponseAsync(executive, $"{table}?row={foreignKey}", HttpStatusCode.OK,
-                foreignKey.ToString(), canReadReport: true);
-            await CheckQueryAndExportAsync(table, column, signal, foreignKey, total, foreignValue, installer, unassigned, executive);
-        }
-    }
-
-    private async Task CheckQueryAndExportAsync(string table, string column, string signal, Guid foreignKey,
-        string total, decimal foreignValue, HttpClient installer, HttpClient unassigned, HttpClient executive)
-    {
-        var filter = JsonSerializer.Serialize(new { type = "condition", column, op = "contains", value = signal });
-        foreach (var (client, count) in new[] { (installer, 0), (unassigned, 0), (executive, 1) })
-        {
-            var queryPath = $"{table}/query";
-            using var query = await client.PostAsJsonAsync(queryPath, new { filter, totals = new[] { total } });
-            var body = await ExpectJsonAsync(query, queryPath);
-            Assert.Equal(count, body.GetProperty("count").GetInt32());
-            CheckNumericTotal(body, queryPath, total, count == 1 ? [foreignValue] : []);
-            var keys = body.GetProperty("keys").EnumerateArray();
-            if (count == 1)
-                Assert.Equal(foreignKey, Assert.Single(keys).GetGuid());
-            else
-                AssertReportNotDisclosed(body.GetRawText(), queryPath);
-
-            using var export = await client.PostAsJsonAsync($"{table}/export", new { columns = new[] { column } });
-            Assert.Equal(HttpStatusCode.OK, export.StatusCode);
-            using var workbook = new XSSFWorkbook(await export.Content.ReadAsStreamAsync());
-            var sheet = workbook.GetSheetAt(0);
-            Assert.Equal(count, Enumerable.Range(0, sheet.LastRowNum + 1)
-                .Count(row => sheet.GetRow(row)?.GetCell(0)?.ToString() == signal));
-        }
-    }
 
     private static async Task<JsonElement> CheckTableAsync(HttpClient client, string path, int count, string boundary)
     {
@@ -252,14 +239,7 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         }
     }
 
-    [Theory]
-    [InlineData("count")]
-    [InlineData("skipped")]
-    [InlineData("sum")]
-    [InlineData("average")]
-    [InlineData("min")]
-    [InlineData("max")]
-    public void Проверка_пустого_итога_отвергает_значение_из_синтетического_ответа(string field)
+    internal static void CheckInvalidEmptyTotal(string field)
     {
         const string column = "Объём";
         const string path = "/api/work25-test-only";
@@ -275,104 +255,6 @@ public sealed partial class WorkIsolationViolationTests(WorkIsolationHost host) 
         Assert.Contains(column, failure.Message, StringComparison.Ordinal);
     }
 
-    private async Task CheckDataSetsAsync(HttpClient installer, HttpClient unassigned, HttpClient executive)
-    {
-        var (_, publisher) = await world.Assignments.UserAsync("Публикатор", WorkModule.ReportRead, CorePermissions.DataSetsEdit);
-        using var publish = publisher;
-        foreach (var (table, key) in new[]
-        {
-            (WorkTableWorld.Reports, WorkTableWorld.ReportsMarker),
-            (WorkTableWorld.Lines, WorkTableWorld.LinesMarker),
-        })
-        {
-            var (fileId, sourceId) = await PublishDataSetAsync(publish, table, key);
-            var (column, signal) = key == WorkTableWorld.LinesMarker ? ("Место", marker) : ("Сотрудник", "Монтажник Б");
-            foreach (var (client, count) in new[] { (installer, 1), (unassigned, 0), (executive, 2) })
-            {
-                await CheckSourceMetadataAsync(client, fileId, sourceId, key, count, column, signal);
-                var preview = $"/api/datasets/sources/{sourceId}/preview?maxRows=20";
-                using var response = await client.GetAsync(preview);
-                var rows = (await ExpectJsonAsync(response, preview)).GetProperty("rows");
-                Assert.Equal(count, rows.GetArrayLength());
-                Assert.Equal(count == 2, rows.EnumerateArray().Any(row => row.EnumerateArray()
-                    .Any(cell => cell.ValueKind == JsonValueKind.String && cell.GetString() == signal)));
-                await CheckResponseAsync(client, $"/api/datasets/sources/{sourceId}/export?format=csv", HttpStatusCode.OK,
-                    count == 2 ? signal : null, canReadReport: count == 2);
-
-                var canReadReport = count == 2;
-                await McpAsync(client, "list_datasets", new { scope = "System" }, fileId.ToString(), canReadReport: false);
-                var dataset = await McpAsync(client, "get_dataset", new { datasetId = fileId }, sourceId.ToString(), canReadReport);
-                var source = Assert.Single(dataset.GetProperty("sources").EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
-                Assert.Equal(count, source.GetProperty("rawRowCount").GetInt32());
-                var detail = await McpAsync(client, "get_source", new { sourceId }, sourceId.ToString(), canReadReport);
-                Assert.Equal(count, detail.GetProperty("rowCount").GetInt32());
-                Assert.Equal(count, detail.GetProperty("rawRowCount").GetInt32());
-                CheckSourceSamples(detail.GetProperty("columns"), column, signal, canReadReport);
-                var snapshot = await McpAsync(client, "get_rows", new { sourceId }, "totalRows", canReadReport);
-                Assert.Equal(count, snapshot.GetProperty("totalRows").GetInt32());
-                Assert.Equal(count == 2, snapshot.GetProperty("rows").EnumerateArray().Any(row => row.EnumerateObject()
-                    .Any(cell => cell.Value.ValueKind == JsonValueKind.String && cell.Value.GetString() == signal)));
-            }
-        }
-    }
-
-    private static async Task<(Guid FileId, Guid SourceId)> PublishDataSetAsync(HttpClient publisher, string table, string key)
-    {
-        var path = $"{table}/dataset";
-        using var published = await publisher.PostAsJsonAsync(path, new { name = key });
-        var reference = await ExpectJsonAsync(published, path);
-        return (reference.GetProperty("fileId").GetGuid(), reference.GetProperty("sourceId").GetGuid());
-    }
-
-    private async Task CheckSourceMetadataAsync(HttpClient client, Guid fileId, Guid sourceId, string key, int count,
-        string column, string signal)
-    {
-        const string list = "/api/datasets/files?scope=System";
-        var files = await ReadMetadataAsync(list);
-        var file = Assert.Single(files.EnumerateArray(), row => row.GetProperty("id").GetGuid() == fileId);
-        AssertSourceCount(file.GetProperty("sources"));
-        AssertSourceCount(await ReadMetadataAsync($"/api/datasets/files/{fileId}/sources"));
-
-        foreach (var path in new[] { "/api/datasets/system-candidates?scope=System", $"/api/datasets/files/{fileId}/source-candidates" })
-        {
-            var candidates = await ReadMetadataAsync(path);
-            var selected = Assert.Single(candidates.EnumerateArray(), row => row.GetProperty("sheetOrPath").GetString() == key);
-            Assert.Equal(count, selected.GetProperty("rowCount").GetInt32());
-        }
-
-        void AssertSourceCount(JsonElement entries)
-        {
-            var source = Assert.Single(entries.EnumerateArray(), row => row.GetProperty("id").GetGuid() == sourceId);
-            Assert.Equal(count, source.GetProperty("cachedRowCount").GetInt32());
-            using var schema = JsonDocument.Parse(source.GetProperty("cachedSchema").GetString()!);
-            CheckSourceSamples(schema.RootElement, column, signal, count == 2);
-        }
-
-        async Task<JsonElement> ReadMetadataAsync(string path)
-        {
-            using var response = await client.GetAsync(path);
-            var json = await ExpectJsonAsync(response, path);
-            if (count != 2) AssertReportNotDisclosed(json.GetRawText(), path);
-            return json;
-        }
-    }
-
-    private static void CheckSourceSamples(JsonElement columns, string key, string signal, bool canReadReport)
-    {
-        var column = Assert.Single(columns.EnumerateArray(), entry => entry.GetProperty("name").GetString() == key);
-        var values = column.GetProperty("sampleValues").EnumerateArray().Select(value => value.GetString());
-        Assert.Equal(canReadReport, values.Contains(signal, StringComparer.Ordinal));
-    }
-
-    private async Task<JsonElement> McpAsync(HttpClient client, string name, object arguments, string signal, bool canReadReport)
-    {
-        var result = await McpTestClient.CallAsync(client, "tools/call", new { name, arguments });
-        var content = Assert.Single(result.GetProperty("content").EnumerateArray()).GetProperty("text").GetString()!;
-        Assert.Contains(signal, content, StringComparison.Ordinal);
-        if (!canReadReport) AssertReportNotDisclosed(content, name);
-        using var document = JsonDocument.Parse(content);
-        return document.RootElement.Clone();
-    }
 
     private static async Task<JsonElement> ExpectJsonAsync(HttpResponseMessage response, string path)
     {

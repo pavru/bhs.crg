@@ -135,13 +135,13 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// двумя чтениями даёт тело новее версии, и следующая правка клиента получит 409, а не запишется поверх чужой.
     /// Обратный порядок дал бы версию новее тела — правку по устаревшему виду без отказа.</para>
     /// </summary>
-    public async Task<ReportFeed> SinceAsync(Guid employeeId, long since, int limit, CancellationToken ct)
+    internal async Task<ReportFeed> SinceAsync(ReportViewer viewer, long since, int limit, CancellationToken ct)
     {
         // Номер отчёта в выдаче — больший из его номера и номеров доставки фото (work-17): доставка объявленного фото
         // отчёт не трогает, а клиент с курсором обязан узнать, что файл дошёл.
-        var heads = await db.Set<Report>().AsNoTracking()
-            .Where(r => r.EmployeeId == employeeId
-                        && (r.Seq > since || r.Lines.Any(l => l.Photos.Any(p => p.StoredSeq > since))))
+        var visible = Visible(viewer).AsNoTracking();
+        var heads = await visible
+            .Where(r => r.Seq > since || r.Lines.Any(l => l.Photos.Any(p => p.StoredSeq > since)))
             .Select(r => new
             {
                 r.Id,
@@ -150,8 +150,8 @@ public sealed partial class ReportReads(WorkDbContext db)
             })
             .OrderBy(h => h.Seq).Take(limit + 1)
             .ToListAsync(ct);
-        var deleted = await db.Set<ReportChange>().AsNoTracking()
-            .Where(c => c.EmployeeId == employeeId && c.Seq > since && c.Kind == ReportChangeKind.Deleted)
+        var deleted = await VisibleDeletions(viewer)
+            .Where(c => c.Seq > since)
             .OrderBy(c => c.Seq).Take(limit + 1)
             .Select(c => new ReportGone(c.ReportId, c.Seq)).ToListAsync(ct);
 
@@ -162,7 +162,7 @@ public sealed partial class ReportReads(WorkDbContext db)
         var ids = page.Where(e => e.Report is not null).Select(e => e.Report!.Value).ToList();
         var bodies = ids.Count == 0
             ? new Dictionary<Guid, Report>()
-            : await Full(db.Set<Report>().AsNoTracking().Where(r => ids.Contains(r.Id))).ToDictionaryAsync(r => r.Id, ct);
+            : await Full(visible.Where(r => ids.Contains(r.Id))).ToDictionaryAsync(r => r.Id, ct);
         // Отчёт, удалённый между двумя чтениями, пропускается: его удаление придёт следующей выдачей — номер больше.
         return new ReportFeed(
             [.. ids.Where(bodies.ContainsKey).Select(id => bodies[id])],
@@ -170,6 +170,19 @@ public sealed partial class ReportReads(WorkDbContext db)
             [.. page.Where(e => e.Gone is not null).Select(e => e.Gone!)],
             page.Count == 0 ? since : page[^1].Seq,
             merged.Count > limit);
+    }
+
+    private IQueryable<ReportChange> VisibleDeletions(ReportViewer viewer)
+    {
+        var deleted = db.Set<ReportChange>().AsNoTracking().Where(c => c.Kind == ReportChangeKind.Deleted);
+        var employee = viewer.EmployeeId;
+        var sites = viewer.Reach.Sites.ToArray();
+        return viewer.Reach.Kind switch
+        {
+            ModuleReachKind.All => deleted,
+            ModuleReachKind.Own => deleted.Where(c => c.EmployeeId == employee),
+            _ => deleted.Where(c => c.EmployeeId == employee || sites.Contains(c.ConstructionId)),
+        };
     }
 
     /// <summary>

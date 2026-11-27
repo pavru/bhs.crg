@@ -15,7 +15,7 @@ using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
-public sealed partial class WorkIsolationViolationTests
+internal sealed partial class WorkIsolationScenario
 {
     private static readonly Dictionary<string, string> NonPayload = new(StringComparer.Ordinal)
     {
@@ -38,8 +38,7 @@ public sealed partial class WorkIsolationViolationTests
         ["ReportVersion"] = ["content"],
     };
 
-    [Fact]
-    public async Task Содержимое_отчёта_остаётся_в_схеме_модуля()
+    internal async Task CheckStorageAsync()
     {
         var returnComment = $"Work25-return-{reportB:N}";
         var correctionReason = $"Work25-correction-{reportB:N}";
