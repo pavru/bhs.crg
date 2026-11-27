@@ -190,6 +190,6 @@ export const liveMockups = [
       { path: 'c', title: 'В · Очередь по статусам', width: 1440 },
     ],
     aliases: [],
-    reference: 'openspec/changes/plan-26-purchase-requests/design.md · Раунд П6',
+    reference: 'openspec/changes/archive/2026-11-27-plan-26-purchase-requests/design.md · Раунд П6',
   },
 ] satisfies LiveMockup[];

@@ -1,6 +1,6 @@
 # Proposal: заявки на закупку из материалов сметы — модуль `costs`
 
-Дочерний change зонтика `plan-00-epic`, общая архитектура — `../plan-00-epic/design.md` (D10, D12, D17, D18).
+Дочерний change зонтика `plan-00-epic`, общая архитектура — `../../plan-00-epic/design.md` (D10, D12, D17, D18).
 
 ## Why
 

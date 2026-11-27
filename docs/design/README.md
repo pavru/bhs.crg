@@ -82,7 +82,7 @@ npm --prefix src/client run ui:catalog
 [А · Реестр и карточка](http://127.0.0.1:5200/?section=mockups&project=plan-26-purchase-requests&page=a) ·
 [Б · По стройкам](http://127.0.0.1:5200/?section=mockups&project=plan-26-purchase-requests&page=b) ·
 [В · Очередь по статусам](http://127.0.0.1:5200/?section=mockups&project=plan-26-purchase-requests&page=c) ·
-[Разбор П6](../../openspec/changes/plan-26-purchase-requests/design.md#раунд-п6).
+[Разбор П6](../../openspec/changes/archive/2026-11-27-plan-26-purchase-requests/design.md#раунд-п6).
 Каждый вариант можно открыть напрямую через `plan26.html?page=a|b|c`. В примере работают переходы
 заявки, расчёт и правка предложения, выбор заявки в счёте, светлая и тёмная темы и узкий режим.
 Данные демонстрационные, смена сценария сбрасывает локальные правки.
