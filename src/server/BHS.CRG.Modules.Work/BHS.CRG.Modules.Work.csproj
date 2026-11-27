@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="BHS.CRG.Tests" />
+  </ItemGroup>
+
   <!--
     Модуль «Учёт работ» — четвёртый модуль решения (этап 4, change work-10-skeleton, ТЗ CORE-1,
     WORK-1). Устроен как `costs` и `plan`, и по тем же причинам (подробно — в BHS.CRG.Modules.Costs.csproj):

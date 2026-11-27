@@ -8,10 +8,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Tests.Integration;
 
-public sealed partial class WorkIsolationViolationTests
+internal sealed partial class WorkIsolationScenario
 {
-    [Fact]
-    public async Task Сужение_охвата_до_неназначенных_строек_доходит_до_таблиц_и_источников()
+    internal async Task CheckRestrictedReaderAsync()
     {
         var (installer, owner, manager, unassigned, executive) = await SeedAsync();
         using (installer)
@@ -20,7 +19,7 @@ public sealed partial class WorkIsolationViolationTests
         using (unassigned)
         using (executive)
         {
-            var (_, full) = await ReaderAsync("Руководитель с правом приёмки без назначений",
+            var (_, _, full) = await ReaderAsync("Руководитель с правом приёмки без назначений",
                 WorkModule.ReportRead, WorkModule.ReportReview);
             using var fullReader = full;
             await using var restrictedHost = testHost.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>

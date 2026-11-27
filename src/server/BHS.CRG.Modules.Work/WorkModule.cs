@@ -220,6 +220,7 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
         services.AddScoped<ReportReads>();
+        services.AddScoped<IOwnReportReader, OwnReportReader>();
         services.AddModuleContract<IActualWorks, ActualWorksProvider>(ModuleCode);
         services.AddModuleContract<IWorkProductivity, WorkProductivityProvider>(ModuleCode);
         services.AddModuleContract<IProgressContribution, WorkProgressContribution>(ModuleCode);
