@@ -23,9 +23,9 @@
 - [x] 2.1 [STG-6] В первом коммите временно включить контролируемую конфигурацию в основном
   тестовом хосте целевой проверки. Дождаться завершения GitHub CI, найти в логе доли Backend
   отказ на утверждении об отсутствии ключа Б в `work.reports` и сохранить ссылку, SHA и имя теста.
-- [ ] 2.2 [STG-6] Следующим коммитом вернуть штатную конфигурацию основного хоста и сохранить
+- [x] 2.2 [STG-6] Следующим коммитом вернуть штатную конфигурацию основного хоста и сохранить
   постоянный положительный контроль. Опубликовать в том же PR, подтвердить зелёный GitHub CI.
-- [ ] 2.3 [STG-6] Сверить историю PR и записать оба запуска, оба SHA, долю Backend, целевое
+- [x] 2.3 [STG-6] Сверить историю PR и записать оба запуска, оба SHA, долю Backend, целевое
   утверждение и результат в описании PR.
 
 ## 3. Верификация
@@ -33,4 +33,4 @@
 - [x] 3.1 [STG-6] `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkIsolationViolation|FullyQualifiedName~RequestDataAccessTests|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~McpGateInventory|FullyQualifiedName~IsolatedReadInventory"` из `src/server`.
 - [x] 3.2 `npx tsc -b` и `npm run ui:ratchet` из `src/client`.
 - [x] 3.3 `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` из `src/server`.
-- [ ] 3.4 `openspec validate --all --strict --no-interactive`, `git diff --check` и сверка красного/зелёного CI с `design.md`.
+- [x] 3.4 `openspec validate --all --strict --no-interactive`, `git diff --check` и сверка красного/зелёного CI с `design.md`.
