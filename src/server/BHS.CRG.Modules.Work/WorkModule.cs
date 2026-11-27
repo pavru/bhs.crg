@@ -231,6 +231,7 @@ public sealed class WorkModule : IAppModule
             WorkDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
         services.AddSingleton<IModuleActivityActions, AssignmentActions>();
         services.AddSingleton<IModuleActivityActions, ReportActions>();
+        services.AddSingleton<IModuleActivityActions, DeviceActions>();
         services.AddScoped<ManagerSites>();
         services.AddScoped<DeviceSessions>();
         services.AddScoped<DeviceManagementScope>();

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Devices;
@@ -180,6 +182,76 @@ public sealed class FieldDeviceSessionTests(AssignmentHost host)
             using var expired = await RefreshAsync(phone, finalToken.RefreshToken);
             await ReasonAsync(expired, HttpStatusCode.Forbidden, "device-revoked");
             Assert.False((await AuthenticateAsync(finalToken.AccessToken)).Result.Succeeded);
+        }
+        finally
+        {
+            host.ModuleTime = null;
+        }
+    }
+
+    [Theory]
+    [InlineData("replacement", "Замена телефона")]
+    [InlineData("dismissal", "Увольнение")]
+    public async Task Loss_during_delivery_blocks_all_credentials_and_audits_both_revocations(
+        string initialReason, string initialLabel)
+    {
+        var (employee, manager, _) = await SetupAsync();
+        using var office = manager;
+        using var phone = host.CreateClient();
+        var joined = await ConnectAsync(office, phone, employee);
+        using var refreshed = await RefreshAsync(phone, joined.RefreshToken);
+        var current = await CredentialsAsync(refreshed);
+        var originalVersion = await VersionAsync(office, employee);
+        using var first = await RevokeAsync(office, joined.DeviceId, originalVersion, initialReason);
+        first.EnsureSuccessStatusCode();
+        var firstRecord = await JsonAsync(first);
+
+        try
+        {
+            host.ModuleTime = AssignmentHost.Now.AddHours(1);
+            var (_, delivery) = await AuthenticateAsync(current.AccessToken);
+            Assert.True(delivery!.AllowsReport(employee, Day("2026-10-31"), delivering: true, host.ModuleTime.Value));
+            using var stale = await RevokeAsync(office, joined.DeviceId, originalVersion, "lost");
+            Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+            Assert.True((await AuthenticateAsync(current.AccessToken)).Result.Succeeded);
+
+            var deliveryVersion = firstRecord.GetProperty("version").GetString();
+            using var lost = await RevokeAsync(office, joined.DeviceId, deliveryVersion, "lost");
+            lost.EnsureSuccessStatusCode();
+            var lostRecord = await JsonAsync(lost);
+            Assert.Equal("lost", lostRecord.GetProperty("reason").GetString());
+            Assert.Equal(JsonValueKind.Null, lostRecord.GetProperty("deliveryUntil").ValueKind);
+            Assert.Equal(host.ModuleTime.Value, lostRecord.GetProperty("revokedAt").GetDateTimeOffset());
+
+            using var previousRefresh = await RefreshAsync(phone, joined.RefreshToken);
+            using var activeRefresh = await RefreshAsync(phone, current.RefreshToken);
+            await ReasonAsync(previousRefresh, HttpStatusCode.Forbidden, "device-revoked");
+            await ReasonAsync(activeRefresh, HttpStatusCode.Forbidden, "device-revoked");
+            Assert.False((await AuthenticateAsync(current.AccessToken)).Result.Succeeded);
+            using var repeated = await RevokeAsync(office, joined.DeviceId, lostRecord.GetProperty("version").GetString(), "lost");
+            Assert.Equal(HttpStatusCode.Conflict, repeated.StatusCode);
+
+            var (_, reader) = await _world.UserAsync("Аудитор Work", CorePermissions.AuditRead, WorkModule.ReportRead);
+            using var auditor = reader;
+            using var audit = await auditor.GetAsync("/api/activity?action=work.device.revoked");
+            audit.EnsureSuccessStatusCode();
+            var page = await JsonAsync(audit);
+            Assert.Equal(2, page.GetProperty("total").GetInt32());
+            var items = page.GetProperty("items").EnumerateArray().ToArray();
+            var initialEvent = Assert.Single(items, item => item.GetProperty("after").GetString() == initialLabel);
+            Assert.Equal(JsonValueKind.Null, initialEvent.GetProperty("before").ValueKind);
+            var lossEvent = Assert.Single(items, item => item.GetProperty("after").GetString() == "Утеря телефона");
+            Assert.Equal(initialLabel, lossEvent.GetProperty("before").GetString());
+            Assert.All(items, item =>
+            {
+                Assert.Equal(firstRecord.GetProperty("revokedBy").GetGuid(), item.GetProperty("actorId").GetGuid());
+                Assert.Equal("Администратор устройств", item.GetProperty("actorName").GetString());
+                Assert.Equal($"Телефон {joined.DeviceId:D}", item.GetProperty("target").GetString());
+                Assert.Equal("ui", item.GetProperty("channel").GetString());
+            });
+            Assert.DoesNotContain(current.AccessToken, page.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain(current.RefreshToken, page.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain(joined.RefreshToken, page.GetRawText(), StringComparison.Ordinal);
         }
         finally
         {

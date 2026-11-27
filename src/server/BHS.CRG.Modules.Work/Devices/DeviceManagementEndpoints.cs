@@ -96,7 +96,7 @@ internal static class DeviceManagementEndpoints
 
     private static async Task<IResult> RevokeAsync(Guid id, RevokeRequest body, HttpRequest request, WorkDbContext db,
         DeviceSessions sessions, DeviceManagementScope scope, IModuleClock clock, IModuleSettings settings,
-        IModuleUser user, CancellationToken ct)
+        IModuleUser user, IModuleActivityLog journal, CancellationToken ct)
     {
         var reason = body.Reason switch
         {
@@ -113,11 +113,13 @@ internal static class DeviceManagementEndpoints
         if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
         if (seen is null) throw new InvalidRequestException("Назовите версию устройства в If-Match.");
         if (seen != db.VersionOf(session)) throw new ConflictException("Устройство тем временем изменили.");
-        if (session.RevokedAt is not null) throw new ConflictException("Устройство уже отозвано.");
+        var now = clock.UtcNow();
+        if (session.RevokedAt is not null && (reason != DeviceRevocation.Lost || session.IsRevokedAt(now)))
+            throw new ConflictException("Устройство уже отозвано.");
 
+        var previousReason = session.Revocation;
         var days = reason == DeviceRevocation.Lost ? 0m : await settings.GetAsync(WorkSettings.DeviceDeliveryDays, ct);
         var today = await clock.TodayAsync(ct);
-        var now = clock.UtcNow();
         session.RevokedOn = today;
         session.RevokedAt = now;
         session.RevokedBy = user.Id;
@@ -132,6 +134,10 @@ internal static class DeviceManagementEndpoints
         }
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        // Отмена запроса после фиксации не отменяет уже совершённое действие.
+        await journal.RecordAsync(DeviceActions.Revoked, id.ToString(), $"Телефон {id:D}",
+            before: previousReason is { } previous ? DeviceActions.ReasonLabel(previous) : null,
+            after: DeviceActions.ReasonLabel(reason));
         return Results.Ok(View(db, session));
     }
 
