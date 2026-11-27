@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { BASE, callApiOk, createChecks, launchBrowser, login, pickOption } from './harness.mjs';
-import { ASSIGNMENT_PM, FOREIGN_PM } from './seed-assignments.mjs';
+import { FOREIGN_PM } from './seed-assignments.mjs';
 import { REVIEW_READER_EMAIL } from './seed-review.mjs';
 
 const browser = await launchBrowser();
@@ -47,8 +47,12 @@ async function setup(admin) {
   const { construction } = await api('GET', `/work/assignments?constructionId=${site.id}`);
   const date = dayAt(`${construction.today.slice(0, 7)}-01`, -1);
   const from = `${date.slice(0, 7)}-01`;
-  const manager = (await api('GET', '/employees')).find(person => person.account?.login === ASSIGNMENT_PM.email);
-  assert.ok(manager, 'Менеджер посева должен быть связан с сотрудником.');
+  const email = `manager-work32-${suffix}@bhs.local`;
+  const displayName = `Менеджер Work-32 ${suffix}`;
+  const account = await api('POST', '/users', { email, displayName, password, roles: ['ProjectManager'] });
+  const manager = await api('POST', '/employees', { displayName, data: '{}' });
+  const linked = await raw(admin, 'PUT', `/employees/${manager.id}/account`, { userId: account.id }, { 'If-Match': manager.version });
+  assert.ok(linked.ok(), `Связь менеджера → ${linked.status()} ${await linked.text()}`);
   await api('POST', '/work/assignments', { constructionId: site.id, employeeId: manager.id, kind: 'manager', dateFrom: date });
   const types = await api('GET', '/document-types');
   const unitType = types.find(type => type.code === 'ЕдиницаИзмерения');
@@ -87,7 +91,7 @@ async function setup(admin) {
   assert.equal(preview.canClose, true);
   await api('POST', '/periods/close', { ...contour, ifMatch: 'none', report: preview.stamp });
   await upload(admin, solo.body.id, solo.body.lines[0].id, late.id);
-  return { site, date, from, solo, crew, groupsPath, crewType, photo, late };
+  return { site, date, from, email, solo, crew, groupsPath, crewType, photo, late };
 }
 
 async function upload(page, report, line, id) {
@@ -112,8 +116,10 @@ try {
   const foreign = await browser.newPage();
   await login(admin);
   restoreDetails = await configureDetails(admin);
-  const { site, date, from, solo, crew, groupsPath, crewType, photo, late } = await setup(admin);
-  await login(page, ASSIGNMENT_PM.email, password);
+  const { site, date, from, email, solo, crew, groupsPath, crewType, photo, late } = await setup(admin);
+  await login(page, email, password);
+  const access = await callApiOk(page, 'GET', '/account/access');
+  assert.ok(access.permissions.includes('work.report.review') && !access.permissions.includes('work.sites.all'));
   const soloUrl = `${BASE}/work-review/${solo.body.id}`;
   await check('closed-report-corrects-from-summary-and-preserves-snapshot', async () => {
     await page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name: 'Работы' }).click();

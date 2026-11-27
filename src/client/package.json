@@ -56,7 +56,7 @@
     "test:e2e:work-summary": "node e2e/work-summary-smoke.mjs",
     "test:e2e:work": "node e2e/work-smoke.mjs",
     "test:e2e:seed": "node e2e/seed.mjs",
-    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment site-costs costs table-chips table-view table-saved-views field-mapping planning-estimates plan-offers plan-schedule work-assignments work-review work-correction work-entry work-summary work work-crew progress purchase-requests"
+    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment site-costs costs table-chips table-view table-saved-views field-mapping planning-estimates plan-offers plan-schedule work-assignments work-review work-entry work-summary work work-crew progress purchase-requests work-correction"
   },
   "//engines": "Нижняя граница Node — версия из .nvmrc в корне: одна версия у разработчика, в CI и в образе сборки (deploy/Dockerfile.web), сверяет nodeVersion.test.ts. Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE.",
   "engines": {
