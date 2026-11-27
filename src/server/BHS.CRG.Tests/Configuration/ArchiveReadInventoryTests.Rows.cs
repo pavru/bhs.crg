@@ -404,6 +404,8 @@ public partial class ArchiveReadInventoryTests
                  + "архивный назван так же, признака в карточке нет — его там не показывают"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct);"] =
             Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
+        ["BHS.CRG.Modules.Costs/Endpoints/PurchaseRequestEndpoints.cs|(await catalog.RefsAsync(CostsDirectories.Nomenclature, ids.Distinct().ToArray(), ct) ?? [])"] =
+            Seen("названия позиций уже привязанных в заявке или смете; новую ссылку проверяет запись заявки"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);"] =
             Seen("новая сторона счёта: есть ли запись вовсе; архивную отвергает правило новых ссылок следом"),
         ["BHS.CRG.Modules.Plan/Data/EstimateRowReferences.cs|(await catalog.RefsAsync(FunctionalTag.RoleNomenclature, nomenclatureIds, ct))?.ToDictionary(r => r.Id, r => r.Archived)"] =

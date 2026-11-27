@@ -22,16 +22,14 @@ internal sealed class PurchaseRequestEstimate(
 {
     public async Task<ContractAnswer<PlannedWorksAnswer>> ReadAsync(PurchaseRequestSource source, CancellationToken ct)
     {
-        if (contracts.Get<IPlannedWorks>() is not ModuleContractAnswer<IPlannedWorks>.Connected provider)
-            throw new ConflictException("Для создания заявки нужен модуль «Планирование».");
-
+        var provider = Provider();
         var hasSection = source.SectionId is not null;
         if (hasSection ? source.PlanItemIds is not null : source.PlanItemIds is not { Length: > 0 })
             throw new InvalidRequestException("Выберите позиции перечня или один раздел стройки.");
 
         var query = new PlannedWorksQuery(source.ConstructionId, source.SectionId,
             hasSection ? null : source.PlanItemIds!.Distinct().ToArray());
-        var answer = await provider.Contract.ReadAsync(await readers.ForRequestAsync(ct), query, ct);
+        var answer = await provider.ReadAsync(await readers.ForRequestAsync(ct), query, ct);
         if (answer is not ContractAnswer<PlannedWorksAnswer>.Shown { Value.Materials: ContractAnswer<PlannedMaterials>.Shown })
             return answer;
 
@@ -43,6 +41,20 @@ internal sealed class PurchaseRequestEstimate(
             await EnsurePlanItemsAsync(planItems, query.ConstructionId, ids, ct);
         return answer;
     }
+
+    internal async Task<ContractAnswer<PlannedWorksAnswer>> ReadForConstructionAsync(Guid constructionId, CancellationToken ct)
+    {
+        var answer = await Provider().ReadAsync(await readers.ForRequestAsync(ct), new(constructionId), ct);
+        if (answer is ContractAnswer<PlannedWorksAnswer>.Shown { Value.Materials: ContractAnswer<PlannedMaterials>.Shown }
+            && (await constructions.ListAsync(ct)).All(site => site.Id != constructionId))
+            throw new InvalidRequestException("Выбранной стройки нет.");
+        return answer;
+    }
+
+    private IPlannedWorks Provider() =>
+        contracts.Get<IPlannedWorks>() is ModuleContractAnswer<IPlannedWorks>.Connected provider
+            ? provider.Contract
+            : throw new ConflictException("Для создания заявки нужен модуль «Планирование».");
 
     internal static async Task EnsurePlanItemsAsync(
         IModulePlanItems planItems, Guid constructionId, IReadOnlyCollection<Guid> ids, CancellationToken ct)

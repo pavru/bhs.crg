@@ -7317,9 +7317,14 @@ GET    /api/costs/nomenclature/{id}/card  → КАРТОЧКА позиции (i
                                       человека: сравнивать по этим строкам код не должен
 
 # Заявки на закупку (Plan-26), модуль Costs
-GET    /api/costs/requests?constructionId=&beforeNumber=  → { items, nextBeforeNumber }  costs.request.read
+GET    /api/costs/requests?constructionId=&beforeNumber=&status=  → { items, nextBeforeNumber }  costs.request.read
+GET    /api/costs/requests/constructions  → [{ id, name, sections }]  costs.request.read
+GET    /api/costs/requests/estimate-items?constructionId=  → { state: "shown", items: [{ id, name, sectionId, unit }] }
+       или { state: "hidden", permission, message }  costs.request.edit. Выборка только из материалов
+       действующих смет через контракт Plan в правах спрашивающего. Plan выключен — 409.
 GET    /api/costs/requests/{id}  → { id, number, constructionId, createdBy, createdAt, updatedAt,
-                                      status: draft|submitted|closed, version, lines, quantities }  costs.request.read
+                                      status: draft|submitted|closed, version, lines, quantities,
+                                      nomenclatureNames }  costs.request.read
        quantities: { invoiced, issuedForConstruction, items }. У обоих источников { state: shown|hidden,
        anyOfPermissions }. Количество из связанных счетов доступно по costs.invoice.read. Отпуск по
        всей стройке из проведённых накладных доступен по costs.materials.read или costs.waybill.read.
@@ -7334,7 +7339,8 @@ POST   /api/costs/requests/draft-from-estimate  { constructionId, sectionId? | p
        { state: "shown", suggestion: { selection, warnings, unmatchedIssued, unmatchedEstimate,
          undecidedEstimate, lines: [{ nomenclatureId, planItemId, unit, estimateQuantity,
          compatibleIssuedQuantity, quantity, issuedExceeds, unitMismatch }] } }
-       или { state: "hidden", permission, message } без сметных строк. Отпуск считается по всей стройке,
+       Показанный ответ включает nomenclatureNames. Скрытый ответ { state: "hidden", permission, message }
+       не содержит сметных строк. Отпуск считается по всей стройке,
        другие заявки количество не резервируют. compatibleIssuedQuantity = null, когда единица
        отсутствует либо партии отпуска есть только в несовместимых единицах.
 POST   /api/costs/requests  { constructionId, sectionId? | planItemIds?, lines }  → 201  costs.request.edit

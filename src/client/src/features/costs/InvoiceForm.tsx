@@ -42,6 +42,7 @@ import { InvoiceExtrasProvider, useInvoiceExtras } from './invoiceExtras';
 import { shippedBeforeIssued } from './invoiceDue';
 import { AllocationSummary } from './LineAllocation';
 import { BlockFields, ConfirmBlock } from './InvoiceFormFields';
+import { InvoicePurchaseRequestField } from './requests/InvoicePurchaseRequestField';
 import { InvoicePart } from './InvoicePart';
 import {
   PART_ORDER, PART_TITLE, PartRevealContext, attentionOf, initiallyOpen, partLine, partOfTarget, type PartExtra, type PartId,
@@ -132,6 +133,7 @@ export function InvoiceForm({
   compactLines?: boolean;
 }) {
   const [edits, setEdits] = useState<Record<string, unknown>>({});
+  const [requestChange, setRequestChange] = useState<string | null>();
   const update = useUpdateInvoice();
   const confirm = useConfirmInvoiceFields();
   const state = useInvoiceState();
@@ -140,19 +142,22 @@ export function InvoiceForm({
 
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);
   const set = (key: string, next: unknown) => setEdits(prev => ({ ...prev, [key]: next }));
-  const dirty = Object.keys(edits).length > 0;
+  const dirty = Object.keys(edits).length > 0 || requestChange !== undefined;
   // Поставщик в шапке изменён и не сохранён — таблице строк (#1657, D3): запомненное прежнего не про этот счёт.
   const supplierChange = useMemo(() => supplierChangeOf(edits, view.requisites), [edits, view.requisites]);
   const [linesDirty, setLinesDirty] = useState(false);
 
   // Правки шапки лежат поверх вида (issue #1176): «моя часть» — только поля, которые человек правит
   // (ревью PR #1208), подпись — реквизиты целиком.
-  const base = useDraftBase(view, of => of.requisites, dirty, {
-    same: (a, b) => Object.keys(edits).every(key => JSON.stringify(a[key]) === JSON.stringify(b[key])),
+  const signature = (of: InvoiceView): Record<string, unknown> => ({ ...of.requisites, purchaseRequestId: of.purchaseRequestId ?? null });
+  const base = useDraftBase(view, signature, dirty, {
+    same: (a, b) => Object.keys(edits).every(key => JSON.stringify(a[key]) === JSON.stringify(b[key]))
+      && (requestChange === undefined || a.purchaseRequestId === b.purchaseRequestId),
   });
 
   function reread() {
     setEdits({});
+    setRequestChange(undefined);
     base.rebase();
   }
 
@@ -161,6 +166,7 @@ export function InvoiceForm({
   // распознавания, а не чужая, если её объясняет распознавание (поле было пустым и легло с меткой).
   const watch = useRecognitionWatch(view.id, scan !== null && !gone);
   const byScan = base.stale && watch.accepted === view.version
+    && (requestChange === undefined || base.signature.purchaseRequestId === (view.purchaseRequestId ?? null))
     && explainedByRecognition(edits, base.signature, view);
   if (byScan) base.rebase();
 
@@ -246,13 +252,15 @@ export function InvoiceForm({
    */
   async function saveHeader(): Promise<InvoiceView> {
     const sent = edits;
+    const linked = requestChange;
     // На повторе правки ложатся поверх СВЕЖЕГО вида: поле, которое человек не трогал, уезжает таким,
     // каким оно лежит сейчас.
     const saved = await base.save((seen, fresh) => update.mutateAsync({
-      id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, sent),
+      id: view.id, seen, requisites: toRequisites((fresh ?? view).requisites, sent), purchaseRequestId: linked,
     }));
     base.adopt(saved);
     setEdits(now => editsAfterSave(sent, now));
+    setRequestChange(now => now === linked ? undefined : now);
     return saved;
   }
 
@@ -462,6 +470,8 @@ export function InvoiceForm({
           <InvoicePart title={PART_TITLE.who.title} step={1} open={open.who} onToggle={() => toggle('who')} line={lineOf('who')}
             actions={<ConfirmBlock blocks={[who]} view={view} locked={locked || reading} confirming={confirm.isPending} onConfirm={f => void confirmFields(f)} />}>
             <BlockFields block={who} {...fieldProps} />
+            <InvoicePurchaseRequestField invoice={view} selection={requestChange} editable={!quiet && !reading}
+              onSelect={id => { setRequestChange(id); queue.mark('header'); }} />
             {!quiet && <RecognitionNotes recognition={watch.recognition} />}
           </InvoicePart>
 

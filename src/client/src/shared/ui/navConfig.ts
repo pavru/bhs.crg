@@ -153,6 +153,8 @@ export const workNav: NavItem[] = [
   // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
   { to: '/invoices',        label: 'Счета',               icon: ReceiptLong, module: 'costs',
     permission: 'costs.invoice.read', rail: 'costs' },
+  { to: '/purchase-requests', label: 'Заявки',           icon: Assignment, module: 'costs',
+    permission: 'costs.request.read', rail: 'costs' },
   // Накладные закрыты СВОИМ правом (ТЗ COST-29): право на счета их не открывает, и наоборот.
   { to: '/waybills',        label: 'Накладные',           icon: LocalShipping, module: 'costs',
     permission: 'costs.waybill.read', rail: 'costs' },

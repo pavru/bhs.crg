@@ -46,6 +46,7 @@
     "test:e2e:planning-estimates": "node e2e/planning-estimates-smoke.mjs",
     "test:e2e:plan-offers": "node e2e/plan-offers-smoke.mjs",
     "test:e2e:plan-schedule": "node e2e/plan-schedule-smoke.mjs",
+    "test:e2e:purchase-requests": "node e2e/purchase-requests-smoke.mjs",
     "test:e2e:progress": "node e2e/progress-smoke.mjs",
     "test:e2e:work-assignments": "node e2e/work-assignments-smoke.mjs",
     "test:e2e:work-review": "node e2e/work-review-smoke.mjs",
@@ -54,7 +55,7 @@
     "test:e2e:work-summary": "node e2e/work-summary-smoke.mjs",
     "test:e2e:work": "node e2e/work-smoke.mjs",
     "test:e2e:seed": "node e2e/seed.mjs",
-    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment site-costs costs table-chips table-view table-saved-views field-mapping planning-estimates plan-offers plan-schedule work-assignments work-review work-entry work-summary work work-crew progress"
+    "test:e2e:ci": "node e2e/run-suites.mjs harness keyboard routing types settings shared-ui pages fields dialogs limited invoices invoice-lines allocation-matrix invoice-payment site-costs costs table-chips table-view table-saved-views field-mapping planning-estimates plan-offers plan-schedule work-assignments work-review work-entry work-summary work work-crew progress purchase-requests"
   },
   "//engines": "Нижняя граница Node — версия из .nvmrc в корне: одна версия у разработчика, в CI и в образе сборки (deploy/Dockerfile.web), сверяет nodeVersion.test.ts. Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE.",
   "engines": {
