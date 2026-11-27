@@ -1,6 +1,6 @@
 # Proposal: бригада — участники, сверка и итог группы
 
-Дочерний change зонтика `work-00-epic`, общая архитектура — [work-00-epic](../../work-00-epic/design.md)
+Дочерний change зонтика `work-00-epic`, общая архитектура — [work-00-epic](../2026-11-27-work-00-epic/design.md)
 (D2, D4, D6, D10, D15, D17).
 
 ## Why
