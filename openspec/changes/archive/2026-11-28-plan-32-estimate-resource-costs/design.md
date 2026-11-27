@@ -4,7 +4,7 @@
 
 На `289437780` (2.142.13) `LocalEstimateReader` получает список `PositionMaterial` с кодом, единицей и количеством. `EstimateImportRows.Drafts` создаёт материалы работы и собственный материал самостоятельной строки без цены и суммы. При этом `EstimateRowMaterial.From` уже принимает `UnitPrice` и `Amount`, а `EstimateModel` хранит обе величины в `numeric(18,2)`. Цена строки `LocalEstimatePosition.UnitPrice` вычисляется делением всего итога на объём и используется для других задач.
 
-[Plan-23](../archive/2026-11-16-plan-23-planned-works-contract/design.md) читает только действующие редакции. `PlannedWorksContractTests` задаёт сумму 400 через черновик ресурса, минуя импорт. Путь штатной загрузки для сквозного теста уже есть в `EstimateImportFlow`.
+[Plan-23](../2026-11-16-plan-23-planned-works-contract/design.md) читает только действующие редакции. `PlannedWorksContractTests` задаёт сумму 400 через черновик ресурса, минуя импорт. Путь штатной загрузки для сквозного теста уже есть в `EstimateImportFlow`.
 
 ## Goals / Non-Goals
 

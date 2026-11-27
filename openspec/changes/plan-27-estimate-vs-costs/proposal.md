@@ -14,7 +14,7 @@
 читает её контрактом «Плановые работы» (`plan-23`, часть `cost`) в правах спрашивающего (`STG-17`).
 При импорте ЛСР стоимость ресурса сейчас теряется даже у материала с ценой в исходном файле.
 По решению владельца от 27.11.2026 импорт, учёт коэффициентов и порядок обработки ранее загруженных
-редакций входят в [plan-32-estimate-resource-costs](../plan-32-estimate-resource-costs/proposal.md).
+редакций входят в [plan-32-estimate-resource-costs](../archive/2026-11-28-plan-32-estimate-resource-costs/proposal.md).
 
 ## What Changes
 
