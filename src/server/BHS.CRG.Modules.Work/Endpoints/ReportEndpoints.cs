@@ -54,7 +54,7 @@ public static class ReportEndpoints
 
     /// <summary>Свои отчёты, изменённые после <c>since</c>, удалённые с тех пор черновики и курсор (ТЗ MOB-16).</summary>
     private static Task<IResult> ListAsync(
-        long? since, int? limit, IModuleUser user, IModuleEmployees employees, ReportReads reads, ReportViews views,
+        long? since, int? limit, IOwnReportReader reader, ReportReads reads, ReportViews views,
         CancellationToken ct) => ReportRefusals.RunAsync(async () =>
     {
         var after = since ?? 0;
@@ -63,11 +63,11 @@ public static class ReportEndpoints
         if (take is < 1 or > MaxLimit)
             throw new InvalidRequestException($"Предел выдачи (limit) — от 1 до {MaxLimit}.");
 
-        var me = await MeAsync(user, employees, ct);
-        var feed = await reads.SinceAsync(me, after, take, ct);
+        var viewer = await reader.ViewerAsync(ct);
+        var feed = await reads.SinceAsync(viewer, after, take, ct);
         return Results.Ok(new
         {
-            items = await views.ManyAsync(ReportViewer.Own(me), feed.Items, ct, versions: feed.Versions),
+            items = await views.ManyAsync(viewer, feed.Items, ct, versions: feed.Versions),
             deleted = feed.Deleted,
             cursor = feed.Cursor,
             more = feed.More,
@@ -87,10 +87,10 @@ public static class ReportEndpoints
         });
 
     private static Task<IResult> GetAsync(
-        Guid id, string? view, IModuleUser user, IModuleEmployees employees, ReportHistory history, CancellationToken ct) =>
+        Guid id, string? view, IOwnReportReader reader, ReportHistory history, CancellationToken ct) =>
         ReportRefusals.RunAsync(async () =>
         {
-            var viewer = ReportViewer.Own(await MeAsync(user, employees, ct));
+            var viewer = await reader.ViewerAsync(ct);
             return Results.Ok(await history.GetAsync(viewer, id, view, ct));
         });
 

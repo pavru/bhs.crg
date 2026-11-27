@@ -2,19 +2,19 @@
 
 ## 1. Парные хосты и общий обход
 
-- [ ] 1.1 [STG-6] [WORK-40] Создать пару изолированных экземпляров `WorkIsolationHost` с модулем Work,
+- [x] 1.1 [STG-6] [WORK-40] Создать пару изолированных экземпляров `WorkIsolationHost` с модулем Work,
   отдельными БД и хранилищами файлов. Переиспользовать синтетический посев, эталоны, реальные
   HTTP и MCP клиенты. Подтвердить старт и эквивалентность посева.
-- [ ] 1.2 [STG-6] [WORK-39] [WORK-40] Подключить контролируемый тестовый охват на указанных в матрице
+- [x] 1.2 [STG-6] [WORK-39] [WORK-40] Подключить контролируемый тестовый охват на указанных в матрице
   входах чтения. Для двух GET своих отчётов реализовать описанную в дизайне внутреннюю точку чтения
   с проверкой штатного контракта [MOB-16]. Подтвердить разницу живым ответом при обычных воротах,
   включая записи А и Б в контрольном списке своих отчётов.
-- [ ] 1.3 [STG-6] [WORK-39] [WORK-40] Использовать общий каталог и исполнитель для обоих хостов,
+- [x] 1.3 [STG-6] [WORK-39] [WORK-40] Использовать общий каталог и исполнитель для обоих хостов,
   руководителя и нужных ролевых контролей. Сверять фактический инвентарь GET Work и все внешние
   вызовы матрицы. Соблюсти точные штатные статусы, поля, границы выдачи, число, строки и байты.
-- [ ] 1.4 [STG-6] По каждому содержательному вызову потребовать применимый положительный сигнал.
+- [x] 1.4 [STG-6] По каждому содержательному вызову потребовать применимый положительный сигнал.
   Для пропущенной пробы и достигнутой пробы без сигнала подтвердить отказ с именем пути.
-- [ ] 1.5 [STG-6] [WORK-39] Проверить штатные цепочки ядра и служебные пути по их контрактам,
+- [x] 1.5 [STG-6] [WORK-39] Проверить штатные цепочки ядра и служебные пути по их контрактам,
   сохранить проверки хранения, независимые файловые эталоны и действующие ролевые контроли.
   Подтвердить справочные сигналы, штатные статусы и отсутствие содержимого отчёта на путях ядра.
 
@@ -30,7 +30,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 [STG-6] `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkIsolationViolation|FullyQualifiedName~RequestDataAccessTests|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~McpGateInventory|FullyQualifiedName~IsolatedReadInventory"` из `src/server`.
-- [ ] 3.2 `npx tsc -b` и `npm run ui:ratchet` из `src/client`.
-- [ ] 3.3 `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` из `src/server`.
+- [x] 3.1 [STG-6] `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkIsolationViolation|FullyQualifiedName~RequestDataAccessTests|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~McpGateInventory|FullyQualifiedName~IsolatedReadInventory"` из `src/server`.
+- [x] 3.2 `npx tsc -b` и `npm run ui:ratchet` из `src/client`.
+- [x] 3.3 `dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` из `src/server`.
 - [ ] 3.4 `openspec validate --all --strict --no-interactive`, `git diff --check` и сверка красного/зелёного CI с `design.md`.
