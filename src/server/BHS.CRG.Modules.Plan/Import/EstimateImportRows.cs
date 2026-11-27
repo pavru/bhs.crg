@@ -1,4 +1,5 @@
 using System.Globalization;
+using BHS.CRG.Modules.Exchange;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.GrandSmeta;
 
@@ -27,11 +28,11 @@ internal static class EstimateImportRows
             var kind = EstimatePositionKinds.Of(p);
             // Без наименования строка не записывается — в файле его заменяет шифр, а нет и шифра — номер.
             var name = string.IsNullOrWhiteSpace(p.Caption) ? p.Code ?? $"Позиция {p.Number}" : p.Caption;
-            List<EstimateMaterialDraft> materials = [.. p.Materials.Select(m => new EstimateMaterialDraft(m.Caption, m.Quantity, m.Code, m.Units))];
+            List<EstimateMaterialDraft> materials = [.. p.Materials.Select(m => Material(m.Caption, m.Quantity, m.Code, m.Units, m.Cost))];
             // Код материала — только шифр сборника цен: «Счёт-фактура № …» у позиций по КА — номер документа, один
             // на все его позиции, и запомненное по нему подставило бы выбор одной позиции всем остальным.
             if (kind == EstimateRowKind.Material && materials.Count == 0)
-                materials.Add(new EstimateMaterialDraft(name, p.Quantity, EstimatePositionKinds.MaterialCode(p), p.Units));
+                materials.Add(Material(name, p.Quantity, EstimatePositionKinds.MaterialCode(p), p.Units, p.OwnMaterialCost));
             return new EstimateRowDraft(
                 name,
                 LsrSectionCode: chapter.Index.ToString(CultureInfo.InvariantCulture),
@@ -52,6 +53,11 @@ internal static class EstimateImportRows
                 Kind: kind);
         })),
     ];
+
+    private static EstimateMaterialDraft Material(string name, decimal quantity, string? code, string? unit, ResourceCost? cost) =>
+        new(name, quantity, code, unit, UnitPrice: cost?.UnitPrice, Amount: cost?.Amount,
+            UnitPriceBasis: cost?.UnitPriceBasis ?? ResourceTaxBasis.Unknown,
+            AmountBasis: cost?.AmountBasis ?? ResourceTaxBasis.Unknown);
 
     /// <summary>Позиции, которые строками не стали, — с местом в файле: неактивные (D3 <c>plan-31</c>).</summary>
     public static List<SkippedPosition> Skipped(ParsedLocalEstimate model) =>

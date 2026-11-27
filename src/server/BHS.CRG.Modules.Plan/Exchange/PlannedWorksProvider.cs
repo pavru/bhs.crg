@@ -161,7 +161,7 @@ internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
     private async Task<List<PlannedRowMaterial>> MaterialsAsync(Guid[] rowIds, CancellationToken ct) =>
         rowIds.Length == 0 ? []
         : await db.EstimateRowMaterials.AsNoTracking().Where(m => rowIds.Contains(m.RowId))
-            .Select(m => new PlannedRowMaterial(m.RowId, m.NomenclatureId, m.Quantity, m.SourceUnit, m.Amount))
+            .Select(m => new PlannedRowMaterial(m.RowId, m.NomenclatureId, m.Quantity, m.SourceUnit, m.Amount, m.AmountBasis))
             .ToListAsync(ct);
 
     private async Task<List<PlannedRowLabor>> LaborAsync(Guid[] rowIds, CancellationToken ct) =>

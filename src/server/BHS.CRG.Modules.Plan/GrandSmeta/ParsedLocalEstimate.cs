@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BHS.CRG.Modules.Exchange;
 
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
@@ -117,13 +118,6 @@ public sealed record PositionMaterial(string? Code, string Caption, string? Unit
 /// наружу их выпускает денежный DTO под правом на себестоимость.</summary>
 public sealed record ResourceCost(decimal? UnitPrice, decimal? Amount,
     ResourceTaxBasis UnitPriceBasis = ResourceTaxBasis.Unknown, ResourceTaxBasis AmountBasis = ResourceTaxBasis.Unknown);
-
-/// <summary>Подтверждение налоговой основы конкретного числа; отсутствие доказательства — не ставка 0%.</summary>
-public enum ResourceTaxBasis
-{
-    Unknown,
-    ExcludingVat,
-}
 
 /// <summary>Коэффициент позиции — как его назвала программа, со значениями в названии («ОЗП=1,2; ЭМ=1,2…»);
 /// без пересчёта (PLAN-8).</summary>

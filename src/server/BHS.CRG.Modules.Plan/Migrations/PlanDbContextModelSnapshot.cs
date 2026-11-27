@@ -1025,6 +1025,14 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("amount");
 
+                    b.Property<string>("AmountBasis")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("Unknown")
+                        .HasColumnName("amount_basis");
+
                     b.Property<Guid?>("NomenclatureId")
                         .HasColumnType("uuid")
                         .HasColumnName("nomenclature_id");
@@ -1065,6 +1073,14 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("unit_price");
+
+                    b.Property<string>("UnitPriceBasis")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("Unknown")
+                        .HasColumnName("unit_price_basis");
 
                     b.HasKey("Id");
 

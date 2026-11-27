@@ -104,7 +104,7 @@ public static class EstimateRowsEndpoints
     private static EstimateMaterialDto Material(EstimateRowMaterial m, IReadOnlyList<PlanMark> remembered, bool cost) => new(
         m.Id, m.Order, m.NomenclatureId, m.SourceName, m.SourceCode, m.SourceUnit, m.Quantity,
         m.Unmatched ? [new("unmatched", "Не сопоставлен: нет позиции номенклатуры")] : remembered,
-        cost ? new MaterialCostDto(m.UnitPrice, m.Amount) : null);
+        cost ? new MaterialCostDto(m.UnitPrice, m.Amount, m.UnitPriceBasis, m.AmountBasis) : null);
 
     internal static string KindCode(EstimateRowKind kind) => kind == EstimateRowKind.Material ? "material" : "work";
 

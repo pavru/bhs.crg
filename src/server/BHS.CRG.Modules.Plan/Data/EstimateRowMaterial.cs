@@ -1,3 +1,5 @@
+using BHS.CRG.Modules.Exchange;
+
 namespace BHS.CRG.Modules.Plan.Data;
 
 /// <summary>
@@ -38,6 +40,10 @@ public sealed class EstimateRowMaterial
 
     public decimal? Amount { get; private set; }
 
+    public ResourceTaxBasis UnitPriceBasis { get; private set; }
+
+    public ResourceTaxBasis AmountBasis { get; private set; }
+
     /// <summary>
     /// Пометка «запомнено» (<c>plan-08</c>, D8 зонтика): запомненное сопоставление ресурса, которое подставило
     /// позицию; <c>null</c> — выбирал человек либо материал не сопоставлен. Без внешнего ключа, как у строки:
@@ -74,6 +80,8 @@ public sealed class EstimateRowMaterial
         Quantity = draft.Quantity,
         UnitPrice = draft.UnitPrice,
         Amount = draft.Amount,
+        UnitPriceBasis = draft.UnitPrice is not null ? draft.UnitPriceBasis : ResourceTaxBasis.Unknown,
+        AmountBasis = draft.Amount is not null ? draft.AmountBasis : ResourceTaxBasis.Unknown,
         ResourceMatchId = draft.ResourceMatchId,
     };
 }

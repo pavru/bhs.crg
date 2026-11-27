@@ -121,6 +121,10 @@ internal static class EstimateModel
         material.Property(m => m.SourceUnit).HasColumnName("source_unit").HasMaxLength(EstimateRowMaterial.SourceUnitLength);
         material.Property(m => m.Quantity).HasColumnName("quantity").HasPrecision(18, 6);
         material.Property(m => m.UnitPrice).HasColumnName("unit_price").HasPrecision(18, 2);
+        material.Property(m => m.UnitPriceBasis).HasColumnName("unit_price_basis").HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(BHS.CRG.Modules.Exchange.ResourceTaxBasis.Unknown);
+        material.Property(m => m.AmountBasis).HasColumnName("amount_basis").HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(BHS.CRG.Modules.Exchange.ResourceTaxBasis.Unknown);
         material.Property(m => m.Amount).HasColumnName("amount").HasPrecision(18, 2);
         material.Property(m => m.ResourceMatchId).HasColumnName("resource_match_id");
         material.Ignore(m => m.Unmatched);
