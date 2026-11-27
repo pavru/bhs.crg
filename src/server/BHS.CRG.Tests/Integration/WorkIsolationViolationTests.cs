@@ -21,7 +21,7 @@ public class WorkIsolationHost : AssignmentHost
 
     internal WorkIsolationReadControl? ReadControl { get; }
 
-    public WorkIsolationHost() : this(new WorkIsolationReadControl()) { }
+    public WorkIsolationHost() { }
 
     internal WorkIsolationHost(WorkIsolationReadControl control) => ReadControl = control;
 
