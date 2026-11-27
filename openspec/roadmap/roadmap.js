@@ -1,5 +1,6 @@
 (function () {
-  const { changes: CH, claudeMarks } = JSON.parse(document.getElementById('data').textContent);
+  const { stage, changes: CH, claudeMarks } = JSON.parse(document.getElementById('data').textContent);
+  const storageKey = stage === '5' ? 'roadmap-ui-5' : 'roadmap-ui';
   const CHANGE_IDS = Object.keys(CH);
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const titleOf = id => cap(CH[id].title);
@@ -27,7 +28,7 @@
   }
   function refsOf(text, own) {
     const refs = [];
-    (text.match(/`((?:plan|work)-\d\d(?:-[a-z0-9-]+)?|core-attachment-owner)`/g) || []).forEach(t => {
+    (text.match(/`((?:plan|work|mob)-\d\d(?:-[a-z0-9-]+)?|core-attachment-owner)`/g) || []).forEach(t => {
       const id = t.slice(1, -1);
       const full = CH[id] ? id : CHANGE_IDS.find(k => k.startsWith(id + '-'));
       if (full && full !== own && !/-00-epic$/.test(full) && !refs.includes(full)) refs.push(full);
@@ -37,7 +38,7 @@
   function groups(epic, prefix, filter) {
     return CH[epic].sections.filter(s => s.items.length && filter(s)).map(section => ({
       title: section.title, steps: section.items.map(item => {
-        const m = item.text.match(/^`((?:plan|work)-\d\d-[a-z0-9-]+)`(?:\s*\(\d+\)(?:\s*—\s*|,\s*)?|\s*—\s*)/);
+        const m = item.text.match(/^`((?:plan|work|mob)-\d\d-[a-z0-9-]+)`(?:\s*\(\d+\)(?:\s*—\s*|,\s*)?|\s*—\s*)/);
         const change = m && CH[m[1]] ? m[1] : null;
         const text = change ? item.text.slice(m[0].length) : item.text;
         return { key: epic + ':' + item.n, num: prefix + item.n, text, done: item.done,
@@ -46,12 +47,13 @@
     }));
   }
   function tail(epic, prefix) {
+    const number = { plan: 3, work: 4, mob: 5 }[prefix];
     const listed = new Set(groups(epic, '', () => true).flatMap(g => g.steps.map(s => s.change)));
     const steps = CHANGE_IDS.filter(id => id.startsWith(prefix + '-') && id !== epic && !listed.has(id))
-      .map((id, i) => ({ key: id + ':change', num: prefix === 'plan' ? '3·+' + (i + 1) : '4·+' + (i + 1),
+      .map((id, i) => ({ key: id + ':change', num: number + '·+' + (i + 1),
         change: id, source: id, text: CH[id].why || titleOf(id), refs: [], withdrawn: false, done: CH[id].archived }));
     return (steps.length ? [{ title: 'Вне нарезки', steps }] : []).concat([{
-      title: 'Закрытие', steps: [{ key: epic + ':archive', num: prefix === 'plan' ? '3·∎' : '4·∎',
+      title: 'Закрытие', steps: [{ key: epic + ':archive', num: number + '·∎',
         text: 'Зонтик `' + epic + '`' + (CH[epic].archived ? '.' : ' архивируется после всех дочерних change.'),
         done: CH[epic].archived, archive: epic, change: null, refs: [], withdrawn: false }],
     }]);
@@ -61,7 +63,11 @@
     text: 'Владелец в реестре и порт IModuleBlobs. Опора для Work-17.', refs: [], withdrawn: false,
     done: CH['core-attachment-owner'].archived,
   }] }] : [];
-  const TRACKS = [
+  const TRACKS = stage === '5' ? [
+    { id: 'M', title: 'Этап 5 · Полевой API и Android', short: 'Этап 5',
+      sub: 'Условия старта и приёмки каждой вехи читаются из плана этапа.',
+      groups: groups('mob-00-epic', '5·', () => true).concat(tail('mob-00-epic', 'mob')) },
+  ] : [
     { id: 'C', title: 'Этап 4 · Учёт работ', short: 'Work · приоритет',
       sub: 'Один change Work в отдельной дочерней сессии. Под change — вехи его PR и условия старта.',
       groups: groups('work-00-epic', '4·', s => !/^1\./.test(s.title)).concat(tail('work-00-epic', 'work')) },
@@ -78,12 +84,12 @@
   const PARTS = new Map(CHANGE_IDS.flatMap(id => (CH[id].milestones || []).map(p => [p.id, { ...p, change: id }])));
   const ui = { filter: 'all', q: '', open: new Set() };
   try {
-    const saved = JSON.parse(localStorage.getItem('roadmap-ui') || '{}');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
     if (['all', 'open', 'ready', 'waiting'].includes(saved.filter)) ui.filter = saved.filter;
     if (Array.isArray(saved.open)) saved.open.forEach(k => ui.open.add(k));
   } catch (_) { /* File previews can disable browser storage. */ }
   const saveUi = () => {
-    try { localStorage.setItem('roadmap-ui', JSON.stringify({ filter: ui.filter, open: [...ui.open] })); } catch (_) { /* Optional preference only. */ }
+    try { localStorage.setItem(storageKey, JSON.stringify({ filter: ui.filter, open: [...ui.open] })); } catch (_) { /* Optional preference only. */ }
   };
   const matches = text => !ui.q || String(text).toLowerCase().includes(ui.q);
   const filterPart = p => ui.filter === 'all' || ui.filter === 'open' && p.state !== 'done'
@@ -175,7 +181,9 @@
       const done = parts.filter(p => p.state === 'done').length;
       const next = nextOf(track.id);
       const pending = parts.filter(p => p.state !== 'done').length;
-      const hint = next ? '<div class="next"><span class="lbl">' + STATE[next.state][1] + ' · PR ' + next.number + '</span><p><code>'
+      const distributionGate = stage === '5' && ALL_STEPS.find(step => step.key === 'mob-00-epic:0.1' && !step.done);
+      const hint = distributionGate ? '<div class="next"><span class="lbl">До начала реализации</span><p>Подтвердить канал установки APK на устройства заказчиков.</p>'
+        + goto(distributionGate.key, 'Открыть условие старта') + '</div>' : next ? '<div class="next"><span class="lbl">' + STATE[next.state][1] + ' · PR ' + next.number + '</span><p><code>'
         + esc(next.change) + '</code></p><p>' + inline(cap(next.title)) + '</p><button type="button" class="linkbtn" data-goto="'
         + esc(next.id) + '">Перейти к вехе</button></div>' : '<p class="sub">' + (pending ? 'Доступных вех пока нет. У ' + pending + ' вех проверьте условия старта.' : 'Задачи всех вех выполнены. Архивы change и зонтика — отдельные шаги.') + '</p>';
       return '<div class="track-card"><div class="head"><h3>' + esc(track.short) + '</h3><span class="count">' + done + '/' + parts.length + ' вех</span></div>'

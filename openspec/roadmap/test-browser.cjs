@@ -1,4 +1,4 @@
-const { chromium } = require(process.cwd() + '/docs/tools/node_modules/playwright');
+const { chromium } = require(require.resolve('playwright', { paths: [process.cwd() + '/docs/tools'] }));
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { existsSync, readFileSync } = require('node:fs');
 const assert = require('node:assert/strict');
@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const url=pathToFileURL(process.cwd()+'/openspec/roadmap/dist/roadmap-3-4.html').href;
  await page.goto(url);
+ await page.getByRole('heading', {name:'Дорожная карта этапов 3–4', exact:true}).waitFor();
  const original=JSON.parse(readFileSync('openspec/roadmap/claude-marks.json','utf8')).marks;
  const payload=await page.locator('#data').textContent().then(JSON.parse);
  assert.deepEqual(payload.claudeMarks,original);
@@ -90,6 +91,21 @@ const assert = require('node:assert/strict');
  await page.setViewportSize({width:390,height:844});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'page overflows mobile');
  await page.screenshot({path:'openspec/roadmap/dist/roadmap-a-mobile.png',fullPage:true});
+ await page.goto(pathToFileURL(process.cwd()+'/openspec/roadmap/dist/roadmap-5.html').href);
+ await page.getByRole('heading', {name:'Дорожная карта этапа 5', exact:true}).waitFor();
+ const mobileData = await page.locator('#data').textContent().then(JSON.parse);
+ const mobileParts = Object.values(mobileData.changes).flatMap(change => change.milestones || []);
+ assert.equal(await page.locator('[data-milestone]').count(), mobileParts.length);
+ await page.locator('#q').fill('mob-06-offline-entry');
+ const room = page.locator('[data-milestone="mob-06-offline-entry#1"]');
+ await room.locator('.conditions').getByRole('button', {name:'Открыть условие',includeHidden:true}).first()
+   .evaluate(el=>{for(let p=el.parentElement;p;p=p.parentElement) if(p.tagName==='DETAILS') p.open=true; el.click()});
+ assert.equal(await page.evaluate(()=>document.activeElement.id), 's-mob-00-epic_0_1');
+ assert.equal(await page.locator('#q').inputValue(), '');
+ await page.locator('#f-waiting').click();
+ assert.equal(await page.locator('[data-milestone]').count(),
+   mobileParts.filter(part => ['waiting','unknown','partial'].includes(part.state)).length);
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'stage 5 overflows mobile');
  assert.deepEqual(errors,[]);
  await browser.close();
  console.log('PASS: PR milestones match OpenSpec; original dates preserved; readiness filters, dependency navigation, disclosure persistence, dark theme and mobile width');
