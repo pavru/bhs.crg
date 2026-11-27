@@ -28,6 +28,7 @@ public static class LocalEstimateReader
             var computing = all.Count > 0 && all.All(p => p.Element("Itog") is null) ? PositionTotals.For(root, method) : null;
 
             var coefficients = new Coefficients(root);
+            var resourceCosts = new ResourceCosts(root, method);
             var unparsed = new List<Unparsed>();
             var parsed = new List<LocalEstimateChapter>();
             for (var ci = 0; ci < chapters.Count; ci++)
@@ -42,7 +43,11 @@ public static class LocalEstimateReader
                     index++;
                     var place = Place(ci + 1, caption, p.Text("Number"), p.Text("Code"));
                     validation.Parse(p, place, positions, unparsed,
-                        () => Position(p, index, coefficients, computing?.Compute(p, chapter)));
+                        () =>
+                        {
+                            var computed = computing?.Compute(p, chapter);
+                            return resourceCosts.Apply(p, chapter, Position(p, index, coefficients, computed), computed);
+                        });
                 }
 
                 parsed.Add(computing is null ? Recorded(chapter, ci + 1, caption, positions)
