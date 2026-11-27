@@ -38,9 +38,19 @@ export interface ProgressRow {
 export interface ProgressStrip {
   code: string;
   text: string;
-  state: ProgressState;
+  state: ProgressState | 'no-accepted' | 'no-norms';
   link?: string | null;
   permission?: string | null;
+  month?: string;
+  labor?: {
+    estimatedHours: number | null;
+    actualHours: number | null;
+    distributed: boolean;
+    offEstimateHours: number | null;
+    offEstimateWorks: { name: string | null; unit: string | null; volume: number }[];
+    unallocatedHours: number | null;
+    incomplete: boolean;
+  };
 }
 
 export type ProgressCosts =
@@ -63,13 +73,14 @@ export function invalidateConstructionProgress(client: QueryClient, construction
   return client.invalidateQueries({ queryKey: constructionId ? siteKey(constructionId) : progressKey });
 }
 
-export function useConstructionProgress(constructionId: string, sectionId?: string) {
+export function useConstructionProgress(constructionId: string, sectionId?: string, laborMonth?: string) {
   return useQuery({
-    queryKey: [...siteKey(constructionId), sectionId ?? null],
+    queryKey: [...siteKey(constructionId), sectionId ?? null, laborMonth ?? null],
     // Источники обновляются и в других вкладках, и на сервере. При возврате читаем текущий снимок.
     staleTime: 0,
     queryFn: ({ signal }) => apiClient.get<ConstructionProgress>(`/constructions/${constructionId}/progress`, {
-      params: sectionId ? { section: sectionId } : undefined, signal,
+      params: sectionId || laborMonth ? { ...(sectionId ? { section: sectionId } : {}), ...(laborMonth ? { laborMonth } : {}) } : undefined,
+      signal,
     }).then(result => result.data),
   });
 }

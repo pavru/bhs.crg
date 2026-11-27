@@ -290,6 +290,7 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<CalendarStore>();
         services.AddScoped<Schedules.ScheduleBuilder>();
         services.AddScoped<Schedules.ScheduleFacts>();
+        services.AddScoped<Schedules.ScheduleProductivity>();
         services.AddScoped<Schedules.ScheduleViews>();
         services.AddScoped<Schedules.ScheduleWorkEditor>();
         services.AddScoped<Schedules.ScheduleLinkStore>();

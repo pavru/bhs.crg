@@ -6,6 +6,7 @@ const SITE = 'Стройка проверки ролей Work-25 (посев)';
 const SEATS = {
   A: { email: 'work25-a@bhs.local', name: 'Монтажник А (посев Work-25)', role: 'Installer', number: 'E2E-W25-A' },
   B: { email: 'work25-b@bhs.local', name: 'Монтажник Б (посев Work-25)', role: 'Installer', number: 'E2E-W25-B' },
+  LABOR: { email: 'work28-labor@bhs.local', name: 'Монтажник трудозатрат (посев Work-28)', role: 'Installer', number: 'E2E-W28-L' },
   UNLINKED: { email: 'work25-unlinked@bhs.local', name: 'Монтажник без связи (посев Work-25)', role: 'Installer' },
   MANAGER: { email: 'work25-manager@bhs.local', name: 'Менеджер стройки (посев Work-25)', role: 'ProjectManager', number: 'E2E-W25-M' },
   UNASSIGNED: { email: 'work25-unassigned@bhs.local', name: 'Менеджер без назначений (посев Work-25)', role: 'ProjectManager', number: 'E2E-W25-U' },
@@ -16,6 +17,8 @@ const REPORT_B = '78a84820-a0bf-4a37-94cb-12d4273a2a96';
 const LINE_A = 'b0771d96-7183-44ad-aa1a-a469db526195';
 const LINE_B = 'adde5341-b9b5-4d2b-9183-bff6aa16a657';
 const PHOTO_B = '2c12bb11-a268-4bf9-afa1-1346fd5c13df';
+const LABOR_REPORT = 'f780c54b-77e7-4a65-a7e1-7232c13de3f3';
+const LABOR_LINE = 'af229308-b168-4ffc-a2ec-2951bc3044c0';
 export const WORK_PHOTO_NAME = 'Отчёт Б (посев Work-25).png';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
@@ -117,8 +120,20 @@ export async function seedWork({ api, apiBase, token, findType, ensureUser, logi
   }
   assert.equal(reportB.status, 'submitted');
   assert.equal(reportB.photosPending, 0);
+  const labor = await asInstaller(SEATS.LABOR);
+  let laborReport = await ensureReport(labor.api, site, LABOR_REPORT, [{ ...line, id: LABOR_LINE, photos: [] }]);
+  if (laborReport.status === 'draft') {
+    laborReport = await labor.api('POST', `/work/reports/${LABOR_REPORT}/submit`, { changeId: randomUUID() },
+      { 'If-Match': laborReport.version });
+  }
+  if (laborReport.status === 'submitted') {
+    laborReport = await api('POST', `/work/reports/${LABOR_REPORT}/accept`, { changeId: randomUUID() },
+      { 'If-Match': laborReport.version });
+  }
+  assert.equal(laborReport.status, 'accepted');
   for (const [key, { email }] of Object.entries(SEATS)) console.log(`SMOKE_WORK_${key}_EMAIL=${email}`);
   console.log([`SMOKE_WORK_ENGINEER_EMAIL=${engineerEmail}`, `SMOKE_WORK_SITE_ID=${site.id}`,
     `SMOKE_WORK_REPORT_A=${REPORT_A}`, `SMOKE_WORK_REPORT_B=${REPORT_B}`, `SMOKE_WORK_REPORT_B_DATE=${reportB.date}`,
-    `SMOKE_WORK_PHOTO_B=${PHOTO_B}`, `SMOKE_WORK_TIME_ZONE=${site.timeZoneId}`].join('\n'));
+    `SMOKE_WORK_PHOTO_B=${PHOTO_B}`, `SMOKE_WORK_TIME_ZONE=${site.timeZoneId}`,
+    `SMOKE_WORK_LABOR_MONTH=${laborReport.date.slice(0, 7)}-01`].join('\n'));
 }

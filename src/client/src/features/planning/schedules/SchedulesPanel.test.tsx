@@ -159,9 +159,11 @@ describe('график стройки', () => {
 
   it('сохраняет черновик custom-editor после 409 и берёт новую версию с неизменёнными полями', async () => {
     permissions = [reader, editor];
+    live = { ...view, works: view.works.map(work => ({ ...work, productivity: { state: 'not-connected' } })) };
     vi.mocked(apiClient.put).mockRejectedValueOnce({ response: { status: 409 } }).mockResolvedValueOnce({ data: {} });
     mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Монтаж лотков' }));
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Объём' }));
     expect(screen.queryByRole('button', { name: 'Добавить работу' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Выбрать исполнителей' })).toBeNull();
     await screen.findByText('Для выбора исполнителей нужно право чтения справочника сотрудников.');

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using BHS.CRG.Modules.Access;
 
 namespace BHS.CRG.Modules.Exchange;
@@ -12,6 +13,10 @@ public interface IProgressContribution
     /// <summary>Отбор по разделу и по правам читателя выполняет поставщик.</summary>
     Task<ProgressContribution> ReadAsync(
         ModuleReader reader, Guid constructionId, Guid? sectionId, CancellationToken ct = default);
+
+    /// <summary>Месяц трудозатрат. Остальные вклады по умолчанию сохраняют свой охват.</summary>
+    Task<ProgressContribution> ReadForPeriodAsync(ModuleReader reader, Guid constructionId, Guid? sectionId,
+        DateOnly? laborMonth, CancellationToken ct = default) => ReadAsync(reader, constructionId, sectionId, ct);
 }
 
 /// <param name="PlanItemIds">Дополнительные позиции, которые читатель вправе видеть в строках.</param>
@@ -34,4 +39,12 @@ public sealed record ProgressValue(decimal? Volume = null, DateOnly? Start = nul
 
 /// <summary>Пояснение над таблицей. Скрытая полоса называет право и не несёт данных.</summary>
 public sealed record ProgressStrip(
-    string Code, string Text, string State = "ok", string? Link = null, string? Permission = null, string? ProviderTitle = null);
+    string Code, string Text, string State = "ok", string? Link = null, string? Permission = null, string? ProviderTitle = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? Month = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProgressLabor? Labor = null);
+
+public sealed record ProgressLabor(decimal? EstimatedHours, decimal? ActualHours, bool Distributed,
+    decimal? OffEstimateHours, IReadOnlyList<ProgressLaborWork> OffEstimateWorks,
+    decimal? UnallocatedHours, bool Incomplete);
+
+public sealed record ProgressLaborWork(string? Name, string? Unit, decimal Volume);

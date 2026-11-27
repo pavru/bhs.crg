@@ -146,6 +146,7 @@ public class ConstructionProgressTests
         var fact = Find(body, "strips", "code", "fact");
         AssertState(fact, "not-connected");
         Assert.Equal("Учёт работ не подключён", fact.GetProperty("text").GetString());
+        Assert.DoesNotContain(body.GetProperty("strips").EnumerateArray(), strip => strip.GetProperty("code").GetString() == "work-labor");
         Assert.False(body.TryGetProperty("factDiagnostics", out _));
         AssertState(body.GetProperty("costs"), "not-connected");
         Assert.False(body.GetProperty("costs").TryGetProperty("totals", out _));

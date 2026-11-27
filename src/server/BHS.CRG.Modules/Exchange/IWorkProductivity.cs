@@ -11,8 +11,13 @@ public interface IWorkProductivity
     IReadOnlyList<string> AnswerPermissions { get; }
 
     /// <summary>Непересекающиеся месяцы экземпляра. Охват, сотрудники и частичные месяцы не задаются потребителем.</summary>
-    Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
-        ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default);
+    async Task<ContractAnswer<WorkProductivityAnswer>> ReadAsync(
+        ModuleReader reader, WorkProductivityQuery query, CancellationToken ct = default) =>
+        (await ReadManyAsync(reader, [query], ct))[query];
+
+    /// <summary>Тот же ответ по каждой запрошенной паре, из одной выборки Work.</summary>
+    Task<IReadOnlyDictionary<WorkProductivityQuery, ContractAnswer<WorkProductivityAnswer>>> ReadManyAsync(
+        ModuleReader reader, IReadOnlyCollection<WorkProductivityQuery> queries, CancellationToken ct = default);
 }
 
 public sealed record WorkProductivityQuery(Guid WorkTypeId, Guid UnitId);

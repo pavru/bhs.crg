@@ -12,7 +12,7 @@ internal sealed class ConstructionProgress(
     private const string FactTitle = "Факт по учёту";
 
     public async Task<ConstructionProgressResponse> ReadAsync(
-        ModuleReader reader, Guid site, Guid? section, CancellationToken ct)
+        ModuleReader reader, Guid site, Guid? section, DateOnly? laborMonth, CancellationToken ct)
     {
         var columns = new List<ProgressColumn>();
         var strips = new List<ProgressStrip>();
@@ -20,7 +20,7 @@ internal sealed class ConstructionProgress(
         // Последовательно: поставщики могут читать справочники одним контекстом ядра.
         foreach (var provider in contracts.GetAll<IProgressContribution>())
         {
-            var contribution = await provider.Contract.ReadAsync(reader, site, section, ct);
+            var contribution = await provider.Contract.ReadForPeriodAsync(reader, site, section, laborMonth, ct);
             var prefix = Uri.EscapeDataString(provider.Module);
             var localCodes = new HashSet<string>(StringComparer.Ordinal);
             foreach (var column in contribution.Columns)

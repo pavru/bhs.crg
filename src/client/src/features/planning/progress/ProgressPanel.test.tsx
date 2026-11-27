@@ -163,4 +163,23 @@ it('при выключенном Work показывает полосу и пр
   expect(screen.getByText('Счета и накладные не подключены')).toBeTruthy();
   expect(screen.queryByRole('columnheader', { name: /Факт/ })).toBeNull();
   expect(workRow('Лотки').getByText(/^20\sм$/)).toBeTruthy();
+  expect(screen.queryByRole('region', { name: 'Трудозатраты' })).toBeNull();
+});
+
+it('показывает шкалу, расчётный раздел и несметные работы из вклада Work', async () => {
+  response = { ...payload, strips: [...payload.strips, {
+    code: 'work-labor', text: 'Сравнение', state: 'ok', month: '2026-11-01',
+    labor: { estimatedHours: 6, actualHours: 8, distributed: true, offEstimateHours: null,
+      offEstimateWorks: [{ name: 'Маркировка', unit: 'м', volume: 4 }], unallocatedHours: null, incomplete: false },
+  }] };
+  mount('section');
+  const labor = within(await screen.findByRole('region', { name: 'Трудозатраты' }));
+  expect(labor.getByText('Расчётная')).toBeTruthy();
+  expect(labor.getByText('По смете').nextElementSibling?.textContent).toBe('6 чел.-ч');
+  expect(labor.getByText('Фактически').nextElementSibling?.textContent).toBe('8 ч');
+  expect(labor.getByText('Маркировка · 4 м')).toBeTruthy();
+  const field = within(screen.getByRole('group', { name: 'Месяц трудозатрат' }));
+  fireEvent.change(field.getByRole('textbox', { name: /month|месяц/i }), { target: { value: '10' } });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(path,
+    expect.objectContaining({ params: { section: 'section', laborMonth: '2026-10-01' } })));
 });
