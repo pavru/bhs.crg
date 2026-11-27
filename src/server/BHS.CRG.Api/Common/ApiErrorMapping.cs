@@ -66,6 +66,7 @@ public static class ApiErrorMapping
         ConflictException => StatusCodes.Status409Conflict,
         ForbiddenException => StatusCodes.Status403Forbidden,
         InvalidRequestException => StatusCodes.Status400BadRequest,
+        UnprocessableRequestException => StatusCodes.Status422UnprocessableEntity,
         // Новый род отказа без своей строки здесь — это 400: запрос отвергнут, но чем именно
         // ответить, никто не сказал. Молчаливый 500 был бы хуже — он прячет наш же текст.
         _ => StatusCodes.Status400BadRequest,

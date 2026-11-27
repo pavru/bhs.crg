@@ -2,6 +2,9 @@ namespace BHS.CRG.Modules.Costs.Data;
 
 public sealed class PurchaseRequestLine
 {
+    internal static string? ComparableUnit(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     internal const int UnitLength = InvoiceLine.UnitLength;
     internal const int NoteLength = 2000;
     // Плановые работы возвращают доли материалов с шестью знаками после запятой.

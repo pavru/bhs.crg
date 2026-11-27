@@ -255,26 +255,40 @@ public sealed partial class PurchaseRequestTests(PurchaseRequestHost host) : ICl
     }
 
     [Fact]
-    public async Task Восстановление_возвращает_строки_и_продолжает_нумерацию()
+    public async Task Восстановление_возвращает_строки_связь_со_счётом_и_продолжает_нумерацию()
     {
         var (site, material, item, _) = await SeedAsync(100);
+        using var scope = host.Services.CreateScope();
         using var supplier = await SupplierAsync();
         var draft = await CreateAsync(supplier, site.Construction, item, material);
-        using var scope = host.Services.CreateScope();
+        var requestId = draft.GetProperty("id").GetGuid();
+        var submitted = await WriteAsync(supplier, HttpMethod.Post, Address(draft) + "/submit",
+            Version(draft), null, HttpStatusCode.OK);
+        var invoice = await AllocatedInvoiceAsync(supplier, site.Construction, material, 12);
+        var linked = await LinkInvoiceAsync(supplier, invoice, requestId, HttpStatusCode.OK);
+        var invoiceId = linked.GetProperty("id").GetGuid();
+        var returned = await WriteAsync(supplier, HttpMethod.Post, Address(draft) + "/return",
+            Version(submitted), new { reason = "Дополнить заявку" }, HttpStatusCode.OK);
+
+        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(returned), null, HttpStatusCode.Conflict);
         var backup = scope.ServiceProvider.GetRequiredService<BackupService>();
         var (export, _) = await backup.ExportAsync(BackupScope.Full);
         await using var archive = export;
 
-        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(draft), null, HttpStatusCode.NoContent);
         using (var reset = host.Services.CreateScope())
         {
             var db = reset.ServiceProvider.GetRequiredService<CostsDbContext>();
+            await db.Invoices.Where(invoice => invoice.Id == invoiceId).ExecuteDeleteAsync();
             await db.Database.ExecuteSqlRawAsync("ALTER SEQUENCE costs.purchase_requests_number_seq RESTART WITH 1");
         }
+        await WriteAsync(supplier, HttpMethod.Delete, Address(draft), Version(returned), null, HttpStatusCode.NoContent);
         using (var restore = host.Services.CreateScope())
         {
             var report = await restore.ServiceProvider.GetRequiredService<BackupService>().ImportAsync(archive);
             Assert.True(report.Success, string.Join("; ", report.Warnings));
+            var db = restore.ServiceProvider.GetRequiredService<CostsDbContext>();
+            var restoredInvoice = await db.Invoices.AsNoTracking().SingleAsync(row => row.Id == invoiceId);
+            Assert.Equal(requestId, restoredInvoice.PurchaseRequestId);
         }
 
         var restored = await supplier.GetFromJsonAsync<JsonElement>(Address(draft));

@@ -138,6 +138,7 @@ public sealed partial class InvoiceDesk(
             await InvoiceDuplicateLock.AcquireAsync(db, duplicate, ct);
             await InvoiceBook.LockAsync(db, id, ct);
             var invoice = await InvoiceEndpoints.FindAsync(db, id, ct);
+            var requestWas = invoice.PurchaseRequestId;
             var label = InvoiceEndpoints.Label(invoice);
             var paid = invoice.Payment == InvoicePaymentState.Paid;
             var before = PostedBefore.None;
@@ -198,6 +199,13 @@ public sealed partial class InvoiceDesk(
             }
             // Правка, которую адрес не сохранил сам, уйдёт в базу сохранением связки — её считаем тоже.
             money |= MoneyTouched();
+
+            // Обработчик уже записал новые строки и части, но они ещё в нашей транзакции.
+            // Отказ сохранит прежнюю разноску и не даст сменить стройку ссылки незаметно.
+            if (invoice.PurchaseRequestId is { } requestId && (money || requestId != requestWas)
+                && db.Entry(invoice).State != EntityState.Detached)
+                await InvoiceRequestLink.EnsureAllocationAsync(
+                    db, invoice, places, await ToleranceAsync(ct), alreadyLinked: requestId == requestWas, ct);
 
             // Учётные даты — ПОСЛЕ правки адреса и одним местом: доли создаются в трёх местах, и ни одно
             // не знает, оплачен ли счёт. Счёт, не бывший и не ставший оплаченным, сюда не заходит.

@@ -93,6 +93,9 @@ public sealed partial class Invoice
     /// <summary>Плательщик — своя организация; у компании их несколько (ТЗ COST-6).</summary>
     public Guid? PayerId { get; private set; }
 
+    /// <summary>Заявка на закупку, к которой относится счёт.</summary>
+    public Guid? PurchaseRequestId { get; private set; }
+
     /// <summary>Назначение счёта (ТЗ COST-6.1): «что куплено и для чего» у документа целиком.</summary>
     public string? Purpose { get; private set; }
 
@@ -462,6 +465,12 @@ public sealed partial class Invoice
     /// позвавший этот метод, оставляет гонку открытой — молча.</para>
     /// </summary>
     public void ContentChanged() => Touch();
+
+    internal void LinkPurchaseRequest(Guid? requestId)
+    {
+        PurchaseRequestId = requestId;
+        Touch();
+    }
 
     /// <summary>
     /// Сменить режим НДС. Зовёт только запись строк — и в той же правке кладёт строки, досчитанные по

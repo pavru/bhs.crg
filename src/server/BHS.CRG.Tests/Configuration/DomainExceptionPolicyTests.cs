@@ -59,6 +59,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Modules.Costs/Search/CostsRecordSearch.cs"] = "ядро спросило группу поиска, которой модуль не объявлял (shell-05): группы службе поиска называет каталог, собранный из объявления модуля, а неизвестную группу запроса адрес отклоняет своим 400 раньше — промах кода ядра, а не отказ человеку",
         ["BHS.CRG.Modules.Costs/Data/InvoiceLine.cs"] = "бумажная сумма строки не в поле своего режима НДС (issue #1497): промах кода, звавшего досчёт, — человеку тот же запрет раньше называет разбор запроса (InvoiceLineRequests.Complete) своим 400",
         ["BHS.CRG.Modules.Costs/Data/InvoiceDuplicateLock.cs"] = "замок проверки дублей запрошен вне транзакции — ошибка пути записи, а не отказ пользователю",
+        ["BHS.CRG.Modules.Costs/Data/PurchaseRequestModel.cs"] = "замок заявки запрошен вне транзакции — ошибка пути записи; проверка не даёт снять замок до записи ссылки",
         ["BHS.CRG.Domain/Storage/BlobRegistryEntry.cs"] = "негодный владелец файла (пустой, «любой», длиннее предела, ТЗ CORE-37.2): промах кода, кладущего файл, — владельца называет порт или служба, а не человек",
         ["BHS.CRG.Infrastructure/Storage/RegisteredBlobStorage.cs"] = "файл кладётся от имени «любого» (ТЗ CORE-37.2): маркер резервной копии для чтения, записать его — промах кода, а не действие человека",
         ["BHS.CRG.Infrastructure/DataSets/StreamingSheetFonts.cs"] = "NPOI сменил устройство потокового листа, и замер ширины шрифтом машины выключить нечем: несовместимость пакета, которую ловят тесты выгрузки до выпуска, а не отказ человеку",
@@ -161,7 +162,7 @@ public class DomainExceptionPolicyTests
     public void ApiLayer_DoesNotThrowDomainRefusals()
     {
         var domainThrow = new Regex(
-            @"\bthrow\s+new\s+(InvalidRequestException|NotFoundException|ConflictException|ForbiddenException)\b",
+            @"\bthrow\s+new\s+(InvalidRequestException|NotFoundException|ConflictException|ForbiddenException|UnprocessableRequestException)\b",
             RegexOptions.Singleline);
 
         var offenders = SourceTree.Files(ApiOnly)

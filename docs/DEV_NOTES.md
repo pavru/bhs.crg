@@ -7101,6 +7101,7 @@ GET    /api/costs/invoices/same-file?fingerprint=…&fingerprint=… → «не�
                                       createdByName, mine. Пусто — НЕ «файл новый». Иначе — 400 словами
                                                                               costs.invoice.read
 GET    /api/costs/invoices/{id}     → счёт: реквизиты по схеме + метки + дубликаты + строки + сверка сумм
+                                      purchaseRequestId — идентификатор заявки на закупку либо null.
                                       + readiness { required, gaps } — чего не хватает до «разобран»;
                                       gaps: [] — всё готово, null — счёт разобран либо отклонён
                                       duplicates[].confirmed — действует ли отметка для пары.
@@ -7116,7 +7117,14 @@ POST   /api/costs/invoices/{id}/scan/image → «Перестроить»; If-Ma
 POST   /api/costs/invoices          { requisites, unconfirmed? }            costs.invoice.edit
                                       сохраняется черновиком и БЕЗ строк (COST-6.2);
                                       unconfirmed — только при создании: метки ставит тот, кто заполнил
-PUT    /api/costs/invoices/{id}     { requisites }  — правка снимает метки с изменённых полей
+PUT    /api/costs/invoices/{id}     { requisites, purchaseRequestId? }      costs.invoice.edit + If-Match
+       Без purchaseRequestId связь сохраняется, null снимает её, GUID ставит или заменяет.
+       Новая связь допустима только с поданной заявкой, когда счёт целиком разнесён на её стройку.
+       Неполная разноска, любая доля другой стройки или статьи вне строек, черновик либо закрытая
+       заявка дают 422. Закрытие и возврат заявки сохраняют связанные счета. Правка, после которой
+       связанный счёт перестал бы целиком относиться на ту же стройку, откатывается с 422.
+       При исправлении закрытого периода денежное расхождение проверяется по правилу «не хуже, чем было».
+       Правка снимает метки с изменённых полей.
 POST   /api/costs/invoices/{id}/confirmed  { fields }  — «Всё верно» по блоку формы; пустой список = 400
 POST   /api/costs/invoices/{id}/due/rule  — «По правилу» (#1080): снять ручную правку срока и подставить
                                       его правилом настройки costs.due.shipping-day-counts; нечего
@@ -7311,7 +7319,16 @@ GET    /api/costs/nomenclature/{id}/card  → КАРТОЧКА позиции (i
 # Заявки на закупку (Plan-26), модуль Costs
 GET    /api/costs/requests?constructionId=&beforeNumber=  → { items, nextBeforeNumber }  costs.request.read
 GET    /api/costs/requests/{id}  → { id, number, constructionId, createdBy, createdAt, updatedAt,
-                                      status: draft|submitted|closed, version, lines }  costs.request.read
+                                      status: draft|submitted|closed, version, lines, quantities }  costs.request.read
+       quantities: { invoiced, issuedForConstruction, items }. У обоих источников { state: shown|hidden,
+       anyOfPermissions }. Количество из связанных счетов доступно по costs.invoice.read. Отпуск по
+       всей стройке из проведённых накладных доступен по costs.materials.read или costs.waybill.read.
+       items: [{ nomenclatureId, unit, orderedQuantity, invoicedQuantity, invoicedUnitMismatch,
+         issuedForConstructionQuantity, issuedForConstructionUnitMismatch }].
+       Количества суммируются только в совпадающей непустой единице. Пометка несовместимости может
+       идти рядом с известным совместимым количеством. null — скрыто или нет сопоставимой/полной
+       величины; 0 — подтверждённый ноль. Если есть связанный счёт без строк, «выставлено» равно null
+       для всех позиций заявки. Свод не содержит цен, сумм и реквизитов документов.
 POST   /api/costs/requests/draft-from-estimate  { constructionId, sectionId? | planItemIds? }  costs.request.edit
        sectionId — раздел стройки. Передаётся ровно один вид отбора. Ответ без записи:
        { state: "shown", suggestion: { selection, warnings, unmatchedIssued, unmatchedEstimate,
@@ -7327,7 +7344,7 @@ PUT    /api/costs/requests/{id}/lines  { lines }  → заявка; заменя
 POST   /api/costs/requests/{id}/submit | /close  → заявка; черновик → подана → закрыта
 POST   /api/costs/requests/{id}/return  { reason }  → заявка; возврат поданной автором с причиной в журнале
        Причина хранится вместе с переходом. При сбое общей записи в журнал доставку повторяет такт Costs.
-DELETE /api/costs/requests/{id}  → 204; удаляет черновик
+DELETE /api/costs/requests/{id}  → 204; удаляет черновик без связанных счетов
        Все четыре вида правок существующей заявки требуют costs.request.edit и If-Match.
        Заголовок отсутствует или неверно записан — 400; устаревшая версия или неверное состояние — 409.
 

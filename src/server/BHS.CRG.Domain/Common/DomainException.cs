@@ -71,6 +71,9 @@ public class NotFoundException(string message = "Запрошенный объе
 /// </summary>
 public class ConflictException(string message, Exception? inner = null) : DomainException(message, inner);
 
+/// <summary>Запрос разобран, но операция не отвечает условиям предметной области.</summary>
+public class UnprocessableRequestException(string message) : DomainException(message);
+
 /// <summary>
 /// Создают запись, а такая — с тем же ключом идентичности — лежит в архиве, и действующей с этим
 /// ключом нет (ТЗ CORE-34.4, issue #1185). Отказ, а не предупреждение: создание в ответ на «не нашёл

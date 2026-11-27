@@ -60,10 +60,11 @@ internal static class PurchaseRequestEndpoints
         return Results.Ok(new { items, nextBeforeNumber = page.Count > PageSize ? items[^1].Number : (long?)null });
     }
 
-    private static async Task<IResult> GetAsync(Guid id, CostsDbContext db, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, CostsDbContext db, IModuleUser user, CancellationToken ct)
     {
         var request = await FindAsync(db, id, ct);
-        return Results.Ok(View(db, request));
+        var quantities = await PurchaseRequestQuantities.ReadAsync(db, user, request, ct);
+        return Results.Ok(View(db, request, quantities));
     }
 
     private static async Task<IResult> SuggestAsync(
@@ -144,10 +145,14 @@ internal static class PurchaseRequestEndpoints
 
     private static async Task<IResult> DeleteAsync(Guid id, HttpRequest http, CostsDbContext db, CancellationToken ct)
     {
-        var request = await ForWriteAsync(id, http, db, ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var request = await ForWriteAsync(id, http, db, ct, lockRow: true);
         RequireStatus(request, PurchaseRequestStatus.Draft, "Удалить можно только черновик заявки.");
+        if (await db.Invoices.AnyAsync(invoice => invoice.PurchaseRequestId == id, ct))
+            throw new ConflictException("У черновика есть связанные счета. Сначала снимите в счетах ссылку на заявку.");
         db.PurchaseRequests.Remove(request);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Results.NoContent();
     }
 
@@ -163,12 +168,13 @@ internal static class PurchaseRequestEndpoints
     }
 
     private static async Task<PurchaseRequest> ForWriteAsync(
-        Guid id, HttpRequest http, CostsDbContext db, CancellationToken ct)
+        Guid id, HttpRequest http, CostsDbContext db, CancellationToken ct, bool lockRow = false)
     {
         if (!SeenVersion.TryRead(http, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
         if (seen is null)
             throw new InvalidRequestException("Укажите в If-Match версию заявки из поля version ответа чтения.");
 
+        if (lockRow) await PurchaseRequestModel.LockAsync(db, id, ct);
         var request = await FindAsync(db, id, ct);
         if (seen != db.VersionOf(request))
             throw new ConflictException("Заявку тем временем изменили. Перечитайте её и повторите правку.");
@@ -198,7 +204,8 @@ internal static class PurchaseRequestEndpoints
 
     private static string Code(PurchaseRequestStatus status) => status.ToString().ToLowerInvariant();
     private static string VersionText(uint version) => version.ToString(CultureInfo.InvariantCulture);
-    private static object View(CostsDbContext db, PurchaseRequest request) => new
+    private static object View(
+        CostsDbContext db, PurchaseRequest request, PurchaseRequestQuantities? quantities = null) => new
     {
         request.Id,
         request.Number,
@@ -208,6 +215,7 @@ internal static class PurchaseRequestEndpoints
         request.UpdatedAt,
         Status = Code(request.Status),
         Version = db.VersionOf(request),
+        Quantities = quantities,
         Lines = request.Lines.OrderBy(line => line.Position).Select(line => new
         {
             line.NomenclatureId, line.PlanItemId, line.Quantity, line.Unit, line.Note,

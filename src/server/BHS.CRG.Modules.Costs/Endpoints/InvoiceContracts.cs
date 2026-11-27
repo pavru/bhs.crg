@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using BHS.CRG.Modules.Costs.Data;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -17,7 +18,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// issue #1077): метки приезжают вместе с полями, потому что ставит их тот, кто их заполнил. На
 /// правке метки не присылаются — там они снимаются сами, правкой поля, или действием «Всё
 /// верно».</para></param>
-public sealed record InvoiceSaveRequest(JsonElement Requisites, IReadOnlyList<string>? Unconfirmed = null);
+/// <param name="PurchaseRequestId">Только в правке. Отсутствует — оставить связь, null — снять её.</param>
+public sealed record InvoiceSaveRequest(
+    JsonElement Requisites, IReadOnlyList<string>? Unconfirmed = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] JsonElement PurchaseRequestId = default);
 
 /// <summary>
 /// «Всё верно» по блоку формы: снять метки с названных полей (решение владельца 29.09.2026).
@@ -88,7 +92,8 @@ public sealed record InvoiceView(
     // сведению». false у счёта без двойников (двойник удалён — принимать больше нечего), у счёта, чей
     // файл заменили после принятия, и у счёта, к файлу которого позже завели НОВЫЙ двойник: принимали
     // тех, кого видели. Ставит связка ответа (InvoiceDesk) — нужен запрос.
-    bool ScanRepeatAccepted = false);
+    bool ScanRepeatAccepted = false,
+    Guid? PurchaseRequestId = null);
 
 /// <summary>
 /// Состояние ссылок шапки счёта на записи ядра (ТЗ CORE-34.4, issue #1184, #1185): <c>present</c>,
@@ -234,7 +239,8 @@ public static class InvoiceViews
         invoice.CreatedAt,
         invoice.UpdatedAt,
         invoice.BookSeq,
-        invoice.VatMode);
+        invoice.VatMode,
+        PurchaseRequestId: invoice.PurchaseRequestId);
 
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть
