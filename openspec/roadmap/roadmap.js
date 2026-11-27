@@ -6,6 +6,7 @@
   const tasksOf = id => CH[id].sections.flatMap(s => s.items);
   const partTasks = (id, part) => tasksOf(id).filter(t => part.tasks.includes(t.n));
   const stats = tasks => ({ done: tasks.filter(t => t.done).length, total: tasks.length });
+  const taskDone = task => task.done || task.completedBy?.done;
   const available = part => ['ready', 'partial'].includes(part.state);
   const STATE = {
     done: ['ok', '✓ Задачи выполнены'], ready: ['ready', 'Можно начать'],
@@ -14,11 +15,14 @@
   };
   const esc = value => String(value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const domId = key => 's-' + key.replace(/[^a-z0-9-]/gi, '_');
-  function inline(text) {
+  const tasksLink = id => '../../../' + CH[id].path + '/tasks.md';
+  function inline(text, source) {
     const codes = [];
     let h = esc(text).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return '\u0000' + (codes.length - 1) + '\u0000'; });
     h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\[([A-Z]{2,5}-[A-Z0-9.]+)\]/g, '<span class="tag">$1</span>');
+    if (source) h = h.replace(/\[([^\]]+)\]\((https:\/\/[^\s()]+|(?:\.\.?\/)*[\w./-]+\.md(?:#[^\s()]+)?)\)/g,
+      (_, label, href) => '<a class="linkbtn" href="' + (href.startsWith('https://') ? href : '../../../' + CH[source].path + '/' + href) + '">' + label + '</a>');
     return h.replace(/\u0000(\d+)\u0000/g, (_, i) => '<code>' + codes[+i] + '</code>');
   }
   function refsOf(text, own) {
@@ -33,11 +37,11 @@
   function groups(epic, prefix, filter) {
     return CH[epic].sections.filter(s => s.items.length && filter(s)).map(section => ({
       title: section.title, steps: section.items.map(item => {
-        const m = item.text.match(/^`((?:plan|work)-\d\d-[a-z0-9-]+)`\s*\((\d+)\)(?:\s*—\s*|,\s*)?/);
+        const m = item.text.match(/^`((?:plan|work)-\d\d-[a-z0-9-]+)`(?:\s*\(\d+\)(?:\s*—\s*|,\s*)?|\s*—\s*)/);
         const change = m && CH[m[1]] ? m[1] : null;
         const text = change ? item.text.slice(m[0].length) : item.text;
         return { key: epic + ':' + item.n, num: prefix + item.n, text, done: item.done,
-          change, refs: refsOf(text, change), withdrawn: /\*\*снят\*\*/.test(item.text) };
+          change, source: epic, refs: refsOf(text, change), withdrawn: /\*\*снят\*\*/.test(item.text) };
       }),
     }));
   }
@@ -45,11 +49,11 @@
     const listed = new Set(groups(epic, '', () => true).flatMap(g => g.steps.map(s => s.change)));
     const steps = CHANGE_IDS.filter(id => id.startsWith(prefix + '-') && id !== epic && !listed.has(id))
       .map((id, i) => ({ key: id + ':change', num: prefix === 'plan' ? '3·+' + (i + 1) : '4·+' + (i + 1),
-        change: id, text: CH[id].why || titleOf(id), refs: [], withdrawn: false, done: CH[id].archived }));
+        change: id, source: id, text: CH[id].why || titleOf(id), refs: [], withdrawn: false, done: CH[id].archived }));
     return (steps.length ? [{ title: 'Вне нарезки', steps }] : []).concat([{
       title: 'Закрытие', steps: [{ key: epic + ':archive', num: prefix === 'plan' ? '3·∎' : '4·∎',
-        text: 'Зонтик `' + epic + '` архивируется после всех дочерних change.',
-        done: CH[epic].archived, change: null, refs: [], withdrawn: false }],
+        text: 'Зонтик `' + epic + '`' + (CH[epic].archived ? '.' : ' архивируется после всех дочерних change.'),
+        done: CH[epic].archived, archive: epic, change: null, refs: [], withdrawn: false }],
     }]);
   }
   const core = CH['core-attachment-owner'] ? [{ title: 'Ядро', steps: [{
@@ -107,17 +111,24 @@
   const badge = p => '<span class="pill ' + STATE[p.state][0] + '">' + STATE[p.state][1] + '</span>';
   const checkbox = (key, done, label) => '<input type="checkbox" data-key="' + esc(key) + '"'
     + (done ? ' checked' : '') + ' disabled aria-label="' + esc(label) + '" title="Статус из OpenSpec">';
+  const goto = (key, label) => '<button type="button" class="linkbtn" data-goto="' + esc(key) + '">' + esc(label) + '</button>';
+  function renderCompletion(task) {
+    const source = task.completedBy;
+    if (task.done || !source) return '';
+    return '<span class="sub">' + (source.done ? 'Выполнено в отдельном change ' : 'Выполняется в отдельном change ')
+      + goto(source.change + ':' + source.tasks[0], source.label) + ' · задачи ' + esc(source.tasks.join(', ')) + '</span>';
+  }
   function renderTasks(id, ids, key, label) {
     const tasks = tasksOf(id).filter(t => ids.includes(t.n));
     const st = stats(tasks);
     const open = ui.open.has(key) || ui.open.has(STEP_BY_CHANGE.get(id)?.key)
       || !!ui.q && !matches(id) && tasks.some(t => matches(t.text));
     return '<details class="task-list" data-open-key="' + esc(key) + '"' + (open ? ' open' : '') + '><summary>'
-      + esc(label) + ' (' + st.done + '/' + st.total + ')</summary>' + tasks.filter(t => ui.filter !== 'open' || !t.done).map(t => {
+      + esc(label) + ' (' + st.done + '/' + st.total + ')</summary>' + tasks.filter(t => ui.filter !== 'open' || !taskDone(t)).map(t => {
         const taskKey = id + ':' + t.n;
         return '<div class="task' + (t.done ? ' is-done' : '') + '" id="' + domId(taskKey) + '">'
           + checkbox(taskKey, t.done, id + ' ' + t.n) + '<span class="tn">' + esc(t.n) + '</span><div class="tt">'
-          + inline(t.text) + stamp(taskKey) + '</div></div>';
+          + inline(t.text, id) + stamp(taskKey) + renderCompletion(t) + '</div></div>';
       }).join('') + '</details>';
   }
   function renderConditions(id, part) {
@@ -141,10 +152,13 @@
     return html + '</div>';
   }
   function renderMilestone(id, part) {
-    const st = stats(partTasks(id, part));
+    const tasks = partTasks(id, part);
+    const st = stats(tasks);
+    const transferred = tasks.some(t => !t.done && t.completedBy);
     return '<article class="milestone" data-milestone="' + esc(part.id) + '" data-state="' + part.state + '" id="' + domId(part.id) + '">'
       + '<div class="milestone-head"><div><span class="pr-number">PR ' + part.number + '</span><h3>' + inline(cap(part.title)) + '</h3></div>'
-      + badge(part) + '</div><div class="meta"><span>' + st.done + '/' + st.total + ' задач</span><span class="muted">'
+      + badge(part) + '</div><div class="meta"><span>' + st.done + '/' + st.total + ' задач'
+      + (transferred ? ' по исходным галочкам' : '') + '</span><span class="muted">'
       + (CH[id].archived ? 'Change архивирован' : 'Change открыт') + '</span></div>'
       + renderConditions(id, part) + renderTasks(id, part.tasks, part.id, 'Задачи PR') + '</article>';
   }
@@ -173,16 +187,31 @@
     let html = '<div class="step' + (step.done ? ' is-done' : '') + (step.withdrawn ? ' withdrawn' : '') + '" id="' + domId(step.key)
       + '"><div class="num">' + esc(step.num) + '</div><div class="chk">' + checkbox(step.key, step.done, 'Шаг ' + step.num)
       + '</div><div class="body">' + (step.change ? '<div class="cname"><code class="cid">' + esc(step.change) + '</code><span class="ctitle">' + inline(titleOf(step.change)) + '</span></div>' : '')
-      + '<div class="main">' + inline(step.text) + '</div><div class="meta">' + stamp(step.key) + (step.withdrawn ? '<span class="pill off">Снят</span>' : '') + '</div>';
+      + '<div class="main">' + inline(step.text, step.source) + '</div><div class="meta">' + stamp(step.key) + (step.withdrawn ? '<span class="pill off">Снят</span>' : '') + '</div>';
+    if (step.archive && step.done) html += archiveStatus(step.archive, 'Зонтик архивирован');
     if (step.change && !step.withdrawn) {
       const change = CH[step.change];
       const common = change.commonTasks;
-      if (change.why) html += '<details class="why"><summary>Зачем change</summary><p>' + inline(change.why) + '</p></details>';
+      const tasks = tasksOf(step.change);
+      const transferred = tasks.filter(t => t.completedBy && !t.done);
+      if (change.archived && (transferred.length || step.key.endsWith(':change'))) html += archiveStatus(step.change, 'Change архивирован');
+      if (transferred.length) {
+        const source = transferred[0].completedBy;
+        const closed = transferred.filter(taskDone).length;
+        html += '<div class="meta"><span>' + (closed === transferred.length ? 'Остаток закрыт' : 'Остаток передан')
+          + ' (' + closed + '/' + transferred.length + ') в ' + goto(source.change + ':' + source.tasks[0], source.label) + '</span></div>';
+      }
+      if (change.why) html += '<details class="why"><summary>Зачем change</summary><p>' + inline(change.why, step.change) + '</p></details>';
       html += '<div class="milestones">' + visibleParts(step).map(p => renderMilestone(step.change, p)).join('') + '</div>';
       if (['all', 'open'].includes(ui.filter) && common.length) html += renderTasks(step.change, common, step.change + ':common', 'Общие условия и проверка change');
       if (!change.archived && tasksOf(step.change).every(t => t.done)) html += '<p class="sub">Все задачи change выполнены. Осталось архивировать change и отметить зонтик.</p>';
     }
     return html + '</div></div>';
+  }
+  function archiveStatus(id, label) {
+    const {done, total} = stats(tasksOf(id));
+    return '<div class="meta"><span>' + label + ' · ' + done + '/' + total
+      + ' задач при архивации</span><a class="linkbtn" href="' + esc(tasksLink(id)) + '">Открыть архив</a></div>';
   }
   function render() {
     renderSummary();

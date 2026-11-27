@@ -8,6 +8,8 @@ from build import change_dirs, read_tasks
 from milestones import attach_milestones, select
 
 HERE = Path(__file__).resolve().parent
+WORK_25 = 'work-25-roles-e2e-violation'
+WORK_25_1 = 'work-25-1-isolation-test-controls'
 
 
 def load():
@@ -120,6 +122,56 @@ class RoadmapTests(unittest.TestCase):
     def test_selectors_do_not_confuse_1_1_with_1_10(self):
         picked = select([{'n': '1.1'}, {'n': '1.10'}, {'n': '1.1a'}], ['1.1'])
         self.assertEqual(picked, [{'n': '1.1'}])
+
+    def test_changes_with_shared_short_prefix_require_their_full_names(self):
+        changes = self.build()
+        self.assertTrue(changes[WORK_25]['milestones'][0]['documented'])
+        self.assertTrue(changes[WORK_25_1]['milestones'][0]['documented'])
+        with self.assertRaisesRegex(ValueError, 'Неоднозначный.*work-25'):
+            self.build(definitions={'work-25': {}})
+
+    def test_current_completion_preserves_the_archive_snapshot(self):
+        changes = self.build()
+        for name, count in [('work-00-epic', 37), (WORK_25_1, 12)]:
+            self.assertTrue(changes[name]['archived'], name)
+            self.assertEqual([t['done'] for t in tasks(changes, name)], [True] * count, name)
+        old_tasks = tasks(changes, WORK_25)
+        self.assertTrue(changes[WORK_25]['archived'])
+        self.assertEqual(len(old_tasks), 15)
+        unchecked = {t['n']: t['completedBy'] for t in old_tasks if not t['done']}
+        self.assertEqual({n: t['tasks'] for n, t in unchecked.items()}, {
+            '1.1': ['1.1', '1.2'], '1.5': ['1.3', '1.4', '1.5'], '1.6': ['2.1', '2.2', '2.3'],
+        })
+        self.assertTrue(all(t['change'] == WORK_25_1 and t['done'] for t in unchecked.values()))
+        self.assertEqual(changes[WORK_25]['milestones'][0]['state'], 'done')
+
+    def test_completion_requires_source_archive_and_its_named_tasks(self):
+        for archived, unchecked, expected in [(False, None, set()), (True, '1.4', {'1.1', '1.6'})]:
+            with self.subTest(archived=archived, unchecked=unchecked):
+                source = copy.deepcopy(self.base)
+                source[WORK_25_1]['archived'] = archived
+                for task in tasks(source, WORK_25_1):
+                    task['done'] = task['n'] != unchecked
+                changes = self.build(source)
+                old_tasks = tasks(changes, WORK_25)
+                self.assertEqual({t['n'] for t in old_tasks if t.get('completedBy', {}).get('done')}, expected)
+                part = changes[WORK_25]['milestones'][0]
+                self.assertEqual(part['state'], 'waiting')
+                self.assertEqual(part['startable'], [])
+
+    def test_rejects_dangling_or_cyclic_completion_links(self):
+        for mapping in [{'404': ['1.1']}, {'1.1': ['404']}]:
+            with self.subTest(mapping=mapping):
+                definitions = copy.deepcopy(self.definitions)
+                definitions[WORK_25]['completedBy']['tasks'] = mapping
+                with self.assertRaisesRegex(ValueError, 'не найдена задача.*404'):
+                    self.build(definitions=definitions)
+        definitions = copy.deepcopy(self.definitions)
+        definitions[WORK_25_1]['completedBy'] = {
+            'change': WORK_25, 'label': 'Work-25', 'tasks': {'1.2': ['1.1']},
+        }
+        with self.assertRaisesRegex(ValueError, 'Циклическое'):
+            self.build(definitions=definitions)
 
     def test_every_claude_date_keeps_its_original_task_key(self):
         marks = json.loads((HERE / 'claude-marks.json').read_text(encoding='utf-8'))['marks']

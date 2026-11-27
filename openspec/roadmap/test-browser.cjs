@@ -1,6 +1,6 @@
 const { chromium } = require(process.cwd() + '/docs/tools/node_modules/playwright');
-const { pathToFileURL } = require('node:url');
-const { readFileSync } = require('node:fs');
+const { fileURLToPath, pathToFileURL } = require('node:url');
+const { existsSync, readFileSync } = require('node:fs');
 const assert = require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {channel:'chrome'}),headless:true,args:['--no-sandbox']});
@@ -18,6 +18,33 @@ const assert = require('node:assert/strict');
  for(const key of Object.keys(original)) {
   assert(await page.locator('[data-key="'+key+'"]').count()>0,key+' missing');
  }
+ const oldWork = page.locator('#s-work-00-epic_5_6');
+ const followup = page.locator('#s-work-25-1-isolation-test-controls_change');
+ const epicArchive = page.locator('#s-work-00-epic_archive');
+ assert.match(await epicArchive.innerText(), /Зонтик архивирован · 37\/37/);
+ assert.match(await oldWork.innerText(), /Change архивирован · 12\/15/);
+ assert.match(await oldWork.innerText(), /Остаток закрыт \(3\/3\)/);
+ assert.match(await followup.innerText(), /Change архивирован · 12\/12/);
+ for (const row of [epicArchive, oldWork, followup]) {
+  const href = await row.getByRole('link', {name: 'Открыть архив', exact: true}).getAttribute('href');
+  assert(existsSync(fileURLToPath(new URL(href, url))), href);
+ }
+ const archivedEpicLinks = await page.locator('#tracks a[href*="2026-11-27-work-00-epic"]').evaluateAll(nodes => nodes.map(a => a.href));
+ for (const href of archivedEpicLinks) assert(existsSync(fileURLToPath(href)), href);
+ await page.locator('#q').fill('work-25-roles-e2e-violation');
+ await oldWork.locator('.task-list > summary').first().click();
+ const originalTask = oldWork.locator('#s-work-25-roles-e2e-violation_1_1');
+ assert.equal(await originalTask.getByRole('checkbox').isChecked(), false);
+ assert.match(await originalTask.innerText(), /Выполнено в отдельном change/);
+ await oldWork.screenshot({path:'openspec/roadmap/dist/roadmap-work25.png'});
+ await originalTask.getByRole('button', {name: 'Work-25.1', exact: true}).click();
+ assert.equal(await page.locator('#q').inputValue(), '');
+ assert.equal(await page.evaluate(() => document.activeElement.id), 's-work-25-1-isolation-test-controls_1_1');
+ assert(await followup.locator('.task-list').first().evaluate(el => el.open));
+ await page.locator('#f-open').click();
+ assert.equal(await oldWork.count(), 0);
+ assert.equal(await followup.count(), 0);
+ await page.locator('#f-all').click();
  const panel=page.locator('[data-milestone="work-18-crew#2"]');
  const server=page.locator('[data-milestone="work-18-crew#1"]');
  assert.equal(await server.getAttribute('data-state'),payload.changes['work-18-crew'].milestones[0].state);
