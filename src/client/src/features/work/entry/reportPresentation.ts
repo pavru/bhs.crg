@@ -33,7 +33,7 @@ export function automaticSubmission(report: WorkReport) {
   return `Подастся ${display} по времени стройки`;
 }
 
-export function reportFailure(error: unknown, fallback: string): {
+export function reportFailure(error: unknown, fallback: string, operation?: 'submit'): {
   text: string; existingId?: string; stale?: boolean; requiredMissing?: RequiredReportField[];
 } {
   const response = (error as { response?: { status?: number; data?: { existingId?: string; requiredMissing?: RequiredReportField[] } } })?.response;
@@ -43,7 +43,7 @@ export function reportFailure(error: unknown, fallback: string): {
     return { text: 'На эту смену отчёт уже есть.', existingId: response.data.existingId };
   if (response?.status === 409 && text.toLowerCase().includes('тем временем измен'))
     return { text: 'Отчёт тем временем изменили — перечитайте. Ваши изменения остались в форме.', stale: true };
-  if (response?.status === 422 && Array.isArray(response.data?.requiredMissing)) {
+  if (operation === 'submit' && response?.status === 422 && Array.isArray(response.data?.requiredMissing)) {
     return { text, requiredMissing: response.data.requiredMissing.filter(item => item.field === 'location' || item.field === 'materials') };
   }
   return { text };

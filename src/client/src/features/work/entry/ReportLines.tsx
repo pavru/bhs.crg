@@ -18,10 +18,11 @@ import { withDetailValue } from '../reportDetails';
 import { emptyLine, type DraftLine } from './reportContents';
 import { missingForId } from './reportPresentation';
 
-export function ReportLines({ scope, lines, savedLines, photos, disabled, siteReady, errors, focus, onChange, correction, onPickType }: {
+export function ReportLines({ scope, lines, savedLines, photos, disabled, siteReady, refreshWorkTypes, errors, focus, onChange, correction, onPickType }: {
   scope: EntryCatalogScope; lines: DraftLine[]; disabled: boolean; siteReady: boolean;
   savedLines?: WorkReportLine[]; errors?: RequiredReportField[]; focus?: RequiredReportField;
   photos?: ReportPhotos;
+  refreshWorkTypes?: boolean;
   correction?: boolean;
   onPickType?: (type: WorkTypeOption) => void;
   onChange: (update: (lines: DraftLine[]) => DraftLine[]) => void;
@@ -39,8 +40,15 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
     canRestore.current = !disabled;
     return () => { canRestore.current = false; };
   }, [disabled]);
-  const types = catalogLabels(useEntryCatalog(scope, 'work-types', '', siteReady && lines.length > 0).data);
-  const units = catalogLabels(useEntryCatalog(scope, 'units', '', siteReady && lines.length > 0).data);
+  const catalogReady = siteReady && lines.length > 0;
+  const { data: workTypes, refetch: refetchWorkTypes } = useEntryCatalog(scope, 'work-types', '', catalogReady);
+  const { siteId, date, reportId, reportVersion } = scope;
+  useEffect(() => {
+    // Фоновое чтение может переключить уже открытую форму на возвращённую версию.
+    if (refreshWorkTypes && catalogReady && reportId) void refetchWorkTypes({ cancelRefetch: false });
+  }, [refreshWorkTypes, catalogReady, siteId, date, reportId, reportVersion, refetchWorkTypes]);
+  const types = catalogLabels(workTypes);
+  const units = catalogLabels(useEntryCatalog(scope, 'units', '', catalogReady).data);
   const typeOf = (id: string) => types.get(id) ?? pickedTypes[id];
 
   if (seenFocus !== focus) {
