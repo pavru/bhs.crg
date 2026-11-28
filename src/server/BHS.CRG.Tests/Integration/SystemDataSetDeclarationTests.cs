@@ -68,13 +68,18 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
         var modules = scope.ServiceProvider.GetRequiredService<ModuleRegistry>();
         var known = modules.Enabled.Concat(modules.Disabled).Select(m => m.Code)
             .Append(SystemDataSetDeclaration.CoreModule).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Поставщики таблиц выключенных модулей зарегистрированы, но их права не входят в рабочий каталог.
+        var disabled = modules.Disabled.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
 
         foreach (var declaration in providers.All.Select(p => p.Declaration))
         {
             Assert.True(known.Contains(declaration.Module),
                 $"модуля «{declaration.Module}» нет в сборке");
-            Assert.True(permissions.Declares(declaration.Requires) || known.Contains(declaration.Requires),
-                $"ключа «{declaration.Requires}» нет ни в справочнике прав, ни среди модулей");
+            var declaredByDisabledModule = disabled.TryGetValue(declaration.Module, out var owner)
+                && owner.Permissions.Any(p => p.Code == declaration.Requires);
+            Assert.True(permissions.Declares(declaration.Requires) || known.Contains(declaration.Requires)
+                || declaredByDisabledModule,
+                $"ключ «{declaration.Requires}» не объявлен для модуля «{declaration.Module}»");
         }
     }
 
