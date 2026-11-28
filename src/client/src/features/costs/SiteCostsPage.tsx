@@ -21,6 +21,30 @@ import { OUTSIDE_SITES } from './places';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DateRange } from '@/shared/ui/DateRange';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
+import { EstimateVsCosts } from './EstimateVsCosts';
+
+export function SiteCostsPage() {
+  useDocumentTitle('Затраты по стройке');
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'estimate' ? 'estimate' : 'costs';
+  return <div className="h-full overflow-auto">
+    <div className={`space-y-4 px-6 py-5 ${tab === 'estimate' ? 'max-w-7xl' : 'max-w-3xl'}`}>
+      <PageHeader icon={<Icon icon={BarChart} size={18} aria-hidden />} title="Затраты по стройке"
+        subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
+      <Tabs id="site-costs" value={tab} items={[{ value: 'costs', label: 'Затраты' }, { value: 'estimate', label: 'План против факта' }]}
+        onChange={value => setParams(previous => {
+          const next = new URLSearchParams(previous);
+          if (value === 'estimate') next.set('tab', value);
+          else next.delete('tab');
+          return next;
+        }, { replace: true })} />
+      <TabPanel id="site-costs" value={tab}>
+        {tab === 'estimate' ? <EstimateVsCosts /> : <SiteCostsReport />}
+      </TabPanel>
+    </div>
+  </div>;
+}
 
 /**
  * «Затраты по стройке» (задача G5, issue #1098, ТЗ COST-20).
@@ -37,8 +61,7 @@ import { SegmentedButton } from '@/shared/ui/SegmentedButton';
  * Состояние — в адресе страницы: стройка, период, режим НДС и взгляд на закрытые периоды переживают
  * перезагрузку и «назад» из реестра.
  */
-export function SiteCostsPage() {
-  useDocumentTitle('Затраты по стройке');
+function SiteCostsReport() {
   const [params, setParams] = useSearchParams();
   const site = params.get('site');
   const withVat = params.get('vat') !== 'without';
@@ -77,11 +100,7 @@ export function SiteCostsPage() {
   const to = query.to ?? data?.to ?? from;
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="max-w-3xl px-6 py-5 space-y-4">
-        <PageHeader icon={<Icon icon={BarChart} size={18} aria-hidden />} title="Затраты по стройке"
-          subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
-
+      <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           {/* Отбор отчёта — чип с меню ([UI-69]): «По всем стройкам» возвращает его в покой. Не «Все стройки»:
               рядом стоит отбор избранных «Стройки» ([UI-95]), и два чипа о стройках с похожими именами и разным
@@ -124,7 +143,6 @@ export function SiteCostsPage() {
             asked={closing} onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
         )}
       </div>
-    </div>
   );
 }
 

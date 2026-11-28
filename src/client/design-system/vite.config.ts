@@ -75,6 +75,7 @@ export default defineConfig({
       planSchedules: resolve(root, 'plan-schedules.html'),
       planProgress: resolve(root, 'plan-progress.html'),
       plan26: resolve(root, 'plan26.html'),
+      plan27: resolve(root, 'plan27.html'),
       mob06: resolve(root, 'mob06.html'),
     } },
   },
