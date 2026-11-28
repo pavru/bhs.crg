@@ -104,7 +104,7 @@ public static class DataSetDtoMapper
 
     /// <param name="bindingCounts">Число привязок по id источника (issue #417). null — не считали.</param>
     /// <param name="liveStates">Живое состояние системных источников по id (issue #613, #626) — для
-    /// наборов, где кэш поддерживать нечем. Источники не из словаря отдают свой кэш.</param>
+    /// наборов, где кэш поддерживать нечем. Таблицы отдают только подтверждённые метаданные.</param>
     public static DataSetFileDto MapFile(DataSetFile f, IReadOnlyDictionary<Guid, int>? bindingCounts = null,
         IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? liveStates = null) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
@@ -115,8 +115,8 @@ public static class DataSetDtoMapper
 
     public static DataSetSourceDto MapSource(
         DataSetSource s, int? bindingCount = null, SystemSourceCounter.SystemSourceState? live = null) => new(
-        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, LiveSchemaOf(live) ?? s.CachedSchema,
-        live?.RowCount ?? s.KnownCachedRowCount(),
+        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, TableSourceMetadata.Schema(s, live?.Schema),
+        TableSourceMetadata.RowCount(s, live?.RowCount),
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
         s.MaterializeTypeId,
@@ -130,33 +130,22 @@ public static class DataSetDtoMapper
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
         => counts is null ? null : counts.GetValueOrDefault(sourceId);
 
-    /// <summary>null (отдать кэш), если состояние не пересчитывали или источник не системный —
+    /// <summary>null, если состояние не получено или источник не системный —
     /// в отличие от привязок «нет в словаре» здесь НЕ значит «ноль строк».</summary>
-    private static SystemSourceCounter.SystemSourceState? LiveStateOf(
+    internal static SystemSourceCounter.SystemSourceState? LiveStateOf(
         IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? states, Guid sourceId)
         => states is not null && states.TryGetValue(sourceId, out var st) ? st : null;
-
-    /// <summary>
-    /// Схема системного источника на момент чтения (issue #664) — в том же виде, в каком её ждёт
-    /// клиент от <c>CachedSchema</c>, чтобы диалог привязки предлагал колонки, которые в строках
-    /// действительно есть. Кэш обновить нечем: файла у набора нет, определение не редактируется, —
-    /// а колонки провайдера зависят от схемы типа и меняются вместе с ней.
-    ///
-    /// null (отдать кэш) и на пустом списке — см. те же соображения в <c>DataSnapshotService</c>.
-    ///
-    /// Саму строку собирает <see cref="SystemSourceCounter" /> — один раз на консолидацию, а не здесь
-    /// на каждый источник.
-    /// </summary>
-    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live) => live?.Schema;
 
     /// <param name="bindingCounts">Сколько привязок у каждого источника; null — не считали (ответ
     /// одиночной мутации). Показывать из-за этого ложный ноль нельзя, поэтому и в DTO едет null.</param>
     public static DataSetBindingDto MapBinding(
-        DataSetBinding b, IReadOnlyDictionary<Guid, int>? bindingCounts = null) => new(
+        DataSetBinding b, IReadOnlyDictionary<Guid, int>? bindingCounts = null,
+        SystemSourceCounter.SystemSourceState? live = null) => new(
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,
         JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
         b.Source is null ? null : new BindingSourceDto(
-            b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.KnownCachedRowCount(),
+            b.Source.Id, b.Source.Name, b.Source.SheetOrPath, TableSourceMetadata.Schema(b.Source, live?.Schema),
+            TableSourceMetadata.RowCount(b.Source, live?.RowCount),
             b.Source.File is null ? null : new BindingFileDto(
                 b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
                 b.Source.File.Scope.ToString(), b.Source.File.ScopeId),

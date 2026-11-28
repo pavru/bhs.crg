@@ -24,6 +24,7 @@ public class SystemSourceCounterTests
 {
     private const string Documents = "system:проба-документы";
     private const string Materials = "system:проба-материалы";
+    private const string Table = "system:table:id.test";
 
     /// <summary>
     /// Поставщик, который записывает каждое обращение. Число строк в ответе своё у каждой области —
@@ -42,11 +43,11 @@ public class SystemSourceCounterTests
         /// <summary>Отдавать строки без единой колонки — так выглядит консолидация, которой нечего показать.</summary>
         public bool NoColumns { get; set; }
 
-        public SystemDataSetDeclaration Declaration { get; } = new(
+        public SystemDataSetDeclaration Declaration { get; init; } = new(
             SystemDataSetDeclaration.CoreModule, "core.catalog.read",
             SystemDataSetIsolation.None, ["Отдаёт записи общих данных"]);
 
-        public bool Handles(string marker) => marker is Documents or Materials;
+        public bool Handles(string marker) => marker is Documents or Materials or Table;
 
         public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
             CatalogScope scope, Guid? scopeId, DataAccess access, CancellationToken ct)
@@ -182,6 +183,35 @@ public class SystemSourceCounterTests
 
         Assert.Null(states[source.Id].Schema);
         Assert.Equal(1, states[source.Id].RowCount);
+    }
+
+    [Fact]
+    public async Task Пустая_схема_таблицы_отличается_от_отсутствия_живого_ответа()
+    {
+        var provider = new CountingProvider
+        {
+            Declaration = new("id", "core.catalog.read", SystemDataSetIsolation.None, ["Строки таблицы"]),
+        };
+        var counter = new SystemSourceCounter(new SystemDataProviderRegistry([provider]));
+        var file = SystemFile();
+        var source = file.AddSource("Таблица", Table, "[]", 0);
+        provider.RowsOf[file.ScopeId!.Value] = 0;
+        provider.NoColumns = true;
+
+        var live = await counter.StateAsync([file], Reader, default);
+        Assert.Equal(0, live[source.Id].RowCount);
+        Assert.Equal("[]", live[source.Id].Schema);
+        Assert.Single(provider.Asked);
+
+        Assert.Empty(await counter.StateAsync([file], TestAccess.WithoutModules("core.catalog.read"), default));
+        Assert.Single(provider.Asked);
+
+        provider.Refuses = true;
+        Assert.Empty(await counter.StateAsync([file], Reader, default));
+        Assert.Equal(2, provider.Asked.Count);
+
+        var unavailable = new SystemSourceCounter(new SystemDataProviderRegistry([]));
+        Assert.Empty(await unavailable.StateAsync([file], Reader, default));
     }
 
     /// <summary>

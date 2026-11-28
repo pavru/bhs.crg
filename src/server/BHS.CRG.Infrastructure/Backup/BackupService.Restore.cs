@@ -680,28 +680,6 @@ public partial class BackupService
         stats.Count("Выпущенные файлы", c, u);
     }
 
-    private async Task RestoreDataSetSourcesAsync(
-        BackupDataSetSource[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
-    {
-        if (items.Length == 0) return;
-        var existing = await db.DataSetSources.Select(x => x.Id).ToHashSetAsync(ct);
-        var fileIds = await db.DataSetFiles.Select(x => x.Id).ToHashSetAsync(ct);
-
-        var (ok, orphans) = Split(items, i => fileIds.Contains(i.FileId));
-        Warn(warnings, orphans.Count, "источников данных", "их набора нет ни в копии, ни в системе");
-
-        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DataSetSource.Restore(
-            i.Id, i.FileId, i.Name, i.SheetOrPath, i.ColumnExpressions, i.CachedSchema,
-            i.CachedRowCount, i.CachedData, i.Tags, i.RowFilter, i.ComputedColumns, i.SortSpec,
-            // Неизвестная причина устаревания — не повод терять источник: причина это подсказка
-            // человеку, а данные в кэше от неё не зависят.
-            i.StaleReason is not null && Enum.TryParse<DataSetStaleReason>(i.StaleReason, out var reason)
-                ? reason : null,
-            i.MaterializeTypeId, i.MaterializeMapping, i.MaterializeDiscriminator,
-            i.MaterializeByIdColumn, i.CreatedAt, i.UpdatedAt))), existing, ct);
-        stats.Count("Источники данных", c, u);
-    }
-
     private async Task RestoreDataSetBindingsAsync(
         BackupDataSetBinding[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {

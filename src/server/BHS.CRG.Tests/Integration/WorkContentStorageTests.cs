@@ -150,7 +150,7 @@ public class WorkContentStorageRestoreTests(WorkContentStorageCoreHost host) : I
             """{"op":"and","children":[]}""", "[]", """[{"column":"Колонка","direction":"asc"}]""", null,
             null, null, null, null, now, now);
         var lines = reports with { Id = Guid.NewGuid(), Name = "Работы", SheetOrPath = "system:table:work.lines?columns=Колонка" };
-        var other = reports with { Id = Guid.NewGuid(), Name = "Контроль", SheetOrPath = "system:table:work.lines-other" };
+        var other = reports with { Id = Guid.NewGuid(), Name = "Контроль", SheetOrPath = SystemDataSets.SetDocumentsMarker };
         var audit = new BackupActivityRecord(Guid.NewGuid(), now, ReportActions.Corrected.Code, Guid.NewGuid(),
             "Автор", Guid.NewGuid().ToString(), "Отчёт", null, marker, Guid.NewGuid(), false, "mcp");
         var foreign = audit with { Id = Guid.NewGuid(), Action = ReportActions.Accepted.Code };

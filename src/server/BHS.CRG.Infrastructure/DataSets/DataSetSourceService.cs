@@ -204,7 +204,7 @@ public partial class DataSetSourceService(
         // схемы (тот же парсер заполнил его при создании/обновлении источника). У системного
         // источника кэш обновить нечем (issue #664), и убранное из схемы типа поле осталось бы здесь
         // колонкой-призраком из пустых ячеек; у PDF живого разбора нет вовсе — там кэш и есть истина.
-        var columns = BaseColumnNames(loaded.Columns, source.CachedSchema);
+        var columns = BaseColumnNames(source, loaded.Columns);
         // Вычисляемые колонки могут добавить новые имена, которых нет в исходном разборе.
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
 
@@ -224,7 +224,7 @@ public partial class DataSetSourceService(
         // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
         var loaded = await rowLoader.LoadAsync(source, access, ct);
         var rows = loaded.Rows;
-        var columns = BaseColumnNames(loaded.Columns, source.CachedSchema);
+        var columns = BaseColumnNames(source, loaded.Columns);
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
 
         var exportRows = rows
@@ -257,18 +257,17 @@ public partial class DataSetSourceService(
         // вызов идёт на каждый источник. Понадобится дешевле — заводить `ColumnsAsync` в контракте
         // провайдера, а не обходить его здесь.
         var live = await systemCounts.StateAsync(source, source.File, access, ct);
-        return DataSetAutoMapper.AutoMap(BaseColumnNames(live?.Columns, source.CachedSchema), fields);
+        return DataSetAutoMapper.AutoMap(BaseColumnNames(source, live?.Columns)
+            .Where(name => live?.Types?.Closed.ContainsKey(name) != true).ToList(), fields);
     }
 
     /// <summary>
-    /// Колонки источника: живые, если он их отдал (системная консолидация — issue #664), иначе из
-    /// кэша схемы. Пустой живой список — тоже «отдать кэш»: описание, стёртое в ноль, хуже
-    /// устаревшего.
+    /// Колонки источника: живые, если он их отдал. Кэш допустим только для прочих форматов.
     /// </summary>
-    private static List<string> BaseColumnNames(IReadOnlyList<DataSetColumnInfo>? live, string cachedSchema) =>
-        live is { Count: > 0 }
-            ? [.. live.Select(c => c.Name)]
-            : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(cachedSchema, CachedSchemaJson) ?? [])
+    private static List<string> BaseColumnNames(DataSetSource source, IReadOnlyList<DataSetColumnInfo>? live) =>
+        TableSourceMetadata.Columns(source, live) is { } columns
+            ? [.. columns.Select(c => c.Name)]
+            : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [])
                 .Select(c => c.Name)];
 
     /// <summary>
@@ -548,7 +547,7 @@ public partial class DataSetSourceService(
     // (включая PDF-проекции, для которых полное UpdateSource недоступно).
     public async Task<DataSetSourceDto?> RenameSourceAsync(Guid sourceId, string name, CancellationToken ct)
     {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         if (string.IsNullOrWhiteSpace(name)) throw new InvalidRequestException("Укажите название.");
         await EnsureNameFreeAsync(source.FileId, name.Trim(), sourceId, ct, source.Name);
@@ -628,9 +627,7 @@ public partial class DataSetSourceService(
             : name.Trim();
         await EnsureNameFreeAsync(source.FileId, copyName, null, ct);
 
-        var copy = source.File.AddSource(
-            copyName, source.SheetOrPath, source.CachedSchema, source.CachedRowCount,
-            source.ColumnExpressions, source.CachedData);
+        var copy = CopySource(source, copyName);
         copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec);
         copy.SetTags(source.Tags);
         copy.SetMaterialization(source.MaterializeTypeId, source.MaterializeMapping, source.MaterializeDiscriminator,

@@ -66,10 +66,10 @@ public class DataSnapshotService(
                     // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
                     // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
                     // число даёт get_source, а на его нужду указывает Filtered.
-                    live?.RowCount ?? s.KnownCachedRowCount(),
+                    TableSourceMetadata.RowCount(s, live?.RowCount),
                     HasFilter(s),
                     s.RecognitionStale,
-                    LiveColumnNames(live?.Columns) ?? ColumnNames(s.CachedSchema),
+                    LiveColumnNames(s, live?.Columns) ?? ColumnNames(s.CachedSchema),
                     SheetOf(s, grouping),
                     live?.Warning);
             })
@@ -134,8 +134,7 @@ public class DataSnapshotService(
             }
         }
 
-        // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
-        var rawRowCount = loaded?.RawRowCount ?? fallback?.RowCount ?? source.KnownCachedRowCount();
+        var rawRowCount = TableSourceMetadata.RowCount(source, loaded?.RawRowCount ?? fallback?.RowCount);
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
@@ -143,7 +142,7 @@ public class DataSnapshotService(
             stale, reason,
             source.UpdatedAt,
             loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
-            LiveColumns(loaded?.Columns ?? fallback?.Columns) ?? Columns(source.CachedSchema),
+            LiveColumns(source, loaded?.Columns ?? fallback?.Columns) ?? Columns(source.CachedSchema),
             SheetOf(source, grouping),
             loaded?.Warning ?? fallback?.Warning,
             // Границу выдачи знает только УДАВШАЯСЯ загрузка: у запасного счётчика её нет, и подписать
@@ -182,7 +181,7 @@ public class DataSnapshotService(
         // Плюс то, что добавила ОБРАБОТКА: вычисляемые колонки в схеме источника не объявлены, а в
         // строках есть. Здесь колонка — это адрес значения, и «Итого», стоящее в каждой строке и ни в
         // одном описании, агент не прочитает никогда. Так же складывают колонки превью и экспорт.
-        var columns = new List<string>(LiveColumnNames(loaded.Columns) ?? ColumnNames(source.CachedSchema));
+        var columns = new List<string>(LiveColumnNames(source, loaded.Columns) ?? ColumnNames(source.CachedSchema));
         columns.AddRange(all.SelectMany(r => r.Keys).Distinct().Except(columns));
 
         // Строки те же, что были у вызывающего (issue #598) — таблицу не прикладываем. Загрузку это
@@ -285,19 +284,14 @@ public class DataSnapshotService(
     private static IReadOnlyList<string> ColumnNames(string? schemaJson) =>
         [.. Parse(schemaJson).Select(c => c.Name)];
 
-    // Колонки, которые источник отдал на этой же загрузке (issue #664), — их и показываем: у
-    // системного источника CachedSchema писался один раз при создании и обновить его нечем, так что
-    // после правки схемы типа описание расходится с собственными строками.
-    //
-    // null (отдать кэш) и на отсутствии колонок, и на ПУСТОМ списке: пустой список ничего про
-    // источник не сообщает, а описание, стёртое в ноль, хуже устаревшего — по нему не построить и
-    // неверный запрос. Живые провайдеры объявляют колонки независимо от числа строк, поэтому случай
-    // остаётся страховкой.
-    private static IReadOnlyList<ColumnInfo>? LiveColumns(IReadOnlyList<DataSetColumnInfo>? live) =>
-        live is { Count: > 0 } ? [.. live.Select(c => new ColumnInfo(c.Name, c.SampleValues))] : null;
+    private static IReadOnlyList<ColumnInfo>? LiveColumns(
+        DataSetSource source, IReadOnlyList<DataSetColumnInfo>? live) =>
+        TableSourceMetadata.Columns(source, live) is { } columns
+            ? [.. columns.Select(c => new ColumnInfo(c.Name, c.SampleValues))] : null;
 
-    private static IReadOnlyList<string>? LiveColumnNames(IReadOnlyList<DataSetColumnInfo>? live) =>
-        live is { Count: > 0 } ? [.. live.Select(c => c.Name)] : null;
+    private static IReadOnlyList<string>? LiveColumnNames(
+        DataSetSource source, IReadOnlyList<DataSetColumnInfo>? live) =>
+        TableSourceMetadata.Columns(source, live) is { } columns ? [.. columns.Select(c => c.Name)] : null;
 
     private static CachedColumn[] Parse(string? schemaJson)
     {

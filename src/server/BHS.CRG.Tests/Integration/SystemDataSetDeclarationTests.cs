@@ -287,10 +287,12 @@ public class SystemDataSetDeclarationTests(IntegrationTestFixture fixture) : IAs
 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var marker = (await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId)).SheetOrPath;
+        var providers = new SystemDataProviderRegistry([new IsolatedProvider(marker)]);
         var isolated = new DataSetBindingService(
             db,
             scope.ServiceProvider.GetRequiredService<IDataSetRowLoader>(),
-            new SystemDataProviderRegistry([new IsolatedProvider(marker)]),
+            providers,
+            new SystemSourceCounter(providers),
             NullLogger<DataSetBindingService>.Instance);
 
         var refusal = await Assert.ThrowsAsync<ConflictException>(() => isolated.CreateBindingAsync(
