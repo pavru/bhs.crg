@@ -219,7 +219,7 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
     ///
     /// <para>Без модели потому, что спрашивают это и про выключенный модуль, у которого контекста в
     /// контейнере нет. Таблица истории миграций не в счёт: строки в ней есть у любой созданной схемы,
-    /// и «данными модуля» они не являются.</para>
+    /// и «данными модуля» они не являются. Метки ревизий полевого кэша также служебные.</para>
     /// </summary>
     private static async Task<List<string>> NonEmptyTablesAsync(
         DbTransaction transaction, string schema, CancellationToken ct)
@@ -227,11 +227,12 @@ public sealed partial class ModuleSchemaBackup(ModuleRegistry registry, IService
         var tables = new List<string>();
         await using (var list = Command(transaction,
             "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace " +
-            "WHERE n.nspname = @schema AND c.relkind IN ('r', 'p') AND c.relname <> @history " +
+            "WHERE n.nspname = @schema AND c.relkind IN ('r', 'p') AND c.relname NOT IN (@history, @fieldRevisions) " +
             "ORDER BY c.relname"))
         {
             Param(list, "schema", schema);
             Param(list, "history", HistoryRepository.DefaultTableName);
+            Param(list, "fieldRevisions", FieldReferenceRevisionMigration.TableName);
 
             await using var reader = await list.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) tables.Add(reader.GetString(0));

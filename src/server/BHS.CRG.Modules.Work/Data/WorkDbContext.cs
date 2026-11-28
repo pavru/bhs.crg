@@ -41,6 +41,7 @@ public sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : Mod
 
     internal DbSet<DeviceInvitation> DeviceInvitations => Set<DeviceInvitation>();
     internal DbSet<DeviceSession> DeviceSessions => Set<DeviceSession>();
+    internal DbSet<DeviceObservation> DeviceObservations => Set<DeviceObservation>();
 
     /// <summary>
     /// Серверная последовательность изменений отчётов (ТЗ MOB-16, change <c>work-13</c>): номер получает каждое

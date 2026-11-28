@@ -268,6 +268,8 @@ public class AutoSubmitTests(AssignmentHost host) : IAsyncLifetime
     /// <summary>Порт видов работ, который падает на названном виде, — сбой подачи одного отчёта.</summary>
     private sealed class FailingOn(IModuleWorkTypes inner, Guid failing) : IModuleWorkTypes
     {
+        public Task<IReadOnlyList<ModuleWorkType>?> ListAsync(CancellationToken ct = default) => inner.ListAsync(ct);
+
         public Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
             ids.Contains(failing) ? throw new InvalidOperationException("Порт видов работ упал.") : inner.GetAsync(ids, ct);
 
@@ -281,6 +283,9 @@ public class AutoSubmitTests(AssignmentHost host) : IAsyncLifetime
     /// <summary>Справочник видов работ не заведён.</summary>
     private sealed class NoDirectory : IModuleWorkTypes
     {
+        public Task<IReadOnlyList<ModuleWorkType>?> ListAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ModuleWorkType>?>(null);
+
         public Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<ModuleWorkType>?>(null);
 

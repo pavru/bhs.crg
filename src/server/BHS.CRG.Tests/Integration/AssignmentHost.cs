@@ -49,6 +49,7 @@ public class AssignmentHost : ModuleOnlyHost
     internal DateTimeOffset? ReportTime { get; set; }
     internal DateTimeOffset? ModuleTime { get; set; }
     internal ReportReplayProbe ReplayProbe { get; } = new();
+    internal FieldReferenceQueryProbe ReferenceQueries { get; } = new();
 
     protected override string ModuleCode => WorkModule.ModuleCode;
 
@@ -60,6 +61,7 @@ public class AssignmentHost : ModuleOnlyHost
         builder.ConfigureTestServices(services =>
         {
             services.ConfigureDbContext<WorkDbContext>(options => options.AddInterceptors(ReplayProbe));
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(ReferenceQueries));
             services.RemoveAll<IModuleClock>();
             services.AddScoped<IModuleClock>(sp => new ModuleClockPort(
                 sp.GetRequiredService<IAppSettingsStore>(), new Fixed(ModuleTime ?? Now),

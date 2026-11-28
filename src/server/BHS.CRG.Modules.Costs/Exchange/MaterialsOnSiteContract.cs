@@ -8,6 +8,16 @@ namespace BHS.CRG.Modules.Costs.Exchange;
 
 internal sealed class MaterialsOnSiteContract(CostsDbContext db) : IMaterialsOnSite
 {
+    public Task<string> ReadFieldRevisionAsync(CancellationToken ct = default) =>
+        db.Database.SqlQuery<string>($"""
+            SELECT COALESCE(string_agg(writer || ':' || revision, ',' ORDER BY writer), '') AS "Value"
+            FROM costs.field_reference_revisions
+            """).SingleAsync(ct);
+
+    public async Task<IReadOnlyList<MaterialOnSiteHint>> ReadFieldHintsAsync(
+        AssignedFieldSite site, CancellationToken ct = default) =>
+        await IssuedMaterials.ReadHintAsync(db, site.ConstructionId, ct);
+
     public async Task<ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>> ReadHintAsync(
         ModuleReader reader, Guid constructionId, CancellationToken ct = default) =>
         ContractAnswer.Refusal<IReadOnlyList<MaterialOnSiteHint>>(reader, CostsModule.MaterialsHint, CostsModule.MaterialsRead)

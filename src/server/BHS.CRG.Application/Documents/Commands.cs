@@ -231,7 +231,8 @@ public record ListCommonDataEntriesQuery(
     RecordsFor For,
     CatalogScope? Scope = null,
     Guid? ScopeId = null,
-    Guid? CompositeTypeId = null) : IRequest<IReadOnlyList<DomainObject>>;
+    Guid? CompositeTypeId = null,
+    IReadOnlyCollection<Guid>? Ids = null) : IRequest<IReadOnlyList<DomainObject>>;
 
 /// <summary>
 /// Возвращает все записи каталога, доступные для данного комплекта,

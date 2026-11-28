@@ -103,4 +103,7 @@ public interface IModulePlanItems
 
     /// <summary>Позиции по идентификаторам, с ключом. Неизвестный идентификатор в ответ не попадает.</summary>
     Task<IReadOnlyList<ModulePlanItem>> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>Позиции ядра в уже проверенном вызывающим наборе строек.</summary>
+    Task<IReadOnlyList<ModulePlanItem>> ForSitesAsync(IReadOnlyCollection<Guid> siteIds, CancellationToken ct = default);
 }

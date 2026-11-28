@@ -58,6 +58,9 @@ public interface IModuleWorkTypes
     /// </summary>
     Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
+    /// <summary>Снимок классификатора, включая архивные виды и варианты.</summary>
+    Task<IReadOnlyList<ModuleWorkType>?> ListAsync(CancellationToken ct = default);
+
     /// <summary>
     /// Поиск на ВЫБОР по части кода, наименования, названия или псевдонима (без учёта регистра): живые
     /// виды по коду, не больше <paramref name="limit" />, и число архивных под тот же запрос. Пустой

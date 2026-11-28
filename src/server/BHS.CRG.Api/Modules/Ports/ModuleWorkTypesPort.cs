@@ -19,6 +19,9 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// </summary>
 public sealed class ModuleWorkTypesPort(IMediator mediator, IRepository<DocumentType> types) : IModuleWorkTypes
 {
+    public async Task<IReadOnlyList<ModuleWorkType>?> ListAsync(CancellationToken ct = default) =>
+        (await AllAsync(ct))?.Select(w => w.Item).ToArray();
+
     public async Task<IReadOnlyList<ModuleWorkType>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
         if (await AllAsync(ct) is not { } all) return null;

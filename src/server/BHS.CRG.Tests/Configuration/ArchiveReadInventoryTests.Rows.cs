@@ -64,6 +64,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Api/Modules/Ports/ModuleAcceptanceFieldsPort.cs|var rows = await db.DomainObjects.AsNoTracking()"] =
             ByPurpose("выбор ссылки в отчёте скрывает архивные записи; отдельный список архива показывает только их",
                 nameof(WorkReportAcceptanceFieldsTests.Ссылки_выбираются_из_семьи_поля_в_охвате_отчёта_без_общих_прав)),
+        ["BHS.CRG.Api/Modules/Ports/ModuleConstructionsPort.cs|join profile in db.DomainObjects.AsNoTracking() on site.ProfileObjectId equals (Guid?)profile.Id"] =
+            Choice("адрес назначенной стройки читается только из действующего профиля",
+                nameof(FieldReferenceSyncTests.Site_address_uses_tagged_profile_value_and_never_returns_other_profile_fields)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, id), ct));"] =
             ByPurpose("назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|return Refs(await mediator.Send(new CommonDataRefsByIdsQuery([.. directory.Codes.Keys], ids), ct),"] =
@@ -75,7 +78,9 @@ public partial class ArchiveReadInventoryTests
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit, onlyIds, exceptIds), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|var records = ids is null ? null : await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, Ids: ids), ct);"] =
+            Shown("карточки указанных сотрудников, архивные сохраняются для проверки назначения и исторических ссылок"),
+        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|var entries = byType?[typeId] ?? await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
         ["BHS.CRG.Api/Modules/Ports/ModuleUnitsPort.cs|return Units(await mediator.Send(new CommonDataRefsByIdsQuery(family, ids), ct));"] =
             Shown("единицы по идентификаторам: то, что у модуля уже стоит"),
@@ -428,9 +433,13 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Plan/Endpoints/NomenclatureSearchEndpoints.cs|var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, query, Limit + 1, ct)"] =
             Choice("поиск позиции в окне материала сметы (plan-09): тот же поиск ядра, что у счетов, архивных нет, их число названо",
                 nameof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests.Поиск_номенклатуры_находит_живую_архивную_не_предлагает_и_закрыт_правом_правки)),
-        ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, q, Limit + 1, ct);"] =
+        ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|catalog.SearchAsync(FunctionalTag.RoleNomenclature, query, limit, ct);"] =
             Choice("номенклатура для строки отчёта (work-22): новые ссылки выбираются из действующих позиций",
-                nameof(EntryReportEndpointsTests.Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе)),
+                nameof(EntryReportEndpointsTests.Архивный_материал_виден_в_сохранённом_отчёте_и_отсутствует_в_выборе),
+                nameof(WorkMaterialsHintTests.Field_device_without_office_account_gets_narrow_hints_only_for_its_assignment)),
+        ["BHS.CRG.Modules.Work/Devices/FieldMaterialHints.cs|var refs = await catalog.RefsAsync(FunctionalTag.RoleNomenclature, wanted, ct);"] =
+            Choice("полевые подсказки отпуска и сметы не предлагают архивную номенклатуру",
+                nameof(WorkMaterialsHintTests.Field_device_without_office_account_gets_narrow_hints_only_for_its_assignment)),
         ["BHS.CRG.Modules.Work/Endpoints/ReportEntryCatalog.cs|var selected = ids.Length == 0 ? [] : await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct) ?? [];"] =
             Shown("номенклатура сохранённых строк доступного отчёта (work-22): признак в selected[].archived"),
         ["BHS.CRG.Modules.Work/Endpoints/MaterialHintChoices.cs|var search = await catalog.SearchAsync(Role, q, Limit + 1, ct, exceptIds: above);"] =

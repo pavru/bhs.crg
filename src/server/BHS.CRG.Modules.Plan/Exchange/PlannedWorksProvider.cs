@@ -24,6 +24,20 @@ namespace BHS.CRG.Modules.Plan.Exchange;
 /// </summary>
 internal sealed class PlannedWorksProvider(PlanDbContext db) : IPlannedWorks
 {
+    public Task<string> ReadFieldRevisionAsync(CancellationToken ct = default) =>
+        db.Database.SqlQuery<string>($"""
+            SELECT COALESCE(string_agg(writer || ':' || revision, ',' ORDER BY writer), '') AS "Value"
+            FROM plan.field_reference_revisions
+            """).SingleAsync(ct);
+
+    public async Task<IReadOnlyList<FieldPlannedHint>> ReadFieldHintsAsync(
+        AssignedFieldSite site, CancellationToken ct = default) =>
+        await (from row in PlanRows.Current(db, site.ConstructionId)
+               join material in db.EstimateRowMaterials on row.Id equals material.RowId
+               where row.PlanItemId != null && material.NomenclatureId != null
+               select new FieldPlannedHint(row.PlanItemId!.Value, material.NomenclatureId!.Value))
+            .Distinct().ToListAsync(ct);
+
     public async Task<ContractAnswer<PlannedWorksAnswer>> ReadAsync(
         ModuleReader reader, PlannedWorksQuery query, CancellationToken ct = default)
     {

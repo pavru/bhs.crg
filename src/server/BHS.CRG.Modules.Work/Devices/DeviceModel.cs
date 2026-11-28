@@ -38,6 +38,17 @@ internal sealed class DeviceSession
 
 internal enum DeviceRevocation { Replacement, Dismissal, Lost }
 
+internal sealed class DeviceObservation
+{
+    public Guid DeviceId { get; init; }
+    public int ApkVersionCode { get; set; }
+    public int PendingReports { get; set; }
+    public DateOnly? OldestPendingDate { get; set; }
+    public DateTimeOffset ObservedAt { get; set; }
+    public DateTimeOffset ReceivedAt { get; set; }
+    public DateTimeOffset LastContactAt { get; set; }
+}
+
 internal static class DeviceModel
 {
     public static void Configure(ModelBuilder model)
@@ -61,5 +72,9 @@ internal static class DeviceModel
         session.HasIndex(s => s.AccessHash).IsUnique();
         session.HasIndex(s => s.RefreshHash).IsUnique();
         session.HasIndex(s => s.PreviousRefreshHash);
+
+        var observation = model.Entity<DeviceObservation>().ToTable("device_observations");
+        observation.HasKey(o => o.DeviceId);
+        observation.HasOne<DeviceSession>().WithOne().HasForeignKey<DeviceObservation>(o => o.DeviceId);
     }
 }
