@@ -57,14 +57,12 @@ export function catalogLabels<T extends { id: string }>(data?: EntryCatalogPage<
 
 export function useEntryCatalog<K extends keyof EntryCatalogItem>(
   scope: EntryCatalogScope, kind: K, q = '', enabled = true,
-  options?: { refetchOnMount?: boolean | 'always' },
 ) {
   const { siteId, date, reportId, reportVersion } = scope;
   return useQuery({
     queryKey: ['work', 'entry-catalog', siteId, kind, date, reportId, reportVersion, q],
     enabled: enabled && !!siteId && (!!date || !!reportId),
     queryFn: ({ signal }) => getEntryCatalog(scope, kind, q, signal),
-    ...options,
   });
 }
 

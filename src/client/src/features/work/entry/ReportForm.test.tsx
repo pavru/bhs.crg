@@ -192,7 +192,8 @@ it('при 422 раскрывает вторую строку и перевод�
 });
 
 const catalogPath = '/work/entry/sites/site-a/catalog/work-types';
-const catalogKey = ['work', 'entry-catalog', report.constructionId, 'work-types', report.date, report.id, report.version, ''];
+const catalogKey = (version = report.version) =>
+  ['work', 'entry-catalog', report.constructionId, 'work-types', report.date, report.id, version, ''];
 const missingLocation = { line: 1, lineId: 'l1', field: 'location' } as const;
 const missingMaterials = { line: 1, lineId: 'l1', field: 'materials' } as const;
 const locationError = 'Укажите место работ для подачи отчёта.';
@@ -206,7 +207,7 @@ it('в режиме ввода показывает ошибки и адресн
     lines: [report.lines[0], { ...report.lines[0], id: 'l2', photos: [] }] };
   const client = catalogClient();
   const stale = { ...types[0], requiresLocation: false, requiresMaterials: false };
-  client.setQueryData(catalogKey, { items: [], selected: [stale] });
+  client.setQueryData(catalogKey(), { items: [], selected: [stale] });
   const get = vi.mocked(apiClient.get).getMockImplementation()!;
   let finishCatalog!: (value: Awaited<ReturnType<typeof apiClient.get>>) => void;
   const catalogReply = new Promise<Awaited<ReturnType<typeof apiClient.get>>>(resolve => { finishCatalog = resolve; });
@@ -217,7 +218,7 @@ it('в режиме ввода показывает ошибки и адресн
   }));
   mount(report.id, 'entry', client);
   await screen.findByRole('button', { name: 'Подать отчёт' });
-  await waitFor(() => expect(client.getQueryState(catalogKey)?.fetchStatus).toBe('fetching'));
+  await waitFor(() => expect(client.getQueryState(catalogKey())?.fetchStatus).toBe('fetching'));
   expect(screen.queryByText(locationError)).toBeNull();
   expect(screen.queryByText(materialsError)).toBeNull();
   expect(screen.queryByRole('button', { name: /^Строка 1 · / })).toBeNull();
@@ -252,7 +253,7 @@ it.each([true, false])('перечитывает выбранный вид из 
     backend.current = { ...report, status: 'returned', requiredMissing: [missingLocation, missingMaterials] };
     const client = catalogClient();
     client.setQueryData(reportQuery('own', report.id).queryKey, backend.current);
-    client.setQueryData(catalogKey, { items: types });
+    client.setQueryData(catalogKey(), { items: types });
     const get = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation((path, config) => path === catalogPath
       ? Promise.resolve({ data: { items: [types[1]], selected: [{ ...types[0], requiresLocation: false, requiresMaterials }] } })
@@ -278,6 +279,34 @@ it.each([true, false])('перечитывает выбранный вид из 
       expect(apiClient.put).not.toHaveBeenCalled();
     }
   });
+
+it('перечитывает справочник, когда фоновый ответ открывает возвращённую версию со свежим кэшем видов', async () => {
+  const client = catalogClient();
+  const returned = { ...report, status: 'returned', version: '2', requiredMissing: [missingLocation] };
+  client.setQueryData(reportQuery('own', report.id).queryKey, { ...report, status: 'submitted' });
+  client.setQueryData(catalogKey(), { items: types });
+  client.setQueryData(catalogKey(returned.version), { items: [], selected: [types[0]] });
+  const get = vi.mocked(apiClient.get).getMockImplementation()!;
+  let finishReport!: (value: Awaited<ReturnType<typeof apiClient.get>>) => void;
+  const reportReply = new Promise<Awaited<ReturnType<typeof apiClient.get>>>(resolve => { finishReport = resolve; });
+  vi.mocked(apiClient.get).mockImplementation((path, config) => {
+    if (path === '/work/reports/r1') return reportReply;
+    if (path === catalogPath) return Promise.resolve({ data: {
+      items: [], selected: [{ ...types[0], requiresLocation: false }],
+    } });
+    return get(path, config);
+  });
+  mount(report.id, 'own', client);
+  expect(screen.getByText('Подан')).toBeTruthy();
+  expect(screen.getByText('Нужно для ИД · место работ, материалы')).toBeTruthy();
+  expect(apiClient.get).not.toHaveBeenCalledWith(catalogPath, expect.anything());
+
+  await act(async () => finishReport({ data: returned }));
+  expect(await screen.findByText('Нужно для ИД · материалы')).toBeTruthy();
+  expect(screen.getByText('Возвращён')).toBeTruthy();
+  expect(screen.queryByText(locationError)).toBeNull();
+  expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === catalogPath)).toHaveLength(1);
+});
 
 it('после 409 просит заново подтвердить удаление строки, к которой успели добавить фото', async () => {
   backend.current = { ...report, lines: [{ ...report.lines[0], photos: [] }] };

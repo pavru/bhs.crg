@@ -40,9 +40,15 @@ export function ReportLines({ scope, lines, savedLines, photos, disabled, siteRe
     canRestore.current = !disabled;
     return () => { canRestore.current = false; };
   }, [disabled]);
-  const types = catalogLabels(useEntryCatalog(scope, 'work-types', '', siteReady && lines.length > 0,
-    { refetchOnMount: refreshWorkTypes ? 'always' : undefined }).data);
-  const units = catalogLabels(useEntryCatalog(scope, 'units', '', siteReady && lines.length > 0).data);
+  const catalogReady = siteReady && lines.length > 0;
+  const { data: workTypes, refetch: refetchWorkTypes } = useEntryCatalog(scope, 'work-types', '', catalogReady);
+  const { siteId, date, reportId, reportVersion } = scope;
+  useEffect(() => {
+    // Фоновое чтение может переключить уже открытую форму на возвращённую версию.
+    if (refreshWorkTypes && catalogReady && reportId) void refetchWorkTypes({ cancelRefetch: false });
+  }, [refreshWorkTypes, catalogReady, siteId, date, reportId, reportVersion, refetchWorkTypes]);
+  const types = catalogLabels(workTypes);
+  const units = catalogLabels(useEntryCatalog(scope, 'units', '', catalogReady).data);
   const typeOf = (id: string) => types.get(id) ?? pickedTypes[id];
 
   if (seenFocus !== focus) {
