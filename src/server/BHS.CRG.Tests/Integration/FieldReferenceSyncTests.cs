@@ -253,6 +253,15 @@ public sealed class FieldReferenceSyncTests(AssignmentHost host)
         await core.Entry(profile).ReloadAsync();
         Assert.Equal("Служебный реквизит", profile.Data.RootElement.GetProperty("internalNote").GetString());
 
+        baseType.UpdateSchema(JsonDocument.Parse(Schema("renamed", tagged: true)));
+        await core.SaveChangesAsync();
+        var active = await PageAsync(phone, path);
+        Assert.Equal("Полевая, 2", Site(active).GetProperty("address").GetString());
+        // Штатная дверь не архивирует действующий профиль. Проверяем старую ссылку с архивным профилем.
+        await core.DomainObjects.Where(p => p.Id == profile.Id)
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.ArchivedAt, AssignmentHost.Now));
+        Assert.Equal(JsonValueKind.Null, Site(await PageAsync(phone, path, Cursor(active))).GetProperty("address").ValueKind);
+
         JsonElement Site(JsonElement page)
         {
             var item = Assert.Single(page.GetProperty("items").EnumerateArray());

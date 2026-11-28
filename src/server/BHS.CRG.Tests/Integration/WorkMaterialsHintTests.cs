@@ -70,13 +70,32 @@ public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassF
 
         using var officeRequest = await phone.GetAsync(Path(site));
         Assert.Equal(HttpStatusCode.Unauthorized, officeRequest.StatusCode);
+        const string catalogPath = "/api/field/v1/references/materials";
+        var catalog = await phone.GetFromJsonAsync<JsonElement>(catalogPath);
+        Assert.Contains(fixture.Cable, MaterialIds(catalog));
+        var directory = new WorkTypeSeed(host);
+        await directory.ArchiveAsync(fixture.Cable);
+        await directory.ArchiveAsync(fixture.Box);
+        var newIssued = await PageAsync("issued-materials", site, cursor: issued.GetProperty("cursor").GetString());
+        Assert.True(newIssued.GetProperty("replace").GetBoolean());
+        Assert.Empty(MaterialIds(newIssued));
+        var newEstimate = await PageAsync("estimated-materials", site, cursor: estimate.GetProperty("cursor").GetString());
+        Assert.True(newEstimate.GetProperty("replace").GetBoolean());
+        Assert.DoesNotContain(fixture.Cable, MaterialIds(newEstimate));
+        Assert.DoesNotContain(fixture.Box, MaterialIds(newEstimate));
+        var newCatalog = await phone.GetFromJsonAsync<JsonElement>(catalogPath);
+        Assert.DoesNotContain(fixture.Cable, MaterialIds(newCatalog));
+
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<WorkDbContext>();
         await db.Assignments.Where(a => a.Id == assignmentId).ExecuteDeleteAsync();
-        var lost = await PageAsync("estimated-materials", site, limit: 1, cursor: estimate.GetProperty("cursor").GetString());
+        var lost = await PageAsync("estimated-materials", site, limit: 1, cursor: newEstimate.GetProperty("cursor").GetString());
         Assert.True(lost.GetProperty("replace").GetBoolean());
         Assert.Equal("not-assigned", lost.GetProperty("state").GetString());
         Assert.Empty(lost.GetProperty("items").EnumerateArray());
+
+        static IEnumerable<Guid> MaterialIds(JsonElement page) =>
+            page.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid());
 
         async Task<JsonElement> PageAsync(string kind, Guid id, string date = "2026-11-01", int limit = 100, string? cursor = null)
         {
