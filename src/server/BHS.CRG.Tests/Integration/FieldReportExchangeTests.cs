@@ -20,6 +20,51 @@ public sealed class FieldReportExchangeTests(AssignmentHost host)
     private readonly WorkPeriodWorld _period = new(host);
     private ReportWorld World => _period.World;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Parallel_replay_returns_the_report_committed_by_the_other_device(bool submit)
+    {
+        await World.SeedAsync();
+        var employee = await World.EmployeeAsync("Монтажник");
+        using var office = await ManagerAsync();
+        using var phoneA = host.CreateClient();
+        using var phoneB = host.CreateClient();
+        await ConnectAsync(office, phoneA, employee);
+        await ConnectAsync(office, phoneB, employee);
+        var a = new FieldReportClient(phoneA);
+        var b = new FieldReportClient(phoneB);
+        var id = Guid.NewGuid();
+        var line = Guid.NewGuid();
+        var changeId = Guid.NewGuid();
+        using var created = await a.CreateAsync(World.Draft(id, World.SiteA, lineId: line, changeId: Guid.NewGuid()));
+        var draft = await ReadAsync(created, HttpStatusCode.Created);
+        var change = World.Draft(id, World.SiteA, hours: 9, lineId: line, changeId: changeId);
+        Task<HttpResponseMessage> SendAsync(FieldReportClient client) => submit
+            ? client.SubmitAsync(id, Version(draft), changeId, Evening16)
+            : client.ChangeAsync(id, Version(draft), change);
+
+        JsonElement committed = default;
+        host.ReplayProbe.BeforeNextLookup(async () =>
+        {
+            using var response = await SendAsync(b);
+            committed = await ReadAsync(response, HttpStatusCode.OK);
+        });
+        try
+        {
+            using var retry = await SendAsync(a);
+            var replay = await ReadAsync(retry, HttpStatusCode.OK);
+            Assert.True(replay.GetProperty("replayed").GetBoolean());
+            Assert.Equal(Version(committed), Version(replay));
+            Assert.NotEqual(Version(draft), Version(replay));
+            Assert.Equal(committed.GetProperty("status").GetString(), replay.GetProperty("status").GetString());
+            Assert.Equal(committed.GetProperty("hours").GetDecimal(), replay.GetProperty("hours").GetDecimal());
+            Assert.Equal(2, (await World.ChangesAsync(id)).Count);
+            Assert.Equal(2, (await _period.Review.EntriesAsync(id)).Count);
+        }
+        finally { host.ReplayProbe.BeforeNextLookup(null); }
+    }
+
     [Fact]
     public async Task Two_devices_replay_an_interrupted_write_and_see_the_office_return_and_deletion()
     {
@@ -115,6 +160,17 @@ public sealed class FieldReportExchangeTests(AssignmentHost host)
         var refused = await ReadAsync(collision, HttpStatusCode.Conflict);
         Assert.Equal("manager-report-conflict", refused.GetProperty("reason").GetString());
         Assert.Equal(id, refused.GetProperty("existingId").GetGuid());
+        var mobileId = Guid.NewGuid();
+        using var mobileDraft = await field.CreateAsync(World.Draft(mobileId, World.SiteB, changeId: Guid.NewGuid()));
+        var mobile = await ReadAsync(mobileDraft, HttpStatusCode.Created);
+        using var putCollision = await field.ChangeAsync(mobileId, Version(mobile),
+            World.Draft(mobileId, World.SiteA, changeId: Guid.NewGuid()));
+        var putRefusal = await ReadAsync(putCollision, HttpStatusCode.Conflict);
+        Assert.Equal("manager-report-conflict", putRefusal.GetProperty("reason").GetString());
+        Assert.Equal(id, putRefusal.GetProperty("existingId").GetGuid());
+        Assert.Single(await _period.Review.EntriesAsync(mobileId));
+        using var unchangedMobile = await field.GetAsync(mobileId);
+        Assert.Equal(Version(mobile), Version(await ReadAsync(unchangedMobile, HttpStatusCode.OK)));
         using var opened = await field.GetAsync(id);
         var seen = await ReadAsync(opened, HttpStatusCode.OK);
         Assert.False(seen.GetProperty("assignedOnDate").GetBoolean());

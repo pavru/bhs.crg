@@ -55,9 +55,22 @@ internal static class FieldReportEndpoints
         var viewer = Viewer(context, sessions, writing: true);
         var me = viewer.EmployeeId!.Value;
         if (body.EmployeeId is { } employee && employee != me) return Refusal(400, "invalid-request");
+        return await WithKeyConflictAsync(viewer, reads, () => desk.CreateAsync(Path, viewer, me, body, enteredBy: null, ct), ct);
+    });
+
+    private static Task<IResult> ChangeAsync(Guid id, ReportRequest body, HttpContext context, DeviceSessions sessions,
+        ReportDesk desk, ReportReads reads, CancellationToken ct) => RunAsync(() =>
+    {
+        var viewer = Viewer(context, sessions, writing: true);
+        return WithKeyConflictAsync(viewer, reads, () => desk.ChangeAsync(viewer, id, body, context.Request, ct), ct);
+    });
+
+    private static async Task<IResult> WithKeyConflictAsync(
+        ReportViewer viewer, ReportReads reads, Func<Task<IResult>> write, CancellationToken ct)
+    {
         try
         {
-            return await desk.CreateAsync(Path, viewer, me, body, enteredBy: null, ct);
+            return await write();
         }
         catch (ReportKeyTakenException taken)
         {
@@ -68,11 +81,7 @@ internal static class FieldReportEndpoints
                 existingId = taken.ExistingId,
             });
         }
-    });
-
-    private static Task<IResult> ChangeAsync(Guid id, ReportRequest body, HttpContext context, DeviceSessions sessions,
-        ReportDesk desk, CancellationToken ct) => RunAsync(() =>
-        desk.ChangeAsync(Viewer(context, sessions, writing: true), id, body, context.Request, ct));
+    }
 
     private static Task<IResult> SubmitAsync(Guid id, SubmitRequest body, HttpContext context, DeviceSessions sessions,
         ReportDesk desk, CancellationToken ct) => RunAsync(() =>

@@ -179,7 +179,9 @@ public sealed class ReportDesk(
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
         if (replayed)
-            return await ReplyAsync(viewer, report, ct, replayed: true);
+            return delivery is null
+                ? await ReplyAsync(viewer, report, ct, replayed: true)
+                : await ReplyFieldReplayAsync(viewer, report, ct);
         if (seen != db.VersionOf(report)) throw VersionConflict(viewer);
         delivery?.EnsureOwnReportEdit(report, body.ConfirmManagerEdit);
         var header = body.Header();
@@ -238,7 +240,7 @@ public sealed class ReportDesk(
                 {
                     if (applied.Kind is not (ReportChangeKind.Submitted or ReportChangeKind.FieldReceipt))
                         throw new FieldReportRefusal(409, "change-id-taken");
-                    return await ReplyAsync(viewer, report, ct, replayed: true, alreadySubmitted: true);
+                    return await ReplyFieldReplayAsync(viewer, report, ct, alreadySubmitted: true);
                 }
                 ReportPeriods.EnsureOpen(boundaries, report);
                 if (seen != db.VersionOf(report)) throw new ReportVersionConflictException();
@@ -379,8 +381,20 @@ public sealed class ReportDesk(
         viewer.FieldDelivery.EnsureDate(report.EmployeeId, report.Date);
         if (await reads.AppliedAsync(id, FieldChangeId(changeId), ct) is
             { Kind: ReportChangeKind.Submitted or ReportChangeKind.FieldReceipt })
-            return await ReplyAsync(viewer, report, ct, replayed: true, alreadySubmitted: true);
+            return await ReplyFieldReplayAsync(viewer, report, ct, alreadySubmitted: true);
         throw new ReportVersionConflictException();
+    }
+
+    private async Task<IResult> ReplyFieldReplayAsync(
+        ReportViewer viewer, Report report, CancellationToken ct, bool alreadySubmitted = false)
+    {
+        // Другое устройство могло зафиксировать действие между чтением отчёта и чтением протокола.
+        // На пути повтора замок смены больше не нужен, поэтому можно сразу запереть отчёты сотрудника.
+        await db.LockReportsAsync(report.EmployeeId, ct);
+        db.ChangeTracker.Clear();
+        var current = await reads.FindAsync(viewer, report.Id, ct) ?? throw new NotFoundException(NotFoundText);
+        viewer.FieldDelivery!.EnsureDate(current.EmployeeId, current.Date);
+        return await ReplyAsync(viewer, current, ct, replayed: true, alreadySubmitted: alreadySubmitted);
     }
 
     private static Guid FieldChangeId(Guid? changeId) =>
