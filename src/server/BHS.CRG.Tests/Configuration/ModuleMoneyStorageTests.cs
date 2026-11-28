@@ -160,10 +160,21 @@ public class ModuleMoneyStorageTests
     private static readonly Dictionary<string, string> NotMoney = new()
     {
         ["СчётНаОплату.Отсрочка"] = "срок оплаты в днях (C4), не сумма",
+        ["КоммерческоеПредложение.Наценка"] = "наценка в процентах (PLAN-11), не сумма",
     };
 
-    /// <summary>Модуль ведёт деньги, если объявил хоть один денежный тэг.</summary>
-    private static IEnumerable<IAppModule> MoneyModules() => DeliveredModules.All().Where(m => m.Tags.Any(t => t.Money));
+    /// <summary>Денежные поля, которые заполняет код модуля из его колонок и которые не имеют тэга.</summary>
+    private static readonly Dictionary<string, string> MoneyWithoutTag = new()
+    {
+        ["КоммерческоеПредложение.Итого"] = "итог к оплате из plan.offers; КП не зависит от тэга модуля счетов",
+    };
+
+    private static IEnumerable<IAppModule> MoneyModules() => DeliveredModules.All()
+        .Where(m => m.AccountingDocuments.Count != 0 || m.Tags.Any(t => t.Money));
+
+    [Fact]
+    public void Планирование_входит_в_перепись_модулей_с_деньгами()
+        => Assert.Contains(MoneyModules(), m => m.Code == "plan");
 
     [Fact]
     public void Типы_модуля_с_деньгами_в_общей_таблице_названы_поимённо()
@@ -182,7 +193,7 @@ public class ModuleMoneyStorageTests
 
     /// <summary>
     /// Признак «деньги» ставит автор тэга, и забытый признак правило ядра не поймает. Здесь перечисляет
-    /// машина: числовое поле типа такого модуля либо несёт денежный тэг, либо названо «не деньги».
+    /// машина: числовое поле типа такого модуля несёт денежный тэг или классифицировано поимённо.
     /// ⚠️ Сумму, объявленную строкой, перепись не видит: отличить её от названия нечем.
     /// </summary>
     [Fact]
@@ -195,13 +206,12 @@ public class ModuleMoneyStorageTests
                         from field in type.Fields
                         where field.Type == "number" && !field.Tags.Any(money.Contains)
                         let name = $"{type.Code}.{field.Key}"
-                        where !NotMoney.ContainsKey(name)
+                        where !NotMoney.ContainsKey(name) && !MoneyWithoutTag.ContainsKey(name)
                         select name).ToList();
 
         Assert.True(unmarked.Count == 0,
             "Числовые поля без денежного тэга: " + string.Join(", ", unmarked) + ".\n" +
-            "Поставьте тэгу поля признак Money либо впишите поле в NotMoney с причиной: без признака " +
-            "правило «деньги не в общей таблице» это поле не видит.");
+            "Поставьте тэгу поля признак Money либо назовите поле с причиной в NotMoney или MoneyWithoutTag.");
     }
 
     [Fact]
@@ -212,6 +222,12 @@ public class ModuleMoneyStorageTests
 
         Assert.DoesNotContain(SharedOnPurpose.Keys, code => types.All(t => t.Code != code));
         Assert.DoesNotContain(NotMoney.Keys, name => !fields.Contains(name));
+        var moduleNumbers = MoneyModules().SelectMany(m => m.RecordTypes)
+            .Where(t => t.Storage == ModuleStorage.ModuleTable)
+            .SelectMany(t => t.Fields.Where(f => f.Type == "number").Select(f => $"{t.Code}.{f.Key}"))
+            .ToHashSet();
+        Assert.DoesNotContain(MoneyWithoutTag.Keys, name => !moduleNumbers.Contains(name));
+        Assert.DoesNotContain(MoneyWithoutTag.Keys, NotMoney.ContainsKey);
     }
 
     // ── 4. Перепись обращений ядра к модулю ───────────────────────────────────────────────────────

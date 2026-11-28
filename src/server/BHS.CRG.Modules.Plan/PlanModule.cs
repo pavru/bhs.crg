@@ -8,8 +8,10 @@ using BHS.CRG.Modules.Plan.Exchange;
 using BHS.CRG.Modules.Plan.Import;
 using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Plan.Printing;
+using BHS.CRG.Modules.Plan.Tables;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Printing;
+using BHS.CRG.Modules.Tables;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -208,6 +210,8 @@ public sealed class PlanModule : IAppModule
     /// <summary>Тип сметного наполнения строки — <see cref="PlanRecordTypes" /> (ТЗ TYPE-16).</summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => PlanRecordTypes.All;
 
+    public IReadOnlyList<ModuleTable> Tables => [OfferTable.Declaration, ScheduleWorksTable.Declaration];
+
     public IReadOnlyList<ModulePrintForm> PrintForms =>
     [
         new(PlanRecordTypes.OfferCode, PlanRecordTypes.Offer.Name, OfferRead, OfferPrintTemplate.Default, OfferPrintContext.Requisites),
@@ -273,6 +277,8 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddSingleton<IModuleActivityActions, OfferActions>();
         services.AddScoped<Offers.OfferDesk>();
+        services.AddScoped<OfferTable>();
+        services.AddScoped<ScheduleWorksTable>();
         services.AddKeyedScoped<IModulePrintContext, OfferPrintContext>(PlanRecordTypes.OfferCode);
         services.AddKeyedScoped<IModulePrintContext, ScheduleWorksPrintContext>(PlanRecordTypes.ScheduleCode);
         services.AddScoped<Offers.OfferLifecycle>();

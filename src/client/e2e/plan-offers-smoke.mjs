@@ -70,6 +70,23 @@ try {
 
   if (offer) {
     const offerPath = `/plan/offers/${offer.id}`;
+    await check('manager-opens-current-offer-in-table-and-exports-one-row', async () => {
+      await manager.getByRole('link', { name: 'Открыть таблицей', exact: true }).click();
+      await manager.waitForURL(url => url.pathname === '/tables/plan.offers/registry');
+      await manager.getByRole('cell', { name: offer.number, exact: true }).waitFor();
+      await manager.getByRole('button', { name: 'Выгрузить', exact: true }).click();
+      const exportItem = manager.getByRole('menuitem', { name: 'В XLSX · 1 строка', exact: true });
+      const [response, download] = await Promise.all([
+        manager.waitForResponse(matches('POST', '/tables/plan.offers/export')),
+        manager.waitForEvent('download'),
+        exportItem.click(),
+      ]);
+      assert.equal(response.status(), 200);
+      assert.equal((await response.body()).subarray(0, 2).toString(), 'PK');
+      assert(download.suggestedFilename().endsWith('.xlsx'));
+      await manager.goto(`${BASE}/offers/${offer.id}`);
+    });
+
     await check('manager-recovers-from-if-match-conflict-with-input', async () => {
       await tab(manager, 'Наценки').click();
       const markup = manager.getByRole('textbox', { name: 'Наценка КП', exact: true });
