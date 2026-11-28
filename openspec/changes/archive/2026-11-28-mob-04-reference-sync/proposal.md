@@ -31,4 +31,4 @@
 
 Полевой API v1, ReportEntryCatalog, AssignmentGate, порты номенклатуры, перечня и поставщиков подсказок.
 
-[Общая архитектура этапа](../mob-00-epic/design.md).
+[Общая архитектура этапа](../../mob-00-epic/design.md).

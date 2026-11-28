@@ -2,7 +2,7 @@
 
 ## Context
 
-WorkManager, Room, экран связи, профиль с локальным напоминанием, полевые операции отчётов и справочников. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-03-report-exchange](../archive/2026-11-28-mob-03-report-exchange/tasks.md), [mob-04-reference-sync](../mob-04-reference-sync/tasks.md), [mob-05-unlisted-site](../mob-05-unlisted-site/tasks.md), [mob-07-android-join](../mob-07-android-join/tasks.md).
+WorkManager, Room, экран связи, профиль с локальным напоминанием, полевые операции отчётов и справочников. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-03-report-exchange](../archive/2026-11-28-mob-03-report-exchange/tasks.md), [mob-04-reference-sync](../archive/2026-11-28-mob-04-reference-sync/tasks.md), [mob-05-unlisted-site](../mob-05-unlisted-site/tasks.md), [mob-07-android-join](../mob-07-android-join/tasks.md).
 
 ## Goals / Non-Goals
 
