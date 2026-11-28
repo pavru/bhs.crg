@@ -217,7 +217,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       await accept(row);
       if (!initial) openSaved(row.id);
     } catch (error) {
-      const refusal = reportFailure(error, 'Не удалось подать отчёт.');
+      const refusal = reportFailure(error, 'Не удалось подать отчёт.', 'submit');
       setFailure(refusal);
       setErrorFocus(refusal.requiredMissing?.[0]);
     }
@@ -328,7 +328,7 @@ function Editor({ mode, initial, employee, recommended, requestedDate, onPickAno
       siteReady={knownSite && !!header.date && !incomplete} disabled={locked || !!busy}
       savedLines={saved?.lines} photos={{ uploads, locked, closed: !!saved?.periodClosed,
         busy: !!busy || !!failure?.stale, remove: (lineId, photoId) => void removePhoto(lineId, photoId) }}
-      errors={failure?.requiredMissing ?? saved?.requiredMissing ?? undefined} focus={errorFocus}
+      refreshWorkTypes={saved?.status === 'returned'} errors={failure?.requiredMissing} focus={errorFocus}
       onChange={change => setContents(old => ({ ...old, lines: change(old.lines) }))} />
     {!locked && <>
       {formProblem && !incomplete && <p className="text-body-small text-on-surface-variant">{formProblem}</p>}
