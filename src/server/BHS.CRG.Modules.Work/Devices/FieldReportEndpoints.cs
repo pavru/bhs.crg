@@ -123,7 +123,7 @@ internal static class FieldReportEndpoints
         catch (ConflictException) { return Refusal(409, "report-conflict"); }
     }
 
-    private static IResult Refusal(int status, string reason) => Results.Json(new { reason }, statusCode: status);
+    internal static IResult Refusal(int status, string reason) => Results.Json(new { reason }, statusCode: status);
 }
 
 internal static class FieldReportBody

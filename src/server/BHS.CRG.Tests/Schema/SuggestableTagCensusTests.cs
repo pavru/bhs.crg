@@ -20,6 +20,7 @@ public class SuggestableTagCensusTests
     private static readonly Dictionary<string, string> NotUnique = new(StringComparer.Ordinal)
     {
         [FunctionalTag.DocDate] = "даты повторяются у многих документов",
+        [FunctionalTag.ConstructionAddress] = "несколько строек могут иметь один адрес",
         // Решение владельца 23.10.2026 (issue #1533): у заказчика его несёт «Номенклатура → Производитель».
         [FunctionalTag.Identity] = "компонент составного ключа: сам по себе не уникален, повтор ключа ловит сверка двойников",
         [FunctionalTag.EmployeePosition] = "должность общая у многих сотрудников",

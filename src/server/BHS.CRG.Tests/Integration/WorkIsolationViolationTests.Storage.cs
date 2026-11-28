@@ -22,6 +22,7 @@ internal sealed partial class WorkIsolationScenario
         ["Assignment"] = "Назначения сотрудников на стройки, общие для смен.",
         ["CrewGroupRecord"] = "Ключ группы и её утверждённый итог. Содержимое строк читается из отчётов.",
         ["DeviceInvitation"] = "Привязка приглашения к сотруднику, сроки и хеш одноразового кода.",
+        ["DeviceObservation"] = "Версия приложения, счётчик очереди и время контакта устройства без содержимого отчётов.",
         ["DeviceSession"] = "Полевые полномочия, сроки сессии и запись об отзыве устройства.",
         ["LinePhotoRemoval"] = "Идентификаторы снятого фото и строки, отметка времени.",
         ["ReportChange"] = "Курсор синхронизации, идентификаторы и версии изменений.",
@@ -70,6 +71,7 @@ internal sealed partial class WorkIsolationScenario
         var core = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var entities = work.Model.GetEntityTypes().ToDictionary(type => type.ClrType.Name);
         AssertInventory(entities.Keys);
+        Assert.Equal(WorkDbContext.SchemaName, entities["DeviceObservation"].GetSchema());
         var unseen = Assert.Throws<InvalidOperationException>(() => AssertInventory([.. entities.Keys, "NewReportPayload"]));
         Assert.Contains("NewReportPayload", unseen.Message, StringComparison.Ordinal);
 

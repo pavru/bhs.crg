@@ -44,9 +44,14 @@ internal static class EndpointInventory
             (p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
              || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)
              || (p == BHS.CRG.Modules.Work.Devices.FieldReportEndpoints.DevicePolicy && endpoint is RouteEndpoint route
-                 && Matches(Route(route), BHS.CRG.Modules.Work.Devices.FieldReportEndpoints.Path))))
+                 && IsFieldDeviceRoute(Route(route)))))
         || endpoint.Metadata.GetOrderedMetadata<AuthorizationPolicy>().Any(p =>
             p.Requirements.OfType<PermissionRequirement>().Any(r => r.Codes.Count == 0)));
+
+    private static bool IsFieldDeviceRoute(string route) =>
+        Matches(route, BHS.CRG.Modules.Work.Devices.FieldReportEndpoints.Path)
+        || route == "/api/field/v1" + BHS.CRG.Modules.Work.Devices.FieldReferences.Path
+        || route == "/api/field/v1" + BHS.CRG.Modules.Work.Devices.FieldObservationEndpoints.Path;
 
     /// <summary>
     /// Права, которые стоят хотя бы на одной двери. Право из «любого из» (<c>perm:а|б</c>) — тоже:

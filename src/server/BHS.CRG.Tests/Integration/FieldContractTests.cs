@@ -101,6 +101,24 @@ public class FieldContractTests(WorkOnlyHost host)
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
     }
 
+    [Theory]
+    [InlineData("GET", FieldReferences.Path, "/references/classifier")]
+    [InlineData("PUT", FieldObservationEndpoints.Path, FieldObservationEndpoints.Path)]
+    public async Task Reference_exchange_and_observation_require_the_field_device_scheme(
+        string verb, string pattern, string path)
+    {
+        using var client = host.CreateClient();
+        var endpoint = Assert.Single(FirstFieldClient.Routes(host.Services),
+            route => EndpointInventory.Route(route) == "/api/field/v1" + pattern);
+        Assert.Equal(verb, EndpointInventory.Verbs(endpoint));
+        Assert.True(EndpointInventory.IsGated(endpoint));
+        Assert.Equal(FieldReportEndpoints.DevicePolicy,
+            Assert.Single(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()).Policy);
+        using var request = new HttpRequestMessage(new HttpMethod(verb), "/api/field/v1" + path);
+        using var refused = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+    }
+
     [Fact]
     public async Task Saved_info_reads_default_and_configured_instance_names()
     {

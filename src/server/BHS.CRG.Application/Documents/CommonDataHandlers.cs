@@ -234,7 +234,8 @@ public partial class CommonDataHandlers(
             (!live || e.ArchivedAt == null) &&
             (!scope.HasValue || e.ScopeLevel == scope.Value) &&
             (!scopeId.HasValue || e.ScopeId == scopeId.Value) &&
-            (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
+            (!typeId.HasValue || e.CompositeTypeId == typeId.Value) &&
+            (q.Ids == null || q.Ids.Contains(e.Id)), ct);
     }
 
     /// <summary>

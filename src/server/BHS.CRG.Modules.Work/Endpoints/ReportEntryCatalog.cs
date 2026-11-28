@@ -87,11 +87,15 @@ internal static class ReportEntryCatalog
 
     private static async Task<IResult> MaterialsAsync(IModuleCatalog catalog, string? q, ReportLine[] lines, CancellationToken ct)
     {
-        var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, q, Limit + 1, ct);
+        var found = await SearchMaterialsAsync(catalog, q, Limit + 1, ct);
         var ids = lines.SelectMany(l => l.Materials).Select(m => m.NomenclatureId).Distinct().ToArray();
         var selected = ids.Length == 0 ? [] : await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct) ?? [];
         return Choice(found?.Items, selected, found is null ? "Справочник номенклатуры не заведён." : null);
     }
+
+    internal static Task<ModuleCatalogChoice?> SearchMaterialsAsync(
+        IModuleCatalog catalog, string? query, int limit, CancellationToken ct) =>
+        catalog.SearchAsync(FunctionalTag.RoleNomenclature, query, limit, ct);
 
     private static IResult Choice<T>(IEnumerable<T>? items, IReadOnlyList<T> selected, string? reason)
     {

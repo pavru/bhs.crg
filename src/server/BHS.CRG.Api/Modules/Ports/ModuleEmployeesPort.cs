@@ -16,9 +16,8 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// <c>/api/employees</c>. Табельный номер и период работы — по тэгам <c>employee.*</c> у типа самой
 /// карточки: ключи заказчик вправе переименовать.
 ///
-/// <para><b>Читается весь справочник одним показом</b>, выбор порт отделяет сам — как классификатор
-/// видов работ: сотрудников у компании десятки и сотни, а искать надо и по табельному номеру, который
-/// лежит в данных карточки.</para>
+/// <para>Поиск читает весь справочник: искать надо и по табельному номеру в данных карточки.
+/// Явный список идентификаторов ограничивает чтение карточек и связей.</para>
 ///
 /// <para>Связь с учётной записью (<c>work-11-assignments</c>) — из таблицы связи <c>work-01</c>, одним
 /// запросом на весь справочник: поле карточки <c>УчётнаяЗапись</c> связь не заполняет, и прочитанное
@@ -41,9 +40,10 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
 
     public async Task<IReadOnlyList<ModuleEmployee>?> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
     {
-        if (await AllAsync(ct) is not { } all) return null;
+        var records = _loaded ? _all : await LoadAsync(ids, ct);
+        if (records is null) return null;
         var wanted = ids.ToHashSet();
-        return [.. all.Where(e => wanted.Contains(e.Id))];
+        return [.. records.Where(e => wanted.Contains(e.Id))];
     }
 
     public async Task<ModuleChoice<ModuleEmployee>?> SearchAsync(
@@ -67,18 +67,21 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
     {
         if (!_loaded)
         {
-            _all = await LoadAsync(ct);
+            _all = await LoadAsync(null, ct);
             _loaded = true;
         }
         return _all;
     }
 
-    private async Task<List<ModuleEmployee>?> LoadAsync(CancellationToken ct)
+    private async Task<List<ModuleEmployee>?> LoadAsync(IReadOnlyCollection<Guid>? ids, CancellationToken ct)
     {
         var all = await types.GetAllAsync(ct);
         if (CoreDirectories.Family(all, CoreRecordTypes.EmployeeCode) is not { } family) return null;
 
-        var accounts = await AccountsAsync(ct);
+        if (ids is { Count: 0 }) return [];
+        var accounts = await AccountsAsync(ids, ct);
+        var records = ids is null ? null : await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, Ids: ids), ct);
+        var byType = records?.ToLookup(e => e.CompositeTypeId);
         var employees = new List<ModuleEmployee>();
         foreach (var (typeId, type) in family)
         {
@@ -86,7 +89,8 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
             var number = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeePersonnelNumber);
             var from = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedFrom);
             var to = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedTo);
-            foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))
+            var entries = byType?[typeId] ?? await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);
+            foreach (var e in entries)
             {
                 var data = e.Data.RootElement;
                 employees.Add(new ModuleEmployee(
@@ -103,12 +107,13 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
     /// <c>work-01</c>); строка, чья учётная запись исчезла в эту секунду, — тоже «удалена»: показать связь
     /// с несуществующим хуже. Правило то же, что у экрана (<see cref="EmployeeAccountReads" />).
     /// </summary>
-    private async Task<Dictionary<Guid, ModuleEmployeeAccount>> AccountsAsync(CancellationToken ct)
+    private async Task<Dictionary<Guid, ModuleEmployeeAccount>> AccountsAsync(IReadOnlyCollection<Guid>? ids, CancellationToken ct)
     {
         var links = await (
             from a in db.EmployeeAccounts.AsNoTracking()
             join u in db.Users.AsNoTracking() on a.UserId equals (Guid?)u.Id into us
             from u in us.DefaultIfEmpty()
+            where ids == null || ids.Contains(a.EmployeeId)
             select new { a.EmployeeId, a.UserId, a.AccountName, FoundId = (Guid?)u.Id, u.DisplayName, u.UserName })
             .ToListAsync(ct);
         return links.ToDictionary(l => l.EmployeeId, l => l.UserId is { } userId && l.FoundId is not null

@@ -55,6 +55,14 @@ public sealed class AssignmentGate(IModuleUser user, IModuleEmployees employees,
         if (await RefusalAsync(constructionId, ct) is { } refusal) throw new ForbiddenException(refusal);
     }
 
+    // Монтажный ввод проверяет назначения сотрудника, независимо от офисных прав вызывающего.
+    internal static IQueryable<Assignment> EntryAssignments(WorkDbContext db, ModuleEmployee employee, DateOnly date)
+    {
+        var eligible = !employee.Archived && employee.NotWorkingOn(date) is null;
+        return db.Assignments.AsNoTracking().Where(a => eligible && a.EmployeeId == employee.Id
+            && a.DateFrom <= date && (a.DateTo == null || a.DateTo >= date));
+    }
+
     /// <summary>
     /// Почему назначение нельзя снять: право по стройке или «на стройке не останется менеджера». <c>null</c> —
     /// можно. Второе — не запрет права, а состояние стройки: адрес отвечает на него 409, а не 403.

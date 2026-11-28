@@ -123,6 +123,9 @@ public static class TagRegistry
         new(FunctionalTag.DocDate, "Дата документа",
             "Дата документа, заполняемая пользователем. В отличие от даты генерации не меняется при повторной генерации PDF; попадает в консолидации (напр. в реестр документов комплекта).",
             TagScope.Field, ["date", "string", "text"], Multiple: false),
+        new(FunctionalTag.ConstructionAddress, "Адрес стройки",
+            "Текст адреса в профиле стройки для полевого справочника. Отметьте одно текстовое поле профиля.",
+            TagScope.Field, ["string", "text"], Multiple: false, Group: "Профили уровней"),
 
         // ── Field: идентификатор объекта / документы качества ──
         new(FunctionalTag.Identity, "Идентификатор",

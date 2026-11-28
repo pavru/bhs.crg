@@ -234,6 +234,9 @@ public sealed class WorkModule : IAppModule, IFieldReportExchange
         services.AddSingleton<IModuleActivityActions, DeviceActions>();
         services.AddScoped<ManagerSites>();
         services.AddScoped<DeviceSessions>();
+        services.AddScoped<FieldReferences>();
+        services.AddScoped<FieldMaterialHints>();
+        services.AddSingleton<FieldReferencePages>();
         services.AddScoped<DeviceManagementScope>();
         services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, FieldDeviceAuthentication>(
             FieldDeviceAuthentication.SchemeName, _ => { });
@@ -298,7 +301,12 @@ public sealed class WorkModule : IAppModule, IFieldReportExchange
 
     int IFieldReportExchange.MinimumSenderVersionCode => MinimumFieldSenderVersionCode;
 
-    void IFieldReportExchange.MapReports(IEndpointRouteBuilder fieldV1) => FieldReportEndpoints.Map(fieldV1);
+    void IFieldReportExchange.MapReports(IEndpointRouteBuilder fieldV1)
+    {
+        FieldReportEndpoints.Map(fieldV1);
+        FieldObservationEndpoints.Map(fieldV1);
+        FieldReferences.Map(fieldV1);
+    }
 
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
