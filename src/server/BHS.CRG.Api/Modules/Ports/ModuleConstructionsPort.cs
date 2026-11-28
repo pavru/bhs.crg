@@ -1,7 +1,16 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Schema;
+using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Ports;
+using Mediator;
+using Microsoft.EntityFrameworkCore;
+using RecordsFor = BHS.CRG.Application.Documents.RecordsFor;
 
 namespace BHS.CRG.Api.Modules.Ports;
 
@@ -11,8 +20,49 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// компании порт берёт у настроек ядра сам, модулю их не видно.
 /// </summary>
 public sealed class ModuleConstructionsPort(
-    IRepository<Construction> constructions, IRepository<Section> sections, IAppSettingsStore settings) : IModuleConstructions
+    IRepository<Construction> constructions, IRepository<Section> sections, IAppSettingsStore settings,
+    AppDbContext db, IMediator mediator) : IModuleConstructions
 {
+    public async Task<string> CompanyTimeZoneIdAsync(CancellationToken ct = default) =>
+        SiteZones.IanaId(await settings.GetCompanyTimeZoneAsync(ct));
+
+    public async Task<IReadOnlyDictionary<Guid, string>> AddressesAsync(IReadOnlyCollection<Guid> siteIds,
+        CancellationToken ct = default)
+    {
+        var addresses = new Dictionary<Guid, string>();
+        if (siteIds.Count == 0) return addresses;
+
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        if (LevelProfiles.ResolveProfileTypeId(allTypes, FunctionalTag.ProfileConstruction) is not { } profileType)
+            return addresses;
+
+        var ids = siteIds.ToArray();
+        var profiles = await (from site in db.Constructions.AsNoTracking()
+                              join profile in db.DomainObjects.AsNoTracking() on site.ProfileObjectId equals (Guid?)profile.Id
+                              where ids.Contains(site.Id) && profile.ScopeLevel == CatalogScope.Construction
+                                  && profile.ScopeId == site.Id && profile.ArchivedAt == null
+                              select new { SiteId = site.Id, ProfileId = profile.Id, TypeId = profile.CompositeTypeId })
+            .ToListAsync(ct);
+        var typesById = allTypes.ToDictionary(t => t.Id);
+        foreach (var group in profiles.GroupBy(p => p.TypeId))
+        {
+            if (!DocumentTypeSchemaReader.IsSameOrDescendant(group.Key, profileType, typesById)) continue;
+            var keys = SchemaTags.TaggedFieldsInSchemaOrder(typesById[group.Key], allTypes)
+                .Where(f => f.Tag.Code == FunctionalTag.ConstructionAddress).Select(f => f.Key).Distinct().ToArray();
+            if (keys.Length != 1 || DocumentTypeSchemaReader.Field(group.Key, keys[0], typesById)
+                    is not { Type: "string" or "text", Computed: false })
+                continue;
+
+            var sitesByProfile = group.ToDictionary(p => p.ProfileId, p => p.SiteId);
+            var values = await mediator.Send(new CommonDataFieldValuesQuery([group.Key], keys[0], RecordsFor.Choice,
+                Ids: [.. sitesByProfile.Keys]), ct);
+            foreach (var address in values)
+                if (!address.Unreadable && !string.IsNullOrWhiteSpace(address.Value))
+                    addresses[sitesByProfile[address.Record.Id]] = address.Value.Trim();
+        }
+        return addresses;
+    }
+
     public async Task<IReadOnlyList<ModuleConstruction>> ListAsync(CancellationToken ct = default)
     {
         var all = await constructions.GetAllAsync(ct);

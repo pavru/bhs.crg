@@ -38,4 +38,10 @@ public interface IModuleConstructions
 {
     /// <summary>Все стройки с разделами, по названию (сравнение культурное — список читает человек).</summary>
     Task<IReadOnlyList<ModuleConstruction>> ListAsync(CancellationToken ct = default);
+
+    /// <summary>Действующий пояс компании в IANA, включая экземпляры без строек.</summary>
+    Task<string> CompanyTimeZoneIdAsync(CancellationToken ct = default);
+
+    /// <summary>Текст адреса из семантически помеченного поля профиля указанных строек.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> AddressesAsync(IReadOnlyCollection<Guid> siteIds, CancellationToken ct = default);
 }

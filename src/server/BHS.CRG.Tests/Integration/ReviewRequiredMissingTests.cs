@@ -342,6 +342,8 @@ public class ReviewRequiredMissingTests(AssignmentHost host) : IAsyncLifetime
 
     private sealed class TypesProbe(IModuleWorkTypes inner) : IModuleWorkTypes
     {
+        public Task<IReadOnlyList<ModuleWorkType>?> ListAsync(CancellationToken ct = default) => inner.ListAsync(ct);
+
         public List<Guid[]> Requests { get; } = [];
         public bool Unavailable { get; set; }
 

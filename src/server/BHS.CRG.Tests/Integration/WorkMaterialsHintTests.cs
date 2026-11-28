@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Documents;
@@ -12,6 +13,7 @@ using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work;
 using BHS.CRG.Modules.Work.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static BHS.CRG.Tests.Integration.AssignmentWorld;
 using static BHS.CRG.Tests.Integration.WorkMaterialsHintWorkOnlyTests;
@@ -27,6 +29,62 @@ public sealed class WorkMaterialsHintHost : AssignmentHost
 public sealed class WorkMaterialsHintTests(WorkMaterialsHintHost host) : IClassFixture<WorkMaterialsHintHost>
 {
     private readonly AssignmentWorld world = new(host);
+
+    [Fact]
+    public async Task Field_device_without_office_account_gets_narrow_hints_only_for_its_assignment()
+    {
+        await world.ResetAsync();
+        var employee = await world.EmployeeAsync(await world.DirectoryAsync(), "Монтажник без аккаунта");
+        var site = await world.SiteAsync("Назначенная");
+        var emptySite = await world.SiteAsync("Без материалов");
+        var otherSite = await world.SiteAsync("Чужая");
+        var assignmentId = await world.AssignedAsync(employee, site, AssignmentKind.Installer, "2026-11-01", "2026-11-02");
+        await world.AssignedAsync(employee, emptySite, AssignmentKind.Installer, "2026-11-01", "2026-11-02");
+        var fixture = await SeedAsync(site, otherSite);
+        var (_, manager) = await world.UserAsync("Администратор устройств", WorkModule.DevicesManage, WorkModule.SitesAll);
+        using var office = manager;
+        using var phone = host.CreateClient();
+        await FieldReportClient.ConnectAsync(office, phone, employee);
+
+        var issued = await PageAsync("issued-materials", site);
+        Assert.Equal("ok", issued.GetProperty("state").GetString());
+        var cable = Assert.Single(issued.GetProperty("items").EnumerateArray());
+        Assert.Equal(fixture.Cable, cable.GetProperty("id").GetGuid());
+        Assert.Equal(["displayName", "id", "unit"], cable.EnumerateObject().Select(p => p.Name).Order());
+
+        var estimate = await PageAsync("estimated-materials", site, limit: 1);
+        Assert.True(estimate.GetProperty("more").GetBoolean());
+        foreach (var row in (await PageAsync("estimated-materials", site)).GetProperty("items").EnumerateArray())
+            Assert.Equal(["displayName", "id", "planItemId"], row.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Contains((await PageAsync("estimated-materials", site)).GetProperty("items").EnumerateArray(),
+            row => row.GetProperty("id").GetGuid() == fixture.Box && row.GetProperty("planItemId").GetGuid() == fixture.Position);
+
+        foreach (var kind in new[] { "issued-materials", "estimated-materials" })
+        {
+            var empty = await PageAsync(kind, emptySite);
+            Assert.Equal("ok", empty.GetProperty("state").GetString());
+            Assert.Empty(empty.GetProperty("items").EnumerateArray());
+            Assert.Equal("not-assigned", (await PageAsync(kind, otherSite)).GetProperty("state").GetString());
+            Assert.Equal("not-assigned", (await PageAsync(kind, site, "2026-10-31")).GetProperty("state").GetString());
+        }
+
+        using var officeRequest = await phone.GetAsync(Path(site));
+        Assert.Equal(HttpStatusCode.Unauthorized, officeRequest.StatusCode);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WorkDbContext>();
+        await db.Assignments.Where(a => a.Id == assignmentId).ExecuteDeleteAsync();
+        var lost = await PageAsync("estimated-materials", site, limit: 1, cursor: estimate.GetProperty("cursor").GetString());
+        Assert.True(lost.GetProperty("replace").GetBoolean());
+        Assert.Equal("not-assigned", lost.GetProperty("state").GetString());
+        Assert.Empty(lost.GetProperty("items").EnumerateArray());
+
+        async Task<JsonElement> PageAsync(string kind, Guid id, string date = "2026-11-01", int limit = 100, string? cursor = null)
+        {
+            var url = $"/api/field/v1/references/{kind}?siteId={id}&date={date}&limit={limit}";
+            if (cursor is not null) url += $"&cursor={Uri.EscapeDataString(cursor)}";
+            return await phone.GetFromJsonAsync<JsonElement>(url);
+        }
+    }
 
     [Fact]
     public async Task Три_яруса_по_полному_ключу_без_повторов_и_количеств()

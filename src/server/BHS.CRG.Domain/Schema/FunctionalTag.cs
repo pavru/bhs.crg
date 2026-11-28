@@ -33,6 +33,9 @@ public static class FunctionalTag
     /// <see cref="DocGeneratedAt"/>: дата документа не меняется при повторной генерации PDF.</summary>
     public const string DocDate = "doc.date";
 
+    /// <summary>Текст адреса в профиле стройки для назначенных полевых устройств.</summary>
+    public const string ConstructionAddress = "construction.address";
+
     // ── Тэги поля: идентификатор объекта / документы качества ───────────────────
     /// <summary>Поле-идентификатор объекта (артикул/наименование/...). Обобщён из «material.identity»
     /// (issue #183): применим к ЛЮБОМУ составному типу — участвует в резолве «строка→объект».

@@ -328,6 +328,9 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
     /// <summary>Порт позиций, запоминающий ответы пакетом.</summary>
     private class Recording(IModulePlanItems inner) : IModulePlanItems
     {
+        public Task<IReadOnlyList<ModulePlanItem>> ForSitesAsync(IReadOnlyCollection<Guid> siteIds, CancellationToken ct = default) =>
+            inner.ForSitesAsync(siteIds, ct);
+
         public List<PlanItemBatch> Seen { get; } = [];
 
         public Task<PlanItemOutcome> FindOrCreateAsync(PlanItemKey key, CancellationToken ct = default) =>

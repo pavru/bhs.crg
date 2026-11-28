@@ -15,6 +15,9 @@ public interface IMaterialsOnSite
     /// <summary>Явная подсказка по любому из двух прав. Единица указана, если у позиции она однозначна.</summary>
     Task<ContractAnswer<IReadOnlyList<MaterialOnSiteHint>>> ReadHintAsync(
         ModuleReader reader, Guid constructionId, CancellationToken ct = default);
+
+    /// <summary>Полевой срез по назначению, проверенному адаптером Work.</summary>
+    Task<IReadOnlyList<MaterialOnSiteHint>> ReadFieldHintsAsync(AssignedFieldSite site, CancellationToken ct = default);
 }
 
 public sealed record MaterialOnSiteHint(Guid NomenclatureId, string? Unit);

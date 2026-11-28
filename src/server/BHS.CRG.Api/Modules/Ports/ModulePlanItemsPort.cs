@@ -78,6 +78,15 @@ public sealed class ModulePlanItemsPort(AppDbContext db, IMediator mediator) : I
             .Select(p => new ModulePlanItem(p.Id, KeyOf(p)))];
     }
 
+    public async Task<IReadOnlyList<ModulePlanItem>> ForSitesAsync(
+        IReadOnlyCollection<Guid> siteIds, CancellationToken ct = default)
+    {
+        if (siteIds.Count == 0) return [];
+        var wanted = siteIds.ToArray();
+        var items = await db.WorkPlanItems.AsNoTracking().Where(p => wanted.Contains(p.ConstructionId)).ToListAsync(ct);
+        return [.. items.Select(p => new ModulePlanItem(p.Id, KeyOf(p)))];
+    }
+
     /// <summary>
     /// Часть пакета — вставкой и чтением, а то, что не дошло, — повторной проверкой ключа. Проверка до
     /// вставки и сама вставка разнесены во времени: раздел или стройку удаляют между ними, и тогда отказ

@@ -14,7 +14,7 @@ namespace BHS.CRG.Modules.Work.Crew;
 
 public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
 {
-    private sealed record Candidate(Guid Id, string FullName);
+    internal sealed record Candidate(Guid Id, string FullName);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -48,12 +48,14 @@ public sealed class CrewCandidates(WorkDbContext db, IModuleEmployees employees)
     private static IResult NotAssigned() => Results.Ok(new { items = Array.Empty<Candidate>(), reason = "not-assigned" });
 
     private async Task<IResult> ReadAsync(Guid id, DateOnly date, CancellationToken ct)
+        => Results.Ok(new { items = await ListAsync(id, date, ct), reason = (string?)null });
+
+    internal async Task<Candidate[]> ListAsync(Guid id, DateOnly date, CancellationToken ct)
     {
         var assigned = await AssignedAsync(id, date, ct);
-        var items = (await employees.GetAsync(assigned, ct) ?? [])
+        return (await employees.GetAsync(assigned, ct) ?? [])
             .OrderBy(e => e.FullName, StringComparer.CurrentCulture).ThenBy(e => e.Id)
             .Select(e => new Candidate(e.Id, e.FullName)).ToArray();
-        return Results.Ok(new { items, reason = (string?)null });
     }
 
     internal async Task EnsureAssignedAsync(ReportHeaderValues header, IReadOnlyList<ReportLineValues> lines, CancellationToken ct)

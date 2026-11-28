@@ -784,6 +784,34 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.ToTable("device_invitations", "work");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceObservation", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ApkVersionCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("LastContactAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ObservedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("OldestPendingDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("PendingReports")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("DeviceId");
+
+                    b.ToTable("device_observations", "work");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -937,6 +965,15 @@ namespace BHS.CRG.Modules.Work.Migrations
                     b.HasOne("BHS.CRG.Modules.Work.Data.Report", null)
                         .WithMany()
                         .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Work.Devices.DeviceObservation", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Work.Devices.DeviceSession", null)
+                        .WithOne()
+                        .HasForeignKey("BHS.CRG.Modules.Work.Devices.DeviceObservation", "DeviceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

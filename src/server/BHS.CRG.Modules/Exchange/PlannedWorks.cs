@@ -26,7 +26,12 @@ public interface IPlannedWorks
     /// </summary>
     Task<ContractAnswer<PlannedWorksAnswer>> ReadAsync(
         ModuleReader reader, PlannedWorksQuery query, CancellationToken ct = default);
+
+    /// <summary>Номенклатура по позициям действующих смет стройки, проверенной адаптером Work.</summary>
+    Task<IReadOnlyList<FieldPlannedHint>> ReadFieldHintsAsync(AssignedFieldSite site, CancellationToken ct = default);
 }
+
+public sealed record FieldPlannedHint(Guid PlanItemId, Guid NomenclatureId);
 
 /// <summary>Что спрашивают: стройка — обязательно, раздел и позиции перечня — сужают ответ.</summary>
 /// <param name="SectionId">
