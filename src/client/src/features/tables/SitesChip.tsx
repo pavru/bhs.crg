@@ -13,22 +13,22 @@ import { favoriteNames, namesakes, replacesOthers, sitesChipState, sitesColumn }
  * Открытая под фильтром таблица показывает всё — фильтр её не урезает, поэтому отбора «Стройки» (#1432) над ней нет:
  * здесь только состояние фильтра, `useSiteFilterState`.
  *
- * <p>Тёзки ищутся и среди статей вне строек: колонка со стройками сейчас одна — «Объект» реестра счетов, и
- * прочие объекты в ней — статьи (ревью PR #1339). Справочник статей не прочитан (нет права, сбой) — об этом
- * сказано: молчание читалось бы как «тёзок нет».</p>
+ * <p>В реестре счетов тёзки ищутся и среди статей вне строек (ревью PR #1339).
+ * Если справочник статей недоступен, чип показывает оговорку.</p>
  */
-export function SitesChip({ columns, filter, canReadArticles, onToggle }: {
+export function SitesChip({ columns, filter, checkArticles, canReadArticles, onToggle }: {
   columns: readonly TableColumn[];
   /** Отбор, который стоит на экране: по нему видно, нажат ли чип и можно ли его нажать. */
   filter: ShortcutFilter;
+  checkArticles: boolean;
   canReadArticles: boolean;
   onToggle: (column: string, names: string[]) => void;
 }) {
   const sites = useSiteFilterState();
   const column = sitesColumn(columns);
   const offered = sites.active && !!column;
-  const articles = useCostsArticles(offered && canReadArticles);
-  const visibleArticles = canReadArticles ? articles.data : undefined;
+  const articles = useCostsArticles(offered && checkArticles && canReadArticles);
+  const visibleArticles = checkArticles && canReadArticles ? articles.data : undefined;
   const others = useMemo(() => (visibleArticles ?? []).map(a => a.name), [visibleArticles]);
   const names = useMemo(() => favoriteNames(sites.sites, sites.favorites), [sites.sites, sites.favorites]);
   const twins = useMemo(() => namesakes(sites.sites, sites.favorites, names, others),
@@ -57,7 +57,7 @@ export function SitesChip({ columns, filter, canReadArticles, onToggle }: {
           Отбор по названию: попадут и другие объекты с тем же названием — {twins.map(n => `«${n}»`).join(', ')}.
         </span>
       ) : null}
-      {(!canReadArticles || articles.isError) && (
+      {checkArticles && (!canReadArticles || articles.isError) && (
         <span className="text-on-surface-variant">Отбор по названию: статьи вне строек с тем же названием не проверены.</span>
       )}
     </div>

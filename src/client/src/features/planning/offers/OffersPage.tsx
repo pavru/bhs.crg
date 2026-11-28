@@ -17,6 +17,7 @@ import { OfferStatusText } from './offerDisplay';
 import { moneyText, OFFERS_PATH, offerUrl, sourceLabel } from './offerFormat';
 import { OfferCard } from './OfferCard';
 import { PriceListOfferAction } from '../pricelist/PriceListOfferAction';
+import { offersTableLink } from '../planTableLinks';
 
 export function OffersPage() {
   return <div className="h-full overflow-auto">
@@ -42,6 +43,8 @@ function OfferList() {
   const canReadSites = can.permission('core.constructions.read');
   const sites = useConstructionDirectory(canReadSites);
   const filter = useSiteFilter();
+  const table = offersTableLink(canReadSites && filter.active
+    ? [...filter.favorites] : []);
   const siteNames = new Map(sites.data?.map(site => [site.id, site.name]));
   const loaded = query.data?.pages.flatMap(page => page.items) ?? [];
   const rows = canReadSites ? loaded.filter(row => filter.visible(row.constructionId)) : loaded;
@@ -59,7 +62,12 @@ function OfferList() {
 
   const refusal = query.isError ? offerRefusal(query.error, 'Коммерческие предложения не прочитались.') : null;
   return <section className="grid min-w-0 grid-cols-1 gap-4">
-    <PageHeader icon={<Icon icon={Description} size={18} aria-hidden />} title="Коммерческие предложения" actions={<PriceListOfferAction />} />
+    <PageHeader icon={<Icon icon={Description} size={18} aria-hidden />} title="Коммерческие предложения"
+      actions={<div className="flex flex-wrap items-center gap-2">
+        {can.permission('plan.offer.read') && filter.status !== 'loading' && <Link
+          className="text-body-medium text-primary hover:underline" to={table}>Открыть таблицей</Link>}
+        <PriceListOfferAction />
+      </div>} />
     {refusal && <Banner tone="error" actions={[{ label: 'Повторить', onClick: () => void query.refetch() }]}>{refusal.message}</Banner>}
     {refusal?.kind !== 'forbidden' && (query.isPending || canReadSites && filter.status === 'loading' ? (
       <p role="status" className="text-body-medium text-on-surface-variant">Читаем коммерческие предложения…</p>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useCan } from '@/shared/api/access';
 import { useGetConstruction } from '@/shared/api/constructions';
 import { SCHEDULE_EDIT, SCHEDULE_READ } from '@/shared/api/planningCalendars';
@@ -10,6 +11,7 @@ import { Banner } from '@/shared/ui/Banner';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LeaveGuard } from '@/shared/ui/LeaveGuard';
+import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { ManualScheduleWorkDialog } from './ManualScheduleWorkDialog';
@@ -22,6 +24,7 @@ import { SchedulePrintDialog } from './SchedulePrintDialog';
 import { ScheduleWorksGrid } from './ScheduleWorksGrid';
 import { skippedText, warningFilters, type ScheduleSection } from './scheduleDisplay';
 import { draftChanged, draftOf, keepEdits, workInput, type WorkDraft } from './workDraft';
+import { scheduleTableLink } from '../planTableLinks';
 
 const ALL_SECTIONS = 'all';
 const WHOLE_SITE = 'whole-site';
@@ -47,6 +50,7 @@ function ScheduleContents({ schedule, sections, reload }: {
   reload: () => Promise<{ isSuccess: boolean; data?: Schedule }>;
 }) {
   const can = useCan();
+  const guardedClick = useGuardedNavClick();
   const canPrint = can.permission(SCHEDULE_READ);
   const canEdit = can.permission(SCHEDULE_EDIT);
   const canReadEmployees = can.permission('core.employees.read');
@@ -75,6 +79,8 @@ function ScheduleContents({ schedule, sections, reload }: {
   const refusal = edit && write.error ? scheduleRefusal(write.error, 'Работа не сохранилась.') : null;
   const stale = refusal?.kind === 'conflict' || refused !== null;
   const editingId = canEdit ? edit?.baseline.id ?? null : null;
+  const tableLink = scheduleTableLink(schedule.id, section === ALL_SECTIONS ? undefined : section === WHOLE_SITE ? null : section,
+    warningCode);
 
   useEffect(() => {
     const workId = editingId ?? selectedWorkId;
@@ -186,6 +192,8 @@ function ScheduleContents({ schedule, sections, reload }: {
       <div><h2 className="text-headline-small">{schedule.name}</h2>
         <p className="text-body-medium text-on-surface-variant">{schedule.revisionId ? 'Редакция сметы' : 'Ручной график'}</p>
       </div>
+      {canPrint && <Link className="self-center text-body-medium text-primary hover:underline"
+        to={tableLink} onClick={guardedClick(tableLink)}>Открыть таблицей</Link>}
       {canEdit && canReadCatalog && <Button variant="outlined" disabled={!!edit || pending} onClick={() => setDialog('add')}>
         Добавить работу
       </Button>}

@@ -12,6 +12,7 @@ import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { EditOfferHeaderDialog } from './EditOfferHeaderDialog';
+import { offerTableLink } from '../planTableLinks';
 import { OfferDriftBanner } from './OfferDriftBanner';
 import { OfferLines } from './OfferLines';
 import { OfferMarkups } from './OfferMarkups';
@@ -53,6 +54,7 @@ export function OfferCard({ id }: { id: string }) {
 
 function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   const can = useCan();
+  const guardedClick = useGuardedNavClick();
   const canRead = can.permission('plan.offer.read');
   const canEdit = can.permission('plan.offer.edit');
   const canSend = can.permission('plan.offer.send');
@@ -87,6 +89,7 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   }
 
   const showTab = historical ? showCurrent : setTab;
+  const table = offerTableLink(offer.number);
 
   function openNewDraft() {
     close();
@@ -96,6 +99,8 @@ function OfferDetail({ offer, reload }: { offer: Offer; reload: ReloadOffer }) {
   return <article className="grid min-w-0 grid-cols-1 gap-4" aria-label={`Карточка ${offer.number}`}>
     <PageHeader title={offer.number} subtitle={historical ? site ?? undefined : subtitle}
       actions={!historical && <div className="flex flex-wrap gap-2">
+        {canRead && <Link className="self-center text-body-medium text-primary hover:underline"
+          to={table} onClick={guardedClick(table)}>Открыть таблицей</Link>}
         {canRead && <Button variant="outlined" disabled={markupsDirty} onClick={() => setLayer('print')}>Печать…</Button>}
         <OfferStatusActions offer={offer} canEdit={canEdit} canSend={canSend} disabled={markupsDirty} onOpen={setLayer} />
       </div>} />

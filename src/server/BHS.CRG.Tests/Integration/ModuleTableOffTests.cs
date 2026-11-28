@@ -116,6 +116,22 @@ public class ModuleTableOffTests(IntegrationTestFixture fixture)
             item.GetProperty("sheetOrPath").GetString()!.StartsWith("system:table:work.", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("plan.offers")]
+    [InlineData("plan.schedule-works")]
+    public async Task Без_планирования_таблица_не_отдаёт_строки_и_набор_не_предлагается(string address)
+    {
+        using var client = await AdminAsync();
+        var table = await client.GetFromJsonAsync<JsonElement>($"/api/tables/{address}");
+        Assert.Equal(TableColumnReasons.ModuleOff, table.GetProperty("state").GetString());
+        Assert.Empty(table.GetProperty("rows").EnumerateArray());
+        Assert.All(table.GetProperty("columns").EnumerateArray(), column =>
+            Assert.Equal("модуль «Планирование» выключен", column.GetProperty("reason").GetString()));
+
+        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/datasets/system-candidates?scope=System");
+        Assert.DoesNotContain(candidates.EnumerateArray(), item => item.GetProperty("sheetOrPath").GetString() == $"system:table:{address}");
+    }
+
     private async Task<HttpClient> AdminAsync()
     {
         var email = $"tables_{Guid.NewGuid():N}@test.local";

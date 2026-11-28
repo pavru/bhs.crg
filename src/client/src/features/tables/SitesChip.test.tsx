@@ -48,8 +48,8 @@ const rowFilters = () => vi.mocked(apiClient.get).mock.calls
   .filter(([url]) => url === '/tables/costs.invoices')
   .map(([, config]) => (config as { params: { filter?: string } }).params.filter);
 
-function mount(filter: SiteFilterValue, cachedArticles = false) {
-  window.history.pushState(null, '', '/tables/costs.invoices');
+function mount(filter: SiteFilterValue, cachedArticles = false, address = 'costs.invoices') {
+  window.history.pushState(null, '', `/tables/${address}`);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (cachedArticles) qc.setQueryData(['costs-articles'], [{ id: 's1', name: 'Склад', archived: false }]);
   return render(
@@ -131,6 +131,25 @@ describe('таблица со стройками под включённым ф�
     const urls = vi.mocked(apiClient.get).mock.calls.map(([url]) => url);
     expect(urls).not.toContain('/costs/articles');
     expect(urls).not.toContain('/costs/constructions');
+  });
+
+  it.each([
+    ['plan.offers', ['plan.offer.read']],
+    ['plan.schedule-works', ['plan.schedule.read', 'costs.invoice.read']],
+  ])('таблица %s сохраняет чип и не проверяет статьи затрат', async (address, permissions) => {
+    const ok = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (url, config) => {
+      if (url === '/account/access') return { data: { permissions, modules: ['plan'] } };
+      if (url === `/tables/${address}/columns`) return { data: {
+        ...DECLARATION, address, columns: [column('Стройка', { sites: true })],
+      } };
+      return ok(url, config);
+    });
+    mount(filterOf(['c']), true, address);
+
+    await screen.findByRole('button', { name: /Стройка: избранные стройки/ });
+    expect(screen.queryByText(/статьи вне строек|попадут и другие объекты/)).toBeNull();
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain('/costs/articles');
   });
 
   it('фильтр выключен или избранное пусто — чипа нет', async () => {

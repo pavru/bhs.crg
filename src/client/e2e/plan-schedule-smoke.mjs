@@ -181,6 +181,17 @@ try {
       await tab(manager, 'Диаграмма').waitFor({ state: 'hidden' });
       await manager.getByRole('list', { name: 'Работы графика' }).waitFor();
     });
+
+    await check('manager-opens-schedule-table-with-warning-filter', async () => {
+      const warning = manager.getByRole('button', { name: /^Нарушения зависимостей · 1$/ });
+      if (await warning.getAttribute('aria-pressed') !== 'true') await warning.click();
+      await manager.getByRole('link', { name: 'Открыть таблицей', exact: true }).click();
+      await manager.waitForURL(url => url.pathname === '/tables/plan.schedule-works/works');
+      await manager.getByRole('cell', { name: graphName, exact: true }).waitFor();
+      await manager.getByRole('cell', { name: /starts-before-predecessor/ }).waitFor();
+      assert.equal(await manager.getByRole('cell', { name: graphName, exact: true }).count(), 1);
+      assert.equal(await manager.getByRole('cell', { name: NEIGHBOR_SCHEDULE, exact: true }).count(), 0);
+    });
   }
 
   const estimator = await browser.newPage({ viewport });
