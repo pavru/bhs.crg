@@ -64,10 +64,7 @@ internal sealed class ScheduleWorksTable(
         var employeeIds = await assignments.Select(a => a.EmployeeId).Distinct().ToArrayAsync(ct);
         var people = employeeIds.Length == 0 ? [] : await employees.GetAsync(employeeIds, ct) ?? [];
         var names = people.ToDictionary(e => e.Id, e => e.FullName);
-        var warningIds = TableFilters.Mentions(query.Filter, Warnings) || query.Sort?.Any(s => s.Column == Warnings) == true
-            || query.Totals?.ContainsKey(Warnings) == true
-            ? await rows.Select(r => r.Schedule.Id).Distinct().ToArrayAsync(ct) : [];
-        var warnings = await WarningLabelsAsync(warningIds, ct);
+        var warnings = new Dictionary<Guid, string>();
         var sql = TableSql<Cells>.Describe(Declaration, columns => columns
             .Text(ScheduleName, r => r.Schedule.Name)
             .Lookup(Site, r => (Guid?)r.Schedule.ConstructionId, sites)
@@ -83,6 +80,16 @@ internal sealed class ScheduleWorksTable(
             .Text(ScheduleKey, r => r.Schedule.Id.ToString())
             .Text(SectionKey, r => r.Work.SectionId == null ? null : r.Work.SectionId.Value.ToString()));
 
+        var needsWarnings = TableFilters.Mentions(query.Filter, Warnings) || query.Sort?.Any(s => s.Column == Warnings) == true
+            || query.Totals?.ContainsKey(Warnings) == true;
+        if (needsWarnings)
+        {
+            var candidates = sql.Where(rows, BeforeWarnings(query.Filter));
+            var ids = await candidates.Select(r => r.Schedule.Id).Distinct().ToArrayAsync(ct);
+            warnings = await WarningLabelsAsync(ids, ct);
+            sql.Lookup(Warnings, r => (Guid?)r.Work.Id, warnings);
+        }
+
         var filtered = sql.Where(rows, query.Filter);
         var count = await filtered.CountAsync(ct);
         var totals = await sql.TotalsAsync(filtered, query.Totals, ct);
@@ -94,7 +101,7 @@ internal sealed class ScheduleWorksTable(
         var pageWorkIds = read.Select(r => r.Work.Id).ToArray();
         var assigned = (await assignments.Where(a => pageWorkIds.Contains(a.WorkId)).ToListAsync(ct))
             .ToLookup(a => a.WorkId, a => names.GetValueOrDefault(a.EmployeeId, "Сотрудник недоступен"));
-        if (warningIds.Length == 0 && query.Columns.Contains(Warnings))
+        if (!needsWarnings && query.Columns.Contains(Warnings))
             warnings = await WarningLabelsAsync(read.Select(r => r.Schedule.Id).Distinct(), ct);
 
         return new([.. read.Select(r => new Dictionary<string, object?>
@@ -112,6 +119,18 @@ internal sealed class ScheduleWorksTable(
             [ScheduleKey] = r.Schedule.Id.ToString(),
             [SectionKey] = r.Work.SectionId?.ToString(),
         })], count, totals, Keys: [.. pageWorkIds.Select(id => id.ToString())]);
+    }
+
+    // null означает, что ветка может подойти при каком-либо предупреждении.
+    // В «любое» такая ветка снимает предварительный отбор всей группы.
+    private static TableFilter? BeforeWarnings(TableFilter? filter)
+    {
+        if (filter is not TableFilterGroup { Children.Count: > 0 } group)
+            return filter is TableFilterCondition { Column: Warnings } ? null : filter;
+        var children = group.Children.Select(BeforeWarnings).ToArray();
+        if (group.Any && children.Any(child => child is null)) return null;
+        var known = children.OfType<TableFilter>().ToArray();
+        return known.Length == 0 ? null : group with { Children = known };
     }
 
     private async Task<Dictionary<Guid, string>> WarningLabelsAsync(IEnumerable<Guid> ids, CancellationToken ct)

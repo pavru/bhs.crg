@@ -10,6 +10,7 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
 {
     private const string NumberKey = "Номер", Site = "Стройка", Source = "Основание", Status = "Статус";
     private const string Version = "Версия", SentOn = "ДатаОтправки", Total = "Итого";
+    private const string Incomplete = "НеполныйИтог";
     private const string SiteKey = "КлючСтройки";
 
     private static readonly IReadOnlyDictionary<OfferStatus, string> Statuses = new Dictionary<OfferStatus, string>
@@ -32,10 +33,11 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
             new(Version, "Действующая версия", ModuleTableColumnKind.Number),
             new(SentOn, "Дата отправки", ModuleTableColumnKind.Date),
             new(Total, "Итого", ModuleTableColumnKind.Number),
+            new(Incomplete, "Неполный итог", ModuleTableColumnKind.Boolean),
             new(SiteKey, "Ключ стройки", Text, OnDemand: true),
         ],
         typeof(OfferTable),
-        Views: [new("registry", "Реестр КП", [NumberKey, Site, Source, Status, Version, SentOn, Total],
+        Views: [new("registry", "Реестр КП", [NumberKey, Site, Source, Status, Version, SentOn, Total, Incomplete],
             Filters: [NumberKey, Site, Status, SentOn])],
         MissingRowIsNotFound: true);
 
@@ -57,6 +59,7 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
                        Version = offer.CurrentVersion,
                        SentOn = offer.SentOn,
                        Total = offer.Total,
+                       Incomplete = offer.RevisionId == null && offer.Lines.Any(line => line.PriceListPrice == null),
                        Date = offer.Date,
                        Year = offer.Year,
                        Sequence = offer.Sequence,
@@ -74,6 +77,7 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
             .Number(Version, r => r.Version)
             .Date(SentOn, r => r.SentOn)
             .Number(Total, r => r.Total)
+            .Flag(Incomplete, r => r.Incomplete)
             .Text(SiteKey, r => r.ConstructionId.ToString()));
         var filtered = sql.Where(rows, query.Filter);
         var count = await filtered.CountAsync(ct);
@@ -96,6 +100,7 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
             [Version] = (decimal)row.Version,
             [SentOn] = row.SentOn,
             [Total] = row.Total,
+            [Incomplete] = row.Incomplete,
             [SiteKey] = row.ConstructionId.ToString(),
         };
 
@@ -109,6 +114,7 @@ internal sealed class OfferTable(PlanDbContext db, IModuleConstructions construc
         public int Version { get; init; }
         public DateOnly? SentOn { get; init; }
         public decimal Total { get; init; }
+        public bool Incomplete { get; init; }
         public DateOnly Date { get; init; }
         public int Year { get; init; }
         public int Sequence { get; init; }

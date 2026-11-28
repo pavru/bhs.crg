@@ -193,7 +193,8 @@ export function TablePage() {
 
         {/* Избранные стройки таблицу не урезают — только предлагают условие, которое ставит человек (#1223). */}
         {!off && (
-          <SitesChip columns={decl.columns} filter={view} canReadArticles={hasPermission(access, 'costs.invoice.read')}
+          <SitesChip columns={decl.columns} filter={view} checkArticles={decl.address === 'costs.invoices'}
+            canReadArticles={hasPermission(access, 'costs.invoice.read')}
             onToggle={(column, names) => setView(v => withSitesChip(v, allKeys, column, names))} />
         )}
 
