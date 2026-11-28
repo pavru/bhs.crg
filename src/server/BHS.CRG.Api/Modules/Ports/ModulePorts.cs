@@ -67,6 +67,8 @@ public static class ModulePorts
         services.AddScoped<BHS.CRG.Modules.Printing.IModulePrintCatalog, ModulePrintCatalogPort>();
         // Параметр доступа контракта (plan-22, CORE-34) — из параметра доступа ядра, тем же счётчиком прав.
         services.AddScoped<IModuleReaders, ModuleReadersPort>();
+        services.AddScoped<IModuleSpreadsheets, ModuleSpreadsheetsPort>();
+        services.AddScoped<IModuleAccountingCurrency, ModuleAccountingCurrencyPort>();
         // Межмодульные контракты: каталог строится из собранного контейнера и проверяется при старте
         // (StartupTasks) — негодная поставка (нет реализации у включённого поставщика, два поставщика,
         // чужая регистрация) не стартует.

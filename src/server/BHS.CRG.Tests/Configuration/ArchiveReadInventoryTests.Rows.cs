@@ -470,6 +470,8 @@ public partial class ArchiveReadInventoryTests
                 nameof(InvoiceArchiveTests.Список_организаций_на_выбор_архивную_скрывает_а_на_показ_отдаёт_с_признаком)),
         ["BHS.CRG.Modules.Costs/Endpoints/SiteCostsEndpoints.cs|: (await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct))?.ToDictionary(o => o.Id, o => o.DisplayName) ?? [];"] =
             Seen("названия поставщиков уже заведённых счетов"),
+        ["BHS.CRG.Modules.Costs/Endpoints/EstimateVsCostsReport.cs|var names = (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct) ?? [])"] =
+            Seen("названия уже сохранённых материалов сметы и разноски, включая архивную номенклатуру"),
         ["BHS.CRG.Modules.Costs/Endpoints/WaybillEndpoints.cs|return (await catalog.RefsAsync(CostsDirectories.Nomenclature, ids, ct))"] =
             Shown("позиции стоящих строк накладной и перечня отпущенного: название и признак"),
         ["BHS.CRG.Modules.Costs/Tables/InvoiceTableRows.Prepare.cs|var organizations = await catalog.ListAsync(CostsDirectories.Organization, RecordsFor.Display, ct) ?? [];"] =
