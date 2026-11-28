@@ -19,7 +19,7 @@ internal static class FieldReportEndpoints
 
     internal static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup(Path)
+        var group = endpoints.MapGroup("/reports")
             .RequireAuthorization(DevicePolicy)
             .RequireRateLimiting("field-exchange");
         group.MapGet("", ListAsync);

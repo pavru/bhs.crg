@@ -37,7 +37,7 @@ namespace BHS.CRG.Modules.Work;
 /// и домен. Всё, что модулю нужно от ядра или от другого модуля, приходит портами и контрактами ядра
 /// (<c>CORE-34</c>), а не ссылкой — стережёт <c>ModuleBoundaryTests</c>.</para>
 /// </summary>
-public sealed class WorkModule : IAppModule
+public sealed class WorkModule : IAppModule, IFieldReportExchange
 {
     public const string ModuleCode = "work";
 
@@ -294,9 +294,11 @@ public sealed class WorkModule : IAppModule
     /// </summary>
     public IReadOnlyList<string> RoutePrefixes => ["/api/work", "/api/field"];
 
-    public const int MinimumFieldSenderVersionCode = 1;
+    internal const int MinimumFieldSenderVersionCode = 1;
 
-    public static void MapFieldExchange(IEndpointRouteBuilder endpoints) => FieldReportEndpoints.Map(endpoints);
+    int IFieldReportExchange.MinimumSenderVersionCode => MinimumFieldSenderVersionCode;
+
+    void IFieldReportExchange.MapReports(IEndpointRouteBuilder fieldV1) => FieldReportEndpoints.Map(fieldV1);
 
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
