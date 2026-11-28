@@ -30,4 +30,4 @@
 
 Новый модуль приложения Kotlin, Compose Material 3, Room, общий с сервером SubmissionCases.json.
 
-[Общая архитектура этапа](../mob-00-epic/design.md).
+[Общая архитектура этапа](../../mob-00-epic/design.md).
