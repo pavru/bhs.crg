@@ -78,7 +78,9 @@ public partial class ArchiveReadInventoryTests
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. directory.Codes.Keys], query, limit, onlyIds, exceptIds), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|var records = ids is null ? null : await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, Ids: ids), ct);"] =
+            Shown("карточки указанных сотрудников, архивные сохраняются для проверки назначения и исторических ссылок"),
+        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|var entries = byType?[typeId] ?? await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct);"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
         ["BHS.CRG.Api/Modules/Ports/ModuleUnitsPort.cs|return Units(await mediator.Send(new CommonDataRefsByIdsQuery(family, ids), ct));"] =
             Shown("единицы по идентификаторам: то, что у модуля уже стоит"),

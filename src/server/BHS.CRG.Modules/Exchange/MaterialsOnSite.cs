@@ -18,6 +18,9 @@ public interface IMaterialsOnSite
 
     /// <summary>Полевой срез по назначению, проверенному адаптером Work.</summary>
     Task<IReadOnlyList<MaterialOnSiteHint>> ReadFieldHintsAsync(AssignedFieldSite site, CancellationToken ct = default);
+
+    /// <summary>Зафиксированная ревизия источника узких полевых подсказок.</summary>
+    Task<string> ReadFieldRevisionAsync(CancellationToken ct = default);
 }
 
 public sealed record MaterialOnSiteHint(Guid NomenclatureId, string? Unit);

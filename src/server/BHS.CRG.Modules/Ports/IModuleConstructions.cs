@@ -39,6 +39,9 @@ public interface IModuleConstructions
     /// <summary>Все стройки с разделами, по названию (сравнение культурное — список читает человек).</summary>
     Task<IReadOnlyList<ModuleConstruction>> ListAsync(CancellationToken ct = default);
 
+    /// <summary>Какие из указанных строек существуют на момент проверки.</summary>
+    Task<Guid[]> ExistingIdsAsync(Guid[] siteIds, CancellationToken ct = default);
+
     /// <summary>Действующий пояс компании в IANA, включая экземпляры без строек.</summary>
     Task<string> CompanyTimeZoneIdAsync(CancellationToken ct = default);
 

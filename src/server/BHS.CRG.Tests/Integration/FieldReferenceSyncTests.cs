@@ -26,6 +26,49 @@ public sealed class FieldReferenceSyncTests(AssignmentHost host)
     private readonly AssignmentWorld _world = new(host);
 
     [Fact]
+    public async Task Material_pages_reuse_the_snapshot_until_a_committed_catalog_change()
+    {
+        await _world.ResetAsync();
+        var me = await _world.EmployeeAsync(await _world.DirectoryAsync(), "Монтажник");
+        var seed = new WorkTypeSeed(host);
+        var type = await seed.TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
+        using var scope = host.Services.CreateScope();
+        await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+        var cable = await seed.RecordAsync(type.Id, "Кабель");
+        var tray = await seed.RecordAsync(type.Id, "Лоток");
+        using var phone = host.CreateClient();
+        await JoinAsync(phone, me);
+
+        const string path = "materials?limit=1";
+        var reads = host.ReferenceQueries.CatalogReads;
+        var first = await PageAsync(phone, path);
+        Assert.Equal(++reads, host.ReferenceQueries.CatalogReads);
+        Assert.True(first.GetProperty("more").GetBoolean());
+
+        await _world.SiteAsync("Новая стройка");
+        var second = await PageAsync(phone, path, Cursor(first));
+        Assert.False(second.GetProperty("replace").GetBoolean());
+        Assert.Equal(new[] { cable.Id, tray.Id }.Order(), Ids(first).Concat(Ids(second)).Order());
+        Assert.Empty(Ids(await PageAsync(phone, path, Cursor(second))));
+        Assert.Equal(reads, host.ReferenceQueries.CatalogReads);
+
+        var core = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using (var transaction = await core.Database.BeginTransactionAsync())
+        {
+            await core.DomainObjects.Where(x => x.Id == cable.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.ArchivedAt, AssignmentHost.Now));
+            var unchanged = await PageAsync(phone, path, Cursor(first));
+            Assert.False(unchanged.GetProperty("replace").GetBoolean());
+            Assert.Equal(reads, host.ReferenceQueries.CatalogReads);
+            await transaction.CommitAsync();
+        }
+        var updated = await PageAsync(phone, path, Cursor(first));
+        Assert.True(updated.GetProperty("replace").GetBoolean());
+        Assert.Equal([tray.Id], Ids(updated));
+        Assert.Equal(++reads, host.ReferenceQueries.CatalogReads);
+    }
+
+    [Fact]
     public async Task Concurrent_change_replaces_incomplete_snapshot_and_other_cursor_still_continues()
     {
         await _world.ResetAsync();

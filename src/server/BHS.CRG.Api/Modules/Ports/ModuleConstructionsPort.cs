@@ -23,6 +23,9 @@ public sealed class ModuleConstructionsPort(
     IRepository<Construction> constructions, IRepository<Section> sections, IAppSettingsStore settings,
     AppDbContext db, IMediator mediator) : IModuleConstructions
 {
+    public Task<Guid[]> ExistingIdsAsync(Guid[] siteIds, CancellationToken ct = default) =>
+        db.Constructions.AsNoTracking().Where(c => siteIds.Contains(c.Id)).Select(c => c.Id).ToArrayAsync(ct);
+
     public async Task<string> CompanyTimeZoneIdAsync(CancellationToken ct = default) =>
         SiteZones.IanaId(await settings.GetCompanyTimeZoneAsync(ct));
 

@@ -29,6 +29,9 @@ public interface IPlannedWorks
 
     /// <summary>Номенклатура по позициям действующих смет стройки, проверенной адаптером Work.</summary>
     Task<IReadOnlyList<FieldPlannedHint>> ReadFieldHintsAsync(AssignedFieldSite site, CancellationToken ct = default);
+
+    /// <summary>Зафиксированная ревизия источника узких полевых подсказок.</summary>
+    Task<string> ReadFieldRevisionAsync(CancellationToken ct = default);
 }
 
 public sealed record FieldPlannedHint(Guid PlanItemId, Guid NomenclatureId);
