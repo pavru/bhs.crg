@@ -22,6 +22,8 @@ public static class ReportJournalKinds
     /// <summary>Подан автоматически по концу окна, от имени системы (<c>work-15</c>, ТЗ WORK-41).</summary>
     public const string AutoSubmitted = "auto-submitted";
 
+    public const string FieldReceipt = "field-receipt";
+
     /// <summary>Принят менеджером (<c>work-16</c>, ТЗ WORK-13).</summary>
     public const string Accepted = "accepted";
 

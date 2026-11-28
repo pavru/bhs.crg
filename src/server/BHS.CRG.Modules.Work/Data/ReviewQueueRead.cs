@@ -17,7 +17,7 @@ public sealed record ReviewQueueFilter(
 /// </summary>
 public sealed record ReviewQueueItem(
     Report Report, string Version, int Lines, IReadOnlyList<string> Marks, int PhotosPending, int MissingFields,
-    RequiredGaps Required);
+    RequiredGaps Required, IReadOnlyList<ReviewMarkDto>? DeliveryMarks);
 
 /// <summary>Страница очереди из файла чтения.</summary>
 public sealed record ReviewQueueRead(

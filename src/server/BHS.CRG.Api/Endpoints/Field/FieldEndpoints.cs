@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Branding;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Work;
 using Microsoft.Net.Http.Headers;
 
 namespace BHS.CRG.Api.Endpoints.Field;
@@ -10,6 +11,7 @@ internal static class FieldEndpoints
     {
         if (!app.ServiceProvider.GetRequiredService<ModuleRegistry>().IsEnabled("work")) return;
 
+        WorkModule.MapFieldExchange(app);
         var field = app.MapGroup("/api/field");
         field.MapGet("/info", async (IBrandingService branding, HttpResponse response, CancellationToken ct) =>
         {
@@ -20,7 +22,7 @@ internal static class FieldEndpoints
                 organizationName = info.ProductName,
                 logoUrl = info.HasLogo ? "/api/field/info/logo" : null,
                 protocolVersions = new[] { 1 },
-                minimumSenderVersionCode = 1,
+                minimumSenderVersionCode = WorkModule.MinimumFieldSenderVersionCode,
             });
         }).AllowAnonymous().RequireRateLimiting("field-info");
 

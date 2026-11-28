@@ -111,6 +111,21 @@ internal sealed class DeviceSessions(WorkDbContext db, IModuleClock clock, IModu
 
     internal Task LockSessionAsync(Guid id, CancellationToken ct) => LockAsync($"work.device-session:{id}", ct);
 
+    internal async Task<(FieldDeviceAccess Access, DateTimeOffset Now)> CheckDeliveryAsync(
+        string token, Guid deviceId, CancellationToken ct)
+    {
+        var session = await FindAccessAsync(token, ct);
+        var now = clock.UtcNow();
+        if (session is null || session.Id != deviceId)
+            throw new FieldReportRefusal(401, "invalid-session");
+        if (session.IsRevokedAt(now))
+            throw new FieldReportRefusal(403, "device-revoked");
+        if (session.AccessExpiresAt <= now || session.SessionExpiresAt <= now || session.Grant != WorkModule.ReportOwn)
+            throw new FieldReportRefusal(401, "invalid-session");
+        return (new FieldDeviceAccess(session.Id, session.EmployeeId, session.Grant,
+            session.AccessExpiresAt, session.RevokedOn, session.DeliveryUntil), now);
+    }
+
     private Task LockAsync(string key, CancellationToken ct) =>
         db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
 

@@ -35,10 +35,9 @@ public class ReviewMarkCatalogTests
             ReviewMarks.PhotosPending, ReviewMarks.CrewMismatch, ReviewMarks.LateDelivery, ReviewMarks.FieldsMissing,
         ];
         Assert.All(codes, code => Assert.NotNull(ReviewMarks.Of(code)));
-        // Фото недогружены — данные с work-17; доставки с телефона до этапа 5 нет — ноль честен, но и запроса за ним нет.
         Assert.NotNull(ReviewMarks.Of(ReviewMarks.PhotosPending)!.Has);
         Assert.NotNull(ReviewMarks.Of(ReviewMarks.CrewMismatch)!.Has);
-        Assert.Null(ReviewMarks.Of(ReviewMarks.LateDelivery)!.Has);
+        Assert.NotNull(ReviewMarks.Of(ReviewMarks.LateDelivery)!.Has);
         Assert.Equal("не заполнены поля: 2", Assert.Single(ReviewMarks.Dtos([], 0, 2)).Text);
     }
 

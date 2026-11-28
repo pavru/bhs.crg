@@ -34,4 +34,16 @@ public sealed class ReportSubmission(WorkDbContext db, ReportJournal journal, Cr
         journal.Append(kind, report, before, actor, executor, changeId, seq, deviceTime, now);
         await db.SaveChangesAsync(ct);
     }
+
+    internal async Task RecordFieldReceiptAsync(Report report, ReportJournalActor actor, string executor,
+        Guid changeId, DateTimeOffset deviceTime, DateTimeOffset now, CancellationToken ct)
+    {
+        var before = ReportJournal.Capture(report);
+        var seq = await db.NextReportSeqAsync(report.EmployeeId, ct);
+        report.Touch(seq, now);
+        await db.SaveChangesAsync(ct);
+        db.Add(ReportChange.Of(seq, report, changeId, ReportChangeKind.FieldReceipt, deviceTime, now, db.VersionOf(report)));
+        journal.Append(ReportJournalKinds.FieldReceipt, report, before, actor, executor, changeId, seq, deviceTime, now);
+        await db.SaveChangesAsync(ct);
+    }
 }

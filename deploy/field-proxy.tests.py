@@ -93,7 +93,7 @@ def verify_session(base, operations, invitation):
             raise
 
 
-def run(port, temp, work_disabled, invitation=None):
+def run(port, temp, work_disabled, invitation=None, hold=False):
     dockerfile = (DEPLOY / "Dockerfile.web").read_text(encoding="utf-8")
     image = re.search(r"^FROM (nginxinc/\S+)", dockerfile, re.M)[1]
     # Меняются только адреса стенда: пара конфигураций работает в одном сетевом пространстве.
@@ -116,7 +116,11 @@ def run(port, temp, work_disabled, invitation=None):
     try:
         docker("exec", container, "nginx", "-t")
         address = docker("port", container, "8081/tcp")
-        verify("http://" + address, work_disabled, invitation)
+        base = "http://" + address
+        verify(base, work_disabled, invitation)
+        if hold:
+            print(base, flush=True)
+            sys.stdin.read()
     finally:
         docker("rm", "-f", container)
 
@@ -127,10 +131,12 @@ if __name__ == "__main__":
     parser.add_argument("--work-disabled", action="store_true", help="проверить отказ на экземпляре без Work")
     parser.add_argument("--invitation-stdin", action="store_true",
                         help="прочитать JSON с invitationCode и employeeId для проверки подключения и refresh")
+    parser.add_argument("--hold-stdin", action="store_true",
+                        help="напечатать адрес прокси и держать его до закрытия stdin")
     options = parser.parse_args()
     invitation = json.load(sys.stdin) if options.invitation_stdin else None
     with tempfile.TemporaryDirectory() as directory:
-        run(options.port, Path(directory), options.work_disabled, invitation)
+        run(options.port, Path(directory), options.work_disabled, invitation, options.hold_stdin)
     print("Проверены сведения, связь, выдача файлов и границы внешнего прокси.")
     if invitation is not None:
         print("Через внешний прокси проверены подключение, refresh и повтор refresh.")

@@ -6,6 +6,7 @@ using BHS.CRG.Modules.Work.Crew;
 using BHS.CRG.Modules.Access;
 using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Submission;
+using BHS.CRG.Modules.Work.Devices;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
@@ -34,6 +35,11 @@ public sealed record ReportViewer
 
     /// <summary>Свои отчёты сотрудника учётной записи.</summary>
     public static ReportViewer Own(Guid employeeId) => new(ModuleReach.Own, employeeId);
+
+    internal FieldReportDelivery? FieldDelivery { get; private init; }
+
+    internal static ReportViewer ForField(Guid employeeId, FieldReportDelivery delivery) =>
+        new(ModuleReach.Own, employeeId) { FieldDelivery = delivery };
 
     /// <summary>
     /// Отчёты охвата «стройки» или «все». Охват «свои» здесь без сотрудника — и потому не видит ничего: чьи отчёты
@@ -76,8 +82,13 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// Отчёт по идентификатору, если он виден читателю, — с отслеживанием (версия строки — теневое свойство) и со
     /// строками, материалами и участниками. Чужой и несуществующий — одинаково <c>null</c>.
     /// </summary>
-    public Task<Report?> FindAsync(ReportViewer viewer, Guid id, CancellationToken ct) =>
-        Full(Visible(viewer)).FirstOrDefaultAsync(r => r.Id == id, ct);
+    public Task<Report?> FindAsync(ReportViewer viewer, Guid id, CancellationToken ct)
+    {
+        var query = Full(Visible(viewer).Where(r => r.Id == id));
+        // Операция доставки держит read committed для проверки отзыва. Версию и строки читаем одним снимком.
+        if (viewer.FieldDelivery is not null) query = query.AsSingleQuery();
+        return query.FirstOrDefaultAsync(ct);
+    }
 
     internal async Task<Dictionary<Guid, string?>> ReturnCommentsAsync(
         ReportViewer viewer, Guid[] reportIds, CancellationToken ct)
@@ -116,6 +127,9 @@ public sealed partial class ReportReads(WorkDbContext db)
     /// <summary>Запись протокола, которой изменение <paramref name="changeId" /> уже применено к отчёту (ТЗ MOB-15).</summary>
     public Task<ReportChange?> AppliedAsync(Guid reportId, Guid changeId, CancellationToken ct) =>
         db.Set<ReportChange>().AsNoTracking().FirstOrDefaultAsync(c => c.ReportId == reportId && c.ChangeId == changeId, ct);
+
+    internal Task<bool> HasFieldReceiptAsync(Guid reportId, CancellationToken ct) =>
+        db.Set<ReportChange>().AnyAsync(c => c.ReportId == reportId && c.Kind == ReportChangeKind.FieldReceipt, ct);
 
     /// <summary>
     /// Сотрудник, чей отчёт с этим идентификатором был удалён, или <c>null</c>. Идентификатор удалённого черновика
@@ -362,12 +376,15 @@ public sealed partial class ReportReads(WorkDbContext db)
                 Pending = r.Lines.SelectMany(l => l.Photos).Count(p => p.State == LinePhotoState.Pending),
             })
             .ToListAsync(ct);
-        var marks = await MarksAsync(viewer, [.. page.Select(p => p.Report.Id)], userId, ct);
+        Guid[] ids = [.. page.Select(p => p.Report.Id)];
+        var marks = await MarksAsync(viewer, ids, userId, ct);
+        var delivery = await DeliveryMarksAsync(viewer, ids, ct);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
                     p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending,
-                    missingFields.GetValueOrDefault(p.Report.Id), required.GetValueOrDefault(p.Report.Id))),
+                    missingFields.GetValueOrDefault(p.Report.Id), required.GetValueOrDefault(p.Report.Id),
+                    delivery.GetValueOrDefault(p.Report.Id))),
             ],
             summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
     }
@@ -432,8 +449,10 @@ public sealed partial class ReportReads(WorkDbContext db)
         return flags.ToDictionary(f => f.Id, f => f.Codes());
     }
 
+    private IQueryable<ReportJournalEntry> JournalRows() => db.Set<ReportJournalEntry>().AsNoTracking();
+
     private ReviewMarkSources Sources(Guid? userId) =>
-        new(db.Set<ReportJournalEntry>().AsNoTracking(), db.Assignments.AsNoTracking(), userId, CrewMismatchReports());
+        new(JournalRows(), db.Assignments.AsNoTracking(), userId, CrewMismatchReports());
 
     private IQueryable<Guid> CrewMismatchReports()
     {

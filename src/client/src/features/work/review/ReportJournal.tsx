@@ -6,6 +6,7 @@ import { apiError } from '@/shared/utils/apiError';
 const titleByKind: Record<string, string> = {
   created: 'Отчёт создан', updated: 'Отчёт изменён', deleted: 'Отчёт удалён',
   submitted: 'Отчёт подан', 'auto-submitted': 'Отчёт подан автоматически',
+  'field-receipt': 'Получена подача с телефона',
   accepted: 'Отчёт принят', returned: 'Возвращён на правку', 'crew-approved': 'Бригада сверена',
   corrected: 'Отчёт исправлен после закрытия', 'accepted-changed': 'Принятый отчёт изменён',
   'manager-edited': 'Правка строк менеджером', 'same-person': 'Ввёл и принял один человек',

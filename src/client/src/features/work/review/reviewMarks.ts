@@ -13,6 +13,8 @@ const catalog: Record<WorkMarkCode, { label: string; icon: IconDef; tone: Status
   'crew-mismatch': { label: 'расхождение в бригаде', icon: Group, tone: 'warning' },
   'accepted-changed': { label: 'изменение принятого', icon: HistoryIcon, tone: 'warning' },
   'late-delivery': { label: 'поздняя доставка', icon: Schedule, tone: 'neutral' },
+  'clock-difference': { label: 'разница между временем действия и приёма', icon: Schedule, tone: 'neutral' },
+  'clock-went-back': { label: 'время действия раньше предыдущего', icon: Schedule, tone: 'neutral' },
   'fields-missing': { label: 'не заполнены поля', icon: Warning, tone: 'warning' },
   'required-missing': { label: 'не заполнены место или материалы', icon: Warning, tone: 'warning' },
 };

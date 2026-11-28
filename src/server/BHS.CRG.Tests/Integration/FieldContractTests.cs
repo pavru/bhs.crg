@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Branding;
 using BHS.CRG.Modules;
+using BHS.CRG.Modules.Work.Devices;
 using BHS.CRG.Tests.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
@@ -72,11 +73,32 @@ public class FieldContractTests(WorkOnlyHost host)
     public void Only_named_public_operations_and_the_logo_are_mapped_in_the_field_group()
     {
         using var client = host.CreateClient();
-        var routes = FirstFieldClient.Routes(host.Services);
+        var routes = FirstFieldClient.Routes(host.Services)
+            .Where(endpoint => !EndpointInventory.Matches(EndpointInventory.Route(endpoint), "/api/field/v1")).ToArray();
         Assert.Equal(["GET /api/field/info", "GET /api/field/info/logo", "GET /api/field/ping",
                 "POST /api/field/join", "POST /api/field/refresh"],
             routes.Select(e => $"{EndpointInventory.Verbs(e)} {EndpointInventory.Route(e)}").Order());
         Assert.All(routes, endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>()));
+    }
+
+    [Fact]
+    public async Task Report_exchange_routes_require_the_field_device_scheme()
+    {
+        using var client = host.CreateClient();
+        var routes = FirstFieldClient.Routes(host.Services).Where(endpoint =>
+            EndpointInventory.Matches(EndpointInventory.Route(endpoint), FieldReportEndpoints.Path)).ToArray();
+        Assert.Equal(5, routes.Length);
+        Assert.All(routes, endpoint =>
+        {
+            Assert.True(EndpointInventory.IsGated(endpoint));
+            Assert.Equal(FieldReportEndpoints.DevicePolicy,
+                Assert.Single(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()).Policy);
+        });
+        var provider = host.Services.GetRequiredService<IAuthorizationPolicyProvider>();
+        var policy = await provider.GetPolicyAsync(FieldReportEndpoints.DevicePolicy);
+        Assert.Equal(FieldDeviceAuthentication.SchemeName, Assert.Single(policy!.AuthenticationSchemes));
+        using var refused = await client.GetAsync(FieldReportEndpoints.Path);
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
     }
 
     [Fact]

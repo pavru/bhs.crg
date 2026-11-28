@@ -29,7 +29,10 @@ public sealed record ReportLineRequest(
 /// </summary>
 /// <param name="ChangeId">Идентификатор изменения от клиента; не назван — его создаёт сервер.</param>
 /// <param name="DeviceTime">Время действия на устройстве — момент подачи, но не позже конца окна.</param>
-public sealed record SubmitRequest(Guid? ChangeId, DateTimeOffset? DeviceTime);
+public sealed record SubmitRequest(Guid? ChangeId, DateTimeOffset? DeviceTime)
+{
+    public bool ConfirmManagerEdit { get; init; }
+}
 
 /// <summary>
 /// Тело заведения и правки отчёта (ТЗ WORK-4, MOB-15, MOB-17).
@@ -46,6 +49,8 @@ public sealed record ReportRequest(
 {
     /// <summary>Причина обязательна для исправления закрытого отчёта.</summary>
     public string? Reason { get; init; }
+
+    public bool ConfirmManagerEdit { get; init; }
 
     /// <summary>Шапка отчёта: стройка и дата обязательны (ТЗ WORK-58), смена по умолчанию — дневная (ТЗ MOB-35).</summary>
     public ReportHeaderValues Header() => new(

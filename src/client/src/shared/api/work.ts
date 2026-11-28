@@ -24,6 +24,8 @@ export const WORK_MARK_CODES = [
   'crew-mismatch',
   'accepted-changed',
   'late-delivery',
+  'clock-difference',
+  'clock-went-back',
   'fields-missing',
   'required-missing',
 ] as const;

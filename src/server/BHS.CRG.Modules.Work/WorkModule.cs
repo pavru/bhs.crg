@@ -237,6 +237,8 @@ public sealed class WorkModule : IAppModule
         services.AddScoped<DeviceManagementScope>();
         services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, FieldDeviceAuthentication>(
             FieldDeviceAuthentication.SchemeName, _ => { });
+        services.AddAuthorizationBuilder().AddPolicy(FieldReportEndpoints.DevicePolicy, policy =>
+            policy.AddAuthenticationSchemes(FieldDeviceAuthentication.SchemeName).RequireAuthenticatedUser());
         services.AddScoped<AssignmentGate>();
         services.AddScoped<WorkPlanItemLink>();
         services.AddScoped<ReportReferenceCheck>();
@@ -291,6 +293,10 @@ public sealed class WorkModule : IAppModule
     /// от опечатки (ТЗ OVW-10, AUTH-15, AUTH-19).
     /// </summary>
     public IReadOnlyList<string> RoutePrefixes => ["/api/work", "/api/field"];
+
+    public const int MinimumFieldSenderVersionCode = 1;
+
+    public static void MapFieldExchange(IEndpointRouteBuilder endpoints) => FieldReportEndpoints.Map(endpoints);
 
     /// <summary>
     /// Адреса модуля. Ворота (<c>module:work</c>) стоят на группе целиком, поэтому каждый адрес здесь закрыт
