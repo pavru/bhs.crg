@@ -2,7 +2,7 @@
 
 ## Context
 
-Полевой API v1, ReportEntryCatalog, AssignmentGate, порты номенклатуры, перечня и поставщиков подсказок. Опоры и границы описаны в [эпике](../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../archive/2026-11-28-mob-02-device-sessions/tasks.md).
+Полевой API v1, ReportEntryCatalog, AssignmentGate, порты номенклатуры, перечня и поставщиков подсказок. Опоры и границы описаны в [эпике](../../mob-00-epic/design.md). Условие старта — [mob-02-device-sessions](../2026-11-28-mob-02-device-sessions/tasks.md).
 
 ## Goals / Non-Goals
 
