@@ -1,87 +1,15 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
 import { apiClient } from '@/shared/api/client';
-import { reportQuery, type EntrySites, type ReportInput, type ReportMode, type WorkReport } from '@/shared/api/workReports';
+import { reportQuery } from '@/shared/api/workReports';
 import { WORK_SUMMARY_KEY } from '@/shared/api/workSummary';
 import { formatLocale, setFormatLocale } from '@/shared/format/format';
-import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
-import { SnackbarCtx } from '@/shared/ui/Snackbar';
-import { ReportForm } from './ReportForm';
+import { backend, button, mount, refusal, report, sites, toast, types } from './ReportForm.testSupport';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ user: { displayName: 'Иванов' } }) }));
-
-const sites: EntrySites = {
-  items: [
-    { id: 'site-a', name: 'Стройка А', today: '2026-11-01', timeZoneId: 'Asia/Vladivostok',
-      suggested: { date: '2026-10-31', shift: 'night', label: 'Ночная смена 31.10' } },
-    { id: 'site-b', name: 'Стройка Б', today: '2026-10-31', timeZoneId: 'Europe/Moscow',
-      suggested: { date: '2026-10-31', shift: 'day', label: 'Отчёт 31.10' } },
-  ],
-  boundary: { text: 'ваши стройки (2)', count: 2, reason: null },
-};
-const report: WorkReport = {
-  id: 'r1', constructionId: 'site-a', employeeId: 'e1', employeeName: 'Петров', constructionName: 'Стройка А',
-  date: '2026-10-31', shift: 'day', status: 'draft', version: '1', periodClosed: false, hours: 8, note: null,
-  today: '2026-11-01', timeZoneId: 'Asia/Vladivostok', returnComment: null, autoSubmitAt: null,
-  enteredBy: null, marks: [], currentVersion: 1, versions: [], acceptWouldMark: false,
-  lines: [{ id: 'l1', workTypeId: 'w1', variantId: null, unitId: 'u1', volume: 5, sectionId: null, location: null,
-    comment: null, details: {}, isCrew: false, materials: [], participants: [], crewRole: null,
-    photos: [{ id: 'p1', state: 'pending' }] }],
-};
-const refusal = (status: number, data: object = {}) => ({ response: { status, data } });
-const units = [{ id: 'u1', name: 'м', archived: false }, { id: 'u2', name: 'шт.', archived: false }];
-const types = [
-  { id: 'w1', displayName: 'Прокладка кабеля', unitId: 'u1', unitName: 'м', archived: false,
-    requiresLocation: true, requiresMaterials: true, variants: [{ id: 'v1', name: 'В лотке', archived: false }] },
-  { id: 'w2', displayName: 'Монтаж коробки', unitId: 'u2', unitName: 'шт.', archived: false,
-    requiresLocation: false, requiresMaterials: false, variants: [] },
-];
-const toast = { success: vi.fn(), info: vi.fn(), error: vi.fn(), apiError: vi.fn() };
-let current: WorkReport;
-let materialReason: string | null;
-
-beforeEach(() => {
-  vi.resetAllMocks();
-  current = report;
-  materialReason = null;
-  vi.mocked(apiClient.get).mockImplementation(async path => {
-    if (path === '/work/line-details-schema') return { data: { fields: [] } };
-    if (path === '/work/photos/limits') return { data: { count: 5, megabytes: 15, maxBytes: 15 * 1024 * 1024,
-      countText: 'Не больше 5 фото на строку.', sizeText: 'Фото больше 15 МБ.' } };
-    if (path.endsWith('/preview')) return new Promise(() => {});
-    if (path.endsWith('/catalog/work-types')) return { data: { items: types } };
-    if (path.endsWith('/catalog/units')) return { data: { items: units } };
-    if (path.endsWith('/catalog/sections')) return { data: { items: [{ id: 's1', name: 'Корпус А' }] } };
-    if (path.endsWith('/catalog/materials')) return { data: { reason: materialReason,
-      items: materialReason ? [] : [{ id: 'm1', displayName: 'Кабель ВВГ', archived: false }] } };
-    if (path === '/work/materials/hint') return { data: {
-      issued: { state: 'ok', items: [{ id: 'm1', displayName: 'Кабель ВВГ' }] },
-      estimate: { state: 'ok', items: [] },
-      catalog: materialReason ? { state: 'not-connected', reason: materialReason, items: [] } : { state: 'ok', items: [] },
-    } };
-    if (path.endsWith('/crew-candidates')) return { data: { items: [{ id: 'e2', fullName: 'Сергеев' }] } };
-    return { data: path === '/work/sites/mine' || path.endsWith('/sites') ? sites : current };
-  });
-});
-afterEach(cleanup);
-
-function mount(id: string, mode: ReportMode = 'own', client = new QueryClient()) {
-  const path = mode === 'own' ? '/my-reports' : '/work-review/entry';
-  render(<SnackbarCtx.Provider value={toast}><QueryClientProvider client={client}>
-    <MemoryRouter initialEntries={[`${path}/${id}`]}>
-      <NavigationGuardProvider><Routes>
-        <Route path={path} element={<h2>Список отчётов</h2>} />
-        <Route path={`${path}/:reportId`} element={<ReportForm mode={mode} />} />
-      </Routes></NavigationGuardProvider>
-    </MemoryRouter>
-  </QueryClientProvider></SnackbarCtx.Provider>);
-}
-
-const button = (name: string) => screen.getByRole('button', { name });
 
 it('показывает подсказку по ответу сервера и сохраняет введённое поле заказчика', async () => {
   const get = vi.mocked(apiClient.get).getMockImplementation()!;
@@ -91,11 +19,11 @@ it('показывает подсказку по ответу сервера и 
       { key: 'other', title: 'Другое поле', forAcceptance: true },
     ], types: [], enumTypes: [], primitiveTypes: [] } })
     : get(path, config));
-  current = { ...report, lines: [{ ...report.lines[0], missingFields: [{ key: 'act', title: 'Номер акта' }] }] };
+  backend.current = { ...report, lines: [{ ...report.lines[0], missingFields: [{ key: 'act', title: 'Номер акта' }] }] };
   vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => {
     expect(input).toMatchObject({ lines: [expect.objectContaining({ details: { act: 'А-17' } })] });
-    current = { ...current, version: '2', lines: [{ ...current.lines[0], details: { act: 'А-17' }, missingFields: [] }] };
-    return { data: current };
+    backend.current = { ...backend.current, version: '2', lines: [{ ...backend.current.lines[0], details: { act: 'А-17' }, missingFields: [] }] };
+    return { data: backend.current };
   });
   mount('r1');
   const marked = await screen.findByRole('textbox', { name: 'Номер акта' }, { timeout: 5000 });
@@ -107,156 +35,12 @@ it('показывает подсказку по ответу сервера и 
   await waitFor(() => expect(screen.queryByText('Нужно к приёмке')).toBeNull(), { timeout: 3000 });
 }, 15000);
 
-async function pickPhotoForNewReport(file: File) {
-  mount('new');
-  fireEvent.click(await screen.findByRole('button', { name: 'Добавить строку' }));
-  fireEvent.click(button('Вид работы, строка 1'));
-  fireEvent.click(await screen.findByRole('option', { name: 'Монтаж коробки' }));
-  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
-  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
-}
-
-function currentFromCreate(input: unknown) {
-  const form = input as ReportInput & { id: string };
-  const lines = form.lines.map(line => ({ ...line,
-    photos: (line.photos ?? []).map(photo => ({ ...photo, state: 'pending' as const, canDeliver: true })),
-  }));
-  current = { ...report, ...form, employeeId: report.employeeId, lines };
-  return current;
-}
-
-it('объявляет фото до отправки, показывает 413 у выбранного файла и повторяет с тем же id', async () => {
-  const file = new File(['фото'], 'смена.jpg', { type: 'image/jpeg' });
-  vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => {
-    const selected = (input as { lines: { photos: { id: string }[] }[] }).lines[0].photos;
-    expect(selected).toEqual([{ id: 'p1' }, { id: expect.stringMatching(/^[0-9a-f-]{36}$/), originalName: file.name }]);
-    return { data: { ...report, version: '2', lines: [{ ...report.lines[0], photos: selected.map(photo => ({
-      ...photo, state: 'pending', canDeliver: true,
-    })) }] } };
-  }).mockRejectedValueOnce(refusal(413, { error: 'Фото больше 2 МБ — предел задан в настройках модуля.' }))
-    .mockResolvedValueOnce({ data: { state: 'stored' } });
-  mount('r1');
-  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
-  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
-  expect(screen.getByText('Загрузится после сохранения')).toBeTruthy();
-  expect(apiClient.put).not.toHaveBeenCalled();
-  fireEvent.click(button('Сохранить'));
-  await screen.findByText('Фото больше 2 МБ — предел задан в настройках модуля.');
-  expect(within(screen.getByText(file.name).closest('li')!).getByRole('alert')).toBeTruthy();
-  const first = vi.mocked(apiClient.put).mock.calls[1];
-  expect(first[0]).toMatch(/^\/work\/reports\/r1\/lines\/l1\/photos\/[0-9a-f-]{36}$/);
-  expect(first[1]).toBe(file);
-  expect(first[2]?.headers).toEqual({ 'Content-Type': 'application/octet-stream' });
-  fireEvent.click(button('Повторить'));
-  await screen.findByRole('button', { name: 'Открыть фото: смена.jpg' });
-  expect(vi.mocked(apiClient.put).mock.calls[2].slice(0, 2)).toEqual(first.slice(0, 2));
-});
-
-it('начинает загрузку фото нового черновика после перехода на созданный отчёт', async () => {
-  const file = new File(['фото'], 'новый.jpg', { type: 'image/jpeg' });
-  vi.mocked(apiClient.post).mockImplementationOnce(async (_, input) => ({ data: currentFromCreate(input) }));
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { state: 'stored' } });
-  await pickPhotoForNewReport(file);
-  fireEvent.click(button('Создать черновик'));
-  await screen.findByRole('button', { name: 'Открыть фото: новый.jpg' });
-  const line = current.lines[0];
-  expect(apiClient.put).toHaveBeenCalledExactlyOnceWith(`/work/reports/${current.id}/lines/${line.id}/photos/${line.photos[0].id}`,
-    file, expect.objectContaining({ headers: { 'Content-Type': 'application/octet-stream' } }));
-  expect(screen.queryByRole('heading', { name: 'Новый отчёт' })).toBeNull();
-});
-
-it('после потерянного ответа не восстанавливает снятое фото и записывает пустой состав с версией', async () => {
-  const file = new File(['фото'], 'снятое.jpg', { type: 'image/jpeg' });
-  vi.mocked(apiClient.post).mockImplementationOnce(async (_, input) => {
-    currentFromCreate(input);
-    throw new Error('Ответ потерян');
-  }).mockImplementationOnce(async () => ({ data: current }));
-  await pickPhotoForNewReport(file);
-  fireEvent.click(button('Создать черновик'));
-  await screen.findByText('Ответ потерян');
-  const first = vi.mocked(apiClient.post).mock.lastCall?.[1];
-  fireEvent.click(button(`Удалить фото: ${file.name}`));
-  fireEvent.click(button('Создать черновик'));
-  await screen.findByText('Черновик уже создан. Новые значения ещё не сохранены.');
-  expect(apiClient.post).toHaveBeenLastCalledWith('/work/reports', first);
-  expect(screen.getByText('Фото пока нет')).toBeTruthy();
-  vi.mocked(apiClient.put).mockImplementationOnce(async () => ({ data: {
-    ...current, version: '2', lines: [{ ...current.lines[0], photos: [] }],
-  } }));
-  fireEvent.click(button('Сохранить'));
-  await waitFor(() => expect(apiClient.put).toHaveBeenCalledExactlyOnceWith(`/work/reports/${current.id}`,
-    expect.objectContaining({ lines: [expect.objectContaining({ photos: [] })] }), { headers: { 'If-Match': '1' } }));
-});
-
-it('при уходе сохраняет часы и объявление фото, пока доставка ещё не завершилась', async () => {
-  const file = new File(['фото'], 'крепёж.jpg', { type: 'image/jpeg' });
-  vi.mocked(apiClient.put).mockImplementationOnce(async (_, input) => ({ data: {
-    ...report, version: '2', hours: 7, lines: [{ ...report.lines[0], photos:
-      ((input as ReportInput).lines[0].photos ?? []).map(photo => ({ ...photo, state: 'pending', canDeliver: true })),
-    }],
-  } })).mockImplementation(() => new Promise(() => {}));
-  mount('r1');
-  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
-  fireEvent.change(screen.getByRole('textbox', { name: 'Часы за смену' }), { target: { value: '7' } });
-  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
-  fireEvent.click(button('К отчётам'));
-  expect(await screen.findByText(/При уходе без сохранения правки и новые объявления фото будут потеряны/)).toBeTruthy();
-  fireEvent.click(button('Сохранить и перейти'));
-  await screen.findByRole('heading', { name: 'Список отчётов' });
-  expect(apiClient.put).toHaveBeenNthCalledWith(1, '/work/reports/r1', expect.objectContaining({
-    hours: 7, lines: [expect.objectContaining({ photos: [{ id: 'p1' }, expect.objectContaining({ originalName: file.name })] })],
-  }), { headers: { 'If-Match': '1' } });
-});
-
-it('сверяет версию при удалении фото и сохраняет правку часов после отказа 409 и перечитывания', async () => {
-  vi.mocked(apiClient.delete).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
-  mount('r1');
-  const hours = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Часы за смену' });
-  fireEvent.change(hours, { target: { value: '7' } });
-  fireEvent.click(button('Удалить фото: Фото 1'));
-  await screen.findByText(/Отчёт тем временем изменили — перечитайте/);
-  expect(apiClient.delete).toHaveBeenLastCalledWith('/work/reports/r1/lines/l1/photos/p1', {
-    params: { changeId: expect.any(String) }, headers: { 'If-Match': '1' },
-  });
-  expect(button('Удалить фото: Фото 1')).toBeTruthy();
-  current = { ...report, version: '2' };
-  fireEvent.click(button('Перечитать'));
-  await waitFor(() => expect(screen.queryByText(/Отчёт тем временем изменили/)).toBeNull());
-  vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: { ...current, version: '3', lines: [{ ...current.lines[0], photos: [] }] } });
-  fireEvent.click(button('Удалить фото: Фото 1'));
-  await screen.findByText('Фото пока нет');
-  expect(hours.value).toBe('7');
-  expect(apiClient.delete).toHaveBeenLastCalledWith('/work/reports/r1/lines/l1/photos/p1', {
-    params: { changeId: expect.any(String) }, headers: { 'If-Match': '2' },
-  });
-});
-
-it('после закрытия разрешает выбрать файл только для фото, у которого сервер разрешил досылку', async () => {
-  current = { ...report, periodClosed: true, status: 'accepted', lines: [{ ...report.lines[0], photos: [
-    { id: 'before', state: 'pending', canDeliver: true, originalName: 'досылка.jpg' },
-    { id: 'after', state: 'pending', canDeliver: false, originalName: 'исправление.jpg' },
-  ] }] };
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { state: 'stored' } });
-  mount('r1');
-  await screen.findByText('Период закрыт.');
-  await screen.findByText('До 5 фото на строку · до 15 МБ на файл');
-  expect(screen.queryByRole('button', { name: 'Добавить фото' })).toBeNull();
-  expect(screen.queryByRole('button', { name: /Удалить фото/ })).toBeNull();
-  expect(screen.getAllByRole('button', { name: 'Дослать' })).toHaveLength(1);
-  fireEvent.click(within(screen.getByText('досылка.jpg').closest('li')!).getByRole('button', { name: 'Дослать' }));
-  const file = new File(['фото'], 'досылка.jpg', { type: 'image/jpeg' });
-  fireEvent.change(screen.getByLabelText('Файлы фото строки'), { target: { files: [file] } });
-  await screen.findByRole('button', { name: 'Открыть фото: досылка.jpg' });
-  expect(apiClient.put).toHaveBeenCalledExactlyOnceWith('/work/reports/r1/lines/l1/photos/before', file,
-    expect.objectContaining({ headers: { 'Content-Type': 'application/octet-stream' } }));
-});
-
 it('сохраняет неизменённый дробный объём при правке часов в en-US', async () => {
   const locale = formatLocale();
   setFormatLocale('en-US');
   try {
-    current = { ...report, lines: [{ ...report.lines[0], volume: 1.234 }] };
-    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+    backend.current = { ...report, lines: [{ ...report.lines[0], volume: 1.234 }] };
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: backend.current });
     mount('r1');
     const volume = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Объём, строка 1' });
     expect(volume.value).toBe('1,234');
@@ -276,10 +60,10 @@ it('при отказе 409 сохраняет выбранную смену и 
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   expect((await screen.findByRole('alert')).textContent).toContain('Отчёт тем временем изменили');
   expect(screen.getByRole('tab', { name: 'Ночь' }).getAttribute('aria-selected')).toBe('true');
-  current = { ...report, version: '2', lines: [{ ...report.lines[0], volume: 14 }] };
+  backend.current = { ...report, version: '2', lines: [{ ...report.lines[0], volume: 14 }] };
   fireEvent.click(screen.getByRole('button', { name: 'Перечитать' }));
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { ...current, shift: 'night', version: '3' } });
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { ...backend.current, shift: 'night', version: '3' } });
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith('/work/reports/r1',
     expect.objectContaining({ shift: 'night', changeId: expect.any(String),
@@ -290,8 +74,8 @@ it('при отказе 409 сохраняет выбранную смену и 
 });
 
 it('у вида без вариантов скрывает поле, сбрасывает прежний вариант и предлагает единицу нового вида', async () => {
-  current = { ...report, lines: [{ ...report.lines[0], variantId: 'v1' }] };
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+  backend.current = { ...report, lines: [{ ...report.lines[0], variantId: 'v1' }] };
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: backend.current });
   mount('r1');
   expect(await screen.findByRole('combobox', { name: 'Вариант' })).toBeTruthy();
   fireEvent.click(button('Вид работы, строка 1'));
@@ -330,7 +114,7 @@ it('добавляет и убирает черновую строку, сохр
   expect(apiClient.get).toHaveBeenCalledWith('/work/constructions/site-a/crew-candidates',
     expect.objectContaining({ params: { date: report.date } }));
   fireEvent.change(screen.getByRole('textbox', { name: 'Часы за смену' }), { target: { value: '7.5' } });
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: backend.current });
   fireEvent.click(button('Сохранить'));
   await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/work/reports/r1', expect.objectContaining({
     hours: 7.5, lines: [expect.objectContaining({ isCrew: true, participants: ['e2'],
@@ -344,12 +128,12 @@ it('после автоподачи восстанавливает ключ и �
   fireEvent.click(await screen.findByRole('tab', { name: 'Ночь' }));
   fireEvent.change(screen.getByRole('textbox', { name: 'Объём, строка 1' }), { target: { value: '12' } });
   fireEvent.click(button('Сохранить'));
-  current = { ...report, status: 'submitted', version: '2' };
+  backend.current = { ...report, status: 'submitted', version: '2' };
   fireEvent.click(await screen.findByRole('button', { name: 'Перечитать' }));
   expect(await screen.findByText(/Стройка, дата и смена восстановлены/)).toBeTruthy();
   expect(screen.getByRole('tab', { name: 'День' }).getAttribute('aria-selected')).toBe('true');
   expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(true);
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: backend.current });
   fireEvent.click(button('Сохранить'));
   await waitFor(() => expect(apiClient.put).toHaveBeenLastCalledWith('/work/reports/r1', expect.objectContaining({
     shift: 'day', lines: [expect.objectContaining({ volume: 12 })],
@@ -381,15 +165,15 @@ it.each(['Сохранить', 'Подать отчёт'])('после дейс�
 });
 
 it('показывает причину пустого ответа справочника материалов', async () => {
-  materialReason = 'Справочник номенклатуры не заведён.';
+  backend.materialReason = 'Справочник номенклатуры не заведён.';
   mount('r1');
   fireEvent.click(await screen.findByRole('button', { name: 'Добавить материал' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Справочник' }));
-  expect(await screen.findByText(materialReason)).toBeTruthy();
+  expect(await screen.findByText(backend.materialReason)).toBeTruthy();
 });
 
 it('при 422 раскрывает вторую строку и переводит фокус к полю материалов', async () => {
-  current = { ...report, lines: [report.lines[0], { ...report.lines[0], id: 'l2', photos: [] }] };
+  backend.current = { ...report, lines: [report.lines[0], { ...report.lines[0], id: 'l2', photos: [] }] };
   vi.mocked(apiClient.post).mockRejectedValueOnce(refusal(422, {
     error: 'Отчёт не подан — не заполнено: строка 2, материалы.',
     requiredMissing: [{ line: 2, lineId: 'l2', field: 'materials' }],
@@ -401,16 +185,137 @@ it('при 422 раскрывает вторую строку и перевод�
   expect(button('Подробности строки 2').getAttribute('aria-expanded')).toBe('true');
   expect(await screen.findByText('Добавьте материал для подачи отчёта.')).toBeTruthy();
   await waitFor(() => expect(document.activeElement).toBe(button('Добавить материал')));
+  fireEvent.click(button('Добавить материал'));
+  fireEvent.click(await within(await screen.findByRole('dialog')).findByRole('option', { name: 'Кабель ВВГ' }));
+  fireEvent.click(button('Готово'));
+  expect(screen.queryByText('Добавьте материал для подачи отчёта.')).toBeNull();
+});
+
+const catalogPath = '/work/entry/sites/site-a/catalog/work-types';
+const catalogKey = (version = report.version) =>
+  ['work', 'entry-catalog', report.constructionId, 'work-types', report.date, report.id, version, ''];
+const missingLocation = { line: 1, lineId: 'l1', field: 'location' } as const;
+const missingMaterials = { line: 1, lineId: 'l1', field: 'materials' } as const;
+const locationError = 'Укажите место работ для подачи отчёта.';
+const materialsError = 'Добавьте материал для подачи отчёта.';
+const locationField = () => screen.getByRole('textbox', { name: 'Место работ' });
+const catalogClient = () => new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
+
+it('в режиме ввода показывает ошибки и адресный фокус только по 422, пока признаки вида загружаются', async () => {
+  const missingSecondLocation = { ...missingLocation, line: 2, lineId: 'l2' };
+  backend.current = { ...report, status: 'returned', requiredMissing: [missingLocation, missingMaterials],
+    lines: [report.lines[0], { ...report.lines[0], id: 'l2', photos: [] }] };
+  const client = catalogClient();
+  const stale = { ...types[0], requiresLocation: false, requiresMaterials: false };
+  client.setQueryData(catalogKey(), { items: [], selected: [stale] });
+  const get = vi.mocked(apiClient.get).getMockImplementation()!;
+  let finishCatalog!: (value: Awaited<ReturnType<typeof apiClient.get>>) => void;
+  const catalogReply = new Promise<Awaited<ReturnType<typeof apiClient.get>>>(resolve => { finishCatalog = resolve; });
+  vi.mocked(apiClient.get).mockImplementation((path, config) => path === catalogPath ? catalogReply : get(path, config));
+  vi.mocked(apiClient.post).mockRejectedValueOnce(refusal(422, {
+    error: 'Отчёт не подан.',
+    requiredMissing: [missingSecondLocation, missingMaterials],
+  }));
+  mount(report.id, 'entry', client);
+  await screen.findByRole('button', { name: 'Подать отчёт' });
+  await waitFor(() => expect(client.getQueryState(catalogKey())?.fetchStatus).toBe('fetching'));
+  expect(screen.queryByText(locationError)).toBeNull();
+  expect(screen.queryByText(materialsError)).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Строка 1 · / })).toBeNull();
+  expect(document.activeElement).toBe(document.body);
+
+  fireEvent.click(button('Подать отчёт'));
+  await screen.findByText(locationError);
+  expect(vi.mocked(apiClient.post).mock.calls[0][0]).toBe('/work/entry/reports/r1/submit');
+  expect(button('Подробности строки 2').getAttribute('aria-expanded')).toBe('true');
+  expect(document.activeElement).toBe(locationField());
+  expect(screen.queryByText(materialsError)).toBeNull();
+
+  await act(async () => finishCatalog({ data: { items: [], selected: [stale] } }));
+  expect(screen.getByText(locationError)).toBeTruthy();
+  fireEvent.change(locationField(), { target: { value: 'Участок Б' } });
+  expect(screen.queryByText(locationError)).toBeNull();
+  fireEvent.click(button('Строка 1 · Материалы'));
+  await screen.findByText(materialsError);
+  expect(button('Подробности строки 1').getAttribute('aria-expanded')).toBe('true');
+  expect(document.activeElement).toBe(button('Добавить материал'));
+
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: {
+    ...backend.current, version: '2', lines: [report.lines[0], { ...report.lines[0], id: 'l2', location: 'Участок Б', photos: [] }],
+  } });
+  fireEvent.click(button('Сохранить'));
+  await waitFor(() => expect(screen.queryByText(materialsError)).toBeNull());
+  expect(screen.queryByRole('button', { name: 'Строка 1 · Материалы' })).toBeNull();
+});
+
+it.each([true, false])('перечитывает выбранный вид из свежего кэша при открытии возвращённого отчёта (материалы: %s)',
+  async requiresMaterials => {
+    backend.current = { ...report, status: 'returned', requiredMissing: [missingLocation, missingMaterials] };
+    const client = catalogClient();
+    client.setQueryData(reportQuery('own', report.id).queryKey, backend.current);
+    client.setQueryData(catalogKey(), { items: types });
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation((path, config) => path === catalogPath
+      ? Promise.resolve({ data: { items: [types[1]], selected: [{ ...types[0], requiresLocation: false, requiresMaterials }] } })
+      : get(path, config));
+    mount(report.id, 'own', client);
+    expect(screen.getByText('Нужно для ИД · место работ, материалы')).toBeTruthy();
+    expect(screen.queryByText(locationError)).toBeNull();
+    expect(screen.queryByText(materialsError)).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    await waitFor(() => expect(screen.queryByText('Нужно для ИД · место работ, материалы')).toBeNull());
+    expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === catalogPath)).toHaveLength(1);
+    if (requiresMaterials) {
+      expect(screen.getByText('Нужно для ИД · материалы')).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/Нужно для ИД/)).toBeNull();
+      vi.mocked(apiClient.post).mockResolvedValueOnce({ data: {
+        ...backend.current, version: '2', status: 'submitted', submittedBy: 'manual', requiredMissing: null,
+      } });
+      fireEvent.click(button('Подать отчёт'));
+      await screen.findByText('Подан');
+      expect(apiClient.post).toHaveBeenCalledExactlyOnceWith('/work/reports/r1/submit',
+        expect.objectContaining({ changeId: expect.any(String) }), { headers: { 'If-Match': report.version } });
+      expect(apiClient.put).not.toHaveBeenCalled();
+    }
+  });
+
+it('перечитывает справочник, когда фоновый ответ открывает возвращённую версию со свежим кэшем видов', async () => {
+  const client = catalogClient();
+  const returned = { ...report, status: 'returned', version: '2', requiredMissing: [missingLocation] };
+  client.setQueryData(reportQuery('own', report.id).queryKey, { ...report, status: 'submitted' });
+  client.setQueryData(catalogKey(), { items: types });
+  client.setQueryData(catalogKey(returned.version), { items: [], selected: [types[0]] });
+  const get = vi.mocked(apiClient.get).getMockImplementation()!;
+  let finishReport!: (value: Awaited<ReturnType<typeof apiClient.get>>) => void;
+  const reportReply = new Promise<Awaited<ReturnType<typeof apiClient.get>>>(resolve => { finishReport = resolve; });
+  vi.mocked(apiClient.get).mockImplementation((path, config) => {
+    if (path === '/work/reports/r1') return reportReply;
+    if (path === catalogPath) return Promise.resolve({ data: {
+      items: [], selected: [{ ...types[0], requiresLocation: false }],
+    } });
+    return get(path, config);
+  });
+  mount(report.id, 'own', client);
+  expect(screen.getByText('Подан')).toBeTruthy();
+  expect(screen.getByText('Нужно для ИД · место работ, материалы')).toBeTruthy();
+  expect(apiClient.get).not.toHaveBeenCalledWith(catalogPath, expect.anything());
+
+  await act(async () => finishReport({ data: returned }));
+  expect(await screen.findByText('Нужно для ИД · материалы')).toBeTruthy();
+  expect(screen.getByText('Возвращён')).toBeTruthy();
+  expect(screen.queryByText(locationError)).toBeNull();
+  expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === catalogPath)).toHaveLength(1);
 });
 
 it('после 409 просит заново подтвердить удаление строки, к которой успели добавить фото', async () => {
-  current = { ...report, lines: [{ ...report.lines[0], photos: [] }] };
+  backend.current = { ...report, lines: [{ ...report.lines[0], photos: [] }] };
   const withPhoto = { ...report, version: '2' };
   vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
   mount('r1');
   fireEvent.click(await screen.findByRole('button', { name: 'Удалить строку 1' }));
   fireEvent.click(button('Сохранить'));
-  current = withPhoto;
+  backend.current = withPhoto;
   fireEvent.click(await screen.findByRole('button', { name: 'Перечитать' }));
   expect(await screen.findByText(/подтвердите удаление заново/)).toBeTruthy();
   fireEvent.click(button('Удалить строку 1'));
@@ -418,8 +323,8 @@ it('после 409 просит заново подтвердить удален
 });
 
 it('в поданном отчёте оставляет шапку запертой и сохраняет правку строки с версией', async () => {
-  current = { ...report, status: 'submitted' };
-  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: current });
+  backend.current = { ...report, status: 'submitted' };
+  vi.mocked(apiClient.put).mockResolvedValueOnce({ data: backend.current });
   mount('r1');
   expect(await screen.findByText('Изменения строк будут видны менеджеру как правка после подачи.')).toBeTruthy();
   expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(true);
@@ -434,7 +339,7 @@ it('в поданном отчёте оставляет шапку заперт�
 it('перечитывает ещё свежую карточку из кэша и разблокирует возвращённый отчёт', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
   client.setQueryData(reportQuery('own', report.id).queryKey, { ...report, status: 'submitted' });
-  current = { ...report, status: 'returned', version: '2', returnComment: 'Уточните дату смены.' };
+  backend.current = { ...report, status: 'returned', version: '2', returnComment: 'Уточните дату смены.' };
   mount(report.id, 'own', client);
   expect(screen.getByText('Подан')).toBeTruthy();
   expect((screen.getByRole('tab', { name: 'Ночь' }) as HTMLButtonElement).disabled).toBe(true);
@@ -446,7 +351,7 @@ it('фоновое чтение не меняет основу If-Match, пок�
   const client = new QueryClient();
   mount(report.id, 'own', client);
   fireEvent.click(await screen.findByRole('tab', { name: 'Ночь' }));
-  current = { ...report, status: 'returned', version: '2' };
+  backend.current = { ...report, status: 'returned', version: '2' };
   await act(() => client.refetchQueries({ queryKey: reportQuery('own', report.id).queryKey }));
   expect(screen.getByRole('tab', { name: 'Ночь' }).getAttribute('aria-selected')).toBe('true');
   vi.mocked(apiClient.put).mockRejectedValueOnce(refusal(409, { error: 'Отчёт тем временем изменили.' }));
@@ -489,8 +394,8 @@ it('после потерянного ответа повторяет созда
   fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
   await screen.findByRole('alert');
   const attempt = vi.mocked(apiClient.post).mock.lastCall?.[1] as { id: string };
-  current = { ...report, id: attempt.id, shift: 'night' };
-  vi.mocked(apiClient.post).mockResolvedValueOnce({ data: current });
+  backend.current = { ...report, id: attempt.id, shift: 'night' };
+  vi.mocked(apiClient.post).mockResolvedValueOnce({ data: backend.current });
   const date = '2026-10-30';
   const field = within(screen.getByRole('group', { name: 'Дата смены' }));
   fireEvent.paste(field.getByRole('textbox', { name: 'day' }), { clipboardData: { getData: () => date } });
@@ -503,8 +408,8 @@ it('после потерянного ответа повторяет созда
   expect(screen.getByRole('tab', { name: 'День' }).getAttribute('aria-selected')).toBe('true');
   expect((screen.getByRole('button', { name: 'Подать отчёт' }) as HTMLButtonElement).disabled).toBe(true);
   vi.mocked(apiClient.put).mockImplementationOnce(async () => {
-    current = { ...current, date, shift: 'day', hours: 7, version: '2' };
-    return { data: current };
+    backend.current = { ...backend.current, date, shift: 'day', hours: 7, version: '2' };
+    return { data: backend.current };
   });
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith(`/work/reports/${attempt.id}`,
