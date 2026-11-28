@@ -80,7 +80,7 @@ public partial class DataSetSourceService
         MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct,
         string? ifMatch = null)
     {
-        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         EnsureMaterializationCurrent(source, ifMatch);
 

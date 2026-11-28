@@ -11,31 +11,33 @@ public static class DataSetBindingEndpoints
     {
         var g = app.MapGroup("/api/datasets/bindings").RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
 
-        g.MapGet("", async (Guid ownerId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListBindingsAsync(ownerId, ct)));
+        g.MapGet("", async (Guid ownerId, ClaimsPrincipal user, IRequestDataAccessResolver access,
+            IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListBindingsAsync(ownerId, ct, await access.ForAsync(user, ct))));
 
         // Literal route — registered before /{id:guid} so it is matched first.
-        // Предпросмотр привязок ЧИТАЕТ строки источников (ТЗ CORE-24.1, issue #965) — параметр
-        // доступа здесь обязателен, в отличие от соседнего списка самих привязок.
+        // Предпросмотр привязок читает строки источников в правах запрашивающего (CORE-24.1).
         g.MapGet("/preview", async (Guid ownerId,
             ClaimsPrincipal user, IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.PreviewBindingsAsync(ownerId, await access.ForAsync(user, ct), ct)));
 
-        g.MapPost("", async (CreateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
+        g.MapPost("", async (CreateBindingRequest req, ClaimsPrincipal user, IRequestDataAccessResolver access,
+            IDataSetService svc, CancellationToken ct) =>
         {
             var input = new CreateBindingInput(req.OwnerId, req.SourceId, req.TargetFieldKey, req.Mapping);
             try
             {
-                var result = await svc.CreateBindingAsync(input, ct);
+                var result = await svc.CreateBindingAsync(input, ct, await access.ForAsync(user, ct));
                 return result is null ? Results.NotFound(new { error = "DataSetSource не найден" }) : Results.Ok(result);
             }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpdateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
+        g.MapPut("/{id:guid}", async (Guid id, UpdateBindingRequest req, ClaimsPrincipal user,
+            IRequestDataAccessResolver access, IDataSetService svc, CancellationToken ct) =>
         {
             var input = new UpdateBindingInput(req.TargetFieldKey, req.Mapping);
-            var result = await svc.UpdateBindingAsync(id, input, ct);
+            var result = await svc.UpdateBindingAsync(id, input, ct, await access.ForAsync(user, ct));
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 

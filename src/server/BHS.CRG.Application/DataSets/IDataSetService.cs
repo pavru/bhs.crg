@@ -192,7 +192,7 @@ public interface IDataSetService
     Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct);
 
     // ── Bindings (владелец — единый DomainObject.OwnerId, issue #84) ─────────────────
-    Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct);
+    Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct, DataAccess? access = null);
 
     /// <summary>
     /// Привязки СРАЗУ МНОГИХ владельцев — для аудита типа (issue #737), который обходит все его
@@ -216,8 +216,8 @@ public interface IDataSetService
     Task<BindingKeyMigrationResult> MigrateFieldKeyAsync(
         IReadOnlyCollection<Guid> ownerIds, IReadOnlyCollection<Guid> documentTypeIds,
         string oldKey, string newKey, CancellationToken ct);
-    Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);
-    Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct);
+    Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct, DataAccess? access = null);
+    Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct, DataAccess? access = null);
     Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct);
     Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
         Guid ownerId, DataAccess access, CancellationToken ct);

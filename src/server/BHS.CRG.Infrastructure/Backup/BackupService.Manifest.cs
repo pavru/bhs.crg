@@ -90,6 +90,7 @@ public partial class BackupService
         var generatedFiles = full ? await db.GeneratedFiles.AsNoTracking().ToListAsync(ct) : [];
         var dataSetFiles = full ? await db.DataSetFiles.AsNoTracking().ToListAsync(ct) : [];
         var dataSetSources = full ? await db.DataSetSources.AsNoTracking().ToListAsync(ct) : [];
+        var systemDataSetIds = dataSetFiles.Where(f => f.IsSystem).Select(f => f.Id).ToHashSet();
         var dataSetBindings = full ? await db.DataSetBindings.AsNoTracking().ToListAsync(ct) : [];
         var reconciliations = full ? await db.Reconciliations.AsNoTracking().ToListAsync(ct) : [];
         var materialLinks = full ? await db.MaterialQualityLinks.AsNoTracking().ToListAsync(ct) : [];
@@ -207,7 +208,8 @@ public partial class BackupService
                 x.CachedSchema, x.CachedRowCount, x.CachedData, x.Tags,
                 x.RowFilter, x.ComputedColumns, x.SortSpec, x.StaleReason?.ToString(),
                 x.MaterializeTypeId, x.MaterializeMapping, x.MaterializeDiscriminator,
-                x.MaterializeByIdColumn, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
+                x.MaterializeByIdColumn, x.CreatedAt, x.UpdatedAt))
+                .Select(x => StructuralTableSource(x, systemDataSetIds)).ToArray() : null,
             DataSetBindings: full ? dataSetBindings.Select(b => new BackupDataSetBinding(
                 b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey, b.Mapping,
                 b.CreatedAt, b.UpdatedAt)).ToArray() : null,

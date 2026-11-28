@@ -90,7 +90,7 @@ public partial class DataSetSourceService
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
+        return MapCreatedSystemSource(source, provided);
     }
 
     // Источник системного набора (issue #580): маркер выбирает провайдера консолидации. CachedData не
@@ -108,18 +108,32 @@ public partial class DataSetSourceService
         var source = AddSystemSource(file, name, marker, provider.Declaration, provided);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
+        return MapCreatedSystemSource(source, provided);
     }
 
     private static DataSetSource AddSystemSource(
         DataSetFile file, string name, string marker, SystemDataSetDeclaration declaration, DataSetParseResult provided)
     {
-        if (declaration.Isolation == SystemDataSetIsolation.PerUser)
+        if (TableSourceMetadata.IsTableMarker(marker) || declaration.Isolation == SystemDataSetIsolation.PerUser)
         {
             var columns = provided.Columns.Select(c => c with { SampleValues = [] }).ToArray();
             return file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), DataSetSource.UnstoredRowCount);
         }
 
         return file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
+    }
+
+    private static DataSetSourceDto MapCreatedSystemSource(DataSetSource source, DataSetParseResult provided) =>
+        DataSetDtoMapper.MapSource(source, live: TableSourceMetadata.IsTableMarker(source.SheetOrPath)
+            ? SystemSourceCounter.FromResult(provided, table: true)
+            : null);
+
+    private static DataSetSource CopySource(DataSetSource source, string name)
+    {
+        var table = TableSourceMetadata.IsTable(source);
+        return source.File.AddSource(name, source.SheetOrPath,
+            table ? TableSourceMetadata.StructuralSchema(source.CachedSchema) : source.CachedSchema,
+            table ? DataSetSource.UnstoredRowCount : source.CachedRowCount,
+            source.ColumnExpressions, table ? null : source.CachedData);
     }
 }

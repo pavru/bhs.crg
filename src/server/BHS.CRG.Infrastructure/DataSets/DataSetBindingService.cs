@@ -19,9 +19,11 @@ public class DataSetBindingService(
     AppDbContext db,
     IDataSetRowLoader rowLoader,
     SystemDataProviderRegistry systemProviders,
+    SystemSourceCounter systemCounts,
     ILogger<DataSetBindingService> logger)
 {
-    public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct)
+    public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(
+        Guid ownerId, CancellationToken ct, DataAccess? access = null)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
@@ -30,7 +32,9 @@ public class DataSetBindingService(
             .AsNoTracking()
             .ToListAsync(ct);
         var counts = await BindingCountsAsync(bindings, ct);
-        return bindings.Select(b => DataSetDtoMapper.MapBinding(b, counts)).ToList();
+        var states = access is null ? null : await systemCounts.TableStatesAsync(bindings.Select(b => b.Source), access, ct);
+        return bindings.Select(b => DataSetDtoMapper.MapBinding(
+            b, counts, DataSetDtoMapper.LiveStateOf(states, b.SourceId))).ToList();
     }
 
     /// <inheritdoc cref="Application.DataSets.IDataSetService.ListBindingsForOwnersAsync" />
@@ -152,7 +156,8 @@ public class DataSetBindingService(
         return JsonSerializer.Serialize(map);
     }
 
-    public async Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct)
+    public async Task<DataSetBindingDto?> CreateBindingAsync(
+        CreateBindingInput input, CancellationToken ct, DataAccess? access = null)
     {
         var source = await db.DataSetSources.Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == input.SourceId, ct);
@@ -175,6 +180,7 @@ public class DataSetBindingService(
                 SystemDataSetRules.EnsureShared(provider.Declaration, "печатная форма");
         }
 
+        var live = await ReadTableStateAsync(source, access, ct);
         var binding = DataSetBinding.For(input.OwnerId, input.SourceId, input.TargetFieldKey,
             DataSetDtoMapper.SerializeMapping(input.Mapping));
         db.DataSetBindings.Add(binding);
@@ -182,19 +188,26 @@ public class DataSetBindingService(
 
         await db.Entry(binding).Reference(b => b.Source).LoadAsync(ct);
         await db.Entry(binding.Source).Reference(s => s.File).LoadAsync(ct);
-        return DataSetDtoMapper.MapBinding(binding);
+        return DataSetDtoMapper.MapBinding(binding, live: live);
     }
 
-    public async Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct)
+    public async Task<DataSetBindingDto?> UpdateBindingAsync(
+        Guid id, UpdateBindingInput input, CancellationToken ct, DataAccess? access = null)
     {
         var binding = await db.DataSetBindings.Include(b => b.Source).ThenInclude(s => s.File)
             .FirstOrDefaultAsync(b => b.Id == id, ct);
         if (binding == null) return null;
 
+        var live = await ReadTableStateAsync(binding.Source, access, ct);
         binding.Update(input.TargetFieldKey, DataSetDtoMapper.SerializeMapping(input.Mapping));
         await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapBinding(binding);
+        return DataSetDtoMapper.MapBinding(binding, live: live);
     }
+
+    private async Task<SystemSourceCounter.SystemSourceState?> ReadTableStateAsync(
+        DataSetSource source, DataAccess? access, CancellationToken ct) =>
+        access is not null && TableSourceMetadata.IsTable(source)
+            ? await systemCounts.StateAsync(source, source.File, access, ct) : null;
 
     public async Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct)
     {

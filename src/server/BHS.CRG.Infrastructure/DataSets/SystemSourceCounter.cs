@@ -51,7 +51,8 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     /// <param name="Types">Виды колонок, если поставщик их объявил (таблица модуля): по ним диалог
     /// отбора предлагает колонке её операторы (issue #1133).</param>
     /// <param name="Schema">Колонки в том виде, в каком их ждёт клиент от <c>CachedSchema</c>; null —
-    /// колонок нет, и отдавать надо запомненное. Сериализуется ЗДЕСЬ, один раз на ответ провайдера:
+    /// нет живой схемы у нетабличного источника; пустая схема таблицы представлена строкой `[]`.
+    /// Сериализуется один раз на ответ провайдера:
     /// состояние у источников одной консолидации общее, и собирать ту же строку заново на каждый
     /// источник списка значило бы вернуть по мелочи то, от чего ушли (issue #1142).</param>
     public readonly record struct SystemSourceState(
@@ -63,14 +64,27 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     /// <see cref="DataSetFile.Sources"/>). Обычные форматы не трогаем — у них кэш поддерживается
     /// штатно. Пустой словарь, если системных наборов в выборке нет.
     /// </summary>
-    public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
-        IEnumerable<DataSetFile> files, DataAccess access, CancellationToken ct)
+    public Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
+        IEnumerable<DataSetFile> files, DataAccess access, CancellationToken ct) =>
+        ReadStatesAsync(files.Where(f => f.IsSystem).SelectMany(f => f.Sources.Select(s => (s, f))), access, ct);
+
+    internal Task<IReadOnlyDictionary<Guid, SystemSourceState>> TableStatesAsync(
+        IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct) =>
+        ReadStatesAsync(sources.Where(TableSourceMetadata.IsTable).Select(s => (s, s.File)), access, ct);
+
+    private async Task<IReadOnlyDictionary<Guid, SystemSourceState>> ReadStatesAsync(
+        IEnumerable<(DataSetSource Source, DataSetFile File)> sources, DataAccess access, CancellationToken ct)
     {
         var states = new Dictionary<Guid, SystemSourceState>();
         // Одни ответы на ВСЮ выборку, а не на набор: наборы одной области спрашивают об одном и том же.
         var answers = new Answers();
-        foreach (var file in files.Where(f => f.IsSystem))
-            await AddAsync(states, answers, file, file.Sources, access, ct);
+        foreach (var (source, file) in sources)
+        {
+            var question = new Question(source.SheetOrPath, file.Scope, file.ScopeId);
+            if (!answers.TryGetValue(question, out var state))
+                answers[question] = state = await StateAsync(source.SheetOrPath, file, access, ct);
+            if (state is not null) states[source.Id] = state.Value;
+        }
         return states;
     }
 
@@ -97,22 +111,13 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         return (await provider.ProvideAsync(source.SheetOrPath, file.Scope, file.ScopeId, access, ct)).Types;
     }
 
-    private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, Answers answers, DataSetFile file,
-        IEnumerable<DataSetSource> sources, DataAccess access, CancellationToken ct)
-    {
-        foreach (var source in sources)
-        {
-            var question = new Question(source.SheetOrPath, file.Scope, file.ScopeId);
-            if (!answers.TryGetValue(question, out var state))
-                answers[question] = state = await StateAsync(source.SheetOrPath, file, access, ct);
-            if (state is not null) states[source.Id] = state.Value;
-        }
-    }
+    internal static SystemSourceState FromResult(DataSetParseResult result, bool table) => new(
+        result.Rows.Count, result.Warning, result.Columns, result.Types,
+        table || result.Columns.Count > 0 ? DataSetDtoMapper.SerializeSchema(result.Columns, result.Types) : null);
 
     // Пересчёт — удобство, а не обязанность: списки наборов не должны падать из-за одного источника.
-    // Маркер без провайдера (консолидацию убрали в новой версии) и источник на уровне, где
-    // консолидация неприменима (набор остался от версий до гейта #606), отдают запомненное число —
-    // оно хотя бы показывает, чем источник был.
+    // Отсутствие провайдера или его отказ — состояние не получено. Табличный источник не может
+    // подменять такое состояние запомненным, у остальных сохраняются их правила кэширования.
     private async Task<SystemSourceState?> StateAsync(
         string marker, DataSetFile file, DataAccess access, CancellationToken ct)
     {
@@ -122,13 +127,11 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
         {
             // Ворота (ТЗ CORE-24.1, issue #965) — и здесь: счётчик читает строки целиком, то есть
             // «сколько строк» отвечает по данным, на которые права может не быть. Отказ ворот —
-            // DomainException, и его глотает тот же catch ниже: список наборов у человека без права
-            // использует сохранённое описание колонок. У изолированного источника число неизвестно,
-            // пока его не дал поставщик с правами читающего.
+            // DomainException, и его глотает тот же catch ниже: у таблицы схема не выдаётся, а число
+            // неизвестно, пока его не дал поставщик с правами читающего.
             SystemDataSetGate.Ensure(provider.Declaration, access, "");
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, access, ct);
-            return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns, provided.Types,
-                provided.Columns.Count > 0 ? DataSetDtoMapper.SerializeSchema(provided.Columns, provided.Types) : null);
+            return FromResult(provided, TableSourceMetadata.IsTableMarker(marker));
         }
         // Ловим НАШ отказ провайдера («источник доступен только на уровне комплекта» и подобные) —
         // для счётчика это просто «состояния нет». Чужое исключение сюда попадать не должно: оно

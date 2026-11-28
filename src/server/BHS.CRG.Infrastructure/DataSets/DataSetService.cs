@@ -138,8 +138,9 @@ public class DataSetService(
         processingTemplates.DeleteAsync(id, ct);
 
     // ── Bindings ──────────────────────────────────────────────────────────────
-    public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct) =>
-        bindings.ListBindingsAsync(ownerId, ct);
+    public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(
+        Guid ownerId, CancellationToken ct, DataAccess? access = null) =>
+        bindings.ListBindingsAsync(ownerId, ct, access);
 
     public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsForOwnersAsync(
         IReadOnlyCollection<Guid> ownerIds, CancellationToken ct) =>
@@ -149,10 +150,12 @@ public class DataSetService(
         IReadOnlyCollection<Guid> ownerIds, IReadOnlyCollection<Guid> documentTypeIds,
         string oldKey, string newKey, CancellationToken ct) =>
         bindings.MigrateFieldKeyAsync(ownerIds, documentTypeIds, oldKey, newKey, ct);
-    public Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct) =>
-        bindings.CreateBindingAsync(input, ct);
-    public Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct) =>
-        bindings.UpdateBindingAsync(id, input, ct);
+    public Task<DataSetBindingDto?> CreateBindingAsync(
+        CreateBindingInput input, CancellationToken ct, DataAccess? access = null) =>
+        bindings.CreateBindingAsync(input, ct, access);
+    public Task<DataSetBindingDto?> UpdateBindingAsync(
+        Guid id, UpdateBindingInput input, CancellationToken ct, DataAccess? access = null) =>
+        bindings.UpdateBindingAsync(id, input, ct, access);
     public Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct) =>
         bindings.DeleteBindingAsync(id, ct);
     public Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(
