@@ -5,6 +5,8 @@ using BHS.CRG.Modules.Work.Data;
 
 namespace BHS.CRG.Modules.Work.Closing;
 
+internal sealed class ReportPeriodClosedException(string message) : ConflictException(message);
+
 public sealed class ReportPeriods(WorkDbContext db, IModulePeriods periods)
 {
     public async Task<PeriodBoundaries> UnderWriteLockAsync(CancellationToken ct)
@@ -32,9 +34,9 @@ public sealed class ReportPeriods(WorkDbContext db, IModulePeriods periods)
         if (!IsClosed(boundaries, site, date)) return;
 
         throw reportId is { } id ? ClosedReport(id)
-            : new ConflictException("Период закрыт: новый отчёт на эту дату завести нельзя.");
+            : new ReportPeriodClosedException("Период закрыт: новый отчёт на эту дату завести нельзя.");
     }
 
     internal static ConflictException ClosedReport(Guid id) =>
-        new($"Период закрыт: исправление — новой версией (POST /api/work/reports/{id}/correction).");
+        new ReportPeriodClosedException($"Период закрыт: исправление — новой версией (POST /api/work/reports/{id}/correction).");
 }

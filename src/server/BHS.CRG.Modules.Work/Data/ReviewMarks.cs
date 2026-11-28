@@ -57,6 +57,9 @@ public static class ReviewMarks
     public const string FieldsMissing = "fields-missing";
     public const string RequiredMissing = "required-missing";
     public const string LateDelivery = "late-delivery";
+    public const string ClockDifference = "clock-difference";
+    public const string ClockWentBack = "clock-went-back";
+    internal const int ClockToleranceMinutes = 5;
 
     /// <summary>Все пометки — в порядке, в котором их показывает очередь.</summary>
     public static IReadOnlyList<ReviewMark> All { get; } =
@@ -98,7 +101,23 @@ public static class ReviewMarks
                           && !s.Journal.Any(x => x.ReportId == r.Id && x.Seq > e.Seq
                               && (x.Kind == ReportJournalKinds.Accepted || x.Kind == ReportJournalKinds.Returned)))),
         new(LateDelivery, "поздняя доставка",
-            "доставка отчёта с телефона — этап 5 (WORK-58); в вебе отчёт доставляется сразу", null),
+            "последняя ручная подача из журнала и конец окна подачи",
+            s => r => s.Journal.Any(e => e.ReportId == r.Id && e.AuthorId == null
+                && (e.Kind == ReportJournalKinds.Submitted || e.Kind == ReportJournalKinds.FieldReceipt)
+                && e.DeviceTime <= r.WindowEndsAt && e.ServerTime > r.WindowEndsAt
+                && !s.Journal.Any(next => next.ReportId == r.Id && next.Seq > e.Seq
+                    && (next.Kind == ReportJournalKinds.Submitted || next.Kind == ReportJournalKinds.AutoSubmitted)))),
+        new(ClockDifference, "разница между временем действия и приёма",
+            "время устройства и сервера в журнале",
+            s => r => s.Journal.Any(e => e.ReportId == r.Id && e.AuthorId == null && e.DeviceTime != null
+                && (e.DeviceTime < e.ServerTime.AddMinutes(-ClockToleranceMinutes)
+                    || e.DeviceTime > e.ServerTime.AddMinutes(ClockToleranceMinutes)))),
+        new(ClockWentBack, "время действия раньше предыдущего",
+            "соседние отметки времени устройства в порядке записей журнала",
+            s => r => s.Journal.Any(e => e.ReportId == r.Id && e.AuthorId == null && e.DeviceTime != null
+                && e.DeviceTime < s.Journal.Where(previous => previous.ReportId == r.Id && previous.Seq < e.Seq
+                        && previous.AuthorId == null && previous.DeviceTime != null)
+                    .OrderByDescending(previous => previous.Seq).Select(previous => previous.DeviceTime).FirstOrDefault())),
         new(FieldsMissing, "не заполнены поля",
             "поля заказчика с признаком «нужно к приёмке» в действующей схеме (work-24)", null),
         new(RequiredMissing, "не заполнены место или материалы",
@@ -149,6 +168,11 @@ public static class ReviewMarks
         _ => "не указаны обязательные место работ и материалы",
     };
 
+    internal static IReadOnlyList<ReviewMarkDto> WithText(IReadOnlyList<ReviewMarkDto> marks,
+        IReadOnlyList<ReviewMarkDto>? texts) =>
+        texts is null or { Count: 0 } ? marks
+            : [.. marks.Select(mark => texts.FirstOrDefault(text => text.Code == mark.Code) ?? mark)];
+
     /// <summary>Пометка по коду; неизвестный код — <c>null</c>.</summary>
     public static ReviewMark? Of(string code) => All.FirstOrDefault(m => m.Code == code);
 
@@ -156,16 +180,29 @@ public static class ReviewMarks
     /// Все пометки отчёта одной проекцией: <c>Flags[i]</c> — есть ли у отчёта <see cref="Counted" />[i]. Один запрос на
     /// любую выдачу отчётов, а не по запросу на пометку.
     /// </summary>
-    public static Expression<Func<Report, ReviewMarkFlags>> Flags(ReviewMarkSources sources)
+    internal static Expression<Func<Report, ReviewMarkFlags>> Flags(ReviewMarkSources sources, bool includeDelivery)
     {
         var r = Expression.Parameter(typeof(Report), "r");
         var flags = Expression.NewArrayInit(typeof(bool), Counted.Select(m => Inline(m.Has!(sources), r)));
+        List<MemberBinding> fields =
+        [
+            Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Id))!,
+                Expression.Property(r, nameof(Report.Id))),
+            Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Marks))!, flags),
+        ];
+        if (includeDelivery)
+        {
+            Expression<Func<Report, List<ReportDeliveryEntry>>> entries = report => sources.Journal
+                .Where(e => e.ReportId == report.Id && ((e.AuthorId == null && e.DeviceTime != null)
+                    || e.Kind == ReportJournalKinds.Submitted || e.Kind == ReportJournalKinds.AutoSubmitted))
+                .OrderBy(e => e.Seq)
+                .Select(e => new ReportDeliveryEntry(report.WindowEndsAt, e.Kind,
+                    e.AuthorId == null ? e.DeviceTime : null, e.ServerTime)).ToList();
+            fields.Add(Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Delivery))!,
+                Inline(entries, r)));
+        }
         return Expression.Lambda<Func<Report, ReviewMarkFlags>>(
-            Expression.MemberInit(Expression.New(typeof(ReviewMarkFlags)),
-                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Id))!,
-                    Expression.Property(r, nameof(Report.Id))),
-                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Marks))!, flags)),
-            r);
+            Expression.MemberInit(Expression.New(typeof(ReviewMarkFlags)), fields), r);
     }
 
     /// <summary>
@@ -198,8 +235,8 @@ public static class ReviewMarks
     }
 
     /// <summary>Тело предиката над другим параметром отчёта.</summary>
-    private static Expression Inline(Expression<Func<Report, bool>> predicate, ParameterExpression r) =>
-        new Swap(new Dictionary<ParameterExpression, Expression> { [predicate.Parameters[0]] = r }).Visit(predicate.Body);
+    private static Expression Inline<T>(Expression<Func<Report, T>> selector, ParameterExpression r) =>
+        new Swap(new Dictionary<ParameterExpression, Expression> { [selector.Parameters[0]] = r }).Visit(selector.Body);
 
     private sealed class Swap(IReadOnlyDictionary<ParameterExpression, Expression> map) : ExpressionVisitor
     {
@@ -209,13 +246,18 @@ public static class ReviewMarks
 }
 
 /// <summary>Пометки одного отчёта из проекции <see cref="ReviewMarks.Flags" />.</summary>
-public sealed class ReviewMarkFlags
+internal sealed class ReviewMarkFlags
 {
     public Guid Id { get; init; }
 
     /// <summary>По порядку <see cref="ReviewMarks.Counted" />.</summary>
     public bool[] Marks { get; init; } = [];
 
+    public List<ReportDeliveryEntry> Delivery { get; init; } = [];
+
     /// <summary>Коды пометок отчёта по порядку каталога.</summary>
     public IReadOnlyList<string> Codes() => [.. ReviewMarks.Counted.Where((_, i) => Marks[i]).Select(m => m.Code)];
 }
+
+internal sealed record ReportDeliveryEntry(DateTimeOffset WindowEndsAt, string Kind,
+    DateTimeOffset? DeviceTime, DateTimeOffset ServerTime);

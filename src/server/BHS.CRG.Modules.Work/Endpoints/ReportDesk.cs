@@ -5,6 +5,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Work.Closing;
 using BHS.CRG.Modules.Work.Data;
 using BHS.CRG.Modules.Work.Crew;
+using BHS.CRG.Modules.Work.Devices;
 using BHS.CRG.Modules.Work.Photos;
 using BHS.CRG.Modules.Work.Submission;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace BHS.CRG.Modules.Work.Endpoints;
+
+internal sealed class ReportVersionConflictException() : ConflictException(ReportDesk.Stale);
 
 /// <summary>
 /// Общий ход заведения, правки и удаления отчёта (ТЗ MOB-15, MOB-16, MOB-17; change <c>work-13-report-model</c>) —
@@ -69,12 +72,22 @@ public sealed class ReportDesk(
         if (id == Guid.Empty) throw new InvalidRequestException("Идентификатор отчёта (id) пуст: его создаёт клиент.");
         var header = body.Header();
         var lines = body.LineValues();
+        if (viewer.FieldDelivery is not null)
+        {
+            _ = FieldChangeId(body.ChangeId);
+            lines = WithWebDetails(lines, []);
+        }
         var (actor, executor) = (await people.ActorAsync(viewer, ct), await people.ExecutorAsync(employeeId, ct));
 
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var boundaries = await periods.UnderWriteLockAsync(ct);
+            if (viewer.FieldDelivery is { } delivery)
+            {
+                await delivery.LockAsync(ct);
+                delivery.EnsureDate(employeeId, header.Date);
+            }
             if (await reads.HolderOfIdAsync(id, ct) is { } holder)
                 return await ReplayedOrTakenAsync(viewer, id, employeeId, holder, boundaries, ct);
             ReportPeriods.EnsureOpen(boundaries, header.ConstructionId, header.Date);
@@ -88,13 +101,20 @@ public sealed class ReportDesk(
             journal.Append(ReportJournalKinds.Created, report, null, actor, executor, changeId, seq, body.DeviceTime, now);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return Results.Created($"{path}/{id}", await views.OneAsync(viewer, report, ct: ct));
+            var created = await views.OneAsync(viewer, report, ct: ct);
+            return Results.Created($"{path}/{id}", Body(viewer, created));
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // Два заведения разом: проигравший видит запись победителя. Тот же id — повтор, та же четвёрка — ключ занят.
             db.ChangeTracker.Clear();
-            var boundaries = await periods.CurrentAsync(ct);
+            await using var retry = await db.Database.BeginTransactionAsync(ct);
+            var boundaries = await periods.UnderWriteLockAsync(ct);
+            if (viewer.FieldDelivery is { } delivery)
+            {
+                await delivery.LockAsync(ct);
+                delivery.EnsureDate(employeeId, header.Date);
+            }
             if (await reads.HolderOfIdAsync(id, ct) is { } won)
                 return await ReplayedOrTakenAsync(viewer, id, employeeId, won, boundaries, ct);
             ReportPeriods.EnsureOpen(boundaries, header.ConstructionId, header.Date);
@@ -108,19 +128,46 @@ public sealed class ReportDesk(
     /// <summary>Править отчёт, видимый читателю, — или ответить повтором уже применённой правки.</summary>
     public async Task<IResult> ChangeAsync(ReportViewer viewer, Guid id, ReportRequest body, HttpRequest request, CancellationToken ct)
     {
+        try
+        {
+            return await ApplyChangeAsync(viewer, id, body, request, ct);
+        }
+        catch (DbUpdateConcurrencyException) when (viewer.FieldDelivery is not null)
+        {
+            // Два устройства могли начать с одной версии. Победивший повтор уже виден, новый запрос устарел.
+            db.ChangeTracker.Clear();
+            return await ApplyChangeAsync(viewer, id, body, request, ct);
+        }
+    }
+
+    private async Task<IResult> ApplyChangeAsync(
+        ReportViewer viewer, Guid id, ReportRequest body, HttpRequest request, CancellationToken ct)
+    {
         // Автор — до транзакции: запрос к ядру не держит её открытой.
         var actor = await people.ActorAsync(viewer, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var boundaries = await periods.UnderWriteLockAsync(ct);
+        var delivery = viewer.FieldDelivery;
+        if (delivery is not null) await delivery.LockAsync(ct);
         var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
-        ReportPeriods.EnsureOpen(boundaries, report);
-        var replayed = body.ChangeId is { } change && await reads.AppliedAsync(id, change, ct) is not null;
+        delivery?.EnsureDate(report.EmployeeId, report.Date);
+        if (delivery is null) ReportPeriods.EnsureOpen(boundaries, report);
+        else _ = FieldChangeId(body.ChangeId);
+        var applied = body.ChangeId is { } change ? await reads.AppliedAsync(id, change, ct) : null;
+        if (delivery is not null && applied is not null && applied.Kind != ReportChangeKind.Updated)
+            throw new FieldReportRefusal(409, "change-id-taken");
+        var replayed = applied is not null;
+        if (!replayed && delivery is not null)
+        {
+            ReportPeriods.EnsureOpen(boundaries, report);
+            if (body.Date is { } date) delivery.EnsureDate(report.EmployeeId, date);
+        }
         if (!replayed && body.ConstructionId is { } destination)
         {
             if (!viewer.Covers(destination, report.EmployeeId)) throw new NotFoundException(SiteNotYours);
             if (body.Date is { } date && ReportPeriods.IsClosed(boundaries, destination, date))
-                throw new ConflictException("Период закрыт: перенести отчёт на эту дату нельзя.");
+                throw new ReportPeriodClosedException("Период закрыт: перенести отчёт на эту дату нельзя.");
         }
         var seen = SeenVersions.Required(request, "отчёта");
         var changeId = body.ChangeId ?? throw new InvalidRequestException(
@@ -132,10 +179,14 @@ public sealed class ReportDesk(
             throw new InvalidRequestException(
                 "Сотрудника отчёта (employeeId) правкой не сменить: отчёт другого сотрудника — другой отчёт.");
         if (replayed)
-            return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
-        if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
+            return delivery is null
+                ? await ReplyAsync(viewer, report, ct, replayed: true)
+                : await ReplyFieldReplayAsync(viewer, report, ct);
+        if (seen != db.VersionOf(report)) throw VersionConflict(viewer);
+        delivery?.EnsureOwnReportEdit(report, body.ConfirmManagerEdit);
         var header = body.Header();
         var lines = body.LineValues();
+        if (delivery is not null) lines = WithWebDetails(lines, report.Lines);
 
         var executor = await people.ExecutorAsync(report.EmployeeId, ct);
         var kind = ManagerEdits(viewer, report, actor) ? ReportJournalKinds.ManagerEdited : ReportJournalKinds.Updated;
@@ -160,7 +211,7 @@ public sealed class ReportDesk(
             await activity.RecordAsync(ReportActions.ManagerEdited, report, executor, before: null, after: changed);
         else if (entry.AfterSubmission)
             await activity.RecordAsync(ReportActions.EditedAfterSubmission, report, executor, before: null, after: changed);
-        return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
+        return await ReplyAsync(viewer, report, ct);
     }
 
     /// <summary>
@@ -176,13 +227,39 @@ public sealed class ReportDesk(
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var boundaries = await periods.UnderWriteLockAsync(ct);
+            var delivery = viewer.FieldDelivery;
+            if (delivery is not null) await delivery.LockAsync(ct);
             var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
-            ReportPeriods.EnsureOpen(boundaries, report);
+            delivery?.EnsureDate(report.EmployeeId, report.Date);
+            if (delivery is null) ReportPeriods.EnsureOpen(boundaries, report);
             var seen = SeenVersions.Required(request, "отчёта");
+            if (delivery is not null)
+            {
+                var change = FieldChangeId(body?.ChangeId);
+                if (await reads.AppliedAsync(id, change, ct) is { } applied)
+                {
+                    if (applied.Kind is not (ReportChangeKind.Submitted or ReportChangeKind.FieldReceipt))
+                        throw new FieldReportRefusal(409, "change-id-taken");
+                    return await ReplyFieldReplayAsync(viewer, report, ct, alreadySubmitted: true);
+                }
+                ReportPeriods.EnsureOpen(boundaries, report);
+                if (seen != db.VersionOf(report)) throw new ReportVersionConflictException();
+            }
             if (report.Status == ReportStatus.Submitted)
-                return Results.Ok(await views.OneAsync(viewer, report, alreadySubmitted: true, ct: ct));
+            {
+                if (delivery is not null && report.SubmittedBy == ReportSubmitter.Auto && body?.DeviceTime is { } actedAt
+                    && actedAt <= report.WindowEndsAt && !await reads.HasFieldReceiptAsync(id, ct))
+                {
+                    delivery.EnsureOwnReportEdit(report, body.ConfirmManagerEdit);
+                    await submission.RecordFieldReceiptAsync(report, actor, await people.ExecutorAsync(report.EmployeeId, ct),
+                        FieldChangeId(body.ChangeId), actedAt, time.GetUtcNow(), ct);
+                    await tx.CommitAsync(ct);
+                }
+                return await ReplyAsync(viewer, report, ct, alreadySubmitted: true);
+            }
             if (report.SubmitRefusal() is { } refusal) throw new ConflictException(refusal);
-            if (seen != db.VersionOf(report)) throw new ConflictException(Stale);
+            if (seen != db.VersionOf(report)) throw VersionConflict(viewer);
+            delivery?.EnsureOwnReportEdit(report, body?.ConfirmManagerEdit == true);
             var missing = await required.OfAsync(report, ct) ?? throw new WorkDirectoryMissingException(IModuleWorkTypes.NotSetUp);
             if (missing.Count > 0) throw new RequiredMissingException(missing);
 
@@ -198,12 +275,14 @@ public sealed class ReportDesk(
             await submission.ApplyAsync(report, at, ReportSubmitter.Manual, missing: null, actor, executor,
                 body?.ChangeId ?? Guid.NewGuid(), body?.DeviceTime, now, ct);
             await tx.CommitAsync(ct);
-            return Results.Ok(await views.OneAsync(viewer, report, ct: ct));
+            return await ReplyAsync(viewer, report, ct);
         }
         catch (DbUpdateConcurrencyException)
         {
             // Автоподача (или вторая подача) успела между чтением и записью: поданный отчёт — повтор, иное — версия.
             db.ChangeTracker.Clear();
+            if (viewer.FieldDelivery is not null)
+                return await RetryFieldSubmitAsync(viewer, id, body?.ChangeId, ct);
             if (await reads.FindAsync(viewer, id, ct) is { } won)
             {
                 ReportPeriods.EnsureOpen(await periods.CurrentAsync(ct), won);
@@ -279,8 +358,9 @@ public sealed class ReportDesk(
         if (holder.EmployeeId == employeeId && viewer.Covers(holder.ConstructionId, employeeId)
             && await reads.FindAsync(viewer, id, ct) is { } report)
         {
-            ReportPeriods.EnsureOpen(boundaries, report);
-            return Results.Ok(await views.OneAsync(viewer, report, replayed: true, ct: ct));
+            if (viewer.FieldDelivery is { } delivery) delivery.EnsureDate(report.EmployeeId, report.Date);
+            else ReportPeriods.EnsureOpen(boundaries, report);
+            return await ReplyAsync(viewer, report, ct, replayed: true);
         }
         throw new ConflictException(IdTaken);
     }
@@ -291,6 +371,51 @@ public sealed class ReportDesk(
         if (await reads.DeletedHolderAsync(id, ct) is { } owner)
             throw new ConflictException(owner == employeeId ? Deleted : IdTaken);
     }
+
+    private async Task<IResult> RetryFieldSubmitAsync(
+        ReportViewer viewer, Guid id, Guid? changeId, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await viewer.FieldDelivery!.LockAsync(ct);
+        var report = await reads.FindAsync(viewer, id, ct) ?? throw new NotFoundException(NotFoundText);
+        viewer.FieldDelivery.EnsureDate(report.EmployeeId, report.Date);
+        if (await reads.AppliedAsync(id, FieldChangeId(changeId), ct) is
+            { Kind: ReportChangeKind.Submitted or ReportChangeKind.FieldReceipt })
+            return await ReplyFieldReplayAsync(viewer, report, ct, alreadySubmitted: true);
+        throw new ReportVersionConflictException();
+    }
+
+    private async Task<IResult> ReplyFieldReplayAsync(
+        ReportViewer viewer, Report report, CancellationToken ct, bool alreadySubmitted = false)
+    {
+        // Другое устройство могло зафиксировать действие между чтением отчёта и чтением протокола.
+        // На пути повтора замок смены больше не нужен, поэтому можно сразу запереть отчёты сотрудника.
+        await db.LockReportsAsync(report.EmployeeId, ct);
+        db.ChangeTracker.Clear();
+        var current = await reads.FindAsync(viewer, report.Id, ct) ?? throw new NotFoundException(NotFoundText);
+        viewer.FieldDelivery!.EnsureDate(current.EmployeeId, current.Date);
+        return await ReplyAsync(viewer, current, ct, replayed: true, alreadySubmitted: alreadySubmitted);
+    }
+
+    private static Guid FieldChangeId(Guid? changeId) =>
+        changeId is { } id && id != Guid.Empty ? id : throw new FieldReportRefusal(400, "invalid-request");
+
+    private static IReadOnlyList<ReportLineValues> WithWebDetails(
+        IReadOnlyList<ReportLineValues> incoming, IEnumerable<ReportLine> stored)
+    {
+        var details = stored.ToDictionary(line => line.Id, line => line.Details);
+        return [.. incoming.Select(line => line with { Details = details.GetValueOrDefault(line.Id) })];
+    }
+
+    private static ConflictException VersionConflict(ReportViewer viewer) =>
+        viewer.FieldDelivery is not null ? new ReportVersionConflictException() : new ConflictException(Stale);
+
+    private async Task<IResult> ReplyAsync(
+        ReportViewer viewer, Report report, CancellationToken ct, bool replayed = false, bool alreadySubmitted = false) =>
+        Results.Ok(Body(viewer, await views.OneAsync(viewer, report, replayed, alreadySubmitted, ct)));
+
+    private static object Body(ReportViewer viewer, ReportDto report) =>
+        viewer.FieldDelivery is null ? report : FieldReportBody.Of(report);
 }
 
 /// <summary>

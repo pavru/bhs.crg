@@ -20,6 +20,8 @@ public sealed class ReportPeople(IModuleUser user, IModuleEmployees employees)
     public async Task<ReportJournalActor> ActorAsync(ReportViewer viewer, CancellationToken ct)
     {
         var employee = viewer.EmployeeId ?? (user.Id is { } id ? (await employees.OfAccountAsync(id, ct))?.Id : null);
+        if (viewer.FieldDelivery is not null && employee is { } fieldEmployee)
+            return new ReportJournalActor(null, await ExecutorAsync(fieldEmployee, ct), fieldEmployee);
         return new ReportJournalActor(user.Id, user.Name, employee);
     }
 

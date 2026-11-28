@@ -22,6 +22,7 @@ using Mediator;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -47,6 +48,7 @@ public class AssignmentHost : ModuleOnlyHost
     internal DateTimeOffset? ClosureTime { get; set; }
     internal DateTimeOffset? ReportTime { get; set; }
     internal DateTimeOffset? ModuleTime { get; set; }
+    internal ReportReplayProbe ReplayProbe { get; } = new();
 
     protected override string ModuleCode => WorkModule.ModuleCode;
 
@@ -57,6 +59,7 @@ public class AssignmentHost : ModuleOnlyHost
         base.ConfigureWebHost(builder);
         builder.ConfigureTestServices(services =>
         {
+            services.ConfigureDbContext<WorkDbContext>(options => options.AddInterceptors(ReplayProbe));
             services.RemoveAll<IModuleClock>();
             services.AddScoped<IModuleClock>(sp => new ModuleClockPort(
                 sp.GetRequiredService<IAppSettingsStore>(), new Fixed(ModuleTime ?? Now),

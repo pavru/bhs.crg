@@ -26,6 +26,8 @@ async function managerChecks() {
     await page.goto(queue);
     await page.getByText(/отчёты ваших строек \(1\)/).waitFor();
     await row(0).getByText('стройка не назначена на дату', { exact: true }).waitFor();
+    await row(0).getByText(/поздняя доставка .*действие .*UTC.*приём .*UTC/).waitFor();
+    await page.getByRole('button', { name: /поздняя доставка.*1/ }).waitFor();
     await row(1).getByText('правка менеджером', { exact: true }).waitFor();
     await row(1).getByText('☾ ночь', { exact: true }).waitFor();
   });
@@ -51,6 +53,7 @@ async function managerChecks() {
     await page.goto(queue);
     await row(0).getByRole('link', { name: /Открыть отчёт/ }).click();
     await page.getByRole('heading', { name: REVIEW_REPORTS[0].name }).waitFor();
+    await page.getByText(/поздняя доставка .*действие .*UTC.*приём .*UTC/).waitFor();
     await page.getByRole('button', { name: 'Принять', exact: true }).click();
     await dialog().getByRole('button', { name: 'Принять', exact: true }).click();
     await page.getByText('Принят', { exact: true }).waitFor();

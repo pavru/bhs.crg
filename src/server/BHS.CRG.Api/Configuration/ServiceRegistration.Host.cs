@@ -263,6 +263,12 @@ internal static class HostRegistration
         o.AddPolicy("field-info", new FieldRateLimit(PerClient(branding.PermitLimit, BrandingRateLimit.Window)));
         o.AddPolicy("field-join", new FieldRateLimit(PerClient(30, TimeSpan.FromMinutes(5))));
         o.AddPolicy("field-refresh", new FieldRateLimit(PerClient(120, TimeSpan.FromMinutes(5))));
+        o.AddPolicy("field-exchange", new FieldRateLimit(ctx => RateLimitPartition.GetFixedWindowLimiter(
+            ctx.User.FindFirst("field_device_id")?.Value ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 300, Window = TimeSpan.FromMinutes(5), QueueLimit = 0,
+            })));
         // Значки вкладки и приложения и манифест (issue #1315) — отдельной корзиной. Это запросы
         // сверх названия и логотипа (манифест — при каждой загрузке страницы, значки — когда
         // браузер решит их перечитать), и в общей с названием корзине отказ достался бы адресу, без

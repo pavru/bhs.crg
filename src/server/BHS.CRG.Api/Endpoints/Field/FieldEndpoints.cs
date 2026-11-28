@@ -8,9 +8,11 @@ internal static class FieldEndpoints
 {
     internal static void MapFieldEndpoints(this IEndpointRouteBuilder app)
     {
-        if (!app.ServiceProvider.GetRequiredService<ModuleRegistry>().IsEnabled("work")) return;
+        var modules = app.ServiceProvider.GetRequiredService<ModuleRegistry>();
+        if (modules.Enabled.OfType<IFieldReportExchange>().SingleOrDefault() is not { } exchange) return;
 
         var field = app.MapGroup("/api/field");
+        exchange.MapReports(field.MapGroup("/v1"));
         field.MapGet("/info", async (IBrandingService branding, HttpResponse response, CancellationToken ct) =>
         {
             var info = await branding.GetAsync(ct);
@@ -20,7 +22,7 @@ internal static class FieldEndpoints
                 organizationName = info.ProductName,
                 logoUrl = info.HasLogo ? "/api/field/info/logo" : null,
                 protocolVersions = new[] { 1 },
-                minimumSenderVersionCode = 1,
+                minimumSenderVersionCode = exchange.MinimumSenderVersionCode,
             });
         }).AllowAnonymous().RequireRateLimiting("field-info");
 

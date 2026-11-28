@@ -71,8 +71,9 @@ public static class ReviewCard
             report = content with
             {
                 AcceptWouldMark = actions.Contains(ReviewQueue.Accept) && content.AcceptWouldMark,
-                Marks = required == RequiredGaps.None ? content.Marks : ReviewMarks.Dtos(
+                Marks = required == RequiredGaps.None ? content.Marks : ReviewMarks.WithText(ReviewMarks.Dtos(
                     content.Marks.Select(mark => mark.Code).ToArray(), content.PhotosPending, content.MissingFieldsCount, required),
+                    content.Marks),
             },
             workTypes = types.ToDictionary(t => t.Id, t => t.DisplayName),
             workVariants = types.SelectMany(t => t.Variants).ToDictionary(v => v.Id, v => v.Name),

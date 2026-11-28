@@ -144,7 +144,8 @@ public static class ReviewQueue
             item.Version, r.SubmittedAt, r.SubmittedBy is { } by ? Report.SubmitterCode(by) : null,
             r.EnteredByUserId is { } author ? new ReportEnteredByDto(author, r.EnteredByName ?? author.ToString()) : null,
             item.Lines,
-            ReviewMarks.Dtos(item.Marks, item.PhotosPending, item.MissingFields, item.Required),
+            ReviewMarks.WithText(ReviewMarks.Dtos(item.Marks, item.PhotosPending, item.MissingFields, item.Required),
+                item.DeliveryMarks),
             decides?.Covers(r.ConstructionId, own: false) == true ? Decisions : [],
             ReviewMarks.AcceptWouldMark(r, viewer), item.PhotosPending);
     }

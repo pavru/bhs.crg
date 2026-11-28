@@ -42,7 +42,9 @@ internal static class EndpointInventory
         (endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a =>
             a.Policy is { } p &&
             (p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
-             || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)))
+             || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)
+             || (p == BHS.CRG.Modules.Work.Devices.FieldReportEndpoints.DevicePolicy && endpoint is RouteEndpoint route
+                 && Matches(Route(route), BHS.CRG.Modules.Work.Devices.FieldReportEndpoints.Path))))
         || endpoint.Metadata.GetOrderedMetadata<AuthorizationPolicy>().Any(p =>
             p.Requirements.OfType<PermissionRequirement>().Any(r => r.Codes.Count == 0)));
 

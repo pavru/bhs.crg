@@ -9,6 +9,27 @@ export const REVIEW_REPORTS = [
   { id: '2e874522-0737-4629-85ed-82904fd8a092', name: 'Сафонова Ирина Олеговна (посев)', number: 'E2E-22', shift: 'night' },
 ];
 
+async function seedLateReport(api, body) {
+  const invite = await api('POST', `/work/devices/employees/${body.employeeId}/invitations`,
+    { serverUrl: 'https://field.example.test', transport: 'https-system' });
+  const { accessToken } = await api('POST', '/field/join', { invitationCode: invite.invitationCode });
+  const { minimumSenderVersionCode } = await api('GET', '/field/info');
+  const headers = { Authorization: `Bearer ${accessToken}`, 'X-Field-Version-Code': String(minimumSenderVersionCode) };
+  // Два дня назад окно уже закрыто в любом поддерживаемом поясе. Подача на часах телефона произошла до его конца.
+  const date = new Date(Date.parse(body.date) - 2 * 86_400_000).toISOString().slice(0, 10);
+  const draft = await api('POST', '/field/v1/reports', {
+    ...body, date, changeId: randomUUID(), deviceTime: `${date}T05:00:00Z`,
+  }, headers);
+  const path = `/field/v1/reports/${draft.id}`;
+  const submit = { changeId: randomUUID(), deviceTime: `${date}T04:00:00Z` };
+  const send = version => api('POST', `${path}/submit`, submit, { ...headers, 'If-Match': version });
+  return send(draft.version).catch(async error => {
+    if (!/→ 409 .*version-conflict/.test(error.message)) throw error;
+    // Если такт автоподачи обогнал телефон, перечитать версию и доставить то же действие.
+    return send((await api('GET', path, undefined, headers)).version);
+  });
+}
+
 export async function seedReview({ api, ensureUser, constructionId }) {
   await ensureUser(REVIEW_READER_EMAIL, 'Роман Руководителев', 'Executive');
   await ensureUser(REVIEW_RETURN_RECIPIENT_EMAIL, REVIEW_REPORTS[1].name, 'Installer');
@@ -27,7 +48,7 @@ export async function seedReview({ api, ensureUser, constructionId }) {
     const body = { id: report.id, employeeId: employee.id, constructionId, date: construction.today, shift: report.shift, hours: 8, lines: [] };
     let current = await api('GET', path).catch(error => {
       if (!/ → 404 /.test(error.message)) throw error;
-      return api('POST', '/work/entry/reports', body);
+      return report.shift === 'day' ? seedLateReport(api, body) : api('POST', '/work/entry/reports', body);
     });
     if (current.status === 'draft') current = await api('POST', `${path}/submit`, {}, { 'If-Match': current.version });
     if (current.status !== 'submitted') throw new Error(`Отчёт посева ${report.name} имеет статус ${current.status} вместо submitted.`);

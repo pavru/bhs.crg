@@ -73,6 +73,7 @@ public sealed record ReportDto(
     public string? ReturnComment { get; init; }
     public bool PeriodClosed { get; init; }
     public int MissingFieldsCount { get; init; }
+    internal bool HasWebFields { get; init; }
 }
 
 /// <summary>
@@ -113,7 +114,11 @@ public sealed class ReportViews(
     {
         if (reports.Count == 0) return [];
         var acceptance = await ReadAcceptanceAsync(ct);
-        var marks = await reads.MarksAsync(viewer, [.. reports.Select(r => r.Id)], user.Id, ct);
+        var hasWebFields = viewer.FieldDelivery is not null && reports.Any(r => r.Lines.Count > 0)
+            && await acceptanceFields.FormAsync(WorkModule.ModuleCode, WorkRecordTypes.LineDetailsCode, ct) is { } form
+            && form.GetProperty("fields").GetArrayLength() > 0;
+        Guid[] ids = [.. reports.Select(r => r.Id)];
+        var marks = await reads.MarkFlagsAsync(viewer, ids, user.Id, ct, includeDelivery: viewer.FieldDelivery is null);
         var history = await reads.VersionListsAsync(viewer, user.Id, reports, ct);
         var sites = (await constructions.ListAsync(ct)).ToDictionary(site => site.Id);
         var today = new Dictionary<Guid, DateOnly?>();
@@ -128,8 +133,9 @@ public sealed class ReportViews(
         [
             .. reports.Select(r =>
             {
-                var codes = marks.GetValueOrDefault(r.Id) ?? [];
-                return ApplyAcceptance(Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
+                var flags = marks.GetValueOrDefault(r.Id);
+                var codes = flags?.Codes() ?? [];
+                var dto = ApplyAcceptance(Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
                     versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes,
                     history.GetValueOrDefault(r.Id) ?? []) with
                 {
@@ -139,7 +145,10 @@ public sealed class ReportViews(
                     EmployeeName = people.GetValueOrDefault(r.EmployeeId),
                     PeriodClosed = ReportPeriods.IsClosed(boundaries, r.ConstructionId, r.Date),
                     ReturnComment = returns.GetValueOrDefault(r.Id),
+                    HasWebFields = hasWebFields && r.Lines.Count > 0,
                 }, acceptance);
+                return dto with { Marks = ReviewMarks.WithText(dto.Marks,
+                    flags is null ? null : ReportReads.DeliveryMarksOf(flags.Delivery)) };
             }),
         ];
     }
@@ -155,7 +164,9 @@ public sealed class ReportViews(
         {
             Lines = lines,
             MissingFieldsCount = count,
-            Marks = ReviewMarks.Dtos(dto.Marks.Select(mark => mark.Code).ToArray(), dto.PhotosPending, count),
+            Marks = ReviewMarks.WithText(
+                ReviewMarks.Dtos(dto.Marks.Select(mark => mark.Code).ToArray(), dto.PhotosPending, count),
+                dto.Marks.Where(mark => mark.Code != ReviewMarks.FieldsMissing).ToList()),
         };
     }
 
