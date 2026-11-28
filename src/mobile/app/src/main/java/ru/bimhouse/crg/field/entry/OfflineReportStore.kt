@@ -17,6 +17,10 @@ class OfflineReportStore internal constructor(private val db: OfflineDatabase) :
         dao.report(id.toString())?.let { load(it) }
     }
 
+    suspend fun reports(): List<LocalReport> = db.withTransaction {
+        dao.reports().map { load(it) }
+    }
+
     suspend fun pendingActions(): List<PendingReportAction> = dao.pending()
 
     suspend fun suggested(placement: ReportPlacement, now: Instant): SuggestedShift {
