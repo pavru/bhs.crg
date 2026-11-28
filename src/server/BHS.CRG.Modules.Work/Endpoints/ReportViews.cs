@@ -118,9 +118,7 @@ public sealed class ReportViews(
             && await acceptanceFields.FormAsync(WorkModule.ModuleCode, WorkRecordTypes.LineDetailsCode, ct) is { } form
             && form.GetProperty("fields").GetArrayLength() > 0;
         Guid[] ids = [.. reports.Select(r => r.Id)];
-        var marks = await reads.MarksAsync(viewer, ids, user.Id, ct);
-        var delivery = viewer.FieldDelivery is null ? await reads.DeliveryMarksAsync(viewer, ids, ct)
-            : new Dictionary<Guid, IReadOnlyList<ReviewMarkDto>>();
+        var marks = await reads.MarkFlagsAsync(viewer, ids, user.Id, ct, includeDelivery: viewer.FieldDelivery is null);
         var history = await reads.VersionListsAsync(viewer, user.Id, reports, ct);
         var sites = (await constructions.ListAsync(ct)).ToDictionary(site => site.Id);
         var today = new Dictionary<Guid, DateOnly?>();
@@ -135,7 +133,8 @@ public sealed class ReportViews(
         [
             .. reports.Select(r =>
             {
-                var codes = marks.GetValueOrDefault(r.Id) ?? [];
+                var flags = marks.GetValueOrDefault(r.Id);
+                var codes = flags?.Codes() ?? [];
                 var dto = ApplyAcceptance(Dto(r, !codes.Contains(ReviewMarks.SiteNotAssigned), replayed,
                     versions is null ? db.VersionOf(r) : versions[r.Id], AcceptWouldMark(r, user.Id), codes,
                     history.GetValueOrDefault(r.Id) ?? []) with
@@ -148,7 +147,8 @@ public sealed class ReportViews(
                     ReturnComment = returns.GetValueOrDefault(r.Id),
                     HasWebFields = hasWebFields && r.Lines.Count > 0,
                 }, acceptance);
-                return dto with { Marks = ReviewMarks.WithText(dto.Marks, delivery.GetValueOrDefault(r.Id)) };
+                return dto with { Marks = ReviewMarks.WithText(dto.Marks,
+                    flags is null ? null : ReportReads.DeliveryMarksOf(flags.Delivery)) };
             }),
         ];
     }

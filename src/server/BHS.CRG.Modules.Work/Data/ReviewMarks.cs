@@ -180,16 +180,29 @@ public static class ReviewMarks
     /// Все пометки отчёта одной проекцией: <c>Flags[i]</c> — есть ли у отчёта <see cref="Counted" />[i]. Один запрос на
     /// любую выдачу отчётов, а не по запросу на пометку.
     /// </summary>
-    public static Expression<Func<Report, ReviewMarkFlags>> Flags(ReviewMarkSources sources)
+    internal static Expression<Func<Report, ReviewMarkFlags>> Flags(ReviewMarkSources sources, bool includeDelivery)
     {
         var r = Expression.Parameter(typeof(Report), "r");
         var flags = Expression.NewArrayInit(typeof(bool), Counted.Select(m => Inline(m.Has!(sources), r)));
+        List<MemberBinding> fields =
+        [
+            Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Id))!,
+                Expression.Property(r, nameof(Report.Id))),
+            Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Marks))!, flags),
+        ];
+        if (includeDelivery)
+        {
+            Expression<Func<Report, List<ReportDeliveryEntry>>> entries = report => sources.Journal
+                .Where(e => e.ReportId == report.Id && ((e.AuthorId == null && e.DeviceTime != null)
+                    || e.Kind == ReportJournalKinds.Submitted || e.Kind == ReportJournalKinds.AutoSubmitted))
+                .OrderBy(e => e.Seq)
+                .Select(e => new ReportDeliveryEntry(report.WindowEndsAt, e.Kind,
+                    e.AuthorId == null ? e.DeviceTime : null, e.ServerTime)).ToList();
+            fields.Add(Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Delivery))!,
+                Inline(entries, r)));
+        }
         return Expression.Lambda<Func<Report, ReviewMarkFlags>>(
-            Expression.MemberInit(Expression.New(typeof(ReviewMarkFlags)),
-                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Id))!,
-                    Expression.Property(r, nameof(Report.Id))),
-                Expression.Bind(typeof(ReviewMarkFlags).GetProperty(nameof(ReviewMarkFlags.Marks))!, flags)),
-            r);
+            Expression.MemberInit(Expression.New(typeof(ReviewMarkFlags)), fields), r);
     }
 
     /// <summary>
@@ -222,8 +235,8 @@ public static class ReviewMarks
     }
 
     /// <summary>Тело предиката над другим параметром отчёта.</summary>
-    private static Expression Inline(Expression<Func<Report, bool>> predicate, ParameterExpression r) =>
-        new Swap(new Dictionary<ParameterExpression, Expression> { [predicate.Parameters[0]] = r }).Visit(predicate.Body);
+    private static Expression Inline<T>(Expression<Func<Report, T>> selector, ParameterExpression r) =>
+        new Swap(new Dictionary<ParameterExpression, Expression> { [selector.Parameters[0]] = r }).Visit(selector.Body);
 
     private sealed class Swap(IReadOnlyDictionary<ParameterExpression, Expression> map) : ExpressionVisitor
     {
@@ -233,13 +246,18 @@ public static class ReviewMarks
 }
 
 /// <summary>Пометки одного отчёта из проекции <see cref="ReviewMarks.Flags" />.</summary>
-public sealed class ReviewMarkFlags
+internal sealed class ReviewMarkFlags
 {
     public Guid Id { get; init; }
 
     /// <summary>По порядку <see cref="ReviewMarks.Counted" />.</summary>
     public bool[] Marks { get; init; } = [];
 
+    public List<ReportDeliveryEntry> Delivery { get; init; } = [];
+
     /// <summary>Коды пометок отчёта по порядку каталога.</summary>
     public IReadOnlyList<string> Codes() => [.. ReviewMarks.Counted.Where((_, i) => Marks[i]).Select(m => m.Code)];
 }
+
+internal sealed record ReportDeliveryEntry(DateTimeOffset WindowEndsAt, string Kind,
+    DateTimeOffset? DeviceTime, DateTimeOffset ServerTime);

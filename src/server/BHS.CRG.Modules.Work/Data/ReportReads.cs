@@ -377,14 +377,13 @@ public sealed partial class ReportReads(WorkDbContext db)
             })
             .ToListAsync(ct);
         Guid[] ids = [.. page.Select(p => p.Report.Id)];
-        var marks = await MarksAsync(viewer, ids, userId, ct);
-        var delivery = await DeliveryMarksAsync(viewer, ids, ct);
+        var marks = await MarkFlagsAsync(viewer, ids, userId, ct, includeDelivery: true);
         return new ReviewQueueRead(
             [
                 .. page.Select(p => new ReviewQueueItem(
-                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id], p.Pending,
+                    p.Report, p.Version.ToString(CultureInfo.InvariantCulture), p.Lines, marks[p.Report.Id].Codes(), p.Pending,
                     missingFields.GetValueOrDefault(p.Report.Id), required.GetValueOrDefault(p.Report.Id),
-                    delivery.GetValueOrDefault(p.Report.Id))),
+                    DeliveryMarksOf(marks[p.Report.Id].Delivery))),
             ],
             summary.FirstOrDefault()?.Total ?? 0, counts, [.. summary.Select(row => row.EmployeeId)]);
     }
@@ -442,11 +441,17 @@ public sealed partial class ReportReads(WorkDbContext db)
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> MarksAsync(
         ReportViewer viewer, IReadOnlyCollection<Guid> ids, Guid? userId, CancellationToken ct)
     {
+        var flags = await MarkFlagsAsync(viewer, ids, userId, ct, includeDelivery: false);
+        return flags.ToDictionary(f => f.Key, f => f.Value.Codes());
+    }
+
+    internal async Task<Dictionary<Guid, ReviewMarkFlags>> MarkFlagsAsync(
+        ReportViewer viewer, IReadOnlyCollection<Guid> ids, Guid? userId, CancellationToken ct, bool includeDelivery)
+    {
         var wanted = ids.Distinct().ToArray();
-        if (wanted.Length == 0) return new Dictionary<Guid, IReadOnlyList<string>>();
-        var flags = await Visible(viewer).AsNoTracking().Where(r => wanted.Contains(r.Id))
-            .Select(ReviewMarks.Flags(Sources(userId))).ToListAsync(ct);
-        return flags.ToDictionary(f => f.Id, f => f.Codes());
+        if (wanted.Length == 0) return [];
+        return await Visible(viewer).AsNoTracking().Where(r => wanted.Contains(r.Id))
+            .Select(ReviewMarks.Flags(Sources(userId), includeDelivery)).AsSingleQuery().ToDictionaryAsync(f => f.Id, ct);
     }
 
     private IQueryable<ReportJournalEntry> JournalRows() => db.Set<ReportJournalEntry>().AsNoTracking();

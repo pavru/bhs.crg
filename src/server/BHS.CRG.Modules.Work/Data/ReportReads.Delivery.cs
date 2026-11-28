@@ -1,27 +1,10 @@
 using System.Globalization;
-using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Work.Data;
 
 public sealed partial class ReportReads
 {
-    internal async Task<Dictionary<Guid, IReadOnlyList<ReviewMarkDto>>> DeliveryMarksAsync(
-        ReportViewer viewer, Guid[] ids, CancellationToken ct)
-    {
-        if (ids.Length == 0) return [];
-        var visible = Visible(viewer).Where(r => ids.Contains(r.Id));
-        var journal = JournalRows();
-        var rows = await (from report in visible
-                          join entry in journal on report.Id equals entry.ReportId
-                          where (entry.AuthorId == null && entry.DeviceTime != null) || entry.Kind == ReportJournalKinds.Submitted
-                              || entry.Kind == ReportJournalKinds.AutoSubmitted
-                          orderby entry.Seq
-                          select new DeliveryEntry(report.Id, report.WindowEndsAt, entry.Kind,
-                              entry.AuthorId == null ? entry.DeviceTime : null, entry.ServerTime)).ToListAsync(ct);
-        return rows.GroupBy(row => row.ReportId).ToDictionary(group => group.Key, DeliveryMarksOf);
-    }
-
-    private static IReadOnlyList<ReviewMarkDto> DeliveryMarksOf(IEnumerable<DeliveryEntry> entries)
+    internal static IReadOnlyList<ReviewMarkDto> DeliveryMarksOf(IReadOnlyList<ReportDeliveryEntry> entries)
     {
         var texts = new List<ReviewMarkDto>();
         var submission = entries.LastOrDefault(e => e.Kind is
@@ -30,7 +13,7 @@ public sealed partial class ReportReads
             && submitted <= submission.WindowEndsAt && submission.ServerTime > submission.WindowEndsAt)
             texts.Add(Mark(ReviewMarks.LateDelivery, submission, submission.ServerTime - submission.WindowEndsAt));
 
-        DeliveryEntry? previous = null;
+        ReportDeliveryEntry? previous = null;
         ReviewMarkDto? difference = null;
         ReviewMarkDto? back = null;
         foreach (var entry in entries)
@@ -48,7 +31,7 @@ public sealed partial class ReportReads
         return texts;
     }
 
-    private static ReviewMarkDto Mark(string code, DeliveryEntry entry, TimeSpan delta)
+    private static ReviewMarkDto Mark(string code, ReportDeliveryEntry entry, TimeSpan delta)
     {
         var label = ReviewMarks.Of(code)!.Text;
         var minutes = Math.Ceiling(delta.TotalMinutes).ToString(CultureInfo.InvariantCulture);
@@ -56,7 +39,4 @@ public sealed partial class ReportReads
         var server = entry.ServerTime.UtcDateTime.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
         return new ReviewMarkDto(code, $"{label} ({minutes} мин) · действие {device} UTC · приём {server} UTC");
     }
-
-    private sealed record DeliveryEntry(Guid ReportId, DateTimeOffset WindowEndsAt, string Kind,
-        DateTimeOffset? DeviceTime, DateTimeOffset ServerTime);
 }
